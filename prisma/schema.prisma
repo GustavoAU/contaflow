@@ -1,0 +1,100 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  VIEWER
+}
+
+enum TransactionStatus {
+  POSTED    // Contabilizado — inmutable
+  VOIDED    // Anulado con contrapartida
+}
+
+enum TransactionType {
+  DIARIO    // Operaciones normales
+  APERTURA  // Inicio del periodo
+  AJUSTE    // Correcciones al cierre
+  CIERRE    // Cierre del periodo
+}
+
+model Company {
+  id           String        @id @default(cuid())
+  name         String
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Account {
+  id             String         @id @default(cuid())
+  name           String         @unique
+  code           String         @unique
+  type           AccountType
+  description    String?
+  journalEntries JournalEntry[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Transaction {
+  id          String         @id @default(cuid())
+  date        DateTime       @default(now())
+  description String
+  reference   String?
+  companyId   String                      // ✅ Agregado
+  company     Company        @relation(fields: [companyId], references: [id])
+  userId      String                      // ✅ Agregado: quién creó el asiento
+  entries     JournalEntry[]
+  createdAt   DateTime       @default(now())
+  status      TransactionStatus @default(POSTED)
+  type        TransactionType   @default(DIARIO)
+  notes       String?   
+  voidedById  String?           // ← foreign key
+  voidedBy    Transaction?      @relation("VoidRelation", fields: [voidedById], references: [id])
+  voids       Transaction[]     @relation("VoidRelation")
+}
+
+model JournalEntry {
+  id            String      @id @default(cuid())
+  // Convención: positivo = Débito, negativo = Crédito
+  amount        Decimal     @db.Decimal(19, 4)
+  transactionId String
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  accountId     String
+  account       Account     @relation(fields: [accountId], references: [id])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole @default(VIEWER) // ✅ Usando enum en lugar de String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityId   String
+  entityName String
+  action     String
+  userId     String
+  oldValue   Json?    // ✅ Agregado: útil para ver qué cambió
+  newValue   Json
+  createdAt  DateTime @default(now())
+}
