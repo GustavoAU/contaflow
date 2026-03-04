@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { PlusIcon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
-import { getNextAccountCodeAction } from "@/modules/accounting/actions/account.actions";
 
 import {
   Table,
@@ -31,7 +30,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -40,6 +38,7 @@ import {
   getAccountsAction,
   createAccountAction,
   updateAccountAction,
+  getNextAccountCodeAction,
 } from "@/modules/accounting/actions/account.actions";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -52,11 +51,10 @@ type Account = {
   code: string;
   type: AccountType;
   description: string | null;
+  companyId: string;
   createdAt: Date;
   updatedAt: Date;
 };
-
-// ─── Schema del formulario ────────────────────────────────────────────────────
 
 const AccountFormSchema = z.object({
   name: z.string().min(2, "Minimo 2 caracteres"),
@@ -66,8 +64,6 @@ const AccountFormSchema = z.object({
 });
 
 type AccountFormValues = z.infer<typeof AccountFormSchema>;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<AccountType, string> = {
   ASSET: "Activo",
@@ -87,7 +83,13 @@ const TYPE_COLORS: Record<AccountType, "default" | "secondary" | "destructive" |
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] }) {
+export function AccountsTable({
+  initialAccounts,
+  companyId,
+}: {
+  initialAccounts: Account[];
+  companyId: string;
+}) {
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -95,30 +97,24 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(AccountFormSchema),
-    defaultValues: {
-      name: "",
-      code: "",
-      type: "ASSET",
-      description: "",
-    },
+    defaultValues: { name: "", code: "", type: "ASSET", description: "" },
   });
 
-  // Cargar cuentas al montar
   const loadAccounts = async () => {
-    const result = await getAccountsAction();
+    const result = await getAccountsAction(companyId);
     if (result.success) {
       setAccounts(result.data as Account[]);
     } else {
       toast.error(result.error);
     }
   };
+
   async function openCreate() {
     setEditing(null);
     form.reset({ name: "", code: "", type: "ASSET", description: "" });
     setDialogOpen(true);
-    // Generar codigo para ASSET por defecto
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const result = await getNextAccountCodeAction("ASSET");
+    const result = await getNextAccountCodeAction("ASSET", companyId);
     if (result.success) form.setValue("code", result.data.code);
   }
 
@@ -135,15 +131,9 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
 
   async function handleTypeChange(type: string) {
     form.setValue("type", type as AccountFormValues["type"]);
-
-    // Solo autocompletar si es cuenta nueva
     if (!editing) {
-      const result = await getNextAccountCodeAction(
-        type as "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"
-      );
-      if (result.success) {
-        form.setValue("code", result.data.code);
-      }
+      const result = await getNextAccountCodeAction(type as AccountType, companyId);
+      if (result.success) form.setValue("code", result.data.code);
     }
   }
 
@@ -151,13 +141,15 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
     startTransition(async () => {
       const result = editing
         ? await updateAccountAction({ id: editing.id, ...values })
-        : await createAccountAction(values);
+        : await createAccountAction({ ...values, companyId });
 
       if (result.success) {
         if (result.warning) {
-          toast.warning(result.warning); // ← aviso amarillo
+          toast.warning(result.warning);
         } else {
-          toast.success("Cuenta creada correctamente");
+          toast.success(
+            editing ? "Cuenta actualizada correctamente" : "Cuenta creada correctamente"
+          );
         }
         setDialogOpen(false);
         await loadAccounts();
@@ -169,7 +161,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
 
   return (
     <div className="space-y-4">
-      {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Plan de Cuentas</h2>
@@ -183,7 +174,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
         </Button>
       </div>
 
-      {/* Tabla */}
       {accounts.length === 0 ? (
         <div className="text-muted-foreground py-12 text-center text-sm">
           No hay cuentas registradas. Crea la primera.
@@ -227,16 +217,13 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
         </Table>
       )}
 
-      {/* Dialog crear / editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Editar Cuenta" : "Nueva Cuenta"}</DialogTitle>
           </DialogHeader>
-
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Codigo */}
               <FormField
                 control={form.control}
                 name="code"
@@ -250,8 +237,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
                   </FormItem>
                 )}
               />
-
-              {/* Nombre */}
               <FormField
                 control={form.control}
                 name="name"
@@ -265,8 +250,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
                   </FormItem>
                 )}
               />
-
-              {/* Tipo */}
               <FormField
                 control={form.control}
                 name="type"
@@ -290,8 +273,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
                   </FormItem>
                 )}
               />
-
-              {/* Descripcion */}
               <FormField
                 control={form.control}
                 name="description"
@@ -307,7 +288,6 @@ export function AccountsTable({ initialAccounts }: { initialAccounts: Account[] 
                   </FormItem>
                 )}
               />
-
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar

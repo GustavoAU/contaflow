@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const CreateAccountSchema = z.object({
+  companyId: z.string().min(1, "Company ID es requerido"),
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres").max(100),
   code: z.string().min(1, "El codigo es requerido").max(20),
   type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
@@ -16,9 +17,11 @@ const CreateAccountSchema = z.object({
   description: z.string().max(255).optional(),
 });
 
-const UpdateAccountSchema = CreateAccountSchema.partial().extend({
-  id: z.string().min(1, "ID es requerido"),
-});
+const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
+  .partial()
+  .extend({
+    id: z.string().min(1, "ID es requerido"),
+  });
 
 // ─── Rangos por tipo ──────────────────────────────────────────────────────────
 
@@ -38,11 +41,12 @@ type ActionResult<T> =
 
 // ─── Obtener todas las cuentas ────────────────────────────────────────────────
 
-export async function getAccountsAction(): Promise<
-  ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>
-> {
+export async function getAccountsAction(
+  companyId: string
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
     const accounts = await prisma.account.findMany({
+      where: { companyId },
       orderBy: { code: "asc" },
     });
     return { success: true, data: accounts };
@@ -60,21 +64,33 @@ export async function createAccountAction(
   try {
     const validated = CreateAccountSchema.parse(input);
 
-    // Verificar que el codigo no exista
-    const existing = await prisma.account.findUnique({
-      where: { code: validated.code },
+    // Verificar que el codigo no exista en esta empresa
+    const existingCode = await prisma.account.findUnique({
+      where: {
+        companyId_code: {
+          companyId: validated.companyId,
+          code: validated.code,
+        },
+      },
     });
 
-    if (existing) {
+    if (existingCode) {
       return {
         success: false,
-        error: `El codigo ${validated.code} ya esta en uso por la cuenta "${existing.name}"`,
+        error: `El codigo ${validated.code} ya esta en uso por la cuenta "${existingCode.name}"`,
       };
     }
 
+    // Verificar que el nombre no exista en esta empresa
     const existingName = await prisma.account.findUnique({
-      where: { name: validated.name },
+      where: {
+        companyId_name: {
+          companyId: validated.companyId,
+          name: validated.name,
+        },
+      },
     });
+
     if (existingName) {
       return {
         success: false,
@@ -87,11 +103,18 @@ export async function createAccountAction(
     const range = RANGES[validated.type];
     const outOfRange = isNaN(codeNum) || codeNum < range.start || codeNum > range.end;
 
-    const account = await prisma.account.create({ data: validated });
+    const account = await prisma.account.create({
+      data: {
+        name: validated.name,
+        code: validated.code,
+        type: validated.type,
+        description: validated.description,
+        companyId: validated.companyId,
+      },
+    });
 
-    revalidatePath("/accounting/accounts");
+    revalidatePath(`/company/${validated.companyId}/accounts`);
 
-    // Retornar warning si el codigo esta fuera del rango estandar
     if (outOfRange) {
       return {
         success: true,
@@ -139,7 +162,7 @@ export async function updateAccountAction(
 
     const account = await prisma.account.update({ where: { id }, data });
 
-    revalidatePath("/accounting/accounts");
+    revalidatePath("/company");
 
     return { success: true, data: { id: account.id, name: account.name } };
   } catch (error) {
@@ -160,22 +183,22 @@ export async function updateAccountAction(
 // ─── Generar codigo automatico ────────────────────────────────────────────────
 
 export async function getNextAccountCodeAction(
-  type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
+  companyId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {
     const range = RANGES[type];
 
     const accounts = await prisma.account.findMany({
+      where: { companyId },
       select: { code: true },
     });
 
-    // Filtrar y ordenar numericamente de forma ascendente
     const codesInRange = accounts
       .map((a) => Number(a.code))
       .filter((code) => !isNaN(code) && code >= range.start && code <= range.end)
       .sort((a, b) => a - b);
 
-    // Buscar primer hueco disponible desde el inicio del rango
     let nextCode = range.start;
     for (const code of codesInRange) {
       if (code === nextCode) {

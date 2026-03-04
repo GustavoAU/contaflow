@@ -1,60 +1,83 @@
+// src/components/layout/Navbar.tsx
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, BookOpen, FileText, BarChart3, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  BookOpen,
+  FileText,
+  BarChart3,
+  Settings,
+} from "lucide-react";
 
-// ─── Items del navbar ─────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  {
-    label: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Plan de Cuentas",
-    href: "/accounting/accounts",
-    icon: BookOpen,
-  },
-  {
-    label: "Asientos",
-    href: "/accounting/transactions",
-    icon: FileText,
-  },
-  {
-    label: "Reportes",
-    href: "/accounting/reports/ledger",
-    icon: BarChart3,
-  },
-  {
-    label: "Configuracion",
-    href: "/settings",
-    icon: Settings,
-  },
-];
+type NavbarProps = {
+  companyId?: string;
+  companyName?: string;
+};
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function Navbar() {
+export function Navbar({ companyId, companyName }: NavbarProps) {
   const pathname = usePathname();
+
+  const NAV_ITEMS = companyId
+    ? [
+        {
+          label: "Dashboard",
+          href:  `/company/${companyId}`,
+          icon:  LayoutDashboard,
+        },
+        {
+          label: "Plan de Cuentas",
+          href:  `/company/${companyId}/accounts`,
+          icon:  BookOpen,
+        },
+        {
+          label: "Asientos",
+          href:  `/company/${companyId}/transactions`,
+          icon:  FileText,
+        },
+        {
+          label: "Reportes",
+          href:  `/company/${companyId}/reports`,
+          icon:  BarChart3,
+        },
+        {
+          label: "Configuracion",
+          href:  `/company/${companyId}/settings`,
+          icon:  Settings,
+        },
+      ]
+    : [];
 
   return (
     <header className="border-b bg-white dark:bg-zinc-950">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight">
             Conta<span className="text-blue-600">Flow</span>
           </span>
+          {companyName && (
+            <span className="text-muted-foreground hidden text-sm md:block">
+              — {companyName}
+            </span>
+          )}
         </Link>
 
         {/* Nav links */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const isActive =
+              item.href === `/company/${companyId}`
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
 
             return (
               <Link
