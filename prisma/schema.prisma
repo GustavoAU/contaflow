@@ -38,17 +38,35 @@ model Company {
   transactions Transaction[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  rif       String?   @unique  // RIF para Venezuela
+  address   String?
+  members   CompanyMember[]
+  accounts  Account[]
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  role      UserRole @default(ACCOUNTANT)
+  user      User     @relation(fields: [userId], references: [id])
+  company   Company  @relation(fields: [companyId], references: [id])
+  @@unique([userId, companyId])
 }
 
 model Account {
   id             String         @id @default(cuid())
-  name           String         @unique
-  code           String         @unique
+  name           String
+  code           String
   type           AccountType
   description    String?
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
   journalEntries JournalEntry[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  @@unique([companyId, code])
+  @@unique([companyId, name])
 }
 
 model Transaction {
@@ -80,12 +98,13 @@ model JournalEntry {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
+  id        String    @id 
+  name      String?
   email     String   @unique
-  role      UserRole @default(VIEWER) // ✅ Usando enum en lugar de String
+  role      UserRole  @default(ACCOUNTANT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  companies CompanyMember[]
 }
 
 model AuditLog {
