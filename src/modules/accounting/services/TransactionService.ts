@@ -1,3 +1,4 @@
+// src/modules/accounting/services/TransactionService.ts
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
@@ -5,15 +6,44 @@ import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/tr
 
 export class TransactionService {
   /**
+   * Genera el numero correlativo automatico para un asiento.
+   * Formato: YYYY-MM-XXXXXX (ej: 2026-03-000001)
+   * Es unico por empresa y por mes.
+   */
+  static async generateTransactionNumber(companyId: string, date: Date): Promise<string> {
+    const year = date.getFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const prefix = `${year}-${month}-`;
+
+    // Buscar el ultimo numero del mes para esta empresa
+    const last = await prisma.transaction.findFirst({
+      where: {
+        companyId,
+        number: { startsWith: prefix },
+      },
+      orderBy: { number: "desc" },
+      select: { number: true },
+    });
+
+    let sequence = 1;
+    if (last) {
+      // Extraer el numero secuencial del ultimo asiento
+      const lastSequence = parseInt(last.number.replace(prefix, ""), 10);
+      sequence = lastSequence + 1;
+    }
+
+    return `${prefix}${String(sequence).padStart(6, "0")}`;
+  }
+
+  /**
    * Crea un asiento contable validando la regla de partida doble.
-   * Convencion: positivo = Debito, negativo = Credito
+   * Convencion: Debito = positivo, Credito = negativo
    */
   static async createBalancedTransaction(input: CreateTransactionInput) {
-    // 1. Validar con Zod
+    // 1. Validar con Zod — incluye validacion de partida doble
     const validated = CreateTransactionSchema.parse(input);
 
     // 2. Convertir debit/credit a amount
-    // Convencion: Debito = positivo, Credito = negativo
     const entries = validated.entries.map((entry) => ({
       accountId: entry.accountId,
       amount:
@@ -22,28 +52,38 @@ export class TransactionService {
           : new Decimal(entry.credit || "0").negated(),
     }));
 
-    // 3. Validar que todas las cuentas existen
+    // 3. Validar que todas las cuentas existen y pertenecen a la empresa
     const accountIds = entries.map((e) => e.accountId);
     const accounts = await prisma.account.findMany({
-      where: { id: { in: accountIds } },
+      where: {
+        id: { in: accountIds },
+        companyId: validated.companyId,
+      },
       select: { id: true },
     });
 
     if (accounts.length !== accountIds.length) {
       const foundIds = accounts.map((a) => a.id);
       const missing = accountIds.filter((id) => !foundIds.includes(id));
-      throw new Error("Cuentas no encontradas: " + missing.join(", "));
+      throw new Error(
+        "Cuentas no encontradas o no pertenecen a esta empresa: " + missing.join(", ")
+      );
     }
 
-    // 4. Crear transaccion atomica
+    // 4. Generar numero correlativo
+    const date = validated.date ?? new Date();
+    const number = await TransactionService.generateTransactionNumber(validated.companyId, date);
+
+    // 5. Crear transaccion atomica
     const transaction = await prisma.transaction.create({
       data: {
+        number,
         companyId: validated.companyId,
         userId: validated.userId,
         description: validated.description,
         reference: validated.reference,
         notes: validated.notes,
-        date: validated.date ?? new Date(),
+        date,
         type: validated.type,
         entries: {
           create: entries,
@@ -54,7 +94,7 @@ export class TransactionService {
       },
     });
 
-    // 5. AuditLog
+    // 6. AuditLog
     await prisma.auditLog.create({
       data: {
         entityId: transaction.id,
@@ -70,7 +110,7 @@ export class TransactionService {
 
   /**
    * Anula un asiento contabilizado creando un asiento espejo con montos invertidos.
-   * El asiento original queda con status VOIDED -- nunca se borra.
+   * El asiento original queda con status VOIDED — nunca se borra.
    */
   static async voidTransaction(input: VoidTransactionInput) {
     // 1. Validar con Zod
@@ -91,15 +131,26 @@ export class TransactionService {
       throw new Error("Esta transaccion ya fue anulada anteriormente");
     }
 
-    // 4. Crear asiento de contrapartida y marcar original como VOIDED
-    const [voidTransaction] = await prisma.$transaction([
-      prisma.transaction.create({
+    // 4. Generar numero para el asiento de anulacion
+    const voidDate = new Date();
+    const voidNumber = await TransactionService.generateTransactionNumber(
+      original.companyId,
+      voidDate
+    );
+
+    // 5. Crear asiento de contrapartida y marcar original como VOIDED
+    const voidTransaction = await prisma.$transaction(async (tx) => {
+      // Crear asiento espejo con montos invertidos
+      const voidTx = await tx.transaction.create({
         data: {
+          number: voidNumber,
           companyId: original.companyId,
           userId: validated.userId,
-          description: "ANULACION: " + original.description + " - " + validated.reason,
+          description: "ANULACION: " + original.description + " — " + validated.reason,
           reference: original.reference ?? undefined,
-          date: new Date(),
+          date: voidDate,
+          type: original.type,
+          status: "POSTED",
           entries: {
             create: original.entries.map((entry) => ({
               accountId: entry.accountId,
@@ -110,32 +161,29 @@ export class TransactionService {
         include: {
           entries: { include: { account: true } },
         },
-      }),
-      prisma.transaction.update({
-        where: { id: validated.transactionId },
-        data: { status: "VOIDED" },
-      }),
-    ]);
+      });
 
-    // 5. Vincular el asiento original con su contrapartida
-    await prisma.transaction.update({
-      where: { id: validated.transactionId },
-      data: { voidedById: voidTransaction.id },
+      // Marcar original como VOIDED y vincular con el asiento de anulacion
+      await tx.transaction.update({
+        where: { id: original.id },
+        data: {
+          status: "VOIDED",
+          voidedById: voidTx.id,
+        },
+      });
+
+      return voidTx;
     });
 
-    // 6. Registrar en AuditLog
+    // 6. AuditLog
     await prisma.auditLog.create({
       data: {
         entityId: original.id,
         entityName: "Transaction",
         action: "VOID",
         userId: validated.userId,
-        oldValue: { status: "POSTED" },
-        newValue: {
-          status: "VOIDED",
-          voidedById: voidTransaction.id,
-          reason: validated.reason,
-        },
+        oldValue: original as object,
+        newValue: voidTransaction as object,
       },
     });
 
@@ -143,8 +191,7 @@ export class TransactionService {
   }
 
   /**
-   * Obtiene todas las transacciones de una empresa,
-   * ordenadas de mas reciente a mas antigua.
+   * Obtiene todas las transacciones de una empresa ordenadas por fecha.
    */
   static async getTransactionsByCompany(companyId: string) {
     return prisma.transaction.findMany({

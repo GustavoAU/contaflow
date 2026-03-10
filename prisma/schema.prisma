@@ -71,20 +71,23 @@ model Account {
 
 model Transaction {
   id          String         @id @default(cuid())
+  number      String 
   date        DateTime       @default(now())
   description String
   reference   String?
-  companyId   String                      // ✅ Agregado
+  companyId   String
   company     Company        @relation(fields: [companyId], references: [id])
-  userId      String                      // ✅ Agregado: quién creó el asiento
+  userId      String
   entries     JournalEntry[]
   createdAt   DateTime       @default(now())
   status      TransactionStatus @default(POSTED)
   type        TransactionType   @default(DIARIO)
   notes       String?   
-  voidedById  String?           // ← foreign key
+  voidedById  String?
   voidedBy    Transaction?      @relation("VoidRelation", fields: [voidedById], references: [id])
   voids       Transaction[]     @relation("VoidRelation")
+
+  @@unique([companyId, number])
 }
 
 model JournalEntry {
