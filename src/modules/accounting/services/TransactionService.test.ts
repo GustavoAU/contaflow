@@ -10,6 +10,9 @@ vi.mock("@/lib/prisma", () => ({
     account: {
       findMany: vi.fn(),
     },
+    accountingPeriod: {
+      findFirst: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -73,5 +76,32 @@ describe("generateTransactionNumber", () => {
         where: expect.objectContaining({ companyId: "company-2" }),
       })
     );
+  });
+});
+
+describe("createBalancedTransaction - period validation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("lanza error si no hay período abierto", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1" },
+      { id: "acc-2" },
+    ] as never);
+
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+
+    await expect(
+      TransactionService.createBalancedTransaction({
+        companyId: "company-1",
+        userId: "user-1",
+        description: "Test",
+        date: new Date("2026-03-10"),
+        type: "DIARIO",
+        entries: [
+          { accountId: "acc-1", debit: "1000", credit: "0" },
+          { accountId: "acc-2", debit: "0", credit: "1000" },
+        ],
+      })
+    ).rejects.toThrow("No hay período contable abierto");
   });
 });

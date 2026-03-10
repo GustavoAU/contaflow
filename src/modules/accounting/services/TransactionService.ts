@@ -70,11 +70,22 @@ export class TransactionService {
       );
     }
 
-    // 4. Generar numero correlativo
+    // 4. Verificar que hay un período abierto
+    const activePeriod = await prisma.accountingPeriod.findFirst({
+      where: { companyId: validated.companyId, status: "OPEN" },
+    });
+
+    if (!activePeriod) {
+      throw new Error(
+        "No hay período contable abierto. Abre un período en Configuración antes de registrar asientos."
+      );
+    }
+
+    // 5. Generar numero correlativo
     const date = validated.date ?? new Date();
     const number = await TransactionService.generateTransactionNumber(validated.companyId, date);
 
-    // 5. Crear transaccion atomica
+    // 6. Crear transaccion atomica
     const transaction = await prisma.transaction.create({
       data: {
         number,
@@ -85,6 +96,7 @@ export class TransactionService {
         notes: validated.notes,
         date,
         type: validated.type,
+        periodId: activePeriod.id,
         entries: {
           create: entries,
         },
@@ -94,7 +106,7 @@ export class TransactionService {
       },
     });
 
-    // 6. AuditLog
+    // 7. AuditLog
     await prisma.auditLog.create({
       data: {
         entityId: transaction.id,

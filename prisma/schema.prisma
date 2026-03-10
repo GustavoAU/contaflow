@@ -14,6 +14,11 @@ enum AccountType {
   EXPENSE
 }
 
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
 enum UserRole {
   ADMIN
   ACCOUNTANT
@@ -36,6 +41,7 @@ model Company {
   id           String        @id @default(cuid())
   name         String
   transactions Transaction[]
+  periods AccountingPeriod[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   rif       String?   @unique  // RIF para Venezuela
@@ -86,6 +92,8 @@ model Transaction {
   voidedById  String?
   voidedBy    Transaction?      @relation("VoidRelation", fields: [voidedById], references: [id])
   voids       Transaction[]     @relation("VoidRelation")
+  periodId    String?
+  period      AccountingPeriod? @relation(fields: [periodId], references: [id])
 
   @@unique([companyId, number])
 }
@@ -116,7 +124,23 @@ model AuditLog {
   entityName String
   action     String
   userId     String
-  oldValue   Json?    // ✅ Agregado: útil para ver qué cambió
+  oldValue   Json?
   newValue   Json
   createdAt  DateTime @default(now())
+}
+
+model AccountingPeriod {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  year        Int
+  month       Int          // 1-12
+  status      PeriodStatus @default(OPEN)
+  openedAt    DateTime     @default(now())
+  closedAt    DateTime?
+  openedBy    String       // userId
+  closedBy    String?      // userId
+  transactions Transaction[]
+
+  @@unique([companyId, year, month])
 }
