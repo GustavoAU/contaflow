@@ -18,7 +18,7 @@ async function main() {
     update: {},
     create: {
       id: "user_3ASUXQGjepsTxT5W6AcIyytnqdf",
-      email: "admin@contaflow.com", // cambia por tu email real
+      email: "gustavou2186@gmail.com", // cambia por tu email real
       name: "Admin ContaFlow",
       role: UserRole.ADMIN,
     },
