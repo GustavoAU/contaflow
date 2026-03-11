@@ -14,6 +14,7 @@ import {
   AlertCircleIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -209,22 +210,8 @@ export default async function CompanyDashboardPage({ params }: Props) {
         </div>
       )}
 
-      {/* ─── Onboarding: sin data ────────────────────────────────────────── */}
-      {m.totalTransactions === 0 && (
-        <div className="rounded-lg border border-dashed bg-white p-8 text-center">
-          <p className="font-semibold text-zinc-700">¡Bienvenido a ContaFlow!</p>
-          <p className="text-muted-foreground mt-1 mb-4 text-sm">
-            Comienza configurando tu plan de cuentas y abriendo el período contable.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/company/${companyId}/accounts`}>Ver Plan de Cuentas</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href={`/company/${companyId}/settings`}>Abrir Período</Link>
-            </Button>
-          </div>
-        </div>
+      {m.totalAccounts === 0 && (
+        <OnboardingWizard companyId={companyId} companyName={company.name} />
       )}
     </div>
   );
