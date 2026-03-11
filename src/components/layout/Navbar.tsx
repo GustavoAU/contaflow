@@ -4,54 +4,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  BookOpen,
-  FileText,
-  BarChart3,
-  Settings,
-} from "lucide-react";
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+import { LayoutDashboard, BookOpen, FileText, BarChart3, Settings } from "lucide-react";
 
 type NavbarProps = {
   companyId?: string;
   companyName?: string;
 };
 
-// ─── Componente ───────────────────────────────────────────────────────────────
-
 export function Navbar({ companyId, companyName }: NavbarProps) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   const NAV_ITEMS = companyId
     ? [
-        {
-          label: "Dashboard",
-          href:  `/company/${companyId}`,
-          icon:  LayoutDashboard,
-        },
-        {
-          label: "Plan de Cuentas",
-          href:  `/company/${companyId}/accounts`,
-          icon:  BookOpen,
-        },
-        {
-          label: "Asientos",
-          href:  `/company/${companyId}/transactions`,
-          icon:  FileText,
-        },
-        {
-          label: "Reportes",
-          href:  `/company/${companyId}/reports`,
-          icon:  BarChart3,
-        },
-        {
-          label: "Configuracion",
-          href:  `/company/${companyId}/settings`,
-          icon:  Settings,
-        },
+        { label: t("dashboard"), href: `/company/${companyId}`, icon: LayoutDashboard },
+        { label: t("accounts"), href: `/company/${companyId}/accounts`, icon: BookOpen },
+        { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
+        { label: t("reports"), href: `/company/${companyId}/reports`, icon: BarChart3 },
+        { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
     : [];
 
@@ -64,9 +36,7 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
             Conta<span className="text-blue-600">Flow</span>
           </span>
           {companyName && (
-            <span className="text-muted-foreground hidden text-sm md:block">
-              — {companyName}
-            </span>
+            <span className="text-muted-foreground hidden text-sm md:block">— {companyName}</span>
           )}
         </Link>
 

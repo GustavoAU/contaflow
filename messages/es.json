@@ -1,0 +1,70 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "accounts": "Plan de Cuentas",
+    "transactions": "Asientos",
+    "reports": "Reportes",
+    "settings": "Configuración"
+  },
+  "dashboard": {
+    "newTransaction": "Nuevo Asiento",
+    "activePeriod": "Período activo",
+    "noPeriod": "No hay período contable abierto",
+    "noPeriodDesc": "No podrás registrar asientos hasta abrir un período.",
+    "openPeriod": "Abrir Período",
+    "accounts": "Plan de Cuentas",
+    "accountsDesc": "cuentas registradas",
+    "monthTransactions": "Asientos del Mes",
+    "totalTransactions": "en total",
+    "revenue": "Ingresos",
+    "expenses": "Gastos",
+    "accumulated": "acumulado",
+    "totalAssets": "Total Activos",
+    "totalLiabilities": "Total Pasivos",
+    "netIncome": "Utilidad Neta",
+    "lastTransaction": "Último Asiento Registrado",
+    "viewAll": "Ver todos →"
+  },
+  "settings": {
+    "title": "Configuración",
+    "description": "Administra los períodos contables y preferencias de tu empresa",
+    "language": "Idioma",
+    "languageDesc": "Selecciona el idioma de la interfaz",
+    "spanish": "Español",
+    "english": "English"
+  },
+  "periods": {
+    "activePeriod": "Período Activo",
+    "noPeriod": "No hay período abierto",
+    "openPeriod": "Abrir",
+    "closePeriod": "Cerrar Período",
+    "history": "Historial de Períodos",
+    "noHistory": "No hay períodos registrados.",
+    "period": "Período",
+    "status": "Estado",
+    "entries": "Asientos",
+    "opened": "Abierto",
+    "closed": "Cerrado",
+    "open": "Abierto",
+    "confirmOpen": "¿Confirmas abrir el período",
+    "confirmOpenDesc": "Una vez abierto, podrás registrar asientos en este período.",
+    "confirmClose": "¿Confirmas cerrar el período",
+    "confirmCloseDesc": "Esta acción es irreversible. No podrás registrar más asientos en este período.",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "opening": "Abriendo...",
+    "closing": "Cerrando..."
+  },
+  "onboarding": {
+    "welcome": "¡Bienvenido a ContaFlow!",
+    "step1": "Configura tu Plan de Cuentas",
+    "step1Desc": "Agrega las cuentas contables de tu empresa",
+    "step2": "Abre tu primer período contable",
+    "step2Desc": "Define el mes y año de inicio",
+    "step3": "Registra tu primer asiento",
+    "step3Desc": "Comienza a contabilizar tus operaciones",
+    "start": "Comenzar",
+    "next": "Siguiente",
+    "skip": "Omitir"
+  }
+}

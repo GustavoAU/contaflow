@@ -1,0 +1,70 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "accounts": "Chart of Accounts",
+    "transactions": "Journal Entries",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "newTransaction": "New Entry",
+    "activePeriod": "Active period",
+    "noPeriod": "No accounting period open",
+    "noPeriodDesc": "You won't be able to record entries until you open a period.",
+    "openPeriod": "Open Period",
+    "accounts": "Chart of Accounts",
+    "accountsDesc": "registered accounts",
+    "monthTransactions": "Monthly Entries",
+    "totalTransactions": "total",
+    "revenue": "Revenue",
+    "expenses": "Expenses",
+    "accumulated": "accumulated",
+    "totalAssets": "Total Assets",
+    "totalLiabilities": "Total Liabilities",
+    "netIncome": "Net Income",
+    "lastTransaction": "Last Recorded Entry",
+    "viewAll": "View all →"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your company's accounting periods and preferences",
+    "language": "Language",
+    "languageDesc": "Select the interface language",
+    "spanish": "Español",
+    "english": "English"
+  },
+  "periods": {
+    "activePeriod": "Active Period",
+    "noPeriod": "No open period",
+    "openPeriod": "Open",
+    "closePeriod": "Close Period",
+    "history": "Period History",
+    "noHistory": "No periods registered.",
+    "period": "Period",
+    "status": "Status",
+    "entries": "Entries",
+    "opened": "Opened",
+    "closed": "Closed",
+    "open": "Open",
+    "confirmOpen": "Confirm opening period",
+    "confirmOpenDesc": "Once opened, you'll be able to record entries in this period.",
+    "confirmClose": "Confirm closing period",
+    "confirmCloseDesc": "This action is irreversible. You won't be able to record more entries in this period.",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "opening": "Opening...",
+    "closing": "Closing..."
+  },
+  "onboarding": {
+    "welcome": "Welcome to ContaFlow!",
+    "step1": "Set up your Chart of Accounts",
+    "step1Desc": "Add your company's accounting accounts",
+    "step2": "Open your first accounting period",
+    "step2Desc": "Define the starting month and year",
+    "step3": "Record your first journal entry",
+    "step3Desc": "Start recording your operations",
+    "start": "Get Started",
+    "next": "Next",
+    "skip": "Skip"
+  }
+}

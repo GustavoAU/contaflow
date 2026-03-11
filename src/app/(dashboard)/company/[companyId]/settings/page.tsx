@@ -3,9 +3,11 @@ import {
   getPeriodsAction,
   getActivePeriodAction,
 } from "@/modules/accounting/actions/period.actions";
+import { getLocaleAction } from "@/modules/settings/actions/locale.actions";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { PeriodManager } from "@/components/accounting/PeriodManager";
+import { LanguageSelector } from "@/modules/settings/LanguageSelector";
 import { Toaster } from "@/components/ui/sonner";
 
 type Props = {
@@ -18,9 +20,10 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult] = await Promise.all([
+  const [periodsResult, activePeriodResult, locale] = await Promise.all([
     getPeriodsAction(companyId),
     getActivePeriodAction(companyId),
+    getLocaleAction(),
   ]);
 
   const periods = periodsResult.success ? periodsResult.data : [];
@@ -31,9 +34,11 @@ export default async function SettingsPage({ params }: Props) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Administra los períodos contables de tu empresa
+          Administra los períodos contables y preferencias de tu empresa
         </p>
       </div>
+
+      <LanguageSelector currentLocale={locale} />
 
       <PeriodManager
         companyId={companyId}
