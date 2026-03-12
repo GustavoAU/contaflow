@@ -6,7 +6,15 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, BookOpen, FileText, BarChart3, Settings, ScanIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  BookOpen,
+  FileText,
+  BarChart3,
+  Settings,
+  ScanIcon,
+  FileSpreadsheetIcon,
+} from "lucide-react";
 
 type NavbarProps = {
   companyId?: string;
@@ -22,6 +30,7 @@ export function Navbar({ companyId, companyName, plan }: NavbarProps) {
     ? [
         { label: t("dashboard"), href: `/company/${companyId}`, icon: LayoutDashboard },
         { label: t("accounts"), href: `/company/${companyId}/accounts`, icon: BookOpen },
+        { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
         { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
         {
           label: plan === "PRO" ? "Escanear" : "Escanear 🔒",
