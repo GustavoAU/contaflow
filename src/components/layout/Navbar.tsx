@@ -6,14 +6,15 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, BookOpen, FileText, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, BookOpen, FileText, BarChart3, Settings, ScanIcon } from "lucide-react";
 
 type NavbarProps = {
   companyId?: string;
   companyName?: string;
+  plan?: string;
 };
 
-export function Navbar({ companyId, companyName }: NavbarProps) {
+export function Navbar({ companyId, companyName, plan }: NavbarProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
 
@@ -22,6 +23,15 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
         { label: t("dashboard"), href: `/company/${companyId}`, icon: LayoutDashboard },
         { label: t("accounts"), href: `/company/${companyId}/accounts`, icon: BookOpen },
         { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
+        {
+          label: plan === "PRO" ? "Escanear" : "Escanear 🔒",
+          href:
+            plan === "PRO"
+              ? `/company/${companyId}/invoices/upload`
+              : `/company/${companyId}/upgrade`,
+          icon: ScanIcon,
+          disabled: plan !== "PRO",
+        },
         { label: t("reports"), href: `/company/${companyId}/reports`, icon: BarChart3 },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
@@ -49,15 +59,30 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
 
-            return (
+            return item.disabled ? (
+              <div
+                key={item.href}
+                title="Función disponible en el plan Pro — haz click para más info"
+                onClick={() => (window.location.href = `/company/${companyId}/upgrade`)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "text-zinc-400 hover:bg-zinc-100 hover:text-blue-500"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </div>
+            ) : (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
                   "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+                  item.disabled &&
+                    "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-600"
                 )}
               >
                 <Icon className="h-4 w-4" />

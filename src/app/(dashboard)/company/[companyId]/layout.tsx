@@ -17,7 +17,7 @@ export default async function CompanyLayout({ children, params }: Props) {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <Navbar companyId={companyId} companyName={company.name} />
+      <Navbar companyId={companyId} companyName={company.name} plan={company.plan} />
       <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
     </div>
   );
