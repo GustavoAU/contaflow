@@ -14,6 +14,11 @@ enum AccountType {
   EXPENSE
 }
 
+enum CompanyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum PeriodStatus {
   OPEN
   CLOSED
@@ -48,6 +53,7 @@ model Company {
   address   String?
   members   CompanyMember[]
   accounts  Account[]
+  status CompanyStatus @default(ACTIVE)
 }
 
 model CompanyMember {

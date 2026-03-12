@@ -4,10 +4,12 @@ import {
   getActivePeriodAction,
 } from "@/modules/accounting/actions/period.actions";
 import { getLocaleAction } from "@/modules/settings/actions/locale.actions";
+import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { PeriodManager } from "@/components/accounting/PeriodManager";
 import { LanguageSelector } from "@/modules/settings/LanguageSelector";
+import { ArchiveCompany } from "@/components/company/ArchiveCompany";
 import { Toaster } from "@/components/ui/sonner";
 
 type Props = {
@@ -20,14 +22,17 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult, locale] = await Promise.all([
+  const [periodsResult, activePeriodResult, locale, companies] = await Promise.all([
     getPeriodsAction(companyId),
     getActivePeriodAction(companyId),
     getLocaleAction(),
+    getUserCompaniesAction(),
   ]);
 
   const periods = periodsResult.success ? periodsResult.data : [];
   const activePeriod = activePeriodResult.success ? activePeriodResult.data : null;
+  const company = companies.find((c) => c.id === companyId);
+  if (!company) redirect("/dashboard");
 
   return (
     <div className="space-y-6">
@@ -46,6 +51,8 @@ export default async function SettingsPage({ params }: Props) {
         periods={periods}
         activePeriod={activePeriod}
       />
+
+      <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
 
       <Toaster richColors position="top-right" />
     </div>

@@ -29,7 +29,29 @@ export async function getUserCompaniesAction() {
   if (!clerkUser) return [];
 
   const memberships = await prisma.companyMember.findMany({
-    where: { userId: clerkUser.id },
+    where: {
+      userId: clerkUser.id,
+      company: { status: "ACTIVE" },
+    },
+    include: { company: true },
+    orderBy: { company: { name: "asc" } },
+  });
+
+  return memberships.map((m) => ({
+    ...m.company,
+    role: m.role,
+  }));
+}
+
+export async function getArchivedCompaniesAction() {
+  const clerkUser = await currentUser();
+  if (!clerkUser) return [];
+
+  const memberships = await prisma.companyMember.findMany({
+    where: {
+      userId: clerkUser.id,
+      company: { status: "ARCHIVED" },
+    },
     include: { company: true },
     orderBy: { company: { name: "asc" } },
   });
