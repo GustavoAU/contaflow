@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon } from "lucide-react";
 import { extractInvoiceAction } from "@/modules/ocr/actions/ocr.actions";
 import type { ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
+import Tesseract from "tesseract.js";
 
 type Props = {
   companyId: string;
@@ -83,8 +84,21 @@ export function InvoiceUploader({ companyId, userId }: Props) {
     }
 
     startTransition(async () => {
-      const validMime = mimeType as "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
-      const result = await extractInvoiceAction(base64, validMime);
+      // Paso 1 — Tesseract en el browser extrae el texto
+      toast.info("Extrayendo texto de la imagen...");
+      const imageUrl = `data:${mimeType};base64,${base64}`;
+      const {
+        data: { text },
+      } = await Tesseract.recognize(imageUrl, "spa");
+
+      if (!text || text.trim().length < 10) {
+        toast.error("No se pudo extraer texto — verifica que la imagen sea legible");
+        return;
+      }
+
+      // Paso 2 — Groq estructura el JSON
+      toast.info("Analizando datos contables...");
+      const result = await extractInvoiceAction(text);
 
       if (result.success) {
         setExtracted(result.data);
@@ -168,7 +182,7 @@ export function InvoiceUploader({ companyId, userId }: Props) {
 
           {isPending && (
             <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              🤖 Gemini está analizando tu factura...
+              🤖 Procesando factura con IA... (puede tomar hasta 2 minutos)
             </div>
           )}
         </div>
@@ -193,6 +207,13 @@ export function InvoiceUploader({ companyId, userId }: Props) {
                 </span>
               </div>
 
+              {/* Aviso de precisión */}
+              <div className="border-b bg-yellow-50 px-4 py-2">
+                <p className="text-center text-xs text-yellow-700">
+                  ⚠️ Precisión aproximada del 80% — verifica los datos antes de guardar
+                </p>
+              </div>
+
               {/* Campos */}
               <div className="space-y-3 p-4">
                 {extracted.supplierName && (
@@ -209,10 +230,14 @@ export function InvoiceUploader({ companyId, userId }: Props) {
                     value={CURRENCY_LABELS[extracted.currency] ?? extracted.currency}
                   />
                 )}
-                {extracted.subtotal && <Field label="Subtotal" value={extracted.subtotal} mono />}
-                {extracted.taxAmount && <Field label="IVA" value={extracted.taxAmount} mono />}
+                {extracted.subtotal && (
+                  <Field label="Subtotal" value={formatAmount(extracted.subtotal)} mono />
+                )}
+                {extracted.taxAmount && (
+                  <Field label="IVA" value={formatAmount(extracted.taxAmount)} mono />
+                )}
                 {extracted.totalAmount && (
-                  <Field label="Total" value={extracted.totalAmount} mono bold />
+                  <Field label="Total" value={formatAmount(extracted.totalAmount)} mono bold />
                 )}
                 {extracted.paymentMethod && (
                   <Field
@@ -259,9 +284,16 @@ export function InvoiceUploader({ companyId, userId }: Props) {
               </div>
 
               {/* Acción futura */}
-              <div className="border-t bg-zinc-50 px-4 py-3">
+              <div className="space-y-1 border-t bg-zinc-50 px-4 py-3">
                 <p className="text-center text-xs text-zinc-400">
                   Próximamente: generar asiento contable automático desde esta factura
+                </p>
+                <p className="text-center text-xs text-zinc-400">
+                  ¿Necesitas mayor precisión?{" "}
+                  <span className="cursor-pointer text-blue-500 hover:underline">
+                    Actualiza a ContaFlow Pro
+                  </span>{" "}
+                  para OCR con IA avanzada (~95% precisión)
                 </p>
               </div>
             </div>
@@ -275,6 +307,14 @@ export function InvoiceUploader({ companyId, userId }: Props) {
 }
 
 // ─── Componente auxiliar ──────────────────────────────────────────────────────
+function formatAmount(value: string): string {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
+}
 
 function Field({
   label,

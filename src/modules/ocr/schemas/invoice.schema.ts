@@ -9,10 +9,11 @@ export const ExtractedInvoiceSchema = z.object({
   subtotal: z.string().optional(),
   taxAmount: z.string().optional(),
   totalAmount: z.string().optional(),
-  currency: z.enum(["VES", "USD", "EUR"]).optional(),
+  currency: z.enum(["VES", "USD", "EUR"]).optional().catch(undefined),
   paymentMethod: z
     .enum(["EFECTIVO", "TARJETA", "PAGO_MOVIL", "ZELLE", "CASHEA", "TRANSFERENCIA", "OTRO"])
-    .optional(),
+    .optional()
+    .catch(undefined),
   items: z
     .array(
       z.object({

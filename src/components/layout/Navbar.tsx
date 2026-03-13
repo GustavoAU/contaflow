@@ -22,7 +22,7 @@ type NavbarProps = {
   plan?: string;
 };
 
-export function Navbar({ companyId, companyName, plan }: NavbarProps) {
+export function Navbar({ companyId, companyName }: NavbarProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
 
@@ -33,13 +33,9 @@ export function Navbar({ companyId, companyName, plan }: NavbarProps) {
         { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
         { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
         {
-          label: plan === "PRO" ? "Escanear" : "Escanear 🔒",
-          href:
-            plan === "PRO"
-              ? `/company/${companyId}/invoices/upload`
-              : `/company/${companyId}/upgrade`,
+          label: "Escanear",
+          href: `/company/${companyId}/invoices/upload`,
           icon: ScanIcon,
-          disabled: plan !== "PRO",
         },
         { label: t("reports"), href: `/company/${companyId}/reports`, icon: BarChart3 },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
@@ -68,20 +64,7 @@ export function Navbar({ companyId, companyName, plan }: NavbarProps) {
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
 
-            return item.disabled ? (
-              <div
-                key={item.href}
-                title="Función disponible en el plan Pro — haz click para más info"
-                onClick={() => (window.location.href = `/company/${companyId}/upgrade`)}
-                className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  "text-zinc-400 hover:bg-zinc-100 hover:text-blue-500"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </div>
-            ) : (
+            return (
               <Link
                 key={item.href}
                 href={item.href}
@@ -89,9 +72,7 @@ export function Navbar({ companyId, companyName, plan }: NavbarProps) {
                   "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-blue-50 text-blue-600"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
-                  item.disabled &&
-                    "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-zinc-600"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                 )}
               >
                 <Icon className="h-4 w-4" />
