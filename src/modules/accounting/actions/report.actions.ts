@@ -37,6 +37,41 @@ export type TrialBalanceRow = {
   balance: string;
 };
 
+// ─── Tipos nuevos ─────────────────────────────────────────────────────────────
+
+export type IncomeStatementRow = {
+  id: string;
+  code: string;
+  name: string;
+  balance: string;
+};
+
+export type IncomeStatement = {
+  revenues: IncomeStatementRow[];
+  expenses: IncomeStatementRow[];
+  totalRevenues: string;
+  totalExpenses: string;
+  netIncome: string; // positivo = utilidad, negativo = pérdida
+};
+
+export type BalanceSheetRow = {
+  id: string;
+  code: string;
+  name: string;
+  balance: string;
+};
+
+export type BalanceSheet = {
+  assets: BalanceSheetRow[];
+  liabilities: BalanceSheetRow[];
+  equity: BalanceSheetRow[];
+  totalAssets: string;
+  totalLiabilities: string;
+  totalEquity: string;
+  totalLiabilitiesAndEquity: string;
+  isBalanced: boolean;
+};
+
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Libro Mayor ──────────────────────────────────────────────────────────────
@@ -185,5 +220,166 @@ export async function getTrialBalanceAction(
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al generar el Balance de Comprobacion" };
+  }
+}
+
+// ─── Estado de Resultados ─────────────────────────────────────────────────────
+
+export async function getIncomeStatementAction(
+  companyId: string,
+  dateFrom?: Date,
+  dateTo?: Date
+): Promise<ActionResult<IncomeStatement>> {
+  try {
+    const accounts = await prisma.account.findMany({
+      where: {
+        companyId,
+        type: { in: ["REVENUE", "EXPENSE"] },
+      },
+      orderBy: { code: "asc" },
+      include: {
+        journalEntries: {
+          where: {
+            transaction: {
+              status: "POSTED",
+              ...(dateFrom || dateTo
+                ? {
+                    date: {
+                      ...(dateFrom ? { gte: dateFrom } : {}),
+                      ...(dateTo ? { lte: dateTo } : {}),
+                    },
+                  }
+                : {}),
+            },
+          },
+        },
+      },
+    });
+
+    let totalRevenues = new Decimal(0);
+    let totalExpenses = new Decimal(0);
+
+    const revenues: IncomeStatementRow[] = [];
+    const expenses: IncomeStatementRow[] = [];
+
+    for (const account of accounts) {
+      if (account.journalEntries.length === 0) continue;
+
+      const balance = account.journalEntries.reduce((acc, entry) => {
+        return acc.plus(new Decimal(entry.amount.toString()));
+      }, new Decimal(0));
+
+      const row: IncomeStatementRow = {
+        id: account.id,
+        code: account.code,
+        name: account.name,
+        balance: balance.abs().toFixed(2),
+      };
+
+      if (account.type === "REVENUE") {
+        revenues.push(row);
+        totalRevenues = totalRevenues.plus(balance.abs());
+      } else {
+        expenses.push(row);
+        totalExpenses = totalExpenses.plus(balance.abs());
+      }
+    }
+
+    const netIncome = totalRevenues.minus(totalExpenses);
+
+    return {
+      success: true,
+      data: {
+        revenues,
+        expenses,
+        totalRevenues: totalRevenues.toFixed(2),
+        totalExpenses: totalExpenses.toFixed(2),
+        netIncome: netIncome.toFixed(2),
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el Estado de Resultados" };
+  }
+}
+
+// ─── Balance General ──────────────────────────────────────────────────────────
+
+export async function getBalanceSheetAction(
+  companyId: string,
+  dateTo?: Date
+): Promise<ActionResult<BalanceSheet>> {
+  try {
+    const accounts = await prisma.account.findMany({
+      where: {
+        companyId,
+        type: { in: ["ASSET", "LIABILITY", "EQUITY"] },
+      },
+      orderBy: { code: "asc" },
+      include: {
+        journalEntries: {
+          where: {
+            transaction: {
+              status: "POSTED",
+              ...(dateTo ? { date: { lte: dateTo } } : {}),
+            },
+          },
+        },
+      },
+    });
+
+    let totalAssets = new Decimal(0);
+    let totalLiabilities = new Decimal(0);
+    let totalEquity = new Decimal(0);
+
+    const assets: BalanceSheetRow[] = [];
+    const liabilities: BalanceSheetRow[] = [];
+    const equity: BalanceSheetRow[] = [];
+
+    for (const account of accounts) {
+      if (account.journalEntries.length === 0) continue;
+
+      const balance = account.journalEntries.reduce((acc, entry) => {
+        return acc.plus(new Decimal(entry.amount.toString()));
+      }, new Decimal(0));
+
+      const row: BalanceSheetRow = {
+        id: account.id,
+        code: account.code,
+        name: account.name,
+        balance: balance.abs().toFixed(2),
+      };
+
+      if (account.type === "ASSET") {
+        assets.push(row);
+        totalAssets = totalAssets.plus(balance.abs());
+      } else if (account.type === "LIABILITY") {
+        liabilities.push(row);
+        totalLiabilities = totalLiabilities.plus(balance.abs());
+      } else {
+        equity.push(row);
+        totalEquity = totalEquity.plus(balance.abs());
+      }
+    }
+
+    const totalLiabilitiesAndEquity = totalLiabilities.plus(totalEquity);
+    const isBalanced = totalAssets.equals(totalLiabilitiesAndEquity);
+
+    return {
+      success: true,
+      data: {
+        assets,
+        liabilities,
+        equity,
+        totalAssets: totalAssets.toFixed(2),
+        totalLiabilities: totalLiabilities.toFixed(2),
+        totalEquity: totalEquity.toFixed(2),
+        totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
+        isBalanced,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el Balance General" };
   }
 }

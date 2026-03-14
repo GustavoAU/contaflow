@@ -1,6 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
 import Link from "next/link";
-import { BookOpenIcon, ScaleIcon } from "lucide-react";
+import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -21,6 +21,18 @@ export default async function ReportsPage({ params }: Props) {
       description: "Sumas y saldos de todas las cuentas del período",
       href: `/company/${companyId}/reports/trial-balance`,
       icon: ScaleIcon,
+    },
+    {
+      title: "Estado de Resultados",
+      description: "Ingresos y gastos del período — utilidad o pérdida",
+      href: `/company/${companyId}/reports/income-statement`,
+      icon: TrendingUpIcon,
+    },
+    {
+      title: "Balance General",
+      description: "Activos, Pasivos y Patrimonio — situación financiera",
+      href: `/company/${companyId}/reports/balance-sheet`,
+      icon: LayoutIcon,
     },
   ];
 
