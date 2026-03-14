@@ -4,7 +4,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl"; // Agrega el import
+import { ReceiptIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -32,6 +33,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
         { label: t("accounts"), href: `/company/${companyId}/accounts`, icon: BookOpen },
         { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
         { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
+        {
+          label: "Retenciones",
+          href: `/company/${companyId}/retentions`,
+          icon: ReceiptIcon,
+        },
         {
           label: "Escanear",
           href: `/company/${companyId}/invoices/upload`,
