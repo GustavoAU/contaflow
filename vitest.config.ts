@@ -7,12 +7,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environmentMatchGlobs: [
-      // Componentes usan jsdom
-      ["src/components/**/*.test.tsx", "jsdom"],
-      // Todo lo demás usa node
-      ["src/**/*.test.ts", "node"],
-    ],
+    environment: "node",
   },
   resolve: {
     alias: {
