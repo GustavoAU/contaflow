@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  ReceiptText,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -57,6 +58,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
 
   const SECONDARY_ITEMS = companyId
     ? [
+        {
+          label: "Facturas",
+          href: `/company/${companyId}/invoices`,
+          icon: ReceiptText,
+        },
         { label: "Retenciones", href: `/company/${companyId}/retentions`, icon: ReceiptIcon },
         { label: "IGTF", href: `/company/${companyId}/igtf`, icon: BanknoteIcon },
         { label: "Escanear", href: `/company/${companyId}/invoices/upload`, icon: ScanIcon },

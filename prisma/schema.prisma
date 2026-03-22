@@ -59,6 +59,36 @@ enum RetentionStatus {
   VOIDED
 }
 
+enum InvoiceType {
+  SALE
+  PURCHASE
+}
+
+enum InvoiceDocType {
+  FACTURA
+  NOTA_DEBITO
+  NOTA_CREDITO
+  REPORTE_Z
+  RESUMEN_VENTAS
+  PLANILLA_IMPORTACION
+  OTRO
+}
+
+enum TaxCategory {
+  GRAVADA
+  EXENTA
+  EXONERADA
+  NO_SUJETA
+  IMPORTACION
+}
+
+enum TaxLineType {
+  IVA_GENERAL
+  IVA_REDUCIDO
+  IVA_ADICIONAL
+  EXENTO
+}
+
 model Company {
   id           String        @id @default(cuid())
   name         String
@@ -75,6 +105,7 @@ model Company {
   isSpecialContributor Boolean @default(false)
   retenciones Retencion[]
   igtfTransactions IGTFTransaction[]
+  invoices    Invoice[]
 }
 
 model CompanyMember {
@@ -138,6 +169,7 @@ model Transaction {
   period      AccountingPeriod? @relation(fields: [periodId], references: [id])
   retenciones Retencion[]
   igtfTransactions IGTFTransaction[]
+  invoices    Invoice[]
 
   @@unique([companyId, number])
 }
@@ -185,6 +217,7 @@ model AccountingPeriod {
   openedBy    String       // userId
   closedBy    String?      // userId
   transactions Transaction[]
+  invoices    Invoice[]
 
   @@unique([companyId, year, month])
 }
@@ -211,4 +244,48 @@ model Retencion {
   transaction     Transaction? @relation(fields: [transactionId], references: [id])
   createdAt       DateTime @default(now())
   createdBy       String
+}
+
+model Invoice {
+  id                   String            @id @default(cuid())
+  companyId            String
+  company              Company           @relation(fields: [companyId], references: [id])
+  type                 InvoiceType
+  docType              InvoiceDocType    @default(FACTURA)
+  taxCategory          TaxCategory       @default(GRAVADA)
+  invoiceNumber        String
+  controlNumber        String?
+  relatedDocNumber     String?
+  importFormNumber     String?
+  reportZStart         String?           // Reporte Z — número inicial
+  reportZEnd           String?           // Reporte Z — número final
+  date                 DateTime
+  counterpartName      String
+  counterpartRif       String
+  ivaRetentionAmount   Decimal           @default(0) @db.Decimal(19, 4)
+  ivaRetentionVoucher  String?
+  ivaRetentionDate     DateTime?
+  islrRetentionAmount  Decimal           @default(0) @db.Decimal(19, 4)
+  igtfBase             Decimal           @default(0) @db.Decimal(19, 4)
+  igtfAmount           Decimal           @default(0) @db.Decimal(19, 4)
+  taxLines             InvoiceTaxLine[]
+  transactionId        String?
+  transaction          Transaction?      @relation(fields: [transactionId], references: [id])
+  periodId             String?
+  period               AccountingPeriod? @relation(fields: [periodId], references: [id])
+  createdAt            DateTime          @default(now())
+  createdBy            String
+
+  @@unique([companyId, invoiceNumber, type])
+  @@index([companyId, type, date])
+}
+
+model InvoiceTaxLine {
+  id          String      @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxType     TaxLineType
+  base        Decimal     @db.Decimal(19, 4)
+  rate        Decimal     @db.Decimal(5, 2)
+  amount      Decimal     @db.Decimal(19, 4)
 }
