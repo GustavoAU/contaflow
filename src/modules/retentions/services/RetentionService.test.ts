@@ -85,3 +85,120 @@ describe("RetentionService.validateRif", () => {
     expect(RetentionService.validateRif("X-12345678-9")).toBe(false);
   });
 });
+
+// ─── Tests para linkRetentionToInvoice y getRetentionsByInvoice ───────────────
+
+import { vi, beforeEach } from "vitest";
+import { linkRetentionToInvoice, getRetentionsByInvoice } from "./RetentionService";
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    $transaction: vi.fn(),
+    retencion: { findFirst: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    invoice: { findFirst: vi.fn() },
+    auditLog: { create: vi.fn() },
+  },
+}));
+
+import { prisma } from "@/lib/prisma";
+
+const mockRetencion = {
+  id: "ret-1",
+  companyId: "comp-1",
+  providerName: "Proveedor S.A.",
+  providerRif: "J-12345678-9",
+  invoiceNumber: "0001",
+  invoiceDate: new Date("2026-01-15"),
+  invoiceAmount: "1000.00",
+  taxBase: "1000.00",
+  ivaAmount: "160.00",
+  ivaRetention: "120.00",
+  ivaRetentionPct: "75",
+  islrAmount: null,
+  islrRetentionPct: null,
+  totalRetention: "120.00",
+  type: "IVA",
+  status: "PENDING",
+  transactionId: null,
+  invoiceId: null,
+  idempotencyKey: "key-1",
+  deletedAt: null,
+  createdAt: new Date("2026-01-15"),
+  createdBy: "user-1",
+};
+
+const mockInvoice = {
+  id: "inv-1",
+  companyId: "comp-1",
+};
+
+describe("linkRetentionToInvoice", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("happy path: vincula retención a factura correctamente", async () => {
+    const updatedRetencion = { ...mockRetencion, invoiceId: "inv-1", invoice: mockInvoice };
+
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetencion as never);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(mockInvoice as never);
+    vi.mocked(prisma.$transaction).mockResolvedValue([updatedRetencion, {}] as never);
+
+    const result = await linkRetentionToInvoice("ret-1", "inv-1", "comp-1");
+
+    expect(result.invoiceId).toBe("inv-1");
+    expect(result.invoice).toEqual(mockInvoice);
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+  });
+
+  it("lanza error si retención no pertenece a companyId", async () => {
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(null as never);
+
+    await expect(linkRetentionToInvoice("ret-x", "inv-1", "comp-1")).rejects.toThrow(
+      "Retención no encontrada"
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("lanza error si factura no pertenece a companyId", async () => {
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetencion as never);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
+
+    await expect(linkRetentionToInvoice("ret-1", "inv-x", "comp-1")).rejects.toThrow(
+      "Factura no encontrada"
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("getRetentionsByInvoice", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("happy path: retorna array de 2 retenciones para una factura", async () => {
+    const retenciones = [
+      { ...mockRetencion, id: "ret-1", invoiceId: "inv-1" },
+      { ...mockRetencion, id: "ret-2", invoiceId: "inv-1" },
+    ];
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue(retenciones as never);
+
+    const result = await getRetentionsByInvoice("inv-1", "comp-1");
+
+    expect(result).toHaveLength(2);
+    expect(prisma.retencion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ deletedAt: null }),
+      })
+    );
+  });
+
+  it("retorna array vacío si no hay retenciones vinculadas (no throw)", async () => {
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
+
+    const result = await getRetentionsByInvoice("inv-sin-retenciones", "comp-1");
+
+    expect(result).toEqual([]);
+    expect(result).toHaveLength(0);
+  });
+});

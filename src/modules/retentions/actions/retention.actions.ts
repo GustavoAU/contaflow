@@ -61,6 +61,7 @@ export async function createRetentionAction(
         type: data.type,
         status: "PENDING",
         createdBy: data.createdBy,
+        idempotencyKey: crypto.randomUUID(),
       },
     });
 

@@ -1,6 +1,8 @@
 // src/modules/retentions/services/RetentionService.ts
 import { Decimal } from "decimal.js";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "../schemas/retention.schema";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export type RetentionCalculation = {
   taxBase: string;
@@ -88,4 +90,64 @@ export class RetentionService {
   ): (typeof IVA_RETENTION_RATES)[keyof typeof IVA_RETENTION_RATES] {
     return full ? IVA_RETENTION_RATES.FULL : IVA_RETENTION_RATES.STANDARD;
   }
+}
+
+// ─── linkRetentionToInvoice ────────────────────────────────────────────────────
+/**
+ * Vincula una retención existente a una factura de la misma empresa.
+ * Ejecuta dentro de $transaction sin isolationLevel Serializable
+ * (no genera correlativo — Read Committed por defecto es suficiente).
+ */
+export async function linkRetentionToInvoice(
+  retentionId: string,
+  invoiceId: string,
+  companyId: string
+): Promise<Prisma.RetencionGetPayload<{ include: { invoice: true } }>> {
+  // 1. Verificar que retención pertenece a companyId
+  const retention = await prisma.retencion.findFirst({
+    where: { id: retentionId, companyId, deletedAt: null },
+  });
+  if (!retention) throw new Error("Retención no encontrada");
+
+  // 2. Verificar que factura pertenece a companyId
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, companyId },
+  });
+  if (!invoice) throw new Error("Factura no encontrada");
+
+  // 3. $transaction (no Serializable — no hay correlativo)
+  const [updated] = await prisma.$transaction([
+    prisma.retencion.update({
+      where: { id: retentionId },
+      data: { invoiceId },
+      include: { invoice: true },
+    }),
+    prisma.auditLog.create({
+      data: {
+        entityId: retentionId,
+        entityName: "Retencion",
+        action: "LINK_RETENTION_INVOICE",
+        userId: retention.createdBy,
+        newValue: { invoiceId, companyId },
+      },
+    }),
+  ]);
+
+  // 4. Retornar retención con invoice incluido
+  return updated as Prisma.RetencionGetPayload<{ include: { invoice: true } }>;
+}
+
+// ─── getRetentionsByInvoice ────────────────────────────────────────────────────
+/**
+ * Retorna todas las retenciones activas vinculadas a una factura.
+ * Resultado ordenado por createdAt desc.
+ */
+export async function getRetentionsByInvoice(
+  invoiceId: string,
+  companyId: string
+): Promise<Prisma.RetencionGetPayload<{}>[]> {
+  return prisma.retencion.findMany({
+    where: { invoiceId, companyId, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
 }
