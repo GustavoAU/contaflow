@@ -81,7 +81,7 @@ describe("RetentionService.validateRif", () => {
     expect(RetentionService.validateRif("J401373674")).toBe(false);
   });
 
-  it("rechaza RIF con letra inv├ílida", () => {
+  it("rechaza RIF con letra inválida", () => {
     expect(RetentionService.validateRif("X-12345678-9")).toBe(false);
   });
 });

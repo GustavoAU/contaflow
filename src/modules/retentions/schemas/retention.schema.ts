@@ -1,5 +1,6 @@
 // src/modules/retentions/schemas/retention.schema.ts
 import { z } from "zod";
+import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
 
 // ─── Tabla ISLR Decreto 1808 (servicios más comunes) ─────────────────────────
 export const ISLR_RATES: Record<string, { pct: number; subtrahend: number; description: string }> =
@@ -28,7 +29,7 @@ export const CreateRetentionSchema = z.object({
   providerName: z.string().min(1, { error: "Nombre del proveedor requerido" }),
   providerRif: z
     .string()
-    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, { error: "RIF inválido. Formato: J-12345678-9" }),
+    .regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),
   invoiceNumber: z.string().min(1, { error: "Número de factura requerido" }),
   invoiceDate: z.coerce.date(),
   invoiceAmount: z

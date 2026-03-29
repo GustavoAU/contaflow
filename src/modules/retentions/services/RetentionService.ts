@@ -1,6 +1,7 @@
 // src/modules/retentions/services/RetentionService.ts
 import { Decimal } from "decimal.js";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "../schemas/retention.schema";
+import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
@@ -76,7 +77,7 @@ export class RetentionService {
 
   // ─── Validar RIF venezolano ────────────────────────────────────────────────
   static validateRif(rif: string): boolean {
-    return /^[JVGPE]-\d{8}-\d$/.test(rif);
+    return validateVenezuelanRif(rif);
   }
 
   // ─── Obtener descripción de tasa ISLR ─────────────────────────────────────
