@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { RetentionVoucherParams } from "../services/RetentionVoucherPDFService"
 
 // ─── Mock de @react-pdf/renderer ───────────────────────────────────────────────
-type WithChildren = { children?: React.ReactNode }
+type WithChildren = { children?: unknown }
 vi.mock("@react-pdf/renderer", () => ({
   Document: ({ children }: WithChildren) => children,
   Page: ({ children }: WithChildren) => children,
