@@ -3,12 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { RetentionVoucherParams } from "../services/RetentionVoucherPDFService"
 
 // ─── Mock de @react-pdf/renderer ───────────────────────────────────────────────
+type WithChildren = { children?: React.ReactNode }
 vi.mock("@react-pdf/renderer", () => ({
-  Document: ({ children }: any) => children,
-  Page: ({ children }: any) => children,
-  Text: ({ children }: any) => children,
-  View: ({ children }: any) => children,
-  StyleSheet: { create: (s: any) => s },
+  Document: ({ children }: WithChildren) => children,
+  Page: ({ children }: WithChildren) => children,
+  Text: ({ children }: WithChildren) => children,
+  View: ({ children }: WithChildren) => children,
+  StyleSheet: { create: <T extends Record<string, unknown>>(s: T) => s },
   renderToBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-pdf")),
 }))
 
