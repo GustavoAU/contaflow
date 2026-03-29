@@ -146,7 +146,7 @@ export async function linkRetentionToInvoice(
 export async function getRetentionsByInvoice(
   invoiceId: string,
   companyId: string
-): Promise<Prisma.RetencionGetPayload<{}>[]> {
+): Promise<Prisma.RetencionGetPayload<object>[]> {
   return prisma.retencion.findMany({
     where: { invoiceId, companyId, deletedAt: null },
     orderBy: { createdAt: "desc" },
