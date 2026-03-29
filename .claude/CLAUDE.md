@@ -56,8 +56,12 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
 
 - Fase 12A ✅ mergeada
 - Fase 12B en progreso (`feat/invoice-books-v2`)
-  - IMPL READY (sin cambio de schema): 18.3 (cascade taxCategory UI), 18.6 (validación RIF Zod)
-  - ARCH pendiente: 18.1 (controlNumber Serializable), 18.2 (PDF librería), 18.4 (link retention↔invoice), 18.5 (voucher PDF)
+  - ✅ 18.1 ControlNumberSequence + Serializable SSI (InvoiceSequenceService)
+  - ✅ 18.3 Cascade TaxCategory + AlertDialog (InvoiceForm)
+  - ✅ 18.6 Validación RIF /^[JVEGCP]-\d{8}-?\d?$/i (bug fix prefijo C-)
+  - ⏳ 18.2 PDF librería — ARCH pendiente
+  - ⏳ 18.4 Link retention↔invoice — ARCH pendiente (schema change)
+  - ⏳ 18.5 Voucher PDF — bloqueado por 18.2
 - 18.3 cascade taxCategory UI → ✅ completado
 - 18.6 validación RIF Zod → ✅ completado (bug fiscal corregido: regex 
   ahora acepta C- comunal y dígito verificador opcional)
