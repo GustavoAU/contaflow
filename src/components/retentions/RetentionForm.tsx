@@ -5,7 +5,11 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { createRetentionAction } from "@/modules/retentions/actions/retention.actions";
+import {
+  createRetentionAction,
+  exportRetentionVoucherPDFAction,
+  linkRetentionToInvoiceAction,
+} from "@/modules/retentions/actions/retention.actions";
 import { RetentionService } from "@/modules/retentions/services/RetentionService";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
 
@@ -16,10 +20,43 @@ type Props = {
 
 export function RetentionForm({ companyId, userId }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [isPendingVoucher, startTransitionVoucher] = useTransition();
+  const [isPendingLink, startTransitionLink] = useTransition();
+  const [savedRetentionId, setSavedRetentionId] = useState<string | null>(null);
+  const [invoiceId, setInvoiceId] = useState("");
   const [retentionType, setRetentionType] = useState<"IVA" | "ISLR" | "AMBAS">("IVA");
   const [taxBase, setTaxBase] = useState("");
   const [ivaRetentionPct, setIvaRetentionPct] = useState<75 | 100>(75);
   const [islrCode, setIslrCode] = useState("SERVICIOS_PJ");
+
+  function handleDownloadVoucher(retentionId: string) {
+    startTransitionVoucher(async () => {
+      const result = await exportRetentionVoucherPDFAction(retentionId, companyId);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      const blob = new Blob([new Uint8Array(result.buffer)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comprobante-retencion-${retentionId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function handleLinkToInvoice(retentionId: string, invId: string) {
+    startTransitionLink(async () => {
+      const result = await linkRetentionToInvoiceAction(retentionId, invId, companyId);
+      if (result.success) {
+        toast.success("Retención vinculada a la factura correctamente");
+        setInvoiceId("");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
 
   // Preview en tiempo real
   const preview =
@@ -54,6 +91,7 @@ export function RetentionForm({ companyId, userId }: Props) {
 
       if (result.success) {
         toast.success("Retención creada correctamente");
+        setSavedRetentionId(result.data.id);
         form.reset();
         setTaxBase("");
       } else {
@@ -231,6 +269,51 @@ export function RetentionForm({ companyId, userId }: Props) {
             {isPending ? "Guardando..." : "Crear Retención"}
           </Button>
         </form>
+
+        {/* Acciones post-guardado */}
+        {savedRetentionId && (
+          <div className="mt-4 space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
+            <p className="text-sm font-semibold text-green-800">
+              Retención guardada — ID: <span className="font-mono">{savedRetentionId}</span>
+            </p>
+
+            {/* Descargar comprobante */}
+            <Button
+              variant="outline"
+              onClick={() => handleDownloadVoucher(savedRetentionId)}
+              disabled={isPendingVoucher}
+              className="w-full border-green-300 text-green-800 hover:bg-green-100"
+              aria-label="Descargar comprobante de retención en PDF"
+            >
+              {isPendingVoucher ? "Generando..." : "Descargar Comprobante"}
+            </Button>
+
+            {/* Vincular a factura */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-zinc-600">
+                Factura asociada (opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="ID de factura"
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              {invoiceId.trim() && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleLinkToInvoice(savedRetentionId, invoiceId.trim())}
+                  disabled={isPendingLink}
+                  className="w-full"
+                  aria-label="Vincular retención a la factura indicada"
+                >
+                  {isPendingLink ? "Vinculando..." : "Vincular a Factura"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <Toaster richColors position="top-right" />

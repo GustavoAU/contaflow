@@ -1,15 +1,34 @@
 // src/modules/invoices/actions/invoice.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createInvoiceAction, getInvoiceBookAction } from "./invoice.actions";
+import { createInvoiceAction, getInvoiceBookAction, exportInvoiceBookPDFAction } from "./invoice.actions";
 import { InvoiceService } from "../services/InvoiceService";
+import { auth } from "@clerk/nextjs/server";
+import prisma from "@/lib/prisma";
+import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn(),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  default: {
+    companyMember: {
+      findFirst: vi.fn(),
+    },
+  },
+}));
 
 vi.mock("../services/InvoiceService", () => ({
   InvoiceService: {
     create: vi.fn(),
     getBook: vi.fn(),
   },
+}));
+
+vi.mock("@/modules/invoices/services/InvoiceBookPDFService", () => ({
+  generateInvoiceBookPDF: vi.fn().mockResolvedValue(Buffer.from("fake-pdf")),
 }));
 
 const BASE_INPUT = {
@@ -145,5 +164,74 @@ describe("getInvoiceBookAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("Error al obtener el libro");
+  });
+});
+
+// ── Tests: exportInvoiceBookPDFAction ─────────────────────────────────────────
+
+const mockCompany = {
+  id: "company-1",
+  name: "Empresa Test C.A.",
+  rif: "J-12345678-9",
+  address: null,
+  status: "ACTIVE",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const mockMembership = {
+  id: "mem-1",
+  userId: "user-1",
+  companyId: "company-1",
+  role: "ACCOUNTANT",
+  company: mockCompany,
+};
+
+describe("exportInvoiceBookPDFAction", () => {
+  const validParams = {
+    companyId: "company-1",
+    type: "SALE" as const,
+    year: 2026,
+    month: 1,
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna error si no hay sesion autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await exportInvoiceBookPDFAction(validParams);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna error si la empresa no pertenece al usuario", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+
+    const result = await exportInvoiceBookPDFAction(validParams);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("happy path: retorna buffer PDF serializable", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(InvoiceService.getBook).mockResolvedValue({
+      rows: [],
+      summary: EMPTY_SUMMARY,
+    } as never);
+    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+
+    const result = await exportInvoiceBookPDFAction(validParams);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.buffer).toEqual(expect.any(Array));
+      expect(result.buffer.length).toBeGreaterThan(0);
+    }
+    expect(generateInvoiceBookPDF).toHaveBeenCalledOnce();
   });
 });

@@ -6,6 +6,10 @@ vi.mock("@/lib/prisma", () => ({
     retencion: {
       create: vi.fn(),
       findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    companyMember: {
+      findFirst: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -15,8 +19,33 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn(),
+}));
+
+vi.mock("@/modules/retentions/services/RetentionVoucherPDFService", () => ({
+  generateRetentionVoucherPDF: vi.fn().mockResolvedValue(Buffer.from("fake-pdf")),
+}));
+
+vi.mock("../services/RetentionService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/RetentionService")>();
+  return {
+    ...actual,
+    linkRetentionToInvoice: vi.fn(),
+  };
+});
+
 import prisma from "@/lib/prisma";
-import { createRetentionAction, getRetentionsAction } from "./retention.actions";
+import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
+import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
+import { linkRetentionToInvoice } from "../services/RetentionService";
+import {
+  createRetentionAction,
+  getRetentionsAction,
+  exportRetentionVoucherPDFAction,
+  linkRetentionToInvoiceAction,
+} from "./retention.actions";
 
 const mockRetention = {
   id: "ret-1",
@@ -143,5 +172,104 @@ describe("getRetentionsAction", () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data).toHaveLength(0);
+  });
+});
+
+// ── Fixtures para nuevas actions ──────────────────────────────────────────────
+
+const mockCompanyForPDF = {
+  id: "company-1",
+  name: "Empresa Test C.A.",
+  rif: "J-12345678-9",
+  address: null,
+  status: "ACTIVE",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const mockMembership = {
+  id: "mem-1",
+  userId: "user-1",
+  companyId: "company-1",
+  role: "ACCOUNTANT",
+  company: mockCompanyForPDF,
+};
+
+const mockRetentionFull = {
+  ...mockRetention,
+  company: mockCompanyForPDF,
+  taxBase: { toString: () => "1000.00", toFixed: () => "1000.00" },
+  invoiceAmount: { toString: () => "1160.00", toFixed: () => "1160.00" },
+  totalRetention: { toString: () => "120.00", toFixed: () => "120.00" },
+  ivaRetentionPct: { toString: () => "75", toNumber: () => 75 },
+  islrRetentionPct: null,
+};
+
+// ── Tests: exportRetentionVoucherPDFAction ────────────────────────────────────
+
+describe("exportRetentionVoucherPDFAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna error si no hay sesion autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await exportRetentionVoucherPDFAction("ret-1", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna error si retencion no encontrada (findFirst null)", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(null);
+
+    const result = await exportRetentionVoucherPDFAction("ret-999", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Retención no encontrada");
+  });
+
+  it("happy path: retorna buffer PDF serializable", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetentionFull as never);
+    vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+
+    const result = await exportRetentionVoucherPDFAction("ret-1", "company-1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.buffer).toEqual(expect.any(Array));
+      expect(result.buffer.length).toBeGreaterThan(0);
+    }
+    expect(generateRetentionVoucherPDF).toHaveBeenCalledOnce();
+  });
+});
+
+// ── Tests: linkRetentionToInvoiceAction ───────────────────────────────────────
+
+describe("linkRetentionToInvoiceAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna error si no hay sesion autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await linkRetentionToInvoiceAction("ret-1", "inv-1", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("happy path: vincula retencion y llama revalidatePath", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(linkRetentionToInvoice).mockResolvedValue({} as never);
+
+    const result = await linkRetentionToInvoiceAction("ret-1", "inv-1", "company-1");
+
+    expect(result.success).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith("/accounting/retentions");
+    expect(linkRetentionToInvoice).toHaveBeenCalledWith("ret-1", "inv-1", "company-1");
   });
 });

@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { getInvoiceBookAction } from "@/modules/invoices/actions/invoice.actions";
+import { getInvoiceBookAction, exportInvoiceBookPDFAction } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import * as XLSX from "xlsx";
 
@@ -42,6 +42,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [isPendingPDF, startTransitionPDF] = useTransition();
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -55,6 +56,23 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       } else {
         toast.error(res.error);
       }
+    });
+  }
+
+  function handleExportPDF() {
+    startTransitionPDF(async () => {
+      const result = await exportInvoiceBookPDFAction({ companyId, type, year, month });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      const blob = new Blob([new Uint8Array(result.buffer)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     });
   }
 
@@ -228,9 +246,20 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
             </Button>
 
             {result && result.rows.length > 0 && (
-              <Button variant="outline" onClick={handleExportExcel}>
-                Exportar Excel
-              </Button>
+              <>
+                <Button variant="outline" onClick={handleExportExcel}>
+                  Exportar Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExportPDF}
+                  disabled={isPendingPDF || isPending}
+                  className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                  aria-label="Exportar libro como PDF"
+                >
+                  {isPendingPDF ? "Generando PDF..." : "Exportar PDF"}
+                </Button>
+              </>
             )}
           </div>
         </div>

@@ -1,9 +1,12 @@
 // src/modules/invoices/actions/invoice.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import prisma from "@/lib/prisma";
 import { InvoiceService } from "../services/InvoiceService";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
+import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -32,6 +35,53 @@ export async function createInvoiceAction(input: unknown) {
       }
     }
     return { success: false as const, error: "Error al registrar la factura" };
+  }
+}
+
+// ─── Exportar libro de compras/ventas en PDF ───────────────────────────────────
+export async function exportInvoiceBookPDFAction(params: {
+  companyId: string
+  type: "SALE" | "PURCHASE"
+  year: number
+  month: number
+}): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    // Verificar que company pertenece al usuario
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId: params.companyId, userId },
+      include: { company: true },
+    });
+    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const { rows, summary } = await InvoiceService.getBook({
+      companyId: params.companyId,
+      type: params.type,
+      year: params.year,
+      month: params.month,
+    });
+
+    const monthLabel = new Date(params.year, params.month - 1, 1).toLocaleString("es-VE", {
+      month: "long",
+      year: "numeric",
+    });
+
+    const pdfBuffer = await generateInvoiceBookPDF({
+      companyId: params.companyId,
+      companyName: membership.company.name,
+      companyRif: membership.company.rif ?? "",
+      periodId: `${params.year}-${String(params.month).padStart(2, "0")}`,
+      periodLabel: monthLabel,
+      invoiceType: params.type,
+      invoices: rows,
+      summary,
+    });
+
+    return { success: true, buffer: Array.from(pdfBuffer) };
+  } catch {
+    return { success: false, error: "Error al generar PDF" };
   }
 }
 
