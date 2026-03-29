@@ -243,3 +243,19 @@ async function getRetentionsByInvoice(
 ```
 
 ---
+
+## 18.5 Voucher PDF Retención (ARCH 2026-03-29)
+- Estado: DECIDIDO ✅ (implementado — desbloqueado por 18.2)
+
+### Implementación
+- Owner: src/modules/retentions/services/RetentionVoucherPDFService.ts
+- Librería: @react-pdf/renderer (misma que 18.2)
+- Formato: A4 portrait, comprobante único por retención
+- Cumple: Providencia 0071 + Decreto 1808
+
+### Contrato de función
+```typescript
+async function generateRetentionVoucherPDF(params: RetentionVoucherParams): Promise<Buffer>
+```
+
+---
