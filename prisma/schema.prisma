@@ -224,27 +224,35 @@ model AccountingPeriod {
 }
 
 model Retencion {
-  id              String   @id @default(cuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
-  providerName    String
-  providerRif     String
-  invoiceNumber   String
-  invoiceDate     DateTime
-  invoiceAmount   Decimal  @db.Decimal(19, 4)
-  taxBase         Decimal  @db.Decimal(19, 4)
-  ivaAmount       Decimal  @db.Decimal(19, 4)
-  ivaRetention    Decimal  @db.Decimal(19, 4)
-  ivaRetentionPct Decimal  @db.Decimal(5, 2)
-  islrAmount      Decimal? @db.Decimal(19, 4)
-  islrRetentionPct Decimal? @db.Decimal(5, 2)
-  totalRetention  Decimal  @db.Decimal(19, 4)
-  type            RetentionType
-  status          RetentionStatus @default(PENDING)
-  transactionId   String?
-  transaction     Transaction? @relation(fields: [transactionId], references: [id])
-  createdAt       DateTime @default(now())
-  createdBy       String
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  providerName     String
+  providerRif      String
+  invoiceNumber    String
+  invoiceDate      DateTime
+  invoiceAmount    Decimal         @db.Decimal(19, 4)
+  taxBase          Decimal         @db.Decimal(19, 4)
+  ivaAmount        Decimal         @db.Decimal(19, 4)
+  ivaRetention     Decimal         @db.Decimal(19, 4)
+  ivaRetentionPct  Decimal         @db.Decimal(5, 2)
+  islrAmount       Decimal?        @db.Decimal(19, 4)
+  islrRetentionPct Decimal?        @db.Decimal(5, 2)
+  totalRetention   Decimal         @db.Decimal(19, 4)
+  type             RetentionType
+  status           RetentionStatus @default(PENDING)
+  transactionId    String?
+  transaction      Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  invoiceId        String?
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  idempotencyKey   String          @unique
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  createdBy        String
+
+  @@index([companyId])
+  @@index([invoiceId])
+  @@index([companyId, invoiceId])
 }
 
 model Invoice {
@@ -270,6 +278,7 @@ model Invoice {
   igtfBase             Decimal           @default(0) @db.Decimal(19, 4)
   igtfAmount           Decimal           @default(0) @db.Decimal(19, 4)
   taxLines             InvoiceTaxLine[]
+  retenciones          Retencion[]
   transactionId        String?
   transaction          Transaction?      @relation(fields: [transactionId], references: [id])
   periodId             String?
