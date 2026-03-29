@@ -47,7 +47,10 @@ export const CreateInvoiceSchema = z.object({
 
   // Contraparte
   counterpartName: z.string().min(1, { error: "El nombre es requerido" }),
-  counterpartRif: z.string().min(1, { error: "El RIF es requerido" }),
+  counterpartRif: z
+    .string()
+    .min(1, { error: "El RIF es requerido" })
+    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, { error: "RIF inválido. Formato: J-12345678-9" }),
 
   // Líneas de impuesto dinámicas
   taxLines: z.array(TaxLineSchema).min(0),

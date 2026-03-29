@@ -25,7 +25,7 @@ function makeExcelBuffer(rows: object[]): Buffer {
 }
 
 describe("ImportService.parseAccountsExcel", () => {
-  it("parsea un Excel válido correctamente", () => {
+  it("parsea un Excel v├ílido correctamente", () => {
     const buffer = makeExcelBuffer([
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo" },
       { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY" },
@@ -37,18 +37,18 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[1].tipo).toBe("LIABILITY");
   });
 
-  it("lanza error si el tipo es inválido", () => {
+  it("lanza error si el tipo es inv├ílido", () => {
     const buffer = makeExcelBuffer([{ codigo: "1105", nombre: "Caja", tipo: "INVALIDO" }]);
 
     expect(() => ImportService.parseAccountsExcel(buffer)).toThrow();
   });
 
-  it("lanza error si el archivo está vacío", () => {
+  it("lanza error si el archivo est├í vac├¡o", () => {
     const buffer = makeExcelBuffer([]);
     expect(() => ImportService.parseAccountsExcel(buffer)).toThrow();
   });
 
-  it("normaliza columnas en mayúsculas", () => {
+  it("normaliza columnas en may├║sculas", () => {
     const buffer = makeExcelBuffer([{ CODIGO: "3105", NOMBRE: "Capital", TIPO: "equity" }]);
 
     const rows = ImportService.parseAccountsExcel(buffer);
@@ -86,7 +86,7 @@ describe("ImportService.importAccounts", () => {
 });
 
 describe("ImportService.generateAccountsTemplate", () => {
-  it("genera un buffer Excel válido", () => {
+  it("genera un buffer Excel v├ílido", () => {
     const buffer = ImportService.generateAccountsTemplate();
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);

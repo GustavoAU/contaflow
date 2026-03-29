@@ -32,7 +32,7 @@ const BASE_PROPS = {
   userId: "user-1",
 };
 
-describe("IGTFForm — preview condicional", () => {
+describe("IGTFForm ÔÇö preview condicional", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -94,7 +94,7 @@ describe("IGTFForm — preview condicional", () => {
   });
 });
 
-describe("IGTFForm — submit", () => {
+describe("IGTFForm ÔÇö submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

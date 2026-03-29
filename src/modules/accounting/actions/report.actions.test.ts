@@ -8,7 +8,7 @@ import {
   getBalanceSheetAction,
 } from "./report.actions";
 
-// ─── Configuración de Mocks ────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Configuraci├│n de Mocks ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -18,9 +18,9 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-// ─── Mocks de Datos ────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Mocks de Datos ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
-// Mock de cuenta con movimientos de débito (Activo)
+// Mock de cuenta con movimientos de d├®bito (Activo)
 const mockAccountAsset = {
   id: "acc-1",
   code: "1110",
@@ -33,7 +33,7 @@ const mockAccountAsset = {
       transaction: {
         id: "tx-1",
         number: "2026-03-000001",
-        description: "Venta de mercancía",
+        description: "Venta de mercanc├¡a",
         date: new Date("2026-03-10"),
         status: "POSTED",
       },
@@ -41,7 +41,7 @@ const mockAccountAsset = {
   ],
 };
 
-// Mock de cuenta con movimientos de crédito (Ingreso)
+// Mock de cuenta con movimientos de cr├®dito (Ingreso)
 const mockAccountRevenue = {
   id: "acc-2",
   code: "4135",
@@ -54,7 +54,7 @@ const mockAccountRevenue = {
       transaction: {
         id: "tx-1",
         number: "2026-03-000001",
-        description: "Venta de mercancía",
+        description: "Venta de mercanc├¡a",
         date: new Date("2026-03-10"),
         status: "POSTED",
       },
@@ -62,7 +62,7 @@ const mockAccountRevenue = {
   ],
 };
 
-// ─── Pruebas del Libro Mayor (getLedgerAction) ──────────────────────────────────
+// ÔöÇÔöÇÔöÇ Pruebas del Libro Mayor (getLedgerAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 describe("getLedgerAction", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -82,7 +82,7 @@ describe("getLedgerAction", () => {
     }
   });
 
-  it("calcula saldo acumulado correctamente para cuentas de crédito", async () => {
+  it("calcula saldo acumulado correctamente para cuentas de cr├®dito", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountRevenue] as never);
 
     const result = await getLedgerAction("company-1");
@@ -108,12 +108,12 @@ describe("getLedgerAction", () => {
   });
 });
 
-// ─── Pruebas del Balance de Comprobación (getTrialBalanceAction) ──────────
+// ÔöÇÔöÇÔöÇ Pruebas del Balance de Comprobaci├│n (getTrialBalanceAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 describe("getTrialBalanceAction", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("retorna balance de comprobación balanceado", async () => {
+  it("retorna balance de comprobaci├│n balanceado", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       mockAccountAsset,
       mockAccountRevenue,
@@ -141,7 +141,7 @@ describe("getTrialBalanceAction", () => {
   });
 });
 
-// ─── Pruebas del Estado de Resultados (getIncomeStatementAction) ─────────────
+// ÔöÇÔöÇÔöÇ Pruebas del Estado de Resultados (getIncomeStatementAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 describe("getIncomeStatementAction", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -172,7 +172,7 @@ describe("getIncomeStatementAction", () => {
     expect(result.data.netIncome).toBe("600.00");
   });
 
-  it("retorna pérdida cuando gastos > ingresos", async () => {
+  it("retorna p├®rdida cuando gastos > ingresos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       {
         id: "acc-1",
@@ -213,7 +213,7 @@ describe("getIncomeStatementAction", () => {
     );
   });
 
-  it("retorna listas vacías si no hay movimientos", async () => {
+  it("retorna listas vac├¡as si no hay movimientos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([] as never);
 
     const result = await getIncomeStatementAction("company-1");
@@ -225,7 +225,7 @@ describe("getIncomeStatementAction", () => {
   });
 });
 
-// ─── Pruebas del Balance General (getBalanceSheetAction) ────────────────────
+// ÔöÇÔöÇÔöÇ Pruebas del Balance General (getBalanceSheetAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 describe("getBalanceSheetAction", () => {
   beforeEach(() => vi.clearAllMocks());

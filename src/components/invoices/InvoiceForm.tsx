@@ -1,10 +1,20 @@
 // src/components/invoices/InvoiceForm.tsx
 "use client";
 
-import { useState, useTransition, useId } from "react";
+import { useState, useTransition, useId, useRef } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Decimal } from "decimal.js";
 import { createInvoiceAction } from "@/modules/invoices/actions/invoice.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
@@ -85,6 +95,9 @@ export function InvoiceForm({
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [docType, setDocType] = useState("FACTURA");
   const [taxCategory, setTaxCategory] = useState("GRAVADA");
+  const prevCategoryRef = useRef<string>("GRAVADA");
+  const [showAlert, setShowAlert] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
   const [taxLines, setTaxLines] = useState<TaxLine[]>([
     {
       id: newLineId(),
@@ -355,6 +368,7 @@ export function InvoiceForm({
           },
         ]);
         setTaxCategory("GRAVADA");
+        prevCategoryRef.current = "GRAVADA";
         setDocType("FACTURA");
         setPaidInForeign(false);
         setIgtfBase("");
@@ -412,7 +426,17 @@ export function InvoiceForm({
               </label>
               <select
                 value={taxCategory}
-                onChange={(e) => setTaxCategory(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  if (["EXENTA", "EXONERADA", "NO_SUJETA"].includes(newValue)) {
+                    setPendingCategory(newValue);
+                    setShowAlert(true);
+                    // NO aplicar el cambio aún — esperar confirmación
+                  } else {
+                    setTaxCategory(newValue);
+                    prevCategoryRef.current = newValue;
+                  }
+                }}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 {TAX_CATEGORIES.filter((c) => type === "PURCHASE" || c.value !== "IMPORTACION").map(
@@ -490,15 +514,17 @@ export function InvoiceForm({
                 placeholder="Opcional"
               />
             </div>
-            {type === "PURCHASE" && (
+            {(type === "PURCHASE" || taxCategory === "IMPORTACION") && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  N° Planilla de Importación
+                  N° Planilla de Importación{" "}
+                  {taxCategory === "IMPORTACION" && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   name="importFormNumber"
+                  required={taxCategory === "IMPORTACION"}
                   className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Opcional"
+                  placeholder={taxCategory === "IMPORTACION" ? "Requerido" : "Opcional"}
                 />
               </div>
             )}
@@ -771,6 +797,56 @@ export function InvoiceForm({
       </div>
 
       <Toaster richColors position="top-right" />
+
+      {/* AlertDialog — confirmación cascada al cambiar a categoría sin IVA */}
+      <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cambiar categoría fiscal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Al cambiar a{" "}
+              <strong>
+                {TAX_CATEGORIES.find((c) => c.value === pendingCategory)?.label ?? pendingCategory}
+              </strong>
+              , todas las líneas de impuesto se reiniciarán a una sola línea{" "}
+              <strong>Exento / Exonerado</strong>. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowAlert(false);
+                setPendingCategory(null);
+                // El select revierte solo porque taxCategory no se actualizó
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingCategory) {
+                  setTaxCategory(pendingCategory);
+                  setTaxLines([
+                    {
+                      id: newLineId(),
+                      taxType: "EXENTO",
+                      base: "",
+                      rate: "0",
+                      amount: "0.00",
+                      luxuryGroupId: null,
+                    },
+                  ]);
+                  prevCategoryRef.current = pendingCategory;
+                }
+                setShowAlert(false);
+                setPendingCategory(null);
+              }}
+            >
+              Confirmar cambio
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

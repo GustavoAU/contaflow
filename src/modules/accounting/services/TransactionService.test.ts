@@ -82,7 +82,7 @@ describe("generateTransactionNumber", () => {
 describe("createBalancedTransaction - period validation", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("lanza error si no hay período abierto", async () => {
+  it("lanza error si no hay per├¡odo abierto", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       { id: "acc-1" },
       { id: "acc-2" },

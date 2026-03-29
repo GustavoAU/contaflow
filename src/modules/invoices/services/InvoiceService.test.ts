@@ -13,7 +13,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Helpers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 const makeTaxLine = (taxType: string, base: string, rate: string, amount: string) => ({
   id: `line-${taxType}`,
   taxType,
@@ -88,7 +88,7 @@ describe("InvoiceService.create", () => {
     );
   });
 
-  it("crea taxLines dinámicamente", async () => {
+  it("crea taxLines din├ímicamente", async () => {
     vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
 
     await InvoiceService.create(BASE_INPUT);
@@ -121,7 +121,7 @@ describe("InvoiceService.getBook", () => {
     month: 3,
   };
 
-  it("retorna rows y summary vacíos cuando no hay facturas", async () => {
+  it("retorna rows y summary vac├¡os cuando no hay facturas", async () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
     const result = await InvoiceService.getBook(FILTER);

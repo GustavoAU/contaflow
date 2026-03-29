@@ -36,7 +36,7 @@ const mockLastTransaction = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("getDashboardMetricsAction", () => {
-  it("retorna métricas correctamente con data", async () => {
+  it("retorna m├®tricas correctamente con data", async () => {
     vi.mocked(prisma.account.count).mockResolvedValue(6);
     vi.mocked(prisma.transaction.count)
       .mockResolvedValueOnce(1) // totalTransactions
@@ -67,7 +67,7 @@ describe("getDashboardMetricsAction", () => {
     }
   });
 
-  it("retorna métricas vacías si no hay data", async () => {
+  it("retorna m├®tricas vac├¡as si no hay data", async () => {
     vi.mocked(prisma.account.count).mockResolvedValue(0);
     vi.mocked(prisma.transaction.count).mockResolvedValue(0);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);

@@ -1,8 +1,8 @@
 // src/modules/accounting/actions/account.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ─── Mock de Prisma ───────────────────────────────────────────────────────────
-// No queremos tocar la DB real en los tests — usamos un "mock"
+// ÔöÇÔöÇÔöÇ Mock de Prisma ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// No queremos tocar la DB real en los tests ÔÇö usamos un "mock"
 // Un mock es un objeto falso que simula el comportamiento real
 
 vi.mock("@/lib/prisma", () => ({
@@ -24,7 +24,7 @@ vi.mock("next/cache", () => ({
 import prisma from "@/lib/prisma";
 import { createAccountAction, getNextAccountCodeAction } from "./account.actions";
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Tests ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 describe("createAccountAction", () => {
   beforeEach(() => {
@@ -89,7 +89,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       description: null,
-      companyId: "company-2", // ← empresa diferente
+      companyId: "company-2", // ÔåÉ empresa diferente
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -149,7 +149,7 @@ describe("getNextAccountCodeAction", () => {
   });
 
   it("sugiere el primer hueco disponible", async () => {
-    // Empresa tiene 1000, 1001, 1002 — debe sugerir 1003
+    // Empresa tiene 1000, 1001, 1002 ÔÇö debe sugerir 1003
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       { code: "1000" },
       { code: "1001" },
@@ -165,7 +165,7 @@ describe("getNextAccountCodeAction", () => {
   });
 
   it("detecta huecos y sugiere el primero", async () => {
-    // Tiene 1000, 1002 — debe sugerir 1001 (el hueco)
+    // Tiene 1000, 1002 ÔÇö debe sugerir 1001 (el hueco)
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       { code: "1000" },
       { code: "1002" },
@@ -186,7 +186,7 @@ describe("getNextAccountCodeAction", () => {
     const result = await getNextAccountCodeAction("ASSET", "company-1");
 
     expect(result.success).toBe(true);
-    // Verificar que el findMany se llamó con el companyId correcto
+    // Verificar que el findMany se llam├│ con el companyId correcto
     expect(prisma.account.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { companyId: "company-1" },

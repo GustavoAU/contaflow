@@ -69,7 +69,7 @@ describe("createIGTFAction", () => {
     expect(result.data.currency).toBe("EUR");
   });
 
-  it("falla con monto inválido", async () => {
+  it("falla con monto inv├ílido", async () => {
     const result = await createIGTFAction({
       companyId: "company-1",
       amount: "-100",
@@ -83,7 +83,7 @@ describe("createIGTFAction", () => {
     expect(result.error).toContain("Monto");
   });
 
-  it("falla con concepto vacío", async () => {
+  it("falla con concepto vac├¡o", async () => {
     const result = await createIGTFAction({
       companyId: "company-1",
       amount: "1000.00",
@@ -110,7 +110,7 @@ describe("getIGTFAction", () => {
     expect(result.data[0].igtfAmount).toBe("30.00");
   });
 
-  it("retorna lista vacía si no hay registros", async () => {
+  it("retorna lista vac├¡a si no hay registros", async () => {
     vi.mocked(prisma.iGTFTransaction.findMany).mockResolvedValue([] as never);
 
     const result = await getIGTFAction("company-1");

@@ -26,7 +26,9 @@ export const IVA_RETENTION_RATES = {
 export const CreateRetentionSchema = z.object({
   companyId: z.string().min(1, { error: "Empresa requerida" }),
   providerName: z.string().min(1, { error: "Nombre del proveedor requerido" }),
-  providerRif: z.string().regex(/^[JVGPE]-\d{8}-\d$/, { error: "RIF inválido (ej: J-12345678-9)" }),
+  providerRif: z
+    .string()
+    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, { error: "RIF inválido. Formato: J-12345678-9" }),
   invoiceNumber: z.string().min(1, { error: "Número de factura requerido" }),
   invoiceDate: z.coerce.date(),
   invoiceAmount: z

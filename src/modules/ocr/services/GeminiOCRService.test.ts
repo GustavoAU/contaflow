@@ -20,8 +20,8 @@ describe("GeminiOCRService.extractFromText", () => {
     expect(result.paymentMethod).toBe("PAGO_MOVIL");
   });
 
-  it("lanza error si el JSON es inválido", async () => {
-    await expect(GeminiOCRService.extractFromText("texto no válido")).rejects.toThrow();
+  it("lanza error si el JSON es inv├ílido", async () => {
+    await expect(GeminiOCRService.extractFromText("texto no v├ílido")).rejects.toThrow();
   });
 
   it("acepta factura con campos opcionales omitidos", async () => {
@@ -35,7 +35,7 @@ describe("GeminiOCRService.extractFromText", () => {
     expect(result.supplierName).toBeUndefined();
   });
 
-  it("devuelve currency undefined si el valor es inválido", async () => {
+  it("devuelve currency undefined si el valor es inv├ílido", async () => {
     const json = JSON.stringify({
       currency: "INVALIDA",
       totalAmount: "100.00",

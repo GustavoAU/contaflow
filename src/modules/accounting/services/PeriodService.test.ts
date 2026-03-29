@@ -34,7 +34,7 @@ const mockPeriod = {
 describe("PeriodService.openPeriod", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("abre un período correctamente cuando no hay período activo", async () => {
+  it("abre un per├¡odo correctamente cuando no hay per├¡odo activo", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.create).mockResolvedValue(mockPeriod as never);
@@ -47,7 +47,7 @@ describe("PeriodService.openPeriod", () => {
     expect(result.status).toBe("OPEN");
   });
 
-  it("lanza error si ya hay un período abierto", async () => {
+  it("lanza error si ya hay un per├¡odo abierto", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
 
     await expect(PeriodService.openPeriod("company-1", 2026, 4, "user-1")).rejects.toThrow(
@@ -55,7 +55,7 @@ describe("PeriodService.openPeriod", () => {
     );
   });
 
-  it("lanza error si el período ya existe", async () => {
+  it("lanza error si el per├¡odo ya existe", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
 
@@ -68,7 +68,7 @@ describe("PeriodService.openPeriod", () => {
 describe("PeriodService.closePeriod", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("cierra el período activo correctamente", async () => {
+  it("cierra el per├¡odo activo correctamente", async () => {
     const closedPeriod = {
       ...mockPeriod,
       status: "CLOSED",
@@ -85,7 +85,7 @@ describe("PeriodService.closePeriod", () => {
     expect(result.closedBy).toBe("user-1");
   });
 
-  it("lanza error si no hay período abierto", async () => {
+  it("lanza error si no hay per├¡odo abierto", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
 
     await expect(PeriodService.closePeriod("company-1", "user-1")).rejects.toThrow(

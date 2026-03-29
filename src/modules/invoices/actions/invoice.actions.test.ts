@@ -53,7 +53,7 @@ const EMPTY_SUMMARY = {
 describe("createInvoiceAction", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("retorna success true con input válido", async () => {
+  it("retorna success true con input v├ílido", async () => {
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1" } as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
@@ -81,7 +81,7 @@ describe("createInvoiceAction", () => {
     expect(result.success).toBe(false);
   });
 
-  it("retorna error si el service lanza excepción", async () => {
+  it("retorna error si el service lanza excepci├│n", async () => {
     vi.mocked(InvoiceService.create).mockRejectedValue(new Error("DB error") as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
@@ -90,13 +90,13 @@ describe("createInvoiceAction", () => {
     if (!result.success) expect(result.error).toBe("Error al registrar la factura");
   });
 
-  it("retorna error si el input no es válido", async () => {
+  it("retorna error si el input no es v├ílido", async () => {
     const result = await createInvoiceAction({ invalid: true });
 
     expect(result.success).toBe(false);
   });
 
-  it("acepta factura con taxLines vacíos", async () => {
+  it("acepta factura con taxLines vac├¡os", async () => {
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-2" } as never);
 
     const result = await createInvoiceAction({ ...BASE_INPUT, taxLines: [] });
@@ -108,7 +108,7 @@ describe("createInvoiceAction", () => {
 describe("getInvoiceBookAction", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("retorna success true con filtro válido", async () => {
+  it("retorna success true con filtro v├ílido", async () => {
     vi.mocked(InvoiceService.getBook).mockResolvedValue({
       rows: [],
       summary: EMPTY_SUMMARY,
@@ -126,19 +126,19 @@ describe("getInvoiceBookAction", () => {
     expect(result.success).toBe(false);
   });
 
-  it("retorna error si mes es inválido", async () => {
+  it("retorna error si mes es inv├ílido", async () => {
     const result = await getInvoiceBookAction({ ...BASE_FILTER, month: 13 });
 
     expect(result.success).toBe(false);
   });
 
-  it("retorna error si año es inválido", async () => {
+  it("retorna error si a├▒o es inv├ílido", async () => {
     const result = await getInvoiceBookAction({ ...BASE_FILTER, year: 1999 });
 
     expect(result.success).toBe(false);
   });
 
-  it("retorna error si el service lanza excepción", async () => {
+  it("retorna error si el service lanza excepci├│n", async () => {
     vi.mocked(InvoiceService.getBook).mockRejectedValue(new Error("DB error") as never);
 
     const result = await getInvoiceBookAction(BASE_FILTER);

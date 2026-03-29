@@ -21,6 +21,7 @@ vi.mock("@/components/ui/button", () => ({
   Button: ({ children, ...props }: React.ComponentProps<"button">) => (
     <button {...props}>{children}</button>
   ),
+  buttonVariants: () => "",
 }));
 
 import { createInvoiceAction } from "@/modules/invoices/actions/invoice.actions";
@@ -102,37 +103,47 @@ describe("InvoiceForm — desglose de impuestos", () => {
 describe("InvoiceForm — validación pre-submit", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("bloquea submit si categoría EXENTA tiene líneas con IVA > 0", async () => {
-    const { toast } = await import("sonner");
+  it("al cambiar a EXENTA muestra AlertDialog y al confirmar resetea taxLines a EXENTO", async () => {
     render(<InvoiceForm {...BASE_PROPS} />);
 
-    // Cambiar categoría a Exenta
+    // Cambiar categoría a Exenta — dispara AlertDialog
     const selects = screen.getAllByRole("combobox");
     fireEvent.change(selects[1], { target: { value: "EXENTA" } });
 
-    // Ingresar base en línea IVA General
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "1000" } });
-
-    // Llenar todos los campos requeridos
-    fireEvent.change(screen.getByPlaceholderText("0000001"), { target: { value: "F001" } });
-    fireEvent.change(screen.getByPlaceholderText("00-0000001"), {
-      target: { value: "00-0000001" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Razón Social"), {
-      target: { value: "Proveedor" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("J-12345678-9"), {
-      target: { value: "J-12345678-9" },
-    });
-    const dateInput = document.querySelector('input[name="date"]') as HTMLInputElement;
-    fireEvent.change(dateInput, { target: { value: "2026-03-01" } });
-
-    fireEvent.submit(screen.getByRole("button", { name: "Registrar Factura" }).closest("form")!);
-
+    // AlertDialog debe estar visible
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.stringContaining("exenta no puede tener líneas de IVA")
-      );
+      expect(screen.getByRole("alertdialog")).toBeTruthy();
+    });
+
+    // Confirmar el cambio
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cambio" }));
+
+    // Después de confirmar, taxLines se resetea a Exento/Exonerado
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(screen.getByDisplayValue("Exento / Exonerado")).toBeTruthy();
+    });
+  });
+
+  it("al cambiar a EXENTA y cancelar, taxCategory permanece sin cambiar", async () => {
+    render(<InvoiceForm {...BASE_PROPS} />);
+
+    // Cambiar categoría a Exenta — dispara AlertDialog
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[1], { target: { value: "EXENTA" } });
+
+    // AlertDialog debe estar visible
+    await waitFor(() => {
+      expect(screen.getByRole("alertdialog")).toBeTruthy();
+    });
+
+    // Cancelar
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    // Después de cancelar, taxCategory permanece como GRAVADA y línea IVA_GENERAL sigue
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(screen.getByDisplayValue("IVA General (16%)")).toBeTruthy();
     });
   });
 

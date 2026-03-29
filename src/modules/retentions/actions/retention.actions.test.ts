@@ -42,7 +42,7 @@ const mockRetention = {
 describe("createRetentionAction", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("crea retención IVA correctamente", async () => {
+  it("crea retenci├│n IVA correctamente", async () => {
     vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetention as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -67,7 +67,7 @@ describe("createRetentionAction", () => {
     expect(result.data.status).toBe("PENDING");
   });
 
-  it("crea retención AMBAS (IVA + ISLR) correctamente", async () => {
+  it("crea retenci├│n AMBAS (IVA + ISLR) correctamente", async () => {
     const mockAmbas = {
       ...mockRetention,
       islrAmount: { toString: () => "20.00" },
@@ -100,7 +100,7 @@ describe("createRetentionAction", () => {
     expect(result.data.totalRetention).toBe("140.00");
   });
 
-  it("falla con RIF inválido", async () => {
+  it("falla con RIF inv├ílido", async () => {
     const result = await createRetentionAction({
       companyId: "company-1",
       providerName: "ABC",
@@ -135,7 +135,7 @@ describe("getRetentionsAction", () => {
     expect(result.data[0].providerRif).toBe("J-12345678-9");
   });
 
-  it("retorna lista vacía si no hay retenciones", async () => {
+  it("retorna lista vac├¡a si no hay retenciones", async () => {
     vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
 
     const result = await getRetentionsAction("company-1");
