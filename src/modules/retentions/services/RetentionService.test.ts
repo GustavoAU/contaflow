@@ -3,14 +3,14 @@ import { describe, it, expect } from "vitest";
 import { RetentionService } from "./RetentionService";
 
 describe("RetentionService.calculateIvaRetention", () => {
-  it("calcula retenci├│n IVA al 75% correctamente", () => {
+  it("calcula retención IVA al 75% correctamente", () => {
     const result = RetentionService.calculateIvaRetention("1000.00", 16, 75);
     expect(result.ivaAmount).toBe("160.00");
     expect(result.ivaRetention).toBe("120.00");
     expect(result.ivaRetentionPct).toBe(75);
   });
 
-  it("calcula retenci├│n IVA al 100% correctamente", () => {
+  it("calcula retención IVA al 100% correctamente", () => {
     const result = RetentionService.calculateIvaRetention("1000.00", 16, 100);
     expect(result.ivaAmount).toBe("160.00");
     expect(result.ivaRetention).toBe("160.00");
@@ -25,42 +25,42 @@ describe("RetentionService.calculateIvaRetention", () => {
 });
 
 describe("RetentionService.calculateIslrRetention", () => {
-  it("calcula retenci├│n ISLR para servicios PJ al 2%", () => {
+  it("calcula retención ISLR para servicios PJ al 2%", () => {
     const result = RetentionService.calculateIslrRetention("1000.00", "SERVICIOS_PJ");
     expect(result).not.toBeNull();
     expect(result!.islrAmount).toBe("20.00");
     expect(result!.islrRetentionPct).toBe(2);
   });
 
-  it("calcula retenci├│n ISLR para honorarios PN al 5%", () => {
+  it("calcula retención ISLR para honorarios PN al 5%", () => {
     const result = RetentionService.calculateIslrRetention("1000.00", "HONORARIOS_PN");
     expect(result).not.toBeNull();
     expect(result!.islrAmount).toBe("50.00");
     expect(result!.islrRetentionPct).toBe(5);
   });
 
-  it("retorna null si el c├│digo ISLR no existe", () => {
+  it("retorna null si el código ISLR no existe", () => {
     const result = RetentionService.calculateIslrRetention("1000.00", "CODIGO_INVALIDO");
     expect(result).toBeNull();
   });
 });
 
 describe("RetentionService.calculate", () => {
-  it("calcula retenci├│n completa IVA + ISLR", () => {
+  it("calcula retención completa IVA + ISLR", () => {
     const result = RetentionService.calculate("1000.00", 75, "SERVICIOS_PJ");
     expect(result.ivaRetention).toBe("120.00");
     expect(result.islrAmount).toBe("20.00");
     expect(result.totalRetention).toBe("140.00");
   });
 
-  it("calcula retenci├│n solo IVA sin ISLR", () => {
+  it("calcula retención solo IVA sin ISLR", () => {
     const result = RetentionService.calculate("1000.00", 75);
     expect(result.ivaRetention).toBe("120.00");
     expect(result.islrAmount).toBeNull();
     expect(result.totalRetention).toBe("120.00");
   });
 
-  it("calcula retenci├│n IVA 100% + ISLR", () => {
+  it("calcula retención IVA 100% + ISLR", () => {
     const result = RetentionService.calculate("1000.00", 100, "SERVICIOS_PJ");
     expect(result.ivaRetention).toBe("160.00");
     expect(result.islrAmount).toBe("20.00");
@@ -95,7 +95,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: vi.fn(),
     retencion: { findFirst: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-    invoice: { findFirst: vi.fn() },
+    invoice: { findFirst: vi.fn(), update: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -117,6 +117,7 @@ const mockRetencion = {
   islrAmount: null,
   islrRetentionPct: null,
   totalRetention: "120.00",
+  voucherNumber: "CR-00000001",
   type: "IVA",
   status: "PENDING",
   transactionId: null,
@@ -130,6 +131,10 @@ const mockRetencion = {
 const mockInvoice = {
   id: "inv-1",
   companyId: "comp-1",
+  ivaRetentionAmount: "0",
+  ivaRetentionVoucher: null,
+  ivaRetentionDate: null,
+  islrRetentionAmount: "0",
 };
 
 describe("linkRetentionToInvoice", () => {
@@ -137,12 +142,12 @@ describe("linkRetentionToInvoice", () => {
     vi.clearAllMocks();
   });
 
-  it("happy path: vincula retención a factura correctamente", async () => {
+  it("happy path: vincula retención a factura y sincroniza campos de Invoice", async () => {
     const updatedRetencion = { ...mockRetencion, invoiceId: "inv-1", invoice: mockInvoice };
 
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetencion as never);
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(mockInvoice as never);
-    vi.mocked(prisma.$transaction).mockResolvedValue([updatedRetencion, {}] as never);
+    vi.mocked(prisma.$transaction).mockResolvedValue([updatedRetencion, {}, {}] as never);
 
     const result = await linkRetentionToInvoice("ret-1", "inv-1", "comp-1");
 

@@ -14,6 +14,11 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    invoice: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -32,6 +37,7 @@ vi.mock("../services/RetentionService", async (importOriginal) => {
   return {
     ...actual,
     linkRetentionToInvoice: vi.fn(),
+    getNextVoucherNumber: vi.fn().mockResolvedValue("CR-00000001"),
   };
 });
 
@@ -62,6 +68,7 @@ const mockRetention = {
   islrAmount: null,
   islrRetentionPct: null,
   totalRetention: { toString: () => "120.00" },
+  voucherNumber: "CR-00000001",
   type: "IVA",
   status: "PENDING",
   createdBy: "user-1",
@@ -69,9 +76,20 @@ const mockRetention = {
 };
 
 describe("createRetentionAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // $transaction interactivo: pasa tx con los mismos mocks de retencion y auditLog
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
+      const tx = {
+        retencion: { create: vi.mocked(prisma.retencion.create) },
+        auditLog: { create: vi.mocked(prisma.auditLog.create) },
+        retentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+      };
+      return fn(tx as never);
+    });
+  });
 
-  it("crea retenci├│n IVA correctamente", async () => {
+  it("crea retención IVA correctamente", async () => {
     vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetention as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -94,9 +112,10 @@ describe("createRetentionAction", () => {
     expect(result.data.ivaRetention).toBe("120.00");
     expect(result.data.totalRetention).toBe("120.00");
     expect(result.data.status).toBe("PENDING");
+    expect(result.data.voucherNumber).toBe("CR-00000001");
   });
 
-  it("crea retenci├│n AMBAS (IVA + ISLR) correctamente", async () => {
+  it("crea retención AMBAS (IVA + ISLR) correctamente", async () => {
     const mockAmbas = {
       ...mockRetention,
       islrAmount: { toString: () => "20.00" },
@@ -129,7 +148,7 @@ describe("createRetentionAction", () => {
     expect(result.data.totalRetention).toBe("140.00");
   });
 
-  it("falla con RIF inv├ílido", async () => {
+  it("falla con RIF inválido", async () => {
     const result = await createRetentionAction({
       companyId: "company-1",
       providerName: "ABC",
@@ -164,7 +183,7 @@ describe("getRetentionsAction", () => {
     expect(result.data[0].providerRif).toBe("J-12345678-9");
   });
 
-  it("retorna lista vac├¡a si no hay retenciones", async () => {
+  it("retorna lista vacía si no hay retenciones", async () => {
     vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
 
     const result = await getRetentionsAction("company-1");
@@ -244,6 +263,21 @@ describe("exportRetentionVoucherPDFAction", () => {
       expect(result.buffer.length).toBeGreaterThan(0);
     }
     expect(generateRetentionVoucherPDF).toHaveBeenCalledOnce();
+  });
+
+  it("usa retention.id como fallback si voucherNumber es null", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
+      { ...mockRetentionFull, voucherNumber: null } as never
+    );
+    vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+
+    await exportRetentionVoucherPDFAction("ret-1", "company-1");
+
+    expect(generateRetentionVoucherPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ voucherNumber: "ret-1" })
+    );
   });
 });
 

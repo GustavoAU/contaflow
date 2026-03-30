@@ -107,6 +107,7 @@ model Company {
   igtfTransactions IGTFTransaction[]
   invoices    Invoice[]
   controlNumberSequences ControlNumberSequence[]
+  retentionSequences     RetentionSequence[]
 }
 
 model CompanyMember {
@@ -245,6 +246,7 @@ model Retencion {
   transaction      Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   invoiceId        String?
   invoice          Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  voucherNumber    String?
   idempotencyKey   String          @unique
   deletedAt        DateTime?
   createdAt        DateTime        @default(now())
@@ -312,4 +314,12 @@ model InvoiceTaxLine {
   base        Decimal     @db.Decimal(19, 4)
   rate        Decimal     @db.Decimal(5, 2)
   amount      Decimal     @db.Decimal(19, 4)
+}
+
+model RetentionSequence {
+  id         String   @id @default(cuid())
+  companyId  String   @unique
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }

@@ -5,6 +5,30 @@ import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
+// ─── getNextVoucherNumber ──────────────────────────────────────────────────────
+/**
+ * Obtiene y reserva el siguiente número de comprobante de retención para una
+ * empresa en formato "CR-XXXXXXXX".
+ *
+ * Precondiciones:
+ *   - `tx` DEBE ser un cliente dentro de `prisma.$transaction({ isolationLevel: 'Serializable' })`
+ *
+ * Postcondiciones:
+ *   - Retorna un string único no reutilizado con formato "CR-XXXXXXXX"
+ *   - `lastNumber` en RetentionSequence queda incrementado en 1
+ */
+export async function getNextVoucherNumber(
+  tx: Prisma.TransactionClient,
+  companyId: string
+): Promise<string> {
+  const seq = await tx.retentionSequence.upsert({
+    where: { companyId },
+    create: { companyId, lastNumber: 1 },
+    update: { lastNumber: { increment: 1 } },
+  });
+  return `CR-${String(seq.lastNumber).padStart(8, "0")}`;
+}
+
 export type RetentionCalculation = {
   taxBase: string;
   ivaAmount: string;
@@ -116,12 +140,22 @@ export async function linkRetentionToInvoice(
   });
   if (!invoice) throw new Error("Factura no encontrada");
 
-  // 3. $transaction (no Serializable — no hay correlativo)
+  // 3. $transaction (no Serializable — no hay correlativo; Read Committed es suficiente)
   const [updated] = await prisma.$transaction([
     prisma.retencion.update({
       where: { id: retentionId },
       data: { invoiceId },
       include: { invoice: true },
+    }),
+    // Sync campos denormalizados de retención en Invoice
+    prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        ivaRetentionAmount: retention.ivaRetention,
+        ivaRetentionVoucher: retention.voucherNumber ?? retention.id,
+        ivaRetentionDate: retention.createdAt,
+        ...(retention.islrAmount ? { islrRetentionAmount: retention.islrAmount } : {}),
+      },
     }),
     prisma.auditLog.create({
       data: {

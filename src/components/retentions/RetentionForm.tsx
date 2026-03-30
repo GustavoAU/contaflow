@@ -9,6 +9,8 @@ import {
   createRetentionAction,
   exportRetentionVoucherPDFAction,
   linkRetentionToInvoiceAction,
+  findInvoiceByNumberAction,
+  type InvoiceMatch,
 } from "@/modules/retentions/actions/retention.actions";
 import { RetentionService } from "@/modules/retentions/services/RetentionService";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
@@ -22,8 +24,12 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
   const [isPendingLink, startTransitionLink] = useTransition();
+  const [isPendingSearch, startTransitionSearch] = useTransition();
   const [savedRetentionId, setSavedRetentionId] = useState<string | null>(null);
-  const [invoiceId, setInvoiceId] = useState("");
+  const [savedVoucherNumber, setSavedVoucherNumber] = useState<string | null>(null);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceMatches, setInvoiceMatches] = useState<InvoiceMatch[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceMatch | null>(null);
   const [retentionType, setRetentionType] = useState<"IVA" | "ISLR" | "AMBAS">("IVA");
   const [taxBase, setTaxBase] = useState("");
   const [ivaRetentionPct, setIvaRetentionPct] = useState<75 | 100>(75);
@@ -46,12 +52,27 @@ export function RetentionForm({ companyId, userId }: Props) {
     });
   }
 
-  function handleLinkToInvoice(retentionId: string, invId: string) {
-    startTransitionLink(async () => {
-      const result = await linkRetentionToInvoiceAction(retentionId, invId, companyId);
+  function handleSearchInvoice() {
+    if (!invoiceSearch.trim()) return;
+    startTransitionSearch(async () => {
+      const result = await findInvoiceByNumberAction(invoiceSearch.trim(), companyId);
       if (result.success) {
-        toast.success("Retención vinculada a la factura correctamente");
-        setInvoiceId("");
+        setInvoiceMatches(result.data);
+        if (result.data.length === 0) toast.error("No se encontraron facturas con ese número");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function handleLinkToInvoice(retentionId: string, invoice: InvoiceMatch) {
+    startTransitionLink(async () => {
+      const result = await linkRetentionToInvoiceAction(retentionId, invoice.id, companyId);
+      if (result.success) {
+        toast.success(`Retención vinculada a factura ${invoice.invoiceNumber}`);
+        setInvoiceSearch("");
+        setInvoiceMatches([]);
+        setSelectedInvoice(invoice);
       } else {
         toast.error(result.error);
       }
@@ -92,6 +113,10 @@ export function RetentionForm({ companyId, userId }: Props) {
       if (result.success) {
         toast.success("Retención creada correctamente");
         setSavedRetentionId(result.data.id);
+        setSavedVoucherNumber(result.data.voucherNumber);
+        setSelectedInvoice(null);
+        setInvoiceSearch("");
+        setInvoiceMatches([]);
         form.reset();
         setTaxBase("");
       } else {
@@ -274,7 +299,10 @@ export function RetentionForm({ companyId, userId }: Props) {
         {savedRetentionId && (
           <div className="mt-4 space-y-3 rounded-lg border border-green-200 bg-green-50 p-4">
             <p className="text-sm font-semibold text-green-800">
-              Retención guardada — ID: <span className="font-mono">{savedRetentionId}</span>
+              Retención guardada
+              {savedVoucherNumber && (
+                <> — Comprobante <span className="font-mono">{savedVoucherNumber}</span></>
+              )}
             </p>
 
             {/* Descargar comprobante */}
@@ -289,29 +317,65 @@ export function RetentionForm({ companyId, userId }: Props) {
             </Button>
 
             {/* Vincular a factura */}
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-zinc-600">
-                Factura asociada (opcional)
-              </label>
-              <input
-                type="text"
-                placeholder="ID de factura"
-                value={invoiceId}
-                onChange={(e) => setInvoiceId(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-              {invoiceId.trim() && (
-                <Button
-                  variant="outline"
-                  onClick={() => handleLinkToInvoice(savedRetentionId, invoiceId.trim())}
-                  disabled={isPendingLink}
-                  className="w-full"
-                  aria-label="Vincular retención a la factura indicada"
-                >
-                  {isPendingLink ? "Vinculando..." : "Vincular a Factura"}
-                </Button>
-              )}
-            </div>
+            {selectedInvoice ? (
+              <p className="text-sm text-green-700">
+                Vinculada a factura{" "}
+                <span className="font-mono font-semibold">{selectedInvoice.invoiceNumber}</span>
+                {" "}— {selectedInvoice.counterpartName}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-zinc-600">
+                  Vincular a factura (opcional)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="N° Factura (ej. B00000001)"
+                    value={invoiceSearch}
+                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearchInvoice()}
+                    className="flex-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchInvoice}
+                    disabled={isPendingSearch || !invoiceSearch.trim()}
+                    className="shrink-0"
+                  >
+                    {isPendingSearch ? "..." : "Buscar"}
+                  </Button>
+                </div>
+                {invoiceMatches.length > 0 && (
+                  <ul className="divide-y rounded-md border bg-white text-sm">
+                    {invoiceMatches.map((inv) => (
+                      <li
+                        key={inv.id}
+                        className="flex items-center justify-between px-3 py-2 hover:bg-zinc-50"
+                      >
+                        <span>
+                          <span className="font-mono font-medium">{inv.invoiceNumber}</span>
+                          {" "}— {inv.counterpartName}
+                          <span className="ml-2 text-xs text-zinc-400">
+                            {new Date(inv.date).toLocaleDateString("es-VE")}
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleLinkToInvoice(savedRetentionId, inv)}
+                          disabled={isPendingLink}
+                          className="ml-2 shrink-0 text-xs"
+                        >
+                          Vincular
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

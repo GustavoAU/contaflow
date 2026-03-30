@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
-import { RetentionService, linkRetentionToInvoice } from "../services/RetentionService";
+import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -21,6 +21,7 @@ export type RetentionSummary = {
   ivaRetention: string;
   islrAmount: string | null;
   totalRetention: string;
+  voucherNumber: string | null;
   type: string;
   status: string;
   createdAt: Date;
@@ -45,42 +46,50 @@ export async function createRetentionAction(
       data.islrCode
     );
 
-    const retention = await prisma.retencion.create({
-      data: {
-        companyId: data.companyId,
-        providerName: data.providerName,
-        providerRif: data.providerRif,
-        invoiceNumber: data.invoiceNumber,
-        invoiceDate: data.invoiceDate,
-        invoiceAmount: new Decimal(data.invoiceAmount),
-        taxBase: new Decimal(data.taxBase),
-        ivaAmount: new Decimal(calc.ivaAmount),
-        ivaRetention: new Decimal(calc.ivaRetention),
-        ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
-        islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
-        islrRetentionPct: calc.islrRetentionPct ? new Decimal(calc.islrRetentionPct) : null,
-        totalRetention: new Decimal(calc.totalRetention),
-        type: data.type,
-        status: "PENDING",
-        createdBy: data.createdBy,
-        idempotencyKey: crypto.randomUUID(),
-      },
-    });
+    // $transaction Serializable — getNextVoucherNumber requiere SSI
+    const retention = await prisma.$transaction(async (tx) => {
+      const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
 
-    // AuditLog
-    await prisma.auditLog.create({
-      data: {
-        entityId: retention.id,
-        entityName: "Retencion",
-        action: "CREATE",
-        userId: data.createdBy,
-        newValue: {
+      const ret = await tx.retencion.create({
+        data: {
+          companyId: data.companyId,
+          providerName: data.providerName,
           providerRif: data.providerRif,
           invoiceNumber: data.invoiceNumber,
-          totalRetention: calc.totalRetention,
+          invoiceDate: data.invoiceDate,
+          invoiceAmount: new Decimal(data.invoiceAmount),
+          taxBase: new Decimal(data.taxBase),
+          ivaAmount: new Decimal(calc.ivaAmount),
+          ivaRetention: new Decimal(calc.ivaRetention),
+          ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
+          islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
+          islrRetentionPct: calc.islrRetentionPct ? new Decimal(calc.islrRetentionPct) : null,
+          totalRetention: new Decimal(calc.totalRetention),
+          voucherNumber,
+          type: data.type,
+          status: "PENDING",
+          createdBy: data.createdBy,
+          idempotencyKey: crypto.randomUUID(),
         },
-      },
-    });
+      });
+
+      await tx.auditLog.create({
+        data: {
+          entityId: ret.id,
+          entityName: "Retencion",
+          action: "CREATE",
+          userId: data.createdBy,
+          newValue: {
+            providerRif: data.providerRif,
+            invoiceNumber: data.invoiceNumber,
+            totalRetention: calc.totalRetention,
+            voucherNumber,
+          },
+        },
+      });
+
+      return ret;
+    }, { isolationLevel: "Serializable" });
 
     revalidatePath(`/company/${data.companyId}/retentions`);
 
@@ -96,6 +105,7 @@ export async function createRetentionAction(
         ivaRetention: retention.ivaRetention.toString(),
         islrAmount: retention.islrAmount?.toString() ?? null,
         totalRetention: retention.totalRetention.toString(),
+        voucherNumber: retention.voucherNumber ?? null,
         type: retention.type,
         status: retention.status,
         createdAt: retention.createdAt,
@@ -116,7 +126,6 @@ export async function exportRetentionVoucherPDFAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    // Verificar que company pertenece al usuario
     const membership = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       include: { company: true },
@@ -132,7 +141,6 @@ export async function exportRetentionVoucherPDFAction(
     const issueDate = retention.createdAt;
     const monthLabel = issueDate.toLocaleString("es-VE", { month: "long", year: "numeric" });
 
-    // Determinar tipo y tasa de retención (IVA o ISLR)
     const retentionType: "IVA" | "ISLR" = retention.islrAmount ? "ISLR" : "IVA";
     const retentionRate = retentionType === "ISLR"
       ? Number(retention.islrRetentionPct ?? 0)
@@ -141,14 +149,14 @@ export async function exportRetentionVoucherPDFAction(
     const pdfBuffer = await generateRetentionVoucherPDF({
       companyName: retention.company.name,
       companyRif: retention.company.rif ?? "",
-      voucherNumber: (retention as Record<string, unknown>).voucherNumber as string ?? retention.id,
+      voucherNumber: retention.voucherNumber ?? retention.id,
       issueDate,
       providerName: retention.providerName,
       providerRif: retention.providerRif,
       periodLabel: monthLabel,
       retentionType,
       retentionRate,
-      invoiceNumber: (retention as Record<string, unknown>).invoiceNumber as string ?? "N/A",
+      invoiceNumber: retention.invoiceNumber,
       invoiceDate: retention.invoiceDate,
       invoiceAmount: retention.invoiceAmount,
       taxableBase: retention.taxBase,
@@ -171,7 +179,6 @@ export async function linkRetentionToInvoiceAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    // Verificar que company pertenece al usuario
     const membership = await prisma.companyMember.findFirst({
       where: { companyId, userId },
     });
@@ -192,6 +199,52 @@ export async function linkRetentionToInvoiceAction(
       return { success: false, error: error.message };
     }
     return { success: false, error: "Error al vincular retención" };
+  }
+}
+
+// ─── Buscar factura por número ────────────────────────────────────────────────
+export type InvoiceMatch = {
+  id: string;
+  invoiceNumber: string;
+  date: Date;
+  counterpartName: string;
+  counterpartRif: string;
+  type: string;
+};
+
+export async function findInvoiceByNumberAction(
+  invoiceNumber: string,
+  companyId: string
+): Promise<ActionResult<InvoiceMatch[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+    });
+    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        invoiceNumber: { contains: invoiceNumber, mode: "insensitive" },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        date: true,
+        counterpartName: true,
+        counterpartRif: true,
+        type: true,
+      },
+      orderBy: { date: "desc" },
+      take: 10,
+    });
+
+    return { success: true, data: invoices };
+  } catch {
+    return { success: false, error: "Error al buscar factura" };
   }
 }
 
@@ -217,6 +270,7 @@ export async function getRetentionsAction(
         ivaRetention: r.ivaRetention.toString(),
         islrAmount: r.islrAmount?.toString() ?? null,
         totalRetention: r.totalRetention.toString(),
+        voucherNumber: r.voucherNumber ?? null,
         type: r.type,
         status: r.status,
         createdAt: r.createdAt,
