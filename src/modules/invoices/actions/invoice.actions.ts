@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { InvoiceService } from "../services/InvoiceService";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
+import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -82,6 +83,53 @@ export async function exportInvoiceBookPDFAction(params: {
     return { success: true, buffer: Array.from(pdfBuffer) };
   } catch {
     return { success: false, error: "Error al generar PDF" };
+  }
+}
+
+// ─── Exportar comprobante PDF de factura individual ────────────────────────────
+export async function exportInvoiceVoucherPDFAction(
+  invoiceId: string,
+  companyId: string,
+): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+    });
+    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const invoice = await InvoiceService.getById(invoiceId, companyId);
+    if (!invoice) return { success: false, error: "Factura no encontrada" };
+
+    const pdfBuffer = await generateInvoiceVoucherPDF({
+      companyName: invoice.company.name,
+      companyRif: invoice.company.rif ?? "",
+      companyAddress: invoice.company.address,
+      invoiceNumber: invoice.invoiceNumber,
+      controlNumber: invoice.controlNumber,
+      invoiceType: invoice.type,
+      docType: invoice.docType,
+      date: invoice.date,
+      counterpartName: invoice.counterpartName,
+      counterpartRif: invoice.counterpartRif,
+      taxLines: invoice.taxLines.map((l) => ({
+        taxType: l.taxType,
+        base: l.base.toFixed(2),
+        rate: l.rate.toFixed(2),
+        amount: l.amount.toFixed(2),
+      })),
+      ivaRetentionAmount: invoice.ivaRetentionAmount.toFixed(2),
+      ivaRetentionVoucher: invoice.ivaRetentionVoucher,
+      islrRetentionAmount: invoice.islrRetentionAmount.toFixed(2),
+      igtfBase: invoice.igtfBase.toFixed(2),
+      igtfAmount: invoice.igtfAmount.toFixed(2),
+    });
+
+    return { success: true, buffer: Array.from(pdfBuffer) };
+  } catch {
+    return { success: false, error: "Error al generar PDF de factura" };
   }
 }
 

@@ -5,7 +5,11 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { getInvoiceBookAction, exportInvoiceBookPDFAction } from "@/modules/invoices/actions/invoice.actions";
+import {
+  getInvoiceBookAction,
+  exportInvoiceBookPDFAction,
+  exportInvoiceVoucherPDFAction,
+} from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import * as XLSX from "xlsx";
 
@@ -43,6 +47,8 @@ const currentMonth = new Date().getMonth() + 1;
 export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isPendingPDF, startTransitionPDF] = useTransition();
+  const [isPendingVoucher, startTransitionVoucher] = useTransition();
+  const [pendingVoucherId, setPendingVoucherId] = useState<string | null>(null);
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -71,6 +77,25 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       const a = document.createElement("a");
       a.href = url;
       a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function handleExportInvoiceVoucher(invoiceId: string, invoiceNumber: string) {
+    setPendingVoucherId(invoiceId);
+    startTransitionVoucher(async () => {
+      const res = await exportInvoiceVoucherPDFAction(invoiceId, companyId);
+      setPendingVoucherId(null);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      const blob = new Blob([new Uint8Array(res.buffer)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `factura-${invoiceNumber}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     });
@@ -292,6 +317,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                       <th className="px-4 py-3 text-left">RIF</th>
                       <th className="px-4 py-3 text-left">N° Factura</th>
                       <th className="px-4 py-3 text-left">N° Control</th>
+                      <th className="px-4 py-3 text-left"></th>
                       <th className="px-4 py-3 text-left">Impuesto</th>
                       <th className="px-4 py-3 text-right">Base</th>
                       <th className="px-4 py-3 text-right">Tasa %</th>
@@ -313,6 +339,18 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                           <td className="px-4 py-3 font-mono text-xs">{row.invoiceNumber}</td>
                           <td className="px-4 py-3 font-mono text-xs">
                             {row.controlNumber ?? "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
+                              disabled={isPendingVoucher && pendingVoucherId === row.id}
+                              title="Descargar PDF de factura"
+                              className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                              aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
+                            >
+                              {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                            </button>
                           </td>
                           <td className="px-4 py-3 text-zinc-400">—</td>
                           <td className="px-4 py-3 text-right font-mono">—</td>
@@ -347,6 +385,20 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                             </td>
                             <td className="px-4 py-3 font-mono text-xs">
                               {idx === 0 ? (row.controlNumber ?? "—") : ""}
+                            </td>
+                            <td className="px-4 py-3">
+                              {idx === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
+                                  disabled={isPendingVoucher && pendingVoucherId === row.id}
+                                  title="Descargar PDF de factura"
+                                  className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                  aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
+                                >
+                                  {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                                </button>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">

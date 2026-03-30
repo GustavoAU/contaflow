@@ -61,7 +61,7 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
   - ✅ 18.6 Validación RIF /^[JVEGCP]-\d{8}-?\d?$/i (bug fix prefijo C-)
   - ✅ 18.2 PDF librería — @react-pdf/renderer v4, InvoiceBookPDFService + RetentionVoucherPDFService
   - ⏳ 18.4 Link retention↔invoice — ARCH pendiente (schema change)
-  - ⏳ 18.5 Voucher PDF individual por factura — desbloqueado
+  - ✅ 18.5 Voucher PDF individual por factura — InvoiceVoucherPDFService, botón PDF por fila en InvoiceBook
 - 18.3 cascade taxCategory UI → ✅ completado
 - 18.6 validación RIF Zod → ✅ completado (bug fiscal corregido: regex 
   ahora acepta C- comunal y dígito verificador opcional)

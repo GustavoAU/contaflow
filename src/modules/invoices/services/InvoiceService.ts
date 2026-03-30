@@ -93,6 +93,14 @@ export class InvoiceService {
     return invoice;
   }
 
+  // ─── Obtener factura por ID ──────────────────────────────────────────────────
+  static async getById(invoiceId: string, companyId: string) {
+    return prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      include: { taxLines: true, company: true },
+    });
+  }
+
   // ─── Obtener libro ───────────────────────────────────────────────────────────
   static async getBook(filter: InvoiceBookFilter): Promise<InvoiceBookResult> {
     const startDate = new Date(filter.year, filter.month - 1, 1);
