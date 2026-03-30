@@ -14,7 +14,7 @@ export default defineConfig({
     },
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json", "json-summary", "html"],
       reportsDirectory: "./coverage",
       // PDF services usan @react-pdf/renderer — no testeable en Node runner
       exclude: ["**/*PDFService.ts", "**/*PDFService.tsx"],

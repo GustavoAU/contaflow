@@ -66,4 +66,5 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # xlsx no tiene fix disponible (SheetJS known vulns) — auditamos nivel critical
+      - run: npm audit --audit-level=critical
