@@ -14,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -31,7 +32,12 @@ const mockCompany = {
 };
 
 describe("CompanyService.createCompany", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("crea una empresa correctamente", async () => {
     vi.mocked(prisma.company.findUnique).mockResolvedValue(null);
@@ -58,7 +64,12 @@ describe("CompanyService.createCompany", () => {
 });
 
 describe("CompanyService.archiveCompany", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("archiva una empresa correctamente", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
@@ -95,7 +106,12 @@ describe("CompanyService.archiveCompany", () => {
 });
 
 describe("CompanyService.reactivateCompany", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("reactiva una empresa archivada correctamente", async () => {
     const archived = { ...mockCompany, status: "ARCHIVED" };

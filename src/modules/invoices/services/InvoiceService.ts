@@ -1,6 +1,7 @@
 // src/modules/invoices/services/InvoiceService.ts
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import type { CreateInvoiceInput, InvoiceBookFilter } from "../schemas/invoice.schema";
 
 // ─── Tipos de retorno ──────────────────────────────────────────────────────────
@@ -54,8 +55,9 @@ export type InvoiceBookResult = {
 
 export class InvoiceService {
   // ─── Crear factura ───────────────────────────────────────────────────────────
-  static async create(input: CreateInvoiceInput) {
-    const invoice = await prisma.invoice.create({
+  static async create(input: CreateInvoiceInput, tx?: Prisma.TransactionClient) {
+    const db = tx ?? prisma;
+    const invoice = await db.invoice.create({
       data: {
         companyId: input.companyId,
         type: input.type,
@@ -79,6 +81,7 @@ export class InvoiceService {
         transactionId: input.transactionId,
         periodId: input.periodId,
         createdBy: input.createdBy,
+        idempotencyKey: input.idempotencyKey,
         taxLines: {
           create: input.taxLines.map((line) => ({
             taxType: line.taxType,
@@ -96,7 +99,7 @@ export class InvoiceService {
   // ─── Obtener factura por ID ──────────────────────────────────────────────────
   static async getById(invoiceId: string, companyId: string) {
     return prisma.invoice.findFirst({
-      where: { id: invoiceId, companyId },
+      where: { id: invoiceId, companyId, deletedAt: null },
       include: { taxLines: true, company: true },
     });
   }
@@ -111,6 +114,7 @@ export class InvoiceService {
         companyId: filter.companyId,
         type: filter.type,
         date: { gte: startDate, lt: endDate },
+        deletedAt: null,
       },
       include: { taxLines: true },
       orderBy: { date: "asc" },

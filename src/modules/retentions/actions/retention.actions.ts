@@ -46,6 +46,36 @@ export async function createRetentionAction(
       data.islrCode
     );
 
+    // Idempotencia: clave provista por cliente o generada aquí (constante para este request)
+    const idempotencyKey = data.idempotencyKey ?? crypto.randomUUID();
+
+    // Fast path: si ya existe una retención con esta clave, retornar la existente
+    if (data.idempotencyKey) {
+      const existing = await prisma.retencion.findFirst({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        return {
+          success: true,
+          data: {
+            id: existing.id,
+            providerName: existing.providerName,
+            providerRif: existing.providerRif,
+            invoiceNumber: existing.invoiceNumber,
+            invoiceDate: existing.invoiceDate,
+            invoiceAmount: existing.invoiceAmount.toString(),
+            ivaRetention: existing.ivaRetention.toString(),
+            islrAmount: existing.islrAmount?.toString() ?? null,
+            totalRetention: existing.totalRetention.toString(),
+            voucherNumber: existing.voucherNumber ?? null,
+            type: existing.type,
+            status: existing.status,
+            createdAt: existing.createdAt,
+          },
+        };
+      }
+    }
+
     // $transaction Serializable — getNextVoucherNumber requiere SSI
     const retention = await prisma.$transaction(async (tx) => {
       const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
@@ -69,7 +99,7 @@ export async function createRetentionAction(
           type: data.type,
           status: "PENDING",
           createdBy: data.createdBy,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey,
         },
       });
 
@@ -112,7 +142,35 @@ export async function createRetentionAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
+    if (error instanceof Error) {
+      // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
+      if (error.message.includes("P2002") && input.idempotencyKey) {
+        const existing = await prisma.retencion.findFirst({
+          where: { idempotencyKey: input.idempotencyKey },
+        });
+        if (existing) {
+          return {
+            success: true,
+            data: {
+              id: existing.id,
+              providerName: existing.providerName,
+              providerRif: existing.providerRif,
+              invoiceNumber: existing.invoiceNumber,
+              invoiceDate: existing.invoiceDate,
+              invoiceAmount: existing.invoiceAmount.toString(),
+              ivaRetention: existing.ivaRetention.toString(),
+              islrAmount: existing.islrAmount?.toString() ?? null,
+              totalRetention: existing.totalRetention.toString(),
+              voucherNumber: existing.voucherNumber ?? null,
+              type: existing.type,
+              status: existing.status,
+              createdAt: existing.createdAt,
+            },
+          };
+        }
+      }
+      return { success: false, error: error.message };
+    }
     return { success: false, error: "Error al crear la retención" };
   }
 }
@@ -229,6 +287,7 @@ export async function findInvoiceByNumberAction(
       where: {
         companyId,
         invoiceNumber: { contains: invoiceNumber, mode: "insensitive" },
+        deletedAt: null,
       },
       select: {
         id: true,

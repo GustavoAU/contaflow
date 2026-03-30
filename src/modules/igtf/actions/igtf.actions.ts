@@ -43,27 +43,31 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
     const data = parsed.data;
     const calc = IGTFService.calculate(data.amount, IGTF_RATE);
 
-    const igtf = await prisma.iGTFTransaction.create({
-      data: {
-        companyId: data.companyId,
-        amount: new Decimal(data.amount),
-        igtfRate: new Decimal(IGTF_RATE),
-        igtfAmount: new Decimal(calc.igtfAmount),
-        currency: data.currency,
-        concept: data.concept,
-        transactionId: data.transactionId ?? null,
-        createdBy: data.createdBy,
-      },
-    });
+    const igtf = await prisma.$transaction(async (tx) => {
+      const created = await tx.iGTFTransaction.create({
+        data: {
+          companyId: data.companyId,
+          amount: new Decimal(data.amount),
+          igtfRate: new Decimal(IGTF_RATE),
+          igtfAmount: new Decimal(calc.igtfAmount),
+          currency: data.currency,
+          concept: data.concept,
+          transactionId: data.transactionId ?? null,
+          createdBy: data.createdBy,
+        },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        entityId: igtf.id,
-        entityName: "IGTFTransaction",
-        action: "CREATE",
-        userId: data.createdBy,
-        newValue: { amount: data.amount, currency: data.currency, igtfAmount: calc.igtfAmount },
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: created.id,
+          entityName: "IGTFTransaction",
+          action: "CREATE",
+          userId: data.createdBy,
+          newValue: { amount: data.amount, currency: data.currency, igtfAmount: calc.igtfAmount },
+        },
+      });
+
+      return created;
     });
 
     revalidatePath(`/company/${data.companyId}/igtf`);

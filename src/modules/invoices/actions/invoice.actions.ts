@@ -17,12 +17,54 @@ export async function createInvoiceAction(input: unknown) {
   }
 
   try {
-    const invoice = await InvoiceService.create(parsed.data);
+    const key = parsed.data.idempotencyKey ?? crypto.randomUUID();
+
+    // Idempotencia: si ya existe una factura con esta clave, retornar la existente
+    if (parsed.data.idempotencyKey) {
+      const existing = await prisma.invoice.findFirst({
+        where: { idempotencyKey: key },
+        select: { id: true },
+      });
+      if (existing) {
+        return { success: true as const, data: existing.id };
+      }
+    }
+
+    const { userId } = await auth();
+    if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const invoice = await prisma.$transaction(async (tx) => {
+      const inv = await InvoiceService.create({ ...parsed.data, idempotencyKey: key }, tx);
+      await tx.auditLog.create({
+        data: {
+          entityId: inv.id,
+          entityName: "Invoice",
+          action: "CREATE",
+          userId,
+          newValue: {
+            invoiceNumber: parsed.data.invoiceNumber,
+            type: parsed.data.type,
+            counterpartRif: parsed.data.counterpartRif,
+            companyId: parsed.data.companyId,
+          },
+        },
+      });
+      return inv;
+    });
+
     revalidatePath(`/company/${parsed.data.companyId}/invoices`);
     return { success: true as const, data: invoice.id };
   } catch (error) {
     if (error instanceof Error) {
       if (error.message.includes("P2002")) {
+        // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
+        if (parsed.data.idempotencyKey) {
+          const existing = await prisma.invoice.findFirst({
+            where: { idempotencyKey: parsed.data.idempotencyKey },
+            select: { id: true },
+          });
+          if (existing) return { success: true as const, data: existing.id };
+        }
         return {
           success: false as const,
           error: "Ya existe una factura con ese número para esta empresa",

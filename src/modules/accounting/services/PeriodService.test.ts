@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -32,7 +33,12 @@ const mockPeriod = {
 };
 
 describe("PeriodService.openPeriod", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ accountingPeriod: prisma.accountingPeriod, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("abre un per├¡odo correctamente cuando no hay per├¡odo activo", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
@@ -66,7 +72,12 @@ describe("PeriodService.openPeriod", () => {
 });
 
 describe("PeriodService.closePeriod", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ accountingPeriod: prisma.accountingPeriod, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("cierra el per├¡odo activo correctamente", async () => {
     const closedPeriod = {

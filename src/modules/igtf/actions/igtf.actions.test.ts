@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -31,7 +32,12 @@ const mockIGTF = {
 };
 
 describe("createIGTFAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ iGTFTransaction: prisma.iGTFTransaction, auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("crea registro IGTF correctamente", async () => {
     vi.mocked(prisma.iGTFTransaction.create).mockResolvedValue(mockIGTF as never);

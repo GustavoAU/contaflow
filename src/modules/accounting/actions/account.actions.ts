@@ -1,6 +1,7 @@
 // src/modules/accounting/actions/account.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -46,7 +47,7 @@ export async function getAccountsAction(
 ): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
     const accounts = await prisma.account.findMany({
-      where: { companyId },
+      where: { companyId, deletedAt: null },
       orderBy: { code: "asc" },
     });
     return { success: true, data: accounts };
@@ -103,14 +104,31 @@ export async function createAccountAction(
     const range = RANGES[validated.type];
     const outOfRange = isNaN(codeNum) || codeNum < range.start || codeNum > range.end;
 
-    const account = await prisma.account.create({
-      data: {
-        name: validated.name,
-        code: validated.code,
-        type: validated.type,
-        description: validated.description,
-        companyId: validated.companyId,
-      },
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const account = await prisma.$transaction(async (tx) => {
+      const created = await tx.account.create({
+        data: {
+          name: validated.name,
+          code: validated.code,
+          type: validated.type,
+          description: validated.description,
+          companyId: validated.companyId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          entityId: created.id,
+          entityName: "Account",
+          action: "CREATE",
+          userId,
+          newValue: { code: validated.code, name: validated.name, type: validated.type },
+        },
+      });
+
+      return created;
     });
 
     revalidatePath(`/company/${validated.companyId}/accounts`);
@@ -150,7 +168,7 @@ export async function updateAccountAction(
 
     if (data.code) {
       const existing = await prisma.account.findFirst({
-        where: { code: data.code, NOT: { id } },
+        where: { code: data.code, NOT: { id }, deletedAt: null },
       });
       if (existing) {
         return {
@@ -160,7 +178,27 @@ export async function updateAccountAction(
       }
     }
 
-    const account = await prisma.account.update({ where: { id }, data });
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const before = await prisma.account.findUnique({ where: { id }, select: { code: true, name: true, type: true } });
+
+    const account = await prisma.$transaction(async (tx) => {
+      const updated = await tx.account.update({ where: { id }, data });
+
+      await tx.auditLog.create({
+        data: {
+          entityId: id,
+          entityName: "Account",
+          action: "UPDATE",
+          userId,
+          oldValue: before as object,
+          newValue: data as object,
+        },
+      });
+
+      return updated;
+    });
 
     revalidatePath("/company");
 
@@ -190,7 +228,7 @@ export async function getNextAccountCodeAction(
     const range = RANGES[type];
 
     const accounts = await prisma.account.findMany({
-      where: { companyId },
+      where: { companyId, deletedAt: null },
       select: { code: true },
     });
 

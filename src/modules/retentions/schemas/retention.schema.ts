@@ -47,6 +47,7 @@ export const CreateRetentionSchema = z.object({
   islrCode: z.string().optional(),
   type: z.enum(["IVA", "ISLR", "AMBAS"]),
   createdBy: z.string().min(1),
+  idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }).optional(),
 });
 
 export type CreateRetentionInput = z.infer<typeof CreateRetentionSchema>;

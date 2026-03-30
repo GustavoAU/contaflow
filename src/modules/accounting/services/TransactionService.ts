@@ -58,6 +58,7 @@ export class TransactionService {
       where: {
         id: { in: accountIds },
         companyId: validated.companyId,
+        deletedAt: null,
       },
       select: { id: true },
     });
@@ -85,36 +86,39 @@ export class TransactionService {
     const date = validated.date ?? new Date();
     const number = await TransactionService.generateTransactionNumber(validated.companyId, date);
 
-    // 6. Crear transaccion atomica
-    const transaction = await prisma.transaction.create({
-      data: {
-        number,
-        companyId: validated.companyId,
-        userId: validated.userId,
-        description: validated.description,
-        reference: validated.reference,
-        notes: validated.notes,
-        date,
-        type: validated.type,
-        periodId: activePeriod.id,
-        entries: {
-          create: entries,
+    // 6. Crear transaccion + AuditLog de forma atómica
+    const transaction = await prisma.$transaction(async (tx) => {
+      const created = await tx.transaction.create({
+        data: {
+          number,
+          companyId: validated.companyId,
+          userId: validated.userId,
+          description: validated.description,
+          reference: validated.reference,
+          notes: validated.notes,
+          date,
+          type: validated.type,
+          periodId: activePeriod.id,
+          entries: {
+            create: entries,
+          },
         },
-      },
-      include: {
-        entries: { include: { account: true } },
-      },
-    });
+        include: {
+          entries: { include: { account: true } },
+        },
+      });
 
-    // 7. AuditLog
-    await prisma.auditLog.create({
-      data: {
-        entityId: transaction.id,
-        entityName: "Transaction",
-        action: "CREATE",
-        userId: validated.userId,
-        newValue: transaction as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: created.id,
+          entityName: "Transaction",
+          action: "CREATE",
+          userId: validated.userId,
+          newValue: created as object,
+        },
+      });
+
+      return created;
     });
 
     return transaction;
@@ -184,19 +188,19 @@ export class TransactionService {
         },
       });
 
-      return voidTx;
-    });
+      // 6. AuditLog dentro del mismo $transaction
+      await tx.auditLog.create({
+        data: {
+          entityId: original.id,
+          entityName: "Transaction",
+          action: "VOID",
+          userId: validated.userId,
+          oldValue: original as object,
+          newValue: voidTx as object,
+        },
+      });
 
-    // 6. AuditLog
-    await prisma.auditLog.create({
-      data: {
-        entityId: original.id,
-        entityName: "Transaction",
-        action: "VOID",
-        userId: validated.userId,
-        oldValue: original as object,
-        newValue: voidTransaction as object,
-      },
+      return voidTx;
     });
 
     return voidTransaction;

@@ -17,6 +17,13 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: {
       findFirst: vi.fn(),
     },
+    invoice: {
+      findFirst: vi.fn(),
+    },
+    auditLog: {
+      create: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -70,7 +77,13 @@ const EMPTY_SUMMARY = {
 };
 
 describe("createInvoiceAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ auditLog: prisma.auditLog })) as never
+    );
+  });
 
   it("retorna success true con input v├ílido", async () => {
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1" } as never);

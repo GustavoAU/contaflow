@@ -12,29 +12,33 @@ export class CompanyService {
       if (existing) throw new Error(`Ya existe una empresa con el RIF ${rif}.`);
     }
 
-    const company = await prisma.company.create({
-      data: {
-        name,
-        rif,
-        address,
-        status: "ACTIVE",
-        members: {
-          create: {
-            userId,
-            role: "ADMIN",
+    const company = await prisma.$transaction(async (tx) => {
+      const created = await tx.company.create({
+        data: {
+          name,
+          rif,
+          address,
+          status: "ACTIVE",
+          members: {
+            create: {
+              userId,
+              role: "ADMIN",
+            },
           },
         },
-      },
-    });
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        entityId: company.id,
-        entityName: "Company",
-        action: "CREATE",
-        userId,
-        newValue: company as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: created.id,
+          entityName: "Company",
+          action: "CREATE",
+          userId,
+          newValue: created as object,
+        },
+      });
+
+      return created;
     });
 
     return company;
@@ -60,20 +64,24 @@ export class CompanyService {
     if (!company) throw new Error("Empresa no encontrada.");
     if (company.status === "ARCHIVED") throw new Error("La empresa ya está archivada.");
 
-    const archived = await prisma.company.update({
-      where: { id: companyId },
-      data: { status: "ARCHIVED" },
-    });
+    const archived = await prisma.$transaction(async (tx) => {
+      const updated = await tx.company.update({
+        where: { id: companyId },
+        data: { status: "ARCHIVED" },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        entityId: companyId,
-        entityName: "Company",
-        action: "ARCHIVE",
-        userId,
-        oldValue: company as object,
-        newValue: archived as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: companyId,
+          entityName: "Company",
+          action: "ARCHIVE",
+          userId,
+          oldValue: company as object,
+          newValue: updated as object,
+        },
+      });
+
+      return updated;
     });
 
     return archived;
@@ -87,20 +95,24 @@ export class CompanyService {
     if (!company) throw new Error("Empresa no encontrada.");
     if (company.status === "ACTIVE") throw new Error("La empresa ya está activa.");
 
-    const reactivated = await prisma.company.update({
-      where: { id: companyId },
-      data: { status: "ACTIVE" },
-    });
+    const reactivated = await prisma.$transaction(async (tx) => {
+      const updated = await tx.company.update({
+        where: { id: companyId },
+        data: { status: "ACTIVE" },
+      });
 
-    await prisma.auditLog.create({
-      data: {
-        entityId: companyId,
-        entityName: "Company",
-        action: "REACTIVATE",
-        userId,
-        oldValue: company as object,
-        newValue: reactivated as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: companyId,
+          entityName: "Company",
+          action: "REACTIVATE",
+          userId,
+          oldValue: company as object,
+          newValue: updated as object,
+        },
+      });
+
+      return updated;
     });
 
     return reactivated;

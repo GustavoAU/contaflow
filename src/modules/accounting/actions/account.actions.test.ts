@@ -5,6 +5,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // No queremos tocar la DB real en los tests ÔÇö usamos un "mock"
 // Un mock es un objeto falso que simula el comportamiento real
 
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn(),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   default: {
     account: {
@@ -14,6 +18,10 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -22,6 +30,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 import { createAccountAction, getNextAccountCodeAction } from "./account.actions";
 
 // ÔöÇÔöÇÔöÇ Tests ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
@@ -29,6 +38,10 @@ import { createAccountAction, getNextAccountCodeAction } from "./account.actions
 describe("createAccountAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) => fn({ account: prisma.account, auditLog: prisma.auditLog })) as never
+    );
   });
 
   it("crea una cuenta correctamente", async () => {
@@ -41,6 +54,7 @@ describe("createAccountAction", () => {
       type: "ASSET",
       description: null,
       companyId: "company-1",
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -63,6 +77,7 @@ describe("createAccountAction", () => {
       type: "ASSET",
       description: null,
       companyId: "company-1",
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -90,6 +105,7 @@ describe("createAccountAction", () => {
       type: "ASSET",
       description: null,
       companyId: "company-2", // ÔåÉ empresa diferente
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -113,6 +129,7 @@ describe("createAccountAction", () => {
       type: "ASSET",
       description: null,
       companyId: "company-1",
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -189,7 +206,7 @@ describe("getNextAccountCodeAction", () => {
     // Verificar que el findMany se llam├│ con el companyId correcto
     expect(prisma.account.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { companyId: "company-1" },
+        where: { companyId: "company-1", deletedAt: null },
       })
     );
   });

@@ -37,6 +37,7 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
 - Mock pattern: `vi.mocked(prisma.modelo.metodo).mockResolvedValue([] as never)`
 - `vi.hoisted()` para variables antes de `vi.mock()`
 - Siempre mockear en tests de Actions: `next/cache`, `@clerk/nextjs/server`
+- Mock de `$transaction` interactivo: `vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({ modelo: prisma.modelo, auditLog: prisma.auditLog })) as never)`
 
 ## Fiscal VEN-NIF
 
@@ -79,7 +80,11 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
 - YAGNI: no implementar Colombia/DIAN hasta que exista contrato firmado
   en contaflow-contract.md.
 - KISS: si cabe en una línea Zod, no crear clase validator.
-  useActionState sobre custom state machines.
+
+## Forms — patrón de estado async
+
+- **`useTransition`** → patrón estándar para forms con Zod + objetos tipados (nuestro caso). No deprecado en React 19.
+- **`useActionState`** → solo para forms simples sin validación compleja (1-2 campos, sin Zod). Diseñado para `<form action={fn}>` + FormData, incompatible con nuestro stack tipado.
 
 ## Convenciones
 

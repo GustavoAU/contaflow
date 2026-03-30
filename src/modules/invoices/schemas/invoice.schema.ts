@@ -71,6 +71,7 @@ export const CreateInvoiceSchema = z.object({
   periodId: z.string().optional(),
 
   createdBy: z.string().min(1, { error: "El usuario es requerido" }),
+  idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }).optional(),
 });
 
 // ─── Filtros para el libro ─────────────────────────────────────────────────────

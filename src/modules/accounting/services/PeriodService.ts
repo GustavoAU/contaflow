@@ -47,20 +47,23 @@ export class PeriodService {
       throw new Error(`El período ${month}/${year} ya existe.`);
     }
 
-    // 3. Crear el período
-    const period = await prisma.accountingPeriod.create({
-      data: { companyId, year, month, openedBy: userId },
-    });
+    // 3. Crear el período + AuditLog de forma atómica
+    const period = await prisma.$transaction(async (tx) => {
+      const created = await tx.accountingPeriod.create({
+        data: { companyId, year, month, openedBy: userId },
+      });
 
-    // 4. AuditLog
-    await prisma.auditLog.create({
-      data: {
-        entityId: period.id,
-        entityName: "AccountingPeriod",
-        action: "OPEN",
-        userId,
-        newValue: period as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: created.id,
+          entityName: "AccountingPeriod",
+          action: "OPEN",
+          userId,
+          newValue: created as object,
+        },
+      });
+
+      return created;
     });
 
     return period;
@@ -77,26 +80,29 @@ export class PeriodService {
       throw new Error("No hay período abierto para cerrar.");
     }
 
-    // 2. Cerrar el período
-    const closed = await prisma.accountingPeriod.update({
-      where: { id: activePeriod.id },
-      data: {
-        status: "CLOSED",
-        closedAt: new Date(),
-        closedBy: userId,
-      },
-    });
+    // 2. Cerrar el período + AuditLog de forma atómica
+    const closed = await prisma.$transaction(async (tx) => {
+      const updated = await tx.accountingPeriod.update({
+        where: { id: activePeriod.id },
+        data: {
+          status: "CLOSED",
+          closedAt: new Date(),
+          closedBy: userId,
+        },
+      });
 
-    // 3. AuditLog
-    await prisma.auditLog.create({
-      data: {
-        entityId: closed.id,
-        entityName: "AccountingPeriod",
-        action: "CLOSE",
-        userId,
-        oldValue: activePeriod as object,
-        newValue: closed as object,
-      },
+      await tx.auditLog.create({
+        data: {
+          entityId: updated.id,
+          entityName: "AccountingPeriod",
+          action: "CLOSE",
+          userId,
+          oldValue: activePeriod as object,
+          newValue: updated as object,
+        },
+      });
+
+      return updated;
     });
 
     return closed;
