@@ -319,6 +319,5 @@ export async function generateRetentionVoucherPDF(
   params: RetentionVoucherParams,
 ): Promise<Buffer> {
   const element = React.createElement(RetentionVoucherDocument, { params })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return renderToBuffer(element as any)
+  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0])
 }

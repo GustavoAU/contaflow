@@ -59,9 +59,9 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
   - ✅ 18.1 ControlNumberSequence + Serializable SSI (InvoiceSequenceService)
   - ✅ 18.3 Cascade TaxCategory + AlertDialog (InvoiceForm)
   - ✅ 18.6 Validación RIF /^[JVEGCP]-\d{8}-?\d?$/i (bug fix prefijo C-)
-  - ⏳ 18.2 PDF librería — ARCH pendiente
+  - ✅ 18.2 PDF librería — @react-pdf/renderer v4, InvoiceBookPDFService + RetentionVoucherPDFService
   - ⏳ 18.4 Link retention↔invoice — ARCH pendiente (schema change)
-  - ⏳ 18.5 Voucher PDF — bloqueado por 18.2
+  - ⏳ 18.5 Voucher PDF individual por factura — desbloqueado
 - 18.3 cascade taxCategory UI → ✅ completado
 - 18.6 validación RIF Zod → ✅ completado (bug fiscal corregido: regex 
   ahora acepta C- comunal y dígito verificador opcional)

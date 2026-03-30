@@ -347,6 +347,5 @@ function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
  */
 export async function generateInvoiceBookPDF(params: InvoiceBookPDFParams): Promise<Buffer> {
   const element = React.createElement(InvoiceBookDocument, { params })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return renderToBuffer(element as any)
+  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0])
 }
