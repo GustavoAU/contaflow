@@ -41,6 +41,8 @@ const makeInvoiceRow = (overrides = {}) => ({
   islrRetentionAmount: new Decimal("0"),
   igtfBase: new Decimal("0"),
   igtfAmount: new Decimal("0"),
+  currency: "VES",
+  exchangeRateId: null,
   taxLines: [makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00")],
   ...overrides,
 });
@@ -62,6 +64,7 @@ const BASE_INPUT = {
   islrRetentionAmount: "0",
   igtfBase: "0",
   igtfAmount: "0",
+  currency: "VES" as const,
   transactionId: undefined,
   periodId: undefined,
   createdBy: "user-1",

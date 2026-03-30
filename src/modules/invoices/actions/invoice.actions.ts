@@ -7,6 +7,8 @@ import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import type { Currency } from "@prisma/client";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
 
@@ -37,8 +39,36 @@ export async function createInvoiceAction(input: unknown) {
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error };
 
+    // Multimoneda: validar que existe tasa BCV para la fecha si currency !== VES
+    let resolvedExchangeRateId = parsed.data.exchangeRateId;
+    if (parsed.data.currency !== "VES") {
+      const dateOnly = new Date(
+        Date.UTC(
+          parsed.data.date.getFullYear(),
+          parsed.data.date.getMonth(),
+          parsed.data.date.getDate(),
+        ),
+      );
+      try {
+        const rateRecord = await ExchangeRateService.getRateForDate(
+          parsed.data.companyId,
+          parsed.data.currency as Currency,
+          dateOnly,
+        );
+        resolvedExchangeRateId = rateRecord.id;
+      } catch (e) {
+        return {
+          success: false as const,
+          error: e instanceof Error ? e.message : "Tasa de cambio no encontrada",
+        };
+      }
+    }
+
     const invoice = await prisma.$transaction(async (tx) => {
-      const inv = await InvoiceService.create({ ...parsed.data, idempotencyKey: key }, tx);
+      const inv = await InvoiceService.create(
+        { ...parsed.data, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
+        tx,
+      );
       await tx.auditLog.create({
         data: {
           entityId: inv.id,

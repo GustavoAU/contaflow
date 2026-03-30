@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   ReceiptText,
+  TrendingUpIcon,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -65,6 +66,7 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
         },
         { label: "Retenciones", href: `/company/${companyId}/retentions`, icon: ReceiptIcon },
         { label: "IGTF", href: `/company/${companyId}/igtf`, icon: BanknoteIcon },
+        { label: "Tasas BCV", href: `/company/${companyId}/exchange-rates`, icon: TrendingUpIcon },
         { label: "Escanear", href: `/company/${companyId}/invoices/upload`, icon: ScanIcon },
         { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },

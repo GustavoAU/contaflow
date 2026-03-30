@@ -89,6 +89,12 @@ enum TaxLineType {
   EXENTO
 }
 
+enum Currency {
+  VES
+  USD
+  EUR
+}
+
 model Company {
   id           String        @id @default(cuid())
   name         String
@@ -108,6 +114,7 @@ model Company {
   invoices    Invoice[]
   controlNumberSequences ControlNumberSequence[]
   retentionSequences     RetentionSequence[]
+  exchangeRates          ExchangeRate[]
 }
 
 model CompanyMember {
@@ -145,7 +152,7 @@ model IGTFTransaction {
   amount        Decimal  @db.Decimal(19, 4)
   igtfRate      Decimal  @db.Decimal(5, 2)
   igtfAmount    Decimal  @db.Decimal(19, 4)
-  currency      String   @default("USD")
+  currency      Currency @default(USD)
   concept       String
   createdAt     DateTime @default(now())
   createdBy     String
@@ -280,6 +287,9 @@ model Invoice {
   islrRetentionAmount  Decimal           @default(0) @db.Decimal(19, 4)
   igtfBase             Decimal           @default(0) @db.Decimal(19, 4)
   igtfAmount           Decimal           @default(0) @db.Decimal(19, 4)
+  currency             Currency          @default(VES)
+  exchangeRateId       String?
+  exchangeRate         ExchangeRate?     @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
   taxLines             InvoiceTaxLine[]
   retenciones          Retencion[]
   transactionId        String?
@@ -325,4 +335,21 @@ model RetentionSequence {
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
+}
+
+// Tipo de cambio BCV oficial — 1 USD/EUR = X VES
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  currency  Currency
+  rate      Decimal  @db.Decimal(19, 6)
+  date      DateTime @db.Date
+  source    String   @default("BCV")
+  createdAt DateTime @default(now())
+  createdBy String
+  invoices  Invoice[]
+
+  @@unique([companyId, currency, date])
+  @@index([companyId, currency, date])
 }

@@ -32,6 +32,8 @@ export type InvoiceBookRow = {
   islrRetentionAmount: string;
   igtfBase: string;
   igtfAmount: string;
+  currency: string;
+  exchangeRateId: string | null;
   taxLines: InvoiceTaxLineSerialized[];
 };
 
@@ -78,6 +80,8 @@ export class InvoiceService {
         islrRetentionAmount: new Decimal(input.islrRetentionAmount),
         igtfBase: new Decimal(input.igtfBase),
         igtfAmount: new Decimal(input.igtfAmount),
+        currency: input.currency ?? "VES",
+        exchangeRateId: input.exchangeRateId,
         transactionId: input.transactionId,
         periodId: input.periodId,
         createdBy: input.createdBy,
@@ -140,6 +144,8 @@ export class InvoiceService {
       islrRetentionAmount: inv.islrRetentionAmount.toFixed(2),
       igtfBase: inv.igtfBase.toFixed(2),
       igtfAmount: inv.igtfAmount.toFixed(2),
+      currency: inv.currency,
+      exchangeRateId: inv.exchangeRateId,
       taxLines: inv.taxLines.map((line) => ({
         id: line.id,
         taxType: line.taxType,

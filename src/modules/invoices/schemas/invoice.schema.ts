@@ -66,6 +66,10 @@ export const CreateInvoiceSchema = z.object({
   igtfBase: z.string().default("0"),
   igtfAmount: z.string().default("0"),
 
+  // Multimoneda — Fase 14
+  currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+  exchangeRateId: z.string().optional(),
+
   // Relaciones opcionales
   transactionId: z.string().optional(),
   periodId: z.string().optional(),

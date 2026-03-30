@@ -93,6 +93,7 @@ export function InvoiceForm({
 
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
+  const [currency, setCurrency] = useState<"VES" | "USD" | "EUR">("VES");
   const [docType, setDocType] = useState("FACTURA");
   const [taxCategory, setTaxCategory] = useState("GRAVADA");
   const prevCategoryRef = useRef<string>("GRAVADA");
@@ -352,6 +353,7 @@ export function InvoiceForm({
         islrRetentionAmount: data.get("islrRetentionAmount") || "0",
         igtfBase: igtfCalculation ? igtfCalculation.amount : "0",
         igtfAmount: igtfCalculation ? igtfCalculation.igtfAmount : "0",
+        currency,
       });
 
       if (result.success) {
@@ -372,6 +374,7 @@ export function InvoiceForm({
         setDocType("FACTURA");
         setPaidInForeign(false);
         setIgtfBase("");
+        setCurrency("VES");
       } else {
         toast.error(result.error);
       }
@@ -530,18 +533,46 @@ export function InvoiceForm({
             )}
           </div>
 
-          {/* Fecha */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Fecha <span className="text-red-500">*</span>
-            </label>
-            <input
-              name="date"
-              type="date"
-              required
-              className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
+          {/* Fecha + Moneda */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Fecha <span className="text-red-500">*</span>
+              </label>
+              <input
+                name="date"
+                type="date"
+                required
+                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">Moneda</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as "VES" | "USD" | "EUR")}
+                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="VES">Bs.D (VES)</option>
+                <option value="USD">USD — Dólar</option>
+                <option value="EUR">EUR — Euro</option>
+              </select>
+            </div>
           </div>
+          {currency !== "VES" && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              Los montos se ingresan en VES (conversión a la tasa BCV del día). Asegúrese de haber{" "}
+              <a
+                href={`/company/${companyId}/exchange-rates`}
+                className="font-semibold underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                registrado la tasa BCV
+              </a>{" "}
+              para la fecha seleccionada. Si no existe tasa, la factura no podrá guardarse.
+            </div>
+          )}
 
           {/* Contraparte */}
           <div className="grid gap-3 sm:grid-cols-2">

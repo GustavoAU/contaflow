@@ -58,6 +58,8 @@ const sampleInvoice = {
   islrRetentionAmount: "0.00",
   igtfBase: "1000.00",
   igtfAmount: "30.00",
+  currency: "VES",
+  exchangeRateId: null,
   taxLines: [
     {
       id: "line-1",
