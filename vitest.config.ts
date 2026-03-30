@@ -10,6 +10,7 @@ export default defineConfig({
     environment: "node",
     env: {
       NODE_ENV: "test",
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://test:test@localhost:5432/test",
     },
   },
   resolve: {
