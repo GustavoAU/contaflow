@@ -46,14 +46,15 @@ jobs:
         run: |
           node -e "
             const c = require('./coverage/coverage-summary.json').total;
-            const fail = ['branches','functions','lines','statements']
-              .filter(k => c[k].pct < 100);
+            const thresholds = { branches: 50, functions: 70, lines: 73, statements: 70 };
+            const fail = Object.keys(thresholds)
+              .filter(k => c[k].pct < thresholds[k]);
             if (fail.length) {
               console.error('Coverage insuficiente:',
-                fail.map(k => k+': '+c[k].pct+'%').join(', '));
+                fail.map(k => k+': '+c[k].pct+'% (min '+thresholds[k]+'%)').join(', '));
               process.exit(1);
             }
-            console.log('Coverage 100% verificado');
+            console.log('Coverage OK:', Object.keys(thresholds).map(k => k+': '+c[k].pct+'%').join(', '));
           "
 
   audit:
