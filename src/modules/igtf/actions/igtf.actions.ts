@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -41,6 +42,10 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
     }
 
     const data = parsed.data;
+
+    const rl = await checkRateLimit(`${data.companyId}:${data.createdBy}`, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
     const calc = IGTFService.calculate(data.amount, IGTF_RATE);
 
     const igtf = await prisma.$transaction(async (tx) => {

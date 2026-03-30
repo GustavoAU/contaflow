@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
 import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
@@ -38,6 +39,9 @@ export async function createRetentionAction(
     }
 
     const data = parsed.data;
+
+    const rl = await checkRateLimit(`${data.companyId}:${data.createdBy}`, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
 
     // Calcular retenciones
     const calc = RetentionService.calculate(

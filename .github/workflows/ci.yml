@@ -8,16 +8,20 @@ on:
 
 jobs:
   ci:
-    name: Lint + Tests
+    name: Lint + TypeScript + Tests
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://test:test@localhost:5432/test' }}
+      DATABASE_URL: "postgresql://mock:mock@localhost:5432/mock"
+      NODE_ENV: test
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -32,9 +36,34 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Tests
-        run: npx vitest run
-        env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Tests + Coverage
+        run: npx vitest run --coverage
+
+      - name: Verificar coverage mínimo
+        run: |
+          node -e "
+            const c = require('./coverage/coverage-summary.json').total;
+            const fail = ['branches','functions','lines','statements']
+              .filter(k => c[k].pct < 100);
+            if (fail.length) {
+              console.error('Coverage insuficiente:',
+                fail.map(k => k+': '+c[k].pct+'%').join(', '));
+              process.exit(1);
+            }
+            console.log('Coverage 100% verificado');
+          "
+
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high

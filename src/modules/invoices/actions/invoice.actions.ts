@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
@@ -32,6 +33,9 @@ export async function createInvoiceAction(input: unknown) {
 
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false as const, error: rl.error };
 
     const invoice = await prisma.$transaction(async (tx) => {
       const inv = await InvoiceService.create({ ...parsed.data, idempotencyKey: key }, tx);

@@ -29,6 +29,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { createAccountAction, getNextAccountCodeAction } from "./account.actions";
@@ -92,6 +97,60 @@ describe("createAccountAction", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("1105");
+    }
+  });
+
+  it("rechaza codigo con formato invalido", async () => {
+    const invalidos = ["ABC", "1 105", "caja-1", "1@105", "ACTIVO1"];
+    for (const code of invalidos) {
+      const result = await createAccountAction({
+        companyId: "company-1",
+        name: "Cuenta X",
+        code,
+        type: "ASSET",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const codeErrors = result.fieldErrors?.code ?? [];
+        expect(codeErrors.some((e) => e.includes("numérico"))).toBe(true);
+      }
+    }
+  });
+
+  it("acepta codigos jerarquicos validos", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockResolvedValue({
+      id: "acc-h",
+      name: "Caja Jerárquica",
+      code: "1-1-05",
+      type: "ASSET",
+      description: null,
+      companyId: "company-1",
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const validos = ["1105", "1-1-05", "1.1.05", "1105001"];
+    for (const code of validos) {
+      vi.mocked(prisma.account.create).mockResolvedValueOnce({
+        id: "acc-h",
+        name: "Cuenta",
+        code,
+        type: "ASSET",
+        description: null,
+        companyId: "company-1",
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const result = await createAccountAction({
+        companyId: "company-1",
+        name: "Cuenta",
+        code,
+        type: "ASSET",
+      });
+      expect(result.success, `código "${code}" debe ser válido`).toBe(true);
     }
   });
 

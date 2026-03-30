@@ -12,6 +12,11 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: {

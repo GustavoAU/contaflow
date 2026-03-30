@@ -2,7 +2,7 @@
 
 ## Stack
 
-Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Clerk | Zod 4 | Vitest 4 | Decimal.js
+Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Clerk | Zod 4 | Vitest 4 | Decimal.js | @upstash/ratelimit | @sentry/nextjs
 
 ## Prisma / DB
 
@@ -28,6 +28,14 @@ src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
 ## Zod 4
 
 - Usar `{ error: "msg" }` — NO `{ errorMap: ... }`
+
+## Rate Limiting
+
+- `src/lib/ratelimit.ts`: `limiters.fiscal` (30/min) + `limiters.ocr` (10/min) via Upstash sliding window
+- Si `UPSTASH_REDIS_REST_URL` no está definida → no-op (permite todo) — nunca bloquea en dev/test
+- Si Redis falla en runtime → catch silencioso, permite el request
+- Mock en tests: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))`
+- Aplicado en: `createInvoiceAction`, `createRetentionAction`, `createIGTFAction`, `createAccountAction`, `extractInvoiceAction` (OCR)
 
 ## Vitest 4
 

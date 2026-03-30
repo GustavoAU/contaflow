@@ -16,6 +16,11 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
 import prisma from "@/lib/prisma";
 import { createIGTFAction, getIGTFAction } from "./igtf.actions";
 

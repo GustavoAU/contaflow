@@ -5,13 +5,18 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const CreateAccountSchema = z.object({
   companyId: z.string().min(1, "Company ID es requerido"),
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres").max(100),
-  code: z.string().min(1, "El codigo es requerido").max(20),
+  code: z
+    .string()
+    .min(1, "El codigo es requerido")
+    .max(20)
+    .regex(/^\d+([.\-]\d+)*$/, "El codigo debe ser numérico o jerárquico (ej: 1105, 1-1-05, 1.1.05)"),
   type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
     error: "Tipo de cuenta invalido",
   }),
@@ -106,6 +111,9 @@ export async function createAccountAction(
 
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
 
     const account = await prisma.$transaction(async (tx) => {
       const created = await tx.account.create({

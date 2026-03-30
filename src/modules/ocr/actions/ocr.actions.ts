@@ -1,7 +1,9 @@
 // src/modules/ocr/actions/ocr.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import Groq from "groq-sdk";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -50,6 +52,12 @@ export async function extractInvoiceAction(
   extractedText: string
 ): Promise<ActionResult<ExtractedInvoice>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.ocr);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
     if (!process.env.GROQ_API_KEY) {
       return { success: false, error: "GROQ_API_KEY no configurada" };
     }
