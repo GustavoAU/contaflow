@@ -12,7 +12,7 @@ import {
   findInvoiceByNumberAction,
   type InvoiceMatch,
 } from "@/modules/retentions/actions/retention.actions";
-import { RetentionService } from "@/modules/retentions/services/RetentionService";
+import { RetentionCalculator } from "@/modules/retentions/services/RetentionCalculator";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
 
 type Props = {
@@ -82,7 +82,7 @@ export function RetentionForm({ companyId, userId }: Props) {
   // Preview en tiempo real
   const preview =
     taxBase && parseFloat(taxBase) > 0
-      ? RetentionService.calculate(
+      ? RetentionCalculator.calculate(
           taxBase,
           ivaRetentionPct,
           retentionType !== "IVA" ? islrCode : undefined

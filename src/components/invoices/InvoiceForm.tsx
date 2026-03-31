@@ -1,7 +1,7 @@
 // src/components/invoices/InvoiceForm.tsx
 "use client";
 
-import { useState, useTransition, useId, useRef } from "react";
+import { useState, useTransition, useId, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Decimal } from "decimal.js";
 import { createInvoiceAction } from "@/modules/invoices/actions/invoice.actions";
+import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 
 type TaxLineType = "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
@@ -81,6 +82,15 @@ function sumTaxLines(lines: TaxLine[]): string {
     .toFixed(2);
 }
 
+// ─── Formatea monto con símbolo de moneda ────────────────────────────────────
+function formatCurrencyAmount(amount: string, currency: string): string {
+  const num = parseFloat(amount) || 0;
+  if (currency === "VES") return `Bs.D ${num.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === "USD") return `$ ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === "EUR") return `€ ${num.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency} ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function InvoiceForm({
   companyId,
   userId,
@@ -111,6 +121,22 @@ export function InvoiceForm({
   ]);
   const [paidInForeign, setPaidInForeign] = useState(false);
   const [igtfBase, setIgtfBase] = useState("");
+  const [bcvRate, setBcvRate] = useState<{ rate: string; date: string } | null>(null);
+  const [bcvLoading, setBcvLoading] = useState(false);
+
+  useEffect(() => {
+    if (currency === "VES") {
+      setBcvRate(null);
+      return;
+    }
+    setBcvLoading(true);
+    getLatestRateAction(companyId, currency as "USD" | "EUR")
+      .then((res) => {
+        if (res.success && res.data) setBcvRate({ rate: res.data.rate, date: res.data.date instanceof Date ? res.data.date.toISOString().split("T")[0] : String(res.data.date).split("T")[0] });
+        else setBcvRate(null);
+      })
+      .finally(() => setBcvLoading(false));
+  }, [currency, companyId]);
 
   const isReporteZ = docType === "REPORTE_Z";
 
@@ -605,13 +631,24 @@ export function InvoiceForm({
           <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-zinc-700">Desglose de Impuestos (IVA)</p>
-              <button
-                type="button"
-                onClick={addTaxLine}
-                className="text-sm font-medium text-blue-600 hover:text-blue-800"
-              >
-                + Agregar línea
-              </button>
+              {(() => {
+                const isBlocked = ["EXENTA", "EXONERADA", "NO_SUJETA"].includes(taxCategory);
+                return (
+                  <button
+                    type="button"
+                    onClick={addTaxLine}
+                    disabled={isBlocked}
+                    title={isBlocked ? "No aplica para categoría fiscal seleccionada" : undefined}
+                    className={`text-sm font-medium ${
+                      isBlocked
+                        ? "cursor-not-allowed text-zinc-400"
+                        : "text-blue-600 hover:text-blue-800"
+                    }`}
+                  >
+                    + Agregar línea
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Aviso bien suntuario */}
@@ -706,7 +743,7 @@ export function InvoiceForm({
                     </label>
                     <input
                       type="text"
-                      value={line.amount}
+                      value={formatCurrencyAmount(line.amount, currency)}
                       readOnly
                       className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
                     />
@@ -718,8 +755,30 @@ export function InvoiceForm({
             {/* Total IVA */}
             <div className="flex justify-end border-t border-zinc-200 pt-2">
               <span className="mr-2 text-sm font-semibold text-zinc-600">Total IVA:</span>
-              <span className="font-mono text-sm font-bold text-blue-700">{totalIva}</span>
+              <span className="font-mono text-sm font-bold text-blue-700 tabular-nums">
+                {formatCurrencyAmount(totalIva, currency)}
+              </span>
             </div>
+            {currency !== "VES" && (
+              <div className="flex justify-end mt-1">
+                <span className="text-xs text-zinc-500 tabular-nums">
+                  {bcvLoading ? (
+                    "Consultando tasa BCV..."
+                  ) : bcvRate ? (
+                    <>
+                      ≈ Bs.D{" "}
+                      {formatCurrencyAmount(
+                        (parseFloat(totalIva) * parseFloat(bcvRate.rate)).toFixed(2),
+                        "VES"
+                      ).replace("Bs.D ", "")}{" "}
+                      (tasa BCV: {parseFloat(bcvRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })})
+                    </>
+                  ) : (
+                    "Sin tasa BCV registrada para esta fecha"
+                  )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Retenciones */}

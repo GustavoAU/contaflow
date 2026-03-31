@@ -8,6 +8,10 @@ vi.mock("@/modules/invoices/actions/invoice.actions", () => ({
   createInvoiceAction: vi.fn(),
 }));
 
+vi.mock("@/modules/exchange-rates/actions/exchange-rate.actions", () => ({
+  getLatestRateAction: vi.fn().mockResolvedValue({ success: false, error: "Sin tasa BCV registrada" }),
+}));
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   Toaster: () => null,
@@ -85,7 +89,10 @@ describe("InvoiceForm — desglose de impuestos", () => {
     const baseInput = screen.getByPlaceholderText("0.00");
     fireEvent.change(baseInput, { target: { value: "1000" } });
     await waitFor(() => {
-      expect(screen.getByDisplayValue("160.00")).toBeTruthy();
+      // El input ahora muestra el monto formateado con símbolo de moneda (VES por defecto)
+      const amountInputs = screen.getAllByRole("textbox");
+      const amountInput = amountInputs.find((el) => (el as HTMLInputElement).value.includes("160"));
+      expect(amountInput).toBeTruthy();
     });
   });
 
