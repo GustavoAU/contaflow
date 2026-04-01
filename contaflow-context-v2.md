@@ -459,7 +459,16 @@ model FiscalYearClose {
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
 - ⏳ Fase 27: PWA + modo offline
-- ⏳ Fase 28: Expansión Colombia (DIAN)
+- ⏳ Fase 28: Módulo de Compras y Ventas
+   - Cotizaciones/Presupuestos (pre-contable, sin asiento)
+   - Órdenes de Compra vinculadas a cotización de proveedor
+   - Órdenes de Venta vinculadas a presupuesto cliente
+   - Conversión OC → Factura de Compra (Invoice tipo PURCHASE)
+   - Conversión OV → Factura de Venta (Invoice tipo SALE)
+   - Trazabilidad: factura hereda datos de la OC/OV origen
+   - Regla VEN-NIF: OC/OV no generan asiento contable —
+     solo registran compromiso pre-contable
+- ⏳ Fase 29: Expansión Colombia (DIAN)
 - ⏳ Landing Page
 
 ## 20. Notas Técnicas Importantes
