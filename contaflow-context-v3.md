@@ -297,9 +297,10 @@ src/modules/[nombre]/
 - ✅ LL-010 regression test: `BankStatementService.test.ts` — 8 tests, addTransaction rollback atomicity
 - ⏳ Sentry deprecation warning en `next.config.ts`: cambiar `disableLogger: true` por `webpack.treeshake.removeDebugLogging: true` (no urgente)
 
-### 17.2 UI pendiente (próxima sesión)
+### 17.2 UI completada ✅
 
-- `ReconciliationWorkbench.tsx` — solo expone InvoicePayment match. Faltan: JOURNAL_ENTRY + PAYMENT_RECORD (BankReconciliationService ya implementado y testeado)
+- `ReconciliationWorkbench.tsx` — 3 tabs implementados: INVOICE_PAYMENT / JOURNAL_ENTRY / PAYMENT_RECORD
+- `matchBankTransactionAction` + `searchJournalEntriesAction` + `searchPaymentRecordsAction` — actions con tests (477 passing)
 
 ## 18. Fase 12B — ✅ COMPLETADA
 
@@ -505,7 +506,7 @@ model FiscalYearClose {
   - Schema: BankTransaction extendido con `matchedTransactionId` + `matchedPaymentRecordId` (ADR-008)
   - BankReconciliationService: 3-way match (INVOICE_PAYMENT / JOURNAL_ENTRY / PAYMENT_RECORD)
   - CsvImporter.tsx: column mapper + importación bulk
-  - ⏳ UI pendiente: ReconciliationWorkbench solo expone InvoicePayment — JOURNAL_ENTRY + PAYMENT_RECORD sin UI
+  - ✅ UI completa: ReconciliationWorkbench con 3-way match (INVOICE_PAYMENT / JOURNAL_ENTRY / PAYMENT_RECORD)
 - ✅ Fase 13D: RLS — Row Level Security — completada 2026-04-06 (commit `0ada843`)
   - src/lib/prisma-rls.ts: withCompanyContext(companyId, tx, fn) con SET LOCAL
   - Migrations: companyId backfill en BankTransaction + ENABLE RLS en 14 tablas de dominio
@@ -518,7 +519,7 @@ model FiscalYearClose {
 - ⏳ Fase 14C: Auto-fetch Tasa BCV + Re-expresión Automática (ver sección 26)
 - ⏳ Fase 14D: Validación RIF vs SENIAT en tiempo real (ver sección 27)
 - ⏳ Fase 12C: Asistente de Retenciones ISLR Inteligente (ver sección 28)
-- ⏳ Fase 17B: Batch Payments — Exportación TXT para bancos venezolanos (ver sección 29)
+- ⏳ Fase 17C: Batch Payments — Exportación TXT para bancos venezolanos (ver sección 30)
 - ⏳ Fase OCR-v2: Migración schema OCR a campos VEN-NIF
   - Renombrar: `supplierName` → `razonSocial`, `invoiceNumber` → `numeroFactura`, etc.
   - Añadir: `numeroControl`, `baseImponibleGeneral`, `ivaGeneral`, `ivaReducido`, `ivaAdicional`
@@ -888,7 +889,7 @@ export function suggestIslrCode(concept: string): RetentionSuggestion | null
 Odoo VEN: el usuario debe conocer los códigos de retención de memoria.
 ContaFlow: UX fiscal inteligente — imposible equivocarse si se acepta la sugerencia.
 
-## 30. Fase 17B — Batch Payments para Bancos Venezolanos
+## 30. Fase 17C — Batch Payments para Bancos Venezolanos
 
 ### Objetivo
 Desde la Cartera CxP (Fase 16), seleccionar múltiples facturas pendientes y exportar un archivo TXT/XML listo para cargar en el portal bancario venezolano. Pagar 20 proveedores en un clic.
