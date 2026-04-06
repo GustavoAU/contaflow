@@ -17,6 +17,8 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     companyMember: { findUnique: vi.fn() },
+    transaction: { findMany: vi.fn() },
+    paymentRecord: { findMany: vi.fn() },
   },
 }));
 
@@ -27,6 +29,12 @@ vi.mock("../services/BankingService", () => ({
     reconcileTransaction: vi.fn(),
     unreconcileTransaction: vi.fn(),
     getReconciliationSummary: vi.fn(),
+  },
+}));
+
+vi.mock("../services/BankReconciliationService", () => ({
+  BankReconciliationService: {
+    matchTransaction: vi.fn(),
   },
 }));
 
@@ -42,6 +50,7 @@ vi.mock("../services/CsvParserService", () => ({
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { BankingService } from "../services/BankingService";
+import { BankReconciliationService } from "../services/BankReconciliationService";
 import { CsvParserService } from "../services/CsvParserService";
 import {
   importStatementAction,
@@ -49,6 +58,9 @@ import {
   unreconcileTransactionAction,
   getUnreconciledTransactionsAction,
   getReconciliationSummaryAction,
+  matchBankTransactionAction,
+  searchJournalEntriesAction,
+  searchPaymentRecordsAction,
 } from "../actions/banking.actions";
 import { Decimal } from "decimal.js";
 
@@ -322,6 +334,228 @@ describe("banking.actions", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toMatch(/no autorizado/i);
+    }
+  });
+
+  // ─── matchBankTransactionAction ───────────────────────────────────────────────
+
+  it("matchBankTransactionAction — sin auth retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await matchBankTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+      matchType: "INVOICE_PAYMENT",
+      targetId: PAYMENT_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  // LL-009 regression: VIEWER no puede conciliar con matchBankTransactionAction
+  it("matchBankTransactionAction — VIEWER role retorna no autorizado (LL-009)", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+
+    const result = await matchBankTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+      matchType: "INVOICE_PAYMENT",
+      targetId: PAYMENT_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/no autorizado/i);
+    expect(vi.mocked(BankReconciliationService.matchTransaction)).not.toHaveBeenCalled();
+  });
+
+  it("matchBankTransactionAction — happy path INVOICE_PAYMENT", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(BankReconciliationService.matchTransaction).mockResolvedValue({
+      id: TX_ID,
+      isReconciled: true,
+      matchedPaymentId: PAYMENT_ID,
+    } as never);
+
+    const result = await matchBankTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+      matchType: "INVOICE_PAYMENT",
+      targetId: PAYMENT_ID,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.isReconciled).toBe(true);
+    expect(vi.mocked(BankReconciliationService.matchTransaction)).toHaveBeenCalledWith(
+      TX_ID,
+      { type: "INVOICE_PAYMENT", id: PAYMENT_ID },
+      COMPANY_ID,
+      USER_ID
+    );
+  });
+
+  it("matchBankTransactionAction — happy path JOURNAL_ENTRY", async () => {
+    const JOURNAL_ID = "txn-1";
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(BankReconciliationService.matchTransaction).mockResolvedValue({
+      id: TX_ID,
+      isReconciled: true,
+      matchedTransactionId: JOURNAL_ID,
+    } as never);
+
+    const result = await matchBankTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+      matchType: "JOURNAL_ENTRY",
+      targetId: JOURNAL_ID,
+    });
+
+    expect(result.success).toBe(true);
+    expect(vi.mocked(BankReconciliationService.matchTransaction)).toHaveBeenCalledWith(
+      TX_ID,
+      { type: "JOURNAL_ENTRY", id: JOURNAL_ID },
+      COMPANY_ID,
+      USER_ID
+    );
+  });
+
+  it("matchBankTransactionAction — happy path PAYMENT_RECORD", async () => {
+    const RECORD_ID = "pr-1";
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
+    vi.mocked(BankReconciliationService.matchTransaction).mockResolvedValue({
+      id: TX_ID,
+      isReconciled: true,
+      matchedPaymentRecordId: RECORD_ID,
+    } as never);
+
+    const result = await matchBankTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+      matchType: "PAYMENT_RECORD",
+      targetId: RECORD_ID,
+    });
+
+    expect(result.success).toBe(true);
+    expect(vi.mocked(BankReconciliationService.matchTransaction)).toHaveBeenCalledWith(
+      TX_ID,
+      { type: "PAYMENT_RECORD", id: RECORD_ID },
+      COMPANY_ID,
+      USER_ID
+    );
+  });
+
+  // ─── searchJournalEntriesAction ───────────────────────────────────────────────
+
+  it("searchJournalEntriesAction — sin auth retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await searchJournalEntriesAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("searchJournalEntriesAction — sin membership retorna error", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
+
+    const result = await searchJournalEntriesAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/permisos/i);
+  });
+
+  it("searchJournalEntriesAction — happy path sin query retorna asientos serializados", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([
+      {
+        id: "txn-1",
+        number: "AST-0001",
+        date: new Date("2026-01-15"),
+        description: "Asiento de prueba",
+      },
+    ] as never);
+
+    const result = await searchJournalEntriesAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe("txn-1");
+      expect(result.data[0].number).toBe("AST-0001");
+      expect(typeof result.data[0].date).toBe("string"); // serializado a ISO string
+    }
+  });
+
+  it("searchJournalEntriesAction — happy path con query pasa filtro OR a prisma", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([] as never);
+
+    const result = await searchJournalEntriesAction({ companyId: COMPANY_ID, query: "depósito" });
+
+    expect(result.success).toBe(true);
+    expect(vi.mocked(prisma.transaction.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: COMPANY_ID,
+          OR: expect.arrayContaining([
+            expect.objectContaining({ number: expect.objectContaining({ contains: "depósito" }) }),
+          ]),
+        }),
+      })
+    );
+  });
+
+  // ─── searchPaymentRecordsAction ───────────────────────────────────────────────
+
+  it("searchPaymentRecordsAction — sin auth retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await searchPaymentRecordsAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("searchPaymentRecordsAction — sin membership retorna error", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
+
+    const result = await searchPaymentRecordsAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/permisos/i);
+  });
+
+  it("searchPaymentRecordsAction — happy path serializa Decimal a string", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.paymentRecord.findMany).mockResolvedValue([
+      {
+        id: "pr-1",
+        method: "ZELLE",
+        amountVes: new Decimal("1050.00"),
+        currency: "USD",
+        amountOriginal: new Decimal("30.00"),
+        referenceNumber: "ZLL-001",
+        date: new Date("2026-01-20"),
+      },
+    ] as never);
+
+    const result = await searchPaymentRecordsAction({ companyId: COMPANY_ID });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].amountVes).toBe("1050.00");
+      expect(result.data[0].amountOriginal).toBe("30.00");
+      expect(typeof result.data[0].date).toBe("string");
     }
   });
 });
