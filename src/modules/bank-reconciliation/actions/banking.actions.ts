@@ -7,16 +7,24 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { BankingService } from "../services/BankingService";
 import { CsvParserService } from "../services/CsvParserService";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountSchema } from "../schemas/bank-account.schema";
+import type { UserRole } from "@prisma/client";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Schemas Zod ─────────────────────────────────────────────────────────────
 
-const DecimalStringSchema = z.string().regex(/^-?\d+(\.\d{1,4})?$/, { error: "Monto inválido" });
+const DecimalStringSchema = z
+  .string()
+  .regex(/^-?\d+(\.\d{1,4})?$/, { error: "Monto inválido" })
+  .refine(
+    (v) => new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT)),
+    { message: "Monto excede el límite permitido" }
+  );
 
 const ImportStatementSchema = z.object({
   bankAccountId: z.string().min(1, { error: "ID de cuenta bancaria requerido" }),
@@ -54,17 +62,25 @@ async function getAuthUserId(): Promise<string | null> {
   return userId ?? null;
 }
 
-async function verifyMembership(userId: string, companyId: string): Promise<boolean> {
-  const member = await prisma.companyMember.findFirst({
-    where: { userId, companyId },
+/**
+ * Verifica membresía y retorna el role del usuario en la empresa.
+ * Retorna null si el usuario no es miembro (ADR-006 D-1, LL-009).
+ */
+async function getMemberRole(
+  userId: string,
+  companyId: string
+): Promise<UserRole | null> {
+  const member = await prisma.companyMember.findUnique({
+    where: { userId_companyId: { userId, companyId } },
+    select: { role: true },
   });
-  return member !== null;
+  return member?.role ?? null;
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 /**
- * Crea una nueva cuenta bancaria.
+ * Crea una nueva cuenta bancaria. Requiere role ADMIN (configuración de empresa).
  */
 export async function createBankAccountAction(
   input: unknown
@@ -80,10 +96,9 @@ export async function createBankAccountAction(
 
     const { companyId } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (role !== "ADMIN") return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -100,7 +115,7 @@ export async function createBankAccountAction(
 }
 
 /**
- * Importa un extracto bancario CSV.
+ * Importa un extracto bancario CSV. Requiere role ACCOUNTANT o ADMIN.
  */
 export async function importStatementAction(
   input: unknown
@@ -116,10 +131,9 @@ export async function importStatementAction(
 
     const { bankAccountId, companyId, csvContent, openingBalance, closingBalance } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -147,7 +161,7 @@ export async function importStatementAction(
 }
 
 /**
- * Concilia una transacción bancaria con un pago de factura.
+ * Concilia una transacción bancaria con un pago de factura. Requiere role ACCOUNTANT o ADMIN.
  */
 export async function reconcileTransactionAction(
   input: unknown
@@ -163,10 +177,9 @@ export async function reconcileTransactionAction(
 
     const { bankTransactionId, invoicePaymentId, companyId } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -188,7 +201,7 @@ export async function reconcileTransactionAction(
 }
 
 /**
- * Desconcilia una transacción bancaria.
+ * Desconcilia una transacción bancaria. Requiere role ADMIN (operación destructiva reversible).
  */
 export async function unreconcileTransactionAction(
   input: unknown
@@ -204,10 +217,9 @@ export async function unreconcileTransactionAction(
 
     const { bankTransactionId, companyId } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (role !== "ADMIN") return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -241,10 +253,8 @@ export async function getUnreconciledTransactionsAction(
 
     const { bankAccountId, companyId } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
 
     const transactions = await BankingService.getUnreconciledTransactions(bankAccountId, companyId);
 
@@ -280,10 +290,8 @@ export async function getReconciliationSummaryAction(
 
     const { bankStatementId, companyId } = parsed.data;
 
-    const isMember = await verifyMembership(userId, companyId);
-    if (!isMember) {
-      return { success: false, error: "No tienes permisos en esta empresa" };
-    }
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
 
     const summary = await BankingService.getReconciliationSummary(bankStatementId, companyId);
 

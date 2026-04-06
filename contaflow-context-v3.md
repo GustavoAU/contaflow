@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 13C completada. Última sincronización: 2026-04-05_
-_v3: Incorpora análisis competitivo vs Odoo, deuda crítica de infraestructura, ventajas VEN-NIF y nuevas Fases 13C-bis, 13D, 14C, 26B_
+_Versión actualizada — Fase 17 scaffolding en main. Última sincronización: 2026-04-05_
+_v3.1: Actualiza OCR a Gemini Vision, añade Fases 23A-23E (Nómina), OCR-v2, revisión producción, bugs Zelle resueltos, notas técnicas nuevas_
 
 ## 1. Descripción del Producto
 
@@ -239,11 +239,22 @@ src/modules/[nombre]/
 
 ## 13. OCR — Arquitectura Actual
 
-- **Flujo híbrido**: Tesseract.js corre en el browser → extrae texto → Server Action envía texto a Groq
-- **Modelo Groq**: llama-3.1-8b-instant (gratuito, 14.4K requests/día)
-- **Plan Free**: OCR con ~80% precisión
-- **Plan Pro (futuro)**: OCR con Gemini Flash pago (~95% precisión)
-- `GROQ_API_KEY` en `.env`
+- **Plan Free**: Tesseract.js (cliente) + Groq llama-3.1-8b-instant (servidor) → ~80% precisión
+  - Datos no salen del stack propio — sin riesgo de privacidad
+- **Plan Pro**: Gemini Vision directo — `GeminiOCRService.extractFromImage(base64, mimeType)`
+  - Modelo: `gemini-2.5-flash-lite-preview` — imagen directa sin Tesseract
+  - Tier gratuito (desarrollo): Google puede usar datos para entrenamiento
+  - Tier pago (producción): datos privados, no se usan para entrenamiento
+- `GEMINI_API_KEY` en `.env` — sin prefijo `NEXT_PUBLIC_` ni `VITE_` (corre en servidor)
+- `GROQ_API_KEY` en `.env` — para Plan Free
+- Rate limiter OCR: **12 req/min** (margen sobre límite gratuito Gemini de 15 RPM)
+- Flujo nuevo Plan Pro: imagen → Gemini Vision (servidor) → JSON directo → `ExtractedInvoiceSchema`
+
+### Deuda OCR-v2 (ver Fase OCR-v2 en roadmap)
+- `ExtractedInvoiceSchema` sigue con campos en inglés (`supplierName`, `invoiceNumber`, etc.)
+- Migración futura: renombrar a campos VEN-NIF + añadir `numeroControl`,
+  `baseImponibleGeneral`, `ivaGeneral`, `ivaReducido`, `ivaAdicional` como Decimal
+- Server Action OCR: actualizar para usar `extractFromImage(base64, mimeType)` en Plan Pro
 
 ## 14. Retenciones — Lógica Fiscal
 
@@ -270,9 +281,25 @@ src/modules/[nombre]/
 
 ## 17. Estado Actual — Branch main
 
-**Branch activa**: `main` — Fase 13C completada (2026-04-05)
-**Tests**: 422/422 passing · **CI**: verde (GitHub Actions)
+**Branch activa**: `main` — Fase 13C completada + Fase 17 scaffolding (⚠️ sin commitear)
+**Tests**: 422/422 passing · **CI**: ⚠️ roto (lint — ver bugs pendientes sección 17.1)
 **Último commit relevante**: Fase 13C — Bloque 6 (Prisma query monitoring)
+
+### 17.1 Bugs y deuda pendiente de resolver (próxima sesión)
+
+**CI roto — corregir antes del commit de Fase 17:**
+1. `InvoiceForm.tsx:129` — `setState` sincrónico en `useEffect` → `react-hooks/set-state-in-effect`
+   Fix: `setBcvRate(null)` y `setBcvLoading(true)` movidos a async IIFE
+2. `JournalEntryForm.tsx:105` — `form.watch()` incompatible con React Compiler
+   Fix: reemplazar por `useWatch({ control, name })`
+
+**Bugs Medios de Pago (Zelle) — ✅ RESUELTOS en sesión 2026-04-05:**
+1. "Transaction API error" → `$transaction` ahora tiene `{ timeout: 30000 }` + catch sanitizado
+2. Campo VES no se calculaba automático → `useEffect` llama `getLatestRateAction` + calcula `amountUsd × bcvRate`
+3. Tabla pagos sin columna USD → nueva columna "USD" con texto verde para Zelle
+
+**Deuda menor pendiente:**
+- Sentry deprecation warning en `next.config.ts`: cambiar `disableLogger: true` por `webpack.treeshake.removeDebugLogging: true`
 
 ## 18. Fase 12B — ✅ COMPLETADA
 
@@ -466,7 +493,19 @@ model FiscalYearClose {
 - **Solo ADMIN** puede ejecutar cierre y apropiación
 
 - ✅ Fase 16: Cartera CxC/CxP con Antigüedad de Saldos — completada 2026-03-31 (ver sección 25.1)
-- ⏳ Fase 17: Conciliación Bancaria
+- ⚠️ Fase 17: Conciliación Bancaria — hardening de seguridad completo 2026-04-06 (sin commitear)
+  - Schema: BankAccount, BankStatement, BankTransaction con isReconciled, closingBalance
+  - Migración: `20260331_fase17_bank_reconciliation` — aplicada
+  - Servicios: BankAccountService, BankStatementService, BankingService, CsvParserService, **ReconciliationService** (nuevo 2026-04-06)
+  - Componentes: BankAccountList, BankStatementUpload (sin userId), ReconciliationWorkbench (sin userId, useEffect corregido)
+  - Páginas: `/bank-reconciliation/` + `/bank-reconciliation/[statementId]/`
+  - Seguridad: 6 HIGH + 3 MEDIUM + 1 LOW remediados (security-agent 2026-04-06) — getMemberRole retorna role, no bool
+  - MAX_INVOICE_AMOUNT exportado desde fiscal-validators.ts (ADR-006 D-2)
+  - LL-009 (verifyMembership boolean anti-pattern) + LL-010 (service sin $transaction) documentados
+  - ADR-007 creado: RLS con SET LOCAL + withCompanyContext — prerequisito Fase 13D
+  - 436 tests GREEN (+14 nuevos vs Fase 13C)
+  - Pendiente commit + Fase 17B: BankStatementLine schema + importador CSV + IGTF auto-detect
+  - Ver sección 33 para spec completo VEN-NIF
 - ⏳ Fase 13D: RLS — Row Level Security en Neon (entre Fase 17 y Fase 19)
   - Implementar ADR-007: role `authenticated` + `SET LOCAL` por `$transaction`
   - Migration SQL: ENABLE ROW LEVEL SECURITY + CREATE POLICY en ~12 tablas de dominio
@@ -483,9 +522,20 @@ model FiscalYearClose {
 - ⏳ Fase 14D: Validación RIF vs SENIAT en tiempo real (ver sección 27)
 - ⏳ Fase 12C: Asistente de Retenciones ISLR Inteligente (ver sección 28)
 - ⏳ Fase 17B: Batch Payments — Exportación TXT para bancos venezolanos (ver sección 29)
+- ⏳ Fase OCR-v2: Migración schema OCR a campos VEN-NIF
+  - Renombrar: `supplierName` → `razonSocial`, `invoiceNumber` → `numeroFactura`, etc.
+  - Añadir: `numeroControl`, `baseImponibleGeneral`, `ivaGeneral`, `ivaReducido`, `ivaAdicional`
+  - Montos como Decimal en lugar de string
+  - Actualizar Server Action OCR para usar `extractFromImage(base64, mimeType)` en Plan Pro
+  - Flujo de revisión pre-guardado: InvoiceForm con `defaultValues` desde OCR + banner "Revisa antes de guardar"
 - ⏳ Fase 21: Activos Fijos y Depreciación
 - ⏳ Fase 22: Ajuste por Inflación Fiscal (INPC)
-- ⏳ Fase 23: Nómina (LOTTT)
+- ⏳ Fase 23: Nómina (LOTTT) — dividida en subfases (ver sección 34)
+  - ⏳ Fase 23A: Wizard de configuración de nómina
+  - ⏳ Fase 23B: Empleados y conceptos
+  - ⏳ Fase 23C: Cálculo, recibo PDF y causación contable
+  - ⏳ Fase 23D: Prestaciones sociales y pasivos laborales
+  - ⏳ Fase 23E: Reportes legales (IVSS, Inces, Banavih, SENIAT)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
@@ -503,6 +553,10 @@ model FiscalYearClose {
    - Validez de oferta configurable (crítico por inflación VES)
    - Flujo de aprobación de cotizaciones
 - ⏳ Fase 29: Expansión Colombia (DIAN)
+- ⏳ Fase 30: Revisión de Producción por Fases
+  - Revisar cada fase implementada 1x1 antes del lanzamiento público
+  - Verificar cobertura de tests, compliance VEN-NIF, performance real
+  - Ejecutar como última fase antes de lanzamiento
 - ⏳ Landing Page
 
 ## 20. Notas Técnicas Importantes
@@ -535,7 +589,13 @@ model FiscalYearClose {
 - **Mock de `$transaction` interactivo en Vitest**: `prisma.$transaction.mockImplementation(async (fn) => fn(txMock))` donde `txMock` delega a los mocks existentes del mismo objeto prisma mock
 - **Rate limiting mock en tests**: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))` — necesario en todo test de action que use rate limiting
 - **Coverage thresholds en vitest.config.ts**: branches 50%, functions 70%, lines 73%, statements 70%. PDFServices excluidos (`**/*PDFService.ts`) — no testeable en Node runner sin renderer real
-- **Sentry solo activo en `NODE_ENV=production`** — no captura nada en dev/test. `sendDefaultPii: false` — nunca enviar env vars con credenciales
+- **`GEMINI_API_KEY`**: sin prefijo `NEXT_PUBLIC_` ni `VITE_` — corre en servidor (Server Action)
+- **Rate limiter OCR**: 12 req/min en `src/lib/ratelimit.ts` — margen sobre límite gratuito Gemini (15 RPM)
+- **Vitest 4 en Windows/Node 22**: usar `pool: 'vmForks'` en `vitest.config.ts` para evitar crashes
+- **Sentry deprecation warning**: en `next.config.ts` cambiar `disableLogger: true` por `webpack.treeshake.removeDebugLogging: true` (pendiente, no urgente)
+- **Zelle `$transaction` timeout**: usar `{ timeout: 30000 }` para prevenir error por cold-start de Neon
+- **GeminiOCRService**: `extractFromImage(base64, mimeType)` — base64 sin prefijo `data:image/...;base64,`
+- **Gemini response cleanup**: siempre limpiar bloques markdown con `.replace(/```json\s*/gi, "").replace(/```\s*/g, "")` — Gemini los incluye aunque el prompt diga que no
 
 ## 21. Estado de Bombas Críticas (Fase 13C completada 2026-04-05)
 
@@ -950,4 +1010,120 @@ Ningún software contable venezolano (Gálac, CG1, Monica, Odoo local) tiene un 
 | PagoMóvil nativo | ✅ Con código de referencia obligatorio | ❌ No existe |
 | Multimoneda VES/USD con historial | ✅ Por factura, auditado | ⚠️ Genérico, sin VEN-NIF |
 | Cierre de ejercicio VEN-NIF | ✅ Con asiento de apropiación diferible | ⚠️ Genérico, sin flujo LOTTT/AGO |
-| Cartera CxC/CxP con aging VEN-NIF | ✅ Buckets fijos VEN-NIF, NOTA_CREDITO neto | ⚠️ Buckets genéricos |
+| Nómina VEN-NIF wizard | ✅ Configuración guiada, no preguntas abiertas | ❌ Configuración manual compleja |
+| Conciliación bancaria VEN | ✅ Doble columna + IGTF auto-detect + bancos VEN | ⚠️ Genérico, sin bancos locales |
+
+## 33. Fase 17B — Conciliación Bancaria: Spec VEN-NIF Completo
+
+### Lo que YA existe (scaffolding — no reimplementar)
+- Schema parcial: `BankAccount`, `BankStatement`, `BankTransaction`
+- Migración `20260331_fase17_bank_reconciliation` — aplicada
+- Componentes parciales: `BankAccountList`, `BankStatementUpload`, `ReconciliationWorkbench`
+- Páginas: `/bank-reconciliation/` + `/bank-reconciliation/[statementId]/`
+- Navbar: link "Conciliación" ya activo con LandmarkIcon
+
+### Schema — añadir a BankAccount
+```prisma
+accountNumber   String          // 20 dígitos Venezuela
+accountType     BankAccountType // enum CORRIENTE | AHORROS | CUSTODIA
+openingBalance  Decimal         @db.Decimal(19,4)
+
+enum BankAccountType { CORRIENTE AHORROS CUSTODIA }
+```
+
+### Schema — nuevo modelo BankStatementLine
+```prisma
+model BankStatementLine {
+  id            String    @id @default(cuid())
+  companyId     String
+  bankAccountId String
+  date          DateTime
+  description   String
+  reference     String
+  amount        Decimal   @db.Decimal(19, 4)
+  isMatched     Boolean   @default(false)
+  matchedAt     DateTime?
+  transactionId String?   @unique  // → Transaction
+  paymentId     String?   @unique  // → PaymentRecord
+  createdAt     DateTime  @default(now())
+  createdBy     String
+  @@index([companyId, bankAccountId])
+  @@index([isMatched])
+}
+```
+
+### UI — vista de trabajo (doble columna)
+- Izquierda: líneas del extracto bancario importado
+- Derecha: movimientos del Libro Auxiliar (Transactions + PaymentRecord)
+- Acción central: botón "Vincular" → marca `isMatched = true` en ambos lados
+- Líneas no vinculadas resaltadas en amarillo
+
+### Importador CSV/Excel
+- Upload CSV/Excel del extracto bancario
+- Mapeador de columnas: usuario indica qué columna es fecha, monto, referencia
+- Bancos prioritarios: Banesco, Mercantil, BDV, Provincial
+
+### Reporte PDF/Excel — formato VEN-NIF
+```
+Saldo según Libro al [Fecha]
+(+) Cheques/Transferencias en tránsito
+(+) Depósitos no acreditados
+(-) Notas de Débito no registradas (comisiones/IGTF)
+(-) Notas de Crédito no registradas
+= Saldo según Estado de Cuenta Bancario
+(en VES y en moneda original si cuenta USD/EUR)
+```
+
+### Automatizaciones VEN-NIF
+- Detectar IGTF (3%) en notas de débito del extracto → sugerir asiento de gasto si no existe
+- Cuenta USD/EUR: validar que saldo VES coincida con re-expresión a tasa BCV del cierre de mes
+
+### Agentes responsables
+- **arch-agent**: schema (BankStatementLine + campos BankAccount)
+- **ledger-agent**: `ReconciliationService`: `matchLine`, `unmatchLine`, `getReconciliationReport`
+- **ui-agent**: doble columna + importador CSV con mapeador de columnas
+- **fiscal-agent**: IGTF auto-detect + diferencial cambiario USD/EUR
+
+## 34. Fase 23 — Nómina (LOTTT): Subfases
+
+La nómina venezolana es el módulo más complejo del sistema. Dividida en 5 subfases
+para evitar saturación de contexto y errores de implementación.
+
+**Regla**: implementar una subfase por sesión de Claude Code. Reset de chat entre subfases.
+**Prerequisito**: tener al menos 5 clientes pagando antes de iniciar Fase 23A.
+
+### Fase 23A — Wizard de Configuración de Nómina
+Onboarding guiado con opciones (no preguntas abiertas):
+- Tamaño empresa: < 20 / 20-100 / > 100 empleados
+- Régimen LOTTT: post-2012 / mixto (empleados de ambos regímenes)
+- Moneda de pago: VES / USD / mixto
+- Frecuencia: quincenal / mensual
+- Organismos activos (checkboxes): IVSS, Inces, Banavih
+- Cesta ticket: tarjeta / efectivo / no aplica
+- Fideicomiso: banco externo / contabilidad interna
+
+### Fase 23B — Empleados y Conceptos
+- CRUD de empleados con campos LOTTT completos
+- Tabla de conceptos configurables (salario base, bonos, comisiones, deducciones)
+- Cálculo automático IVSS, Inces, Banavih según configuración 23A
+- Horas extras, trabajo nocturno, días feriados
+
+### Fase 23C — Cálculo, Recibo PDF y Causación Contable
+- Motor de cálculo según frecuencia (quincenal/mensual)
+- Recibo de pago PDF por empleado (A4 portrait)
+- Causación automática → asiento en `Transactions` (EXPENSE)
+- Retención ISLR si salario anual supera la UT
+
+### Fase 23D — Prestaciones Sociales y Pasivos Laborales
+- Cálculo de prestaciones (el más complejo — doble régimen pre/post 2012)
+- Intereses sobre prestaciones (tasa BCV activa)
+- Vacaciones y bono vacacional por antigüedad (escala LOTTT)
+- Utilidades proporcionales (15 días mínimo)
+- Fideicomiso: registro en BD vs. banco externo
+
+### Fase 23E — Reportes Legales
+- Forma 14-02 IVSS (planilla mensual)
+- Planilla Inces (trimestral)
+- Declaración Banavih
+- Resumen de nómina para SENIAT
+- Reportes por departamento / centro de costo

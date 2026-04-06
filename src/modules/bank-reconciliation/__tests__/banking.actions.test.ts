@@ -16,7 +16,7 @@ vi.mock("@/lib/ratelimit", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    companyMember: { findFirst: vi.fn() },
+    companyMember: { findUnique: vi.fn() },
   },
 }));
 
@@ -91,7 +91,7 @@ describe("banking.actions", () => {
   // 2. importStatementAction: sin membership → { success: false, error: "..." }
   it("importStatementAction — sin membership retorna error", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
 
     const result = await importStatementAction(VALID_IMPORT_INPUT);
 
@@ -121,7 +121,7 @@ describe("banking.actions", () => {
   // 4. importStatementAction: happy path → { success: true, data: { statementId, transactionCount } }
   it("importStatementAction — happy path retorna statementId y transactionCount", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "m1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(CsvParserService.parseBankCsv).mockReturnValue([
       {
         date: new Date("2026-01-01"),
@@ -148,7 +148,7 @@ describe("banking.actions", () => {
   // 5. reconcileTransactionAction: happy path → { success: true }
   it("reconcileTransactionAction — happy path", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "m1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(BankingService.reconcileTransaction).mockResolvedValue({
       id: TX_ID,
       isReconciled: true,
@@ -170,7 +170,7 @@ describe("banking.actions", () => {
   // 6. unreconcileTransactionAction: happy path → { success: true }
   it("unreconcileTransactionAction — happy path", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "m1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
     vi.mocked(BankingService.unreconcileTransaction).mockResolvedValue({
       id: TX_ID,
       isReconciled: false,
@@ -191,7 +191,7 @@ describe("banking.actions", () => {
   // 7. getUnreconciledTransactionsAction: happy path → { success: true, data: [...] }
   it("getUnreconciledTransactionsAction — happy path", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "m1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(BankingService.getUnreconciledTransactions).mockResolvedValue([
       {
         id: TX_ID,
@@ -215,7 +215,7 @@ describe("banking.actions", () => {
   // 8. getReconciliationSummaryAction: happy path → { success: true, data: {...} }
   it("getReconciliationSummaryAction — happy path", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "m1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(BankingService.getReconciliationSummary).mockResolvedValue({
       total: 10,
       reconciled: 7,
@@ -234,6 +234,94 @@ describe("banking.actions", () => {
       expect(result.data.reconciled).toBe(7);
       expect(result.data.pending).toBe(3);
       expect(result.data.difference).toBe("0.0000");
+    }
+  });
+
+  // ─── Role checks (ADR-006 D-1 regression) ───────────────────────────────────
+
+  // VIEWER no puede importar extractos
+  it("importStatementAction — VIEWER role retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+
+    const result = await importStatementAction(VALID_IMPORT_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/no autorizado/i);
+    }
+  });
+
+  // VIEWER no puede conciliar
+  it("reconcileTransactionAction — VIEWER role retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+
+    const result = await reconcileTransactionAction({
+      bankTransactionId: TX_ID,
+      invoicePaymentId: PAYMENT_ID,
+      companyId: COMPANY_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/no autorizado/i);
+    }
+  });
+
+  // ACCOUNTANT no puede desconciliar (solo ADMIN)
+  it("unreconcileTransactionAction — ACCOUNTANT role retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+
+    const result = await unreconcileTransactionAction({
+      bankTransactionId: TX_ID,
+      companyId: COMPANY_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/no autorizado/i);
+    }
+  });
+
+  // VIEWER no puede crear cuenta bancaria
+  it("createBankAccountAction — VIEWER role retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+
+    const result = await (await import("../actions/banking.actions")).createBankAccountAction({
+      companyId: COMPANY_ID,
+      accountId: "acc-1",
+      name: "Cuenta corriente",
+      bankName: "Banesco",
+      currency: "VES",
+      createdBy: USER_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/no autorizado/i);
+    }
+  });
+
+  // ACCOUNTANT no puede crear cuenta bancaria (solo ADMIN)
+  it("createBankAccountAction — ACCOUNTANT role retorna no autorizado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+
+    const result = await (await import("../actions/banking.actions")).createBankAccountAction({
+      companyId: COMPANY_ID,
+      accountId: "acc-1",
+      name: "Cuenta corriente",
+      bankName: "Banesco",
+      currency: "VES",
+      createdBy: USER_ID,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/no autorizado/i);
     }
   });
 });

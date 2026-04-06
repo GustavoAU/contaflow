@@ -70,10 +70,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 14B ✅ merged (PaymentRecord — pagos con múltiples medios)
 - Fase 15 ✅ merged (FiscalYearClose — cierre de año fiscal)
 - Fase 16 ✅ merged (Receivable/Payable portfolio — cuentas por cobrar/pagar)
-- Fase 17 ⏳ in progress — Conciliación Bancaria (scaffolding merged, ReconciliationService + UI pendientes)
+- Fase 17 ⏳ in progress — Conciliación Bancaria (security hardening done 2026-04-06; ReconciliationService ✅; pendiente commit + Fase 17B)
 - Fase 13D ⏳ planned — RLS Row Level Security (after Fase 17, see ADR-007)
 
-**422 tests GREEN** | **CI passing** (0 lint errors as of 2026-04-05)
+**436 tests GREEN** | **CI passing** (0 lint errors as of 2026-04-06)
 
 ## Principles — operational rules
 

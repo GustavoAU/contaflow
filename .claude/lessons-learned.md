@@ -79,6 +79,28 @@
 
 ---
 
+## LL-009 — verifyMembership Boolean Anti-Pattern (Phase 17 / 2026-04-06) ✅ RESOLVED
+
+- **Phase detected**: 17 — security audit 2026-04-06
+- **Context**: `bank-reconciliation/actions/banking.actions.ts` — `verifyMembership` helper
+- **Error**: A helper that returns `boolean` from a `companyMember` query permanently blocks ADR-006 D-1 enforcement because the `role` field is never surfaced. Any action using a boolean membership check can never verify whether the caller has ADMIN vs ACCOUNTANT vs VIEWER.
+- **Fix applied**: Return `companyMember | null` from membership lookup; check `.role` at the action level per the ADR-006 D-1 matrix.
+- **Golden rule**: Never write a `verifyMembership(): boolean` helper. The canonical pattern is `findUnique({ where: { userId_companyId }, select: { role: true } })` returning the member object or null. The action checks `member.role` against the required level.
+- **Regression test**: Action tests with VIEWER-role stub must return `{ success: false, error: 'No autorizado para esta operación' }` for every mutating action.
+
+---
+
+## LL-010 — Service Methods Without $transaction Wrapping Are Auditable Surface (Phase 17 / 2026-04-06) ✅ RESOLVED
+
+- **Phase detected**: 17 — security audit 2026-04-06
+- **Context**: `BankStatementService.ts` — `addTransaction`, `matchTransaction`, `unmatchTransaction`
+- **Error**: Service layer methods that mutate financial records without accepting a `tx` parameter or wrapping in `$transaction` violate CLAUDE.md even if no action currently calls them. Public surface = auditable surface. If a future action calls these methods directly, mutations occur without atomicity and without AuditLog.
+- **Fix applied**: Either (a) accept a `Prisma.TransactionClient` parameter and require callers to wrap, or (b) route all action calls through a higher-level service (e.g. `BankingService`) that already provides transaction wrapping. Mark internal methods explicitly.
+- **Golden rule**: Every public method on a service class that writes to the DB must either (a) accept a `tx: Prisma.TransactionClient` and delegate the transaction to the caller, or (b) wrap its own `prisma.$transaction` internally. A method that calls `prisma.model.create/update/delete` directly without either pattern is a violation of the `$transaction` mandatory rule.
+- **Regression test**: Integration test asserting that a failed downstream write after `addTransaction` rolls back the bankTransaction record.
+
+---
+
 ## LL-008 — Restart `npm run dev` After `prisma generate`
 
 - **Phase detected**: multiple phases

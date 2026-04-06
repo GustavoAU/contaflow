@@ -1,6 +1,7 @@
 // src/modules/bank-reconciliation/services/BankStatementService.ts
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import type { Prisma } from "@prisma/client";
 import type {
   CreateBankStatementInput,
   CreateBankTransactionInput,
@@ -21,8 +22,15 @@ export const BankStatementService = {
     });
   },
 
-  async addTransaction(input: CreateBankTransactionInput) {
-    return prisma.bankTransaction.create({
+  /**
+   * @internal Requiere que el caller pase un tx de $transaction.
+   * No llama a prisma directamente — solo opera sobre tx para garantizar atomicidad (LL-010).
+   */
+  async addTransaction(
+    input: CreateBankTransactionInput,
+    tx: Prisma.TransactionClient
+  ) {
+    return tx.bankTransaction.create({
       data: {
         statementId: input.statementId,
         date: input.date,
@@ -34,11 +42,17 @@ export const BankStatementService = {
     });
   },
 
-  async getWithTransactions(statementId: string) {
+  /**
+   * Obtiene un extracto con sus transacciones.
+   * @param statementId - ID del extracto
+   * @param companyId - Obligatorio cuando el caller no ha verificado pertenencia previamente.
+   *                    Cuando se provee, valida que el extracto pertenece a la company.
+   */
+  async getWithTransactions(statementId: string, companyId?: string) {
     const stmt = await prisma.bankStatement.findUnique({
       where: { id: statementId },
       include: {
-        bankAccount: { select: { id: true, name: true, bankName: true, currency: true } },
+        bankAccount: { select: { id: true, name: true, bankName: true, currency: true, companyId: true } },
         transactions: {
           orderBy: [{ date: "asc" }, { createdAt: "asc" }],
           include: {
@@ -58,6 +72,9 @@ export const BankStatementService = {
     });
     if (!stmt) return null;
 
+    // Tenant isolation: si se provee companyId, verificar que el extracto pertenece a esa company
+    if (companyId && stmt.bankAccount.companyId !== companyId) return null;
+
     const matchedCount = stmt.transactions.filter((t) => t.matchedPaymentId !== null).length;
 
     return {
@@ -73,8 +90,11 @@ export const BankStatementService = {
     };
   },
 
-  async matchTransaction(input: MatchTransactionInput) {
-    return prisma.bankTransaction.update({
+  /**
+   * @internal Requiere que el caller pase un tx de $transaction.
+   */
+  async matchTransaction(input: MatchTransactionInput, tx: Prisma.TransactionClient) {
+    return tx.bankTransaction.update({
       where: { id: input.bankTransactionId },
       data: {
         matchedPaymentId: input.matchedPaymentId,
@@ -85,8 +105,27 @@ export const BankStatementService = {
     });
   },
 
-  async unmatchTransaction(bankTransactionId: string) {
-    return prisma.bankTransaction.update({
+  /**
+   * Revierte una conciliación bancaria.
+   * Requiere companyId para aislamiento multi-tenant (ADR-004).
+   * Debe ejecutarse dentro de un $transaction con AuditLog (LL-010, ADR-006 D-4).
+   */
+  async unmatchTransaction(
+    bankTransactionId: string,
+    companyId: string,
+    userId: string,
+    tx: Prisma.TransactionClient
+  ) {
+    // Verificar tenant scope antes de mutar
+    const existing = await tx.bankTransaction.findUnique({
+      where: { id: bankTransactionId },
+      include: { statement: { include: { bankAccount: { select: { companyId: true } } } } },
+    });
+    if (!existing || existing.statement.bankAccount.companyId !== companyId) {
+      throw new Error("Transacción bancaria no encontrada o sin permisos");
+    }
+
+    const updated = await tx.bankTransaction.update({
       where: { id: bankTransactionId },
       data: {
         matchedPaymentId: null,
@@ -95,11 +134,28 @@ export const BankStatementService = {
         isReconciled: false,
       },
     });
+
+    await tx.auditLog.create({
+      data: {
+        entityName: "BankTransaction",
+        entityId: bankTransactionId,
+        action: "UNRECONCILE",
+        userId,
+        oldValue: { isReconciled: true, matchedPaymentId: existing.matchedPaymentId },
+        newValue: { isReconciled: false, matchedPaymentId: null },
+      },
+    });
+
+    return updated;
   },
 
-  async listByAccount(bankAccountId: string) {
+  /**
+   * Lista extractos de una cuenta bancaria.
+   * Requiere companyId para aislamiento multi-tenant (ADR-004).
+   */
+  async listByAccount(bankAccountId: string, companyId: string) {
     return prisma.bankStatement.findMany({
-      where: { bankAccountId },
+      where: { bankAccountId, bankAccount: { companyId } },
       orderBy: { periodEnd: "desc" },
       select: {
         id: true,
