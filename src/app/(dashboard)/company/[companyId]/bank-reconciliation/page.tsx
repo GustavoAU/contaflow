@@ -36,7 +36,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
   // If an accountId is selected, load its statements
   const selectedAccount = accountId ? accounts.find((a) => a.id === accountId) ?? null : null;
   const statements = selectedAccount
-    ? await BankStatementService.listByAccount(selectedAccount.id)
+    ? await BankStatementService.listByAccount(selectedAccount.id, companyId)
     : [];
 
   return (
@@ -86,7 +86,6 @@ export default async function BankReconciliationPage({ params, searchParams }: P
           <BankStatementUpload
             bankAccountId={selectedAccount.id}
             companyId={companyId}
-            userId={user.id}
           />
 
           {/* Statements list */}

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { BankingService } from "../services/BankingService";
+import { BankReconciliationService } from "../services/BankReconciliationService";
 import { CsvParserService } from "../services/CsvParserService";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountSchema } from "../schemas/bank-account.schema";
@@ -64,6 +65,23 @@ const GetUnreconciledSchema = z.object({
 const GetSummarySchema = z.object({
   bankStatementId: z.string().min(1, { error: "ID de extracto requerido" }),
   companyId: z.string().min(1, { error: "ID de empresa requerido" }),
+});
+
+const MatchBankTransactionSchema = z.object({
+  bankTransactionId: z.string().min(1, { error: "ID de transacción requerido" }),
+  companyId: z.string().min(1, { error: "ID de empresa requerido" }),
+  matchType: z.enum(["INVOICE_PAYMENT", "JOURNAL_ENTRY", "PAYMENT_RECORD"]),
+  targetId: z.string().min(1, { error: "ID de contrapartida requerido" }),
+});
+
+const SearchJournalEntriesSchema = z.object({
+  companyId: z.string().min(1),
+  query: z.string().optional(),
+});
+
+const SearchPaymentRecordsSchema = z.object({
+  companyId: z.string().min(1),
+  method: z.string().optional(),
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -278,6 +296,171 @@ export async function getUnreconciledTransactionsAction(
     return { success: true, data: serialized };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error al obtener transacciones";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Concilia una transacción bancaria con cualquier tipo de contrapartida:
+ * INVOICE_PAYMENT | JOURNAL_ENTRY | PAYMENT_RECORD.
+ * Requiere role ACCOUNTANT o ADMIN.
+ */
+export async function matchBankTransactionAction(
+  input: unknown
+): Promise<ActionResult<{ id: string; isReconciled: boolean }>> {
+  try {
+    const userId = await getAuthUserId();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const parsed = MatchBankTransactionSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+
+    const { bankTransactionId, companyId, matchType, targetId } = parsed.data;
+
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
+    const updated = await BankReconciliationService.matchTransaction(
+      bankTransactionId,
+      { type: matchType, id: targetId },
+      companyId,
+      userId
+    );
+
+    revalidatePath(`/company/${companyId}/bank-reconciliation`);
+
+    return { success: true, data: { id: updated.id, isReconciled: updated.isReconciled } };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al conciliar la transacción";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Busca asientos contables (Transaction) para conciliación bancaria tipo JOURNAL_ENTRY.
+ * Filtra por companyId y query opcional (número o descripción).
+ */
+export async function searchJournalEntriesAction(
+  input: unknown
+): Promise<ActionResult<Array<{ id: string; number: string; date: string; description: string }>>> {
+  try {
+    const userId = await getAuthUserId();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const parsed = SearchJournalEntriesSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+
+    const { companyId, query } = parsed.data;
+
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+
+    const entries = await prisma.transaction.findMany({
+      where: {
+        companyId,
+        status: "POSTED" as const,
+        ...(query
+          ? {
+              OR: [
+                { number: { contains: query, mode: "insensitive" as const } },
+                { description: { contains: query, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ date: "desc" }],
+      take: 30,
+      select: { id: true, number: true, date: true, description: true },
+    });
+
+    const serialized = entries.map((e) => ({
+      id: e.id,
+      number: e.number,
+      date: e.date.toISOString(),
+      description: e.description,
+    }));
+
+    return { success: true, data: serialized };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al buscar asientos";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Busca registros de pago (PaymentRecord) para conciliación bancaria tipo PAYMENT_RECORD.
+ * Filtra por companyId y método opcional.
+ */
+export async function searchPaymentRecordsAction(
+  input: unknown
+): Promise<
+  ActionResult<
+    Array<{
+      id: string;
+      method: string;
+      amountVes: string;
+      currency: string;
+      amountOriginal: string | null;
+      referenceNumber: string | null;
+      date: string;
+    }>
+  >
+> {
+  try {
+    const userId = await getAuthUserId();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const parsed = SearchPaymentRecordsSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+
+    const { companyId, method } = parsed.data;
+
+    const role = await getMemberRole(userId, companyId);
+    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+
+    const records = await prisma.paymentRecord.findMany({
+      where: {
+        companyId,
+        ...(method ? { method: method as never } : {}),
+      },
+      orderBy: [{ date: "desc" }],
+      take: 30,
+      select: {
+        id: true,
+        method: true,
+        amountVes: true,
+        currency: true,
+        amountOriginal: true,
+        referenceNumber: true,
+        date: true,
+      },
+    });
+
+    const serialized = records.map((r) => ({
+      id: r.id,
+      method: r.method,
+      amountVes: new Decimal(r.amountVes.toString()).toFixed(2),
+      currency: r.currency,
+      amountOriginal: r.amountOriginal
+        ? new Decimal(r.amountOriginal.toString()).toFixed(2)
+        : null,
+      referenceNumber: r.referenceNumber,
+      date: r.date.toISOString(),
+    }));
+
+    return { success: true, data: serialized };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al buscar pagos";
     return { success: false, error: msg };
   }
 }

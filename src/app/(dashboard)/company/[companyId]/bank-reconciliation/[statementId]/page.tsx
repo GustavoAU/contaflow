@@ -16,7 +16,7 @@ export default async function StatementDetailPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const statement = await BankStatementService.getWithTransactions(statementId);
+  const statement = await BankStatementService.getWithTransactions(statementId, companyId);
   if (!statement) redirect(`/company/${companyId}/bank-reconciliation`);
 
   return (
@@ -44,9 +44,8 @@ export default async function StatementDetailPage({ params }: Props) {
 
       {/* Workbench */}
       <ReconciliationWorkbench
-        statement={statement}
+        statement={statement as never}
         companyId={companyId}
-        userId={user.id}
       />
     </div>
   );

@@ -20,7 +20,7 @@ export async function createPaymentAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(limiters.fiscal, userId);
+    const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const parsed = CreatePaymentSchema.safeParse(input);

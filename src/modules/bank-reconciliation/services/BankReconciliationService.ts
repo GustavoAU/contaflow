@@ -65,11 +65,10 @@ export const BankReconciliationService = {
       await tx.auditLog.create({
         data: {
           action: "BANK_TRANSACTION_MATCHED",
-          entityType: "BankTransaction",
+          entityName: "BankTransaction",
           entityId: bankTransactionId,
           userId: matchedBy,
-          companyId,
-          metadata: { target },
+          newValue: { target, matchedBy, matchedAt: new Date().toISOString() },
         },
       });
 
