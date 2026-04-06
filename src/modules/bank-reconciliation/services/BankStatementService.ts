@@ -33,6 +33,7 @@ export const BankStatementService = {
     return tx.bankTransaction.create({
       data: {
         statementId: input.statementId,
+        companyId: input.companyId,
         date: input.date,
         description: input.description,
         type: input.type,
@@ -116,12 +117,11 @@ export const BankStatementService = {
     userId: string,
     tx: Prisma.TransactionClient
   ) {
-    // Verificar tenant scope antes de mutar
-    const existing = await tx.bankTransaction.findUnique({
-      where: { id: bankTransactionId },
-      include: { statement: { include: { bankAccount: { select: { companyId: true } } } } },
+    // Verificar tenant scope antes de mutar (companyId directo — Fase 13D)
+    const existing = await tx.bankTransaction.findFirst({
+      where: { id: bankTransactionId, companyId },
     });
-    if (!existing || existing.statement.bankAccount.companyId !== companyId) {
+    if (!existing) {
       throw new Error("Transacción bancaria no encontrada o sin permisos");
     }
 

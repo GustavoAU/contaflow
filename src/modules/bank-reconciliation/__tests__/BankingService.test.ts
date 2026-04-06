@@ -17,6 +17,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/prisma-rls", () => ({
+  withCompanyContext: vi.fn().mockImplementation(
+    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
+  ),
+}));
+
 import { prisma } from "@/lib/prisma";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

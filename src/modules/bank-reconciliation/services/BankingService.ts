@@ -1,6 +1,7 @@
 // src/modules/bank-reconciliation/services/BankingService.ts
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { type BankTransaction } from "@prisma/client";
 import { CsvParserService, type CsvRow } from "./CsvParserService";
 
@@ -37,7 +38,7 @@ export const BankingService = {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
       // Crear extracto
       const statement = await tx.bankStatement.create({
         data: {
@@ -71,6 +72,7 @@ export const BankingService = {
         await tx.bankTransaction.create({
           data: {
             statementId: statement.id,
+            companyId,
             date: row.date,
             description: row.description,
             type,
@@ -101,7 +103,7 @@ export const BankingService = {
       });
 
       return { statementId: statement.id, transactionCount };
-    });
+    }));
   },
 
   /**
@@ -137,16 +139,10 @@ export const BankingService = {
     companyId: string,
     reconciledBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => {
-      // Verificar que la transacción pertenece a la empresa
+    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
+      // Verificar que la transacción pertenece a la empresa (companyId directo — Fase 13D)
       const bankTx = await tx.bankTransaction.findFirst({
-        where: {
-          id: transactionId,
-          deletedAt: null,
-          statement: {
-            bankAccount: { companyId },
-          },
-        },
+        where: { id: transactionId, companyId, deletedAt: null },
       });
       if (!bankTx) {
         throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
@@ -193,7 +189,7 @@ export const BankingService = {
       });
 
       return updated;
-    });
+    }));
   },
 
   /**
@@ -205,16 +201,10 @@ export const BankingService = {
     companyId: string,
     unreconciledBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => {
-      // Verificar pertenencia a companyId
+    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
+      // Verificar pertenencia a companyId (directo — Fase 13D)
       const bankTx = await tx.bankTransaction.findFirst({
-        where: {
-          id: transactionId,
-          deletedAt: null,
-          statement: {
-            bankAccount: { companyId },
-          },
-        },
+        where: { id: transactionId, companyId, deletedAt: null },
       });
       if (!bankTx) {
         throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
@@ -251,7 +241,7 @@ export const BankingService = {
       });
 
       return updated;
-    });
+    }));
   },
 
   /**

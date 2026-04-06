@@ -24,6 +24,7 @@ export type CreateBankStatementInput = z.infer<typeof CreateBankStatementSchema>
 
 export const CreateBankTransactionSchema = z.object({
   statementId: z.string().min(1),
+  companyId: z.string().min(1),
   date: z.coerce.date(),
   description: z.string().min(1).max(500).trim(),
   type: z.enum(["CREDIT", "DEBIT"]),

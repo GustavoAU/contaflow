@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { Decimal } from "decimal.js";
 import type { BankTransaction } from "@prisma/client";
 
@@ -14,14 +15,13 @@ export const BankReconciliationService = {
     companyId: string,
     matchedBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => {
-      // ADR-004: verify bankTx belongs to company via statement → bankAccount
+    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
+      // ADR-004: verify bankTx belongs to company via companyId directo (Fase 13D)
       const bankTx = await tx.bankTransaction.findFirst({
-        where: { id: bankTransactionId },
-        include: { statement: { include: { bankAccount: true } } },
+        where: { id: bankTransactionId, companyId },
       });
 
-      if (!bankTx || (bankTx as { statement: { bankAccount: { companyId: string } } }).statement.bankAccount.companyId !== companyId) {
+      if (!bankTx) {
         throw new Error("BankTransaction no encontrada o no pertenece a la empresa");
       }
 
@@ -74,7 +74,7 @@ export const BankReconciliationService = {
       });
 
       return updated;
-    });
+    }));
   },
 
   detectIgtfCandidate(

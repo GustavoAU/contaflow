@@ -3,6 +3,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -92,49 +93,51 @@ export async function createRetentionAction(
     }
 
     // $transaction Serializable — getNextVoucherNumber requiere SSI
-    const retention = await prisma.$transaction(async (tx) => {
-      const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
+    const retention = await prisma.$transaction(async (tx) =>
+      withCompanyContext(data.companyId, tx, async (tx) => {
+        const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
 
-      const ret = await tx.retencion.create({
-        data: {
-          companyId: data.companyId,
-          providerName: data.providerName,
-          providerRif: data.providerRif,
-          invoiceNumber: data.invoiceNumber,
-          invoiceDate: data.invoiceDate,
-          invoiceAmount: new Decimal(data.invoiceAmount),
-          taxBase: new Decimal(data.taxBase),
-          ivaAmount: new Decimal(calc.ivaAmount),
-          ivaRetention: new Decimal(calc.ivaRetention),
-          ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
-          islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
-          islrRetentionPct: calc.islrRetentionPct ? new Decimal(calc.islrRetentionPct) : null,
-          totalRetention: new Decimal(calc.totalRetention),
-          voucherNumber,
-          type: data.type,
-          status: "PENDING",
-          createdBy: data.createdBy,
-          idempotencyKey,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          entityId: ret.id,
-          entityName: "Retencion",
-          action: "CREATE",
-          userId: data.createdBy,
-          newValue: {
+        const ret = await tx.retencion.create({
+          data: {
+            companyId: data.companyId,
+            providerName: data.providerName,
             providerRif: data.providerRif,
             invoiceNumber: data.invoiceNumber,
-            totalRetention: calc.totalRetention,
+            invoiceDate: data.invoiceDate,
+            invoiceAmount: new Decimal(data.invoiceAmount),
+            taxBase: new Decimal(data.taxBase),
+            ivaAmount: new Decimal(calc.ivaAmount),
+            ivaRetention: new Decimal(calc.ivaRetention),
+            ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
+            islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
+            islrRetentionPct: calc.islrRetentionPct ? new Decimal(calc.islrRetentionPct) : null,
+            totalRetention: new Decimal(calc.totalRetention),
             voucherNumber,
+            type: data.type,
+            status: "PENDING",
+            createdBy: data.createdBy,
+            idempotencyKey,
           },
-        },
-      });
+        });
 
-      return ret;
-    }, { isolationLevel: "Serializable" });
+        await tx.auditLog.create({
+          data: {
+            entityId: ret.id,
+            entityName: "Retencion",
+            action: "CREATE",
+            userId: data.createdBy,
+            newValue: {
+              providerRif: data.providerRif,
+              invoiceNumber: data.invoiceNumber,
+              totalRetention: calc.totalRetention,
+              voucherNumber,
+            },
+          },
+        });
+
+        return ret;
+      })
+    , { isolationLevel: "Serializable" });
 
     revalidatePath(`/company/${data.companyId}/retentions`);
 
