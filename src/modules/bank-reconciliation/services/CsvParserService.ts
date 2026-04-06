@@ -70,13 +70,25 @@ function parseDate(raw: string, rowIndex: number): Date {
   return d;
 }
 
+export type ColumnMap = {
+  date: number;
+  description: number;
+  debit: number;
+  credit: number;
+  balance?: number;
+};
+
+const DEFAULT_COLUMN_MAP: ColumnMap = { date: 0, description: 1, debit: 2, credit: 3, balance: 4 };
+
 /**
  * Parsea el contenido CSV de un extracto bancario.
- * Formato esperado: date,description,debit,credit,balance
+ * Formato esperado: date,description,debit,credit,balance (por defecto, columnas 0-4)
+ * Usar columnMap para especificar índices personalizados (0-based).
  * La primera línea (header) es ignorada.
  * Las filas completamente vacías son ignoradas.
  */
-export function parseBankCsv(csvContent: string): CsvRow[] {
+export function parseBankCsv(csvContent: string, columnMap?: ColumnMap): CsvRow[] {
+  const cm = columnMap ?? DEFAULT_COLUMN_MAP;
   const lines = csvContent.split(/\r?\n/);
   const rows: CsvRow[] = [];
 
@@ -90,17 +102,18 @@ export function parseBankCsv(csvContent: string): CsvRow[] {
     const parts = trimmedLine.split(",");
 
     // Necesitamos al menos 4 columnas: date, description, debit, credit
-    if (parts.length < 4) {
+    const minCols = Math.max(cm.date, cm.description, cm.debit, cm.credit) + 1;
+    if (parts.length < minCols) {
       throw new Error(
-        `Fila ${index + 2} malformada: se esperan al menos 4 columnas, encontradas ${parts.length}`
+        `Fila ${index + 2} malformada: se esperan al menos ${minCols} columnas, encontradas ${parts.length}`
       );
     }
 
-    const rawDate = parts[0];
-    const rawDescription = parts[1].trim();
-    const rawDebit = parts[2].trim();
-    const rawCredit = parts[3].trim();
-    const rawBalance = parts.length > 4 ? parts[4].trim() : "";
+    const rawDate = parts[cm.date];
+    const rawDescription = parts[cm.description].trim();
+    const rawDebit = parts[cm.debit].trim();
+    const rawCredit = parts[cm.credit].trim();
+    const rawBalance = cm.balance !== undefined && parts.length > cm.balance ? parts[cm.balance].trim() : "";
 
     if (!rawDescription) {
       throw new Error(`Fila ${index + 2} malformada: descripción vacía`);
