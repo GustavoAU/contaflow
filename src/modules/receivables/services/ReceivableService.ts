@@ -68,7 +68,7 @@ export type InvoicePaymentSummary = {
 export type RecordPaymentInput = {
   companyId: string;
   invoiceId: string;
-  amount: string;          // Decimal como string — monto en VES
+  amount: string; // Decimal como string — monto en VES
   currency: string;
   amountOriginal?: string;
   exchangeRateId?: string;
@@ -82,6 +82,14 @@ export type RecordPaymentInput = {
   notes?: string;
   createdBy: string;
   idempotencyKey: string;
+};
+
+// ─── Paginación cursor-based ──────────────────────────────────────────────────
+
+export type ReceivablePage = {
+  data: ReceivableRow[];
+  nextCursor: string | null;
+  hasNextPage: boolean;
 };
 
 // ─── Retry logic para cold-start en Neon serverless ──────────────────────────
@@ -198,7 +206,9 @@ async function buildAgingReport(
   const creditByRelatedDoc = new Map<string, Decimal>();
   for (const cn of creditNotes) {
     if (cn.relatedDocNumber) {
-      const cnTotal = cn.totalAmountVes ? new Decimal(cn.totalAmountVes.toString()) : new Decimal(0);
+      const cnTotal = cn.totalAmountVes
+        ? new Decimal(cn.totalAmountVes.toString())
+        : new Decimal(0);
       const existing = creditByRelatedDoc.get(cn.relatedDocNumber) ?? new Decimal(0);
       creditByRelatedDoc.set(cn.relatedDocNumber, existing.plus(cnTotal));
     }
@@ -207,7 +217,9 @@ async function buildAgingReport(
   const rows: ReceivableRow[] = [];
 
   for (const inv of debtInvoices) {
-    const totalVes = inv.totalAmountVes ? new Decimal(inv.totalAmountVes.toString()) : new Decimal(0);
+    const totalVes = inv.totalAmountVes
+      ? new Decimal(inv.totalAmountVes.toString())
+      : new Decimal(0);
     const paidVes = inv.invoicePayments.reduce(
       (acc, p) => acc.plus(new Decimal(p.amount.toString())),
       new Decimal(0)
@@ -290,6 +302,91 @@ async function buildAgingReport(
   };
 }
 
+// ─── Función interna: paginación cursor-based sobre facturas pendientes ───────
+async function buildPaginatedReceivables(
+  companyId: string,
+  invoiceType: "SALE" | "PURCHASE",
+  asOf: Date,
+  cursor?: string,
+  limit: number = 50
+): Promise<ReceivablePage> {
+  const take = limit + 1;
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      type: invoiceType,
+      deletedAt: null,
+      paymentStatus: { not: "PAID" },
+    },
+    take,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    orderBy: [{ dueDate: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      invoiceNumber: true,
+      controlNumber: true,
+      docType: true,
+      counterpartName: true,
+      counterpartRif: true,
+      date: true,
+      dueDate: true,
+      currency: true,
+      totalAmountVes: true,
+      pendingAmount: true,
+      paymentStatus: true,
+      invoicePayments: {
+        where: { deletedAt: null },
+        select: { amount: true },
+      },
+    },
+  });
+
+  const hasNextPage = invoices.length > limit;
+  const pageInvoices = hasNextPage ? invoices.slice(0, limit) : invoices;
+
+  const rows: ReceivableRow[] = pageInvoices.map((inv) => {
+    const totalVes = inv.totalAmountVes
+      ? new Decimal(inv.totalAmountVes.toString())
+      : new Decimal(0);
+    const paidVes = inv.invoicePayments.reduce(
+      (acc, p) => acc.plus(new Decimal(p.amount.toString())),
+      new Decimal(0)
+    );
+    const pendingVes = inv.pendingAmount
+      ? Decimal.max(new Decimal(inv.pendingAmount.toString()), new Decimal(0))
+      : Decimal.max(totalVes.minus(paidVes), new Decimal(0));
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const effectiveDue = inv.dueDate ?? inv.date;
+    const daysOverdue = Math.floor((asOf.getTime() - effectiveDue.getTime()) / msPerDay);
+    const bucket = classifyAgingBucket(inv.dueDate, inv.date, asOf);
+
+    return {
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      controlNumber: inv.controlNumber,
+      docType: inv.docType,
+      counterpartName: inv.counterpartName,
+      counterpartRif: inv.counterpartRif,
+      invoiceDate: inv.date,
+      dueDate: inv.dueDate,
+      currency: inv.currency,
+      totalAmountOriginal: totalVes.toFixed(2),
+      totalAmountVes: totalVes.toFixed(2),
+      paidAmountVes: paidVes.toFixed(2),
+      pendingAmountVes: pendingVes.toFixed(2),
+      daysOverdue,
+      bucket,
+      paymentStatus: inv.paymentStatus,
+    };
+  });
+
+  const nextCursor = hasNextPage ? pageInvoices[pageInvoices.length - 1].id : null;
+
+  return { data: rows, nextCursor, hasNextPage };
+}
+
 // ─── Servicio público ─────────────────────────────────────────────────────────
 
 export class ReceivableService {
@@ -301,6 +398,28 @@ export class ReceivableService {
   // ─── Aging CxP (Cuentas por Pagar) ──────────────────────────────────────────
   static async getPayables(companyId: string, asOf?: Date): Promise<AgingReport> {
     return buildAgingReport(companyId, "PURCHASE", asOf ?? new Date());
+  }
+
+  // ─── Listado paginado CxC (Cuentas por Cobrar) ──────────────────────────────
+  // REGLA: nunca findMany sin take. Máximo 50 registros por query.
+  static async getReceivablesPaginated(
+    companyId: string,
+    asOf: Date,
+    cursor?: string,
+    limit: number = 50
+  ): Promise<ReceivablePage> {
+    return buildPaginatedReceivables(companyId, "SALE", asOf, cursor, limit);
+  }
+
+  // ─── Listado paginado CxP (Cuentas por Pagar) ───────────────────────────────
+  // REGLA: nunca findMany sin take. Máximo 50 registros por query.
+  static async getPayablesPaginated(
+    companyId: string,
+    asOf: Date,
+    cursor?: string,
+    limit: number = 50
+  ): Promise<ReceivablePage> {
+    return buildPaginatedReceivables(companyId, "PURCHASE", asOf, cursor, limit);
   }
 
   // ─── Registrar pago sobre una factura ───────────────────────────────────────
@@ -320,22 +439,36 @@ export class ReceivableService {
       // Verificar factura
       const invoice = await db.invoice.findFirst({
         where: { id: input.invoiceId, companyId: input.companyId, deletedAt: null },
-        select: { id: true, date: true, paymentStatus: true, pendingAmount: true, totalAmountVes: true },
+        select: {
+          id: true,
+          date: true,
+          paymentStatus: true,
+          pendingAmount: true,
+          totalAmountVes: true,
+        },
       });
       if (!invoice) throw new Error("Factura no encontrada o eliminada");
-      if (invoice.paymentStatus === "PAID") throw new Error("La factura ya está completamente pagada");
+      if (invoice.paymentStatus === "PAID")
+        throw new Error("La factura ya está completamente pagada");
 
       // Guard: año fiscal cerrado
       const invoiceYear = invoice.date.getFullYear();
-      const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(input.companyId, invoiceYear);
+      const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
+        input.companyId,
+        invoiceYear
+      );
       if (yearClosed) {
-        throw new Error(`El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar pagos en facturas de ese año`);
+        throw new Error(
+          `El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar pagos en facturas de ese año`
+        );
       }
 
       const paymentAmount = new Decimal(input.amount);
       const currentPending = invoice.pendingAmount
         ? new Decimal(invoice.pendingAmount.toString())
-        : (invoice.totalAmountVes ? new Decimal(invoice.totalAmountVes.toString()) : new Decimal(0));
+        : invoice.totalAmountVes
+          ? new Decimal(invoice.totalAmountVes.toString())
+          : new Decimal(0);
 
       if (paymentAmount.greaterThan(currentPending)) {
         throw new Error("El monto del pago excede el saldo pendiente");
@@ -422,7 +555,9 @@ export class ReceivableService {
       async (tx) => {
         const payment = await tx.invoicePayment.findFirst({
           where: { id: paymentId, companyId, deletedAt: null },
-          include: { invoice: { select: { date: true, pendingAmount: true, paymentStatus: true } } },
+          include: {
+            invoice: { select: { date: true, pendingAmount: true, paymentStatus: true } },
+          },
         });
         if (!payment) throw new Error("Pago no encontrado o ya cancelado");
 
@@ -430,7 +565,9 @@ export class ReceivableService {
         const invoiceYear = payment.invoice.date.getFullYear();
         const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
         if (yearClosed) {
-          throw new Error(`El ejercicio económico ${invoiceYear} está cerrado. No se pueden cancelar pagos de ese año`);
+          throw new Error(
+            `El ejercicio económico ${invoiceYear} está cerrado. No se pueden cancelar pagos de ese año`
+          );
         }
 
         // Revertir pendingAmount

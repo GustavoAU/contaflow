@@ -3,6 +3,39 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
+import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+
+// ─── Tipos de paginación ──────────────────────────────────────────────────────
+
+export type TransactionRow = {
+  id: string;
+  number: string;
+  date: Date;
+  description: string;
+  status: string;
+  type: string;
+  entries: {
+    id: string;
+    accountId: string;
+    amount: Decimal;
+    account: { id: string; name: string; code: string } | null;
+  }[];
+};
+
+export type TransactionPage = {
+  data: TransactionRow[];
+  nextCursor: string | null;
+  hasNextPage: boolean;
+};
+
+// Parámetros para el listado paginado de transacciones.
+// cursor y limit son opcionales para retrocompatibilidad.
+export type TransactionListParams = {
+  companyId: string;
+  periodId?: string;   // filtro opcional por período contable
+  cursor?: string;     // id del último registro visto (cursor opaco)
+  limit?: number;      // default 50, max 50
+};
 
 export class TransactionService {
   /**
@@ -71,7 +104,17 @@ export class TransactionService {
       );
     }
 
-    // 4. Verificar que hay un período abierto
+    // 4. Verificar que el ejercicio económico no esté cerrado (Fase 15)
+    const txDate = validated.date ?? new Date();
+    const txYear = txDate.getFullYear();
+    const isClosed = await FiscalYearCloseService.isFiscalYearClosed(validated.companyId, txYear);
+    if (isClosed) {
+      throw new Error(
+        `El ejercicio económico ${txYear} está cerrado. No se pueden registrar asientos en ejercicios cerrados.`
+      );
+    }
+
+    // 5. Verificar que hay un período abierto
     const activePeriod = await prisma.accountingPeriod.findFirst({
       where: { companyId: validated.companyId, status: "OPEN" },
     });
@@ -219,5 +262,80 @@ export class TransactionService {
         },
       },
     });
+  }
+
+  /**
+   * Retorna una página de transacciones usando cursor-based pagination.
+   * Máximo 50 registros por query.
+   * @param companyId - empresa propietaria de los asientos (ADR-004)
+   * @param cursor    - id del último elemento de la página anterior (opcional)
+   * @param limit     - cantidad de registros por página (default 50, max 50)
+   * @param periodId  - filtro opcional por período contable
+   */
+  static async getTransactionsPaginated(
+    companyId: string,
+    cursor?: string,
+    limit: number = 50,
+    periodId?: string
+  ): Promise<TransactionPage> {
+    const safeLimit = Math.min(limit, 50);
+
+    const where = {
+      companyId,
+      ...(periodId ? { periodId } : {}),
+    };
+
+    const rows = await prisma.transaction.findMany({
+      where,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      take: safeLimit + 1,
+      ...(cursor
+        ? {
+            cursor: { id: cursor },
+            skip: 1,
+          }
+        : {}),
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        description: true,
+        status: true,
+        type: true,
+        entries: {
+          select: {
+            id: true,
+            accountId: true,
+            amount: true,
+            account: {
+              select: { id: true, name: true, code: true },
+            },
+          },
+        },
+      },
+    });
+
+    const hasNextPage = rows.length > safeLimit;
+    const data = hasNextPage ? rows.slice(0, safeLimit) : rows;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return {
+      data: data as TransactionRow[],
+      nextCursor,
+      hasNextPage,
+    };
+  }
+
+  /**
+   * Overload que acepta TransactionListParams como objeto.
+   * Permite pasar periodId sin romper la firma posicional existente.
+   */
+  static async listTransactions(params: TransactionListParams): Promise<TransactionPage> {
+    return TransactionService.getTransactionsPaginated(
+      params.companyId,
+      params.cursor,
+      params.limit ?? 50,
+      params.periodId
+    );
   }
 }

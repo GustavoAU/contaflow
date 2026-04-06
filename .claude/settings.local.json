@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\(''@react-pdf/renderer''\\); console.log\\(''ok''\\)\")",
+      "Bash(grep -r \"validateRif\\\\|RIF regex\" /d/Documents/Projects/React/countableapp/modern-cg1/src/modules --include=*.ts --include=*.tsx)",
+      "Bash(git -C /d/Documents/Projects/React/countableapp/modern-cg1 log --oneline --all)",
+      "Bash(git -C /d/Documents/Projects/React/countableapp/modern-cg1 branch -a)",
+      "Bash(find /d/Documents/Projects/React/countableapp/modern-cg1/src/modules -name *.test.ts -type f)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const p=require\\(''./package.json''\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(gh run:*)",
+      "Bash(node -e \"const p=require\\(''./package.json''\\); console.log\\(JSON.stringify\\({scripts: p.scripts, prisma: p.prisma}, null, 2\\)\\)\")",
+      "Bash(node -e \"const p=require\\(''''./package.json''''\\); console.log\\(JSON.stringify\\(p, null, 2\\)\\)\")",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

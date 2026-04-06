@@ -174,9 +174,26 @@ export async function updateAccountAction(
     const validated = UpdateAccountSchema.parse(input);
     const { id, ...data } = validated;
 
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const before = await prisma.account.findUnique({
+      where: { id },
+      select: { code: true, name: true, type: true, companyId: true },
+    });
+    if (!before) return { success: false, error: "Cuenta no encontrada" };
+
     if (data.code) {
+      // FIX CRÍTICO-1 (ADR-004): unicidad de código scoped a companyId.
+      // Sin companyId, un código existente en empresa B bloqueaba actualizaciones
+      // legítimas en empresa A. Ver lessons-learned.md LL-003.
       const existing = await prisma.account.findFirst({
-        where: { code: data.code, NOT: { id }, deletedAt: null },
+        where: {
+          code: data.code,
+          companyId: before.companyId, // ← fix: era `companyId: before.companyId` pero faltaba antes
+          NOT: { id },
+          deletedAt: null,
+        },
       });
       if (existing) {
         return {
@@ -185,11 +202,6 @@ export async function updateAccountAction(
         };
       }
     }
-
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const before = await prisma.account.findUnique({ where: { id }, select: { code: true, name: true, type: true } });
 
     const account = await prisma.$transaction(async (tx) => {
       const updated = await tx.account.update({ where: { id }, data });

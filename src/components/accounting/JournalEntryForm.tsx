@@ -3,7 +3,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -102,7 +102,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
 
   // ─── Calcular totales en tiempo real ─────────────────────────────────────
 
-  const entries = form.watch("entries");
+  const entries = useWatch({ control: form.control, name: "entries" }) ?? [];
   const totalDebit = entries.reduce((acc, e) => acc.plus(parseDecimal(e.debit)), new Decimal(0));
   const totalCredit = entries.reduce((acc, e) => acc.plus(parseDecimal(e.credit)), new Decimal(0));
   const difference = totalDebit.minus(totalCredit);

@@ -1,5 +1,7 @@
 // src/modules/accounting/services/PeriodService.ts
 import prisma from "@/lib/prisma";
+import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+import { PeriodSnapshotService } from "./PeriodSnapshotService";
 
 export class PeriodService {
   /**
@@ -31,7 +33,15 @@ export class PeriodService {
    * Regla: solo puede haber un período OPEN por empresa a la vez.
    */
   static async openPeriod(companyId: string, year: number, month: number, userId: string) {
-    // 1. Verificar que no haya un período abierto
+    // 1. Verificar que el ejercicio económico no esté cerrado (Fase 15)
+    const isClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, year);
+    if (isClosed) {
+      throw new Error(
+        `El ejercicio económico ${year} está cerrado. No se pueden abrir períodos de ejercicios cerrados.`
+      );
+    }
+
+    // 2. Verificar que no haya un período abierto
     const activePeriod = await PeriodService.getActivePeriod(companyId);
     if (activePeriod) {
       throw new Error(
@@ -71,6 +81,7 @@ export class PeriodService {
 
   /**
    * Cierra el período activo.
+   * Genera snapshots de saldos para todas las cuentas con movimientos (Fase 13C-B4).
    * Regla: debe existir un período OPEN para cerrar.
    */
   static async closePeriod(companyId: string, userId: string) {
@@ -80,7 +91,7 @@ export class PeriodService {
       throw new Error("No hay período abierto para cerrar.");
     }
 
-    // 2. Cerrar el período + AuditLog de forma atómica
+    // 2. Cerrar el período + Snapshots + AuditLog de forma atómica
     const closed = await prisma.$transaction(async (tx) => {
       const updated = await tx.accountingPeriod.update({
         where: { id: activePeriod.id },
@@ -90,6 +101,10 @@ export class PeriodService {
           closedBy: userId,
         },
       });
+
+      // Fase 13C-B4: generar snapshots de saldos al cierre del período.
+      // Llamado dentro del mismo $transaction para atomicidad ACID (best-practices §6.3).
+      await PeriodSnapshotService.upsertAllSnapshotsForPeriod(companyId, activePeriod.id, tx);
 
       await tx.auditLog.create({
         data: {

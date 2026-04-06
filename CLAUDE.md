@@ -1,4 +1,4 @@
-# ContaFlow — Guía de Agente
+# ContaFlow — Agent Guide
 
 ## Stack
 
@@ -6,96 +6,96 @@ Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Cler
 
 ## Prisma / DB
 
-- `src/lib/prisma.ts`: singleton adapter-pg con `DATABASE_URL` (pooled)
-- Migraciones: `DATABASE_URL_DIRECT` en `prisma.config.ts`
-- Después de todo `prisma generate` → SIEMPRE reiniciar `npm run dev`
+- `src/lib/prisma.ts`: singleton adapter-pg with `DATABASE_URL` (pooled)
+- Migrations: `DATABASE_URL_DIRECT` in `prisma.config.ts`
+- After every `prisma generate` → ALWAYS restart `npm run dev`
 
-## Estructura de módulos
+## Module structure
 
 ```
-src/modules/[nombre]/{schemas,services,actions,components,__tests__}/
+src/modules/[name]/{schemas,services,actions,components,__tests__}/
 ```
 
-## Reglas contables INVIOLABLES
+## Accounting rules — INVIOLABLE
 
-- NUNCA `float` para dinero → usar `Decimal.js` siempre
-- NUNCA `DELETE` en asientos contables → siempre `VOID` (estado)
-- `$transaction` obligatorio en TODA mutación financiera
-- `Serializable` obligatorio en: `getNextControlNumber`, `getNextVoucherNumber`, cierre de período
-- `onDelete: Restrict` en TODAS las tablas contables — nunca `Cascade`
-- `AuditLog` dentro del mismo `$transaction` que la mutación principal
+- NEVER `float` for money → always use `Decimal.js`
+- NEVER `DELETE` on accounting asientos → always `VOID` (status change)
+- `$transaction` mandatory in EVERY financial mutation
+- `Serializable` mandatory for: `getNextControlNumber`, `getNextVoucherNumber`, período closing
+- `onDelete: Restrict` on ALL contable tables — never `Cascade`
+- `AuditLog` inside the same `$transaction` as the main mutation
 
 ## Zod 4
 
-- Usar `{ error: "msg" }` — NO `{ errorMap: ... }`
+- Use `{ error: "msg" }` — NOT `{ errorMap: ... }`
 
 ## Rate Limiting
 
 - `src/lib/ratelimit.ts`: `limiters.fiscal` (30/min) + `limiters.ocr` (10/min) via Upstash sliding window
-- Si `UPSTASH_REDIS_REST_URL` no está definida → no-op (permite todo) — nunca bloquea en dev/test
-- Si Redis falla en runtime → catch silencioso, permite el request
-- Mock en tests: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))`
-- Aplicado en: `createInvoiceAction`, `createRetentionAction`, `createIGTFAction`, `createAccountAction`, `extractInvoiceAction` (OCR)
+- If `UPSTASH_REDIS_REST_URL` is not defined → no-op (allows all) — never blocks in dev/test
+- If Redis fails at runtime → silent catch, request is allowed
+- Mock in tests: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))`
+- Applied to: `createInvoiceAction`, `createRetentionAction`, `createIGTFAction`, `createAccountAction`, `extractInvoiceAction` (OCR)
 
 ## Vitest 4
 
-- Environment global: `node`
-- Componentes React: `// @vitest-environment jsdom` en PRIMERA línea del test
-- `environmentMatchGlobs` NO EXISTE en Vitest 4 — prohibido usarlo
+- Global environment: `node`
+- React components: `// @vitest-environment jsdom` on the FIRST line of the test file
+- `environmentMatchGlobs` DOES NOT EXIST in Vitest 4 — forbidden
 - Mock pattern: `vi.mocked(prisma.modelo.metodo).mockResolvedValue([] as never)`
-- `vi.hoisted()` para variables antes de `vi.mock()`
-- Siempre mockear en tests de Actions: `next/cache`, `@clerk/nextjs/server`
-- Mock de `$transaction` interactivo: `vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({ modelo: prisma.modelo, auditLog: prisma.auditLog })) as never)`
+- `vi.hoisted()` for variables before `vi.mock()`
+- Always mock in Action tests: `next/cache`, `@clerk/nextjs/server`
+- Interactive `$transaction` mock: `vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({ modelo: prisma.modelo, auditLog: prisma.auditLog })) as never)`
 
 ## Fiscal VEN-NIF
 
 - IVA: General 16% | Reducido 8% | Adicional Lujo 15% (total 31%) | Exento/Exonerado 0%
-- `luxuryGroupId` vincula `IVA_ADICIONAL` ↔ `IVA_GENERAL` en `InvoiceTaxLine`
-- IGTF 3%: aplica si `currency !== VES` OR (`isSpecialContributor` AND `currency === VES`)
-- Retenciones IVA: 75%/100%. Solo si `isSpecialContributor`
-- Retenciones ISLR Decreto 1808: tasas variables por tipo de pago
+- `luxuryGroupId` links `IVA_ADICIONAL` ↔ `IVA_GENERAL` in `InvoiceTaxLine`
+- IGTF 3%: applies if `currency !== VES` OR (`isSpecialContributor` AND `currency === VES`)
+- Retenciones IVA: 75%/100%. Only if `isSpecialContributor`
+- Retenciones ISLR Decreto 1808: variable rates per payment type
 - RIF regex: `/^[JVEGCP]-\d{8}-?\d?$/i`
 
-## Errores Prisma
+## Prisma errors
 
 - `P2002` → "Ya existe..." | `P2003` → "Datos de referencia inválidos"
-- Nunca exponer errores crudos de Prisma al cliente
+- Never expose raw Prisma errors to the client
 
-## Estado actual
+## Current status
 
-- Fase 12A ✅ mergeada
-- Fase 12B en progreso (`feat/invoice-books-v2`)
-  - ✅ 18.1 ControlNumberSequence + Serializable SSI (InvoiceSequenceService)
-  - ✅ 18.3 Cascade TaxCategory + AlertDialog (InvoiceForm)
-  - ✅ 18.6 Validación RIF /^[JVEGCP]-\d{8}-?\d?$/i (bug fix prefijo C-)
-  - ✅ 18.2 PDF librería — @react-pdf/renderer v4, InvoiceBookPDFService + RetentionVoucherPDFService
-  - ⏳ 18.4 Link retention↔invoice — ARCH pendiente (schema change)
-  - ✅ 18.5 Voucher PDF individual por factura — InvoiceVoucherPDFService, botón PDF por fila en InvoiceBook
-- 18.3 cascade taxCategory UI → ✅ completado
-- 18.6 validación RIF Zod → ✅ completado (bug fiscal corregido: regex 
-  ahora acepta C- comunal y dígito verificador opcional)
+- Phase 12A ✅ merged
+- Phase 12B ✅ merged (invoice books, PDFs, RIF fix)
+- Fase 13C ✅ merged (security B1, pagination B2, PeriodSnapshot B3-B4, report-cache B5, query monitoring B6)
+- Fase 14 ✅ merged (multimoneda: Currency enum, ExchangeRate, BCV rates)
+- Fase 14B ✅ merged (PaymentRecord — pagos con múltiples medios)
+- Fase 15 ✅ merged (FiscalYearClose — cierre de año fiscal)
+- Fase 16 ✅ merged (Receivable/Payable portfolio — cuentas por cobrar/pagar)
+- Fase 17 ⏳ in progress — Conciliación Bancaria (scaffolding merged, ReconciliationService + UI pendientes)
+- Fase 13D ⏳ planned — RLS Row Level Security (after Fase 17, see ADR-007)
 
-## Principios — reglas operacionales
+**422 tests GREEN** | **CI passing** (0 lint errors as of 2026-04-05)
 
-- DDD: cada módulo = bounded context. TransactionService nunca importa de
-  InvoiceService. Comunicación via Server Action o domain event.
-- DRY: tasas ISLR en un solo const. Lógica de cálculo fiscal en
-  FiscalCalculator, no duplicada en cada service.
-- SOLID-S: validateDoubleEntry() separado de persistTransaction().
-  Una función = una responsabilidad.
-- SOLID-O: nueva alícuota IVA = nuevo enum entry + config. Sin tocar
-  servicios existentes.
-- YAGNI: no implementar Fase 28 (Compras/Ventas) ni
-  Fase 29 (Colombia/DIAN) hasta que exista contrato
-  firmado en contaflow-contract.md.
-- KISS: si cabe en una línea Zod, no crear clase validator.
+## Principles — operational rules
 
-## Forms — patrón de estado async
+- DDD: each module = bounded context. TransactionService never imports from
+  InvoiceService. Communication via Server Action or domain event.
+- DRY: ISLR rates in a single const. Fiscal calculation logic in
+  FiscalCalculator, not duplicated in each service.
+- SOLID-S: validateDoubleEntry() separate from persistTransaction().
+  One function = one responsibility.
+- SOLID-O: new IVA alícuota = new enum entry + config. No touching
+  existing services.
+- YAGNI: do not implement Phase 28 (Compras/Ventas) or
+  Phase 29 (Colombia/DIAN) until a signed contract
+  exists in contaflow-contract.md.
+- KISS: if it fits in one Zod line, do not create a validator class.
 
-- **`useTransition`** → patrón estándar para forms con Zod + objetos tipados (nuestro caso). No deprecado en React 19.
-- **`useActionState`** → solo para forms simples sin validación compleja (1-2 campos, sin Zod). Diseñado para `<form action={fn}>` + FormData, incompatible con nuestro stack tipado.
+## Forms — async state pattern
 
-## Convenciones
+- **`useTransition`** → standard pattern for forms with Zod + typed objects (our case). Not deprecated in React 19.
+- **`useActionState`** → only for simple forms without complex validation (1-2 fields, no Zod). Designed for `<form action={fn}>` + FormData, incompatible with our typed stack.
 
-- Archivos/carpetas en inglés
-- Contenido UI en español
+## Conventions
+
+- Files/folders in English
+- UI content in Spanish

@@ -95,6 +95,21 @@ enum Currency {
   EUR
 }
 
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  PAGOMOVIL
+  ZELLE
+  CASHEA
+}
+
+enum InvoicePaymentStatus {
+  UNPAID    // Sin pagos
+  PARTIAL   // Pagado parcialmente
+  PAID      // Cancelado totalmente
+  VOIDED    // Factura anulada (deletedAt no nulo)
+}
+
 model Company {
   id           String        @id @default(cuid())
   name         String
@@ -115,6 +130,20 @@ model Company {
   controlNumberSequences ControlNumberSequence[]
   retentionSequences     RetentionSequence[]
   exchangeRates          ExchangeRate[]
+  paymentRecords         PaymentRecord[]
+  // Fase 16: Cartera CxC/CxP
+  paymentTermDays             Int     @default(30)
+  invoicePayments             InvoicePayment[]
+  // Fase 17: Conciliación Bancaria
+  bankAccounts                BankAccount[]
+  // Fase 15: Cierre de ejercicio económico
+  resultAccountId             String?
+  resultAccount               Account?         @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
+  retainedEarningsAccountId   String?
+  retainedEarningsAccount     Account?         @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
+  fiscalYearCloses            FiscalYearClose[]
+  // Fase 13C Bloque 3: Snapshots de saldos por período
+  periodSnapshots             PeriodSnapshot[]
 }
 
 model CompanyMember {
@@ -139,6 +168,13 @@ model Account {
   deletedAt      DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  // Fase 15: relaciones inversas para cuentas de cierre
+  companiesAsResult           Company[] @relation("ResultAccount")
+  companiesAsRetainedEarnings Company[] @relation("RetainedEarningsAccount")
+  // Fase 17: Conciliación Bancaria
+  bankAccount                 BankAccount?
+  // Fase 13C Bloque 3: Snapshots de saldos por período
+  periodSnapshots             PeriodSnapshot[]
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -160,7 +196,7 @@ model IGTFTransaction {
 
 model Transaction {
   id          String         @id @default(cuid())
-  number      String 
+  number      String
   date        DateTime       @default(now())
   description String
   reference   String?
@@ -171,7 +207,7 @@ model Transaction {
   createdAt   DateTime       @default(now())
   status      TransactionStatus @default(POSTED)
   type        TransactionType   @default(DIARIO)
-  notes       String?   
+  notes       String?
   voidedById  String?
   voidedBy    Transaction?      @relation("VoidRelation", fields: [voidedById], references: [id])
   voids       Transaction[]     @relation("VoidRelation")
@@ -180,6 +216,9 @@ model Transaction {
   retenciones Retencion[]
   igtfTransactions IGTFTransaction[]
   invoices    Invoice[]
+  // Fase 15: relaciones inversas para asientos de cierre
+  fiscalYearCloseAsClosing       FiscalYearClose? @relation("ClosingTransaction")
+  fiscalYearCloseAsAppropriation FiscalYearClose? @relation("AppropriationTransaction")
 
   @@unique([companyId, number])
 }
@@ -195,7 +234,7 @@ model JournalEntry {
 }
 
 model User {
-  id        String    @id 
+  id        String    @id
   name      String?
   email     String   @unique
   role      UserRole  @default(ACCOUNTANT)
@@ -228,6 +267,8 @@ model AccountingPeriod {
   closedBy    String?      // userId
   transactions Transaction[]
   invoices    Invoice[]
+  // Fase 13C Bloque 3: Snapshots de saldos por período
+  periodSnapshots PeriodSnapshot[]
 
   @@unique([companyId, year, month])
 }
@@ -292,6 +333,7 @@ model Invoice {
   exchangeRate         ExchangeRate?     @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
   taxLines             InvoiceTaxLine[]
   retenciones          Retencion[]
+  paymentRecords       PaymentRecord[]
   transactionId        String?
   transaction          Transaction?      @relation(fields: [transactionId], references: [id])
   periodId             String?
@@ -300,9 +342,17 @@ model Invoice {
   deletedAt            DateTime?
   createdAt            DateTime          @default(now())
   createdBy            String
+  // Fase 16: CxC/CxP
+  dueDate              DateTime?
+  totalAmountVes       Decimal?          @db.Decimal(19, 4)
+  pendingAmount        Decimal?          @db.Decimal(19, 4)
+  paymentStatus        InvoicePaymentStatus @default(UNPAID)
+  invoicePayments      InvoicePayment[]
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
+  @@index([companyId, type, paymentStatus])
+  @@index([companyId, type, dueDate])
 }
 
 model ControlNumberSequence {
@@ -350,6 +400,206 @@ model ExchangeRate {
   createdBy String
   invoices  Invoice[]
 
+  paymentRecords  PaymentRecord[]
+  invoicePayments InvoicePayment[]
+
   @@unique([companyId, currency, date])
   @@index([companyId, currency, date])
+}
+
+// Registro de pagos por medio de pago digital (PagoMóvil, Zelle, Cashea, etc.)
+model PaymentRecord {
+  id               String        @id @default(cuid())
+  companyId        String
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoiceId        String?
+  invoice          Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  method           PaymentMethod
+  amountVes        Decimal       @db.Decimal(19, 4)    // siempre en VES
+  currency         Currency      @default(VES)          // moneda del pago original
+  amountOriginal   Decimal?      @db.Decimal(19, 4)    // monto en moneda original (Zelle USD)
+  exchangeRateId   String?
+  exchangeRate     ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
+  // PagoMóvil
+  referenceNumber  String?
+  originBank       String?
+  destBank         String?
+  // Cashea
+  commissionPct    Decimal?      @db.Decimal(5, 2)
+  commissionAmount Decimal?      @db.Decimal(19, 4)
+  // IGTF (Zelle & Cashea USD)
+  igtfAmount       Decimal?      @db.Decimal(19, 4)
+  date             DateTime
+  notes            String?
+  createdAt        DateTime      @default(now())
+  createdBy        String
+
+  @@index([companyId])
+  @@index([invoiceId])
+  @@index([companyId, date])
+}
+
+// ─── Fase 15: Cierre de Ejercicio Económico ────────────────────────────────────
+// Representa el cierre anual de cuentas de resultado (VEN-NIF).
+// Existencia de registro = ejercicio cerrado (@@unique enforces idempotency).
+model FiscalYearClose {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  year        Int
+
+  closedAt    DateTime @default(now())
+  closedBy    String   // userId Clerk
+
+  // Asiento 1: cierre de cuentas de resultado (OBLIGATORIO)
+  closingTransactionId       String      @unique
+  closingTransaction         Transaction @relation("ClosingTransaction", fields: [closingTransactionId], references: [id], onDelete: Restrict)
+
+  // Asiento 2: apropiación resultado → patrimonio (OPCIONAL — post-AGO)
+  appropriationTransactionId String?     @unique
+  appropriationTransaction   Transaction? @relation("AppropriationTransaction", fields: [appropriationTransactionId], references: [id], onDelete: Restrict)
+
+  // Snapshot inmutable de montos al momento del cierre
+  totalRevenue   Decimal @db.Decimal(19, 4)
+  totalExpenses  Decimal @db.Decimal(19, 4)
+  netResult      Decimal @db.Decimal(19, 4) // positivo = ganancia, negativo = pérdida
+
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, year])
+  @@index([companyId])
+}
+
+// ─── Fase 16: Cartera CxC/CxP ─────────────────────────────────────────────────
+// Pago de cancelación de cartera — semánticamente distinto de PaymentRecord
+// (medios de pago digitales). InvoicePayment representa la cancelación VEN-NIF
+// de una cuenta por cobrar o por pagar.
+model InvoicePayment {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoiceId       String
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount          Decimal       @db.Decimal(19, 4)   // monto aplicado en VES
+  currency        Currency      @default(VES)
+  amountOriginal  Decimal?      @db.Decimal(19, 4)   // monto en moneda original si != VES
+  exchangeRateId  String?
+  exchangeRate    ExchangeRate? @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  method          PaymentMethod
+  referenceNumber String?
+  originBank      String?
+  destBank        String?
+  commissionPct   Decimal?      @db.Decimal(5, 4)
+  igtfAmount      Decimal?      @db.Decimal(19, 4)
+  date            DateTime
+  notes           String?
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  idempotencyKey  String        @unique
+  deletedAt       DateTime?
+  deletedBy       String?
+  // Fase 17: Conciliación Bancaria
+  bankTransactions BankTransaction[]
+
+  @@index([invoiceId])
+  @@index([companyId, date])
+}
+
+// ─── Fase 17: Conciliación Bancaria ───────────────────────────────────────────
+
+enum BankTransactionType {
+  CREDIT   // Entrada de dinero (abono)
+  DEBIT    // Salida de dinero (cargo)
+}
+
+enum BankStatementStatus {
+  OPEN     // Estado de trabajo activo
+  CLOSED   // Conciliado / cerrado
+}
+
+model BankAccount {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  accountId       String   @unique
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  name            String
+  bankName        String
+  accountNumber   String?
+  currency        Currency @default(VES)
+  closingBalance  Decimal  @db.Decimal(19, 4) @default(0)
+  isActive        Boolean  @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  createdBy       String
+
+  statements  BankStatement[]
+
+  @@index([companyId])
+}
+
+model BankStatement {
+  id              String              @id @default(cuid())
+  bankAccountId   String
+  bankAccount     BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  periodStart     DateTime            @db.Date
+  periodEnd       DateTime            @db.Date
+  openingBalance  Decimal             @db.Decimal(19, 4)
+  closingBalance  Decimal             @db.Decimal(19, 4)
+  status          BankStatementStatus @default(OPEN)
+  importedAt      DateTime            @default(now())
+  importedBy      String
+  deletedAt       DateTime?
+
+  transactions    BankTransaction[]
+
+  @@index([bankAccountId])
+}
+
+model BankTransaction {
+  id                    String              @id @default(cuid())
+  statementId           String
+  statement             BankStatement       @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  date                  DateTime            @db.Date
+  description           String
+  type                  BankTransactionType
+  amount                Decimal             @db.Decimal(19, 4)
+  reference             String?
+  isReconciled          Boolean             @default(false)
+  // Matching — B3: solo InvoicePayment. JournalEntry FK deferida a Fase 18
+  matchedPaymentId      String?
+  matchedPayment        InvoicePayment?     @relation(fields: [matchedPaymentId], references: [id], onDelete: Restrict)
+  matchedJournalEntryId String?             // nullable sin FK hasta Fase 18
+  matchedAt             DateTime?
+  matchedBy             String?
+  deletedAt             DateTime?
+
+  createdAt             DateTime            @default(now())
+
+  @@index([statementId])
+  @@index([matchedPaymentId])
+}
+
+// ─── Fase 13C Bloque 3: Snapshots de Saldos por Período ───────────────────────
+// Saldo precalculado por cuenta al cierre de cada período contable.
+// Permite que reportes (Balance General, Estado de Resultados) lean este snapshot
+// en lugar de recalcular todos los asientos históricos en cada request.
+// Nota: ExchangeRate (Fase 14) cubre las tasas históricas — no se necesita
+// un modelo separado ExchangeRateSnapshot.
+model PeriodSnapshot {
+  id              String           @id @default(cuid())
+  companyId       String
+  periodId        String
+  accountId       String
+  balanceVes      Decimal          @db.Decimal(19,4)
+  balanceOriginal Decimal?         @db.Decimal(19,4)
+  currency        Currency         @default(VES)
+  snapshotAt      DateTime         @default(now())
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  period   AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  account  Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([periodId, accountId])
+  @@index([companyId, periodId])
 }

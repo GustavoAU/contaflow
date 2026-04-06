@@ -6,11 +6,15 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
+import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import type { Currency } from "@prisma/client";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
+
+type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -25,7 +29,7 @@ export async function createInvoiceAction(input: unknown) {
     // Idempotencia: si ya existe una factura con esta clave, retornar la existente
     if (parsed.data.idempotencyKey) {
       const existing = await prisma.invoice.findFirst({
-        where: { idempotencyKey: key },
+        where: { idempotencyKey: key, companyId: parsed.data.companyId },
         select: { id: true },
       });
       if (existing) {
@@ -38,6 +42,19 @@ export async function createInvoiceAction(input: unknown) {
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error };
+
+    // Fase 15: Guard — no permitir facturas en ejercicios cerrados
+    const invoiceYear = parsed.data.date.getFullYear();
+    const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
+      parsed.data.companyId,
+      invoiceYear
+    );
+    if (yearClosed) {
+      return {
+        success: false as const,
+        error: `El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar facturas en ejercicios cerrados.`,
+      };
+    }
 
     // Multimoneda: validar que existe tasa BCV para la fecha si currency !== VES
     let resolvedExchangeRateId = parsed.data.exchangeRateId;
@@ -94,7 +111,7 @@ export async function createInvoiceAction(input: unknown) {
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
         if (parsed.data.idempotencyKey) {
           const existing = await prisma.invoice.findFirst({
-            where: { idempotencyKey: parsed.data.idempotencyKey },
+            where: { idempotencyKey: parsed.data.idempotencyKey, companyId: parsed.data.companyId },
             select: { id: true },
           });
           if (existing) return { success: true as const, data: existing.id };
@@ -112,6 +129,31 @@ export async function createInvoiceAction(input: unknown) {
       }
     }
     return { success: false as const, error: "Error al registrar la factura" };
+  }
+}
+
+// ─── Listado paginado cursor-based ─────────────────────────────────────────────
+export async function getInvoicesPaginatedAction(
+  companyId: string,
+  filters: InvoiceFilters = {},
+  cursor?: string,
+  limit?: number
+): Promise<ActionResult<InvoicePage>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const page = await InvoiceService.getInvoicesPaginated(companyId, filters, cursor, limit);
+    return { success: true, data: page };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al obtener las facturas" };
   }
 }
 

@@ -125,17 +125,21 @@ export function InvoiceForm({
   const [bcvLoading, setBcvLoading] = useState(false);
 
   useEffect(() => {
-    if (currency === "VES") {
+    if (currency === "VES") return;
+    void (async () => {
       setBcvRate(null);
-      return;
-    }
-    setBcvLoading(true);
-    getLatestRateAction(companyId, currency as "USD" | "EUR")
-      .then((res) => {
-        if (res.success && res.data) setBcvRate({ rate: res.data.rate, date: res.data.date instanceof Date ? res.data.date.toISOString().split("T")[0] : String(res.data.date).split("T")[0] });
-        else setBcvRate(null);
-      })
-      .finally(() => setBcvLoading(false));
+      setBcvLoading(true);
+      try {
+        const res = await getLatestRateAction(companyId, currency as "USD" | "EUR");
+        if (res.success && res.data) {
+          setBcvRate({ rate: res.data.rate, date: res.data.date instanceof Date ? res.data.date.toISOString().split("T")[0] : String(res.data.date).split("T")[0] });
+        } else {
+          setBcvRate(null);
+        }
+      } finally {
+        setBcvLoading(false);
+      }
+    })();
   }, [currency, companyId]);
 
   const isReporteZ = docType === "REPORTE_Z";
