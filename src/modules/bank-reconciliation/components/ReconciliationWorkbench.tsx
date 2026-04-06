@@ -64,7 +64,6 @@ type Summary = {
 type Props = {
   statement: BankStatement;
   companyId: string;
-  userId: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -142,7 +141,7 @@ function SummaryBar({ summary, currency }: { summary: Summary; currency: string 
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ReconciliationWorkbench({ statement, companyId, userId }: Props) {
+export function ReconciliationWorkbench({ statement, companyId }: Props) {
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
   const [unreconciledPayments, setUnreconciledPayments] = useState<UnreconciledPayment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
@@ -186,7 +185,7 @@ export function ReconciliationWorkbench({ statement, companyId, userId }: Props)
         setPaymentsError(result.error);
       }
     })();
-  }, [selectedTxId, selectedTx?.isReconciled, statement.bankAccountId, companyId]);
+  }, [selectedTxId, selectedTx, statement.bankAccountId, companyId]);
 
   function handleSelectTx(txId: string) {
     setSelectedTxId((prev) => (prev === txId ? null : txId));

@@ -8,10 +8,9 @@ import { importStatementAction } from "../actions/banking.actions";
 type Props = {
   bankAccountId: string;
   companyId: string;
-  userId: string;
 };
 
-export function BankStatementUpload({ bankAccountId, companyId, userId }: Props) {
+export function BankStatementUpload({ bankAccountId, companyId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ count: number; statementId: string } | null>(null);

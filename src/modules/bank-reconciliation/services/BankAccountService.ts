@@ -46,9 +46,9 @@ export const BankAccountService = {
     }));
   },
 
-  async deactivate(id: string) {
-    return prisma.bankAccount.update({
-      where: { id },
+  async deactivate(id: string, companyId: string) {
+    return prisma.bankAccount.updateMany({
+      where: { id, companyId },
       data: { isActive: false },
     });
   },
