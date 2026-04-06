@@ -9,6 +9,7 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
 import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
+import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -43,6 +44,16 @@ export async function createRetentionAction(
     const rl = await checkRateLimit(`${data.companyId}:${data.createdBy}`, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
+    // Fase 15: Guard — no permitir retenciones en ejercicios cerrados
+    const retYear = data.invoiceDate.getFullYear();
+    const retYearClosed = await FiscalYearCloseService.isFiscalYearClosed(data.companyId, retYear);
+    if (retYearClosed) {
+      return {
+        success: false,
+        error: `El ejercicio económico ${retYear} está cerrado. No se pueden registrar retenciones en ejercicios cerrados.`,
+      };
+    }
+
     // Calcular retenciones
     const calc = RetentionService.calculate(
       data.taxBase,
@@ -56,7 +67,7 @@ export async function createRetentionAction(
     // Fast path: si ya existe una retención con esta clave, retornar la existente
     if (data.idempotencyKey) {
       const existing = await prisma.retencion.findFirst({
-        where: { idempotencyKey },
+        where: { idempotencyKey, companyId: data.companyId },
       });
       if (existing) {
         return {
@@ -150,7 +161,7 @@ export async function createRetentionAction(
       // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
       if (error.message.includes("P2002") && input.idempotencyKey) {
         const existing = await prisma.retencion.findFirst({
-          where: { idempotencyKey: input.idempotencyKey },
+          where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
         });
         if (existing) {
           return {
