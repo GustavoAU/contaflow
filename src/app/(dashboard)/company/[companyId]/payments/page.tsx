@@ -69,6 +69,7 @@ export default async function PaymentsPage({ params }: Props) {
                     <th className="px-4 py-3 text-left">Fecha</th>
                     <th className="px-4 py-3 text-left">Método</th>
                     <th className="px-4 py-3 text-right">Monto Bs.D</th>
+                    <th className="px-4 py-3 text-right">USD</th>
                     <th className="px-4 py-3 text-right">IGTF</th>
                     <th className="px-4 py-3 text-left">Ref.</th>
                   </tr>
@@ -88,11 +89,9 @@ export default async function PaymentsPage({ params }: Props) {
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-semibold">
                         {fmtVes(p.amountVes)}
-                        {p.amountOriginal && (
-                          <div className="text-xs font-normal text-zinc-400">
-                            ${fmtVes(p.amountOriginal)} USD
-                          </div>
-                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm text-green-700">
+                        {p.amountOriginal ? `$${fmtVes(p.amountOriginal)}` : "—"}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-xs text-amber-700">
                         {p.igtfAmount ? fmtVes(p.igtfAmount) : "—"}
