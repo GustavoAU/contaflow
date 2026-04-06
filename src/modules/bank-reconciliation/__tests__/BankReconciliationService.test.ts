@@ -31,6 +31,7 @@ const USER_ID = "user-1";
 const BASE_BANK_TX = {
   id: TX_ID,
   statementId: "stmt-1",
+  companyId: COMPANY_ID,
   date: new Date("2026-01-15"),
   description: "Depósito cliente",
   type: "CREDIT" as const,

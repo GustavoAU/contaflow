@@ -70,10 +70,20 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 14B ✅ merged (PaymentRecord — pagos con múltiples medios)
 - Fase 15 ✅ merged (FiscalYearClose — cierre de año fiscal)
 - Fase 16 ✅ merged (Receivable/Payable portfolio — cuentas por cobrar/pagar)
-- Fase 17 ⏳ in progress — Conciliación Bancaria (security hardening done 2026-04-06; ReconciliationService ✅; pendiente commit + Fase 17B)
-- Fase 13D ⏳ planned — RLS Row Level Security (after Fase 17, see ADR-007)
+- Fase 17 ✅ merged (Conciliación Bancaria — hardening + ReconciliationService + 3-way match UI)
+- Fase 17B ✅ merged (BankReconciliationService + CsvImporter)
+- Fase 13D ✅ merged (RLS Row Level Security — commit 0ada843)
 
-**436 tests GREEN** | **CI passing** (0 lint errors as of 2026-04-06)
+**465 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-06)
+
+## Phase gate — MANDATORY before every phase transition
+
+**Before proposing or starting any new phase, the agent MUST:**
+1. Run `npx tsc --noEmit` — output must be `exit: 0` (zero errors).
+2. Run `npx vitest run` — all tests must pass (0 failures).
+3. If either check fails: stop, fix every error, rerun both checks, then report results to the user BEFORE mentioning the next phase.
+
+**Never carry TS errors or failing tests across a phase boundary.** Technical debt discovered mid-session must be fixed in the same session. If pre-existing errors are found during `/siguiente-paso`, list them explicitly and fix them before the phase analysis output.
 
 ## Principles — operational rules
 

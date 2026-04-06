@@ -26,15 +26,20 @@ import {
 import { closeFiscalYearAction, appropriateFiscalYearResultAction } from "../actions/fiscal-close.actions";
 import type { FiscalYearCloseSummary } from "../services/FiscalYearCloseService";
 
+type SerializedFiscalYearCloseSummary = Omit<
+  FiscalYearCloseSummary,
+  "totalRevenue" | "totalExpenses" | "netResult"
+> & {
+  totalRevenue: string;
+  totalExpenses: string;
+  netResult: string;
+};
+
 type Props = {
   companyId: string;
   yearToClose: number;
   isConfigured: boolean;
-  history: (FiscalYearCloseSummary & {
-    totalRevenue: string;
-    totalExpenses: string;
-    netResult: string;
-  })[];
+  history: SerializedFiscalYearCloseSummary[];
 };
 
 export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, history }: Props) {

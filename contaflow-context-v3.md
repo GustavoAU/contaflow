@@ -281,25 +281,25 @@ src/modules/[nombre]/
 
 ## 17. Estado Actual — Branch main
 
-**Branch activa**: `main` — Fase 13C completada + Fase 17 scaffolding (⚠️ sin commitear)
-**Tests**: 422/422 passing · **CI**: ⚠️ roto (lint — ver bugs pendientes sección 17.1)
-**Último commit relevante**: Fase 13C — Bloque 6 (Prisma query monitoring)
+**Branch activa**: `main`
+**Tests**: 465/465 passing · **CI**: ✅ verde
+**Último commit**: `0ada843` — Fase 13D RLS Row Level Security
 
-### 17.1 Bugs y deuda pendiente de resolver (próxima sesión)
+### Fases completadas (en orden cronológico)
+- ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
+- ✅ Fase 17B: BankReconciliationService + CsvImporter + ADR-008 schema 3-way match (commits `4f041f7` → `faf1972`)
+- ✅ Fase 13D: RLS Row Level Security — withCompanyContext + 14 tablas (commit `0ada843`)
 
-**CI roto — corregir antes del commit de Fase 17:**
-1. `InvoiceForm.tsx:129` — `setState` sincrónico en `useEffect` → `react-hooks/set-state-in-effect`
-   Fix: `setBcvRate(null)` y `setBcvLoading(true)` movidos a async IIFE
-2. `JournalEntryForm.tsx:105` — `form.watch()` incompatible con React Compiler
-   Fix: reemplazar por `useWatch({ control, name })`
+### 17.1 Deuda técnica resuelta
 
-**Bugs Medios de Pago (Zelle) — ✅ RESUELTOS en sesión 2026-04-05:**
-1. "Transaction API error" → `$transaction` ahora tiene `{ timeout: 30000 }` + catch sanitizado
-2. Campo VES no se calculaba automático → `useEffect` llama `getLatestRateAction` + calcula `amountUsd × bcvRate`
-3. Tabla pagos sin columna USD → nueva columna "USD" con texto verde para Zelle
+- ✅ Lint CI: InvoiceForm.tsx + JournalEntryForm.tsx — resueltos en `bf47b5f`
+- ✅ Bugs Zelle: timeout + auto-cálculo VES + columna USD — resueltos en `5aa5a37`
+- ✅ LL-010 regression test: `BankStatementService.test.ts` — 8 tests, addTransaction rollback atomicity
+- ⏳ Sentry deprecation warning en `next.config.ts`: cambiar `disableLogger: true` por `webpack.treeshake.removeDebugLogging: true` (no urgente)
 
-**Deuda menor pendiente:**
-- Sentry deprecation warning en `next.config.ts`: cambiar `disableLogger: true` por `webpack.treeshake.removeDebugLogging: true`
+### 17.2 UI pendiente (próxima sesión)
+
+- `ReconciliationWorkbench.tsx` — solo expone InvoicePayment match. Faltan: JOURNAL_ENTRY + PAYMENT_RECORD (BankReconciliationService ya implementado y testeado)
 
 ## 18. Fase 12B — ✅ COMPLETADA
 
@@ -493,28 +493,25 @@ model FiscalYearClose {
 - **Solo ADMIN** puede ejecutar cierre y apropiación
 
 - ✅ Fase 16: Cartera CxC/CxP con Antigüedad de Saldos — completada 2026-03-31 (ver sección 25.1)
-- ⚠️ Fase 17: Conciliación Bancaria — hardening de seguridad completo 2026-04-06 (sin commitear)
+- ✅ Fase 17: Conciliación Bancaria — completada 2026-04-06 (commit `f110d93`)
   - Schema: BankAccount, BankStatement, BankTransaction con isReconciled, closingBalance
   - Migración: `20260331_fase17_bank_reconciliation` — aplicada
-  - Servicios: BankAccountService, BankStatementService, BankingService, CsvParserService, **ReconciliationService** (nuevo 2026-04-06)
-  - Componentes: BankAccountList, BankStatementUpload (sin userId), ReconciliationWorkbench (sin userId, useEffect corregido)
+  - Servicios: BankAccountService, BankStatementService, BankingService, CsvParserService, ReconciliationService
+  - Componentes: BankAccountList, BankStatementUpload, ReconciliationWorkbench (InvoicePayment match)
   - Páginas: `/bank-reconciliation/` + `/bank-reconciliation/[statementId]/`
-  - Seguridad: 6 HIGH + 3 MEDIUM + 1 LOW remediados (security-agent 2026-04-06) — getMemberRole retorna role, no bool
-  - MAX_INVOICE_AMOUNT exportado desde fiscal-validators.ts (ADR-006 D-2)
-  - LL-009 (verifyMembership boolean anti-pattern) + LL-010 (service sin $transaction) documentados
-  - ADR-007 creado: RLS con SET LOCAL + withCompanyContext — prerequisito Fase 13D
-  - 436 tests GREEN (+14 nuevos vs Fase 13C)
-  - Pendiente commit + Fase 17B: BankStatementLine schema + importador CSV + IGTF auto-detect
-  - Ver sección 33 para spec completo VEN-NIF
-- ⏳ Fase 13D: RLS — Row Level Security en Neon (entre Fase 17 y Fase 19)
-  - Implementar ADR-007: role `authenticated` + `SET LOCAL` por `$transaction`
-  - Migration SQL: ENABLE ROW LEVEL SECURITY + CREATE POLICY en ~12 tablas de dominio
-  - src/lib/prisma-rls.ts: withCompanyContext(companyId, tx, fn)
-  - Refactor ~15-20 Server Actions para usar withCompanyContext
-  - Defense-in-depth real: BD rechaza queries sin companyId correcto
-  - Fail-closed: sin set_config → 0 rows (no explota, no expone)
-  - Compatible con PrismaPg pooled (SET LOCAL = per-transaction)
-  - Prerequisito: Fase 17 completada (BankTransaction debe estar bajo RLS también)
+  - Seguridad: 6 HIGH + 3 MEDIUM + 1 LOW remediados (ADR-006 D-1/D-2, LL-009, LL-010)
+  - ADR-007 creado: RLS con SET LOCAL + withCompanyContext
+- ✅ Fase 17B: BankReconciliationService + CsvImporter + ADR-008 — completada 2026-04-06 (commits `4f041f7`→`faf1972`)
+  - Schema: BankTransaction extendido con `matchedTransactionId` + `matchedPaymentRecordId` (ADR-008)
+  - BankReconciliationService: 3-way match (INVOICE_PAYMENT / JOURNAL_ENTRY / PAYMENT_RECORD)
+  - CsvImporter.tsx: column mapper + importación bulk
+  - ⏳ UI pendiente: ReconciliationWorkbench solo expone InvoicePayment — JOURNAL_ENTRY + PAYMENT_RECORD sin UI
+- ✅ Fase 13D: RLS — Row Level Security — completada 2026-04-06 (commit `0ada843`)
+  - src/lib/prisma-rls.ts: withCompanyContext(companyId, tx, fn) con SET LOCAL
+  - Migrations: companyId backfill en BankTransaction + ENABLE RLS en 14 tablas de dominio
+  - Todas las $transaction de dominio envuelven withCompanyContext
+  - 6 tests unitarios prisma-rls.test.ts + regression LL-010 (BankStatementService.test.ts)
+  - Compatible con PrismaPg pooled (SET LOCAL = per-transaction, ADR-007)
 - ⏳ Fase 18: Dashboard Analítico Avanzado (Recharts nativo)
 - ⏳ Fase 19: Declaración Mensual IVA (Forma 30 SENIAT)
 - ⏳ Fase 20: Facturación Digital (SENIAT)
@@ -621,9 +618,9 @@ Riesgo residual: spike de PDFs simultáneos en hora punta.
 - `PeriodSnapshotService`: upsert en `closePeriod`, lecturas O(1) en reportes
 - `report-cache.ts`: TTL 5 min para períodos cerrados
 
-### ⏳ DEUDA — RLS en base de datos — PLANIFICADA como Fase 13D
+### ✅ RLS en base de datos — IMPLEMENTADA en Fase 13D (commit `0ada843`)
 
-ADR-007 aprobado. SET LOCAL compatible con PgBouncer. Implementar después de Fase 17.
+ADR-007 implementado. SET LOCAL + withCompanyContext. 14 tablas bajo RLS. 465 tests GREEN.
 
 ### RLS y Neon Pooling — Decisión Arquitectónica Requerida
 
