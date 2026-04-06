@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { createPaymentAction } from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
+import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
 type Props = {
   companyId: string;
@@ -31,6 +32,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
 
   // Zelle
   const [amountUsd, setAmountUsd] = useState("");
+  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [bcvLoading, setBcvLoading] = useState(false);
 
   // Cashea
   const [commissionPct, setCommissionPct] = useState("3.50");
@@ -43,6 +46,34 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const igtfCashea = casheaIgtf && vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
   const commAmount = vesNum > 0 ? ((vesNum * commPct) / 100).toFixed(2) : "0.00";
 
+  // ─── Cargar tasa BCV cuando el método es Zelle ───────────────────────────
+  useEffect(() => {
+    if (method !== "ZELLE") return;
+    void (async () => {
+      setBcvRate(null);
+      setBcvLoading(true);
+      try {
+        const res = await getLatestRateAction(companyId, "USD");
+        if (res.success && res.data) {
+          setBcvRate(parseFloat(res.data.rate));
+        }
+      } finally {
+        setBcvLoading(false);
+      }
+    })();
+  }, [method, companyId]);
+
+  // ─── Auto-calcular VES = USD × tasa BCV ──────────────────────────────────
+  useEffect(() => {
+    if (method !== "ZELLE" || !bcvRate || !amountUsd) return;
+    void (async () => {
+      const usdNum = parseFloat(amountUsd);
+      if (!isNaN(usdNum) && usdNum > 0) {
+        setAmountVes((usdNum * bcvRate).toFixed(2));
+      }
+    })();
+  }, [amountUsd, bcvRate, method]);
+
   function resetForm() {
     setDate(today);
     setMethod("PAGOMOVIL");
@@ -52,6 +83,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setOriginBank("");
     setDestBank("");
     setAmountUsd("");
+    setBcvRate(null);
     setCommissionPct("3.50");
     setCasheaIgtf(false);
   }
@@ -132,25 +164,84 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         </div>
       </div>
 
-      {/* Monto VES (siempre) */}
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">
-          Monto{" "}
-          <span className="font-mono text-xs text-zinc-500">
-            {method === "ZELLE" ? "(equivalente en VES)" : "Bs.D (VES)"}
-          </span>
-        </label>
-        <input
-          type="number"
-          min="0.01"
-          step="0.01"
-          value={amountVes}
-          onChange={(e) => setAmountVes(e.target.value)}
-          placeholder="0.00"
-          required
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-        />
-      </div>
+      {/* ─── Zelle ─── */}
+      {method === "ZELLE" && (
+        <div className="space-y-3 rounded-md border border-green-100 bg-green-50 p-3">
+          <p className="text-xs font-medium text-green-700">Datos Zelle (USD)</p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-zinc-700">
+              Monto en USD <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amountUsd}
+              onChange={(e) => setAmountUsd(e.target.value)}
+              placeholder="0.00"
+              required
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Tasa BCV + VES auto-calculado */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-zinc-700">
+              Equivalente en Bs.D (VES)
+              {bcvLoading && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>
+              )}
+              {!bcvLoading && bcvRate && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">
+                  Tasa BCV: {bcvRate.toFixed(2)} Bs.D/USD
+                </span>
+              )}
+              {!bcvLoading && !bcvRate && (
+                <span className="ml-2 text-xs font-normal text-amber-600">
+                  Sin tasa BCV registrada — ingrese manualmente
+                </span>
+              )}
+            </label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amountVes}
+              onChange={(e) => setAmountVes(e.target.value)}
+              placeholder="0.00"
+              required
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {vesNum > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              IGTF 3% (aplica automáticamente por ser pago en USD):
+              <span className="ml-1 font-mono font-semibold">Bs.D {igtfZelle}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Monto VES (para métodos no-Zelle) */}
+      {method !== "ZELLE" && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">
+            Monto{" "}
+            <span className="font-mono text-xs text-zinc-500">Bs.D (VES)</span>
+          </label>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={amountVes}
+            onChange={(e) => setAmountVes(e.target.value)}
+            placeholder="0.00"
+            required
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          />
+        </div>
+      )}
 
       {/* ─── PagoMóvil ─── */}
       {method === "PAGOMOVIL" && (
@@ -191,34 +282,6 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ─── Zelle ─── */}
-      {method === "ZELLE" && (
-        <div className="space-y-3 rounded-md border border-green-100 bg-green-50 p-3">
-          <p className="text-xs font-medium text-green-700">Datos Zelle (USD)</p>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Monto en USD <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={amountUsd}
-              onChange={(e) => setAmountUsd(e.target.value)}
-              placeholder="0.00"
-              required
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-          {vesNum > 0 && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              IGTF 3% (aplica automáticamente por ser pago en USD):
-              <span className="ml-1 font-mono font-semibold">Bs.D {igtfZelle}</span>
-            </div>
-          )}
         </div>
       )}
 
