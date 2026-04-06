@@ -1,5 +1,6 @@
 // src/modules/fiscal-close/services/FiscalYearCloseService.ts
 import prisma from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 
@@ -53,7 +54,7 @@ export class FiscalYearCloseService {
     closedBy: string
   ): Promise<FiscalYearCloseResult> {
     return await prisma.$transaction(
-      async (tx) => {
+      async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Idempotencia: no permitir doble cierre ─────────────────────────
         const existing = await tx.fiscalYearClose.findUnique({
           where: { companyId_year: { companyId, year } },
@@ -259,7 +260,7 @@ export class FiscalYearCloseService {
           netResult,
           closingEntriesCount: closingEntries.length,
         };
-      },
+      }),
       { isolationLevel: "Serializable" }
     );
   }
@@ -274,7 +275,7 @@ export class FiscalYearCloseService {
     approvedBy: string
   ): Promise<{ appropriationTransactionId: string }> {
     return await prisma.$transaction(
-      async (tx) => {
+      async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Cargar el cierre del ejercicio ──────────────────────────────────
         const fiscalClose = await tx.fiscalYearClose.findUnique({
           where: { companyId_year: { companyId, year } },
@@ -378,7 +379,7 @@ export class FiscalYearCloseService {
         });
 
         return { appropriationTransactionId: appTx.id };
-      },
+      }),
       { isolationLevel: "Serializable" }
     );
   }

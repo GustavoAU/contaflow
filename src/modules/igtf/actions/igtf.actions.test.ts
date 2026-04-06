@@ -21,6 +21,12 @@ vi.mock("@/lib/ratelimit", () => ({
   limiters: { fiscal: {}, ocr: {} },
 }));
 
+vi.mock("@/lib/prisma-rls", () => ({
+  withCompanyContext: vi.fn().mockImplementation(
+    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
+  ),
+}));
+
 import prisma from "@/lib/prisma";
 import { createIGTFAction, getIGTFAction } from "./igtf.actions";
 

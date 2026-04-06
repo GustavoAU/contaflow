@@ -136,6 +136,8 @@ model Company {
   invoicePayments             InvoicePayment[]
   // Fase 17: Conciliación Bancaria
   bankAccounts                BankAccount[]
+  // Fase 13D: companyId desnormalizado en BankTransaction para RLS
+  bankTransactions            BankTransaction[] @relation("BankTransactionCompany")
   // Fase 15: Cierre de ejercicio económico
   resultAccountId             String?
   resultAccount               Account?         @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
@@ -564,6 +566,9 @@ model BankTransaction {
   id                    String              @id @default(cuid())
   statementId           String
   statement             BankStatement       @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  // Desnormalizado desde BankStatement→BankAccount para soportar RLS policy (Fase 13D)
+  companyId             String
+  company               Company             @relation("BankTransactionCompany", fields: [companyId], references: [id], onDelete: Restrict)
   date                  DateTime            @db.Date
   description           String
   type                  BankTransactionType
@@ -585,6 +590,7 @@ model BankTransaction {
 
   createdAt             DateTime            @default(now())
 
+  @@index([companyId])
   @@index([statementId])
   @@index([matchedPaymentId])
   @@index([matchedTransactionId])

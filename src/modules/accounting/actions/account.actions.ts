@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -115,29 +116,31 @@ export async function createAccountAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
-    const account = await prisma.$transaction(async (tx) => {
-      const created = await tx.account.create({
-        data: {
-          name: validated.name,
-          code: validated.code,
-          type: validated.type,
-          description: validated.description,
-          companyId: validated.companyId,
-        },
-      });
+    const account = await prisma.$transaction(async (tx) =>
+      withCompanyContext(validated.companyId, tx, async (tx) => {
+        const created = await tx.account.create({
+          data: {
+            name: validated.name,
+            code: validated.code,
+            type: validated.type,
+            description: validated.description,
+            companyId: validated.companyId,
+          },
+        });
 
-      await tx.auditLog.create({
-        data: {
-          entityId: created.id,
-          entityName: "Account",
-          action: "CREATE",
-          userId,
-          newValue: { code: validated.code, name: validated.name, type: validated.type },
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            entityId: created.id,
+            entityName: "Account",
+            action: "CREATE",
+            userId,
+            newValue: { code: validated.code, name: validated.name, type: validated.type },
+          },
+        });
 
-      return created;
-    });
+        return created;
+      })
+    );
 
     revalidatePath(`/company/${validated.companyId}/accounts`);
 
@@ -203,22 +206,24 @@ export async function updateAccountAction(
       }
     }
 
-    const account = await prisma.$transaction(async (tx) => {
-      const updated = await tx.account.update({ where: { id }, data });
+    const account = await prisma.$transaction(async (tx) =>
+      withCompanyContext(before.companyId, tx, async (tx) => {
+        const updated = await tx.account.update({ where: { id }, data });
 
-      await tx.auditLog.create({
-        data: {
-          entityId: id,
-          entityName: "Account",
-          action: "UPDATE",
-          userId,
-          oldValue: before as object,
-          newValue: data as object,
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            entityId: id,
+            entityName: "Account",
+            action: "UPDATE",
+            userId,
+            oldValue: before as object,
+            newValue: data as object,
+          },
+        });
 
-      return updated;
-    });
+        return updated;
+      })
+    );
 
     revalidatePath("/company");
 

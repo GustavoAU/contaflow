@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
@@ -81,27 +82,29 @@ export async function createInvoiceAction(input: unknown) {
       }
     }
 
-    const invoice = await prisma.$transaction(async (tx) => {
-      const inv = await InvoiceService.create(
-        { ...parsed.data, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
-        tx,
-      );
-      await tx.auditLog.create({
-        data: {
-          entityId: inv.id,
-          entityName: "Invoice",
-          action: "CREATE",
-          userId,
-          newValue: {
-            invoiceNumber: parsed.data.invoiceNumber,
-            type: parsed.data.type,
-            counterpartRif: parsed.data.counterpartRif,
-            companyId: parsed.data.companyId,
+    const invoice = await prisma.$transaction(async (tx) =>
+      withCompanyContext(parsed.data.companyId, tx, async (tx) => {
+        const inv = await InvoiceService.create(
+          { ...parsed.data, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
+          tx,
+        );
+        await tx.auditLog.create({
+          data: {
+            entityId: inv.id,
+            entityName: "Invoice",
+            action: "CREATE",
+            userId,
+            newValue: {
+              invoiceNumber: parsed.data.invoiceNumber,
+              type: parsed.data.type,
+              counterpartRif: parsed.data.counterpartRif,
+              companyId: parsed.data.companyId,
+            },
           },
-        },
-      });
-      return inv;
-    });
+        });
+        return inv;
+      })
+    );
 
     revalidatePath(`/company/${parsed.data.companyId}/invoices`);
     return { success: true as const, data: invoice.id };
