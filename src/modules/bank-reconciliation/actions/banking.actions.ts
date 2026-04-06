@@ -26,12 +26,23 @@ const DecimalStringSchema = z
     { message: "Monto excede el límite permitido" }
   );
 
+const ColumnMapSchema = z
+  .object({
+    date: z.number().int().min(0),
+    description: z.number().int().min(0),
+    debit: z.number().int().min(0),
+    credit: z.number().int().min(0),
+    balance: z.number().int().min(0).optional(),
+  })
+  .optional();
+
 const ImportStatementSchema = z.object({
   bankAccountId: z.string().min(1, { error: "ID de cuenta bancaria requerido" }),
   companyId: z.string().min(1, { error: "ID de empresa requerido" }),
   csvContent: z.string().min(1, { error: "Contenido CSV requerido" }),
   openingBalance: DecimalStringSchema,
   closingBalance: DecimalStringSchema,
+  columnMap: ColumnMapSchema,
 });
 
 const ReconcileTransactionSchema = z.object({
@@ -129,7 +140,7 @@ export async function importStatementAction(
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
     }
 
-    const { bankAccountId, companyId, csvContent, openingBalance, closingBalance } = parsed.data;
+    const { bankAccountId, companyId, csvContent, openingBalance, closingBalance, columnMap } = parsed.data;
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
@@ -139,7 +150,7 @@ export async function importStatementAction(
     if (!rl.allowed) return { success: false, error: rl.error };
 
     // Parsear CSV
-    const csvRows = CsvParserService.parseBankCsv(csvContent);
+    const csvRows = CsvParserService.parseBankCsv(csvContent, columnMap);
 
     // Importar extracto
     const result = await BankingService.importStatement(

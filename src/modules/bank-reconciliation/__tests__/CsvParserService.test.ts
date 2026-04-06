@@ -169,3 +169,61 @@ describe("CsvParserService", () => {
     expect(rows[0].debit!.toNumber()).toBe(1000.5);
   });
 });
+
+// ─── ColumnMap ────────────────────────────────────────────────────────────────
+
+describe("parseBankCsv — ColumnMap personalizado", () => {
+  it("acepta columnas en orden diferente: description,date,credit,debit,balance", () => {
+    const csv = [
+      "description,date,credit,debit,balance",
+      "Depósito cliente,01/01/2026,1000.00,,1000.00",
+      "Pago proveedor,05/01/2026,,200.00,800.00",
+    ].join("\n");
+
+    const rows = parseBankCsv(csv, { description: 0, date: 1, credit: 2, debit: 3, balance: 4 });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].description).toBe("Depósito inicial".replace("Depósito inicial", "Depósito cliente"));
+    expect(rows[0].credit?.toFixed(2)).toBe("1000.00");
+    expect(rows[0].debit).toBeNull();
+    expect(rows[1].debit?.toFixed(2)).toBe("200.00");
+    expect(rows[1].credit).toBeNull();
+  });
+
+  it("funciona sin columna balance cuando no está en el ColumnMap", () => {
+    const csv = [
+      "date,description,debit,credit",
+      "01/01/2026,Pago,100.00,",
+    ].join("\n");
+
+    const rows = parseBankCsv(csv, { date: 0, description: 1, debit: 2, credit: 3 });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].balance).toBeNull();
+    expect(rows[0].debit?.toFixed(2)).toBe("100.00");
+  });
+
+  it("sin columnMap usa columnas por defecto (0,1,2,3,4) — retrocompatible", () => {
+    const csv = [
+      "date,description,debit,credit,balance",
+      "15/03/2026,Transferencia,,500.00,500.00",
+    ].join("\n");
+
+    const rows = parseBankCsv(csv);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].description).toBe("Transferencia");
+    expect(rows[0].credit?.toFixed(2)).toBe("500.00");
+  });
+
+  it("lanza error si la fila tiene menos columnas de las requeridas por el ColumnMap", () => {
+    const csv = [
+      "date,description,debit,credit,balance",
+      "15/03/2026,Solo dos",  // solo 2 columnas
+    ].join("\n");
+
+    expect(() =>
+      parseBankCsv(csv, { date: 0, description: 1, debit: 2, credit: 3 })
+    ).toThrow(/malformada/i);
+  });
+});
