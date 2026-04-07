@@ -5,6 +5,7 @@ import { useState, useTransition, useId, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
+import { RifInput } from "@/components/invoices/RifInput";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -123,6 +124,8 @@ export function InvoiceForm({
   const [igtfBase, setIgtfBase] = useState("");
   const [bcvRate, setBcvRate] = useState<{ rate: string; date: string } | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
+  const [counterpartName, setCounterpartName] = useState("");
+  const counterpartNameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currency === "VES") return;
@@ -405,6 +408,7 @@ export function InvoiceForm({
         setPaidInForeign(false);
         setIgtfBase("");
         setCurrency("VES");
+        setCounterpartName("");
       } else {
         toast.error(result.error);
       }
@@ -612,8 +616,11 @@ export function InvoiceForm({
                 <span className="text-red-500">*</span>
               </label>
               <input
+                ref={counterpartNameRef}
                 name="counterpartName"
                 required
+                value={counterpartName}
+                onChange={(e) => setCounterpartName(e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 placeholder="Razón Social"
               />
@@ -622,11 +629,13 @@ export function InvoiceForm({
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 RIF <span className="text-red-500">*</span>
               </label>
-              <input
+              <RifInput
+                companyId={companyId}
                 name="counterpartRif"
                 required
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="J-12345678-9"
+                onLegalNameFound={(name) => {
+                  if (!counterpartName) setCounterpartName(name);
+                }}
               />
             </div>
           </div>
