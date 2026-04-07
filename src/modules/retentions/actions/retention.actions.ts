@@ -341,6 +341,15 @@ export async function getRetentionsAction(
   companyId: string
 ): Promise<ActionResult<RetentionSummary[]>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
     const retentions = await prisma.retencion.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },

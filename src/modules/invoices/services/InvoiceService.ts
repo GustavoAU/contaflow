@@ -173,7 +173,7 @@ export class InvoiceService {
         exchangeRateId: input.exchangeRateId,
         transactionId: input.transactionId,
         periodId: input.periodId,
-        createdBy: input.createdBy,
+        createdBy: input.createdBy ?? "",
         idempotencyKey: input.idempotencyKey,
         // Fase 16: campos de cartera
         dueDate,

@@ -26,7 +26,15 @@ export async function upsertExchangeRateAction(
       return { success: false, error: msg };
     }
 
-    const { companyId, currency, rate, date, source, createdBy } = parsed.data;
+    const { companyId, currency, rate, date, source } = parsed.data;
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+
     const rateDecimal = new Decimal(rate);
     const dateObj = new Date(date + "T00:00:00.000Z");
 
@@ -38,7 +46,7 @@ export async function upsertExchangeRateAction(
         dateObj,
         rateDecimal,
         source ?? "BCV",
-        createdBy,
+        userId, // always use authenticated userId
       );
       await tx.auditLog.create({
         data: {

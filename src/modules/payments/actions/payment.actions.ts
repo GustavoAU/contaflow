@@ -30,6 +30,14 @@ export async function createPaymentAction(
     }
 
     const d = parsed.data;
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: d.companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+
     const dateObj = new Date(d.date + "T00:00:00.000Z");
 
     const result = await prisma.$transaction(
@@ -51,7 +59,7 @@ export async function createPaymentAction(
             igtfAmount: d.igtfAmount ? new Decimal(d.igtfAmount) : undefined,
             date: dateObj,
             notes: d.notes,
-            createdBy: d.createdBy,
+            createdBy: userId, // always use authenticated userId
           });
 
           await (tx as typeof prisma).auditLog.create({
