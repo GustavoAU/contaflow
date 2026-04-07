@@ -35,7 +35,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - If `UPSTASH_REDIS_REST_URL` is not defined → no-op (allows all) — never blocks in dev/test
 - If Redis fails at runtime → silent catch, request is allowed
 - Mock in tests: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))`
-- Applied to: `createInvoiceAction`, `createRetentionAction`, `createIGTFAction`, `createAccountAction`, `extractInvoiceAction` (OCR)
+- Applied to: `createInvoiceAction`, `createRetentionAction`, `createIGTFAction`, `createAccountAction`, `extractInvoiceAction` (OCR), `fetchBcvRateAction`
 
 ## Vitest 4
 
@@ -73,8 +73,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 17 ✅ merged (Conciliación Bancaria — hardening + ReconciliationService + 3-way match UI)
 - Fase 17B ✅ merged (BankReconciliationService + CsvImporter)
 - Fase 13D ✅ merged (RLS Row Level Security — commit 0ada843)
+- Fase 18 ✅ merged (Analytics Dashboard — 5 gráficos recharts — commit b468af2)
+- Fase 14C ⏳ branch `feat/fase-14c-bcv-autofetch` — BCV auto-fetch, esperando merge
 
-**465 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-06)
+**520 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
 ## Git workflow — MANDATORY
 
