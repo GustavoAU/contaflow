@@ -24,6 +24,7 @@ import {
   TrendingUpIcon,
   WalletIcon,
   LandmarkIcon,
+  LineChart,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -77,6 +78,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
         },
         { label: "Escanear", href: `/company/${companyId}/invoices/upload`, icon: ScanIcon },
         { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
+        {
+          label: "Analítica",
+          href: `/company/${companyId}/analytics`,
+          icon: LineChart,
+        },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
     : [];
