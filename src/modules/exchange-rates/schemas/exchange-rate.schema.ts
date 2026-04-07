@@ -20,7 +20,7 @@ export const UpsertExchangeRateSchema = z.object({
   ),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
   source: z.string().optional(),
-  createdBy: z.string().min(1),
+  createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
 });
 
 export type UpsertExchangeRateInput = z.infer<typeof UpsertExchangeRateSchema>;

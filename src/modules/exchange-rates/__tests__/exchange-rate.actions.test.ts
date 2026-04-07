@@ -153,11 +153,12 @@ describe("fetchBcvRateAction", () => {
   });
 });
 
-// ─── upsertExchangeRateAction (regresión — no debe romperse) ──────────────────
+// ─── upsertExchangeRateAction ─────────────────────────────────────────────────
 describe("upsertExchangeRateAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(MEMBER as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
         fn({
@@ -176,7 +177,6 @@ describe("upsertExchangeRateAction", () => {
       rate: "46.50",
       date: "2026-04-07",
       source: "BCV",
-      createdBy: USER_ID,
     });
     expect(result.success).toBe(true);
   });
@@ -187,7 +187,6 @@ describe("upsertExchangeRateAction", () => {
       currency: "USD",
       rate: "no-es-un-numero",
       date: "2026-04-07",
-      createdBy: USER_ID,
     });
     expect(result.success).toBe(false);
   });
@@ -199,9 +198,46 @@ describe("upsertExchangeRateAction", () => {
       currency: "USD",
       rate: "46.50",
       date: "2026-04-07",
-      createdBy: USER_ID,
     });
     expect(result.success).toBe(false);
+  });
+
+  it("retorna { success: false } si el usuario no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null as never);
+    const result = await upsertExchangeRateAction({
+      companyId: COMPANY_ID,
+      currency: "USD",
+      rate: "46.50",
+      date: "2026-04-07",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("retorna { success: false } si el rol es VIEWER", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ ...MEMBER, role: "VIEWER" } as never);
+    const result = await upsertExchangeRateAction({
+      companyId: COMPANY_ID,
+      currency: "USD",
+      rate: "46.50",
+      date: "2026-04-07",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("usa userId autenticado como createdBy en AuditLog", async () => {
+    await upsertExchangeRateAction({
+      companyId: COMPANY_ID,
+      currency: "USD",
+      rate: "46.50",
+      date: "2026-04-07",
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: USER_ID }),
+      }),
+    );
   });
 });
 

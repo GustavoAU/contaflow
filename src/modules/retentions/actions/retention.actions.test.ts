@@ -309,7 +309,11 @@ describe("createRetentionAction", () => {
 // ─── getRetentionsAction ──────────────────────────────────────────────────────
 
 describe("getRetentionsAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
 
   it("retorna lista de retenciones de la empresa", async () => {
     vi.mocked(prisma.retencion.findMany).mockResolvedValue([mockRetention] as never);
@@ -341,6 +345,26 @@ describe("getRetentionsAction", () => {
     if (!result.success) return;
     expect(typeof result.data[0].invoiceAmount).toBe("string");
     expect(typeof result.data[0].totalRetention).toBe("string");
+  });
+
+  it("retorna { success: false } si no hay sesión autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await getRetentionsAction("company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+    expect(prisma.retencion.findMany).not.toHaveBeenCalled();
+  });
+
+  it("retorna { success: false } si el usuario no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null as never);
+
+    const result = await getRetentionsAction("company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+    expect(prisma.retencion.findMany).not.toHaveBeenCalled();
   });
 });
 

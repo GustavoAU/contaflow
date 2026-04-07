@@ -25,6 +25,19 @@ export async function createInvoiceAction(input: unknown) {
   }
 
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false as const, error: rl.error };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: parsed.data.companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
+    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+
     const key = parsed.data.idempotencyKey ?? crypto.randomUUID();
 
     // Idempotencia: si ya existe una factura con esta clave, retornar la existente
@@ -37,12 +50,6 @@ export async function createInvoiceAction(input: unknown) {
         return { success: true as const, data: existing.id };
       }
     }
-
-    const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false as const, error: rl.error };
 
     // Fase 15: Guard — no permitir facturas en ejercicios cerrados
     const invoiceYear = parsed.data.date.getFullYear();

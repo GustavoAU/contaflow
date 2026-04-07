@@ -175,7 +175,7 @@ export const CreateInvoiceSchema = z.object({
   transactionId: z.string().optional(),
   periodId: z.string().optional(),
 
-  createdBy: z.string().min(1, { error: "El usuario es requerido" }),
+  createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }).optional(),
 });
 

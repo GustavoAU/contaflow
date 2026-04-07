@@ -133,6 +133,7 @@ describe("createInvoiceAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
@@ -197,7 +198,8 @@ describe("createInvoiceAction", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toBe("inv-existente");
     expect(InvoiceService.create).not.toHaveBeenCalled();
-    expect(auth).not.toHaveBeenCalled();
+    // auth() is called first (security gate), then the idempotency fast-path short-circuits
+    expect(auth).toHaveBeenCalled();
   });
 
   // ── línea 53: guard de ejercicio cerrado ────────────────────────────────────
