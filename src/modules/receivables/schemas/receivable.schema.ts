@@ -1,12 +1,41 @@
 // src/modules/receivables/schemas/receivable.schema.ts
 import { z } from "zod";
+import { Decimal } from "decimal.js";
+import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 
 export const RecordPaymentSchema = z.object({
   companyId:      z.string().min(1, { error: "companyId requerido" }),
   invoiceId:      z.string().min(1, { error: "invoiceId requerido" }),
-  amount:         z.string().min(1, { error: "Monto requerido" }),
+  amount: z
+    .string()
+    .min(1, { error: "Monto requerido" })
+    .refine(
+      (v) => {
+        try {
+          const d = new Decimal(v);
+          return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+        } catch {
+          return false;
+        }
+      },
+      { error: "Monto inválido o fuera del rango permitido" }
+    ),
   currency:       z.enum(["VES", "USD", "EUR"]).default("VES"),
-  amountOriginal: z.string().optional(),
+  amountOriginal: z
+    .string()
+    .refine(
+      (v) => {
+        if (!v) return true;
+        try {
+          const d = new Decimal(v);
+          return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+        } catch {
+          return false;
+        }
+      },
+      { error: "Monto original fuera del rango permitido" }
+    )
+    .optional(),
   exchangeRateId: z.string().optional(),
   method:         z.enum(["EFECTIVO", "TRANSFERENCIA", "PAGOMOVIL", "ZELLE", "CASHEA"]),
   referenceNumber: z.string().optional(),

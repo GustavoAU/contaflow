@@ -1,11 +1,18 @@
 // src/modules/igtf/actions/igtf.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn(),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   default: {
     iGTFTransaction: {
       create: vi.fn(),
       findMany: vi.fn(),
+    },
+    companyMember: {
+      findUnique: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -28,6 +35,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 }));
 
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 import { createIGTFAction, getIGTFAction } from "./igtf.actions";
 
 const mockIGTF = {
@@ -45,6 +53,8 @@ const mockIGTF = {
 describe("createIGTFAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ iGTFTransaction: prisma.iGTFTransaction, auditLog: prisma.auditLog })) as never
     );

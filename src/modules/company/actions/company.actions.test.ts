@@ -1,6 +1,10 @@
 // src/modules/company/actions/company.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: vi.fn(),
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -11,6 +15,9 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+    },
+    companyMember: {
+      findUnique: vi.fn(),
     },
     accountingPeriod: {
       findFirst: vi.fn(),
@@ -23,6 +30,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 import {
   createCompanyAction,
   archiveCompanyAction,
@@ -42,6 +50,7 @@ const mockCompany = {
 describe("createCompanyAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
     );
@@ -88,6 +97,8 @@ describe("createCompanyAction", () => {
 describe("archiveCompanyAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
     );
@@ -120,6 +131,8 @@ describe("archiveCompanyAction", () => {
 describe("reactivateCompanyAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
     );

@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     companyMember: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     fiscalYearClose: {
       findUnique: vi.fn(),
@@ -152,6 +153,8 @@ const mockRetentionFull = {
 describe("createRetentionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.$transaction).mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
       const tx = {

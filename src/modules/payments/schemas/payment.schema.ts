@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { Decimal } from "decimal.js";
+import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 
 export const PaymentMethodSchema = z.enum([
   "EFECTIVO",
@@ -22,11 +24,33 @@ export const CreatePaymentSchema = z
     companyId: z.string().min(1),
     invoiceId: z.string().optional(),
     method: PaymentMethodSchema,
-    amountVes: z.string().refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
-      error: "Monto debe ser un número positivo",
-    }),
+    amountVes: z.string().refine(
+      (v) => {
+        try {
+          const d = new Decimal(v);
+          return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+        } catch {
+          return false;
+        }
+      },
+      { error: "Monto debe ser un número positivo dentro del rango permitido" }
+    ),
     currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
-    amountOriginal: z.string().optional(), // monto en moneda extranjera (Zelle)
+    amountOriginal: z
+      .string()
+      .refine(
+        (v) => {
+          if (!v) return true;
+          try {
+            const d = new Decimal(v);
+            return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+          } catch {
+            return false;
+          }
+        },
+        { error: "Monto original fuera del rango permitido" }
+      )
+      .optional(), // monto en moneda extranjera (Zelle)
     exchangeRateId: z.string().optional(),
     // PagoMóvil
     referenceNumber: z.string().optional(),

@@ -35,6 +35,9 @@ export async function createRetentionAction(
   input: CreateRetentionInput
 ): Promise<ActionResult<RetentionSummary>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const parsed = CreateRetentionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -42,8 +45,14 @@ export async function createRetentionAction(
 
     const data = parsed.data;
 
-    const rl = await checkRateLimit(`${data.companyId}:${data.createdBy}`, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.fiscal); // rate limit by authenticated userId
     if (!rl.allowed) return { success: false, error: rl.error };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: data.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     // Fase 15: Guard — no permitir retenciones en ejercicios cerrados
     const retYear = data.invoiceDate.getFullYear();
@@ -115,7 +124,7 @@ export async function createRetentionAction(
             voucherNumber,
             type: data.type,
             status: "PENDING",
-            createdBy: data.createdBy,
+            createdBy: userId, // always use authenticated userId
             idempotencyKey,
           },
         });
@@ -125,7 +134,7 @@ export async function createRetentionAction(
             entityId: ret.id,
             entityName: "Retencion",
             action: "CREATE",
-            userId: data.createdBy,
+            userId, // always use authenticated userId
             newValue: {
               providerRif: data.providerRif,
               invoiceNumber: data.invoiceNumber,
@@ -257,8 +266,10 @@ export async function linkRetentionToInvoiceAction(
 
     const membership = await prisma.companyMember.findFirst({
       where: { companyId, userId },
+      select: { role: true },
     });
     if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (membership.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     await linkRetentionToInvoice(retentionId, invoiceId, companyId);
 

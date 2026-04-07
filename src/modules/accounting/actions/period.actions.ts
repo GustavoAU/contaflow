@@ -1,8 +1,10 @@
 // src/modules/accounting/actions/period.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import prisma from "@/lib/prisma";
 import { PeriodService } from "../services/PeriodService";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -11,12 +13,12 @@ const OpenPeriodSchema = z.object({
   companyId: z.string().min(1),
   year: z.number().int().min(2000).max(2100),
   month: z.number().int().min(1).max(12),
-  userId: z.string().min(1),
+  userId: z.string().optional(), // kept for backward compat — action uses auth() userId
 });
 
 const ClosePeriodSchema = z.object({
   companyId: z.string().min(1),
-  userId: z.string().min(1),
+  userId: z.string().optional(), // kept for backward compat — action uses auth() userId
 });
 
 // ─── Tipo de respuesta ────────────────────────────────────────────────────────
@@ -53,12 +55,22 @@ export async function openPeriodAction(
   input: z.infer<typeof OpenPeriodSchema>
 ): Promise<ActionResult<{ id: string; year: number; month: number }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const validated = OpenPeriodSchema.parse(input);
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+
     const period = await PeriodService.openPeriod(
       validated.companyId,
       validated.year,
       validated.month,
-      validated.userId
+      userId // always use auth() userId, never client-provided
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);
@@ -77,8 +89,18 @@ export async function closePeriodAction(
   input: z.infer<typeof ClosePeriodSchema>
 ): Promise<ActionResult<{ id: string }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const validated = ClosePeriodSchema.parse(input);
-    const period = await PeriodService.closePeriod(validated.companyId, validated.userId);
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+
+    const period = await PeriodService.closePeriod(validated.companyId, userId);
 
     revalidatePath(`/company/${validated.companyId}/settings`);
 

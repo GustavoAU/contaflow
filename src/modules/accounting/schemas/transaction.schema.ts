@@ -1,10 +1,30 @@
 // src/modules/accounting/schemas/transaction.schema.ts
 import { z } from "zod";
+import { Decimal } from "decimal.js";
+import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+
+function isValidAmount(v: string | undefined): boolean {
+  if (!v || v === "") return true; // optional fields
+  try {
+    const d = new Decimal(v);
+    return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+  } catch {
+    return false;
+  }
+}
 
 export const JournalEntrySchema = z.object({
   accountId: z.string().min(1, { message: "Selecciona una cuenta" }),
-  debit: z.string().optional().or(z.literal("")),
-  credit: z.string().optional().or(z.literal("")),
+  debit: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine(isValidAmount, { message: "Monto fuera del rango permitido" }),
+  credit: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine(isValidAmount, { message: "Monto fuera del rango permitido" }),
 });
 
 export const CreateTransactionSchema = z
@@ -20,8 +40,8 @@ export const CreateTransactionSchema = z
   })
   .superRefine((data, ctx) => {
     data.entries.forEach((entry, i) => {
-      const hasDebit = !!entry.debit && Number(entry.debit) > 0;
-      const hasCredit = !!entry.credit && Number(entry.credit) > 0;
+      const hasDebit = !!entry.debit && new Decimal(entry.debit).gt(0);
+      const hasCredit = !!entry.credit && new Decimal(entry.credit).gt(0);
 
       if (!hasDebit && !hasCredit) {
         ctx.addIssue({
@@ -39,19 +59,27 @@ export const CreateTransactionSchema = z
       }
     });
 
-    const totalDebit = data.entries.reduce(
-      (s, e) => s + Math.round(Number(e.debit || 0) * 10000),
-      0
-    );
-    const totalCredit = data.entries.reduce(
-      (s, e) => s + Math.round(Number(e.credit || 0) * 10000),
-      0
-    );
+    // Use Decimal.js for balance check — NEVER float arithmetic (ADR-006 D-2, CLAUDE.md)
+    const totalDebit = data.entries.reduce((s, e) => {
+      try {
+        return s.plus(new Decimal(e.debit || "0"));
+      } catch {
+        return s;
+      }
+    }, new Decimal(0));
 
-    if (totalDebit !== totalCredit) {
+    const totalCredit = data.entries.reduce((s, e) => {
+      try {
+        return s.plus(new Decimal(e.credit || "0"));
+      } catch {
+        return s;
+      }
+    }, new Decimal(0));
+
+    if (!totalDebit.eq(totalCredit)) {
       ctx.addIssue({
         code: "custom",
-        message: `Asiento desbalanceado. Debitos: ${(totalDebit / 10000).toFixed(2)} | Creditos: ${(totalCredit / 10000).toFixed(2)}`,
+        message: `Asiento desbalanceado. Debitos: ${totalDebit.toFixed(2)} | Creditos: ${totalCredit.toFixed(2)}`,
         path: ["entries"],
       });
     }

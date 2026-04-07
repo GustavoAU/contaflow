@@ -1,15 +1,17 @@
 // src/modules/company/actions/company.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import prisma from "@/lib/prisma";
 import { CompanyService } from "../services/CompanyService";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const CreateCompanySchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-  userId: z.string().min(1),
+  userId: z.string().optional(), // kept for backward compat — action uses auth() userId
   rif: z.string().optional(),
   address: z.string().optional(),
 });
@@ -24,10 +26,13 @@ export async function createCompanyAction(
   input: z.infer<typeof CreateCompanySchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const validated = CreateCompanySchema.parse(input);
     const company = await CompanyService.createCompany(
       validated.name,
-      validated.userId,
+      userId, // always use auth() userId
       validated.rif,
       validated.address
     );
@@ -45,9 +50,18 @@ export async function createCompanyAction(
 
 export async function archiveCompanyAction(
   companyId: string,
-  userId: string
+  _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+
     const company = await CompanyService.archiveCompany(companyId, userId);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
@@ -61,9 +75,18 @@ export async function archiveCompanyAction(
 
 export async function reactivateCompanyAction(
   companyId: string,
-  userId: string
+  _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+
     const company = await CompanyService.reactivateCompany(companyId, userId);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };

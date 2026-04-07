@@ -89,11 +89,12 @@ export async function fetchBcvRateAction(
 
     if (!companyId) return { success: false, error: "companyId requerido" };
 
-    // Verificar membresía
+    // Verificar membresía y rol
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     // Obtener tasa desde la API del BCV
     const { rate, date } = await BcvFetchService.fetchUsdVes();
