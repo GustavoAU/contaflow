@@ -29,8 +29,7 @@ interface GeminiResponse {
 export class GeminiOCRService {
   /**
    * Extrae datos de una factura venezolana a partir de una imagen en base64.
-   * Reemplaza el flujo anterior: imagen → Tesseract (cliente) → texto → Groq → JSON
-   * Nuevo flujo:             imagen → Gemini Vision (servidor) → JSON directo
+   * Nuevo flujo: imagen → Gemini Vision (servidor) → JSON con campos VEN-NIF
    *
    * @param base64Image  Imagen en base64 sin el prefijo "data:image/...;base64,"
    * @param mimeType     Tipo MIME de la imagen (default: "image/jpeg")
@@ -50,13 +49,18 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin bloque
 
 Esquema exacto a retornar:
 {
-  "supplierName": "Nombre legal de la empresa emisora",
-  "supplierRif": "J-12345678-9",
-  "invoiceNumber": "0001234",
-  "invoiceDate": "YYYY-MM-DD",
-  "subtotal": "0.00",
-  "taxAmount": "0.00",
-  "totalAmount": "0.00",
+  "razonSocial": "Nombre legal de la empresa emisora",
+  "rif": "J-12345678-9",
+  "numeroFactura": "0001234",
+  "numeroControl": "00-0001234",
+  "fechaEmision": "YYYY-MM-DD",
+  "baseImponibleGeneral": "0.00",
+  "ivaGeneral": "0.00",
+  "baseImponibleReducida": "0.00",
+  "ivaReducido": "0.00",
+  "baseImponibleAdicional": "0.00",
+  "ivaAdicional": "0.00",
+  "montoTotal": "0.00",
   "currency": "VES",
   "paymentMethod": "TRANSFERENCIA",
   "items": [
@@ -71,10 +75,15 @@ Esquema exacto a retornar:
 }
 
 Reglas:
+- rif: Siempre con letra al inicio (J, V, G, E, C, P) seguida de guión y números. Ej: J-40137367-4
 - currency: uno de VES | USD | EUR
 - paymentMethod: uno de EFECTIVO | TARJETA | PAGO_MOVIL | ZELLE | CASHEA | TRANSFERENCIA | OTRO
-- Todos los montos como strings con dos decimales: "100.00"
-- invoiceDate en formato ISO 8601 (YYYY-MM-DD)
+- Todos los montos como strings con dos decimales en formato estándar (punto decimal): "100.00"
+- FORMATO VENEZOLANO: En Venezuela se usa punto como separador de miles y coma como decimal. Ejemplo: 1.234.567,89 equivale a 1234567.89. Convierte SIEMPRE al formato numérico estándar
+- fechaEmision en formato ISO 8601 (YYYY-MM-DD). Ejemplo: 22/04/2019 → 2019-04-22
+- baseImponibleGeneral: base gravada con IVA 16% (alícuota general)
+- baseImponibleReducida: base gravada con IVA 8% (alícuota reducida), null si no aplica
+- baseImponibleAdicional: base gravada con IVA adicional 15% (productos de lujo), null si no aplica
 - Si un campo no aparece en la factura usar null
 - items: lista vacía [] si no hay detalle de líneas
 - No incluir símbolos de moneda en los valores numéricos`;
