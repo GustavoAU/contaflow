@@ -25,6 +25,8 @@ import {
   WalletIcon,
   LandmarkIcon,
   LineChart,
+  ScrollText,
+  CalendarCheck,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -82,6 +84,16 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
           label: "Analítica",
           href: `/company/${companyId}/analytics`,
           icon: LineChart,
+        },
+        {
+          label: "Declaración IVA",
+          href: `/company/${companyId}/iva-declaration`,
+          icon: ScrollText,
+        },
+        {
+          label: "Cierre Fiscal",
+          href: `/company/${companyId}/fiscal-close`,
+          icon: CalendarCheck,
         },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
