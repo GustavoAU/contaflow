@@ -7,6 +7,8 @@ import { Decimal } from "decimal.js";
 import { Currency } from "@prisma/client";
 import { UpsertExchangeRateSchema, GetRateSchema } from "../schemas/exchange-rate.schema";
 import { ExchangeRateService, ExchangeRateSummary } from "../services/ExchangeRateService";
+import { BcvFetchService } from "../services/BcvFetchService";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -71,6 +73,65 @@ export async function listExchangeRatesAction(
     return { success: true, data };
   } catch {
     return { success: false, error: "Error al obtener tasas" };
+  }
+}
+
+// ─── Auto-fetch tasa BCV (Fase 14C) ──────────────────────────────────────────
+export async function fetchBcvRateAction(
+  companyId: string,
+): Promise<ActionResult<ExchangeRateSummary>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
+    if (!companyId) return { success: false, error: "companyId requerido" };
+
+    // Verificar membresía
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+
+    // Obtener tasa desde la API del BCV
+    const { rate, date } = await BcvFetchService.fetchUsdVes();
+
+    // Guardar (upsert) en ExchangeRate con AuditLog
+    const result = await prisma.$transaction(async (tx) => {
+      const record = await ExchangeRateService.upsert(
+        tx as typeof prisma,
+        companyId,
+        Currency.USD,
+        date,
+        rate,
+        "BCV-AUTO",
+        userId,
+      );
+      await tx.auditLog.create({
+        data: {
+          entityId: record.id,
+          entityName: "ExchangeRate",
+          action: "UPSERT",
+          userId,
+          newValue: {
+            companyId,
+            currency: "USD",
+            rate: rate.toString(),
+            date: date.toISOString().split("T")[0],
+            source: "BCV-AUTO",
+          },
+        },
+      });
+      return record;
+    });
+
+    revalidatePath(`/company/${companyId}/exchange-rates`);
+    return { success: true, data: result };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al obtener tasa BCV";
+    return { success: false, error: msg };
   }
 }
 
