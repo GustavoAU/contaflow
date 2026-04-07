@@ -2,18 +2,28 @@
 import { z } from "zod";
 
 export const ExtractedInvoiceSchema = z.object({
-  supplierName: z.string().optional(),
-  supplierRif: z.string().optional(),
-  invoiceNumber: z.string().optional(),
-  invoiceDate: z.string().optional(),
-  subtotal: z.string().optional(),
-  taxAmount: z.string().optional(),
-  totalAmount: z.string().optional(),
+  // ── Identificación del emisor ──────────────────────────────────────────────
+  razonSocial: z.string().optional(),
+  rif: z.string().optional(),
+  // ── Identificación del documento ──────────────────────────────────────────
+  numeroFactura: z.string().optional(),
+  numeroControl: z.string().optional(),
+  fechaEmision: z.string().optional(),
+  // ── Bases imponibles e impuestos (VEN-NIF alícuotas) ──────────────────────
+  baseImponibleGeneral: z.string().optional(),   // base para IVA 16% (General)
+  ivaGeneral: z.string().optional(),             // IVA 16%
+  baseImponibleReducida: z.string().optional(),  // base para IVA 8% (Reducida)
+  ivaReducido: z.string().optional(),            // IVA 8%
+  baseImponibleAdicional: z.string().optional(), // base para IVA +15% (Lujo)
+  ivaAdicional: z.string().optional(),           // IVA adicional lujo
+  montoTotal: z.string().optional(),
+  // ── Metadatos del pago ─────────────────────────────────────────────────────
   currency: z.enum(["VES", "USD", "EUR"]).optional().catch(undefined),
   paymentMethod: z
     .enum(["EFECTIVO", "TARJETA", "PAGO_MOVIL", "ZELLE", "CASHEA", "TRANSFERENCIA", "OTRO"])
     .optional()
     .catch(undefined),
+  // ── Líneas de detalle ──────────────────────────────────────────────────────
   items: z
     .array(
       z.object({

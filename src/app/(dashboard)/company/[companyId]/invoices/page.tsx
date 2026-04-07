@@ -2,7 +2,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, ScanIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { InvoiceBook } from "@/components/invoices/InvoiceBook";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,20 @@ export default async function InvoicesPage({ params }: Props) {
             Registro fiscal de facturas — IVA Débito y Crédito Fiscal
           </p>
         </div>
-        <Link href={`/company/${companyId}/invoices/new`}>
-          <Button>
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Nueva Factura
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href={`/company/${companyId}/invoices/upload`}>
+            <Button variant="outline">
+              <ScanIcon className="mr-2 h-4 w-4" />
+              Escanear Factura
+            </Button>
+          </Link>
+          <Link href={`/company/${companyId}/invoices/new`}>
+            <Button>
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Nueva Factura
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <InvoiceBook companyId={companyId} companyName={company.name} />
