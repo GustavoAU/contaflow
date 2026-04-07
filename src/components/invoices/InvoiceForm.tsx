@@ -20,6 +20,8 @@ import { Decimal } from "decimal.js";
 import { createInvoiceAction } from "@/modules/invoices/actions/invoice.actions";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
+import { type ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
+import { OCR_SESSION_KEY } from "@/components/ocr/InvoiceUploader";
 
 type TaxLineType = "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
 
@@ -126,6 +128,59 @@ export function InvoiceForm({
   const [bcvLoading, setBcvLoading] = useState(false);
   const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
+
+  // ─── OCR pre-fill ────────────────────────────────────────────────────────────
+  const [ocrLoaded, setOcrLoaded] = useState(false);
+  const [ocrCounterpartRif, setOcrCounterpartRif] = useState("");
+  const [ocrRifKey, setOcrRifKey] = useState(0);
+  const invoiceNumberRef = useRef<HTMLInputElement>(null);
+  const controlNumberRef = useRef<HTMLInputElement>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
+
+  // ─── Leer datos OCR de sessionStorage (una sola vez al montar) ───────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(OCR_SESSION_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(OCR_SESSION_KEY);
+      const ocr = JSON.parse(raw) as ExtractedInvoice;
+
+      // Inputs uncontrolled → usar refs
+      if (ocr.numeroFactura && invoiceNumberRef.current)
+        invoiceNumberRef.current.value = ocr.numeroFactura;
+      if (ocr.numeroControl && controlNumberRef.current)
+        controlNumberRef.current.value = ocr.numeroControl;
+      if (ocr.fechaEmision && dateRef.current)
+        dateRef.current.value = ocr.fechaEmision;
+
+      // State-controlled fields
+      if (ocr.razonSocial) setCounterpartName(ocr.razonSocial);
+      if (ocr.rif) {
+        setOcrCounterpartRif(ocr.rif);
+        setOcrRifKey((k) => k + 1);
+      }
+      if (ocr.currency) setCurrency(ocr.currency);
+
+      // Pre-fill base imponible IVA General si está disponible
+      if (ocr.baseImponibleGeneral) {
+        const base = ocr.baseImponibleGeneral;
+        setTaxLines([
+          {
+            id: `ocr-${crypto.randomUUID()}`,
+            taxType: "IVA_GENERAL",
+            base,
+            rate: "16",
+            amount: calcAmount(base, "16"),
+            luxuryGroupId: null,
+          },
+        ]);
+      }
+
+      setOcrLoaded(true);
+    } catch {
+      // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (currency === "VES") return;
@@ -409,6 +464,8 @@ export function InvoiceForm({
         setIgtfBase("");
         setCurrency("VES");
         setCounterpartName("");
+        setOcrLoaded(false);
+        setOcrCounterpartRif("");
       } else {
         toast.error(result.error);
       }
@@ -421,6 +478,27 @@ export function InvoiceForm({
     <>
       <div className="rounded-lg border bg-white p-6">
         <h2 className="mb-4 font-semibold">Registrar Factura</h2>
+
+        {/* Banner OCR pre-fill */}
+        {ocrLoaded && (
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <span className="mt-0.5 text-blue-500">★</span>
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-blue-800">Datos prellenados desde OCR</p>
+              <p className="text-blue-600">
+                Revisa y corrige los campos antes de guardar — precisión ~95%
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOcrLoaded(false)}
+              className="text-blue-400 hover:text-blue-600"
+              aria-label="Cerrar aviso OCR"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Selector Compra / Venta */}
         <div className="mb-6 flex rounded-lg border p-1">
@@ -494,6 +572,7 @@ export function InvoiceForm({
                 Número de Factura <span className="text-red-500">*</span>
               </label>
               <input
+                ref={invoiceNumberRef}
                 name="invoiceNumber"
                 required
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -505,6 +584,7 @@ export function InvoiceForm({
                 Número de Control <span className="text-red-500">*</span>
               </label>
               <input
+                ref={controlNumberRef}
                 name="controlNumber"
                 required
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -574,6 +654,7 @@ export function InvoiceForm({
                 Fecha <span className="text-red-500">*</span>
               </label>
               <input
+                ref={dateRef}
                 name="date"
                 type="date"
                 required
@@ -630,8 +711,10 @@ export function InvoiceForm({
                 RIF <span className="text-red-500">*</span>
               </label>
               <RifInput
+                key={ocrRifKey}
                 companyId={companyId}
                 name="counterpartRif"
+                defaultValue={ocrCounterpartRif}
                 required
                 onLegalNameFound={(name) => {
                   if (!counterpartName) setCounterpartName(name);

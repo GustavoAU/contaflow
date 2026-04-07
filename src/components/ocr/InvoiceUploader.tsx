@@ -2,17 +2,16 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon } from "lucide-react";
+import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon, ArrowRightIcon } from "lucide-react";
 import { extractInvoiceAction } from "@/modules/ocr/actions/ocr.actions";
 import type { ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
-import Tesseract from "tesseract.js";
 
 type Props = {
   companyId: string;
-  userId: string;
 };
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -30,12 +29,16 @@ const CURRENCY_LABELS: Record<string, string> = {
   USD: "Dólares (USD)",
   EUR: "Euros (EUR)",
 };
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function InvoiceUploader({ companyId, userId }: Props) {
+
+// Clave de sessionStorage para pasar datos OCR al formulario de facturas
+export const OCR_SESSION_KEY = "ocr:invoice:draft";
+
+export function InvoiceUploader({ companyId }: Props) {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
-  const [mimeType, setMimeType] = useState<string>("image/jpeg");
+  const [mimeType, setMimeType] = useState<"image/jpeg" | "image/png" | "image/webp">("image/jpeg");
   const [base64, setBase64] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
   const [extracted, setExtracted] = useState<ExtractedInvoice | null>(null);
@@ -44,33 +47,27 @@ export function InvoiceUploader({ companyId, userId }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tipo
-    const validTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Solo se permiten imágenes (JPG, PNG, WEBP) o PDF");
+    const validTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+    type ValidMime = typeof validTypes[number];
+    if (!validTypes.includes(file.type as ValidMime)) {
+      toast.error("Solo se permiten imágenes JPG, PNG o WEBP");
       return;
     }
 
-    // Validar tamaño — máx 10MB
     if (file.size > 10 * 1024 * 1024) {
       toast.error("El archivo no puede superar 10MB");
       return;
     }
 
     setFileName(file.name);
-    setMimeType(file.type);
+    setMimeType(file.type as ValidMime);
     setExtracted(null);
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      // Preview
-      if (file.type !== "application/pdf") {
-        setPreview(result);
-      } else {
-        setPreview(null);
-      }
-      // Extraer base64 puro
+      setPreview(result);
+      // Extraer base64 puro (sin prefijo data:...;base64,)
       const b64 = result.split(",")[1];
       setBase64(b64);
     };
@@ -79,30 +76,17 @@ export function InvoiceUploader({ companyId, userId }: Props) {
 
   function handleScan() {
     if (!base64) {
-      toast.error("Primero selecciona una factura");
+      toast.error("Primero selecciona una imagen de factura");
       return;
     }
 
     startTransition(async () => {
-      // Paso 1 — Tesseract en el browser extrae el texto
-      toast.info("Extrayendo texto de la imagen...");
-      const imageUrl = `data:${mimeType};base64,${base64}`;
-      const {
-        data: { text },
-      } = await Tesseract.recognize(imageUrl, "spa");
-
-      if (!text || text.trim().length < 10) {
-        toast.error("No se pudo extraer texto — verifica que la imagen sea legible");
-        return;
-      }
-
-      // Paso 2 — Groq estructura el JSON
-      toast.info("Analizando datos contables...");
-      const result = await extractInvoiceAction(text);
+      toast.info("Analizando factura con IA...");
+      const result = await extractInvoiceAction(companyId, base64, mimeType);
 
       if (result.success) {
         setExtracted(result.data);
-        toast.success("¡Factura procesada correctamente!");
+        toast.success("¡Factura analizada correctamente!");
       } else {
         toast.error(result.error);
       }
@@ -115,6 +99,16 @@ export function InvoiceUploader({ companyId, userId }: Props) {
     setFileName("");
     setExtracted(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleUseInForm() {
+    if (!extracted) return;
+    try {
+      sessionStorage.setItem(OCR_SESSION_KEY, JSON.stringify(extracted));
+    } catch {
+      // sessionStorage no disponible (modo privado extremo) — continuar igual
+    }
+    router.push(`/company/${companyId}/invoices/new`);
   }
 
   return (
@@ -133,7 +127,7 @@ export function InvoiceUploader({ companyId, userId }: Props) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -149,13 +143,12 @@ export function InvoiceUploader({ companyId, userId }: Props) {
               <div className="flex flex-col items-center gap-2">
                 <FileTextIcon className="h-12 w-12 text-blue-500" />
                 <p className="text-sm font-medium text-blue-700">{fileName}</p>
-                <p className="text-xs text-zinc-500">PDF cargado</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <UploadIcon className="h-10 w-10 text-zinc-400" />
                 <p className="font-medium text-zinc-600">Haz click para subir una factura</p>
-                <p className="text-xs text-zinc-400">JPG, PNG, WEBP o PDF — máx. 10MB</p>
+                <p className="text-xs text-zinc-400">JPG, PNG o WEBP — máx. 10MB</p>
               </div>
             )}
           </div>
@@ -164,7 +157,7 @@ export function InvoiceUploader({ companyId, userId }: Props) {
           <div className="flex gap-3">
             <Button onClick={handleScan} disabled={!base64 || isPending} className="flex-1 gap-2">
               <ScanIcon className="h-4 w-4" />
-              {isPending ? "Procesando..." : "Escanear Factura"}
+              {isPending ? "Analizando..." : "Escanear Factura"}
             </Button>
 
             {base64 && (
@@ -182,7 +175,7 @@ export function InvoiceUploader({ companyId, userId }: Props) {
 
           {isPending && (
             <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              🤖 Procesando factura con IA... (puede tomar hasta 2 minutos)
+              Procesando factura con Gemini Vision...
             </div>
           )}
         </div>
@@ -210,34 +203,58 @@ export function InvoiceUploader({ companyId, userId }: Props) {
               {/* Aviso de precisión */}
               <div className="border-b bg-yellow-50 px-4 py-2">
                 <p className="text-center text-xs text-yellow-700">
-                  ⚠️ Precisión aproximada del 80% — verifica los datos antes de guardar
+                  Precisión ~95% con Gemini Vision — verifica los datos antes de guardar
                 </p>
               </div>
 
               {/* Campos */}
               <div className="space-y-3 p-4">
-                {extracted.supplierName && (
-                  <Field label="Proveedor" value={extracted.supplierName} />
+                {extracted.razonSocial && (
+                  <Field label="Razón Social" value={extracted.razonSocial} />
                 )}
-                {extracted.supplierRif && <Field label="RIF" value={extracted.supplierRif} />}
-                {extracted.invoiceNumber && (
-                  <Field label="N° Factura" value={extracted.invoiceNumber} />
+                {extracted.rif && <Field label="RIF" value={extracted.rif} />}
+                {extracted.numeroFactura && (
+                  <Field label="N° Factura" value={extracted.numeroFactura} />
                 )}
-                {extracted.invoiceDate && <Field label="Fecha" value={extracted.invoiceDate} />}
+                {extracted.numeroControl && (
+                  <Field label="N° Control" value={extracted.numeroControl} />
+                )}
+                {extracted.fechaEmision && (
+                  <Field label="Fecha" value={extracted.fechaEmision} />
+                )}
                 {extracted.currency && (
                   <Field
                     label="Moneda"
                     value={CURRENCY_LABELS[extracted.currency] ?? extracted.currency}
                   />
                 )}
-                {extracted.subtotal && (
-                  <Field label="Subtotal" value={formatAmount(extracted.subtotal)} mono />
+                {extracted.baseImponibleGeneral && (
+                  <Field
+                    label="Base Imponible General"
+                    value={formatAmount(extracted.baseImponibleGeneral)}
+                    mono
+                  />
                 )}
-                {extracted.taxAmount && (
-                  <Field label="IVA" value={formatAmount(extracted.taxAmount)} mono />
+                {extracted.ivaGeneral && (
+                  <Field label="IVA 16%" value={formatAmount(extracted.ivaGeneral)} mono />
                 )}
-                {extracted.totalAmount && (
-                  <Field label="Total" value={formatAmount(extracted.totalAmount)} mono bold />
+                {extracted.ivaReducido && (
+                  <Field label="IVA 8%" value={formatAmount(extracted.ivaReducido)} mono />
+                )}
+                {extracted.ivaAdicional && (
+                  <Field
+                    label="IVA Adicional (+15%)"
+                    value={formatAmount(extracted.ivaAdicional)}
+                    mono
+                  />
+                )}
+                {extracted.montoTotal && (
+                  <Field
+                    label="Monto Total"
+                    value={formatAmount(extracted.montoTotal)}
+                    mono
+                    bold
+                  />
                 )}
                 {extracted.paymentMethod && (
                   <Field
@@ -283,18 +300,15 @@ export function InvoiceUploader({ companyId, userId }: Props) {
                 )}
               </div>
 
-              {/* Acción futura */}
-              <div className="space-y-1 border-t bg-zinc-50 px-4 py-3">
-                <p className="text-center text-xs text-zinc-400">
-                  Próximamente: generar asiento contable automático desde esta factura
-                </p>
-                <p className="text-center text-xs text-zinc-400">
-                  ¿Necesitas mayor precisión?{" "}
-                  <span className="cursor-pointer text-blue-500 hover:underline">
-                    Actualiza a ContaFlow Pro
-                  </span>{" "}
-                  para OCR con IA avanzada (~95% precisión)
-                </p>
+              {/* Acción: usar en formulario */}
+              <div className="border-t bg-zinc-50 px-4 py-3">
+                <Button
+                  onClick={handleUseInForm}
+                  className="w-full gap-2"
+                >
+                  <ArrowRightIcon className="h-4 w-4" />
+                  Usar datos en formulario de factura
+                </Button>
               </div>
             </div>
           )}
@@ -306,7 +320,8 @@ export function InvoiceUploader({ companyId, userId }: Props) {
   );
 }
 
-// ─── Componente auxiliar ──────────────────────────────────────────────────────
+// ─── Componentes auxiliares ───────────────────────────────────────────────────
+
 function formatAmount(value: string): string {
   const num = parseFloat(value);
   if (isNaN(num)) return value;
