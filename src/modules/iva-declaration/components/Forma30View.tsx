@@ -5,6 +5,7 @@
 import { useState, useTransition } from "react";
 import { Decimal } from "decimal.js";
 import { generarForma30Action, type Forma30ActionResult } from "../actions/generarForma30.action";
+import { exportForma30PDFAction } from "../actions/exportForma30PDF.action";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -87,6 +88,7 @@ export function Forma30View({ companyId }: Props) {
   const [result, setResult] = useState<Forma30ActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isExporting, startExportTransition] = useTransition();
 
   function handleCalcular() {
     setError(null);
@@ -97,6 +99,25 @@ export function Forma30View({ companyId }: Props) {
       } else {
         setError(res.error);
         setResult(null);
+      }
+    });
+  }
+
+  function handleExportarPDF() {
+    if (!result) return;
+    startExportTransition(async () => {
+      const res = await exportForma30PDFAction(companyId, result.year, result.month);
+      if (res.success) {
+        const bytes = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `forma30-${result.year}-${String(result.month).padStart(2, "0")}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        setError(res.error);
       }
     });
   }
@@ -157,6 +178,7 @@ export function Forma30View({ companyId }: Props) {
                 Declaración IVA — {MESES[result.month - 1]} {result.year}
               </h2>
               <div className="mt-1 flex gap-3 text-xs text-zinc-400">
+
                 {!result.periodExists && (
                   <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-yellow-700">
                     Período no registrado
@@ -174,6 +196,13 @@ export function Forma30View({ companyId }: Props) {
                 )}
               </div>
             </div>
+            <button
+              onClick={handleExportarPDF}
+              disabled={isExporting}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {isExporting ? "Generando PDF…" : "Exportar PDF"}
+            </button>
           </div>
 
           {/* Sección A — Débitos */}
