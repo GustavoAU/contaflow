@@ -3,20 +3,35 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 
-// ─── Tabla ISLR Decreto 1808 (servicios más comunes) ─────────────────────────
+// ─── Tabla ISLR Decreto 1808 (completa) ──────────────────────────────────────
 export const ISLR_RATES: Record<string, { pct: number; subtrahend: number; description: string }> =
   {
+    // ── Servicios generales ──────────────────────────────────────────────────
     SERVICIOS_PJ: { pct: 2, subtrahend: 0, description: "Servicios — Persona Jurídica" },
     SERVICIOS_PN: { pct: 3, subtrahend: 0, description: "Servicios — Persona Natural" },
+    // ── Honorarios profesionales ─────────────────────────────────────────────
     HONORARIOS_PN: {
       pct: 5,
       subtrahend: 0,
       description: "Honorarios Profesionales — Persona Natural",
     },
+    // ── Arrendamiento ────────────────────────────────────────────────────────
     ARRENDAMIENTO_PJ: { pct: 5, subtrahend: 0, description: "Arrendamiento — Persona Jurídica" },
     ARRENDAMIENTO_PN: { pct: 5, subtrahend: 0, description: "Arrendamiento — Persona Natural" },
+    // ── Transporte y fletes ──────────────────────────────────────────────────
     FLETES_PJ: { pct: 1, subtrahend: 0, description: "Fletes — Persona Jurídica" },
+    FLETES_PN: { pct: 1, subtrahend: 0, description: "Fletes — Persona Natural" },
+    // ── Publicidad ───────────────────────────────────────────────────────────
     PUBLICIDAD_PJ: { pct: 3, subtrahend: 0, description: "Publicidad y Propaganda — PJ" },
+    // ── Comisiones y corretaje ───────────────────────────────────────────────
+    COMISIONES_PJ: { pct: 3, subtrahend: 0, description: "Comisiones y Corretaje — PJ" },
+    COMISIONES_PN: { pct: 3, subtrahend: 0, description: "Comisiones y Corretaje — PN" },
+    // ── Construcción ─────────────────────────────────────────────────────────
+    CONSTRUCCION_PJ: { pct: 2, subtrahend: 0, description: "Construcción y Obras — PJ" },
+    // ── Intereses ────────────────────────────────────────────────────────────
+    INTERESES_PJ: { pct: 3, subtrahend: 0, description: "Intereses — Persona Jurídica" },
+    // ── Seguros ──────────────────────────────────────────────────────────────
+    SEGUROS_PJ: { pct: 1, subtrahend: 0, description: "Primas de Seguros — PJ" },
   };
 
 export const IVA_RETENTION_RATES = {
