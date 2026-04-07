@@ -9,6 +9,9 @@ const redis = process.env.UPSTASH_REDIS_REST_URL
     })
   : null;
 
+// Exported for use in server-side cache (e.g. RIF lookup cache)
+export { redis };
+
 export const limiters = {
   // Mutaciones fiscales: facturas, retenciones, IGTF, cuentas — 30 por minuto por usuario
   fiscal: redis
@@ -24,6 +27,14 @@ export const limiters = {
         redis,
         limiter: Ratelimit.slidingWindow(10, "1 m"),
         prefix: "rl:ocr",
+      })
+    : null,
+  // Validación RIF SENIAT — 5 por minuto por usuario (SENIAT puede bloquear IPs)
+  rif: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, "1 m"),
+        prefix: "rl:rif",
       })
     : null,
 };
