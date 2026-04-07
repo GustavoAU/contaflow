@@ -20,19 +20,17 @@ function mockGeminiResponse(text: string, status = 200): Response {
 }
 
 /**
- * JSON válido alineado a ExtractedInvoiceSchema (invoice.schema.ts).
- * TODO (Fase OCR-v2): migrar schema a campos VEN-NIF:
- *   supplierRif → rif, invoiceNumber → numeroFactura, + numeroControl,
- *   + baseImponible/iva por alícuota, montos como Decimal en lugar de string.
+ * JSON válido alineado a ExtractedInvoiceSchema con campos VEN-NIF (OCR-v2).
  */
 const VALID_INVOICE_JSON = JSON.stringify({
-  supplierName: "Distribuidora ABC C.A.",
-  supplierRif: "J-12345678-9",
-  invoiceNumber: "0001234",
-  invoiceDate: "2026-04-04",
-  subtotal: "100.00",
-  taxAmount: "16.00",
-  totalAmount: "116.00",
+  razonSocial: "Distribuidora ABC C.A.",
+  rif: "J-12345678-9",
+  numeroFactura: "0001234",
+  numeroControl: "00-0001234",
+  fechaEmision: "2026-04-04",
+  baseImponibleGeneral: "100.00",
+  ivaGeneral: "16.00",
+  montoTotal: "116.00",
   currency: "VES",
   paymentMethod: "TRANSFERENCIA",
 });
@@ -41,7 +39,6 @@ const VALID_INVOICE_JSON = JSON.stringify({
 
 describe("GeminiOCRService.extractFromImage", () => {
   beforeEach(() => {
-    // API key disponible en todos los tests de este bloque
     vi.stubEnv("GEMINI_API_KEY", "test-api-key-fake");
   });
 
@@ -50,15 +47,17 @@ describe("GeminiOCRService.extractFromImage", () => {
     vi.restoreAllMocks();
   });
 
-  it("extrae datos de factura correctamente desde imagen", async () => {
+  it("extrae datos de factura correctamente desde imagen (campos VEN-NIF)", async () => {
     vi.spyOn(global, "fetch").mockResolvedValueOnce(mockGeminiResponse(VALID_INVOICE_JSON));
 
     const result = await GeminiOCRService.extractFromImage("base64fake==");
 
-    expect(result.supplierRif).toBe("J-12345678-9");
-    expect(result.supplierName).toBe("Distribuidora ABC C.A.");
-    expect(result.totalAmount).toBe("116.00");
-    expect(result.taxAmount).toBe("16.00");
+    expect(result.rif).toBe("J-12345678-9");
+    expect(result.razonSocial).toBe("Distribuidora ABC C.A.");
+    expect(result.montoTotal).toBe("116.00");
+    expect(result.ivaGeneral).toBe("16.00");
+    expect(result.baseImponibleGeneral).toBe("100.00");
+    expect(result.numeroControl).toBe("00-0001234");
     expect(result.currency).toBe("VES");
   });
 
@@ -67,11 +66,11 @@ describe("GeminiOCRService.extractFromImage", () => {
     vi.spyOn(global, "fetch").mockResolvedValueOnce(mockGeminiResponse(withMarkdown));
 
     const result = await GeminiOCRService.extractFromImage("base64fake==");
-    expect(result.invoiceNumber).toBe("0001234");
+    expect(result.numeroFactura).toBe("0001234");
   });
 
   it("lanza error si GEMINI_API_KEY no está configurada", async () => {
-    vi.unstubAllEnvs(); // elimina la key del beforeEach
+    vi.unstubAllEnvs();
     vi.stubEnv("GEMINI_API_KEY", "");
 
     await expect(GeminiOCRService.extractFromImage("base64fake==")).rejects.toThrow(
@@ -152,18 +151,38 @@ describe("GeminiOCRService.extractFromImage", () => {
   });
 
   it("devuelve currency undefined si Gemini retorna valor de currency inválido", async () => {
-    // El schema usa .catch(undefined) en currency — no lanza, retorna undefined
     vi.spyOn(global, "fetch").mockResolvedValueOnce(
       mockGeminiResponse(
         JSON.stringify({
-          totalAmount: "100.00",
-          currency: "BOLIVARES_FUERTES", // valor inválido para el enum
+          montoTotal: "100.00",
+          currency: "BOLIVARES_FUERTES",
         })
       )
     );
 
     const result = await GeminiOCRService.extractFromImage("base64fake==");
     expect(result.currency).toBeUndefined();
-    expect(result.totalAmount).toBe("100.00");
+    expect(result.montoTotal).toBe("100.00");
+  });
+
+  it("extrae campos de IVA reducido y adicional cuando están presentes", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          razonSocial: "Farmacia XYZ",
+          rif: "J-87654321-0",
+          baseImponibleGeneral: "200.00",
+          ivaGeneral: "32.00",
+          baseImponibleReducida: "50.00",
+          ivaReducido: "4.00",
+          montoTotal: "286.00",
+          currency: "VES",
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+    expect(result.baseImponibleReducida).toBe("50.00");
+    expect(result.ivaReducido).toBe("4.00");
   });
 });
