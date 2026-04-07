@@ -81,8 +81,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 19C ✅ merged (Forma 30 PDF export — Forma30PDFService + exportForma30PDFAction + 17 tests + Navbar IVA/fiscal-close links)
 - Fase 14D ✅ merged (Validación RIF SENIAT — validateRifAction + RifInput + limiters.rif + Redis cache 24h + 13 tests)
 - Fase 12C ✅ merged (Asistente ISLR — islr-suggestions.ts 60+ keywords Decreto 1808 + badge sugerencia en RetentionForm + 23 tests)
+- Fase OCR-v2 ✅ merged (Migración schema VEN-NIF + Gemini Vision directo + pre-fill InvoiceForm + /invoices/upload + 14 tests)
 
-**612 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
+**626 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
 ## Git workflow — MANDATORY
 
