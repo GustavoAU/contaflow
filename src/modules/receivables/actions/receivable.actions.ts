@@ -143,6 +143,7 @@ export async function recordPaymentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     const payment = await ReceivableService.recordPayment({
       ...parsed.data,
@@ -164,7 +165,7 @@ export async function recordPaymentAction(
 }
 
 // ─── Cancelar un pago ──────────────────────────────────────────────────────────
-// Solo ADMIN o ACCOUNTANT pueden cancelar pagos
+// Solo ADMIN u OWNER pueden cancelar pagos (operación de anulación — ADR-006 D-1)
 export async function cancelPaymentAction(
   input: unknown
 ): Promise<ActionResult<{ ok: true }>> {
@@ -182,8 +183,8 @@ export async function cancelPaymentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") {
-      return { success: false, error: "Sin permisos para cancelar pagos" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) {
+      return { success: false, error: "No autorizado" };
     }
 
     await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId);

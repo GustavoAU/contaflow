@@ -1,6 +1,7 @@
 // src/modules/igtf/actions/igtf.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { revalidatePath } from "next/cache";
@@ -8,6 +9,7 @@ import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -23,13 +25,21 @@ export type IGTFSummary = {
 
 const CreateIGTFSchema = z.object({
   companyId: z.string().min(1),
-  amount: z
-    .string()
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, { error: "Monto inválido" }),
+  amount: z.string().refine(
+    (v) => {
+      try {
+        const d = new Decimal(v);
+        return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+      } catch {
+        return false;
+      }
+    },
+    { error: "Monto inválido o fuera del rango permitido" }
+  ),
   currency: z.enum(["USD", "EUR", "VES"]),
   concept: z.string().min(1, { error: "Concepto requerido" }),
   transactionId: z.string().optional(),
-  createdBy: z.string().min(1),
+  createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
 });
 
 export type CreateIGTFInput = z.infer<typeof CreateIGTFSchema>;
@@ -37,6 +47,9 @@ export type CreateIGTFInput = z.infer<typeof CreateIGTFSchema>;
 // ─── Crear IGTF ───────────────────────────────────────────────────────────────
 export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionResult<IGTFSummary>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const parsed = CreateIGTFSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -44,8 +57,14 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 
     const data = parsed.data;
 
-    const rl = await checkRateLimit(`${data.companyId}:${data.createdBy}`, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.fiscal); // rate limit by authenticated userId
     if (!rl.allowed) return { success: false, error: rl.error };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: data.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     const calc = IGTFService.calculate(data.amount, IGTF_RATE);
 
@@ -60,7 +79,7 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
             currency: data.currency,
             concept: data.concept,
             transactionId: data.transactionId ?? null,
-            createdBy: data.createdBy,
+            createdBy: userId, // always use authenticated userId
           },
         });
 
@@ -69,7 +88,7 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
             entityId: created.id,
             entityName: "IGTFTransaction",
             action: "CREATE",
-            userId: data.createdBy,
+            userId, // always use authenticated userId
             newValue: { amount: data.amount, currency: data.currency, igtfAmount: calc.igtfAmount },
           },
         });

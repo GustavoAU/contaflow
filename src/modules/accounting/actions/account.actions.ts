@@ -69,7 +69,21 @@ export async function createAccountAction(
   input: z.infer<typeof CreateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
+    // Auth and role check FIRST — before any DB queries (ADR-006 D-1)
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     const validated = CreateAccountSchema.parse(input);
+
+    const memberCheck = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: validated.companyId } },
+      select: { role: true },
+    });
+    if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
+    if (memberCheck.role === "VIEWER") return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
 
     // Verificar que el codigo no exista en esta empresa
     const existingCode = await prisma.account.findUnique({
@@ -109,12 +123,6 @@ export async function createAccountAction(
     const codeNum = Number(validated.code);
     const range = RANGES[validated.type];
     const outOfRange = isNaN(codeNum) || codeNum < range.start || codeNum > range.end;
-
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
 
     const account = await prisma.$transaction(async (tx) =>
       withCompanyContext(validated.companyId, tx, async (tx) => {
@@ -185,6 +193,13 @@ export async function updateAccountAction(
       select: { code: true, name: true, type: true, companyId: true },
     });
     if (!before) return { success: false, error: "Cuenta no encontrada" };
+
+    const memberCheck = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: before.companyId } },
+      select: { role: true },
+    });
+    if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
+    if (memberCheck.role === "VIEWER") return { success: false, error: "No autorizado" };
 
     if (data.code) {
       // FIX CRÍTICO-1 (ADR-004): unicidad de código scoped a companyId.

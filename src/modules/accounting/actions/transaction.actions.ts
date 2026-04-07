@@ -9,6 +9,7 @@ import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // ─── Tipo de respuesta estandar ───────────────────────────────────────────────
 
@@ -22,7 +23,22 @@ export async function createTransactionAction(
   input: z.infer<typeof CreateTransactionSchema>
 ): Promise<ActionResult<{ id: string; number: string }>> {
   try {
-    const transaction = await TransactionService.createBalancedTransaction(input);
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: input.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+
+    const transaction = await TransactionService.createBalancedTransaction({
+      ...input,
+      userId, // override client-provided userId with authenticated userId
+    });
 
     revalidatePath(`/company/${input.companyId}/transactions`);
 
@@ -51,7 +67,29 @@ export async function voidTransactionAction(
   input: z.infer<typeof VoidTransactionSchema>
 ): Promise<ActionResult<{ id: string; number: string }>> {
   try {
-    const transaction = await TransactionService.voidTransaction(input);
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
+    // Fetch companyId to check membership (VoidTransactionSchema only has transactionId)
+    const existing = await prisma.transaction.findUnique({
+      where: { id: input.transactionId },
+      select: { companyId: true },
+    });
+    if (!existing) return { success: false, error: "Asiento no encontrado" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: existing.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+
+    const transaction = await TransactionService.voidTransaction({
+      ...input,
+      userId, // override client-provided userId with authenticated userId
+    });
 
     revalidatePath(`/company`);
 
