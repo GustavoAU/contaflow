@@ -76,6 +76,14 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **465 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-06)
 
+## Git workflow — MANDATORY
+
+- Every new phase or feature → `git checkout -b feat/fase-XX-description` before writing any code
+- Commit incrementally on the branch; push with `git push -u origin <branch>`
+- Merge to `main` only when: phase gate passes (tsc + vitest GREEN) AND user confirms
+- Doc-only fixes (contaflow-context-v3.md, CLAUDE.md) may go directly on `main`
+- Never commit feature code directly to `main`
+
 ## Phase gate — MANDATORY before every phase transition
 
 **Before proposing or starting any new phase, the agent MUST:**

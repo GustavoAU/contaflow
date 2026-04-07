@@ -282,8 +282,8 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 465/465 passing · **CI**: ✅ verde
-**Último commit**: `0ada843` — Fase 13D RLS Row Level Security
+**Tests**: 492/492 passing · **CI**: ✅ verde
+**Último commit**: `b468af2` — Fase 18 Dashboard Analítica
 
 ### Fases completadas (en orden cronológico)
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
@@ -513,7 +513,7 @@ model FiscalYearClose {
   - Todas las $transaction de dominio envuelven withCompanyContext
   - 6 tests unitarios prisma-rls.test.ts + regression LL-010 (BankStatementService.test.ts)
   - Compatible con PrismaPg pooled (SET LOCAL = per-transaction, ADR-007)
-- ⏳ Fase 18: Dashboard Analítico Avanzado (Recharts nativo)
+- ✅ Fase 18: Dashboard Analítico Avanzado (Recharts nativo) — completada 2026-04-06 (commit `b468af2`)
 - ⏳ Fase 19: Declaración Mensual IVA (Forma 30 SENIAT)
 - ⏳ Fase 20: Facturación Digital (SENIAT)
 - ⏳ Fase 14C: Auto-fetch Tasa BCV + Re-expresión Automática (ver sección 26)
