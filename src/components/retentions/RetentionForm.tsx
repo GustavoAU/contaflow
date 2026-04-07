@@ -1,7 +1,8 @@
 // src/components/retentions/RetentionForm.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { suggestIslrCode, type IslrSuggestion } from "@/lib/islr-suggestions";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,20 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [taxBase, setTaxBase] = useState("");
   const [ivaRetentionPct, setIvaRetentionPct] = useState<75 | 100>(75);
   const [islrCode, setIslrCode] = useState("SERVICIOS_PJ");
+  const [islrConcept, setIslrConcept] = useState("");
+  const [islrSuggestion, setIslrSuggestion] = useState<IslrSuggestion | null>(null);
+
+  // Debounce 400ms para sugerencia ISLR al escribir el concepto
+  useEffect(() => {
+    if (!islrConcept.trim()) {
+      setIslrSuggestion(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIslrSuggestion(suggestIslrCode(islrConcept));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [islrConcept]);
 
   function handleDownloadVoucher(retentionId: string) {
     startTransitionVoucher(async () => {
@@ -245,21 +260,55 @@ export function RetentionForm({ companyId, userId }: Props) {
 
           {/* Código ISLR */}
           {(retentionType === "ISLR" || retentionType === "AMBAS") && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Concepto ISLR (Decreto 1808)
-              </label>
-              <select
-                value={islrCode}
-                onChange={(e) => setIslrCode(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {Object.entries(ISLR_RATES).map(([code, rate]) => (
-                  <option key={code} value={code}>
-                    {rate.description} ({rate.pct}%)
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              {/* Campo de descripción para sugerencia automática */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                  Descripción del servicio{" "}
+                  <span className="font-normal text-zinc-400">(para sugerencia automática)</span>
+                </label>
+                <input
+                  type="text"
+                  value={islrConcept}
+                  onChange={(e) => setIslrConcept(e.target.value)}
+                  placeholder="ej. Honorarios de auditoría, Flete terrestre…"
+                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                {/* Badge de sugerencia */}
+                {islrSuggestion && (
+                  <div className="mt-1.5 flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+                    <div className="text-xs text-blue-800">
+                      <span className="font-medium">Sugerido:</span>{" "}
+                      {islrSuggestion.label} — {islrSuggestion.rate}%{" "}
+                      <span className="text-blue-500">({islrSuggestion.legalRef})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIslrCode(islrSuggestion.code)}
+                      className="ml-3 shrink-0 rounded bg-blue-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-blue-700"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Selector manual de concepto ISLR */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                  Concepto ISLR (Decreto 1808)
+                </label>
+                <select
+                  value={islrCode}
+                  onChange={(e) => setIslrCode(e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  {Object.entries(ISLR_RATES).map(([code, rate]) => (
+                    <option key={code} value={code}>
+                      {rate.description} ({rate.pct}%)
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
