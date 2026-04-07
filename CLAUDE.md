@@ -74,7 +74,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 17B ✅ merged (BankReconciliationService + CsvImporter)
 - Fase 13D ✅ merged (RLS Row Level Security — commit 0ada843)
 - Fase 18 ✅ merged (Analytics Dashboard — 5 gráficos recharts — commit b468af2)
-- Fase 14C ⏳ branch `feat/fase-14c-bcv-autofetch` — BCV auto-fetch, esperando merge
+- Fase 14C ✅ merged (BCV auto-fetch — BcvFetchService + fetchBcvRateAction + UI button — commit ee04693)
 
 **520 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
