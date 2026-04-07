@@ -79,8 +79,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 19B ✅ merged (Security Residual — 4 HIGH findings: createInvoice/createPayment/upsertExchangeRate/getRetentions + regression tests — commit cb2d324)
 - Fase 19 ✅ merged (Declaración Mensual IVA — Forma 30 SENIAT: DeclaracionIVAService + generarForma30Action + Forma30View + 23 tests)
 - Fase 19C ✅ merged (Forma 30 PDF export — Forma30PDFService + exportForma30PDFAction + 17 tests + Navbar IVA/fiscal-close links)
+- Fase 14D ✅ merged (Validación RIF SENIAT — validateRifAction + RifInput + limiters.rif + Redis cache 24h + 13 tests)
 
-**576 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
+**589 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
 ## Git workflow — MANDATORY
 
