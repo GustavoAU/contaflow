@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 20 completada. Última sincronización: 2026-04-07_
-_v3.2: Fases 19/19B/19C/14C/14D/12C/OCR-v2/20 completadas. 656 tests GREEN. ADR-008 documentado._
+_Versión actualizada — Fase 21 completada. Última sincronización: 2026-04-07_
+_v3.3: Fase 21 Activos Fijos y Depreciación (VEN-NIF 16). 691 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -282,8 +282,8 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 656/656 passing · **CI**: ✅ verde
-**Último commit**: `ae94c76` — Fase 20 XML SENIAT + QR en PDF
+**Tests**: 691/691 passing · **CI**: ✅ verde
+**Último commit**: `edf6d16` — Fase 21 Activos Fijos y Depreciación
 
 ### Fases completadas (en orden cronológico)
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
@@ -533,7 +533,7 @@ model FiscalYearClose {
 - ✅ Fase 12C: Asistente de Retenciones ISLR Inteligente — completada 2026-04-07 (ver sección 28)
 - ✅ Fase OCR-v2: Migración schema VEN-NIF + Gemini Vision + pre-fill InvoiceForm — completada 2026-04-07
 - ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante — completada 2026-04-07 (ver sección 36)
-- ⏳ Fase 21: Activos Fijos y Depreciación
+- ✅ Fase 21: Activos Fijos y Depreciación VEN-NIF 16 — completada 2026-04-07 (ver sección 37)
 - ⏳ Fase 22: Ajuste por Inflación Fiscal (INPC)
 - ⏳ Fase 23: Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
@@ -1132,6 +1132,91 @@ Onboarding guiado con opciones (no preguntas abiertas):
 - Declaración Banavih
 - Resumen de nómina para SENIAT
 - Reportes por departamento / centro de costo
+
+## 37. Fase 21 — Activos Fijos y Depreciación (VEN-NIF 16 / IAS 16) ✅ completada 2026-04-07
+
+### Norma aplicable
+
+VEN-NIF 16 (equivalente a IAS 16 — Propiedades, Planta y Equipo). Fase 22 aplicará ajuste por inflación INPC. Esta fase registra costo histórico.
+
+### Schema añadido
+
+```prisma
+enum DepreciationMethod { LINEA_RECTA  SUMA_DIGITOS  UNIDADES_PRODUCCION }
+enum FixedAssetStatus   { ACTIVE  DISPOSED  FULLY_DEPRECIATED }
+
+model FixedAsset {
+  companyId                String  → Company (onDelete: Restrict)
+  assetAccountId           String  → Account (onDelete: Restrict) — ASSET
+  depreciationAccountId    String  → Account (onDelete: Restrict) — EXPENSE
+  accDepreciationAccountId String  → Account (onDelete: Restrict) — ASSET crédito
+  acquisitionDate          Date
+  acquisitionCost          Decimal(19,4)
+  residualValue            Decimal(19,4) @default(0)
+  usefulLifeMonths         Int
+  depreciationMethod       DepreciationMethod @default(LINEA_RECTA)
+  status                   FixedAssetStatus @default(ACTIVE)
+  totalUnits               Int?   — solo UNIDADES_PRODUCCION
+  deletedAt                DateTime?  — soft delete ADR-005
+  @@index([companyId, status])
+}
+
+model DepreciationEntry {
+  fixedAssetId   String → FixedAsset (onDelete: Restrict)
+  transactionId  String? @unique → Transaction (onDelete: Restrict)
+  periodYear     Int
+  periodMonth    Int
+  amount                  Decimal(19,4)
+  accumulatedDepreciation Decimal(19,4)
+  bookValue               Decimal(19,4)
+  @@unique([fixedAssetId, periodYear, periodMonth])
+}
+```
+
+**Migración**: `20260407_feat_21_fixed_assets`
+
+### Módulo `src/modules/fixed-assets/`
+
+- **`FixedAssetService.ts`**:
+  - `calcMonthlyDepreciation(asset, month1, units?)` — pure fn, testable, soporta los 3 métodos
+  - `calcDepreciationForPeriod(asset, month1, prevAcc, units?)` — con cap al valor depreciable
+  - `generateDepreciationSchedule(asset)` — tabla proyectada completa sin BD
+  - `postDepreciation(assetId, year, month, userId, tx)` — idempotente (@@unique); crea `Transaction` tipo AJUSTE + `DepreciationEntry` en mismo `$transaction`
+  - `postMonthlyDepreciation(companyId, year, month, userId, tx)` — masivo para todos los activos ACTIVE
+  - `dispose(input, userId, tx)` — asiento de baja (crédito activo, débito dep. acumulada, ganancia/pérdida)
+  - `getSummary(companyId)` — valor en libros actual por activo
+  - `getSchedule(assetId, companyId)` — proyección + historial real registrado
+
+- **Schemas Zod**: `CreateFixedAssetSchema`, `PostMonthlyDepreciationSchema`, `DisposeFixedAssetSchema`
+
+- **Actions**: `createFixedAssetAction`, `postMonthlyDepreciationAction`, `disposeFixedAssetAction` (solo ADMIN), `getFixedAssetsAction`, `getDepreciationScheduleAction`, `previewDepreciationScheduleAction`
+  - Guard año fiscal cerrado en create y post-depreciation
+  - Rate limiting: `limiters.fiscal`
+  - `withCompanyContext` (RLS ADR-007) en todas las mutations
+
+- **Componentes**:
+  - `FixedAssetList.tsx` — tabla con valor en libros, dep. acumulada, estado, botón baja
+  - `FixedAssetForm.tsx` — crea activo con selector de cuentas contables por tipo
+  - `DepreciationScheduleModal.tsx` — tabla mes a mes proyectada + estado registrado/pendiente
+
+### Rutas
+
+- `/company/[companyId]/fixed-assets` — listado + formulario + panel depreciación mensual
+- Navbar: "Más → Activos Fijos" con icono `Building2`
+
+### Fórmulas VEN-NIF implementadas
+
+| Método | Fórmula cuota mensual |
+|---|---|
+| Línea Recta | (Costo − Residual) / Vida útil en meses |
+| Suma de Dígitos | Depreciable × (n − m + 1) / Σ(1..n) |
+| Unidades de Producción | (Costo − Residual) / Total unidades × Unidades del período |
+
+### Tests
+
+- 22 tests `FixedAssetService.test.ts`: los 3 métodos con fixtures exactos, cap al final, schedule completo, cruce año diciembre→enero (UTC fix)
+- 13 tests `fixed-asset.actions.test.ts`: auth, roles, año cerrado, happy paths
+- **691 tests GREEN | 0 TS errors**
 
 ## 35. Fase 19 — Declaración Mensual IVA (Forma 30 SENIAT) ✅ completada 2026-04-07
 
