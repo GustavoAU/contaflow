@@ -9,6 +9,7 @@ import {
   getInvoiceBookAction,
   exportInvoiceBookPDFAction,
   exportInvoiceVoucherPDFAction,
+  exportInvoiceXMLAction,
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import * as XLSX from "xlsx";
@@ -49,6 +50,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
   const [isPendingPDF, startTransitionPDF] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
   const [pendingVoucherId, setPendingVoucherId] = useState<string | null>(null);
+  const [isPendingXML, startTransitionXML] = useTransition();
+  const [pendingXMLId, setPendingXMLId] = useState<string | null>(null);
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -98,6 +101,26 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       a.download = `factura-${invoiceNumber}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+    });
+  }
+
+  function handleExportInvoiceXML(invoiceId: string, invoiceNumber: string) {
+    setPendingXMLId(invoiceId);
+    startTransitionXML(async () => {
+      const res = await exportInvoiceXMLAction(invoiceId, companyId);
+      setPendingXMLId(null);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      const blob = new Blob([res.xml], { type: "application/xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`XML descargado: ${res.filename}`);
     });
   }
 
@@ -341,16 +364,28 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                             {row.controlNumber ?? "—"}
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
-                              disabled={isPendingVoucher && pendingVoucherId === row.id}
-                              title="Descargar PDF de factura"
-                              className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                              aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
-                            >
-                              {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
-                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
+                                disabled={isPendingVoucher && pendingVoucherId === row.id}
+                                title="Descargar PDF de factura"
+                                className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
+                              >
+                                {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
+                                disabled={isPendingXML && pendingXMLId === row.id}
+                                title="Descargar XML SENIAT"
+                                className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+                                aria-label={`Descargar XML factura ${row.invoiceNumber}`}
+                              >
+                                {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-zinc-400">—</td>
                           <td className="px-4 py-3 text-right font-mono">—</td>
@@ -388,16 +423,28 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                             </td>
                             <td className="px-4 py-3">
                               {idx === 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
-                                  disabled={isPendingVoucher && pendingVoucherId === row.id}
-                                  title="Descargar PDF de factura"
-                                  className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                                  aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
-                                >
-                                  {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
-                                </button>
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
+                                    disabled={isPendingVoucher && pendingVoucherId === row.id}
+                                    title="Descargar PDF de factura"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                    aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
+                                  >
+                                    {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
+                                    disabled={isPendingXML && pendingXMLId === row.id}
+                                    title="Descargar XML SENIAT"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+                                    aria-label={`Descargar XML factura ${row.invoiceNumber}`}
+                                  >
+                                    {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
+                                  </button>
+                                </div>
                               )}
                             </td>
                             <td className="px-4 py-3">
