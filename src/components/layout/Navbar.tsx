@@ -27,6 +27,7 @@ import {
   LineChart,
   ScrollText,
   CalendarCheck,
+  Building2,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -94,6 +95,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
           label: "Cierre Fiscal",
           href: `/company/${companyId}/fiscal-close`,
           icon: CalendarCheck,
+        },
+        {
+          label: "Activos Fijos",
+          href: `/company/${companyId}/fixed-assets`,
+          icon: Building2,
         },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
