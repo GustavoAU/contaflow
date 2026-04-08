@@ -148,6 +148,11 @@ model Company {
   periodSnapshots             PeriodSnapshot[]
   // Fase 21: Activos Fijos
   fixedAssets                 FixedAsset[]
+  // Fase 22: Ajuste por Inflación (INPC / VEN-NIF 3)
+  inflationBaseYear           Int?
+  inflationBaseMonth          Int?
+  inpcRates                   INPCRate[]
+  inflationAdjustments        InflationAdjustment[]
 }
 
 model CompanyMember {
@@ -183,6 +188,8 @@ model Account {
   fixedAssetsAsAsset          FixedAsset[] @relation("FixedAssetAccount")
   fixedAssetsAsDepreciation   FixedAsset[] @relation("DepreciationExpenseAccount")
   fixedAssetsAsAccDepreciation FixedAsset[] @relation("AccumulatedDepreciationAccount")
+  // Fase 22: Ajuste por Inflación
+  inflationAdjustments        InflationAdjustment[]
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -231,6 +238,8 @@ model Transaction {
   bankTransactionMatches         BankTransaction[] @relation("BankTransactionMatch")
   // Fase 21: Activos Fijos — asiento de depreciación generado
   depreciationEntry              DepreciationEntry?
+  // Fase 22: Ajuste por Inflación
+  inflationAdjustments           InflationAdjustment[]
 
   @@unique([companyId, number])
 }
@@ -693,5 +702,43 @@ model DepreciationEntry {
   createdAt               DateTime    @default(now())
 
   @@unique([fixedAssetId, periodYear, periodMonth])
+  @@index([companyId, periodYear, periodMonth])
+}
+
+// ─── Fase 22: Ajuste por Inflación Fiscal (INPC / VEN-NIF 3) ─────────────────
+
+model INPCRate {
+  id          String   @id @default(cuid())
+  companyId   String
+  year        Int
+  month       Int      // 1-12
+  indexValue  Decimal  @db.Decimal(18, 6)  // índice INPC publicado por BCV
+  source      String?  @default("BCV")
+  createdAt   DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+}
+
+model InflationAdjustment {
+  id               String      @id @default(cuid())
+  companyId        String
+  periodYear       Int
+  periodMonth      Int         // período que se está ajustando
+  baseYear         Int         // año del índice base usado
+  baseMonth        Int         // mes del índice base usado
+  accountId        String
+  originalAmount   Decimal     @db.Decimal(19, 4)  // saldo de la cuenta antes del ajuste (ADR-002)
+  adjustmentAmount Decimal     @db.Decimal(19, 4)  // monto del ajuste = original × (factor − 1) (ADR-002)
+  cumulativeIndex  Decimal     @db.Decimal(18, 6)  // factor = currentIndex / baseIndex
+  transactionId    String      // NON-NULLABLE — VEN-NIF 3: todo ajuste DEBE tener asiento
+  createdAt        DateTime    @default(now())
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, periodYear, periodMonth, accountId])
   @@index([companyId, periodYear, periodMonth])
 }
