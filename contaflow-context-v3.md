@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 17 scaffolding en main. Última sincronización: 2026-04-05_
-_v3.1: Actualiza OCR a Gemini Vision, añade Fases 23A-23E (Nómina), OCR-v2, revisión producción, bugs Zelle resueltos, notas técnicas nuevas_
+_Versión actualizada — Fase 20 completada. Última sincronización: 2026-04-07_
+_v3.2: Fases 19/19B/19C/14C/14D/12C/OCR-v2/20 completadas. 656 tests GREEN. ADR-008 documentado._
 
 ## 1. Descripción del Producto
 
@@ -282,13 +282,23 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 492/492 passing · **CI**: ✅ verde
-**Último commit**: `b468af2` — Fase 18 Dashboard Analítica
+**Tests**: 656/656 passing · **CI**: ✅ verde
+**Último commit**: `ae94c76` — Fase 20 XML SENIAT + QR en PDF
 
 ### Fases completadas (en orden cronológico)
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
 - ✅ Fase 17B: BankReconciliationService + CsvImporter + ADR-008 schema 3-way match (commits `4f041f7` → `faf1972`)
 - ✅ Fase 13D: RLS Row Level Security — withCompanyContext + 14 tablas (commit `0ada843`)
+- ✅ Fase 18: Dashboard Analítico — 5 gráficos Recharts (commit `b468af2`)
+- ✅ Fase 14C: Auto-fetch Tasa BCV — BcvFetchService + Cron diario + botón UI (commit `ee04693`)
+- ✅ Fase 19A: Security Hardening ADR-006 — 8 CRITICALs + amount ceilings + role checks (commit `f0c8d5a`)
+- ✅ Fase 19B: Security Residual — 4 HIGH findings corregidos + regression tests (commit `cb2d324`)
+- ✅ Fase 19: Declaración Mensual IVA — Forma 30 SENIAT: DeclaracionIVAService + Forma30View + 23 tests
+- ✅ Fase 19C: Forma 30 PDF export — Forma30PDFService + exportForma30PDFAction + 17 tests
+- ✅ Fase 14D: Validación RIF SENIAT — validateRifAction + RifInput + limiters.rif + Redis cache 24h + 13 tests
+- ✅ Fase 12C: Asistente ISLR — islr-suggestions.ts 60+ keywords Decreto 1808 + badge en RetentionForm + 23 tests
+- ✅ Fase OCR-v2: Migración schema VEN-NIF + Gemini Vision directo + pre-fill InvoiceForm + /invoices/upload + 14 tests
+- ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante + botón XML en InvoiceBook + ADR-008 (commit `ae94c76`)
 
 ### 17.1 Deuda técnica resuelta
 
@@ -514,18 +524,15 @@ model FiscalYearClose {
   - 6 tests unitarios prisma-rls.test.ts + regression LL-010 (BankStatementService.test.ts)
   - Compatible con PrismaPg pooled (SET LOCAL = per-transaction, ADR-007)
 - ✅ Fase 18: Dashboard Analítico Avanzado (Recharts nativo) — completada 2026-04-06 (commit `b468af2`)
-- ⏳ Fase 19: Declaración Mensual IVA (Forma 30 SENIAT)
-- ⏳ Fase 20: Facturación Digital (SENIAT)
-- ⏳ Fase 14C: Auto-fetch Tasa BCV + Re-expresión Automática (ver sección 26)
-- ⏳ Fase 14D: Validación RIF vs SENIAT en tiempo real (ver sección 27)
-- ⏳ Fase 12C: Asistente de Retenciones ISLR Inteligente (ver sección 28)
-- ⏳ Fase 17C: Batch Payments — Exportación TXT para bancos venezolanos (ver sección 30)
-- ⏳ Fase OCR-v2: Migración schema OCR a campos VEN-NIF
-  - Renombrar: `supplierName` → `razonSocial`, `invoiceNumber` → `numeroFactura`, etc.
-  - Añadir: `numeroControl`, `baseImponibleGeneral`, `ivaGeneral`, `ivaReducido`, `ivaAdicional`
-  - Montos como Decimal en lugar de string
-  - Actualizar Server Action OCR para usar `extractFromImage(base64, mimeType)` en Plan Pro
-  - Flujo de revisión pre-guardado: InvoiceForm con `defaultValues` desde OCR + banner "Revisa antes de guardar"
+- ✅ Fase 14C: Auto-fetch Tasa BCV + botón UI — completada 2026-04-07 (commit `ee04693`)
+- ✅ Fase 19A: Security Hardening ADR-006 — completada 2026-04-07 (commit `f0c8d5a`)
+- ✅ Fase 19B: Security Residual — completada 2026-04-07 (commit `cb2d324`)
+- ✅ Fase 19: Declaración Mensual IVA (Forma 30 SENIAT) — completada 2026-04-07 (ver sección 35)
+- ✅ Fase 19C: Forma 30 PDF export — completada 2026-04-07 (ver sección 35)
+- ✅ Fase 14D: Validación RIF SENIAT en tiempo real — completada 2026-04-07 (ver sección 27)
+- ✅ Fase 12C: Asistente de Retenciones ISLR Inteligente — completada 2026-04-07 (ver sección 28)
+- ✅ Fase OCR-v2: Migración schema VEN-NIF + Gemini Vision + pre-fill InvoiceForm — completada 2026-04-07
+- ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante — completada 2026-04-07 (ver sección 36)
 - ⏳ Fase 21: Activos Fijos y Depreciación
 - ⏳ Fase 22: Ajuste por Inflación Fiscal (INPC)
 - ⏳ Fase 23: Nómina (LOTTT) — dividida en subfases (ver sección 34)
@@ -1125,3 +1132,81 @@ Onboarding guiado con opciones (no preguntas abiertas):
 - Declaración Banavih
 - Resumen de nómina para SENIAT
 - Reportes por departamento / centro de costo
+
+## 35. Fase 19 — Declaración Mensual IVA (Forma 30 SENIAT) ✅ completada 2026-04-07
+
+### Módulo `src/modules/iva-declaration/`
+
+- **`DeclaracionIVAService.ts`** — `calcularForma30(companyId, year, month)` → `Forma30Data`
+  - Agrega taxLines por alícuota (IVA_GENERAL 16%, IVA_REDUCIDO 8%, IVA_ADICIONAL 15%, EXENTO)
+  - Suma retenciones IVA soportadas (PURCHASE) y retenidas (SALE + isSpecialContributor)
+  - Calcula débito fiscal, crédito fiscal, retenciones, saldo a pagar/favor
+  - VEN-NIF: artículos 43–46 LIVA
+- **`generarForma30Action(companyId, year, month)`** — auth-gated, rate limiting fiscal
+- **`Forma30View.tsx`** — tabla fiscal resumen + filas por alícuota + saldo final coloreado
+
+### Fase 19C — PDF export ✅
+
+- **`Forma30PDFService.ts`** — A4 portrait, tabla Forma 30 completa con totales y saldo
+- **`exportForma30PDFAction()`** — retorna `{ success: true; buffer: number[] }`
+- Botón "Exportar PDF" en Forma30View
+
+### Tests
+
+- 23 tests `DeclaracionIVAService.test.ts` + 17 tests `Forma30PDFService.test.ts` (unit)
+- Action tests incluidos
+
+### Rutas
+
+- `/company/[companyId]/iva-declaration` — formulario mes/año + Forma 30 calculada
+- Navbar: link "IVA/Fiscal" activo
+
+---
+
+## 36. Fase 20 — XML SENIAT Descargable + QR Code en PDF ✅ completada 2026-04-07
+
+### Contexto legal
+
+Venezuela no tiene SDCA/SIEX operativo (anunciado, no desplegado). XML descargable es la implementación correcta de Providencia 0071 SENIAT — útil para software de terceros y auditorías.
+
+### Arquitectura (ADR-008)
+
+**D-1**: XML generado como string puro (KISS — sin xmlbuilder ni fast-xml-parser)
+**D-2**: Namespace `urn:ve:seniat:factura:1.0` (convención, sin API oficial SENIAT)
+**D-3**: Estructura: Encabezado → Emisor → Receptor → DetalleImpuestos → Totales → Retenciones? → IGTF?
+**D-4**: QR format: `CONTAFLOW:RIF={rif};FACTURA={nro};CONTROL={ctrl};TOTAL={total};FECHA={fecha};MONEDA={moneda}`
+**D-5**: QR generado server-side con `qrcode` Node.js → base64 data URL → `@react-pdf/renderer Image`
+**D-6**: `escapeXml()` aplica a todos los valores de texto (5 caracteres: `& < > " '`)
+**D-7**: Nodos opcionales omitidos si null/undefined/cero (NumeroControl, Direccion, Retenciones, IGTF)
+**D-8**: `exportInvoiceXMLAction` con `limiters.fiscal` (30/min)
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `src/modules/invoices/services/SeniatXMLService.ts` | NUEVO — `generate()`, `filename()`, `qrContent()` |
+| `src/modules/invoices/services/SeniatXMLService.test.ts` | NUEVO — 22 tests |
+| `src/modules/invoices/services/InvoiceVoucherPDFService.ts` | + `QRSection` + `qrCodeDataUrl` param |
+| `src/modules/invoices/actions/invoice.actions.ts` | + `exportInvoiceXMLAction` + QR en PDF action |
+| `src/modules/invoices/actions/invoice.actions.test.ts` | + 8 tests XML action |
+| `src/components/invoices/InvoiceBook.tsx` | + botón XML por fila (junto a botón PDF) |
+| `contaflow-contract.md` | + ADR-008 documentado |
+
+### Nodos XML por alícuota
+
+```xml
+<AlicuotaGeneral tasa="16.00"><BaseImponible>...</BaseImponible><MontoIVA>...</MontoIVA></AlicuotaGeneral>
+<AlicuotaReducida tasa="8.00">...</AlicuotaReducida>
+<AlicuotaAdicional tasa="15.00">...</AlicuotaAdicional>
+<Exento><BaseImponible>...</BaseImponible></Exento>
+```
+
+### UI
+
+- Botón "XML" (azul) por cada fila en InvoiceBook — junto al botón "PDF" existente
+- Click → `exportInvoiceXMLAction()` → Blob download `application/xml`
+- Toast de éxito/error con estado de carga individual por factura
+
+### Tests totales post-Fase 20
+
+**656 tests GREEN** | **0 TS errors** | **0 fallos**
