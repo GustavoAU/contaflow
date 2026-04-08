@@ -84,8 +84,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase OCR-v2 ✅ merged (Migración schema VEN-NIF + Gemini Vision directo + pre-fill InvoiceForm + /invoices/upload + 14 tests)
 - Fase 20 ✅ merged (XML SENIAT descargable + QR code en PDF comprobante + botón XML en InvoiceBook — 30 tests)
 - Fase 21 ✅ merged (Activos Fijos y Depreciación VEN-NIF 16 — 3 métodos + asiento automático — 35 tests)
+- Fase 22 ✅ merged (Ajuste por Inflación INPC VEN-NIF 3 — INPCRate + InflationAdjustment + preview + Serializable — 32 tests)
 
-**691 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
+**723 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
 ## Git workflow — MANDATORY
 
