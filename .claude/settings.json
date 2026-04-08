@@ -51,12 +51,39 @@
       "Bash(npx next:*)",
       "Bash(node -e \"const pkg = require\\('./node_modules/eslint-plugin-react-hooks/package.json'\\); console.log\\(pkg.version\\)\")",
       "Bash(node -e \"const r = require\\('./node_modules/eslint-plugin-react-hooks'\\); console.log\\(Object.keys\\(r.rules\\)\\)\")",
-      "Bash(node -e \"const r = require\\('./node_modules/eslint-plugin-react-hooks'\\); const rule = r.rules['set-state-in-effect']; console.log\\(JSON.stringify\\(rule.meta, null, 2\\)\\)\")"
+      "Bash(node -e \"const r = require\\('./node_modules/eslint-plugin-react-hooks'\\); const rule = r.rules['set-state-in-effect']; console.log\\(JSON.stringify\\(rule.meta, null, 2\\)\\)\")",
+      "Bash(npx eslint:*)",
+      "Bash(xargs wc:*)",
+      "Bash(grep -ln '$transaction' 'src/modules/*/actions/*.actions.ts')",
+      "Bash(grep -v \"//\")",
+      "Bash(grep -n '$transaction\\\\|companyId\\\\|withCompanyContext' src/modules/accounting/actions/account.actions.ts)",
+      "Bash(grep -n '$transaction\\\\|companyId' src/modules/accounting/actions/transaction.actions.ts)",
+      "Bash(grep -n '$transaction' src/modules/invoices/actions/invoice.actions.ts src/modules/retentions/actions/retention.actions.ts src/modules/igtf/actions/igtf.actions.ts src/modules/payments/actions/payment.actions.ts src/modules/exchange-rates/actions/exchange-rate.actions.ts src/modules/fiscal-close/actions/fiscal-close.actions.ts)",
+      "Bash(grep -n '$transaction\\\\|FiscalYearClose\\\\|companyId' src/modules/fiscal-close/actions/fiscal-close.actions.ts)",
+      "Bash(grep -n '$transaction\\\\|withCompanyContext' src/modules/fiscal-close/services/FiscalYearCloseService.ts)",
+      "Bash(grep -n \"isolationLevel\\\\|}, {\" src/modules/fiscal-close/services/FiscalYearCloseService.ts)",
+      "Bash(grep -n '$transaction' src/modules/bank-reconciliation/services/BankingService.ts)",
+      "Bash(grep -n '$transaction\\\\|$executeRaw' src/modules/accounting/actions/account.actions.test.ts)",
+      "Bash(grep -rln '$transaction.*mockImplementation' src/modules/)",
+      "Read(//d/Documents/Projects/React/modern-cg1/**)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); const all = {...p.dependencies,...p.devDependencies}; console.log\\(Object.keys\\(all\\).filter\\(k => k.includes\\('chart'\\) || k.includes\\('recharts'\\) || k.includes\\('d3'\\)\\)\\)\")",
+      "Bash(npm list:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git commit:*)",
+      "Bash(grep -n \"islr\\\\|concept\\\\|ISLR\" src/modules/retentions/schemas/*.ts)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in {**p.get\\('dependencies',{}\\), **p.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['qr','xml','pdf']\\)}, indent=2\\)\\)\")",
+      "Bash(git branch:*)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
       "D:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\.claude",
-      "\\tmp"
+      "\\tmp",
+      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
+      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\invoices"
     ]
   }
 }
