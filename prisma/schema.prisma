@@ -146,6 +146,8 @@ model Company {
   fiscalYearCloses            FiscalYearClose[]
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots             PeriodSnapshot[]
+  // Fase 21: Activos Fijos
+  fixedAssets                 FixedAsset[]
 }
 
 model CompanyMember {
@@ -177,6 +179,10 @@ model Account {
   bankAccount                 BankAccount?
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots             PeriodSnapshot[]
+  // Fase 21: Activos Fijos
+  fixedAssetsAsAsset          FixedAsset[] @relation("FixedAssetAccount")
+  fixedAssetsAsDepreciation   FixedAsset[] @relation("DepreciationExpenseAccount")
+  fixedAssetsAsAccDepreciation FixedAsset[] @relation("AccumulatedDepreciationAccount")
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -223,6 +229,8 @@ model Transaction {
   fiscalYearCloseAsAppropriation FiscalYearClose? @relation("AppropriationTransaction")
   // Fase 17B: conciliación bancaria
   bankTransactionMatches         BankTransaction[] @relation("BankTransactionMatch")
+  // Fase 21: Activos Fijos — asiento de depreciación generado
+  depreciationEntry              DepreciationEntry?
 
   @@unique([companyId, number])
 }
@@ -619,4 +627,71 @@ model PeriodSnapshot {
 
   @@unique([periodId, accountId])
   @@index([companyId, periodId])
+}
+
+// ─── Fase 21: Activos Fijos y Depreciación (VEN-NIF 16 / IAS 16) ─────────────
+
+enum DepreciationMethod {
+  LINEA_RECTA         // (Costo − Valor Residual) / Vida Útil en meses
+  SUMA_DIGITOS        // Sum-of-years-digits
+  UNIDADES_PRODUCCION // (Costo − Valor Residual) / Total Unidades × Unidades del período
+}
+
+enum FixedAssetStatus {
+  ACTIVE
+  DISPOSED           // Dado de baja
+  FULLY_DEPRECIATED
+}
+
+model FixedAsset {
+  id                       String              @id @default(cuid())
+  companyId                String
+  company                  Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name                     String
+  description              String?
+  // Cuentas contables vinculadas
+  assetAccountId           String              // → Account tipo ASSET
+  assetAccount             Account             @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
+  depreciationAccountId    String              // → Account tipo EXPENSE (gasto depreciación)
+  depreciationAccount      Account             @relation("DepreciationExpenseAccount", fields: [depreciationAccountId], references: [id], onDelete: Restrict)
+  accDepreciationAccountId String              // → Account tipo ASSET crédito (depreciación acumulada)
+  accDepreciationAccount   Account             @relation("AccumulatedDepreciationAccount", fields: [accDepreciationAccountId], references: [id], onDelete: Restrict)
+  // Datos del activo
+  acquisitionDate          DateTime            @db.Date
+  acquisitionCost          Decimal             @db.Decimal(19, 4)
+  residualValue            Decimal             @db.Decimal(19, 4) @default(0)
+  usefulLifeMonths         Int                 // vida útil en meses
+  depreciationMethod       DepreciationMethod  @default(LINEA_RECTA)
+  status                   FixedAssetStatus    @default(ACTIVE)
+  // Solo para UNIDADES_PRODUCCION
+  totalUnits               Int?
+  unitsUsed                Int                 @default(0)
+  // Soft delete (tabla con relevancia contable — ADR-005)
+  deletedAt                DateTime?
+  createdAt                DateTime            @default(now())
+  createdBy                String
+  updatedAt                DateTime            @updatedAt
+  entries                  DepreciationEntry[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+}
+
+model DepreciationEntry {
+  id                      String      @id @default(cuid())
+  companyId               String
+  fixedAssetId            String
+  fixedAsset              FixedAsset  @relation(fields: [fixedAssetId], references: [id], onDelete: Restrict)
+  periodYear              Int
+  periodMonth             Int         // 1–12
+  amount                  Decimal     @db.Decimal(19, 4)
+  accumulatedDepreciation Decimal     @db.Decimal(19, 4)
+  bookValue               Decimal     @db.Decimal(19, 4)  // costo − depreciación acumulada
+  transactionId           String?     @unique              // → Transaction generada
+  transaction             Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  postedAt                DateTime?
+  createdAt               DateTime    @default(now())
+
+  @@unique([fixedAssetId, periodYear, periodMonth])
+  @@index([companyId, periodYear, periodMonth])
 }
