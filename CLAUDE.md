@@ -82,8 +82,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 14D ✅ merged (Validación RIF SENIAT — validateRifAction + RifInput + limiters.rif + Redis cache 24h + 13 tests)
 - Fase 12C ✅ merged (Asistente ISLR — islr-suggestions.ts 60+ keywords Decreto 1808 + badge sugerencia en RetentionForm + 23 tests)
 - Fase OCR-v2 ✅ merged (Migración schema VEN-NIF + Gemini Vision directo + pre-fill InvoiceForm + /invoices/upload + 14 tests)
+- Fase 20 ✅ merged (XML SENIAT descargable + QR code en PDF comprobante + botón XML en InvoiceBook — 30 tests)
 
-**626 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
+**656 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
 
 ## Git workflow — MANDATORY
 

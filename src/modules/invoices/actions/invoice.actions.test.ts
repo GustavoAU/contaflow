@@ -5,6 +5,7 @@ import {
   getInvoiceBookAction,
   exportInvoiceBookPDFAction,
   exportInvoiceVoucherPDFAction,
+  exportInvoiceXMLAction,
   getInvoicesPaginatedAction,
 } from "./invoice.actions";
 import { InvoiceService } from "../services/InvoiceService";
@@ -64,6 +65,20 @@ vi.mock("@/modules/invoices/services/InvoiceVoucherPDFService", () => ({
 vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
   ExchangeRateService: {
     getRateForDate: vi.fn(),
+  },
+}));
+
+vi.mock("../services/SeniatXMLService", () => ({
+  SeniatXMLService: {
+    generate: vi.fn().mockReturnValue('<FacturaSENIAT xmlns="urn:ve:seniat:factura:1.0"></FacturaSENIAT>'),
+    filename: vi.fn().mockReturnValue("factura-venta-0000001.xml"),
+    qrContent: vi.fn().mockReturnValue("CONTAFLOW:RIF=J-12345678-9;FACTURA=0000001"),
+  },
+}));
+
+vi.mock("qrcode", () => ({
+  default: {
+    toDataURL: vi.fn().mockResolvedValue("data:image/png;base64,fakeQR=="),
   },
 }));
 
@@ -555,5 +570,89 @@ describe("getInvoicesPaginatedAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("Error al obtener las facturas");
+  });
+});
+
+// ─── exportInvoiceXMLAction ───────────────────────────────────────────────────
+
+describe("exportInvoiceXMLAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1" } as never);
+    vi.mocked(InvoiceService.getById).mockResolvedValue(mockInvoice as never);
+  });
+
+  it("retorna error si no hay sesión autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna error si la empresa no pertenece al usuario", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+
+    const result = await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("retorna error si la factura no existe", async () => {
+    vi.mocked(InvoiceService.getById).mockResolvedValue(null as never);
+
+    const result = await exportInvoiceXMLAction("inv-999", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Factura no encontrada");
+  });
+
+  it("retorna XML y filename en happy path", async () => {
+    const result = await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.xml).toContain("FacturaSENIAT");
+      expect(result.filename).toBe("factura-venta-0000001.xml");
+    }
+  });
+
+  it("llama a SeniatXMLService.generate con datos correctos de la factura", async () => {
+    const { SeniatXMLService } = await import("../services/SeniatXMLService");
+
+    await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(SeniatXMLService.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyName: "Empresa Test C.A.",
+        companyRif: "J-12345678-9",
+        invoiceNumber: "0000001",
+        invoiceType: "SALE",
+        counterpartRif: "J-12345678-9",
+      })
+    );
+  });
+
+  it("aplica rate limiting (ADR-008 D-8)", async () => {
+    const { checkRateLimit } = await import("@/lib/ratelimit");
+
+    await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(checkRateLimit).toHaveBeenCalledWith("user-1", expect.anything());
+  });
+
+  it("retorna error genérico si SeniatXMLService.generate lanza excepción", async () => {
+    const { SeniatXMLService } = await import("../services/SeniatXMLService");
+    vi.mocked(SeniatXMLService.generate).mockImplementationOnce(() => {
+      throw new Error("XML error");
+    });
+
+    const result = await exportInvoiceXMLAction("inv-1", "company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Error al generar XML de factura");
   });
 });

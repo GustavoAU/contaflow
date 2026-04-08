@@ -537,166 +537,104 @@ Estándar requerido para competir con Gálac/CG1.
 
 **BLOQUEANTE 5 — DocTypes en aging:** `FACTURA` + `NOTA_DEBITO` suman deuda. `NOTA_CREDITO` la reduce (ver BLOQUEANTE 4). `REPORTE_Z` y `RESUMEN_VENTAS` excluidos del aging — son comprobantes de venta al detal, no instrumentos de cartera.
 
----
-
-### Decisiones de arquitectura
-
-**A. Modelo de datos — extensión de Invoice, no tabla separada**
-- CxC = `Invoice.type === 'SALE'` con saldo pendiente
-- CxP = `Invoice.type === 'PURCHASE'` con saldo pendiente
-- No se crea tabla `AccountsReceivable` / `AccountsPayable` — DRY, el libro de facturas ES la cartera
-
-**B. Buckets de antigüedad — fijos VEN-NIF**
-- Corriente: 0–30 días desde `dueDate`
-- Vencido 31–60 días
-- Vencido 61–90 días
-- Vencido 91–120 días
-- Vencido +120 días
-- Configurabilidad diferida a Fase 16B (YAGNI)
-
-**C. Pagos parciales — sí permitidos**
-- Múltiples `InvoicePayment` por `Invoice`
-- `Invoice.pendingAmount` desnormalizado, actualizado dentro del mismo `$transaction` al crear/cancelar un pago
-- `Invoice.paymentStatus` refleja estado actual
-
-**D. Separación CxC/CxP — por filtro, no por modelo**
-- `ReceivableService.getReceivables(companyId)` → `Invoice.type === 'SALE'`
-- `ReceivableService.getPayables(companyId)` → `Invoice.type === 'PURCHASE'`
-- Lógica de aging compartida vía `classifyAgingBucket()` (pure function)
-
-**E. Guard FiscalYearClose en pagos**
-- `recordPaymentAction` y `cancelPaymentAction` verifican que el año fiscal del Invoice no esté cerrado
-
-**F. IGTF en pagos de cartera**
-- Si el pago es en divisa (Zelle USD), aplica IGTF 3% usando lógica ya existente en `PaymentService.calcIgtf()`
-
-**G. pendingAmount inicial**
-- `pendingAmount = totalAmountVes - ivaRetentionAmount - islrRetentionAmount`
-- Las retenciones ya registradas en Invoice reducen el saldo que el deudor debe pagar
-
----
-
-### Schema Prisma — Adiciones
-
-**Nuevo enum:**
-
-```prisma
-enum InvoicePaymentStatus {
-  UNPAID     // Sin pagos
-  PARTIAL    // Pagado parcialmente
-  PAID       // Cancelado totalmente
-  VOIDED     // Factura anulada (deletedAt no nulo)
-}
-```
-
-**Campos nuevos en `Company`:**
-
-```prisma
-paymentTermDays Int @default(30)  // Fase 16: plazo de pago en días para auto-cálculo de dueDate
-```
-
-**Campos nuevos en `Invoice`:**
-
-```prisma
-// Fase 16: CxC/CxP
-dueDate        DateTime?                          // Auto-calculado: date + Company.paymentTermDays
-totalAmountVes Decimal?   @db.Decimal(19, 4)     // Total desnormalizado en VES
-pendingAmount  Decimal?   @db.Decimal(19, 4)     // Saldo pendiente VES (actualizado por InvoicePayment)
-paymentStatus  InvoicePaymentStatus @default(UNPAID)
-
-@@index([companyId, type, paymentStatus])         // queries de cartera
-@@index([companyId, type, dueDate])               // aging sort
-```
-
-**Nuevo modelo `InvoicePayment`:**
-
-```prisma
-model InvoicePayment {
-  id              String    @id @default(cuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  invoiceId       String
-  invoice         Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  amount          Decimal   @db.Decimal(19, 4)   // monto en VES
-  currency        Currency  @default(VES)
-  amountOriginal  Decimal?  @db.Decimal(19, 4)   // monto en moneda original (si no VES)
-  exchangeRateId  String?
-  method          PaymentMethod
-  referenceNumber String?
-  originBank      String?
-  destBank        String?
-  commissionPct   Decimal?  @db.Decimal(5, 4)
-  igtfAmount      Decimal?  @db.Decimal(19, 4)
-  date            DateTime
-  notes           String?
-  createdBy       String
-  createdAt       DateTime  @default(now())
-  idempotencyKey  String    @unique
-  deletedAt       DateTime?
-  deletedBy       String?
-
-  @@index([invoiceId])
-  @@index([companyId, date])
-}
-```
-
-**Migración:** `feat_16_receivable_portfolio`
-
----
-
-### Contratos de servicio — firmas TypeScript
+### Contratos de función
 
 ```typescript
-// src/modules/receivables/services/ReceivableService.ts
+// Archivo owner: src/modules/receivables/services/ReceivableService.ts
 
-type AgingBucket = "CURRENT" | "OVERDUE_31_60" | "OVERDUE_61_90" | "OVERDUE_91_120" | "OVERDUE_120_PLUS"
+/**
+ * Retorna el portfolio de CxC (type=SALE) o CxP (type=PURCHASE).
+ * Incluye solo facturas con paymentStatus !== VOIDED y deletedAt IS NULL.
+ * Calcula antigüedad de saldos (aging) al momento de la llamada.
+ */
+async function getReceivables(companyId: string): Promise<InvoiceWithAging[]>
+async function getPayables(companyId: string): Promise<InvoiceWithAging[]>
 
-type ReceivableRow = {
-  invoiceId: string
+type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
+
+type InvoiceWithAging = {
+  id: string
   invoiceNumber: string
-  controlNumber: string | null
-  docType: string
   counterpartName: string
   counterpartRif: string
-  invoiceDate: Date
+  date: Date
   dueDate: Date | null
-  currency: string
-  totalAmountOriginal: string
-  totalAmountVes: string
-  paidAmountVes: string
-  pendingAmountVes: string
+  totalAmountVes: Decimal
+  pendingAmount: Decimal
+  paymentStatus: InvoicePaymentStatus
+  agingBucket: AgingBucket
   daysOverdue: number
-  bucket: AgingBucket
-  paymentStatus: string
 }
 
-type AgingReport = {
-  type: "CXC" | "CXP"
-  asOf: Date
-  rows: ReceivableRow[]
-  bucketSummary: Array<{ bucket: AgingBucket; label: string; count: number; totalPendingVes: string }>
-  grandTotalPendingVes: string
-  grandTotalCurrentVes: string
-  grandTotalOverdueVes: string
-}
+/**
+ * Clasifica una factura en su bucket de antigüedad (pure function, sin DB).
+ * Referencia: today = fecha de llamada. dueDate puede ser null (sin vencimiento definido).
+ */
+function classifyAgingBucket(dueDate: Date | null, today: Date): AgingBucket
 
-// Pure function — sin side effects
-function classifyAgingBucket(dueDate: Date | null, invoiceDate: Date, asOf: Date): AgingBucket
+/**
+ * Registra un pago de cartera sobre una factura.
+ *
+ * Precondiciones:
+ *   - La factura pertenece a companyId
+ *   - La factura tiene deletedAt IS NULL y paymentStatus !== VOIDED
+ *   - amount <= pendingAmount (con tolerancia de 1 centavo)
+ *   - El año de la factura no está cerrado (FiscalYearClose guard)
+ *
+ * Proceso (dentro de $transaction ReadCommitted):
+ *   1. Verificar precondiciones (re-leer Invoice dentro de la tx)
+ *   2. Crear InvoicePayment con idempotencyKey
+ *   3. Actualizar Invoice.pendingAmount -= amount
+ *   4. Actualizar Invoice.paymentStatus (PARTIAL o PAID según pendingAmount resultante)
+ *   5. Si currency != VES y isSpecialContributor: calcular y crear IGTFTransaction
+ *   6. AuditLog dentro del mismo $transaction
+ *
+ * Postcondiciones:
+ *   - InvoicePayment creado
+ *   - Invoice.pendingAmount actualizado
+ *   - Invoice.paymentStatus actualizado
+ */
+async function recordPayment(
+  companyId: string,
+  invoiceId: string,
+  amount: Decimal,
+  currency: Currency,
+  method: PaymentMethod,
+  recordedBy: string,
+  idempotencyKey: string,
+  options?: {
+    exchangeRateId?: string
+    amountOriginal?: Decimal
+    referenceNumber?: string
+    originBank?: string
+    destBank?: string
+    commissionPct?: Decimal
+    igtfAmount?: Decimal
+    date?: Date
+    notes?: string
+  }
+): Promise<InvoicePayment>
 
-// CxC: type=SALE, paymentStatus != PAID, deletedAt IS NULL
-// DocTypes incluidos: FACTURA, NOTA_DEBITO (suman). NOTA_CREDITO: netea contra original via relatedDocNumber
-async function getReceivables(companyId: string, asOf?: Date): Promise<AgingReport>
-
-// CxP: type=PURCHASE, misma lógica
-async function getPayables(companyId: string, asOf?: Date): Promise<AgingReport>
-
-// Registra pago — actualiza pendingAmount + paymentStatus dentro de $transaction
-// Guard: FiscalYearClose, idempotencyKey, paymentAmount <= pendingAmount
-async function recordPayment(input: RecordPaymentInput): Promise<InvoicePaymentSummary>
-
-// Soft delete de pago — revierte pendingAmount + paymentStatus dentro de $transaction
-// Guard: FiscalYearClose, deletedAt IS NULL
-async function cancelPayment(paymentId: string, companyId: string, cancelledBy: string): Promise<void>
+/**
+ * Anula (soft delete) un pago de cartera y revierte pendingAmount en la factura.
+ *
+ * Precondiciones:
+ *   - El pago pertenece a companyId
+ *   - El pago tiene deletedAt IS NULL
+ *   - El año de la factura no está cerrado (FiscalYearClose guard)
+ *   - El usuario tiene rol ADMIN o ACCOUNTANT (ADR-006 D-1)
+ *
+ * Proceso (dentro de $transaction ReadCommitted):
+ *   1. Soft delete del InvoicePayment (deletedAt = now, deletedBy = userId)
+ *   2. Revertir Invoice.pendingAmount += payment.amount
+ *   3. Recalcular Invoice.paymentStatus
+ *   4. AuditLog dentro del mismo $transaction
+ */
+async function cancelPayment(
+  companyId: string,
+  paymentId: string,
+  cancelledBy: string
+): Promise<void>
 
 // Pagos activos de una factura (deletedAt IS NULL), ordenados por date ASC
 async function getPaymentsByInvoice(invoiceId: string, companyId: string): Promise<InvoicePaymentSummary[]>
@@ -815,60 +753,12 @@ model BankStatement {
 
   @@index([bankAccountId])
 }
-
-model BankTransaction {
-  id                    String              @id @default(cuid())
-  statementId           String
-  statement             BankStatement       @relation(fields: [statementId], references: [id], onDelete: Restrict)
-  date                  DateTime            @db.Date
-  description           String
-  type                  BankTransactionType
-  amount                Decimal             @db.Decimal(19, 4)
-  reference             String?
-  isReconciled          Boolean             @default(false)
-  matchedPaymentId      String?
-  matchedPayment        InvoicePayment?     @relation(fields: [matchedPaymentId], references: [id], onDelete: Restrict)
-  matchedJournalEntryId String?             // nullable sin FK — Fase 18 (B3)
-  matchedAt             DateTime?
-  matchedBy             String?
-  deletedAt             DateTime?
-  createdAt             DateTime            @default(now())
-
-  @@index([statementId])
-  @@index([matchedPaymentId])
-}
 ```
 
-#### Decisión sobre matchedPaymentId — FK real mantenida DECIDIDO ✅
-
-El schema actual ya tiene FK real hacia `InvoicePayment` con `onDelete: Restrict`. Esto es más fuerte que la especificación original "sin FK hasta Fase 18" y es correcto: `onDelete: Restrict` impide borrar un `InvoicePayment` que ya fue conciliado, lo cual es la protección exacta que necesita la integridad contable. Se mantiene la FK implementada. No hay rollback.
-
-#### Gaps de schema — migración complementaria requerida
-
-| Modelo | Campo | Tipo | Gap | Acción |
-|---|---|---|---|---|
-| `BankAccount` | `accountNumber` | `String?` | No existe | ADD COLUMN |
-| `BankAccount` | `closingBalance` | `Decimal @db.Decimal(19,4) @default(0)` | No existe | ADD COLUMN |
-| `BankAccount` | `deletedAt` | `DateTime?` | No existe | ADD COLUMN |
-| `BankStatement` | `importedAt` | `DateTime @default(now())` | Existe como `uploadedAt` | RENAME (con columna legacy transitoria) |
-| `BankStatement` | `importedBy` | `String` | Existe como `uploadedBy` | RENAME (con columna legacy transitoria) |
-| `BankStatement` | `deletedAt` | `DateTime?` | No existe | ADD COLUMN |
-| `BankTransaction` | `isReconciled` | `Boolean @default(false)` | No existe | ADD COLUMN |
-| `BankTransaction` | `deletedAt` | `DateTime?` | No existe | ADD COLUMN |
-
-**Migración sugerida:** `add_banking_reconciliation_v2`
-
-**Estrategia de renombramiento seguro para `uploadedAt` / `uploadedBy`:**
-1. Migración 1: ADD COLUMN `importedAt`, `importedBy` con valores por defecto copiados de `uploadedAt`/`uploadedBy`
-2. Migración 2 (después de deploy y verificación): DROP COLUMN `uploadedAt`, `uploadedBy`
-3. Prisma schema: mantener ambas columnas como opcionales durante la transición
-
----
-
-### 17.2 Contrato de Servicio — BankingService
+### Contratos de función (BankingService)
 
 ```typescript
-// src/modules/banking/services/BankingService.ts
+// Archivo owner: src/modules/bank-reconciliation/services/BankingService.ts
 
 /**
  * Importa un extracto bancario desde filas CSV ya parseadas.
@@ -876,26 +766,18 @@ El schema actual ya tiene FK real hacia `InvoicePayment` con `onDelete: Restrict
  * Precondiciones:
  *   - bankAccountId pertenece a companyId
  *   - csvRows.length >= 1
- *   - No existe BankStatement con el mismo (bankAccountId, periodStart, periodEnd) activo
+ *   - openingBalance + sum(credits) - sum(debits) === closingBalance (tolerancia 0.01)
  *
  * Proceso (dentro de $transaction ReadCommitted):
- *   1. Crear BankStatement con openingBalance inferido del primer balance o del closingBalance anterior
- *   2. Crear todas las BankTransaction hijas con isReconciled = false
- *   3. Actualizar BankAccount.closingBalance con el closingBalance del nuevo statement (B4)
- *   4. AuditLog dentro del mismo $transaction
+ *   1. Verificar que bankAccount.companyId === companyId
+ *   2. Crear BankStatement con periodStart/End inferidos de las fechas CSV
+ *   3. Crear BankTransaction[] hijos
+ *   4. Actualizar BankAccount.closingBalance = closingBalance del statement
+ *   5. AuditLog
  *
  * Postcondiciones:
- *   - BankStatement creado con status OPEN
- *   - N BankTransaction creadas con isReconciled = false
+ *   - BankStatement creado con todas sus transacciones
  *   - BankAccount.closingBalance actualizado
- *
- * Errores de negocio:
- *   - "Extracto duplicado para este período" → constraint unique por período
- *   - "El balance del CSV no cuadra" → validateCsvBalance retorna { valid: false }
- *
- * Nota de concurrencia:
- *   - Read Committed suficiente — no genera correlativo fiscal
- *   - No requiere Serializable
  */
 async function importStatement(
   bankAccountId: string,
@@ -957,45 +839,17 @@ async function reconcileTransaction(
  *   1. Limpiar matchedPaymentId, matchedAt, matchedBy
  *   2. Establecer isReconciled = false
  *   3. AuditLog dentro del mismo $transaction
- *
- * Notas:
- *   - No revierte el InvoicePayment — solo rompe el vínculo de conciliación
- *   - Operación contablemente segura: no altera saldos
  */
 async function unreconcileTransaction(
   transactionId: string,
   companyId: string,
-  unreconciledBy: string  // userId Clerk
+  unreconciledBy: string
 ): Promise<BankTransaction>
-
-/**
- * Calcula el resumen de conciliación de un extracto bancario.
- *
- * difference = closingBalance - (openingBalance + sum(credits) - sum(debits))
- * Un difference !== 0 indica transacciones faltantes o errores en el CSV.
- *
- * Nota: llamar fuera de $transaction — Read Committed suficiente.
- */
-async function getReconciliationSummary(
-  bankStatementId: string,
-  companyId: string
-): Promise<ReconciliationSummary>
-
-type ReconciliationSummary = {
-  total: number          // total de transacciones en el extracto
-  reconciled: number     // isReconciled === true
-  pending: number        // isReconciled === false
-  difference: Decimal    // closingBalance - (openingBalance + credits - debits) — debe ser 0
-}
 ```
 
----
-
-### 17.3 Contrato de Parseo CSV — CsvParserService
+### Contratos de función (CsvImporter)
 
 ```typescript
-// src/modules/banking/services/CsvParserService.ts
-
 /**
  * Tipo de fila CSV ya parseada y normalizada.
  * Invariante: debit XOR credit tiene valor — nunca ambos, nunca ninguno.
@@ -1413,3 +1267,144 @@ Fix: `pool: "vmForks"` en `vitest.config.ts`. Desbloqueó todos los tests del pr
 **Solución futura a evaluar:** Neon RLS nativo con JWT Clerk (no requiere `SET LOCAL` — Neon lee el JWT directamente).
 
 **Prioridad:** implementar después de Fase 17, antes de Fase 19. No bloquea ninguna fase actual.
+
+---
+
+## 19. Declaración Mensual IVA — Forma 30 SENIAT (ARCH 2026-04-07)
+
+- Estado: DECIDIDO ✅
+- ADR de referencia: `.claude/adr/ADR-009-forma30-iva.md`
+
+### Decisiones clave (no re-derivar)
+
+- **D-1** DECIDIDO ✅ — Cálculo on-the-fly. Sin modelo `DeclaracionIVA` en Prisma. La Forma 30 es un reporte derivado 100% de datos ya auditados. Riesgo de desync con modelo persistido > beneficio de lectura O(1).
+- **D-2** DECIDIDO ✅ — Read Committed. No hay escritura. `$transaction` Serializable no requerido. `tx` opcional para uso embebido en transacciones del caller.
+- **D-3** DECIDIDO ✅ — Facturas con `deletedAt != null` excluidas. `NOTA_CREDITO` invierte signo de base y tax en Sección A. `NO_SUJETA` excluida de todos los totales.
+- **D-4** DECIDIDO ✅ — Mapeo TaxLineType → secciones: IVA_GENERAL→A1/B1, IVA_REDUCIDO→A2/B2, IVA_ADICIONAL→A3/B3, EXENTO+EXONERADA→A4/B4.
+- **D-5** DECIDIDO ✅ — Retenciones sufridas desde `Invoice(SALE).ivaRetentionAmount`; practicadas desde `Retencion.ivaRetention`. Solo si `company.isSpecialContributor = true`.
+- **D-6** DECIDIDO ✅ — IGTF desde `IGTFTransaction` filtrado por `createdAt` (gte/lt período completo UTC).
+- **D-7** DECIDIDO ✅ — Autorización: cualquier `companyMember` (VIEWER incluido). Rate limiting `limiters.fiscal` aplicado para proteger query costosa.
+- **D-8** DECIDIDO ✅ — PDF Export diferido a Fase 19B. Fase 19 produce solo `Forma30Result` JSON.
+
+### Módulo owner
+
+```
+src/modules/iva-declaration/
+  types/forma30.types.ts          ← Forma30Result + interfaces de secciones
+  schemas/generarForma30.schema.ts ← GenerarForma30Schema (Zod)
+  services/DeclaracionIVAService.ts ← calculate(companyId, year, month, tx?)
+  actions/generarForma30.action.ts  ← generarForma30Action
+  __tests__/DeclaracionIVAService.test.ts
+  __tests__/generarForma30.action.test.ts
+```
+
+### Contrato de generarForma30Action
+
+```typescript
+// Flujo de autorización (en este orden):
+// 1. auth() → userId
+// 2. checkRateLimit(limiters.fiscal, userId)
+// 3. safeParse(GenerarForma30Schema, { companyId, year, month })
+// 4. companyMember.findUnique({ userId_companyId }) — cualquier role
+// 5. FiscalYearCloseService.isFiscalYearClosed(companyId, year) → fiscalYearClosed (informativo, no bloquea)
+// 6. DeclaracionIVAService.calculate(companyId, year, month)
+
+async function generarForma30Action(
+  companyId: string,
+  year: number,
+  month: number
+): Promise<ActionResult<Forma30Result & { fiscalYearClosed: boolean }>>
+```
+
+### Schema Zod de input
+
+```typescript
+// src/modules/iva-declaration/schemas/generarForma30.schema.ts
+export const GenerarForma30Schema = z.object({
+  companyId: z.string().cuid({ error: "companyId inválido" }),
+  year: z.number().int().min(2020, { error: "Año mínimo: 2020" }).max(2099, { error: "Año máximo: 2099" }),
+  month: z.number().int().min(1, { error: "Mes mínimo: 1" }).max(12, { error: "Mes máximo: 12" }),
+});
+// Sin campos de tasa fiscal — ADR-006 D-3
+```
+
+### Checklist SCHEMA_AUDITOR
+
+- [x] Sin nuevo modelo Prisma — sin migración — riesgo cero
+- [x] Todos los campos monetarios en Forma30Result usan Decimal.js — nunca float (ADR-002)
+- [x] Todas las queries internas incluyen `companyId` (ADR-004)
+- [x] No hay campos de tasa en el schema Zod de input (ADR-006 D-3)
+- [x] No hay AuditLog (lectura pura — no aplica ADR-006 D-4)
+- [x] Rate limiting `limiters.fiscal` aplicado (ADR-006 D-5 espíritu)
+- [x] `generarForma30Action` es lectura: cualquier role, sin role check ADMIN (ADR-006 D-1)
+- [x] `DeclaracionIVAService` en allowlist de `company-isolation.test.ts` si no usa `findMany`/`findFirst` directamente
+
+### Tests requeridos
+
+```
+DeclaracionIVAService.test.ts:
+  calculate — período sin facturas → todos los montos Decimal(0)
+  calculate — NOTA_CREDITO invierte signo en SeccionA
+  calculate — IVA_ADICIONAL aparece en A3/B3 sin duplicar base de A1/B1
+  calculate — deletedAt excluye la factura de todos los totales
+  calculate — isSpecialContributor=false → SeccionC.retencionesIvaSufridas = 0
+  calculate — isSpecialContributor=true → SeccionC populated desde Retencion
+  calculate — IGTF sumado desde IGTFTransaction del período
+  calculate — SeccionE.cuotaPeriodo = A.total - B.total - C.total
+  calculate — SeccionE.esSaldoAFavor=true si cuotaPeriodo < 0
+
+generarForma30.action.test.ts:
+  generarForma30Action — sin auth → error
+  generarForma30Action — sin membership → error
+  generarForma30Action — input inválido (month=13) → error Zod
+  generarForma30Action — año cerrado → fiscalYearClosed=true, NO bloquea
+  generarForma30Action — año abierto → fiscalYearClosed=false, calcula normalmente
+  generarForma30Action — rate limit excedido → error
+```
+
+### Ruta nueva
+
+```
+/company/[companyId]/iva-declaration   → selector año/mes → tabla Forma 30 secciones A/B/C/D/E
+```
+
+---
+
+## 20. Fase 20 — XML SENIAT + QR en PDF de Factura (ARCH 2026-04-07)
+
+- Estado: DECIDIDO ✅
+
+### Contexto
+
+Venezuela no tiene un sistema de e-facturación mandatorio operativo (SDCA anunciado pero no desplegado). El XML es un artefacto descargable útil hoy para:
+1. Importación en software de terceros (Galac, AdminSys)
+2. Documentación estructurada interna
+3. Compatibilidad futura cuando SENIAT active el SDCA (Option C)
+
+El QR embebido en el PDF permite verificación rápida en auditorías sin necesidad de portal externo.
+
+### Decisiones clave
+
+- **D-1** DECIDIDO ✅ — XML generado como string puro (sin xmlbuilder ni fast-xml-parser). La estructura es estática y conocida; una librería sería over-engineering (KISS).
+- **D-2** DECIDIDO ✅ — Namespace `urn:ve:seniat:factura:1.0` — basado en Providencia 0071. No es un namespace oficial publicado por SENIAT (no existe API pública), pero sigue la convención de namespacing por organización/país/dominio.
+- **D-3** DECIDIDO ✅ — QR generado server-side con `qrcode` (Node.js) como data URL base64. Se pasa al PDF como `qrCodeDataUrl?: string`. No se agrega QR al libro PDF (solo al comprobante individual).
+- **D-4** DECIDIDO ✅ — Contenido del QR: `CONTAFLOW:RIF={rif};FACTURA={nro};CONTROL={ctrl};TOTAL={total};FECHA={fecha};MONEDA={moneda}`. Formato propietario legible por cualquier escáner QR estándar.
+- **D-5** DECIDIDO ✅ — `exportInvoiceXMLAction` retorna `{ success: true; xml: string; filename: string }`. El cliente hace `Blob` + download link en el browser (mismo patrón que PDF).
+- **D-6** DECIDIDO ✅ — Escape XML obligatorio en todos los valores de texto: `&`, `<`, `>`, `"`, `'` → entidades XML. `escapeXml()` helper privado en `SeniatXMLService`.
+- **D-7** DECIDIDO ✅ — Los campos opcionales (`controlNumber`, `companyAddress`, `ivaRetention`, `islrRetention`, `igtf`) se omiten del XML si son null/undefined/cero. XML limpio sin nodos vacíos.
+- **D-8** DECIDIDO ✅ — Rate limiting: `exportInvoiceXMLAction` usa `limiters.fiscal` (30/min). Sin rate limit dedicado — el XML es menos costoso que PDF.
+
+### Módulo owner
+
+`src/modules/invoices/services/SeniatXMLService.ts`
+
+### Archivos creados/modificados
+
+```
+src/modules/invoices/services/SeniatXMLService.ts          (nuevo)
+src/modules/invoices/services/SeniatXMLService.test.ts     (nuevo)
+src/modules/invoices/services/InvoiceVoucherPDFService.ts  (+ qrCodeDataUrl param)
+src/modules/invoices/actions/invoice.actions.ts            (+ exportInvoiceXMLAction)
+src/modules/invoices/actions/invoice.actions.test.ts       (+ tests XML)
+src/components/invoices/InvoiceBook.tsx                    (+ botón XML por fila)
+```
