@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 21 completada. Última sincronización: 2026-04-07_
-_v3.3: Fase 21 Activos Fijos y Depreciación (VEN-NIF 16). 691 tests GREEN._
+_Versión actualizada — Fase 22 completada. Última sincronización: 2026-04-07_
+_v3.4: Fase 22 Ajuste por Inflación INPC (VEN-NIF 3). 723 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -282,8 +282,8 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 691/691 passing · **CI**: ✅ verde
-**Último commit**: `edf6d16` — Fase 21 Activos Fijos y Depreciación
+**Tests**: 723/723 passing · **CI**: ✅ verde
+**Último commit**: `a1801b7` — Fase 22 Ajuste por Inflación INPC (VEN-NIF 3)
 
 ### Fases completadas (en orden cronológico)
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
@@ -534,7 +534,8 @@ model FiscalYearClose {
 - ✅ Fase OCR-v2: Migración schema VEN-NIF + Gemini Vision + pre-fill InvoiceForm — completada 2026-04-07
 - ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante — completada 2026-04-07 (ver sección 36)
 - ✅ Fase 21: Activos Fijos y Depreciación VEN-NIF 16 — completada 2026-04-07 (ver sección 37)
-- ⏳ Fase 22: Ajuste por Inflación Fiscal (INPC)
+- ✅ Fase 22: Ajuste por Inflación INPC (VEN-NIF 3) — completada 2026-04-07 (ver sección 38)
+- ⏳ Fase 23: Nómina y retenciones laborales (ISLR/SS/FAOV/LPH)
 - ⏳ Fase 23: Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
   - ⏳ Fase 23B: Empleados y conceptos
@@ -1217,6 +1218,70 @@ model DepreciationEntry {
 - 22 tests `FixedAssetService.test.ts`: los 3 métodos con fixtures exactos, cap al final, schedule completo, cruce año diciembre→enero (UTC fix)
 - 13 tests `fixed-asset.actions.test.ts`: auth, roles, año cerrado, happy paths
 - **691 tests GREEN | 0 TS errors**
+
+## 38. Fase 22 — Ajuste por Inflación INPC (VEN-NIF 3) ✅ completada 2026-04-07
+
+### Módulo `src/modules/inflation/`
+
+VEN-NIF 3 (NIC 29) — reexpresión de estados financieros en unidad de poder adquisitivo corriente usando el INPC publicado por el BCV.
+
+### Schema
+
+```prisma
+model INPCRate {
+  companyId   String; year Int; month Int; indexValue Decimal(18,6)
+  @@unique([companyId, year, month])
+  onDelete: Restrict (ADR-003)
+}
+
+model InflationAdjustment {
+  companyId; periodYear; periodMonth; baseYear; baseMonth
+  accountId; originalAmount Decimal(19,4); adjustmentAmount Decimal(19,4)
+  cumulativeIndex Decimal(18,6)
+  transactionId String  // NON-NULLABLE — VEN-NIF 3 (ADR-008 D-1)
+  @@unique([companyId, periodYear, periodMonth, accountId])
+  onDelete: Restrict (ADR-003)
+}
+// Company: inflationBaseYear Int?; inflationBaseMonth Int?
+```
+
+### Fórmulas
+
+| Variable | Fórmula |
+|---|---|
+| factor | `currentINPC / baseINPC` |
+| adjustmentAmount | `accountBalance × (factor − 1)` |
+| contrapartida | `−Σ(adjustments)` → cuenta actualizadora (EQUITY) |
+
+### Pure functions (testables)
+
+- `calcInflationFactor(baseIndex, currentIndex)` — lanza si baseIndex ≤ 0
+- `calcAdjustmentAmount(balance, factor)` — hereda signo del saldo (débito/crédito correcto para todos los tipos)
+- `lastDayOfMonth(year, month)` — UTC, para filtrar saldos del período
+
+### Correcciones aprobadas (vs propuesta inicial)
+
+1. **Scope completo**: ASSET + LIABILITY + EQUITY + REVENUE + EXPENSE
+2. **transactionId NON-NULLABLE** — ADR-008 D-1
+3. **inflationBaseYear/Month en Company** — ADR-008 D-3
+4. **FiscalYearClose guard** en `runInflationAdjustmentAction` — ADR-008 D-7
+5. **Preview detallado antes del AlertDialog** — muestra tabla de asientos proyectados
+
+### Acciones
+
+| Acción | Rol | Guard |
+|---|---|---|
+| `upsertINPCRateAction` | ACCOUNTANT+ | rate limit |
+| `getINPCRatesAction` | cualquier miembro | — |
+| `setInflationBaseAction` | ADMIN | — |
+| `previewInflationAdjustmentAction` | cualquier miembro | — |
+| `runInflationAdjustmentAction` | ADMIN | FiscalYearClose + Serializable |
+
+### Tests
+
+- 15 tests `INPCService.test.ts`: calcInflationFactor (5), calcAdjustmentAmount (5), lastDayOfMonth (5), invarianzas contables (2 — partida doble + roundtrip)
+- 17 tests `inpc.actions.test.ts`: auth, VIEWER reject, ADMIN-only, FiscalYearClose guard, validación Zod
+- **723 tests GREEN | 0 TS errors**
 
 ## 35. Fase 19 — Declaración Mensual IVA (Forma 30 SENIAT) ✅ completada 2026-04-07
 

@@ -101,6 +101,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
           href: `/company/${companyId}/fixed-assets`,
           icon: Building2,
         },
+        {
+          label: "Inflación INPC",
+          href: `/company/${companyId}/inflation`,
+          icon: TrendingUpIcon,
+        },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
     : [];
