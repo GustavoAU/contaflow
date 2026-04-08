@@ -1,5 +1,5 @@
 // src/modules/invoices/services/InvoiceVoucherPDFService.ts
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
+import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
 import React from "react"
 import { Decimal } from "decimal.js"
 
@@ -32,6 +32,8 @@ export type InvoiceVoucherPDFParams = {
   // IGTF (opcional)
   igtfBase?: string
   igtfAmount?: string
+  // QR code (Fase 20 — opcional, data URL base64)
+  qrCodeDataUrl?: string
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -113,6 +115,10 @@ const styles = StyleSheet.create({
     borderLeft: "3pt solid #d97706",
   },
   retentionTitle: { fontSize: 9, fontWeight: "bold", marginBottom: 4, color: "#92400e" },
+  // QR code
+  qrSection: { marginTop: 12, flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  qrImage: { width: 60, height: 60 },
+  qrLabel: { fontSize: 7, color: "#6b7280", marginTop: 2 },
   // Footer
   footer: {
     position: "absolute",
@@ -303,6 +309,21 @@ function RetentionIgtfSection({ p }: { p: InvoiceVoucherPDFParams }) {
   )
 }
 
+function QRSection({ p }: { p: InvoiceVoucherPDFParams }) {
+  if (!p.qrCodeDataUrl) return null
+  return React.createElement(
+    View,
+    { style: styles.qrSection },
+    React.createElement(Image, { style: styles.qrImage, src: p.qrCodeDataUrl }),
+    React.createElement(
+      View,
+      null,
+      React.createElement(Text, { style: styles.qrLabel }, "Verificación rápida"),
+      React.createElement(Text, { style: styles.qrLabel }, `Factura N° ${p.invoiceNumber}`),
+    ),
+  )
+}
+
 // ─── Documento completo ───────────────────────────────────────────────────────
 function InvoiceVoucherDocument({ params }: { params: InvoiceVoucherPDFParams }) {
   return React.createElement(
@@ -317,6 +338,7 @@ function InvoiceVoucherDocument({ params }: { params: InvoiceVoucherPDFParams })
       React.createElement(TaxLinesTable, { p: params }),
       React.createElement(TotalsSection, { p: params }),
       React.createElement(RetentionIgtfSection, { p: params }),
+      React.createElement(QRSection, { p: params }),
       // Footer con paginación
       React.createElement(
         View,

@@ -14,6 +14,9 @@ import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYe
 import type { Currency } from "@prisma/client";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
+import { SeniatXMLService } from "../services/SeniatXMLService";
+import { Decimal } from "decimal.js";
+import qrcode from "qrcode";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -231,6 +234,31 @@ export async function exportInvoiceVoucherPDFAction(
     const invoice = await InvoiceService.getById(invoiceId, companyId);
     if (!invoice) return { success: false, error: "Factura no encontrada" };
 
+    // Convertir taxLines a strings primero — usado tanto para QR como para PDF
+    const mappedTaxLines = invoice.taxLines.map((l) => ({
+      taxType: l.taxType,
+      base: l.base.toFixed(2),
+      rate: l.rate.toFixed(2),
+      amount: l.amount.toFixed(2),
+    }));
+    const totalBase = mappedTaxLines.reduce(
+      (acc, l) => acc.plus(l.base), new Decimal(0)
+    ).toFixed(2);
+    const totalIva = mappedTaxLines.reduce(
+      (acc, l) => acc.plus(l.amount), new Decimal(0)
+    ).toFixed(2);
+    const montoTotal = new Decimal(totalBase).plus(totalIva).toFixed(2);
+
+    const qrContent = SeniatXMLService.qrContent({
+      companyRif: invoice.company.rif ?? "",
+      invoiceNumber: invoice.invoiceNumber,
+      controlNumber: invoice.controlNumber,
+      date: invoice.date,
+      currency: invoice.currency,
+      montoTotal,
+    });
+    const qrCodeDataUrl = await qrcode.toDataURL(qrContent, { width: 120, margin: 1 });
+
     const pdfBuffer = await generateInvoiceVoucherPDF({
       companyName: invoice.company.name,
       companyRif: invoice.company.rif ?? "",
@@ -240,6 +268,58 @@ export async function exportInvoiceVoucherPDFAction(
       invoiceType: invoice.type,
       docType: invoice.docType,
       date: invoice.date,
+      counterpartName: invoice.counterpartName,
+      counterpartRif: invoice.counterpartRif,
+      taxLines: mappedTaxLines,
+      ivaRetentionAmount: invoice.ivaRetentionAmount.toFixed(2),
+      ivaRetentionVoucher: invoice.ivaRetentionVoucher,
+      islrRetentionAmount: invoice.islrRetentionAmount.toFixed(2),
+      igtfBase: invoice.igtfBase.toFixed(2),
+      igtfAmount: invoice.igtfAmount.toFixed(2),
+      qrCodeDataUrl,
+    });
+
+    return { success: true, buffer: Array.from(pdfBuffer) };
+  } catch {
+    return { success: false, error: "Error al generar PDF de factura" };
+  }
+}
+
+// ─── Exportar XML SENIAT de una factura individual ────────────────────────────
+/**
+ * Genera el XML SENIAT (Providencia 0071) de una factura individual.
+ * ADR-008: retorna el XML como string; el cliente hace Blob + download.
+ * Rate limiting: limiters.fiscal (30/min).
+ */
+export async function exportInvoiceXMLAction(
+  invoiceId: string,
+  companyId: string,
+): Promise<{ success: true; xml: string; filename: string } | { success: false; error: string }> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+    });
+    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const invoice = await InvoiceService.getById(invoiceId, companyId);
+    if (!invoice) return { success: false, error: "Factura no encontrada" };
+
+    const xml = SeniatXMLService.generate({
+      companyName: invoice.company.name,
+      companyRif: invoice.company.rif ?? "",
+      companyAddress: invoice.company.address,
+      invoiceType: invoice.type,
+      docType: invoice.docType,
+      invoiceNumber: invoice.invoiceNumber,
+      controlNumber: invoice.controlNumber,
+      date: invoice.date,
+      currency: invoice.currency,
       counterpartName: invoice.counterpartName,
       counterpartRif: invoice.counterpartRif,
       taxLines: invoice.taxLines.map((l) => ({
@@ -255,9 +335,14 @@ export async function exportInvoiceVoucherPDFAction(
       igtfAmount: invoice.igtfAmount.toFixed(2),
     });
 
-    return { success: true, buffer: Array.from(pdfBuffer) };
+    const filename = SeniatXMLService.filename({
+      invoiceType: invoice.type,
+      invoiceNumber: invoice.invoiceNumber,
+    });
+
+    return { success: true, xml, filename };
   } catch {
-    return { success: false, error: "Error al generar PDF de factura" };
+    return { success: false, error: "Error al generar XML de factura" };
   }
 }
 
