@@ -1408,3 +1408,71 @@ src/modules/invoices/actions/invoice.actions.ts            (+ exportInvoiceXMLAc
 src/modules/invoices/actions/invoice.actions.test.ts       (+ tests XML)
 src/components/invoices/InvoiceBook.tsx                    (+ botón XML por fila)
 ```
+
+---
+
+## ADR-010 — Testing Strategy (ARCH 2026-04-08)
+
+- Estado: DECIDIDO ✅
+
+### Contexto
+
+El proyecto acumula 753 tests unitarios con mocks. Los mocks permiten velocidad de desarrollo pero ocultan divergencias entre el comportamiento simulado y el real de PostgreSQL (Neon + Serializable). Necesitamos una estrategia por tiers que sea sostenible sin bloquear el ciclo de desarrollo.
+
+### Decisiones
+
+- **D-1** Unit tests (Vitest + mocks): toda la lógica de negocio pura, services, actions. Sin DB real. Patrón actual. Corren en `vitest run` local y CI. Mock pattern obligatorio: `vi.mocked(prisma.modelo.metodo).mockResolvedValue([] as never)`.
+
+- **D-2** Integration tests (Vitest + DB real): operaciones que dependen del comportamiento real de PostgreSQL. **Obligatorio** para:
+  - `getNextControlNumber` — Serializable + SELECT FOR UPDATE (race condition no detectable con mocks)
+  - `runInflationAdjustmentAction` — guards encadenados FiscalYearClose + Serializable
+  - `BankReconciliationService` — 3-way match con transacciones reales
+  - Ubicación: `src/__tests__/integration/`
+  - Variable de entorno: `DATABASE_URL_TEST` (nunca `DATABASE_URL` de producción)
+  - Solo corren con `vitest run --project integration`. Excluidos del `vitest run` por defecto.
+  - Tag de identificación: `@integration` en el nombre del describe.
+
+- **D-3** E2E (Playwright — Fase futura): smoke tests de rutas críticas:
+  - `/invoices/upload` (OCR → pre-fill)
+  - `/iva-declaration` (Forma 30 generación)
+  - Flujo completo de conciliación bancaria (PDF → auto-match → confirm)
+  - No bloquea ninguna fase actual. Implementar cuando haya staging environment estable.
+
+- **D-4** Cobertura mínima por fase: al menos **2–3 casos negativos no triviales** por servicio nuevo (no solo happy path + auth). Edge cases esperados para ContaFlow:
+  - Montos con formato inesperado (string vacío, null donde se espera number, formato no venezolano)
+  - PDFs corruptos o ilegibles por Gemini
+  - Rate limit excedido (429 de Upstash)
+  - Transacciones duplicadas (P2002)
+  - Período cerrado al intentar mutación
+
+### Módulo owner
+
+`src/__tests__/integration/` — primer test: `control-number-sequence.test.ts`
+
+
+---
+
+## ADR-011 — OCR Idempotencia (ARCH 2026-04-08)
+
+- Estado: PENDIENTE — evaluar en la fase que toque OCR
+
+### Problema
+
+`extractInvoiceAction` no tiene `idempotencyKey`. Si el usuario sube el mismo PDF dos veces (doble click, reintento de red), no hay mecanismo que lo detecte: se hacen dos llamadas a Gemini Vision con el mismo contenido y se retornan dos pre-fills independientes. Si el usuario confirma ambos accidentalmente, se crean facturas duplicadas.
+
+### Decisión a tomar
+
+Hash SHA-256 del contenido binario del PDF como `idempotencyKey` opcional. Flujo:
+1. Cliente calcula `sha256(pdfBytes)` antes de subir.
+2. `extractInvoiceAction` recibe `{ base64Pdf, idempotencyKey }`.
+3. Si existe en caché `ocr:idempotency:{companyId}:{hash}` (Redis, TTL 24h) → retorna resultado cacheado sin llamar a Gemini.
+4. Si no existe → llama a Gemini → guarda resultado en caché → retorna.
+
+### Beneficio secundario
+
+Reduce consumo de cuota de Gemini Vision: un PDF subido múltiples veces dentro de 24h solo consume 1 llamada.
+
+### Constraint
+
+No implementar hasta que haya un caso real reportado (duplicado de factura por doble submit) — **YAGNI hasta entonces**.
+

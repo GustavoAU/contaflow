@@ -85,8 +85,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 20 ✅ merged (XML SENIAT descargable + QR code en PDF comprobante + botón XML en InvoiceBook — 30 tests)
 - Fase 21 ✅ merged (Activos Fijos y Depreciación VEN-NIF 16 — 3 métodos + asiento automático — 35 tests)
 - Fase 22 ✅ merged (Ajuste por Inflación INPC VEN-NIF 3 — INPCRate + InflationAdjustment + preview + Serializable — 32 tests)
+- Fase 23B ✅ merged (Auto-conciliación bancaria — Gemini Vision PDF + scoring 3 fuentes + guard período vacío + 30 tests)
 
-**723 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-07)
+**753 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-08)
 
 ## Git workflow — MANDATORY
 
@@ -99,9 +100,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 ## Phase gate — MANDATORY before every phase transition
 
 **Before proposing or starting any new phase, the agent MUST:**
+0. Activate `security-agent` to audit the attack surface of the new module (new Server Actions, new endpoints, new Prisma models, auth changes).
 1. Run `npx tsc --noEmit` — output must be `exit: 0` (zero errors).
 2. Run `npx vitest run` — all tests must pass (0 failures).
-3. If either check fails: stop, fix every error, rerun both checks, then report results to the user BEFORE mentioning the next phase.
+3. If any check fails: stop, fix every error, rerun all checks, then report results to the user BEFORE mentioning the next phase.
 
 **Never carry TS errors or failing tests across a phase boundary.** Technical debt discovered mid-session must be fixed in the same session. If pre-existing errors are found during `/siguiente-paso`, list them explicitly and fix them before the phase analysis output.
 
