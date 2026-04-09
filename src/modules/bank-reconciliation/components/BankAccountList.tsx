@@ -17,8 +17,15 @@ type BankAccountListItem = {
   lastStatementDate: Date | null;
 };
 
+type ChartAccount = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type Props = {
   accounts: BankAccountListItem[];
+  chartAccounts: ChartAccount[];
   companyId: string;
   userId: string;
 };
@@ -39,7 +46,7 @@ function fmtAmount(value: string | null, currency: string) {
   }).format(n);
 }
 
-export function BankAccountList({ accounts, companyId, userId }: Props) {
+export function BankAccountList({ accounts, chartAccounts, companyId, userId }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -152,17 +159,22 @@ export function BankAccountList({ accounts, companyId, userId }: Props) {
             </div>
             <div>
               <label htmlFor="ba-account" className="mb-1 block text-sm font-medium text-zinc-700">
-                ID de cuenta contable
+                Cuenta contable
               </label>
-              <input
+              <select
                 id="ba-account"
-                type="text"
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                placeholder="ID del plan de cuentas"
                 required
                 className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+              >
+                <option value="">Selecciona una cuenta contable...</option>
+                {chartAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="ba-currency" className="mb-1 block text-sm font-medium text-zinc-700">
