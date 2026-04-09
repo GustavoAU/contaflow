@@ -15,6 +15,11 @@ export default defineConfig({
     globals: true,
     environment: "node",
     pool: "vmForks",
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "src/__tests__/integration/**", // integration tests run separately: vitest run --config vitest.integration.config.ts
+    ],
     env: {
       NODE_ENV: "test",
       DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://test:test@localhost:5432/test",
