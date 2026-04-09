@@ -174,6 +174,52 @@ export async function runInflationAdjustmentAction(
       };
     }
 
+    // Guard: verificar que existen las tasas INPC necesarias antes de ejecutar
+    const company = await prisma.company.findUnique({
+      where: { id: parsed.data.companyId },
+      select: { inflationBaseYear: true, inflationBaseMonth: true },
+    });
+    if (!company?.inflationBaseYear || !company?.inflationBaseMonth) {
+      return {
+        success: false,
+        error: "No se ha configurado el período base de inflación. Configúralo antes de ejecutar el ajuste.",
+      };
+    }
+
+    const [baseRate, currentRate] = await Promise.all([
+      prisma.iNPCRate.findUnique({
+        where: {
+          companyId_year_month: {
+            companyId: parsed.data.companyId,
+            year: company.inflationBaseYear,
+            month: company.inflationBaseMonth,
+          },
+        },
+      }),
+      prisma.iNPCRate.findUnique({
+        where: {
+          companyId_year_month: {
+            companyId: parsed.data.companyId,
+            year: parsed.data.periodYear,
+            month: parsed.data.periodMonth,
+          },
+        },
+      }),
+    ]);
+
+    if (!baseRate) {
+      return {
+        success: false,
+        error: `No existe tasa INPC base (${company.inflationBaseYear}/${String(company.inflationBaseMonth).padStart(2, "0")}). Cárgala antes de ejecutar el ajuste.`,
+      };
+    }
+    if (!currentRate) {
+      return {
+        success: false,
+        error: `No existe tasa INPC para el período ${parsed.data.periodYear}/${String(parsed.data.periodMonth).padStart(2, "0")}. Cárgala antes de ejecutar el ajuste.`,
+      };
+    }
+
     // ADR-008 D-6: Serializable isolation level
     const result = await prisma.$transaction(
       async (tx) =>
