@@ -30,6 +30,12 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: {
       findFirst: vi.fn().mockResolvedValue(mockMember),
     },
+    company: {
+      findUnique: vi.fn(),
+    },
+    iNPCRate: {
+      findUnique: vi.fn(),
+    },
     $transaction: mockTransaction,
   },
 }));
@@ -64,9 +70,17 @@ import {
   runInflationAdjustmentAction,
 } from "./inpc.actions";
 
+const validCompany = { inflationBaseYear: 2022, inflationBaseMonth: 1 };
+const validINPCRate = { id: "rate_base", year: 2022, month: 1, indexValue: "100.00" };
+const validCurrentRate = { id: "rate_current", year: 2026, month: 3, indexValue: "185.50" };
+
 beforeEach(() => {
   vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({})) as never);
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMember as never);
+  vi.mocked(prisma.company.findUnique).mockResolvedValue(validCompany as never);
+  vi.mocked(prisma.iNPCRate.findUnique)
+    .mockResolvedValueOnce(validINPCRate as never)
+    .mockResolvedValueOnce(validCurrentRate as never);
 });
 
 // ─── upsertINPCRateAction ─────────────────────────────────────────────────────
@@ -199,5 +213,24 @@ describe("runInflationAdjustmentAction", () => {
   it("falla con input inválido (sin adjustmentAccountId)", async () => {
     const r = await runInflationAdjustmentAction({ ...validInput, adjustmentAccountId: "" });
     expect(r.success).toBe(false);
+  });
+
+  it("guard INPC: falla si no existe tasa base cargada para la empresa", async () => {
+    // Limpiar cola de beforeEach y re-queuar con escenario de error
+    vi.mocked(prisma.iNPCRate.findUnique).mockReset()
+      .mockResolvedValueOnce(null)                    // base rate no existe
+      .mockResolvedValueOnce(validCurrentRate as never);
+    const r = await runInflationAdjustmentAction(validInput);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toMatch(/INPC base/);
+  });
+
+  it("guard INPC: falla si no existe tasa del período actual", async () => {
+    vi.mocked(prisma.iNPCRate.findUnique).mockReset()
+      .mockResolvedValueOnce(validINPCRate as never)  // base rate existe
+      .mockResolvedValueOnce(null);                   // tasa actual no existe
+    const r = await runInflationAdjustmentAction(validInput);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toMatch(/INPC para el período/);
   });
 });
