@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 22 completada. Última sincronización: 2026-04-07_
-_v3.4: Fase 22 Ajuste por Inflación INPC (VEN-NIF 3). 723 tests GREEN._
+_Versión actualizada — Fase 23B + ADR-010 completados. Última sincronización: 2026-04-08_
+_v3.5: Fase 23B Auto-conciliación bancaria + ADR-010 Testing Strategy + guard INPC. 755 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -282,8 +282,8 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 723/723 passing · **CI**: ✅ verde
-**Último commit**: `a1801b7` — Fase 22 Ajuste por Inflación INPC (VEN-NIF 3)
+**Tests**: 755/755 passing · **CI**: ✅ verde
+**Último commit**: merge ADR-010 — testing tier + INPC guard + integration tests base
 
 ### Fases completadas (en orden cronológico)
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
@@ -299,6 +299,10 @@ src/modules/[nombre]/
 - ✅ Fase 12C: Asistente ISLR — islr-suggestions.ts 60+ keywords Decreto 1808 + badge en RetentionForm + 23 tests
 - ✅ Fase OCR-v2: Migración schema VEN-NIF + Gemini Vision directo + pre-fill InvoiceForm + /invoices/upload + 14 tests
 - ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante + botón XML en InvoiceBook + ADR-008 (commit `ae94c76`)
+- ✅ Fase 21: Activos Fijos y Depreciación VEN-NIF 16 — 3 métodos + asiento automático — 35 tests (commit `4286496`)
+- ✅ Fase 22: Ajuste por Inflación INPC VEN-NIF 3 — INPCRate + InflationAdjustment + Serializable — 32 tests (commit `2761770`)
+- ✅ Fase 23B: Auto-conciliación bancaria — Gemini Vision PDF + scoring 3 fuentes + guard período vacío — 30 tests (commit `93fa23a`)
+- ✅ ADR-010: Testing Strategy — phase gate step 0 security-agent + integration tier + INPC guard + ADR-011 OCR idempotencia
 
 ### 17.1 Deuda técnica resuelta
 
@@ -535,10 +539,10 @@ model FiscalYearClose {
 - ✅ Fase 20: XML SENIAT descargable + QR code en PDF comprobante — completada 2026-04-07 (ver sección 36)
 - ✅ Fase 21: Activos Fijos y Depreciación VEN-NIF 16 — completada 2026-04-07 (ver sección 37)
 - ✅ Fase 22: Ajuste por Inflación INPC (VEN-NIF 3) — completada 2026-04-07 (ver sección 38)
-- ⏳ Fase 23: Nómina y retenciones laborales (ISLR/SS/FAOV/LPH)
-- ⏳ Fase 23: Nómina (LOTTT) — dividida en subfases (ver sección 34)
+- ✅ Fase 23B: Auto-conciliación bancaria con Gemini Vision — completada 2026-04-08 (ver sección 39)
+- ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40)
+- ⏳ Fase 23 Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
-  - ⏳ Fase 23B: Empleados y conceptos
   - ⏳ Fase 23C: Cálculo, recibo PDF y causación contable
   - ⏳ Fase 23D: Prestaciones sociales y pasivos laborales
   - ⏳ Fase 23E: Reportes legales (IVSS, Inces, Banavih, SENIAT)
@@ -1360,3 +1364,117 @@ Venezuela no tiene SDCA/SIEX operativo (anunciado, no desplegado). XML descargab
 ### Tests totales post-Fase 20
 
 **656 tests GREEN** | **0 TS errors** | **0 fallos**
+
+---
+
+## 39. Fase 23B — Auto-conciliación Bancaria con Gemini Vision ✅ completada 2026-04-08
+
+### Contexto
+
+La conciliación bancaria manual (CSV import + matching UI existente) era impráctica: el usuario tenía que preparar el CSV manualmente y marcar cada match. La nueva implementación permite subir el PDF del extracto bancario directamente — Gemini Vision lo parsea y el motor de scoring busca coincidencias automáticamente contra los registros del sistema.
+
+### Arquitectura
+
+**Fuentes de matching (3-way match)**:
+- `InvoicePayment` — pagos de facturas de clientes
+- `PaymentRecord` — pagos con múltiples medios (Pago Móvil, Zelle, etc.)
+- `Transaction` — asientos contables (journals)
+
+**Scoring algorithm** (base 100):
+- Penalidad monto: hasta -40 (tolerancia ±1% del monto del extracto)
+- Penalidad fecha: hasta -30 (tolerancia ±3 días)
+- Bonus referencia: +20 si los números de referencia coinciden exactamente (capped a 100)
+- Niveles: `AUTO` ≥ 90 | `SUGGESTED` 70–89 | `MANUAL` < 70
+
+**Guard de período vacío**: si no hay transacciones en el período → `{ success: true, data: { periodHasData: false } }` (no error — es estado de negocio válido). UI muestra mensaje profesional bloqueante en ámbar.
+
+**Formato venezolano**: los montos del extracto llegan como strings (`"1.000,50"`) — el servicio convierte con `parseAmount()` de `CsvParserService`. Gemini recibe instrucción explícita de no convertir los valores.
+
+### Servicios nuevos
+
+| Servicio | Responsabilidad |
+|---|---|
+| `GeminiBankStatementService.ts` | Parsea PDF bancario con Gemini Vision — `extractFromPdf(base64Pdf)` → `ExtractedBankStatement` |
+| `AutoReconciliationService.ts` | Motor de matching — `run()`, `_scoreRow()`, `periodHasTransactions()` |
+
+**Notas de concurrencia**: las filas se procesan en serie (no paralelo) dentro de `run()` para evitar presión en el pool de Neon.
+
+### Acciones nuevas
+
+| Acción | Rol mínimo | Rate limit |
+|---|---|---|
+| `parseBankStatementAction` | cualquiera (VIEWER incluido — solo lectura) | `limiters.ocr` (10/min) |
+| `runAutoReconciliationAction` | ADMIN / ACCOUNTANT | `limiters.fiscal` (30/min) |
+| `confirmSuggestedAction` | ADMIN / ACCOUNTANT | ninguno |
+
+### Componente UI
+
+**`AutoReconciliationPanel.tsx`** — máquina de estados con `useReducer`:
+
+```
+UPLOAD → PREVIEW → RUNNING → RESULTS → CONFIRMED
+```
+
+- **UPLOAD**: dropzone PDF (10 MB máx), base64 via FileReader
+- **PREVIEW**: tabla de filas parseadas antes de procesar
+- **RUNNING**: spinner + indicador de progreso
+- **RESULTS**: 3 secciones colapsables: Auto-conciliados / Sugeridos / Sin conciliar
+- **CONFIRMED**: resumen final + opción de nueva carga
+
+Confirmación de sugeridos: `Map<string, {matchType, matchId}>` — batch confirm con `confirmSuggestedAction`.
+
+### Fix incluido: selector de cuenta contable
+
+El formulario de nueva cuenta bancaria reemplaza el `<input type="text">` del campo `accountId` (que causaba FK constraint violation cuando el usuario escribía códigos como "1.1.1.0") por un `<select>` dropdown con las cuentas del plan de cuentas cargadas desde el servidor (`code — name`, `value={id}`).
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `src/modules/bank-reconciliation/schemas/auto-reconciliation.schema.ts` | NUEVO — Zod schemas + tipos |
+| `src/modules/bank-reconciliation/services/GeminiBankStatementService.ts` | NUEVO |
+| `src/modules/bank-reconciliation/services/AutoReconciliationService.ts` | NUEVO |
+| `src/modules/bank-reconciliation/actions/auto-reconciliation.actions.ts` | NUEVO |
+| `src/modules/bank-reconciliation/components/AutoReconciliationPanel.tsx` | NUEVO |
+| `src/modules/bank-reconciliation/components/BankAccountList.tsx` | + dropdown cuenta contable |
+| `src/app/(dashboard)/company/[companyId]/bank-reconciliation/page.tsx` | + chartAccounts + AutoReconciliationPanel |
+| `src/modules/bank-reconciliation/services/CsvParserService.ts` | `parseAmount` → export |
+
+### Tests
+
+- 7 tests `GeminiBankStatementService.test.ts`: happy path, markdown wrapping, HTTP 500, error body, JSON inválido, API key ausente, formato venezolano
+- 12 tests `AutoReconciliationService.test.ts`: periodHasTransactions, score 100 AUTO, sin candidatos MANUAL, bonus referencia, multi-fuente, partición, CREDIT row, JOURNAL_ENTRY
+- 11 tests `auto-reconciliation.actions.test.ts`: auth, VIEWER, Zod, rate limit, guard período, happy path por acción
+
+**755 tests GREEN** | **0 TS errors**
+
+---
+
+## 40. ADR-010 — Testing Strategy ✅ completada 2026-04-08
+
+### Cambios aplicados
+
+**Mejora 1 — Phase gate step 0**: `CLAUDE.md` actualizado. El agente DEBE activar `security-agent` antes de proponer cualquier fase nueva para auditar superficie de ataque (Server Actions, endpoints, Prisma models, auth changes).
+
+**Mejora 2 — ADR-010 Testing Strategy** (`contaflow-contract.md`):
+- D-1: Unit tests con mocks (patrón actual) — `vitest run` por defecto
+- D-2: Integration tests con DB real (`DATABASE_URL_TEST`) — `src/__tests__/integration/` — solo con `--config vitest.integration.config.ts`
+- D-3: E2E Playwright — Fase futura, no bloquea fases actuales
+- D-4: Cobertura mínima por fase: ≥ 2–3 casos negativos no triviales por servicio nuevo
+
+**Mejora 3 — Guard INPC en `runInflationAdjustmentAction`**:
+- Verifica `prisma.company.findUnique` para obtener `inflationBaseYear/Month`
+- Verifica `prisma.iNPCRate.findUnique` para tasa base y tasa del período actual
+- Error descriptivo si falta cualquiera: `"No existe tasa INPC base (2022/01). Cárgala antes de ejecutar el ajuste."`
+- 2 tests nuevos: guard base no existe + guard período actual no existe
+- Total `inpc.actions.test.ts`: 17 tests
+
+**Mejora 4 — Integration tests tier base**:
+- `vitest.config.ts`: excluye `src/__tests__/integration/**` del run por defecto
+- `vitest.integration.config.ts`: config separada — `npx vitest run --config vitest.integration.config.ts`
+- `src/__tests__/integration/README.md`: instrucciones + advertencia DB prod
+- `src/__tests__/integration/control-number-sequence.test.ts`: primer test real — verifica que llamadas concurrentes a `getNextControlNumber` no retornan el mismo número (`describe.skipIf(!DATABASE_URL_TEST)`)
+
+**Mejora 5 — ADR-011 OCR Idempotencia** (`contaflow-contract.md`): decisión PENDIENTE/YAGNI — hash SHA-256 del PDF como idempotencyKey opcional para `extractInvoiceAction`. No implementar hasta caso real reportado.
+
+**755 tests GREEN** | **0 TS errors**
