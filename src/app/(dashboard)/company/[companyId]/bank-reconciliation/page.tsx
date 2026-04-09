@@ -6,8 +6,9 @@ import { ChevronLeftIcon, LandmarkIcon } from "lucide-react";
 import { BankAccountService } from "@/modules/bank-reconciliation/services/BankAccountService";
 import { BankStatementService } from "@/modules/bank-reconciliation/services/BankStatementService";
 import { BankAccountList } from "@/modules/bank-reconciliation/components/BankAccountList";
-import { BankStatementUpload } from "@/modules/bank-reconciliation/components/BankStatementUpload";
+import { AutoReconciliationPanel } from "@/modules/bank-reconciliation/components/AutoReconciliationPanel";
 import { Decimal } from "decimal.js";
+import { prisma } from "@/lib/prisma";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -31,7 +32,14 @@ export default async function BankReconciliationPage({ params, searchParams }: P
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const accounts = await BankAccountService.list(companyId);
+  const [accounts, chartAccounts] = await Promise.all([
+    BankAccountService.list(companyId),
+    prisma.account.findMany({
+      where: { companyId, deletedAt: null },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, name: true },
+    }),
+  ]);
 
   // If an accountId is selected, load its statements
   const selectedAccount = accountId ? accounts.find((a) => a.id === accountId) ?? null : null;
@@ -62,7 +70,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
       </div>
 
       {/* Account list */}
-      <BankAccountList accounts={accounts} companyId={companyId} userId={user.id} />
+      <BankAccountList accounts={accounts} chartAccounts={chartAccounts} companyId={companyId} userId={user.id} />
 
       {/* Statement section for selected account */}
       {selectedAccount && (
@@ -82,9 +90,10 @@ export default async function BankReconciliationPage({ params, searchParams }: P
             </Link>
           </div>
 
-          {/* Upload form */}
-          <BankStatementUpload
+          {/* Auto-conciliación */}
+          <AutoReconciliationPanel
             bankAccountId={selectedAccount.id}
+            bankAccountName={selectedAccount.name}
             companyId={companyId}
           />
 

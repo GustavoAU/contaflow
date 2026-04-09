@@ -15,7 +15,7 @@ export type CsvRow = {
  * Formato estándar:   "1000.50"
  * Retorna null si la cadena está vacía.
  */
-function parseAmount(raw: string): Decimal | null {
+export function parseAmount(raw: string): Decimal | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
 
