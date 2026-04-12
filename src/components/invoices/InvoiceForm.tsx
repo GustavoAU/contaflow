@@ -17,7 +17,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Decimal } from "decimal.js";
-import { createInvoiceAction } from "@/modules/invoices/actions/invoice.actions";
+import {
+  createInvoiceAction,
+  createCreditNoteAction,
+  createDebitNoteAction,
+} from "@/modules/invoices/actions/invoice.actions";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { type ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
@@ -128,6 +132,7 @@ export function InvoiceForm({
   const [bcvLoading, setBcvLoading] = useState(false);
   const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
+  const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
 
   // ─── OCR pre-fill ────────────────────────────────────────────────────────────
   const [ocrLoaded, setOcrLoaded] = useState(false);
@@ -411,7 +416,7 @@ export function InvoiceForm({
     const data = new FormData(form);
 
     startTransition(async () => {
-      const result = await createInvoiceAction({
+      const basePayload = {
         companyId,
         createdBy: userId,
         periodId,
@@ -442,7 +447,16 @@ export function InvoiceForm({
         igtfBase: igtfCalculation ? igtfCalculation.amount : "0",
         igtfAmount: igtfCalculation ? igtfCalculation.igtfAmount : "0",
         currency,
-      });
+      };
+
+      let result: { success: boolean; error?: string };
+      if (docType === "NOTA_CREDITO") {
+        result = await createCreditNoteAction({ ...basePayload, relatedInvoiceId });
+      } else if (docType === "NOTA_DEBITO") {
+        result = await createDebitNoteAction({ ...basePayload, relatedInvoiceId });
+      } else {
+        result = await createInvoiceAction(basePayload);
+      }
 
       if (result.success) {
         toast.success("Factura registrada correctamente");
@@ -464,6 +478,7 @@ export function InvoiceForm({
         setIgtfBase("");
         setCurrency("VES");
         setCounterpartName("");
+        setRelatedInvoiceId("");
         setOcrLoaded(false);
         setOcrCounterpartRif("");
       } else {
@@ -646,6 +661,31 @@ export function InvoiceForm({
               </div>
             )}
           </div>
+
+          {/* Factura original — sólo para NC/ND */}
+          {(docType === "NOTA_CREDITO" || docType === "NOTA_DEBITO") && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-700">
+                  ID de Factura original <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={relatedInvoiceId}
+                  onChange={(e) => setRelatedInvoiceId(e.target.value)}
+                  required
+                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="ID de la factura a la que se vincula esta nota"
+                  aria-describedby="related-invoice-hint"
+                />
+                <p
+                  id="related-invoice-hint"
+                  className="mt-1 text-xs text-amber-700"
+                >
+                  Se vinculará automáticamente al libro IVA. El número de documento relacionado se deriva de la factura original.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Fecha + Moneda */}
           <div className="grid gap-3 sm:grid-cols-2">

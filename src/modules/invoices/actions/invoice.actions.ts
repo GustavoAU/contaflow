@@ -8,7 +8,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
-import { CreateInvoiceSchema, InvoiceBookFilterSchema } from "../schemas/invoice.schema";
+import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import type { Currency } from "@prisma/client";
@@ -343,6 +343,88 @@ export async function exportInvoiceXMLAction(
     return { success: true, xml, filename };
   } catch {
     return { success: false, error: "Error al generar XML de factura" };
+  }
+}
+
+// ─── Crear Nota de Crédito ─────────────────────────────────────────────────────
+export async function createCreditNoteAction(input: unknown) {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
+
+    const parsed = CreateCreditDebitNoteSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false as const, error: parsed.error.issues[0].message };
+    }
+
+    const companyId = parsed.data.companyId;
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false as const, error: "No autorizado" };
+    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+
+    const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId);
+
+    revalidatePath(`/company/${companyId}/invoices`);
+    return { success: true as const, data: nc };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("P2002")) {
+        return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+      }
+      if (error.message.includes("P2003")) {
+        return { success: false as const, error: "Datos de referencia inválidos" };
+      }
+      return { success: false as const, error: error.message };
+    }
+    return { success: false as const, error: "Error al registrar la nota de crédito" };
+  }
+}
+
+// ─── Crear Nota de Débito ──────────────────────────────────────────────────────
+export async function createDebitNoteAction(input: unknown) {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
+
+    const parsed = CreateCreditDebitNoteSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false as const, error: parsed.error.issues[0].message };
+    }
+
+    const companyId = parsed.data.companyId;
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false as const, error: "No autorizado" };
+    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+
+    const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId);
+
+    revalidatePath(`/company/${companyId}/invoices`);
+    return { success: true as const, data: nd };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("P2002")) {
+        return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+      }
+      if (error.message.includes("P2003")) {
+        return { success: false as const, error: "Datos de referencia inválidos" };
+      }
+      return { success: false as const, error: error.message };
+    }
+    return { success: false as const, error: "Error al registrar la nota de débito" };
   }
 }
 

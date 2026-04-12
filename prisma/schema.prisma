@@ -369,11 +369,16 @@ model Invoice {
   pendingAmount        Decimal?          @db.Decimal(19, 4)
   paymentStatus        InvoicePaymentStatus @default(UNPAID)
   invoicePayments      InvoicePayment[]
+  // Fase 23C: NC/ND Workflow (Reglamento IVA Art. 58)
+  relatedInvoiceId     String?
+  relatedInvoice       Invoice?          @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  creditDebitNotes     Invoice[]         @relation("CreditDebitNotes")
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
   @@index([companyId, type, paymentStatus])
   @@index([companyId, type, dueDate])
+  @@index([relatedInvoiceId])
 }
 
 model ControlNumberSequence {
