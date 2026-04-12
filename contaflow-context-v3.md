@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 23B + ADR-010 completados. Última sincronización: 2026-04-08_
-_v3.5: Fase 23B Auto-conciliación bancaria + ADR-010 Testing Strategy + guard INPC. 755 tests GREEN._
+_Versión actualizada — Roadmap ampliado: Fase 23C NC/ND + 28A + 29A + 30 Backup + 31 AuditLog + 26B redefinida. Última sincronización: 2026-04-12_
+_v3.6: Roadmap 6 fases nuevas + checklist pre-lanzamiento. 755 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -541,16 +541,21 @@ model FiscalYearClose {
 - ✅ Fase 22: Ajuste por Inflación INPC (VEN-NIF 3) — completada 2026-04-07 (ver sección 38)
 - ✅ Fase 23B: Auto-conciliación bancaria con Gemini Vision — completada 2026-04-08 (ver sección 39)
 - ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40)
+- ⏳ Fase 23C: NC/ND Workflow completo (Reglamento IVA Art. 58 — relatedInvoiceId, neto CxC/CxP, asiento compensador) — ~20 tests
 - ⏳ Fase 23 Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
-  - ⏳ Fase 23C: Cálculo, recibo PDF y causación contable
-  - ⏳ Fase 23D: Prestaciones sociales y pasivos laborales
-  - ⏳ Fase 23E: Reportes legales (IVSS, Inces, Banavih, SENIAT)
+  - ⏳ Fase 23D: Cálculo, recibo PDF y causación contable  _(era 23C — renombrada para ceder slot a NC/ND)_
+  - ⏳ Fase 23E: Prestaciones sociales y pasivos laborales  _(era 23D)_
+  - ⏳ Fase 23F: Reportes legales (IVSS, Inces, Banavih, SENIAT)  _(era 23E)_
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
-- ⏳ Fase 26B: IA "Contador Junior" — Clasificación y Detección de Anomalías Fiscales (ver sección 30)
+- ⏳ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — ~15 tests
+  - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, declaración IVA vencida, retenciones sin vincular, extracto sin conciliar >30d
+  - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
+  - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard (lazy, TTL 5min)
 - ⏳ Fase 27: PWA + modo offline
+- ⏳ Fase 28A: Separación Roles Admin/Contable — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + `withRole()` helper + sidebar dinámico — prerequisito Fase 28 — ~10 tests
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -562,11 +567,10 @@ model FiscalYearClose {
      solo registran compromiso pre-contable
    - Validez de oferta configurable (crítico por inflación VES)
    - Flujo de aprobación de cotizaciones
+- ⏳ Fase 29A: TaxPlugin Architecture — `interface TaxPlugin { VE | CO }`, `VenezuelaTaxPlugin` extrae lógica VEN-NIF, `ColombiaTaxPlugin` stub, `Company.country` enum — prerequisito Fase 29 — ~15 tests
 - ⏳ Fase 29: Expansión Colombia (DIAN)
-- ⏳ Fase 30: Revisión de Producción por Fases
-  - Revisar cada fase implementada 1x1 antes del lanzamiento público
-  - Verificar cobertura de tests, compliance VEN-NIF, performance real
-  - Ejecutar como última fase antes de lanzamiento
+- ⏳ Fase 30: Exportación Masiva / Backup Contable — ZIP descargable (libros IVA, asientos, retenciones, activos, Forma 30 por mes) generación asíncrona + link 24h — ~10 tests
+- ⏳ Fase 31: AuditLog UI — `/audit-log` tabla paginada con filtros (usuario, entidad, fecha) + diff oldValue↔newValue + export Excel — solo ADMIN/OWNER — ~8 tests
 - ⏳ Landing Page
 
 ## 20. Notas Técnicas Importantes
@@ -1118,20 +1122,20 @@ Onboarding guiado con opciones (no preguntas abiertas):
 - Cálculo automático IVSS, Inces, Banavih según configuración 23A
 - Horas extras, trabajo nocturno, días feriados
 
-### Fase 23C — Cálculo, Recibo PDF y Causación Contable
+### Fase 23D — Cálculo, Recibo PDF y Causación Contable _(era 23C — renombrada para ceder slot a NC/ND Workflow)_
 - Motor de cálculo según frecuencia (quincenal/mensual)
 - Recibo de pago PDF por empleado (A4 portrait)
 - Causación automática → asiento en `Transactions` (EXPENSE)
 - Retención ISLR si salario anual supera la UT
 
-### Fase 23D — Prestaciones Sociales y Pasivos Laborales
+### Fase 23E — Prestaciones Sociales y Pasivos Laborales _(era 23D)_
 - Cálculo de prestaciones (el más complejo — doble régimen pre/post 2012)
 - Intereses sobre prestaciones (tasa BCV activa)
 - Vacaciones y bono vacacional por antigüedad (escala LOTTT)
 - Utilidades proporcionales (15 días mínimo)
 - Fideicomiso: registro en BD vs. banco externo
 
-### Fase 23E — Reportes Legales
+### Fase 23F — Reportes Legales _(era 23E)_
 - Forma 14-02 IVSS (planilla mensual)
 - Planilla Inces (trimestral)
 - Declaración Banavih
