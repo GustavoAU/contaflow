@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Roadmap ampliado: Fase 23C NC/ND + 28A + 29A + 30 Backup + 31 AuditLog + 26B redefinida. Última sincronización: 2026-04-12_
-_v3.6: Roadmap 6 fases nuevas + checklist pre-lanzamiento. 755 tests GREEN._
+_Versión actualizada — Fase 23C NC/ND Workflow completada + ADR-010 archivo creado. Última sincronización: 2026-04-12_
+_v3.7: Fase 23C (NC/ND, 24 tests, 2 CRITICAL + 3 HIGH resueltos) + ADR-010-testing-strategy.md. 779 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -303,6 +303,7 @@ src/modules/[nombre]/
 - ✅ Fase 22: Ajuste por Inflación INPC VEN-NIF 3 — INPCRate + InflationAdjustment + Serializable — 32 tests (commit `2761770`)
 - ✅ Fase 23B: Auto-conciliación bancaria — Gemini Vision PDF + scoring 3 fuentes + guard período vacío — 30 tests (commit `93fa23a`)
 - ✅ ADR-010: Testing Strategy — phase gate step 0 security-agent + integration tier + INPC guard + ADR-011 OCR idempotencia
+- ✅ Fase 23C: NC/ND Workflow — relatedInvoiceId + Serializable + 2 CRITICAL/3 HIGH resueltos — 24 tests (commit `258cafa`)
 
 ### 17.1 Deuda técnica resuelta
 
@@ -540,8 +541,8 @@ model FiscalYearClose {
 - ✅ Fase 21: Activos Fijos y Depreciación VEN-NIF 16 — completada 2026-04-07 (ver sección 37)
 - ✅ Fase 22: Ajuste por Inflación INPC (VEN-NIF 3) — completada 2026-04-07 (ver sección 38)
 - ✅ Fase 23B: Auto-conciliación bancaria con Gemini Vision — completada 2026-04-08 (ver sección 39)
-- ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40)
-- ⏳ Fase 23C: NC/ND Workflow completo (Reglamento IVA Art. 58 — relatedInvoiceId, neto CxC/CxP, asiento compensador) — ~20 tests
+- ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40) | archivo `.claude/adr/ADR-010-testing-strategy.md` creado 2026-04-12
+- ✅ Fase 23C: NC/ND Workflow completo — completada 2026-04-12 (ver sección 41)
 - ⏳ Fase 23 Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
   - ⏳ Fase 23D: Cálculo, recibo PDF y causación contable  _(era 23C — renombrada para ceder slot a NC/ND)_
@@ -1481,4 +1482,51 @@ El formulario de nueva cuenta bancaria reemplaza el `<input type="text">` del ca
 
 **Mejora 5 — ADR-011 OCR Idempotencia** (`contaflow-contract.md`): decisión PENDIENTE/YAGNI — hash SHA-256 del PDF como idempotencyKey opcional para `extractInvoiceAction`. No implementar hasta caso real reportado.
 
-**755 tests GREEN** | **0 TS errors**
+**755 tests GREEN** | **0 TS errors** _(actualizado a 779 en Fase 23C)_
+
+---
+
+## 41. Fase 23C — NC/ND Workflow completo ✅ completada 2026-04-12
+
+### Objetivo
+
+Workflow fiscal completo para Notas de Crédito y Débito (Reglamento IVA Art. 58). Vinculación formal con factura original, neto automático en CxC/CxP y asiento compensador.
+
+### Schema
+
+```prisma
+// Invoice — self-relation NC/ND → FACTURA original
+relatedInvoiceId  String?
+relatedInvoice    Invoice?  @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+creditDebitNotes  Invoice[] @relation("CreditDebitNotes")
+@@index([relatedInvoiceId])
+```
+
+Migración: `20260412_feat_23c_nc_nd_self_relation` — `ADD COLUMN NULL`, 0 filas afectadas.
+
+### Servicios nuevos (InvoiceService)
+
+- `createCreditNote(companyId, data, createdBy)` — Serializable tx, pendingAmount-, paymentStatus recalculado
+- `createDebitNote(companyId, data, createdBy)` — Serializable tx, pendingAmount+, PAID→PARTIAL
+- `getCreditDebitNotes(originalInvoiceId, companyId)` — read-only, ADR-004
+
+### Decisiones de seguridad (security-agent pre/post audit)
+
+| Finding | Resolución |
+|---|---|
+| CRITICAL-1: cross-tenant `relatedInvoiceId` | `findFirst({ id, companyId })` dentro de tx Serializable |
+| CRITICAL-2: TOCTOU en pendingAmount | `$transaction({ isolationLevel: 'Serializable' })` en NC y ND |
+| HIGH-1: VOID guard en service layer | `deletedAt \|\| paymentStatus === "VOIDED"` en NC y ND |
+| HIGH-2: role VIEWER en acciones | Ambas actions rechazan `role === "VIEWER"` |
+| HIGH-3: loop self-reference | Guard `original.docType === "FACTURA"` antes de crear |
+| MEDIUM-1: relatedDocNumber del cliente | `.transform()` lo elimina del schema; derivado server-side |
+| MEDIUM-2: rate limit | `checkRateLimit(userId, limiters.fiscal)` en ambas actions |
+
+### UI
+
+- `InvoiceForm.tsx`: campo "Factura original" condicional (`docType === NOTA_CREDITO || NOTA_DEBITO`)
+- `InvoiceBook.tsx`: badge `→ Factura {relatedDocNumber}` en filas NC/ND
+
+### Tests
+
+24 tests nuevos (15 service + 8 action + 1 regresión HIGH-1). **779 tests GREEN total.**
