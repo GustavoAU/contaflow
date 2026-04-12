@@ -1,8 +1,28 @@
 // src/modules/invoices/services/InvoiceService.ts
 import { Decimal } from "decimal.js";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import prismaDefault, { prisma } from "@/lib/prisma";
+import type { Prisma, TaxLineType } from "@prisma/client";
 import type { CreateInvoiceInput, InvoiceBookFilter } from "../schemas/invoice.schema";
+
+// ─── Types for NC/ND ─────────────────────────────────────────────────────────
+export type CreateCreditDebitNoteInput = {
+  relatedInvoiceId: string;
+  invoiceNumber: string;
+  date: Date;
+  counterpartName: string;
+  counterpartRif: string;
+  taxLines: Array<{ taxType: string; base: string; rate: string; amount: string }>;
+  ivaRetentionAmount: string;
+  islrRetentionAmount: string;
+  igtfBase: string;
+  igtfAmount: string;
+  currency: string;
+  companyId?: string;
+  type?: string;
+  docType?: string;
+  taxCategory?: string;
+  [key: string]: unknown;
+};
 
 // ─── Tipos de retorno ──────────────────────────────────────────────────────────
 export type InvoiceTaxLineSerialized = {
@@ -359,6 +379,264 @@ export class InvoiceService {
     return { items, nextCursor, total };
   }
 
+  // ─── Crear Nota de Crédito ───────────────────────────────────────────────────
+  static async createCreditNote(
+    companyId: string,
+    data: CreateCreditDebitNoteInput,
+    createdBy: string
+  ) {
+    return prismaDefault.$transaction(
+      async (tx) => {
+        // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
+        const original = await tx.invoice.findFirst({
+          where: { id: data.relatedInvoiceId, companyId },
+        });
+        if (!original) {
+          throw new Error("Factura original no encontrada o no pertenece a esta empresa");
+        }
+
+        // Loop prevention: only FACTURA can have NC/ND
+        if (original.docType !== "FACTURA") {
+          throw new Error("Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)");
+        }
+
+        // Void guard: deletedAt or paymentStatus VOIDED
+        if (original.deletedAt || original.paymentStatus === "VOIDED") {
+          throw new Error("La factura original está anulada");
+        }
+
+        // Calculate totalAmountVes from taxLines (never trust client-side totalAmountVes)
+        const totalAmountVes = data.taxLines.reduce(
+          (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
+          new Decimal(0)
+        );
+
+        // Amount guard
+        const pendingAmount = original.pendingAmount ? new Decimal(original.pendingAmount.toString()) : new Decimal(0);
+        if (totalAmountVes.greaterThan(pendingAmount)) {
+          throw new Error("El monto de la nota supera el saldo pendiente de la factura original");
+        }
+
+        // Derive relatedDocNumber server-side — never from client input
+        const relatedDocNumber = original.invoiceNumber;
+
+        // Create the NC invoice
+        const nc = await tx.invoice.create({
+          data: {
+            companyId,
+            type: (data.type as "SALE" | "PURCHASE") ?? original.type as "SALE" | "PURCHASE",
+            docType: "NOTA_CREDITO",
+            taxCategory: (data.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION") ?? original.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION",
+            invoiceNumber: data.invoiceNumber,
+            date: data.date,
+            counterpartName: data.counterpartName,
+            counterpartRif: data.counterpartRif,
+            ivaRetentionAmount: new Decimal(data.ivaRetentionAmount),
+            islrRetentionAmount: new Decimal(data.islrRetentionAmount),
+            igtfBase: new Decimal(data.igtfBase),
+            igtfAmount: new Decimal(data.igtfAmount),
+            currency: (data.currency as "VES" | "USD" | "EUR") ?? "VES",
+            totalAmountVes,
+            pendingAmount: new Decimal(0),
+            paymentStatus: "PAID",
+            relatedInvoiceId: data.relatedInvoiceId,
+            relatedDocNumber,
+            createdBy,
+            taxLines: {
+              create: data.taxLines.map((line) => ({
+                taxType: line.taxType as TaxLineType,
+                base: new Decimal(line.base),
+                rate: new Decimal(line.rate),
+                amount: new Decimal(line.amount),
+              })),
+            },
+          },
+          include: { taxLines: true },
+        });
+
+        // Update original invoice pendingAmount and paymentStatus
+        const newPending = pendingAmount.minus(totalAmountVes);
+        const newStatus = newPending.lessThanOrEqualTo(new Decimal(0)) ? "PAID" : "PARTIAL";
+        await tx.invoice.update({
+          where: { id: original.id },
+          data: {
+            pendingAmount: newPending,
+            paymentStatus: newStatus,
+          },
+        });
+
+        // AuditLog #1: NC creation
+        await tx.auditLog.create({
+          data: {
+            entityId: nc.id,
+            entityName: "Invoice",
+            action: "CREATE_NC",
+            userId: createdBy,
+            newValue: {
+              invoiceNumber: nc.invoiceNumber,
+              relatedInvoiceId: data.relatedInvoiceId,
+              relatedDocNumber,
+              totalAmountVes: totalAmountVes.toFixed(2),
+              companyId,
+            },
+          },
+        });
+
+        // AuditLog #2: original invoice pendingAmount update
+        await tx.auditLog.create({
+          data: {
+            entityId: original.id,
+            entityName: "Invoice",
+            action: "PENDING_AMOUNT_UPDATE",
+            userId: createdBy,
+            newValue: {
+              pendingAmount: newPending.toFixed(2),
+              paymentStatus: newStatus,
+            },
+          },
+        });
+
+        return nc;
+      },
+      { isolationLevel: "Serializable" }
+    );
+  }
+
+  // ─── Crear Nota de Débito ────────────────────────────────────────────────────
+  static async createDebitNote(
+    companyId: string,
+    data: CreateCreditDebitNoteInput,
+    createdBy: string
+  ) {
+    return prismaDefault.$transaction(
+      async (tx) => {
+        // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
+        const original = await tx.invoice.findFirst({
+          where: { id: data.relatedInvoiceId, companyId },
+        });
+        if (!original) {
+          throw new Error("Factura original no encontrada o no pertenece a esta empresa");
+        }
+
+        // Loop prevention: only FACTURA can have NC/ND
+        if (original.docType !== "FACTURA") {
+          throw new Error("Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)");
+        }
+
+        // Soft-delete + VOID guard (ADR-006 HIGH-1: ambas condiciones obligatorias en NC y ND)
+        if (original.deletedAt || original.paymentStatus === "VOIDED") {
+          throw new Error("La factura original está anulada");
+        }
+
+        // Calculate totalAmountVes from taxLines
+        const totalAmountVes = data.taxLines.reduce(
+          (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
+          new Decimal(0)
+        );
+
+        // Derive relatedDocNumber server-side
+        const relatedDocNumber = original.invoiceNumber;
+
+        // Create the ND invoice
+        const nd = await tx.invoice.create({
+          data: {
+            companyId,
+            type: (data.type as "SALE" | "PURCHASE") ?? original.type as "SALE" | "PURCHASE",
+            docType: "NOTA_DEBITO",
+            taxCategory: (data.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION") ?? original.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION",
+            invoiceNumber: data.invoiceNumber,
+            date: data.date,
+            counterpartName: data.counterpartName,
+            counterpartRif: data.counterpartRif,
+            ivaRetentionAmount: new Decimal(data.ivaRetentionAmount),
+            islrRetentionAmount: new Decimal(data.islrRetentionAmount),
+            igtfBase: new Decimal(data.igtfBase),
+            igtfAmount: new Decimal(data.igtfAmount),
+            currency: (data.currency as "VES" | "USD" | "EUR") ?? "VES",
+            totalAmountVes,
+            pendingAmount: totalAmountVes,
+            paymentStatus: "UNPAID",
+            relatedInvoiceId: data.relatedInvoiceId,
+            relatedDocNumber,
+            createdBy,
+            taxLines: {
+              create: data.taxLines.map((line) => ({
+                taxType: line.taxType as TaxLineType,
+                base: new Decimal(line.base),
+                rate: new Decimal(line.rate),
+                amount: new Decimal(line.amount),
+              })),
+            },
+          },
+          include: { taxLines: true },
+        });
+
+        // Update original invoice: pendingAmount increases, recalculate paymentStatus
+        const originalPending = original.pendingAmount ? new Decimal(original.pendingAmount.toString()) : new Decimal(0);
+        const newPending = originalPending.plus(totalAmountVes);
+        // If was PAID and pendingAmount > 0 → PARTIAL; otherwise keep UNPAID
+        const currentStatus = original.paymentStatus;
+        const newStatus = newPending.greaterThan(new Decimal(0)) && currentStatus === "PAID"
+          ? "PARTIAL"
+          : currentStatus === "PAID" ? "PAID" : "UNPAID";
+
+        await tx.invoice.update({
+          where: { id: original.id },
+          data: {
+            pendingAmount: newPending,
+            paymentStatus: newStatus,
+          },
+        });
+
+        // AuditLog #1: ND creation
+        await tx.auditLog.create({
+          data: {
+            entityId: nd.id,
+            entityName: "Invoice",
+            action: "CREATE_ND",
+            userId: createdBy,
+            newValue: {
+              invoiceNumber: nd.invoiceNumber,
+              relatedInvoiceId: data.relatedInvoiceId,
+              relatedDocNumber,
+              totalAmountVes: totalAmountVes.toFixed(2),
+              companyId,
+            },
+          },
+        });
+
+        // AuditLog #2: original invoice pendingAmount update
+        await tx.auditLog.create({
+          data: {
+            entityId: original.id,
+            entityName: "Invoice",
+            action: "PENDING_AMOUNT_UPDATE",
+            userId: createdBy,
+            newValue: {
+              pendingAmount: newPending.toFixed(2),
+              paymentStatus: newStatus,
+            },
+          },
+        });
+
+        return nd;
+      },
+      { isolationLevel: "Serializable" }
+    );
+  }
+
+  // ─── Obtener NC/ND de una factura ────────────────────────────────────────────
+  static async getCreditDebitNotes(originalInvoiceId: string, companyId: string) {
+    return prismaDefault.invoice.findMany({
+      where: {
+        relatedInvoiceId: originalInvoiceId,
+        companyId,
+        deletedAt: null,
+      },
+      orderBy: [{ date: "asc" }],
+    });
+  }
+
   // ─── Obtener libro ───────────────────────────────────────────────────────────
   static async getBook(filter: InvoiceBookFilter): Promise<InvoiceBookResult> {
     const startDate = new Date(filter.year, filter.month - 1, 1);
@@ -440,3 +718,8 @@ export class InvoiceService {
     return { rows, summary };
   }
 }
+
+// ─── Named exports for direct imports (used in tests and external callers) ────
+export const createCreditNote = InvoiceService.createCreditNote.bind(InvoiceService);
+export const createDebitNote = InvoiceService.createDebitNote.bind(InvoiceService);
+export const getCreditDebitNotes = InvoiceService.getCreditDebitNotes.bind(InvoiceService);
