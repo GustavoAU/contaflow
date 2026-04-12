@@ -985,494 +985,435 @@ banking.actions.test.ts:
 
 ---
 
-## 13C-B1 Auditoría companyId — Aislamiento Multi-Tenant (2026-04-01)
+## 23C — NC/ND Workflow (ARCH 2026-04-12)
 
 - Estado: DECIDIDO ✅
 
-### Resultado
+### Decisiones arquitectónicas
 
-**3 hallazgos CRITICOS detectados y RESUELTOS ✅ (2026-04-04)**
+**D-1 — Self-relation en Invoice (auto-referencia NC/ND → FACTURA original).**
+La vinculación jurídica entre una nota y su documento origen es una relación 1:N dentro del mismo modelo: una FACTURA puede tener N notas; cada nota tiene exactamente 1 factura origen. La auto-referencia de Prisma (`@relation("CreditDebitNotes")`) es el mecanismo correcto. No se crea un modelo separado: no hay campos adicionales en la relación que lo justifiquen (YAGNI).
 
-#### CRITICO-1 ✅ RESUELTO
-- Archivo: `src/modules/accounting/actions/account.actions.ts` (línea 190)
-- Query original: `prisma.account.findFirst({ where: { code: data.code, NOT: { id } } })`
-- Fix aplicado: `findFirst({ where: { code, companyId: before.companyId, NOT: { id }, deletedAt: null } })`
-- Verificado en código: ✅
+**D-2 — relatedDocNumber: derivado en servidor, nunca del cliente.**
+El campo `relatedDocNumber` ya existe en `model Invoice` desde Fase 16 (BLOQUEANTE 4). En Fase 23C queda formalmente prohibido que el cliente lo envíe cuando `docType === NOTA_CREDITO || NOTA_DEBITO`: se deriva server-side a partir de `original.invoiceNumber`. Esta restricción cierra el finding MEDIUM de security-agent: un cliente malicioso no puede falsificar el número del documento relacionado.
 
-#### CRITICO-2 ✅ RESUELTO
-- Archivo: `src/modules/retentions/actions/retention.actions.ts` (línea 70)
-- Query original: `prisma.retencion.findFirst({ where: { idempotencyKey } })`
-- Fix aplicado: `findFirst({ where: { idempotencyKey, companyId: data.companyId } })`
-- Verificado en código: ✅
+**D-3 — Concurrencia: Serializable obligatorio.**
+Dos NC concurrentes contra la misma FACTURA pueden ambas pasar la verificación `nc.totalAmountVes <= original.pendingAmount` antes de que cualquiera confirme (TOCTOU clásico). El único cierre correcto es `$transaction({ isolationLevel: 'Serializable' })`, consistente con ADR-001. Este patrón resuelve simultáneamente CRITICAL-1 (cross-tenant) y CRITICAL-2 (TOCTOU): la re-lectura de la factura original dentro de la transacción serializable garantiza tanto el guard de tenant como la lectura no-fantasma del `pendingAmount`.
 
-#### CRITICO-3 ✅ RESUELTO
-- Archivo: `src/modules/retentions/actions/retention.actions.ts` (línea 164)
-- Query original: `prisma.retencion.findFirst({ where: { idempotencyKey: input.idempotencyKey } })`
-- Fix aplicado: `findFirst({ where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId } })`
-- Verificado en código: ✅
+**D-4 — Prevención de bucles: docType === FACTURA obligatorio en original.**
+Una nota no puede apuntar a otra nota. El guard `original.docType === "FACTURA"` en el servicio previene cadenas NC→NC→NC que generarían ciclos en la auto-referencia y contabilidad incoherente.
 
-Test arquitectural `company-isolation.test.ts`: `KNOWN_CRITICAL_FINDINGS = []` — 378/378 tests GREEN ✅
+**D-5 — Asiento compensador tipo AJUSTE.**
+El asiento generado por `createCreditNote` y `createDebitNote` usa `TransactionType.AJUSTE` (ya existe en el enum). No se introduce un nuevo tipo. La lógica de reversión de IVA (NC: Débito IVA por cobrar / Crédito Clientes; ND: inverso) se genera automáticamente a partir de las `taxLines` de la nota, consistente con el patrón de `createInvoiceAction`.
 
 ---
 
-### Queries ACEPTABLES documentadas
+### 1. Schema Prisma — campos a agregar en `model Invoice`
 
-| Archivo | Query | Justificación |
-|---|---|---|
-| `BankStatementService.ts` | `findMany({ where: { bankAccountId } })` | `bankAccountId` fue verificado contra `companyId` por el caller (`BankingService.importStatement`). La cadena de ownership está garantizada. |
-| `BankStatementService.ts` | `findUnique({ where: { id: statementId } })` | PK lookup. La acción caller (`getReconciliationSummaryAction`) verifica membership antes de delegar. |
-| `TransactionService.ts` | `findUnique({ where: { id: transactionId } })` en `voidTransaction` | PK CUID globalmente único. No hay riesgo de cross-tenant leak. Operación interna de mutación, no de listado. |
-| `CompanyService.ts` | `findUnique({ where: { id: companyId } })` | PK lookup sobre entidad raíz. No filtra datos de tenant, es la entidad que DEFINE el tenant. |
-| `FiscalYearCloseService.ts` | `findFirst({ where: { companyId, number: { startsWith: prefix } } })` | Incluye `companyId` — ACEPTABLE. |
-| `GeminiOCRService.ts` | Sin queries Prisma | Servicio de parseo de texto puro — no accede a DB. |
-| `IGTFService.ts` | Sin queries Prisma | Calculadora pura — no accede a DB. |
-| `InvoiceSequenceService.ts` | Upsert con `companyId` | Sin `findMany`/`findFirst`. |
-
----
-
-### Conteo final
-
-- CRITICOS: 3 → 0 (todos resueltos 2026-04-04)
-- ACEPTABLES documentados: 8
-- Sin queries DB (allowlist completa): 3 archivos (GeminiOCRService, IGTFService, InvoiceSequenceService)
-
----
-
-### Test arquitectural
-
-`src/__tests__/architecture/company-isolation.test.ts`
-
-Patrón detectado: `findMany` / `findFirst` / `aggregate` / `count` sin `companyId` en los próximos 15 tokens/líneas del where clause.
-
-Estrategia del test:
-- Lee cada archivo como texto con `fs.readFileSync`
-- Aplica regex pragmático: detecta `prisma.[model].(findMany|findFirst|aggregate|count)({` sin `companyId` en ventana de 15 líneas
-- Excluye: `findUnique` (PK — ACEPTABLE por diseño), bloques con `statement:` / `bankAccount:` (FK chain implícito)
-- Allowlist explícita para archivos sin DB y para hallazgos con scope implícito documentado
-- `KNOWN_CRITICAL_FINDINGS = []` — 0 hallazgos conocidos, test bloquea CI en cualquier nueva violación
-- Falla con mensaje claro si aparece un archivo NUEVO con `findMany` sin `companyId` no documentado
-
-Allowlist archivos sin DB:
-- `src/modules/ocr/services/GeminiOCRService.ts`
-- `src/modules/igtf/services/IGTFService.ts`
-- `src/modules/invoices/services/InvoiceSequenceService.ts`
-- `src/modules/retentions/services/RetentionService.ts`
-
-Allowlist scope implícito (ACEPTABLE documentado):
-- `src/modules/bank-reconciliation/services/BankStatementService.ts`
-- `src/modules/accounting/services/TransactionService.ts`
-- `src/modules/company/services/CompanyService.ts`
-- `src/modules/fiscal-close/services/FiscalYearCloseService.ts`
-
----
-
-### Fixes aplicados (2026-04-04) ✅
-
-1. `account.actions.ts` `updateAccountAction`: `companyId` agregado al `findFirst` de unicidad ✅
-2. `retention.actions.ts` fast-path idempotencia: `companyId: data.companyId` agregado ✅
-3. `retention.actions.ts` P2002 recovery: `companyId: input.companyId` agregado ✅
-
-`KNOWN_CRITICAL_FINDINGS` vaciado a `[]`. El test bloquea CI automáticamente ante cualquier nueva violación.
-
----
-
-## 13C-B3 Snapshots de Saldos por Período (ARCH 2026-04-05)
-
-- Estado: DECIDIDO ✅
-
-### Decisión
-
-**Problema resuelto (Bomba 4):** Sin snapshots, Balance General y Estado de Resultados recalculan todos los JournalEntry históricos en cada request. A 10 000 facturas USD la reconversión se repite en cada carga → timeout 504 en Vercel.
-
-**Solución:** Modelo `PeriodSnapshot` — saldo precalculado por (periodId, accountId) al cierre de cada período contable. Los servicios de reporte leen este snapshot en lugar de recalcular en tiempo real.
-
-**Nota de diseño:** `ExchangeRate` (Fase 14) ya cubre las tasas históricas. No se crea un modelo separado `ExchangeRateSnapshot` (YAGNI).
-
-### Schema Prisma
+Agregar al final del bloque `model Invoice`, antes del cierre `}`, inmediatamente después de `invoicePayments InvoicePayment[]`:
 
 ```prisma
-// ─── Fase 13C Bloque 3: Snapshots de Saldos por Período ───────────────────────
-model PeriodSnapshot {
-  id              String           @id @default(cuid())
-  companyId       String
-  periodId        String
-  accountId       String
-  balanceVes      Decimal          @db.Decimal(19,4)
-  balanceOriginal Decimal?         @db.Decimal(19,4)
-  currency        Currency         @default(VES)
-  snapshotAt      DateTime         @default(now())
+  // Fase 23C: NC/ND Workflow — auto-referencia
+  relatedInvoiceId  String?
+  relatedInvoice    Invoice?   @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  creditDebitNotes  Invoice[]  @relation("CreditDebitNotes")
+```
 
-  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  period   AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  account  Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+Agregar índice al bloque `@@index` existente del modelo:
 
-  @@unique([periodId, accountId])
-  @@index([companyId, periodId])
+```prisma
+  @@index([relatedInvoiceId])
+```
+
+**Bloque completo de índices e índices únicos resultante en `model Invoice`:**
+
+```prisma
+  @@unique([companyId, invoiceNumber, type])
+  @@index([companyId, type, date])
+  @@index([companyId, type, paymentStatus])
+  @@index([companyId, type, dueDate])
+  @@index([relatedInvoiceId])
+```
+
+**Nombre de migración:** `feat_23c_nc_nd_self_relation`
+
+**SQL equivalente (referencia para revisión manual):**
+```sql
+ALTER TABLE "Invoice"
+  ADD COLUMN "relatedInvoiceId" TEXT
+  REFERENCES "Invoice"("id") ON DELETE RESTRICT;
+
+CREATE INDEX "Invoice_relatedInvoiceId_idx" ON "Invoice"("relatedInvoiceId");
+```
+
+---
+
+### 2. Análisis de riesgo de migración
+
+| Factor | Evaluación |
+|---|---|
+| Filas afectadas | 0 — columna nullable (`String?`), sin backfill requerido |
+| Filas existentes | Ninguna row obtiene un valor distinto de NULL; la migración es non-destructiva |
+| Rollback | `ALTER TABLE "Invoice" DROP COLUMN "relatedInvoiceId"` — seguro si no hay datos en la columna |
+| Bloqueo de tabla | `ADD COLUMN ... NULL` en PostgreSQL 14+ es instantáneo (no reescribe filas) |
+| Índice | `CREATE INDEX` sin `CONCURRENTLY` es aceptable en tabla Invoice existente; en producción con carga alta, usar `CREATE INDEX CONCURRENTLY` en la migración manual |
+| FK auto-referencial | PostgreSQL soporta FK a la misma tabla; `onDelete: Restrict` bloquea borrar una FACTURA que tenga NCs/NDs hijas — consistente con ADR-003 |
+| @@unique existente | `@@unique([companyId, invoiceNumber, type])` no es afectado — las notas tienen su propio `invoiceNumber` |
+
+**Backfill requerido:** No. Las facturas existentes tendrán `relatedInvoiceId = NULL`, lo cual es correcto: son FACTURAs anteriores sin nota vinculada.
+
+---
+
+### 3. Contratos de función
+
+```typescript
+// Archivo owner: src/modules/invoices/services/InvoiceService.ts (extensión)
+// Importaciones adicionales necesarias: Decimal from "decimal.js", Prisma.TransactionClient
+
+// ─── Tipos NC/ND ──────────────────────────────────────────────────────────────
+
+/**
+ * Datos de entrada para crear una Nota de Crédito o Débito.
+ * relatedDocNumber está AUSENTE: se deriva server-side de original.invoiceNumber.
+ * El cliente NO puede inyectar este campo cuando docType es NC o ND.
+ */
+export type CreateCreditDebitNoteData = {
+  relatedInvoiceId: string        // FK hacia la FACTURA original
+  invoiceNumber: string           // número propio de la nota
+  controlNumber?: string          // número de control SENIAT de la nota
+  date: Date
+  counterpartName: string
+  counterpartRif: string
+  taxLines: TaxLineInput[]        // bases e IVA de la nota (puede ser parcial)
+  ivaRetentionAmount?: string     // default "0"
+  ivaRetentionVoucher?: string
+  ivaRetentionDate?: Date
+  islrRetentionAmount?: string    // default "0"
+  igtfBase?: string               // default "0"
+  igtfAmount?: string             // default "0"
+  currency: "VES" | "USD" | "EUR"
+  exchangeRateId?: string
+  periodId?: string
+  idempotencyKey?: string         // UUID para idempotencia
+  notes?: string
 }
-```
 
-**Relaciones inversas añadidas:**
-- `Company.periodSnapshots PeriodSnapshot[]`
-- `AccountingPeriod.periodSnapshots PeriodSnapshot[]`
-- `Account.periodSnapshots PeriodSnapshot[]`
+// ─── createCreditNote ─────────────────────────────────────────────────────────
 
-**Migración:** `prisma/migrations/20260405_feat_13c_period_snapshot/migration.sql`
-
-### Checklist SCHEMA_AUDITOR
-
-- [x] Todas las relaciones tienen `onDelete: Restrict` — nunca Cascade
-- [x] Campos monetarios `Decimal @db.Decimal(19,4)` — nunca Float
-- [x] `@@unique([periodId, accountId])` — un snapshot por cuenta por período (idempotencia)
-- [x] `@@index([companyId, periodId])` — índice para queries de reportes
-- [x] `companyId` presente en el modelo — cumple ADR-004 multi-tenant
-- [x] `currency` usa enum `Currency` existente (Fase 14) — sin valores hardcodeados
-- [x] No se necesita `deletedAt` — el snapshot es inmutable por diseño (re-generar = UPDATE, no soft delete)
-- [x] No se necesita `idempotencyKey` separada — `@@unique([periodId, accountId])` es el constraint de idempotencia
-- [x] Riesgo de migración: solo ADD TABLE — sin rows afectados, rollback seguro via DROP TABLE
-- [x] No hay acciones destructivas en este bloque — ADR-006 D-1/D-5 no aplica
-
-### Concurrencia
-
-`PeriodSnapshotService.upsertSnapshot()` (Bloque 4, ledger-agent) usará `upsert` atómico con `@@unique([periodId, accountId])` como selector. Read Committed es suficiente — el snapshot no es un correlativo fiscal. No requiere Serializable.
-
-### Scope de este bloque
-
-- Bloque 3 (arch-agent): schema + migración — COMPLETADO ✅
-- Bloque 4 (ledger-agent): `PeriodSnapshotService` — COMPLETADO ✅ 2026-04-05
-- Bloque 4 genera snapshots al cierre de período (`closePeriod`) y los invalida/actualiza ante nuevas transacciones retroactivas.
-
----
-
-## 13C-B4 PeriodSnapshotService (LEDGER 2026-04-05)
-
-- Estado: COMPLETADO ✅
-
-### Implementación
-
-**Archivos creados/modificados:**
-- `src/modules/accounting/services/PeriodSnapshotService.ts` — service nuevo
-- `src/modules/accounting/services/PeriodSnapshotService.test.ts` — 9 tests GREEN
-- `src/modules/accounting/services/PeriodService.ts` — integración en closePeriod
-- `src/modules/accounting/services/PeriodService.test.ts` — actualizado con 6 tests GREEN
-- `vitest.config.ts` — fix pool=vmForks (runner context en Windows/Node 22)
-
-**Métodos implementados:**
-- `upsertSnapshot(companyId, periodId, accountId, tx)` — calcula balance con Decimal.js, upsert atómico
-- `upsertAllSnapshotsForPeriod(companyId, periodId, tx)` — procesa todas las cuentas con movimientos
-- `getSnapshot(companyId, periodId, accountId)` — lectura con companyId (ADR-004)
-- `invalidateSnapshots(companyId, periodId, tx)` — elimina snapshots al reabrir período
-
-**Integración PeriodService.closePeriod:**
-`upsertAllSnapshotsForPeriod` se llama dentro del mismo `$transaction` que el UPDATE del período (best-practices §6.3). Si la generación de snapshots falla, el cierre se revierte — atomicidad ACID garantizada.
-
-**Fix sistémico Vitest:**
-El pool `forks` (default) no inicializa el runner context en Windows/Node 22 + Vitest 4.x.
-Fix: `pool: "vmForks"` en `vitest.config.ts`. Desbloqueó todos los tests del proyecto (407 tests).
-
-### Checklist ADR compliance
-
-- [x] ADR-002: Decimal.js para todos los cálculos de balance — nunca float
-- [x] ADR-004: companyId en todas las queries (upsertSnapshot, getSnapshot, invalidateSnapshots)
-- [x] ADR-005: no DELETE en JournalEntry/Transaction — solo lectura de saldos
-- [x] best-practices §6.3: AuditLog y snapshots dentro del mismo $transaction que la mutation
-- [x] Read Committed es suficiente — no es correlativo fiscal (no requiere Serializable)
-
----
-
-## 13C-B5 Report Cache — Cache en Memoria para Reportes de Períodos Cerrados (LEDGER 2026-04-05)
-
-- Estado: COMPLETADO ✅
-
-### Implementación
-
-**Archivos creados/modificados:**
-- `src/lib/report-cache.ts` — módulo nuevo de cache en memoria
-- `src/lib/report-cache.test.ts` — 15 tests GREEN
-- `src/modules/accounting/actions/transaction.actions.ts` — integración de cache + nuevas actions
-
-**API del módulo `report-cache.ts`:**
-- `makeCacheKey(companyId, periodId, reportType)` — genera key consistente `{company}:{period}:{type}`
-- `getCached<T>(key)` — retorna dato o null (expiry lazy por TTL)
-- `setCached<T>(key, data, ttlMs?)` — guarda con TTL (default 5 min)
-- `invalidatePeriod(companyId, periodId)` — elimina todas las keys del período (por prefijo)
-- `withPeriodCache<T>(companyId, periodId, periodStatus, reportType, fn)` — wrapper principal
-
-**Reglas de cache:**
-- CLOSED → cachea resultado por 5 minutos (inmutables una vez cerrados)
-- OPEN → siempre ejecuta fn en tiempo real (datos pueden cambiar)
-- TTL = `CLOSED_PERIOD_TTL_MS` = 5 min (reducir carga sin riesgo de stale)
-- Store: `Map<string, CacheEntry>` — sin Redis, sin persistencia (YAGNI para esta fase)
-
-**Nuevas actions en `transaction.actions.ts`:**
-- `getTransactionsByPeriodAction(companyId, periodId, cursor?, limit?)` — paginación por período con cache automático
-- `invalidatePeriodCache(companyId, periodId)` — exportado para uso desde PeriodService al reabrir período
-
-**Integración de cache en `getTransactionsByPeriodAction`:**
-1. Verifica auth (Clerk)
-2. Lookup de `AccountingPeriod` con `{ id: periodId, companyId }` — obtiene `status` (ADR-004)
-3. `withPeriodCache` con reportType que incluye cursor+limit para manejar paginación correctamente
-4. Si CLOSED y cache hit → retorna sin query adicional a Prisma
-5. Si CLOSED y cache miss → ejecuta `TransactionService.listTransactions`, cachea y retorna
-6. Si OPEN → ejecuta siempre en tiempo real
-
-### Checklist ADR compliance
-
-- [x] ADR-004: companyId en lookup de período + en query de transacciones
-- [x] ADR-005: no DELETE ni mutaciones — solo lectura de reportes
-- [x] YAGNI: Map en memoria, no Redis (correcto para esta fase)
-- [x] Vitest 4: 15 tests nuevos, todos GREEN (422 total)
-- [x] No cachear operaciones de escritura — solo actions de lectura
-
----
-
-## 13C-B6 Prisma Query Monitoring (LEDGER 2026-04-05)
-
-- Estado: COMPLETADO ✅
-
-### Implementación
-
-**Archivos modificados:**
-- `src/lib/prisma.ts` — query monitoring con evento Prisma + Sentry breadcrumb
-
-**Comportamiento:**
-- Umbral: `SLOW_QUERY_THRESHOLD_MS = 500` (queries >= 500ms se registran)
-- `console.warn('[SLOW_QUERY] {duration}ms — {query.slice(0, 120)}')` en cualquier entorno (no-test)
-- En producción: `Sentry.addBreadcrumb` con category `db.slow_query` y level `warning` — nunca `captureException` para no inflar quota
-- Import dinámico de `@sentry/nextjs` con catch silencioso para no bloquear la app si Sentry falla
-- `NODE_ENV !== 'test'` guard: listener completamente inactivo durante `vitest run`
-- NO se loguean params de la query (contienen RIF, montos — PII fiscal, ADR-006)
-- Singleton pattern `globalForPrisma` intacto
-- Log config cambiado de `["query"]` (stdout) a eventos tipados (`emit: 'event'`) para acceso programático
-
-### Checklist ADR compliance
-
-- [x] ADR-006 D-1: no modifica controles de seguridad existentes
-- [x] ADR-006 D-4: AuditLog no tocado — solo observabilidad de infraestructura
-- [x] ADR-002: no hay lógica monetaria — solo duración en ms (entero)
-- [x] Seguridad: query params excluidos del log (PII fiscal — RIF, montos)
-- [x] KISS: una sola función (`$on('query', ...)`) — sin clases, sin wrappers
-- [x] Vitest 4: 422 tests, todos GREEN — sin regresiones
-
----
-
-## Deuda Técnica — RLS (Row Level Security)
-
-**Estado:** Sin RLS en base de datos. La protección actual es exclusivamente a nivel de aplicación:
-- ADR-004: `companyId` obligatorio en todos los `findMany`/`findFirst`/`aggregate`
-- `src/__tests__/architecture/company-isolation.test.ts` — CI falla si se omite `companyId` sin documentar en allowlist
-- Clerk auth → `CompanyMember` lookup en cada Server Action — `companyId` nunca viene del cliente
-
-**Bloqueado por:** conflicto PrismaPg pooled vs `SET LOCAL` — el pool puede reutilizar conexiones entre requests, filtrando variables de sesión.
-
-**Solución futura a evaluar:** Neon RLS nativo con JWT Clerk (no requiere `SET LOCAL` — Neon lee el JWT directamente).
-
-**Prioridad:** implementar después de Fase 17, antes de Fase 19. No bloquea ninguna fase actual.
-
----
-
-## 19. Declaración Mensual IVA — Forma 30 SENIAT (ARCH 2026-04-07)
-
-- Estado: DECIDIDO ✅
-- ADR de referencia: `.claude/adr/ADR-009-forma30-iva.md`
-
-### Decisiones clave (no re-derivar)
-
-- **D-1** DECIDIDO ✅ — Cálculo on-the-fly. Sin modelo `DeclaracionIVA` en Prisma. La Forma 30 es un reporte derivado 100% de datos ya auditados. Riesgo de desync con modelo persistido > beneficio de lectura O(1).
-- **D-2** DECIDIDO ✅ — Read Committed. No hay escritura. `$transaction` Serializable no requerido. `tx` opcional para uso embebido en transacciones del caller.
-- **D-3** DECIDIDO ✅ — Facturas con `deletedAt != null` excluidas. `NOTA_CREDITO` invierte signo de base y tax en Sección A. `NO_SUJETA` excluida de todos los totales.
-- **D-4** DECIDIDO ✅ — Mapeo TaxLineType → secciones: IVA_GENERAL→A1/B1, IVA_REDUCIDO→A2/B2, IVA_ADICIONAL→A3/B3, EXENTO+EXONERADA→A4/B4.
-- **D-5** DECIDIDO ✅ — Retenciones sufridas desde `Invoice(SALE).ivaRetentionAmount`; practicadas desde `Retencion.ivaRetention`. Solo si `company.isSpecialContributor = true`.
-- **D-6** DECIDIDO ✅ — IGTF desde `IGTFTransaction` filtrado por `createdAt` (gte/lt período completo UTC).
-- **D-7** DECIDIDO ✅ — Autorización: cualquier `companyMember` (VIEWER incluido). Rate limiting `limiters.fiscal` aplicado para proteger query costosa.
-- **D-8** DECIDIDO ✅ — PDF Export diferido a Fase 19B. Fase 19 produce solo `Forma30Result` JSON.
-
-### Módulo owner
-
-```
-src/modules/iva-declaration/
-  types/forma30.types.ts          ← Forma30Result + interfaces de secciones
-  schemas/generarForma30.schema.ts ← GenerarForma30Schema (Zod)
-  services/DeclaracionIVAService.ts ← calculate(companyId, year, month, tx?)
-  actions/generarForma30.action.ts  ← generarForma30Action
-  __tests__/DeclaracionIVAService.test.ts
-  __tests__/generarForma30.action.test.ts
-```
-
-### Contrato de generarForma30Action
-
-```typescript
-// Flujo de autorización (en este orden):
-// 1. auth() → userId
-// 2. checkRateLimit(limiters.fiscal, userId)
-// 3. safeParse(GenerarForma30Schema, { companyId, year, month })
-// 4. companyMember.findUnique({ userId_companyId }) — cualquier role
-// 5. FiscalYearCloseService.isFiscalYearClosed(companyId, year) → fiscalYearClosed (informativo, no bloquea)
-// 6. DeclaracionIVAService.calculate(companyId, year, month)
-
-async function generarForma30Action(
+/**
+ * Crea una Nota de Crédito vinculada a una Factura original.
+ * Base legal: Reglamento IVA Art. 58 (Venezuela).
+ *
+ * Precondiciones (verificadas dentro de la tx Serializable):
+ *   1. relatedInvoiceId existe y pertenece a companyId                       [CRITICAL-1: ADR-004]
+ *   2. original.docType === "FACTURA"                                         [D-4: loop prevention]
+ *   3. original.deletedAt IS NULL                                             [soft delete guard]
+ *   4. original.paymentStatus !== "VOIDED"                                    [void guard]
+ *   5. nc.totalAmountVes <= original.pendingAmount (Decimal, tolerancia 0)   [CRITICAL-2: TOCTOU-safe]
+ *   6. companyMember.role !== "VIEWER"                                        [ADR-006 D-1]
+ *   7. El año de la fecha de la nota no está cerrado (FiscalYearClose guard) [Fase 15 guard]
+ *
+ * Proceso (dentro de $transaction({ isolationLevel: 'Serializable' })):
+ *   1. Fetch original: findFirst({ where: { id: relatedInvoiceId, companyId } })
+ *      — el companyId guard aquí resuelve CRITICAL-1 y CRITICAL-2 simultáneamente
+ *   2. Verificar precondiciones 2–7 (dentro de la tx)
+ *   3. Derivar relatedDocNumber = original.invoiceNumber (nunca del input del cliente)
+ *   4. Calcular totalAmountVes de la nota a partir de taxLines + igtfAmount
+ *   5. Crear Invoice con docType: "NOTA_CREDITO", relatedInvoiceId, relatedDocNumber
+ *   6. Actualizar original.pendingAmount -= nc.totalAmountVes (Decimal.js)
+ *   7. Recalcular original.paymentStatus:
+ *        pendingAmount <= 0   → "PAID"
+ *        pendingAmount > 0    → "PARTIAL"
+ *        (original.pendingAmount nunca puede quedar negativo — error de negocio)
+ *   8. Generar Transaction type: AJUSTE con JournalEntries compensadoras
+ *        Ejemplo ventas: Débito "IVA por cobrar" / Crédito "Clientes"
+ *        Las cuentas se resuelven igual que en createInvoiceAction
+ *   9. AuditLog x2 dentro del mismo $transaction:
+ *        { entityName: "Invoice", action: "CREATE_NC", entityId: nc.id }
+ *        { entityName: "Invoice", action: "PENDING_AMOUNT_UPDATE", entityId: original.id,
+ *          oldValue: { pendingAmount: original.pendingAmount.toString() },
+ *          newValue: { pendingAmount: newPendingAmount.toString() } }
+ *
+ * Postcondiciones:
+ *   - NC Invoice creada con relatedInvoiceId y relatedDocNumber = original.invoiceNumber
+ *   - original.pendingAmount decrementado por nc.totalAmountVes
+ *   - original.paymentStatus actualizado (PARTIAL o PAID)
+ *   - Asiento compensador type: AJUSTE registrado
+ *   - AuditLog x2 en la misma tx
+ *
+ * Errores de negocio (string — nunca exponer errores Prisma):
+ *   - "Factura original no encontrada o no pertenece a esta empresa"
+ *   - "Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)"
+ *   - "La factura original está anulada"
+ *   - "El monto de la nota supera el saldo pendiente de la factura original"
+ *   - "El ejercicio económico {year} está cerrado"
+ *
+ * Concurrencia (ADR-001):
+ *   - Serializable SSI — previene TOCTOU en pendingAmount bajo concurrencia
+ *   - Patrón idéntico a getNextControlNumber y closeFiscalYear
+ */
+async function createCreditNote(
   companyId: string,
-  year: number,
-  month: number
-): Promise<ActionResult<Forma30Result & { fiscalYearClosed: boolean }>>
+  data: CreateCreditDebitNoteData,
+  createdBy: string
+): Promise<Invoice>
+
+// ─── createDebitNote ──────────────────────────────────────────────────────────
+
+/**
+ * Crea una Nota de Débito vinculada a una Factura original.
+ * Base legal: Reglamento IVA Art. 58 (Venezuela).
+ *
+ * Precondiciones (simétricas a createCreditNote, excepto punto 5):
+ *   1. relatedInvoiceId existe y pertenece a companyId                       [CRITICAL-1: ADR-004]
+ *   2. original.docType === "FACTURA"                                         [D-4: loop prevention]
+ *   3. original.deletedAt IS NULL
+ *   4. original.paymentStatus !== "VOIDED"
+ *   5. (sin restricción de monto máximo — ND puede incrementar la deuda)
+ *   6. companyMember.role !== "VIEWER"                                        [ADR-006 D-1]
+ *   7. El año de la fecha de la nota no está cerrado (FiscalYearClose guard)
+ *
+ * Proceso (dentro de $transaction({ isolationLevel: 'Serializable' })):
+ *   1. Fetch original con companyId guard (CRITICAL-1)
+ *   2. Verificar precondiciones 2–7
+ *   3. Derivar relatedDocNumber = original.invoiceNumber
+ *   4. Calcular totalAmountVes de la nota
+ *   5. Crear Invoice con docType: "NOTA_DEBITO", relatedInvoiceId, relatedDocNumber
+ *   6. Actualizar original.pendingAmount += nd.totalAmountVes (Decimal.js)
+ *   7. Recalcular original.paymentStatus:
+ *        pendingAmount > 0 y antes era PAID → "PARTIAL"
+ *        pendingAmount > 0 y antes era UNPAID/PARTIAL → sin cambio de status (ya estaba pendiente)
+ *   8. Generar Transaction type: AJUSTE con JournalEntries compensadoras
+ *        Ejemplo ventas: Débito "Clientes" / Crédito "IVA por cobrar"
+ *   9. AuditLog x2 dentro del mismo $transaction (mismo patrón que createCreditNote)
+ *
+ * Postcondiciones:
+ *   - ND Invoice creada con relatedInvoiceId y relatedDocNumber = original.invoiceNumber
+ *   - original.pendingAmount incrementado por nd.totalAmountVes
+ *   - original.paymentStatus actualizado si corresponde
+ *   - Asiento compensador type: AJUSTE registrado
+ *   - AuditLog x2 en la misma tx
+ *
+ * Errores de negocio:
+ *   - "Factura original no encontrada o no pertenece a esta empresa"
+ *   - "Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)"
+ *   - "La factura original está anulada"
+ *   - "El ejercicio económico {year} está cerrado"
+ *
+ * Concurrencia (ADR-001):
+ *   - Serializable SSI — igual que createCreditNote
+ *   - Justificación: aunque ND no verifica un techo de monto, la actualización de
+ *     pendingAmount debe ser atómica para que paymentStatus sea consistente
+ */
+async function createDebitNote(
+  companyId: string,
+  data: CreateCreditDebitNoteData,
+  createdBy: string
+): Promise<Invoice>
+
+// ─── getCreditDebitNotes ──────────────────────────────────────────────────────
+
+/**
+ * Retorna todas las notas (NC y ND) activas vinculadas a una factura original.
+ *
+ * Precondiciones:
+ *   - originalInvoiceId pertenece a companyId (ADR-004)
+ *
+ * Postcondiciones:
+ *   - Solo notas con deletedAt IS NULL
+ *   - Ordenadas por date ASC, createdAt ASC
+ *   - Read Committed suficiente (solo lectura, sin correlativo)
+ */
+async function getCreditDebitNotes(
+  originalInvoiceId: string,
+  companyId: string
+): Promise<Invoice[]>
 ```
 
-### Schema Zod de input
+---
+
+### 4. Cambio en Zod Schema — `CreateInvoiceSchema`
+
+**Problema:** `relatedDocNumber: z.string().optional()` en el schema actual permite que el cliente lo envíe libremente. Cuando `docType` es `NOTA_CREDITO` o `NOTA_DEBITO`, el campo debe ser rechazado del input del cliente y derivado server-side.
+
+**Decisión:** Añadir una transformación en `CreateInvoiceSchema` usando `.superRefine()` que elimina silenciosamente `relatedDocNumber` del input cuando `docType` es NC o ND, y que exige `relatedInvoiceId` cuando `docType` es NC o ND.
+
+**Bloque exacto a agregar en `invoice.schema.ts`:**
 
 ```typescript
-// src/modules/iva-declaration/schemas/generarForma30.schema.ts
-export const GenerarForma30Schema = z.object({
-  companyId: z.string().cuid({ error: "companyId inválido" }),
-  year: z.number().int().min(2020, { error: "Año mínimo: 2020" }).max(2099, { error: "Año máximo: 2099" }),
-  month: z.number().int().min(1, { error: "Mes mínimo: 1" }).max(12, { error: "Mes máximo: 12" }),
-});
-// Sin campos de tasa fiscal — ADR-006 D-3
+// ─── Schema NC/ND — Fase 23C ──────────────────────────────────────────────────
+
+/**
+ * Extiende CreateInvoiceSchema con las reglas NC/ND:
+ *   1. relatedInvoiceId es OBLIGATORIO cuando docType === NOTA_CREDITO | NOTA_DEBITO
+ *   2. relatedDocNumber es IGNORADO del input del cliente cuando docType === NOTA_CREDITO | NOTA_DEBITO
+ *      (el servicio lo deriva de original.invoiceNumber — ADR-006 D-3 spirit, MEDIUM finding)
+ */
+export const CreateCreditDebitNoteSchema = CreateInvoiceSchema
+  .extend({
+    relatedInvoiceId: z.string().min(1, { error: "El ID de la factura original es requerido" }),
+  })
+  .transform((data) => {
+    // Silently strip relatedDocNumber — it is always derived server-side
+    const { relatedDocNumber: _stripped, ...rest } = data;
+    return rest;
+  });
+
+export type CreateCreditDebitNoteInput = z.infer<typeof CreateCreditDebitNoteSchema>;
 ```
 
-### Checklist SCHEMA_AUDITOR
-
-- [x] Sin nuevo modelo Prisma — sin migración — riesgo cero
-- [x] Todos los campos monetarios en Forma30Result usan Decimal.js — nunca float (ADR-002)
-- [x] Todas las queries internas incluyen `companyId` (ADR-004)
-- [x] No hay campos de tasa en el schema Zod de input (ADR-006 D-3)
-- [x] No hay AuditLog (lectura pura — no aplica ADR-006 D-4)
-- [x] Rate limiting `limiters.fiscal` aplicado (ADR-006 D-5 espíritu)
-- [x] `generarForma30Action` es lectura: cualquier role, sin role check ADMIN (ADR-006 D-1)
-- [x] `DeclaracionIVAService` en allowlist de `company-isolation.test.ts` si no usa `findMany`/`findFirst` directamente
-
-### Tests requeridos
-
-```
-DeclaracionIVAService.test.ts:
-  calculate — período sin facturas → todos los montos Decimal(0)
-  calculate — NOTA_CREDITO invierte signo en SeccionA
-  calculate — IVA_ADICIONAL aparece en A3/B3 sin duplicar base de A1/B1
-  calculate — deletedAt excluye la factura de todos los totales
-  calculate — isSpecialContributor=false → SeccionC.retencionesIvaSufridas = 0
-  calculate — isSpecialContributor=true → SeccionC populated desde Retencion
-  calculate — IGTF sumado desde IGTFTransaction del período
-  calculate — SeccionE.cuotaPeriodo = A.total - B.total - C.total
-  calculate — SeccionE.esSaldoAFavor=true si cuotaPeriodo < 0
-
-generarForma30.action.test.ts:
-  generarForma30Action — sin auth → error
-  generarForma30Action — sin membership → error
-  generarForma30Action — input inválido (month=13) → error Zod
-  generarForma30Action — año cerrado → fiscalYearClosed=true, NO bloquea
-  generarForma30Action — año abierto → fiscalYearClosed=false, calcula normalmente
-  generarForma30Action — rate limit excedido → error
-```
-
-### Ruta nueva
-
-```
-/company/[companyId]/iva-declaration   → selector año/mes → tabla Forma 30 secciones A/B/C/D/E
+**Validación adicional en la Server Action** (no en el schema — depende de DB):
+```typescript
+// En createCreditNoteAction / createDebitNoteAction — ANTES de llamar al servicio:
+if (!["NOTA_CREDITO", "NOTA_DEBITO"].includes(parsed.data.docType)) {
+  return { success: false, error: "docType debe ser NOTA_CREDITO o NOTA_DEBITO" };
+}
+// relatedDocNumber NO se pasa al servicio desde el input — el servicio lo deriva
 ```
 
 ---
 
-## 20. Fase 20 — XML SENIAT + QR en PDF de Factura (ARCH 2026-04-07)
-
-- Estado: DECIDIDO ✅
-
-### Contexto
-
-Venezuela no tiene un sistema de e-facturación mandatorio operativo (SDCA anunciado pero no desplegado). El XML es un artefacto descargable útil hoy para:
-1. Importación en software de terceros (Galac, AdminSys)
-2. Documentación estructurada interna
-3. Compatibilidad futura cuando SENIAT active el SDCA (Option C)
-
-El QR embebido en el PDF permite verificación rápida en auditorías sin necesidad de portal externo.
-
-### Decisiones clave
-
-- **D-1** DECIDIDO ✅ — XML generado como string puro (sin xmlbuilder ni fast-xml-parser). La estructura es estática y conocida; una librería sería over-engineering (KISS).
-- **D-2** DECIDIDO ✅ — Namespace `urn:ve:seniat:factura:1.0` — basado en Providencia 0071. No es un namespace oficial publicado por SENIAT (no existe API pública), pero sigue la convención de namespacing por organización/país/dominio.
-- **D-3** DECIDIDO ✅ — QR generado server-side con `qrcode` (Node.js) como data URL base64. Se pasa al PDF como `qrCodeDataUrl?: string`. No se agrega QR al libro PDF (solo al comprobante individual).
-- **D-4** DECIDIDO ✅ — Contenido del QR: `CONTAFLOW:RIF={rif};FACTURA={nro};CONTROL={ctrl};TOTAL={total};FECHA={fecha};MONEDA={moneda}`. Formato propietario legible por cualquier escáner QR estándar.
-- **D-5** DECIDIDO ✅ — `exportInvoiceXMLAction` retorna `{ success: true; xml: string; filename: string }`. El cliente hace `Blob` + download link en el browser (mismo patrón que PDF).
-- **D-6** DECIDIDO ✅ — Escape XML obligatorio en todos los valores de texto: `&`, `<`, `>`, `"`, `'` → entidades XML. `escapeXml()` helper privado en `SeniatXMLService`.
-- **D-7** DECIDIDO ✅ — Los campos opcionales (`controlNumber`, `companyAddress`, `ivaRetention`, `islrRetention`, `igtf`) se omiten del XML si son null/undefined/cero. XML limpio sin nodos vacíos.
-- **D-8** DECIDIDO ✅ — Rate limiting: `exportInvoiceXMLAction` usa `limiters.fiscal` (30/min). Sin rate limit dedicado — el XML es menos costoso que PDF.
-
-### Módulo owner
-
-`src/modules/invoices/services/SeniatXMLService.ts`
-
-### Archivos creados/modificados
+### 5. SCHEMA_AUDITOR checklist — campo `relatedInvoiceId` en `model Invoice`
 
 ```
-src/modules/invoices/services/SeniatXMLService.ts          (nuevo)
-src/modules/invoices/services/SeniatXMLService.test.ts     (nuevo)
-src/modules/invoices/services/InvoiceVoucherPDFService.ts  (+ qrCodeDataUrl param)
-src/modules/invoices/actions/invoice.actions.ts            (+ exportInvoiceXMLAction)
-src/modules/invoices/actions/invoice.actions.test.ts       (+ tests XML)
-src/components/invoices/InvoiceBook.tsx                    (+ botón XML por fila)
+[x] Relación a tabla contable tiene onDelete: Restrict
+    — Invoice es tabla contable (ADR-003). relatedInvoiceId → Invoice con onDelete: Restrict. CONFORME.
+
+[x] onDelete: Cascade AUSENTE en la nueva relación
+    — La relación "CreditDebitNotes" usa Restrict en ambos sentidos de la auto-referencia. CONFORME.
+
+[x] Campo monetario — No aplica
+    — relatedInvoiceId es FK String, no campo monetario. ADR-002 no aplica directamente.
+    — Los campos de monto de la nota (totalAmountVes, pendingAmount) ya heredan Decimal(19,4)
+      de la definición existente del modelo Invoice. CONFORME.
+
+[x] Campo porcentaje — No aplica
+    — No se introduce campo de tasa. CONFORME.
+
+[x] Soft delete presente
+    — Invoice ya tiene deletedAt DateTime?. La nota hereda este mecanismo. CONFORME.
+
+[x] idempotencyKey presente
+    — Invoice ya tiene idempotencyKey String? @unique. Las notas lo heredan. CONFORME.
+
+[x] Unicidad de negocio incluye companyId
+    — @@unique([companyId, invoiceNumber, type]) ya existe — no hay riesgo de colisión
+      cross-tenant en el número de la nota. CONFORME.
+
+[x] Índice en la nueva FK relatedInvoiceId
+    — @@index([relatedInvoiceId]) agregado. Justificación: el patrón más frecuente es
+      "dame todas las NCs/NDs de esta factura" (getCreditDebitNotes), que filtra por
+      relatedInvoiceId. Sin índice → seq scan sobre Invoice completa. REQUERIDO Y AGREGADO.
+
+[x] AuditLog requerido
+    — createCreditNote y createDebitNote generan AuditLog x2 dentro del mismo $transaction.
+      Entidades auditadas: Invoice (CREATE_NC/ND) + Invoice original (PENDING_AMOUNT_UPDATE).
+      CONFORME.
+
+[x] Riesgo de migración documentado
+    — Sección 2 de este contrato documenta: 0 filas afectadas, no backfill, rollback seguro,
+      ADD COLUMN NULL es instantáneo en PG 14+. CONFORME.
+
+[x] Acción destructiva verifica companyMember.role (ADR-006 D-1)
+    — createCreditNote y createDebitNote requieren role !== "VIEWER". CONFORME.
+
+[x] Campos de monto en Zod tienen .max() ceiling (ADR-006 D-2)
+    — CreateCreditDebitNoteSchema extiende CreateInvoiceSchema que ya aplica
+      MAX_INVOICE_AMOUNT en todos los campos monetarios vía .refine(). CONFORME.
+
+[x] Campo de tasa no aceptado del cliente (ADR-006 D-3)
+    — TaxLineSchema ya fuerza tasas canónicas via CANONICAL_TAX_RATES. CONFORME.
+
+[x] AuditLog es append-only (ADR-006 D-4)
+    — No hay auditLog.update ni auditLog.delete en los contratos. Solo prisma.auditLog.create.
+      CONFORME.
+
+[x] Mutación financiera tiene rate limiting (ADR-006 D-5)
+    — createCreditNoteAction y createDebitNoteAction deben aplicar limiters.fiscal
+      (patrón existente en createInvoiceAction). REQUERIDO — implementar en la action.
+
+[x] La auto-referencia NO crea problema de @@unique constraint
+    — @@unique([companyId, invoiceNumber, type]) no es afectado. Una NC tiene su propio
+      invoiceNumber distinto al de la FACTURA original. No hay colisión. CONFORME.
+
+[x] La FK auto-referencial no crea ciclos en onDelete: Restrict
+    — Restrict en este contexto significa: no se puede borrar la FACTURA si tiene NCs/NDs.
+      Las NCs/NDs sí pueden borrarse (soft delete: deletedAt). Correcto.
+      No hay ciclo: NC→FACTURA (Restrict) + FACTURA no apunta a NC. CONFORME.
 ```
 
 ---
 
-## ADR-010 — Testing Strategy (ARCH 2026-04-08)
+### 6. Rutas nuevas
 
-- Estado: DECIDIDO ✅
+```
+/company/[companyId]/invoices/[invoiceId]/credit-note   → formulario crear NC
+/company/[companyId]/invoices/[invoiceId]/debit-note    → formulario crear ND
+```
 
-### Contexto
-
-El proyecto acumula 753 tests unitarios con mocks. Los mocks permiten velocidad de desarrollo pero ocultan divergencias entre el comportamiento simulado y el real de PostgreSQL (Neon + Serializable). Necesitamos una estrategia por tiers que sea sostenible sin bloquear el ciclo de desarrollo.
-
-### Decisiones
-
-- **D-1** Unit tests (Vitest + mocks): toda la lógica de negocio pura, services, actions. Sin DB real. Patrón actual. Corren en `vitest run` local y CI. Mock pattern obligatorio: `vi.mocked(prisma.modelo.metodo).mockResolvedValue([] as never)`.
-
-- **D-2** Integration tests (Vitest + DB real): operaciones que dependen del comportamiento real de PostgreSQL. **Obligatorio** para:
-  - `getNextControlNumber` — Serializable + SELECT FOR UPDATE (race condition no detectable con mocks)
-  - `runInflationAdjustmentAction` — guards encadenados FiscalYearClose + Serializable
-  - `BankReconciliationService` — 3-way match con transacciones reales
-  - Ubicación: `src/__tests__/integration/`
-  - Variable de entorno: `DATABASE_URL_TEST` (nunca `DATABASE_URL` de producción)
-  - Solo corren con `vitest run --project integration`. Excluidos del `vitest run` por defecto.
-  - Tag de identificación: `@integration` en el nombre del describe.
-
-- **D-3** E2E (Playwright — Fase futura): smoke tests de rutas críticas:
-  - `/invoices/upload` (OCR → pre-fill)
-  - `/iva-declaration` (Forma 30 generación)
-  - Flujo completo de conciliación bancaria (PDF → auto-match → confirm)
-  - No bloquea ninguna fase actual. Implementar cuando haya staging environment estable.
-
-- **D-4** Cobertura mínima por fase: al menos **2–3 casos negativos no triviales** por servicio nuevo (no solo happy path + auth). Edge cases esperados para ContaFlow:
-  - Montos con formato inesperado (string vacío, null donde se espera number, formato no venezolano)
-  - PDFs corruptos o ilegibles por Gemini
-  - Rate limit excedido (429 de Upstash)
-  - Transacciones duplicadas (P2002)
-  - Período cerrado al intentar mutación
-
-### Módulo owner
-
-`src/__tests__/integration/` — primer test: `control-number-sequence.test.ts`
-
+Los formularios pre-llenan `relatedInvoiceId` y muestran datos de la factura original (número, contraparte, saldo pendiente). El campo `relatedDocNumber` no aparece en el formulario — es invisible al usuario (derivado server-side).
 
 ---
 
-## ADR-011 — OCR Idempotencia (ARCH 2026-04-08)
+### 7. Tests requeridos
 
-- Estado: PENDIENTE — evaluar en la fase que toque OCR
+```
+InvoiceService.test.ts (NC/ND additions):
+  createCreditNote — crea NC, reduce pendingAmount, actualiza paymentStatus a PAID
+  createCreditNote — crea NC parcial, actualiza paymentStatus a PARTIAL
+  createCreditNote — rechaza si nc.totalAmountVes > pendingAmount
+  createCreditNote — rechaza si original.docType !== FACTURA (loop prevention)
+  createCreditNote — rechaza si original está anulada (deletedAt no nulo)
+  createCreditNote — rechaza si original.paymentStatus === VOIDED
+  createCreditNote — rechaza si relatedInvoiceId no pertenece a companyId (CRITICAL-1)
+  createCreditNote — dos NCs concurrentes: solo una pasa si la suma supera pendingAmount (CRITICAL-2)
+  createCreditNote — genera AuditLog x2 en la misma tx
+  createCreditNote — genera Transaction type: AJUSTE
+  createCreditNote — relatedDocNumber derivado = original.invoiceNumber (nunca del input)
+  createDebitNote — crea ND, incrementa pendingAmount
+  createDebitNote — ND sobre factura PAID reactiva paymentStatus a PARTIAL
+  createDebitNote — rechaza si original.docType !== FACTURA
+  createDebitNote — rechaza si relatedInvoiceId no pertenece a companyId (CRITICAL-1)
+  createDebitNote — genera AuditLog x2 en la misma tx
+  getCreditDebitNotes — retorna solo notas con deletedAt IS NULL, ordenadas por date ASC
+  getCreditDebitNotes — guard companyId (ADR-004)
 
-### Problema
+invoice.actions.test.ts (NC/ND additions):
+  createCreditNoteAction — auth + rate limit (limiters.fiscal) + role guard VIEWER
+  createCreditNoteAction — schema rechaza relatedDocNumber del input del cliente
+  createCreditNoteAction — schema exige relatedInvoiceId
+  createDebitNoteAction — auth + rate limit + role guard VIEWER
+  createDebitNoteAction — schema rechaza relatedDocNumber del input del cliente
+```
 
-`extractInvoiceAction` no tiene `idempotencyKey`. Si el usuario sube el mismo PDF dos veces (doble click, reintento de red), no hay mecanismo que lo detecte: se hacen dos llamadas a Gemini Vision con el mismo contenido y se retornan dos pre-fills independientes. Si el usuario confirma ambos accidentalmente, se crean facturas duplicadas.
+---
 
-### Decisión a tomar
+### Checklist arch-agent (Fase 23C)
 
-Hash SHA-256 del contenido binario del PDF como `idempotencyKey` opcional. Flujo:
-1. Cliente calcula `sha256(pdfBytes)` antes de subir.
-2. `extractInvoiceAction` recibe `{ base64Pdf, idempotencyKey }`.
-3. Si existe en caché `ocr:idempotency:{companyId}:{hash}` (Redis, TTL 24h) → retorna resultado cacheado sin llamar a Gemini.
-4. Si no existe → llama a Gemini → guarda resultado en caché → retorna.
-
-### Beneficio secundario
-
-Reduce consumo de cuota de Gemini Vision: un PDF subido múltiples veces dentro de 24h solo consume 1 llamada.
-
-### Constraint
-
-No implementar hasta que haya un caso real reportado (duplicado de factura por doble submit) — **YAGNI hasta entonces**.
-
+- [x] CRITICAL-1 resuelto: fetchFirst con companyId guard dentro de la tx Serializable
+- [x] CRITICAL-2 (TOCTOU) resuelto: $transaction Serializable en createCreditNote y createDebitNote
+- [x] ADR-001 referenciado: Serializable obligatorio para mutaciones con pendingAmount check
+- [x] ADR-003 confirmado: onDelete: Restrict en relatedInvoiceId (tabla contable)
+- [x] ADR-004 confirmado: companyId en findFirst dentro de la tx (re-verificación)
+- [x] ADR-006 D-1: role !== VIEWER verificado en ambas actions
+- [x] ADR-006 D-2: .max() ceiling heredado de CreateInvoiceSchema via .extend()
+- [x] ADR-006 D-3: relatedDocNumber bloqueado del input del cliente
+- [x] ADR-006 D-4: AuditLog solo .create — nunca .update/.delete
+- [x] ADR-006 D-5: rate limiting limiters.fiscal en createCreditNoteAction y createDebitNoteAction
+- [x] BLOQUEANTE 4 (sección 16.1): NC/ND via relatedInvoiceId es la implementación formal de la decisión tomada en Fase 16
+- [x] Loop prevention: guard original.docType === "FACTURA" (HIGH finding)
+- [x] VOID guard: original.paymentStatus !== "VOIDED"
+- [x] FiscalYearClose guard en ambos servicios
+- [x] relatedDocNumber derivado server-side — ausente en CreateCreditDebitNoteSchema
+- [x] Índice @@index([relatedInvoiceId]) agregado
+- [x] Migración nullable — 0 filas afectadas, no backfill, rollback seguro
+- [x] TransactionType.AJUSTE para asiento compensador — sin nuevo enum (YAGNI)
+- [x] AuditLog x2 dentro del mismo $transaction (NC/ND creation + pendingAmount update)
+- [ ] Migración `feat_23c_nc_nd_self_relation` ejecutada y verificada
+- [ ] createCreditNote implementado en InvoiceService.ts
+- [ ] createDebitNote implementado en InvoiceService.ts
+- [ ] getCreditDebitNotes implementado en InvoiceService.ts
+- [ ] CreateCreditDebitNoteSchema implementado en invoice.schema.ts
+- [ ] createCreditNoteAction implementado en invoice.actions.ts
+- [ ] createDebitNoteAction implementado en invoice.actions.ts
+- [ ] Tests: todos en verde antes de continuar

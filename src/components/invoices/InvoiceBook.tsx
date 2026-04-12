@@ -359,7 +359,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                           </td>
                           <td className="px-4 py-3">{row.counterpartName}</td>
                           <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
-                          <td className="px-4 py-3 font-mono text-xs">{row.invoiceNumber}</td>
+                          <td className="px-4 py-3 font-mono text-xs">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{row.invoiceNumber}</span>
+                              {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
+                                row.relatedDocNumber && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                    &#8594; Factura {row.relatedDocNumber}
+                                  </span>
+                                )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 font-mono text-xs">
                             {row.controlNumber ?? "—"}
                           </td>
@@ -416,7 +426,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                               {idx === 0 ? row.counterpartRif : ""}
                             </td>
                             <td className="px-4 py-3 font-mono text-xs">
-                              {idx === 0 ? row.invoiceNumber : ""}
+                              {idx === 0 ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{row.invoiceNumber}</span>
+                                  {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
+                                    row.relatedDocNumber && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                        &#8594; Factura {row.relatedDocNumber}
+                                      </span>
+                                    )}
+                                </div>
+                              ) : ""}
                             </td>
                             <td className="px-4 py-3 font-mono text-xs">
                               {idx === 0 ? (row.controlNumber ?? "—") : ""}
