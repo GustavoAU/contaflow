@@ -187,7 +187,20 @@ export const InvoiceBookFilterSchema = z.object({
   month: z.number().int().min(1).max(12),
 });
 
+// ─── Crear Nota de Crédito / Nota de Débito ───────────────────────────────────
+export const CreateCreditDebitNoteSchema = CreateInvoiceSchema
+  .extend({
+    relatedInvoiceId: z
+      .string({ error: "relatedInvoiceId de la factura original es requerido" })
+      .min(1, { error: "relatedInvoiceId de la factura original es requerido" }),
+  })
+  .transform((data) => {
+    const { relatedDocNumber: _stripped, ...rest } = data;
+    return rest;
+  });
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
 export type InvoiceBookFilter = z.infer<typeof InvoiceBookFilterSchema>;
 export type TaxLineInput = z.infer<typeof TaxLineSchema>;
+export type CreateCreditDebitNoteInput = z.output<typeof CreateCreditDebitNoteSchema>;
