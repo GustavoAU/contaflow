@@ -30,9 +30,11 @@ enum PeriodStatus {
 }
 
 enum UserRole {
-  ADMIN
-  ACCOUNTANT
-  VIEWER
+  OWNER         // Propietario — creador de la empresa, acceso total
+  ADMIN         // Administrador — acceso total, asignado por el propietario
+  ACCOUNTANT    // Contador — módulos contables
+  ADMINISTRATIVE // Administrativo — módulos operativos (Fase 28+)
+  VIEWER        // Observador — solo lectura en su área
 }
 
 enum TransactionStatus {

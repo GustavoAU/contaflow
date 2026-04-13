@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 
 export class CompanyService {
   /**
-   * Crea una nueva empresa y la vincula al usuario como ADMIN.
+   * Crea una nueva empresa y la vincula al usuario como OWNER (Propietario).
    */
   static async createCompany(name: string, userId: string, rif?: string, address?: string) {
     // Verificar que el RIF no exista ya
@@ -22,7 +22,7 @@ export class CompanyService {
           members: {
             create: {
               userId,
-              role: "ADMIN",
+              role: "OWNER",
             },
           },
         },
