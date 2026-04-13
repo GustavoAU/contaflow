@@ -28,7 +28,7 @@ export async function getUserCompaniesAction() {
   const clerkUser = await currentUser();
   if (!clerkUser) return [];
 
-  const memberships = await prisma.companyMember.findMany({
+  const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista todas las empresas del usuario (company switcher)
     where: {
       userId: clerkUser.id,
       company: { status: "ACTIVE" },
@@ -47,7 +47,7 @@ export async function getArchivedCompaniesAction() {
   const clerkUser = await currentUser();
   if (!clerkUser) return [];
 
-  const memberships = await prisma.companyMember.findMany({
+  const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista empresas archivadas del usuario
     where: {
       userId: clerkUser.id,
       company: { status: "ARCHIVED" },

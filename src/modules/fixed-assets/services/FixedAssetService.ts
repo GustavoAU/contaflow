@@ -425,7 +425,7 @@ export class FixedAssetService {
   static async getSchedule(assetId: string, companyId: string) {
     const prisma = (await import("@/lib/prisma")).default;
     const asset = await prisma.fixedAsset.findFirstOrThrow({ where: { id: assetId, companyId } });
-    const postedEntries = await prisma.depreciationEntry.findMany({
+    const postedEntries = await prisma.depreciationEntry.findMany({ // ADR-004-EXCEPTION: scoped via fixedAssetId FK — asset ya validado con companyId arriba
       where: { fixedAssetId: assetId },
       orderBy: [{ periodYear: "asc" }, { periodMonth: "asc" }],
     });
