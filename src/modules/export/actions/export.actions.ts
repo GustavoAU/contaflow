@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateExportJobSchema } from "../schemas/export.schema";
 import { generateExportZip } from "../services/ExportService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -35,7 +36,7 @@ export async function createExportJobAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "Sin permisos para exportar" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Sin permisos para exportar" };
 
     // MEDIUM-1: bloquear exports concurrentes por empresa
     const inProgress = await prisma.exportJob.findFirst({

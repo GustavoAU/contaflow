@@ -260,7 +260,7 @@ describe("banking.actions", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/no autorizado/i);
+      expect(result.error).toMatch(/no autorizado|módulo contable/i);
     }
   });
 
@@ -277,7 +277,7 @@ describe("banking.actions", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/no autorizado/i);
+      expect(result.error).toMatch(/no autorizado|módulo contable/i);
     }
   });
 
@@ -293,7 +293,7 @@ describe("banking.actions", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/no autorizado/i);
+      expect(result.error).toMatch(/no autorizado|módulo contable/i);
     }
   });
 
@@ -313,7 +313,7 @@ describe("banking.actions", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/no autorizado/i);
+      expect(result.error).toMatch(/no autorizado|módulo contable/i);
     }
   });
 
@@ -333,7 +333,7 @@ describe("banking.actions", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toMatch(/no autorizado/i);
+      expect(result.error).toMatch(/no autorizado|módulo contable/i);
     }
   });
 
@@ -366,7 +366,7 @@ describe("banking.actions", () => {
     });
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/no autorizado/i);
+    if (!result.success) expect(result.error).toMatch(/no autorizado|módulo contable/i);
     expect(vi.mocked(BankReconciliationService.matchTransaction)).not.toHaveBeenCalled();
   });
 

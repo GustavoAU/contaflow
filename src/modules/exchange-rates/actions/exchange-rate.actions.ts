@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { Currency } from "@prisma/client";
 import { UpsertExchangeRateSchema, GetRateSchema } from "../schemas/exchange-rate.schema";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { ExchangeRateService, ExchangeRateSummary } from "../services/ExchangeRateService";
 import { BcvFetchService } from "../services/BcvFetchService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -33,7 +34,7 @@ export async function upsertExchangeRateAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
     const rateDecimal = new Decimal(rate);
     const dateObj = new Date(date + "T00:00:00.000Z");
@@ -102,7 +103,7 @@ export async function fetchBcvRateAction(
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
     // Obtener tasa desde la API del BCV
     const { rate, date } = await BcvFetchService.fetchUsdVes();

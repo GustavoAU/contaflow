@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
@@ -35,7 +36,7 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     // Guard: no permitir en año fiscal cerrado
     const acqYear = parsed.data.acquisitionDate.getFullYear();
@@ -81,7 +82,7 @@ export async function postMonthlyDepreciationAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     // Guard: año cerrado
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
