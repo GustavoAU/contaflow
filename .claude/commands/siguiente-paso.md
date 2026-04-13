@@ -1,54 +1,50 @@
 Read in order:
-.claude/CLAUDE.md
-.claude/lessons-learned.md
-.claude/agents/orchestrator-agent.md
-.claude/agents/arch-agent.md
-.claude/agents/ledger-agent.md
-.claude/agents/fiscal-agent.md
-.claude/agents/test-agent.md
-.claude/agents/ui-agent.md
-.claude/agents/security-agent.md
-.claude/adr/ADR-001-serializable-correlativos.md
-.claude/adr/ADR-002-decimal-money.md
-.claude/adr/ADR-003-ondelete-restrict.md
-.claude/adr/ADR-004-multitenant-companyid.md
-.claude/adr/ADR-005-inmutabilidad-void.md
-.claude/adr/ADR-006-security-controls.md
-.claude/adr/ADR-007.md
+CLAUDE.md
 contaflow-context-v3.md
-contaflow-contract.md
+C:\Users\Gustavo\.claude\projects\d--Documents-Projects-React-modern-cg1\memory\MEMORY.md
 
-Then run: git status --short && npx vitest run --reporter=verbose 2>&1 | tail -5
+Then run: git status --short && npx vitest run 2>&1 | tail -5 && npx tsc --noEmit 2>&1 | tail -5
 
 Then analyze and report WITHOUT waiting to be asked:
 
-## Current status
+## Estado actual
 
-- Which phase is active?
-- Which items are ✅ and which are ⏳?
-- CI: green or broken? (check lint errors known in InvoiceForm.tsx + JournalEntryForm.tsx)
+- Rama activa y qué fase está en curso (si hay alguna)
+- Tests: ¿GREEN o hay fallos? Cantidad exacta
+- TS errors: 0 o listado
+- ¿Hay cambios sin commitear relevantes?
 
-## Missing UI
+## Fases completadas recientemente
 
-- Are there services/actions implemented without a UI component?
-- List each one with the responsible agent
+- Listar las últimas 3 fases ✅ con fecha y commit hash
+- Resumen de qué entregó cada una (1 línea)
 
-## Critical technical debt
+## Deuda técnica pendiente
 
-- Are there findings in lessons-learned.md pending a fix?
-- Have the 3 CRITICALs from ADR-004 been corrected?
-- Any incorrectly used useTransition to fix?
+- Findings de lessons-learned.md sin fix
+- Migrations manuales pendientes de aplicar en Neon (DATABASE_URL_DIRECT)
+- Cualquier TODO/FIXME crítico en el código
+- Tests faltantes para código implementado sin cobertura
 
-## Recommended next step
+## UI sin implementar
 
-- What to do first and why?
-- ARCH, IMPL, or UI only?
-- Urgent debt to resolve before continuing?
+- ¿Hay services/actions implementados sin UI correspondiente?
+- Listar con módulo y ruta sugerida
 
-## Production risks
+## Próximo paso recomendado
 
-- Anything without sufficient test coverage?
-- Pending TODO(audit) items?
-- Lessons-learned findings without regression test?
+Evaluar en este orden de prioridad:
+1. ¿Hay fase en curso sin terminar? → terminarla
+2. ¿Hay deuda técnica bloqueante? → resolverla primero
+3. Siguiente fase del roadmap según contaflow-context-v3.md (sección Fases Planificadas)
+   - Considerar checklist pre-lanzamiento (memory/project_prelaunch_checklist.md)
+   - Respetar YAGNI: no implementar fases marcadas como futuras hasta que haya demanda real
+4. Proponer plan concreto con archivos a crear/modificar
 
-Propose the concrete plan and wait for confirmation before executing.
+## Riesgos de producción
+
+- ¿Algo sin cobertura de tests suficiente?
+- ¿Migrations pendientes de aplicar?
+- ¿Cambios de rol/schema que requieran acción manual en Neon?
+
+Propone el plan concreto y espera confirmación antes de ejecutar.
