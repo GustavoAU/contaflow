@@ -4,46 +4,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  BookOpen,
-  FileText,
-  BarChart3,
-  Settings,
-  ScanIcon,
-  FileSpreadsheetIcon,
-  ReceiptIcon,
-  BanknoteIcon,
-  ChevronDown,
-  Menu,
-  X,
-  ReceiptText,
-  TrendingUpIcon,
-  WalletIcon,
-  LandmarkIcon,
-  LineChart,
-  ScrollText,
-  CalendarCheck,
-  Building2,
-} from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
+import { getNavItems, type UserRole } from "@/lib/nav-items";
 
 type NavbarProps = {
   companyId?: string;
   companyName?: string;
   plan?: string;
+  userRole?: UserRole;
 };
 
-export function Navbar({ companyId, companyName }: NavbarProps) {
+export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT" }: NavbarProps) {
   const pathname = usePathname();
-  const t = useTranslations("nav");
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
-  // Solo click fuera — sin useEffect de pathname
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
@@ -54,68 +32,19 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const PRIMARY_ITEMS = companyId
-    ? [
-        { label: t("dashboard"), href: `/company/${companyId}`, icon: LayoutDashboard },
-        { label: t("accounts"), href: `/company/${companyId}/accounts`, icon: BookOpen },
-        { label: t("transactions"), href: `/company/${companyId}/transactions`, icon: FileText },
-        { label: t("reports"), href: `/company/${companyId}/reports`, icon: BarChart3 },
-      ]
-    : [];
+  const { primary, sections } = companyId
+    ? getNavItems(userRole, companyId)
+    : { primary: [], sections: [] };
 
-  const SECONDARY_ITEMS = companyId
-    ? [
-        {
-          label: "Facturas",
-          href: `/company/${companyId}/invoices`,
-          icon: ReceiptText,
-        },
-        { label: "Retenciones", href: `/company/${companyId}/retentions`, icon: ReceiptIcon },
-        { label: "IGTF", href: `/company/${companyId}/igtf`, icon: BanknoteIcon },
-        { label: "Tasas BCV", href: `/company/${companyId}/exchange-rates`, icon: TrendingUpIcon },
-        { label: "Pagos", href: `/company/${companyId}/payments`, icon: WalletIcon },
-        {
-          label: "Conciliación",
-          href: `/company/${companyId}/bank-reconciliation`,
-          icon: LandmarkIcon,
-        },
-        { label: "Escanear", href: `/company/${companyId}/invoices/upload`, icon: ScanIcon },
-        { label: "Importar", href: `/company/${companyId}/import`, icon: FileSpreadsheetIcon },
-        {
-          label: "Analítica",
-          href: `/company/${companyId}/analytics`,
-          icon: LineChart,
-        },
-        {
-          label: "Declaración IVA",
-          href: `/company/${companyId}/iva-declaration`,
-          icon: ScrollText,
-        },
-        {
-          label: "Cierre Fiscal",
-          href: `/company/${companyId}/fiscal-close`,
-          icon: CalendarCheck,
-        },
-        {
-          label: "Activos Fijos",
-          href: `/company/${companyId}/fixed-assets`,
-          icon: Building2,
-        },
-        {
-          label: "Inflación INPC",
-          href: `/company/${companyId}/inflation`,
-          icon: TrendingUpIcon,
-        },
-        { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
-      ]
-    : [];
-
-  const ALL_ITEMS = [...PRIMARY_ITEMS, ...SECONDARY_ITEMS];
+  const allSecondaryItems = sections.flatMap((s) => s.items);
+  const allItems = [...primary, ...allSecondaryItems];
 
   const isActive = (href: string) =>
-    href === `/company/${companyId}` ? pathname === href : pathname.startsWith(href);
+    href === `/company/${companyId}`
+      ? pathname === href
+      : pathname.startsWith(href);
 
-  const hasActiveSecondary = SECONDARY_ITEMS.some((item) => isActive(item.href));
+  const hasActiveSecondary = allSecondaryItems.some((item) => isActive(item.href));
 
   return (
     <header className="border-b bg-white dark:bg-zinc-950">
@@ -132,8 +61,7 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
 
         {/* Nav desktop */}
         <nav className="hidden items-center gap-1 md:flex">
-          {/* Items primarios */}
-          {PRIMARY_ITEMS.map((item) => {
+          {primary.map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -152,8 +80,8 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
             );
           })}
 
-          {/* Dropdown "Más" */}
-          {SECONDARY_ITEMS.length > 0 && (
+          {/* Dropdown "Más" con secciones */}
+          {sections.length > 0 && (
             <div className="relative" ref={moreRef}>
               <button
                 onClick={() => setMoreOpen((v) => !v)}
@@ -171,26 +99,51 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
               </button>
 
               {moreOpen && (
-                <div className="absolute top-full right-0 z-50 mt-1 w-48 rounded-lg border bg-white py-1 shadow-lg dark:bg-zinc-950">
-                  {SECONDARY_ITEMS.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMoreOpen(false)} // ← cierra al navegar
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
-                          isActive(item.href)
-                            ? "bg-blue-50 text-blue-600"
-                            : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
+                <div className="absolute top-full right-0 z-50 mt-1 w-52 rounded-lg border bg-white py-1 shadow-lg dark:bg-zinc-950">
+                  {sections.map((section, sIdx) => (
+                    <div key={section.group}>
+                      {/* Separador de sección */}
+                      {sIdx > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
+                      <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                        {section.group}
+                      </p>
+                      {section.items.map((navItem) => {
+                        const Icon = navItem.icon;
+                        if (navItem.comingSoon) {
+                          return (
+                            <div
+                              key={navItem.href}
+                              className="flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Icon className="h-4 w-4" />
+                                {navItem.label}
+                              </span>
+                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
+                                Pronto
+                              </span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={navItem.href}
+                            href={navItem.href}
+                            onClick={() => setMoreOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
+                              isActive(navItem.href)
+                                ? "bg-blue-50 text-blue-600"
+                                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {navItem.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -216,25 +169,72 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
       {mobileOpen && companyId && (
         <div className="border-t bg-white px-4 pb-4 md:hidden dark:bg-zinc-950">
           <nav className="mt-2 flex flex-col gap-1">
-            {ALL_ITEMS.map((item) => {
-              const Icon = item.icon;
+            {/* Primarios */}
+            {primary.map((navItem) => {
+              const Icon = navItem.icon;
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)} // ← cierra al navegar
+                  key={navItem.href}
+                  href={navItem.href}
+                  onClick={() => setMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive(item.href)
+                    isActive(navItem.href)
                       ? "bg-blue-50 text-blue-600"
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {navItem.label}
                 </Link>
               );
             })}
+            {/* Secciones */}
+            {sections.map((section, sIdx) => (
+              <div key={section.group}>
+                {(sIdx > 0 || primary.length > 0) && (
+                  <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+                )}
+                <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                  {section.group}
+                </p>
+                {section.items.map((navItem) => {
+                  const Icon = navItem.icon;
+                  if (navItem.comingSoon) {
+                    return (
+                      <div
+                        key={navItem.href}
+                        className="flex items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium text-zinc-400"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          {navItem.label}
+                        </span>
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
+                          Pronto
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={navItem.href}
+                      href={navItem.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                        isActive(navItem.href)
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {navItem.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </div>
       )}

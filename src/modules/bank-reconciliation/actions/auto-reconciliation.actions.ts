@@ -8,6 +8,7 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { GeminiBankStatementService } from "../services/GeminiBankStatementService";
 import { AutoReconciliationService } from "../services/AutoReconciliationService";
 import { BankingService } from "../services/BankingService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { BankReconciliationService } from "../services/BankReconciliationService";
 import { parseAmount } from "../services/CsvParserService";
 import {
@@ -99,7 +100,7 @@ export async function runAutoReconciliationAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -250,7 +251,7 @@ export async function confirmSuggestedAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };

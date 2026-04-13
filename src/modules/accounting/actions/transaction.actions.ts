@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
@@ -33,7 +34,7 @@ export async function createTransactionAction(
       where: { userId_companyId: { userId, companyId: input.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const transaction = await TransactionService.createBalancedTransaction({
       ...input,
@@ -84,7 +85,7 @@ export async function voidTransactionAction(
       where: { userId_companyId: { userId, companyId: existing.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const transaction = await TransactionService.voidTransaction({
       ...input,
