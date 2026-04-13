@@ -81,14 +81,24 @@
       "Bash(xargs -I {} basename {})",
       "Bash(ls .env*)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['zip','blob','stream','buffer','papaparse','csv']\\)]\")",
-      "Bash(grep -v \"//.*ADMIN\\\\|//.*VIEWER\")"
+      "Bash(grep -v \"//.*ADMIN\\\\|//.*VIEWER\")",
+      "Read(//d/Documents/Projects/React/files \\(2\\)/**)",
+      "Bash(ls .prettierrc* .prettier.* prettier.config.*)",
+      "Bash(npx prettier:*)",
+      "Bash(echo \"PRETTIER_EXIT:$?\")",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma migrate dev --name add_inventory_module)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma migrate dev --name add_inventory_module --create-only)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma migrate deploy)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push --skip-generate)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
       "D:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\.claude",
       "\\tmp",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
-      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\invoices"
+      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\invoices",
+      "d:\\Documents\\Projects\\React\\modern-cg1\\.claude"
     ]
   }
 }
