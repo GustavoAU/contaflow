@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28A/28B/28C completadas. Última sincronización: 2026-04-13_
-_v3.9: Fase 28A (OWNER+ADMINISTRATIVE roles, auth-helpers) + 28B (nav dinámico por rol, Inventario placeholder) + 28C (canAccess() guards en 13 actions, dashboard dinámico). 802 tests GREEN._
+_Versión actualizada — Fase 28D completada. Última sincronización: 2026-04-13_
+_v3.10: Fase 28D (Módulo Inventario — CPP + Serializable SSI + 2 servicios + 4 actions + 68 tests). 870 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -560,7 +560,7 @@ model FiscalYearClose {
 - ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
 - ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
 - ✅ Fase 28C: Role guards con `canAccess()` en 13 action files — ADMINISTRATIVE bloqueado en módulos contables, OWNER bug fix en banking — Dashboard dinámico con badge de rol, CTAs y accesos rápidos por área (ver sección 43)
-- ⏳ Fase 28D: Módulo Inventario — ADMINISTRATIVE: entradas/salidas/stock; ACCOUNTANT: valoración/asientos automáticos
+- ✅ Fase 28D: Módulo Inventario — `InventoryItem` + `InventoryMovement` (Prisma + Neon) + `InventoryOperationsService` (CPP override, IDOR guards) + `InventoryAccountingService` (Serializable SSI, CPP fórmula, P2034) + 4 action files + 68 tests (870 total) (ver sección 44)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1659,3 +1659,88 @@ VIEWER        // Observador — solo lectura en su área
 
 ### Tests
 802 tests GREEN — sin nuevos tests en 28A/28B/28C (guards son cambios de comportamiento, no nueva lógica). 4 archivos de tests actualizados con regex `/módulo contable|no autorizado/i`.
+
+---
+
+## Sección 44 — Fase 28D: Módulo Inventario (2026-04-13)
+
+### Schema (Prisma + Neon aplicado vía `prisma db push`)
+
+```prisma
+enum MovementType  { ENTRADA SALIDA AJUSTE }
+enum MovementStatus { DRAFT POSTED VOIDED }
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  companyId     String
+  sku           String
+  name          String
+  description   String?
+  unit          String
+  averageCost   Decimal   @default(0) @db.Decimal(19,4)
+  stockQuantity Decimal   @default(0) @db.Decimal(19,4)
+  accountId     String?   // cuenta de inventario
+  cogsAccountId String?   // cuenta COGS
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdBy     String
+  @@unique([companyId, sku])
+  @@index([companyId])
+}
+
+model InventoryMovement {
+  id             String         @id @default(cuid())
+  companyId      String
+  itemId         String
+  type           MovementType
+  status         MovementStatus @default(DRAFT)
+  quantity       Decimal        @db.Decimal(19,4)
+  unitCost       Decimal        @db.Decimal(19,4)
+  totalCost      Decimal        @db.Decimal(19,4)
+  invoiceId      String?
+  transactionId  String?        @unique
+  reference      String?
+  notes          String?
+  date           DateTime
+  idempotencyKey String         @unique
+  createdAt      DateTime       @default(now())
+  createdBy      String
+  postedAt       DateTime?
+  postedBy       String?
+  @@index([companyId, status])
+  @@index([companyId, date])
+}
+```
+
+### Servicios
+
+**`InventoryOperationsService`** — dominio ADMINISTRATIVE  
+- `createInventoryItem`: CRITICAL-2 ownership de `accountId`/`cogsAccountId` antes de la TX  
+- `updateInventoryItem`: CRITICAL-1 `findFirstOrThrow({ where: { id, companyId } })`  
+- `createDraftMovement`: idempotency guard (`idempotencyKey @unique`), MEDIUM-2 (SALIDA usa `item.averageCost` — ignora `unitCost` del cliente), stock check para SALIDA  
+- `voidDraftMovement`: solo si `status === DRAFT`  
+- `getInventoryItems`, `getDraftMovements`: ADR-004 `companyId` obligatorio en `where`
+
+**`InventoryAccountingService`** — dominio ACCOUNTANT, Serializable SSI obligatorio  
+- `postMovement`: CPP = `(stock×avg + qty×unitCost)/(stock+qty)` para ENTRADA; SALIDA usa `avg` vigente. Genera `Transaction` + 2 `JournalEntry` (SALIDA: Débito COGS / Crédito Inventario; ENTRADA: Débito Inventario / Crédito proveedor placeholder). P2034 → "Conflicto de concurrencia — reintente la operación". `AuditLog` dentro de la misma TX.  
+- `voidPostedMovement`: solo si `status === POSTED`. Revierte stock. Genera contra-asiento. Serializable SSI.  
+- `getInventoryValuation`: `totalValue = Σ(stockQuantity × averageCost)`. ADR-004.
+
+### Actions y Guards de Rol
+
+| Action file | Guard | Quién accede |
+|---|---|---|
+| `inventory-operations.actions.ts` | `ROLES.OPERATIONS` | OWNER, ADMIN, ADMINISTRATIVE |
+| `inventory-accounting.actions.ts` | `ROLES.ACCOUNTING` (mutaciones) | OWNER, ADMIN, ACCOUNTANT |
+| `getInventoryValuationAction` | `ROLES.WRITERS` | OWNER, ADMIN, ACCOUNTANT, ADMINISTRATIVE |
+| `softDeleteInventoryItemAction` | `ROLES.ADMIN_ONLY` | OWNER, ADMIN |
+
+HIGH-2: ADMINISTRATIVE bloqueado en `postMovementAction` y `voidPostedMovementAction`.
+
+### Tests (68 nuevos, 870 total GREEN)
+
+- `InventoryOperationsService.test.ts` — 15 tests: CRITICAL-1/2, MEDIUM-2, idempotency, stock insuficiente, ADR-004  
+- `InventoryAccountingService.test.ts` — 15 tests: CPP fórmula ENTRADA (avg=106.666…), SALIDA sin cambio de avg, HIGH-4 stock guard, asiento SALIDA, P2034, Serializable assertion, AuditLog  
+- `inventory-operations.actions.test.ts` — 27 tests: auth, rate limit, roles, Zod ceilings  
+- `inventory-accounting.actions.test.ts` — 11 tests: HIGH-2, P2034 propagation, WRITERS valuation
