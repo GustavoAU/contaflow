@@ -28,6 +28,7 @@ import {
   ScrollText,
   CalendarCheck,
   Building2,
+  ArchiveIcon,
 } from "lucide-react";
 
 type NavbarProps = {
@@ -105,6 +106,11 @@ export function Navbar({ companyId, companyName }: NavbarProps) {
           label: "Inflación INPC",
           href: `/company/${companyId}/inflation`,
           icon: TrendingUpIcon,
+        },
+        {
+          label: "Exportar Datos",
+          href: `/company/${companyId}/export`,
+          icon: ArchiveIcon,
         },
         { label: t("settings"), href: `/company/${companyId}/settings`, icon: Settings },
       ]
