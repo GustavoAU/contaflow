@@ -258,7 +258,7 @@ export class InvoiceService {
       ];
     }
 
-    const invoices = await prisma.invoice.findMany({
+    const invoices = await prisma.invoice.findMany({ // ADR-004-EXCEPTION: companyId en 'where' construido arriba con Prisma.InvoiceWhereInput
       where,
       take,
       ...(cursor

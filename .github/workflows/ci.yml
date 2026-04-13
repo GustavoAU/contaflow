@@ -1,4 +1,4 @@
-name: CI — ContaFlow
+name: CI — ContaFlow (Extended)
 
 on:
   push:
@@ -6,9 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  NODE_VERSION: 20
+
 jobs:
-  ci:
-    name: Lint + TypeScript + Tests
+  # ============================================================================
+  # LINT + TYPE CHECK + TESTS
+  # ============================================================================
+  test:
+    name: Lint + TypeScript + Tests + Coverage
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: "postgresql://mock:mock@localhost:5432/mock"
@@ -20,11 +26,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Instalar dependencias
@@ -33,39 +41,298 @@ jobs:
       - name: Generar cliente Prisma
         run: npx prisma generate
 
-      - name: Lint
+      - name: Lint (ESLint)
         run: npm run lint
 
-      - name: TypeScript
+      # Format check (Prettier) — pendiente: ejecutar npx prettier --write en toda la base
+      # y habilitar este check. Por ahora se omite para no romper CI con 237 archivos existentes.
+      # - name: Format check (Prettier)
+      #   run: npx prettier --check "src/**/*.{ts,tsx,json}"
+
+      - name: TypeScript type check
         run: npx tsc --noEmit
 
       - name: Tests + Coverage
         run: npx vitest run --coverage
 
-      - name: Verificar coverage mínimo
+      # Coverage thresholds en sync con vitest.config.ts
+      # Subir gradualmente: branches 50→65→80, functions 70→80→90
+      - name: Verificar coverage minimo
         run: |
           node -e "
-            const c = require('./coverage/coverage-summary.json').total;
-            const thresholds = { branches: 50, functions: 70, lines: 73, statements: 70 };
+            const fs = require('fs');
+            const summary = JSON.parse(fs.readFileSync('./coverage/coverage-summary.json', 'utf8'));
+            const c = summary.total;
+            const thresholds = {
+              branches: 50,
+              functions: 70,
+              lines: 73,
+              statements: 70
+            };
             const fail = Object.keys(thresholds)
-              .filter(k => c[k].pct < thresholds[k]);
+              .filter(k => c[k].pct < thresholds[k])
+              .map(k => k + ': ' + c[k].pct + '% (min ' + thresholds[k] + '%)');
+            console.log('Coverage summary:');
+            Object.keys(thresholds).forEach(k => console.log('  ' + k + ': ' + c[k].pct + '%'));
             if (fail.length) {
-              console.error('Coverage insuficiente:',
-                fail.map(k => k+': '+c[k].pct+'% (min '+thresholds[k]+'%)').join(', '));
+              console.error('Coverage insuficiente:');
+              fail.forEach(f => console.error('  ' + f));
               process.exit(1);
             }
-            console.log('Coverage OK:', Object.keys(thresholds).map(k => k+': '+c[k].pct+'%').join(', '));
+            console.log('Coverage OK');
           "
 
-  audit:
-    name: Security audit
+  # ============================================================================
+  # ARCHITECTURE AUDIT (ADR-001, ADR-004, ADR-006 D-4, ADR-006 D-5)
+  # ============================================================================
+  architecture:
+    name: Architecture audit (ADRs + schema + append-only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # ========================================================================
+      # GAP 1: Migraciones en sync con schema.prisma (ADR-001)
+      # ========================================================================
+      - name: "ADR-001: Validar migraciones en sync"
+        run: |
+          echo "Validando que schema.prisma tiene migraciones correspondientes..."
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SCHEMA_CHANGED=$(git diff origin/main...HEAD -- prisma/schema.prisma | grep -c "^+" || echo 0)
+            MIGRATIONS_CHANGED=$(git diff origin/main...HEAD -- prisma/migrations/ | grep -c "^+" || echo 0)
+
+            if [ "$SCHEMA_CHANGED" -gt 0 ] && [ "$MIGRATIONS_CHANGED" -eq 0 ]; then
+              echo "ERROR: schema.prisma fue modificado pero no hay nuevas migraciones"
+              echo "  Ejecuta: npx prisma migrate dev --name <nombre>"
+              exit 1
+            fi
+          fi
+
+          echo "OK: Migraciones y schema en sync"
+
+      # ========================================================================
+      # GAP 2: ADR-004 — companyId en queries (context-aware, sin falsos positivos)
+      # Busca 15 lineas ANTES y 10 lineas DESPUES — cubre el patron comun de
+      # construir 'const where = { companyId, ... }' antes del findMany.
+      # ========================================================================
+      - name: "ADR-004: Auditar companyId en queries (findMany/findFirst)"
+        run: |
+          echo "Auditando que queries de dominio incluyen companyId..."
+
+          # Para cada archivo .ts en src/modules (excl. tests)
+          while IFS= read -r file; do
+            grep -n "findMany\|findFirst" "$file" \
+              | grep -v "companyId" \
+              | grep -v "// ADR-004-EXCEPTION" \
+              | while IFS=: read -r linenum rest; do
+                # Verificar companyId en ventana [-15, +10] lineas alrededor del findMany
+                startline=$((linenum - 15))
+                endline=$((linenum + 10))
+                if [ "$startline" -lt 1 ]; then startline=1; fi
+                if ! sed -n "${startline},${endline}p" "$file" | grep -q "companyId\|// ADR-004-EXCEPTION"; then
+                  echo "$file:$linenum: $rest"
+                fi
+              done
+          done < <(find src/modules -name "*.ts" ! -name "*.test.ts" ! -path "*/__tests__/*") \
+            > /tmp/adr004_violations.txt 2>/dev/null || true
+
+          if [ -s /tmp/adr004_violations.txt ]; then
+            echo "CRITICAL: Queries sin companyId encontradas:"
+            cat /tmp/adr004_violations.txt
+            echo ""
+            echo "Solucion:"
+            echo "  1. Agrega companyId al where clause"
+            echo "  2. Si es excepcion documentada: // ADR-004-EXCEPTION: <razon>"
+            exit 1
+          fi
+
+          echo "OK: ADR-004 — todas las queries tienen companyId"
+
+      # ========================================================================
+      # GAP 5: ADR-006 D-4 — AuditLog append-only
+      # ========================================================================
+      - name: "ADR-006 D-4: Validar que AuditLog es append-only"
+        run: |
+          echo "Validando que no hay auditLog.update o auditLog.delete en produccion..."
+
+          VIOLATIONS=$(
+            grep -rn "auditLog\.update\|auditLog\.delete\|auditLog\.deleteMany" \
+              src/ --include="*.ts" \
+              | grep -v "\.test\.ts" \
+              | grep -v "__tests__" \
+              | grep -v "// ADR-006-D4-EXCEPTION" \
+              || true
+          )
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "CRITICAL: AuditLog debe ser append-only (nunca update/delete):"
+            echo "$VIOLATIONS"
+            echo ""
+            echo "Referencia: ADR-006 D-4 — AuditLog es inmutable"
+            exit 1
+          fi
+
+          echo "OK: ADR-006 D-4 — AuditLog append-only garantizado"
+
+      # ========================================================================
+      # GAP 3: ADR-006 D-5 — Rate limiting en acciones financieras
+      # ========================================================================
+      - name: "ADR-006 D-5: Validar rate limiting en acciones financieras"
+        run: |
+          echo "Validando rate limiting en acciones financieras..."
+
+          REQUIRED_ACTIONS=(
+            "createInvoiceAction"
+            "createRetentionAction"
+            "createIGTFAction"
+            "createAccountAction"
+            "createTransactionAction"
+            "extractInvoiceAction"
+            "fetchBcvRateAction"
+          )
+
+          MISSING_LIMIT=()
+          for action in "${REQUIRED_ACTIONS[@]}"; do
+            FILES=$(grep -rl "export.*function $action\|export.*const $action.*=.*async\|export async function $action" \
+              src/modules --include="*.actions.ts" 2>/dev/null || true)
+
+            if [ -n "$FILES" ]; then
+              for FILE in $FILES; do
+                if ! grep -q "checkRateLimit" "$FILE"; then
+                  MISSING_LIMIT+=("$action (en $FILE)")
+                fi
+              done
+            fi
+          done
+
+          if [ ${#MISSING_LIMIT[@]} -gt 0 ]; then
+            echo "CRITICAL: Acciones sin rate limiting:"
+            printf '%s\n' "${MISSING_LIMIT[@]}"
+            echo ""
+            echo "Solucion: agrega checkRateLimit(limiters.fiscal) despues de auth()"
+            echo "Referencia: ADR-006 D-5"
+            exit 1
+          fi
+
+          echo "OK: ADR-006 D-5 — acciones financieras tienen rate limiting"
+
+      # ========================================================================
+      # Prisma schema format
+      # ========================================================================
+      - name: "Prisma: Validar formato del schema"
+        run: |
+          npx prisma format --check
+          if [ $? -ne 0 ]; then
+            echo "Schema no esta formateado. Ejecuta: npx prisma format"
+            exit 1
+          fi
+          echo "OK: Prisma schema formateado correctamente"
+
+      # ========================================================================
+      # ADR-001: Serializable en correlativos
+      # ========================================================================
+      - name: "ADR-001: Validar Serializable en getNextControlNumber/getNextVoucherNumber"
+        run: |
+          echo "Auditando que funciones de correlativo usan Serializable..."
+
+          FILES_WITH_CORRELATIVO=$(
+            grep -rl "getNextControlNumber\|getNextVoucherNumber" \
+              src/modules --include="*.ts" \
+              | grep -v "\.test\.ts" \
+              | grep -v "__tests__" \
+              || true
+          )
+
+          MISSING_SERIALIZABLE=()
+          for FILE in $FILES_WITH_CORRELATIVO; do
+            if ! grep -q "isolationLevel.*Serializable\|Serializable.*isolationLevel" "$FILE"; then
+              MISSING_SERIALIZABLE+=("$FILE")
+            fi
+          done
+
+          if [ ${#MISSING_SERIALIZABLE[@]} -gt 0 ]; then
+            echo "WARNING: Archivos con correlativos sin Serializable verificado:"
+            printf '%s\n' "${MISSING_SERIALIZABLE[@]}"
+            echo "(Revisar manualmente que esten dentro de un \$transaction Serializable)"
+          else
+            echo "OK: ADR-001 — funciones de correlativo verificadas"
+          fi
+
+  # ============================================================================
+  # SECURITY AUDIT (npm audit)
+  # ============================================================================
+  security:
+    name: Security audit (npm)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
+
       - run: npm ci
-      # xlsx no tiene fix disponible (SheetJS known vulns) — auditamos nivel critical
-      - run: npm audit --audit-level=critical
+
+      # xlsx (SheetJS) tiene vulnerabilidades conocidas sin fix — auditamos solo critical
+      - name: npm audit (CRITICAL only)
+        run: npm audit --audit-level=critical
+
+  # ============================================================================
+  # RESULT CHECK
+  # ============================================================================
+  ci-result:
+    name: CI Result (all checks passed)
+    runs-on: ubuntu-latest
+    needs: [test, architecture, security]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "FAIL: test job failed"
+            exit 1
+          fi
+          if [ "${{ needs.architecture.result }}" != "success" ]; then
+            echo "FAIL: architecture audit job failed"
+            exit 1
+          fi
+          if [ "${{ needs.security.result }}" != "success" ]; then
+            echo "FAIL: security audit job failed"
+            exit 1
+          fi
+          echo "OK: All CI checks PASSED"
+
+  # ============================================================================
+  # OPTIONAL: Deploy migraciones a Neon (solo en main, descomentar en produccion)
+  # ============================================================================
+  # deploy-migrations:
+  #   name: Deploy migrations to Neon
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   needs: [test, architecture, security]
+  #   env:
+  #     DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: ${{ env.NODE_VERSION }}
+  #         cache: npm
+  #     - run: npm ci
+  #     - name: Aplicar migraciones en Neon
+  #       run: npx prisma migrate deploy
+  #       timeout-minutes: 10
