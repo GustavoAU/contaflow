@@ -153,6 +153,8 @@ model Company {
   inflationBaseMonth          Int?
   inpcRates                   INPCRate[]
   inflationAdjustments        InflationAdjustment[]
+  // Fase 30: Exportación Masiva
+  exportJobs                  ExportJob[]
 }
 
 model CompanyMember {
@@ -746,4 +748,32 @@ model InflationAdjustment {
 
   @@unique([companyId, periodYear, periodMonth, accountId])
   @@index([companyId, periodYear, periodMonth])
+}
+
+// ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────
+
+enum ExportJobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  ERROR
+}
+
+model ExportJob {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy String          // Clerk userId
+  status    ExportJobStatus @default(PENDING)
+  dateFrom  DateTime        @db.Date
+  dateTo    DateTime        @db.Date
+  fileData  Bytes?          // ZIP contents — null until DONE
+  fileSize  Int?            // bytes, for UI display
+  expiresAt DateTime?       // set to now()+24h on DONE
+  errorMsg  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([companyId])
+  @@index([createdBy])
 }
