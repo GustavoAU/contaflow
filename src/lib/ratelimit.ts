@@ -37,6 +37,14 @@ export const limiters = {
         prefix: "rl:rif",
       })
     : null,
+  // Exportación masiva — 3 por 10 minutos por usuario (ZIP generation es costoso)
+  export: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(3, "10 m"),
+        prefix: "rl:export",
+      })
+    : null,
 };
 
 export async function checkRateLimit(

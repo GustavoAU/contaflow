@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { ReceivableService } from "../services/ReceivableService";
 import type { AgingReport, InvoicePaymentSummary, ReceivablePage } from "../services/ReceivableService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import {
   RecordPaymentSchema,
   CancelPaymentSchema,
@@ -143,7 +144,7 @@ export async function recordPaymentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
     const payment = await ReceivableService.recordPayment({
       ...parsed.data,
@@ -183,7 +184,7 @@ export async function cancelPaymentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) {
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "No autorizado" };
     }
 

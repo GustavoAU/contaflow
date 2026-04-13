@@ -101,11 +101,11 @@ describe("upsertINPCRateAction", () => {
     if (!r.success) expect(r.error).toBe("No autorizado");
   });
 
-  it("falla si role es VIEWER", async () => {
+  it("falla si role no tiene acceso contable (VIEWER)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({ role: "VIEWER" } as never);
     const r = await upsertINPCRateAction(validInput);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toBe("No autorizado");
+    if (!r.success) expect(r.error).toMatch(/módulo contable|no autorizado/i);
   });
 
   it("falla con indexValue inválido (0)", async () => {

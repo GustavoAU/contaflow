@@ -6,6 +6,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { CompanyService } from "../services/CompanyService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export async function archiveCompanyAction(
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const company = await CompanyService.archiveCompany(companyId, userId);
     revalidatePath("/dashboard");
@@ -85,7 +86,7 @@ export async function reactivateCompanyAction(
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const company = await CompanyService.reactivateCompany(companyId, userId);
     revalidatePath("/dashboard");

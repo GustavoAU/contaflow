@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 23C NC/ND Workflow completada + ADR-010 archivo creado. Última sincronización: 2026-04-12_
-_v3.7: Fase 23C (NC/ND, 24 tests, 2 CRITICAL + 3 HIGH resueltos) + ADR-010-testing-strategy.md. 779 tests GREEN._
+_Versión actualizada — Fase 28A/28B/28C completadas. Última sincronización: 2026-04-13_
+_v3.9: Fase 28A (OWNER+ADMINISTRATIVE roles, auth-helpers) + 28B (nav dinámico por rol, Inventario placeholder) + 28C (canAccess() guards en 13 actions, dashboard dinámico). 802 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -543,6 +543,7 @@ model FiscalYearClose {
 - ✅ Fase 23B: Auto-conciliación bancaria con Gemini Vision — completada 2026-04-08 (ver sección 39)
 - ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40) | archivo `.claude/adr/ADR-010-testing-strategy.md` creado 2026-04-12
 - ✅ Fase 23C: NC/ND Workflow completo — completada 2026-04-12 (ver sección 41)
+- ✅ Fase 30: Exportación Masiva / Backup — ZIP fiscal con ExportJob + 24h expiry — completada 2026-04-13 (ver sección 42)
 - ⏳ Fase 23 Nómina (LOTTT) — dividida en subfases (ver sección 34)
   - ⏳ Fase 23A: Wizard de configuración de nómina
   - ⏳ Fase 23D: Cálculo, recibo PDF y causación contable  _(era 23C — renombrada para ceder slot a NC/ND)_
@@ -556,7 +557,10 @@ model FiscalYearClose {
   - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
   - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard (lazy, TTL 5min)
 - ⏳ Fase 27: PWA + modo offline
-- ⏳ Fase 28A: Separación Roles Admin/Contable — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + `withRole()` helper + sidebar dinámico — prerequisito Fase 28 — ~10 tests
+- ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
+- ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
+- ✅ Fase 28C: Role guards con `canAccess()` en 13 action files — ADMINISTRATIVE bloqueado en módulos contables, OWNER bug fix en banking — Dashboard dinámico con badge de rol, CTAs y accesos rápidos por área (ver sección 43)
+- ⏳ Fase 28D: Módulo Inventario — ADMINISTRATIVE: entradas/salidas/stock; ACCOUNTANT: valoración/asientos automáticos
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -570,7 +574,7 @@ model FiscalYearClose {
    - Flujo de aprobación de cotizaciones
 - ⏳ Fase 29A: TaxPlugin Architecture — `interface TaxPlugin { VE | CO }`, `VenezuelaTaxPlugin` extrae lógica VEN-NIF, `ColombiaTaxPlugin` stub, `Company.country` enum — prerequisito Fase 29 — ~15 tests
 - ⏳ Fase 29: Expansión Colombia (DIAN)
-- ⏳ Fase 30: Exportación Masiva / Backup Contable — ZIP descargable (libros IVA, asientos, retenciones, activos, Forma 30 por mes) generación asíncrona + link 24h — ~10 tests
+- ✅ Fase 30: Exportación Masiva / Backup Contable — ZIP descargable (libros IVA, asientos, retenciones, activos, Forma 30 por mes) + ExportJob 24h expiry — 23 tests (ver sección 42)
 - ⏳ Fase 31: AuditLog UI — `/audit-log` tabla paginada con filtros (usuario, entidad, fecha) + diff oldValue↔newValue + export Excel — solo ADMIN/OWNER — ~8 tests
 - ⏳ Landing Page
 
@@ -1530,3 +1534,128 @@ Migración: `20260412_feat_23c_nc_nd_self_relation` — `ADD COLUMN NULL`, 0 fil
 ### Tests
 
 24 tests nuevos (15 service + 8 action + 1 regresión HIGH-1). **779 tests GREEN total.**
+
+---
+
+## 42. Fase 30 — Exportación Masiva / Backup ✅ completada 2026-04-13
+
+**Branch:** `feat/fase-30-exportacion-masiva` → **commit:** `e8c9699`
+
+### Objetivo
+
+Permitir que contadores descarguen un ZIP con toda la data fiscal de una empresa en un rango de fechas. Es el segundo bloqueante de ventas identificado en el pre-launch checklist (el primero fue Fase 23C).
+
+### Schema — nuevo modelo
+
+```prisma
+enum ExportJobStatus { PENDING | PROCESSING | DONE | ERROR }
+
+model ExportJob {
+  id        String          @id @default(cuid())
+  companyId String          // → Company (onDelete: Restrict)
+  createdBy String          // Clerk userId
+  status    ExportJobStatus @default(PENDING)
+  dateFrom  DateTime        @db.Date
+  dateTo    DateTime        @db.Date
+  fileData  Bytes?          // ZIP contents (null hasta DONE)
+  fileSize  Int?
+  expiresAt DateTime?       // now() + 24h al llegar a DONE
+  errorMsg  String?
+  @@index([companyId])
+  @@index([createdBy])
+}
+```
+
+### Archivos nuevos
+
+- `src/modules/export/schemas/export.schema.ts` — `CreateExportJobSchema` con Zod refine (dateTo ≥ dateFrom, máx 366 días)
+- `src/modules/export/services/ExportService.ts` — `generateExportZip(params)`: fetches invoices/transactions/retenciones/fixedAssets + Forma30 per-month via `DeclaracionIVAService.calculate`, genera ZIP con JSZip
+- `src/modules/export/actions/export.actions.ts` — `createExportJobAction` + `listExportJobsAction`
+- `src/app/api/export/download/route.ts` — GET route autenticado con Clerk + ownership check
+- `src/app/(dashboard)/company/[companyId]/export/page.tsx` — página de exportación
+- `src/modules/export/components/ExportForm.tsx` — form con rango de fechas + botón descarga
+- `src/modules/export/components/ExportJobList.tsx` — historial de jobs con status badges
+
+### Contenido del ZIP
+
+```
+LEEME.txt
+libros-iva/libro-ventas.csv
+libros-iva/libro-compras.csv
+asientos/asientos.csv
+retenciones/retenciones.csv
+activos-fijos/activos.csv
+forma-30/forma30.csv
+```
+
+### Seguridad (manual audit — security-agent no disponible)
+
+| Finding | Mitigación |
+|---------|-----------|
+| CRITICAL-1: cross-tenant dump vía download route | `job.createdBy === userId` + companyMember check en GET /api/export/download |
+| CRITICAL-2: queries sin companyId | `companyId` explícito en las 5 queries de ExportService |
+| HIGH-1: DoS por rango ilimitado | Zod refine máx 366 días |
+| MEDIUM-1: exports concurrentes por empresa | Guard `findFirst({ status: { in: ["PENDING","PROCESSING"] } })` |
+| MEDIUM-2: rate limit | `limiters.export` (3/10min) en ratelimit.ts |
+
+### Tests
+
+23 tests nuevos (9 ExportService + 14 export.actions). **802 tests GREEN total.**
+
+---
+
+## Sección 43 — Fases 28A/28B/28C: Separación de Roles y Nav Dinámico (2026-04-13)
+
+### Fase 28A — Schema + Auth Foundation
+
+**UserRole enum** (5 roles):
+```
+OWNER         // Propietario — creador de empresa, acceso total
+ADMIN         // Administrador — acceso total, asignado por propietario
+ACCOUNTANT    // Contador — módulos contables
+ADMINISTRATIVE // Administrativo — módulos operativos (Fase 28+)
+VIEWER        // Observador — solo lectura en su área
+```
+
+- `prisma/migrations/20260413_feat_28a_role_expansion/migration.sql` — `ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS`
+- `CompanyService.createCompany`: asigna `OWNER` en lugar de `ADMIN` al creador
+- `src/lib/auth-helpers.ts`: `canAccess(role, allowedRoles)`, `ROLE_HIERARCHY`, `ROLES` groups, `ROLE_LABELS`
+
+**ROLES groups:**
+- `ROLES.ADMIN_ONLY` = `[OWNER, ADMIN]`
+- `ROLES.ACCOUNTING` = `[OWNER, ADMIN, ACCOUNTANT]`
+- `ROLES.OPERATIONS` = `[OWNER, ADMIN, ADMINISTRATIVE]`
+- `ROLES.WRITERS` = `[OWNER, ADMIN, ACCOUNTANT, ADMINISTRATIVE]`
+
+### Fase 28B — Nav Dinámico por Rol
+
+- `src/lib/nav-items.ts`: `getNavItems(role, companyId)` → `{ primary: NavItem[], sections: NavSection[] }`
+- Navbar refactorizado: items primarios fijos + dropdown "Más" con headers de sección
+- Badge "Pronto" para ítems `comingSoon` (Inventario) — deshabilitados visualmente
+- Layout `company/[companyId]/layout.tsx` pasa `userRole={company.role}` al Navbar
+- **VIEWER**: hereda nav de ACCOUNTANT; restricciones de escritura por guards (28C)
+
+| Rol | Primary | Secciones en dropdown |
+|---|---|---|
+| OWNER/ADMIN | Dashboard, Asientos, Plan de Cuentas, Reportes | Contabilidad, Operaciones, Administración |
+| ACCOUNTANT | Dashboard, Asientos, Plan de Cuentas, Libros IVA | Contabilidad, Inventario (pronto), Reportes |
+| ADMINISTRATIVE | Dashboard, Facturas, Pagos | Operaciones, Inventario (pronto) |
+
+### Fase 28C — Role Guards en Server Actions
+
+**13 archivos de actions actualizados** con `canAccess()` de `auth-helpers.ts`:
+
+| Guard | Módulos | Restricción nueva |
+|---|---|---|
+| `ROLES.ACCOUNTING` | transactions, accounts, retentions, IGTF, fixed-assets, inflation, banking, auto-reconciliation | ADMINISTRATIVE no puede escribir en módulos contables |
+| `ROLES.WRITERS` | invoices, payments, exchange-rates, export, receivables-write | VIEWER bloqueado; todos los demás pueden operar |
+| `ROLES.ADMIN_ONLY` | periods, company, import, banking-admin, receivables-cancel | Fix: OWNER ya no queda bloqueado (bug: `role !== "ADMIN"` → `!canAccess(role, ROLES.ADMIN_ONLY)`) |
+
+**Dashboard dinámico** (`page.tsx`):
+- `RoleBadge`: badge de color por rol (Propietario, Contador, Administrativo…)
+- `DashboardCTA`: botones contextuales (Contador → "Nuevo Asiento"; Administrativo → "Facturas + Pago")
+- `QuickAccess`: 6 accesos rápidos por área (Inventario aparece con badge "Pronto")
+- Métricas contables ocultas para ADMINISTRATIVE (placeholder operativo)
+
+### Tests
+802 tests GREEN — sin nuevos tests en 28A/28B/28C (guards son cambios de comportamiento, no nueva lógica). 4 archivos de tests actualizados con regex `/módulo contable|no autorizado/i`.

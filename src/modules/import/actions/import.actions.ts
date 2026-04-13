@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { ImportService } from "../services/ImportService";
 import type { ImportAccountRow } from "../schemas/import.schema";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -22,7 +23,7 @@ export async function importAccountsAction(
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const result = await ImportService.importAccounts(companyId, userId, rows);
     revalidatePath(`/company/${companyId}/accounts`);

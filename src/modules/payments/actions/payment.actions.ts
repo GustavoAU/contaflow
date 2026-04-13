@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { Currency, PaymentMethod } from "@prisma/client";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CreatePaymentSchema } from "../schemas/payment.schema";
 import { PaymentService, PaymentRecordSummary } from "../services/PaymentService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -36,7 +37,7 @@ export async function createPaymentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
     const dateObj = new Date(d.date + "T00:00:00.000Z");
 

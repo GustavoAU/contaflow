@@ -10,6 +10,7 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { BankingService } from "../services/BankingService";
 import { BankReconciliationService } from "../services/BankReconciliationService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CsvParserService } from "../services/CsvParserService";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountSchema } from "../schemas/bank-account.schema";
@@ -127,7 +128,7 @@ export async function createBankAccountAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role !== "ADMIN") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -162,7 +163,7 @@ export async function importStatementAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -208,7 +209,7 @@ export async function reconcileTransactionAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -248,7 +249,7 @@ export async function unreconcileTransactionAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role !== "ADMIN") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado para esta operación" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -321,7 +322,7 @@ export async function matchBankTransactionAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (role === "VIEWER") return { success: false, error: "No autorizado para esta operación" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };

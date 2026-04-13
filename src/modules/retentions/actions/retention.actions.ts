@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -52,7 +53,7 @@ export async function createRetentionAction(
       where: { userId_companyId: { userId, companyId: data.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (member.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     // Fase 15: Guard — no permitir retenciones en ejercicios cerrados
     const retYear = data.invoiceDate.getFullYear();
@@ -269,7 +270,7 @@ export async function linkRetentionToInvoiceAction(
       select: { role: true },
     });
     if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (membership.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     await linkRetentionToInvoice(retentionId, invoiceId, companyId);
 

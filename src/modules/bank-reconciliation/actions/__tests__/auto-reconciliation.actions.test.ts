@@ -134,7 +134,7 @@ describe("runAutoReconciliationAction", () => {
     mockPrisma.companyMember.findUnique.mockResolvedValueOnce(viewerMember);
     const result = await runAutoReconciliationAction(validInput);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autorizado para esta operación");
+    if (!result.success) expect(result.error).toMatch(/módulo contable|no autorizado/i);
   });
 
   it("periodHasData: false → success con guard payload (no error)", async () => {
