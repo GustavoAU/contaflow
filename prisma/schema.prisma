@@ -157,6 +157,9 @@ model Company {
   inflationAdjustments        InflationAdjustment[]
   // Fase 30: Exportación Masiva
   exportJobs                  ExportJob[]
+  // Fase 28D: Inventario
+  inventoryItems              InventoryItem[]
+  inventoryMovements          InventoryMovement[]
 }
 
 model CompanyMember {
@@ -194,6 +197,9 @@ model Account {
   fixedAssetsAsAccDepreciation FixedAsset[] @relation("AccumulatedDepreciationAccount")
   // Fase 22: Ajuste por Inflación
   inflationAdjustments        InflationAdjustment[]
+  // Fase 28D: Inventario
+  inventoryItems              InventoryItem[]      @relation("InventoryItemAccount")
+  inventoryItemsAsCogs        InventoryItem[]      @relation("CogsAccount")
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -244,6 +250,8 @@ model Transaction {
   depreciationEntry              DepreciationEntry?
   // Fase 22: Ajuste por Inflación
   inflationAdjustments           InflationAdjustment[]
+  // Fase 28D: Inventario
+  inventoryMovement              InventoryMovement?
 
   @@unique([companyId, number])
 }
@@ -377,6 +385,8 @@ model Invoice {
   relatedInvoiceId     String?
   relatedInvoice       Invoice?          @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
   creditDebitNotes     Invoice[]         @relation("CreditDebitNotes")
+  // Fase 28D: Inventario
+  inventoryMovements   InventoryMovement[]
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -750,6 +760,76 @@ model InflationAdjustment {
 
   @@unique([companyId, periodYear, periodMonth, accountId])
   @@index([companyId, periodYear, periodMonth])
+}
+
+// ─── Fase 28D: Módulo Inventario ─────────────────────────────────────────────
+
+enum MovementType {
+  ENTRADA  // compra, recepción de producción, ajuste positivo
+  SALIDA   // venta, consumo, ajuste negativo
+  AJUSTE   // corrección administrativa — requiere motivo
+}
+
+enum MovementStatus {
+  DRAFT   // registrado sin asiento — solo ADMINISTRATIVE puede ver
+  POSTED  // asiento generado y contabilizado — ACCOUNTANT aprobó
+  VOIDED  // anulado con contrapartida — NUNCA DELETE
+}
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku           String
+  name          String
+  description   String?
+  unit          String                          // "unidad", "kg", "litro", etc.
+  averageCost   Decimal   @default(0) @db.Decimal(19, 4) // CPP vigente
+  stockQuantity Decimal   @default(0) @db.Decimal(19, 4) // unidades en existencia
+  accountId     String?
+  account       Account?  @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  cogsAccountId String?
+  cogsAccount   Account?  @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdBy     String
+  movements     InventoryMovement[]
+
+  @@unique([companyId, sku])
+  @@index([companyId])
+  @@index([companyId, deletedAt])
+}
+
+model InventoryMovement {
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId         String
+  item           InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  type           MovementType
+  status         MovementStatus @default(DRAFT)
+  quantity       Decimal        @db.Decimal(19, 4)  // siempre positivo
+  unitCost       Decimal        @db.Decimal(19, 4)  // CPP snapshot al momento del movimiento
+  totalCost      Decimal        @db.Decimal(19, 4)  // quantity × unitCost — almacenado, no calculado en consulta
+  invoiceId      String?
+  invoice        Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  transactionId  String?        @unique
+  transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  reference      String?
+  notes          String?
+  date           DateTime
+  idempotencyKey String         @unique
+  createdAt      DateTime       @default(now())
+  createdBy      String
+  postedAt       DateTime?
+  postedBy       String?
+
+  @@index([companyId])
+  @@index([companyId, itemId])
+  @@index([companyId, status])
+  @@index([companyId, date])
+  @@index([invoiceId])
 }
 
 // ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────
