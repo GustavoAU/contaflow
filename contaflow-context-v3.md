@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 30 Exportación Masiva completada. Última sincronización: 2026-04-13_
-_v3.8: Fase 30 (ZIP fiscal, ExportJob, 23 tests, 2 CRITICAL + 2 HIGH resueltos). 802 tests GREEN._
+_Versión actualizada — Fase 28A/28B/28C completadas. Última sincronización: 2026-04-13_
+_v3.9: Fase 28A (OWNER+ADMINISTRATIVE roles, auth-helpers) + 28B (nav dinámico por rol, Inventario placeholder) + 28C (canAccess() guards en 13 actions, dashboard dinámico). 802 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -557,7 +557,10 @@ model FiscalYearClose {
   - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
   - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard (lazy, TTL 5min)
 - ⏳ Fase 27: PWA + modo offline
-- ⏳ Fase 28A: Separación Roles Admin/Contable — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + `withRole()` helper + sidebar dinámico — prerequisito Fase 28 — ~10 tests
+- ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
+- ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
+- ✅ Fase 28C: Role guards con `canAccess()` en 13 action files — ADMINISTRATIVE bloqueado en módulos contables, OWNER bug fix en banking — Dashboard dinámico con badge de rol, CTAs y accesos rápidos por área (ver sección 43)
+- ⏳ Fase 28D: Módulo Inventario — ADMINISTRATIVE: entradas/salidas/stock; ACCOUNTANT: valoración/asientos automáticos
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1598,3 +1601,61 @@ forma-30/forma30.csv
 ### Tests
 
 23 tests nuevos (9 ExportService + 14 export.actions). **802 tests GREEN total.**
+
+---
+
+## Sección 43 — Fases 28A/28B/28C: Separación de Roles y Nav Dinámico (2026-04-13)
+
+### Fase 28A — Schema + Auth Foundation
+
+**UserRole enum** (5 roles):
+```
+OWNER         // Propietario — creador de empresa, acceso total
+ADMIN         // Administrador — acceso total, asignado por propietario
+ACCOUNTANT    // Contador — módulos contables
+ADMINISTRATIVE // Administrativo — módulos operativos (Fase 28+)
+VIEWER        // Observador — solo lectura en su área
+```
+
+- `prisma/migrations/20260413_feat_28a_role_expansion/migration.sql` — `ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS`
+- `CompanyService.createCompany`: asigna `OWNER` en lugar de `ADMIN` al creador
+- `src/lib/auth-helpers.ts`: `canAccess(role, allowedRoles)`, `ROLE_HIERARCHY`, `ROLES` groups, `ROLE_LABELS`
+
+**ROLES groups:**
+- `ROLES.ADMIN_ONLY` = `[OWNER, ADMIN]`
+- `ROLES.ACCOUNTING` = `[OWNER, ADMIN, ACCOUNTANT]`
+- `ROLES.OPERATIONS` = `[OWNER, ADMIN, ADMINISTRATIVE]`
+- `ROLES.WRITERS` = `[OWNER, ADMIN, ACCOUNTANT, ADMINISTRATIVE]`
+
+### Fase 28B — Nav Dinámico por Rol
+
+- `src/lib/nav-items.ts`: `getNavItems(role, companyId)` → `{ primary: NavItem[], sections: NavSection[] }`
+- Navbar refactorizado: items primarios fijos + dropdown "Más" con headers de sección
+- Badge "Pronto" para ítems `comingSoon` (Inventario) — deshabilitados visualmente
+- Layout `company/[companyId]/layout.tsx` pasa `userRole={company.role}` al Navbar
+- **VIEWER**: hereda nav de ACCOUNTANT; restricciones de escritura por guards (28C)
+
+| Rol | Primary | Secciones en dropdown |
+|---|---|---|
+| OWNER/ADMIN | Dashboard, Asientos, Plan de Cuentas, Reportes | Contabilidad, Operaciones, Administración |
+| ACCOUNTANT | Dashboard, Asientos, Plan de Cuentas, Libros IVA | Contabilidad, Inventario (pronto), Reportes |
+| ADMINISTRATIVE | Dashboard, Facturas, Pagos | Operaciones, Inventario (pronto) |
+
+### Fase 28C — Role Guards en Server Actions
+
+**13 archivos de actions actualizados** con `canAccess()` de `auth-helpers.ts`:
+
+| Guard | Módulos | Restricción nueva |
+|---|---|---|
+| `ROLES.ACCOUNTING` | transactions, accounts, retentions, IGTF, fixed-assets, inflation, banking, auto-reconciliation | ADMINISTRATIVE no puede escribir en módulos contables |
+| `ROLES.WRITERS` | invoices, payments, exchange-rates, export, receivables-write | VIEWER bloqueado; todos los demás pueden operar |
+| `ROLES.ADMIN_ONLY` | periods, company, import, banking-admin, receivables-cancel | Fix: OWNER ya no queda bloqueado (bug: `role !== "ADMIN"` → `!canAccess(role, ROLES.ADMIN_ONLY)`) |
+
+**Dashboard dinámico** (`page.tsx`):
+- `RoleBadge`: badge de color por rol (Propietario, Contador, Administrativo…)
+- `DashboardCTA`: botones contextuales (Contador → "Nuevo Asiento"; Administrativo → "Facturas + Pago")
+- `QuickAccess`: 6 accesos rápidos por área (Inventario aparece con badge "Pronto")
+- Métricas contables ocultas para ADMINISTRATIVE (placeholder operativo)
+
+### Tests
+802 tests GREEN — sin nuevos tests en 28A/28B/28C (guards son cambios de comportamiento, no nueva lógica). 4 archivos de tests actualizados con regex `/módulo contable|no autorizado/i`.
