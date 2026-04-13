@@ -8,6 +8,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
@@ -39,7 +40,7 @@ export async function createInvoiceAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
 
     const key = parsed.data.idempotencyKey ?? crypto.randomUUID();
 
@@ -367,7 +368,7 @@ export async function createCreditNoteAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "No autorizado" };
-    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
 
     const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId);
 
@@ -408,7 +409,7 @@ export async function createDebitNoteAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "No autorizado" };
-    if (member.role === "VIEWER") return { success: false as const, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
 
     const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId);
 

@@ -76,7 +76,12 @@
       "Bash(git commit:*)",
       "Bash(grep -n \"islr\\\\|concept\\\\|ISLR\" src/modules/retentions/schemas/*.ts)",
       "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in {**p.get\\('dependencies',{}\\), **p.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['qr','xml','pdf']\\)}, indent=2\\)\\)\")",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(xargs -I {} basename {})",
+      "Bash(ls .env*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['zip','blob','stream','buffer','papaparse','csv']\\)]\")",
+      "Bash(grep -v \"//.*ADMIN\\\\|//.*VIEWER\")"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",

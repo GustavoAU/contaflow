@@ -99,11 +99,11 @@ describe("createFixedAssetAction", () => {
     if (!r.success) expect(r.error).toContain("acceso denegado");
   });
 
-  it("retorna error si el rol es VIEWER", async () => {
+  it("retorna error si el rol es VIEWER (o no tiene acceso contable)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const r = await createFixedAssetAction(BASE_INPUT);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toBe("No autorizado");
+    if (!r.success) expect(r.error).toMatch(/módulo contable|no autorizado/i);
   });
 
   it("retorna error si el año fiscal está cerrado", async () => {

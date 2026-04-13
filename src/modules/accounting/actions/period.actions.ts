@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { PeriodService } from "../services/PeriodService";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export async function openPeriodAction(
       where: { userId_companyId: { userId, companyId: validated.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const period = await PeriodService.openPeriod(
       validated.companyId,
@@ -98,7 +99,7 @@ export async function closePeriodAction(
       where: { userId_companyId: { userId, companyId: validated.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!["OWNER", "ADMIN"].includes(member.role)) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
     const period = await PeriodService.closePeriod(validated.companyId, userId);
 

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ export async function createAccountAction(
       select: { role: true },
     });
     if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
-    if (memberCheck.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(memberCheck.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -199,7 +200,7 @@ export async function updateAccountAction(
       select: { role: true },
     });
     if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
-    if (memberCheck.role === "VIEWER") return { success: false, error: "No autorizado" };
+    if (!canAccess(memberCheck.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     if (data.code) {
       // FIX CRÍTICO-1 (ADR-004): unicidad de código scoped a companyId.
