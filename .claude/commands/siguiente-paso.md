@@ -1,50 +1,77 @@
-Read in order:
-CLAUDE.md
-contaflow-context-v3.md
-C:\Users\Gustavo\.claude\projects\d--Documents-Projects-React-modern-cg1\memory\MEMORY.md
+# siguiente-paso.md — Diagnóstico del estado actual
 
-Then run: git status --short && npx vitest run 2>&1 | tail -5 && npx tsc --noEmit 2>&1 | tail -5
+## Paso 1: Verificar integridad
 
-Then analyze and report WITHOUT waiting to be asked:
+Run in order and report EXIT codes:
 
-## Estado actual
+```bash
+echo "=== GIT STATUS ==="
+git status --short
 
-- Rama activa y qué fase está en curso (si hay alguna)
-- Tests: ¿GREEN o hay fallos? Cantidad exacta
-- TS errors: 0 o listado
-- ¿Hay cambios sin commitear relevantes?
+echo "=== TYPE CHECK ==="
+npx tsc --noEmit
+echo "TSC_EXIT: $?"
 
-## Fases completadas recientemente
+echo "=== TESTS ==="
+npx vitest run
+echo "VITEST_EXIT: $?"
 
-- Listar las últimas 3 fases ✅ con fecha y commit hash
-- Resumen de qué entregó cada una (1 línea)
+echo "=== MIGRATIONS PENDING ==="
+ls -la prisma/migrations/ | tail -10
 
-## Deuda técnica pendiente
+echo "=== OPEN ADR ITEMS ==="
+grep -rn "PENDING\|TODO\|BLOCKED" .claude/adr/ | grep -v "✅\|DECIDED"
 
-- Findings de lessons-learned.md sin fix
-- Migrations manuales pendientes de aplicar en Neon (DATABASE_URL_DIRECT)
-- Cualquier TODO/FIXME crítico en el código
-- Tests faltantes para código implementado sin cobertura
+echo "=== UNRESOLVED CONTRACT ITEMS ==="
+grep -n "PENDIENTE" contaflow-contract.md | head -5
+```
 
-## UI sin implementar
+**Halt immediately if:**
+- `TSC_EXIT: 1` → fix TS errors before proceeding
+- `VITEST_EXIT: 1` → fix failing tests before proceeding
+- Migraciones pendientes sin aplicar en Neon
 
-- ¿Hay services/actions implementados sin UI correspondiente?
-- Listar con módulo y ruta sugerida
+---
 
-## Próximo paso recomendado
+## Paso 2: Categorizar estado
 
-Evaluar en este orden de prioridad:
-1. ¿Hay fase en curso sin terminar? → terminarla
-2. ¿Hay deuda técnica bloqueante? → resolverla primero
-3. Siguiente fase del roadmap según contaflow-context-v3.md (sección Fases Planificadas)
-   - Considerar checklist pre-lanzamiento (memory/project_prelaunch_checklist.md)
-   - Respetar YAGNI: no implementar fases marcadas como futuras hasta que haya demanda real
-4. Proponer plan concreto con archivos a crear/modificar
+Report:
 
-## Riesgos de producción
+| Métrica | Estado |
+|---|---|
+| Tests | GREEN / FAILING [N] |
+| TS Errors | 0 / [N] |
+| Open findings | [N] CRITICAL / [N] HIGH / [N] MEDIUM |
+| Unresolved contract items | [N] |
+| Unfinished phase | [yes/no] — which one |
 
-- ¿Algo sin cobertura de tests suficiente?
-- ¿Migrations pendientes de aplicar?
-- ¿Cambios de rol/schema que requieran acción manual en Neon?
+---
 
-Propone el plan concreto y espera confirmación antes de ejecutar.
+## Paso 3: Análisis
+
+Based on the data above, determine:
+
+**Priority 1 — Blocking issues (cannot start new phase)**
+- Any TS error → fix immediately
+- Any RED test → fix immediately
+- CRITICAL security finding unresolved → fix immediately
+
+**Priority 2 — Technical debt**
+- Open ADR items in lessons-learned.md without regression test
+- Migrations in Neon not yet applied
+- UI without corresponding service implementation
+
+**Priority 3 — Next phase**
+- If no blocking issues: check roadmap (contaflow-context-v3.md)
+- Propose concrete plan with agent assignments
+
+---
+
+## Paso 4: Spawn agents (if needed)
+
+- **Blocking TS/test errors** → appropriate agent (ledger-agent, fiscal-agent, etc.)
+- **Schema/RLS/ADR questions** → arch-agent
+- **Security findings** → security-agent
+- **Feature planning** → orchestrator-agent
+
+**Wait for user confirmation before executing any agent.**
