@@ -1,6 +1,6 @@
 // src/modules/notifications/__tests__/NotificationService.test.ts
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import prisma from "@/lib/prisma";
 import { NotificationService } from "../services/NotificationService";
 
