@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { getDashboardMetricsAction } from "@/modules/accounting/actions/dashboard.actions";
+import { getKpiDashboardAction } from "@/modules/analytics/actions/kpi-dashboard.actions";
+import { ExecutiveKpiPanel } from "@/modules/analytics/components/ExecutiveKpiPanel";
 import {
   BookOpenIcon,
   FileTextIcon,
@@ -19,7 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
-import { ROLE_LABELS } from "@/lib/auth-helpers";
+import { ROLE_LABELS, canAccess, ROLES } from "@/lib/auth-helpers";
 import type { UserRole } from "@/lib/nav-items";
 
 type Props = {
@@ -186,6 +188,10 @@ export default async function CompanyDashboardPage({ params }: Props) {
 
   const m = metricsResult.data;
   const showAccountingMetrics = role !== "ADMINISTRATIVE";
+  const showKpis = canAccess(role, ROLES.ACCOUNTING);
+
+  // Fetch KPI data for accounting roles (non-blocking — falls back gracefully)
+  const kpiResult = showKpis ? await getKpiDashboardAction(companyId) : null;
 
   return (
     <div className="space-y-6">
@@ -359,7 +365,7 @@ export default async function CompanyDashboardPage({ params }: Props) {
             <div>
               <p className="text-sm font-medium text-zinc-500">Métricas operativas</p>
               <p className="mt-1 text-xs text-zinc-400">
-                Facturas por cobrar, pagos pendientes y más — disponibles en Fase 28
+                Facturas por cobrar, pagos pendientes y más en los módulos de Facturas y Cartera.
               </p>
               <Link
                 href={`/company/${companyId}/invoices`}
@@ -370,6 +376,11 @@ export default async function CompanyDashboardPage({ params }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── KPIs ejecutivos (OWNER, ADMIN, ACCOUNTANT) ──────────────────── */}
+      {showKpis && kpiResult?.success && (
+        <ExecutiveKpiPanel companyId={companyId} initialData={kpiResult.data} />
       )}
 
       {m.totalAccounts === 0 && showAccountingMetrics && (
