@@ -253,6 +253,7 @@ export async function updatePaymentTermsAction(
 
     await prisma.auditLog.create({
       data: {
+        companyId: parsed.data.companyId,
         entityId: parsed.data.companyId,
         entityName: "Company",
         action: "UPDATE",

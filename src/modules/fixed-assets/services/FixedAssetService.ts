@@ -159,6 +159,7 @@ export class FixedAssetService {
 
     await tx.auditLog.create({
       data: {
+        companyId: input.companyId,
         entityId: asset.id,
         entityName: "FixedAsset",
         action: "CREATE",
@@ -372,6 +373,7 @@ export class FixedAssetService {
 
     await tx.auditLog.create({
       data: {
+        companyId: input.companyId,
         entityId: input.assetId,
         entityName: "FixedAsset",
         action: "UPDATE",

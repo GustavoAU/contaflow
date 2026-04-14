@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28F completada. Última sincronización: 2026-04-14_
-_v3.12: Fase 28F (UX Hardening — Toaster global en layout, migración sonner, spinners). 870 tests GREEN._
+_Versión actualizada — Fase 31 completada. Última sincronización: 2026-04-14_
+_v3.13: Fase 31 (AuditLog UI — companyId en schema + tabla paginada con filtros + diff oldValue↔newValue). 881 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -563,6 +563,7 @@ model FiscalYearClose {
 - ✅ Fase 28D: Módulo Inventario — `InventoryItem` + `InventoryMovement` (Prisma + Neon) + `InventoryOperationsService` (CPP override, IDOR guards) + `InventoryAccountingService` (Serializable SSI, CPP fórmula, P2034) + 4 action files + 68 tests (870 total) (ver sección 44)
 - ✅ Fase 28E: UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado (ver sección 45)
 - ✅ Fase 28F: UX Hardening — Toaster global en company layout + migración sonner en 3 componentes + spinners en botones de acción (ver sección 46)
+- ✅ Fase 31: AuditLog UI — `companyId` agregado a schema `AuditLog` (nullable + 2 indexes) + 44 `auditLog.create()` actualizados en 19 archivos + `AuditLogService` + `AuditLogTable` (filtros + DiffView) + page OWNER/ADMIN only + nav item — 881 tests (ver sección 47)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -577,7 +578,7 @@ model FiscalYearClose {
 - ⏳ Fase 29A: TaxPlugin Architecture — `interface TaxPlugin { VE | CO }`, `VenezuelaTaxPlugin` extrae lógica VEN-NIF, `ColombiaTaxPlugin` stub, `Company.country` enum — prerequisito Fase 29 — ~15 tests
 - ⏳ Fase 29: Expansión Colombia (DIAN)
 - ✅ Fase 30: Exportación Masiva / Backup Contable — ZIP descargable (libros IVA, asientos, retenciones, activos, Forma 30 por mes) + ExportJob 24h expiry — 23 tests (ver sección 42)
-- ⏳ Fase 31: AuditLog UI — `/audit-log` tabla paginada con filtros (usuario, entidad, fecha) + diff oldValue↔newValue + export Excel — solo ADMIN/OWNER — ~8 tests
+- ✅ Fase 31: AuditLog UI — `/audit-log` tabla paginada con filtros + diff oldValue↔newValue — solo ADMIN/OWNER — 881 tests (ver sección 47)
 - ⏳ Landing Page
 
 ## 20. Notas Técnicas Importantes
@@ -1827,3 +1828,86 @@ Patrón: `<span className="inline-block h-3 w-3 animate-spin rounded-full border
 ### Tests
 
 Sin tests nuevos — UI puro. 870 total GREEN.
+
+## Sección 47 — Fase 31: AuditLog UI (2026-04-14)
+
+### Objetivo
+
+Exponer el historial de auditoría (`AuditLog`) a OWNER y ADMIN con una tabla paginada, filtros por entidad/usuario/fecha y diff expandible oldValue↔newValue.
+
+### Problema arquitectónico resuelto
+
+`AuditLog` no tenía `companyId` — imposible filtrar por empresa en multi-tenant. Solución: `companyId String?` (nullable para preservar registros históricos) + 2 índices de rendimiento.
+
+### Schema (prisma/schema.prisma)
+
+```prisma
+model AuditLog {
+  id         String   @id @default(cuid())
+  companyId  String?
+  entityId   String
+  entityName String
+  action     String
+  userId     String
+  oldValue   Json?
+  newValue   Json
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, entityName, createdAt(sort: Desc)])
+}
+```
+
+Aplicado con `prisma db push` (patrón establecido — `prisma migrate dev` falla por RLS shadow DB P3006).
+
+### Mass update — 44 auditLog.create() en 19 archivos
+
+Cada `auditLog.create()` en producción actualizado con `companyId` usando la fuente correcta en cada contexto:
+
+| Archivo | Fuente companyId |
+|---|---|
+| `TransactionService.ts` | `validated.companyId` / `original.companyId` |
+| `PeriodService.ts` | param `companyId` |
+| `account.actions.ts` | `validated.companyId` / `before.companyId` |
+| `BankingService.ts` | param `companyId` |
+| `BankReconciliationService.ts` | param `companyId` |
+| `BankStatementService.ts` | param `companyId` |
+| `CompanyService.ts` | `created.id` (CREATE) / param `companyId` |
+| `exchange-rate.actions.ts` | param `companyId` |
+| `fiscal-close.actions.ts` | `parsed.data.companyId` |
+| `FiscalYearCloseService.ts` | param `companyId` |
+| `FixedAssetService.ts` | `input.companyId` |
+| `igtf.actions.ts` | `data.companyId` |
+| `ImportService.ts` | param `companyId` |
+| `INPCService.ts` | `input.companyId` / param `companyId` |
+| `InventoryAccountingService.ts` | param `companyId` |
+| `InventoryOperationsService.ts` | param `companyId` |
+| `invoice.actions.ts` | `parsed.data.companyId` |
+| `InvoiceService.ts` | param `companyId` |
+| `payment.actions.ts` | `d.companyId` |
+| `receivable.actions.ts` | `parsed.data.companyId` |
+| `ReceivableService.ts` | `input.companyId` / param `companyId` |
+| `retention.actions.ts` | `data.companyId` |
+| `RetentionService.ts` | param `companyId` |
+
+### Archivos nuevos
+
+| Archivo | Descripción |
+|---|---|
+| `src/modules/audit/services/AuditLogService.ts` | `list()` paginado con filtros + `getDistinctEntityNames()` |
+| `src/modules/audit/actions/audit.actions.ts` | `listAuditLogsAction` + `getAuditEntityNamesAction` — guard ADMIN_ONLY |
+| `src/modules/audit/components/AuditLogTable.tsx` | Client component — filtros, DiffView expandible, paginación `useTransition` |
+| `src/app/(dashboard)/company/[companyId]/audit-log/page.tsx` | Server Component — SSR initial data, redirect si no ADMIN_ONLY |
+| `src/modules/audit/__tests__/AuditLogService.test.ts` | 7 tests — filtros, paginación, pageSize capped |
+| `src/modules/audit/__tests__/audit.actions.test.ts` | 4 tests — no-member, ACCOUNTANT, ADMIN, OWNER |
+
+### Nav
+
+`src/lib/nav-items.ts` — sección "Administración" de OWNER/ADMIN:
+```typescript
+item("Auditoría", p("/audit-log"), ShieldCheckIcon),
+```
+
+### Tests
+
+11 tests nuevos. **881 total GREEN** | **0 TS errors**

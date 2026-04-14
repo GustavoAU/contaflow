@@ -63,6 +63,7 @@ export class ImportService {
 
     await prisma.auditLog.create({
       data: {
+        companyId,
         entityId: companyId,
         entityName: "Account",
         action: "IMPORT",

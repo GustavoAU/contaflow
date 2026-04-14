@@ -51,6 +51,7 @@ export async function upsertExchangeRateAction(
       );
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: record.id,
           entityName: "ExchangeRate",
           action: "UPSERT",
@@ -121,6 +122,7 @@ export async function fetchBcvRateAction(
       );
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: record.id,
           entityName: "ExchangeRate",
           action: "UPSERT",
