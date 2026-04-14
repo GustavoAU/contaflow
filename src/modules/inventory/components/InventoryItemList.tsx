@@ -4,6 +4,7 @@
 // Tabla de ítems con stock y CPP. Accesible para todos los roles con acceso al módulo.
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { softDeleteInventoryItemAction } from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
 
@@ -33,36 +34,20 @@ type Props = {
 
 export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [isPendingDelete, startDelete] = useTransition();
-
-  function showToast(type: "ok" | "err", text: string) {
-    setToast({ type, text });
-    setTimeout(() => setToast(null), 4000);
-  }
 
   function handleDelete(itemId: string, itemName: string) {
     if (!confirm(`¿Eliminar "${itemName}" del inventario? Esta acción es reversible solo manualmente.`))
       return;
     startDelete(async () => {
       const r = await softDeleteInventoryItemAction(companyId, itemId);
-      if (r.success) showToast("ok", `"${itemName}" eliminado.`);
-      else showToast("err", r.error);
+      if (r.success) toast.success(`"${itemName}" eliminado.`);
+      else toast.error(r.error);
     });
   }
 
   return (
     <div className="space-y-3">
-      {toast && (
-        <div
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            toast.type === "ok" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-          }`}
-        >
-          {toast.text}
-        </div>
-      )}
-
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-500">
           No hay productos registrados en el inventario.
