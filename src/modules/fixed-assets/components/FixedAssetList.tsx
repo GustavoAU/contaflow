@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import type { FixedAssetSummary } from "../services/FixedAssetService";
 import { postMonthlyDepreciationAction, disposeFixedAssetAction } from "../actions/fixed-asset.actions";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
@@ -29,12 +30,6 @@ export function FixedAssetList({ assets, companyId }: Props) {
   const [deprResult, setDeprResult] = useState<string | null>(null);
   const [scheduleAssetId, setScheduleAssetId] = useState<string | null>(null);
   const [isPendingDispose, startDispose] = useTransition();
-  const [toastMsg, setToastMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-
-  function showToast(type: "ok" | "err", text: string) {
-    setToastMsg({ type, text });
-    setTimeout(() => setToastMsg(null), 4000);
-  }
 
   function handlePostDepreciation() {
     startDepr(async () => {
@@ -44,7 +39,7 @@ export function FixedAssetList({ assets, companyId }: Props) {
           `Depreciación ${deprYear}/${String(deprMonth).padStart(2, "0")}: ${r.data.processed} procesados, ${r.data.skipped} ya calculados${r.data.errors.length ? `, ${r.data.errors.length} errores` : ""}.`,
         );
       } else {
-        showToast("err", r.error);
+        toast.error(r.error);
       }
     });
   }
@@ -58,8 +53,8 @@ export function FixedAssetList({ assets, companyId }: Props) {
         disposalDate: new Date(),
         saleProceeds: "0",
       });
-      if (r.success) showToast("ok", `Activo "${assetName}" dado de baja correctamente`);
-      else showToast("err", r.error);
+      if (r.success) toast.success(`Activo "${assetName}" dado de baja correctamente`);
+      else toast.error(r.error);
     });
   }
 
@@ -70,13 +65,6 @@ export function FixedAssetList({ assets, companyId }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Toast */}
-      {toastMsg && (
-        <div className={`rounded px-4 py-2 text-sm font-medium ${toastMsg.type === "ok" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-          {toastMsg.text}
-        </div>
-      )}
-
       {/* Panel depreciación mensual masiva */}
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
         <div>
@@ -107,7 +95,12 @@ export function FixedAssetList({ assets, companyId }: Props) {
           disabled={isPendingDepr}
           className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPendingDepr ? "Calculando..." : "Calcular Depreciación del Mes"}
+          {isPendingDepr ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Calculando...
+            </span>
+          ) : "Calcular Depreciación del Mes"}
         </button>
         {deprResult && (
           <p className="text-xs text-blue-700">{deprResult}</p>

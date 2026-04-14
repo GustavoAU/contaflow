@@ -14,7 +14,6 @@ import { LanguageSelector } from "@/modules/settings/LanguageSelector";
 import { ArchiveCompany } from "@/components/company/ArchiveCompany";
 import { FiscalConfigForm } from "@/modules/fiscal-close/components/FiscalConfigForm";
 import { PaymentTermsForm } from "@/modules/receivables/components/PaymentTermsForm";
-import { Toaster } from "@/components/ui/sonner";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -101,7 +100,6 @@ export default async function SettingsPage({ params }: Props) {
 
       <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
 
-      <Toaster richColors position="top-right" />
     </div>
   );
 }
