@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import React from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   exportInvoiceXMLAction,
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
+import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
 import * as XLSX from "xlsx";
 
 type Props = {
@@ -56,6 +58,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
   const [result, setResult] = useState<InvoiceBookResult | null>(null);
+  const [expandedNcNdId, setExpandedNcNdId] = useState<string | null>(null);
 
   function handleSearch() {
     startTransition(async () => {
@@ -351,73 +354,99 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {result.rows.map((row) =>
-                      row.taxLines.length === 0 ? (
-                        <tr key={row.id} className="hover:bg-zinc-50">
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {new Date(row.date).toLocaleDateString("es-VE")}
+                    {result.rows.map((row) => {
+                      const isFactura = row.docType === "FACTURA";
+                      const ncNdOpen = expandedNcNdId === row.id;
+
+                      // Botón NC/ND solo para FACTURAs
+                      const ncNdButton = isFactura ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedNcNdId(ncNdOpen ? null : row.id)}
+                          title={ncNdOpen ? "Ocultar NC/ND" : "Ver Notas de Crédito/Débito vinculadas"}
+                          className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${ncNdOpen ? "bg-purple-100 text-purple-700" : "text-purple-600 hover:bg-purple-50"}`}
+                        >
+                          NC/ND
+                        </button>
+                      ) : null;
+
+                      const expansionRow = ncNdOpen ? (
+                        <tr key={`ncnd-${row.id}`} className="bg-zinc-50">
+                          <td colSpan={12} className="border-t p-0">
+                            <CreditDebitNotesPanel companyId={companyId} invoiceId={row.id} />
                           </td>
-                          <td className="px-4 py-3">{row.counterpartName}</td>
-                          <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            <div className="flex flex-col gap-0.5">
-                              <span>{row.invoiceNumber}</span>
-                              {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
-                                row.relatedDocNumber && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                                    &#8594; Factura {row.relatedDocNumber}
-                                  </span>
-                                )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            {row.controlNumber ?? "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
-                                disabled={isPendingVoucher && pendingVoucherId === row.id}
-                                title="Descargar PDF de factura"
-                                className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                                aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
-                              >
-                                {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
-                                disabled={isPendingXML && pendingXMLId === row.id}
-                                title="Descargar XML SENIAT"
-                                className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
-                                aria-label={`Descargar XML factura ${row.invoiceNumber}`}
-                              >
-                                {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-zinc-400">—</td>
-                          <td className="px-4 py-3 text-right font-mono">—</td>
-                          <td className="px-4 py-3 text-right font-mono">—</td>
-                          <td className="px-4 py-3 text-right font-mono">—</td>
-                          <td className="px-4 py-3 text-right font-mono text-orange-700">
-                            {row.ivaRetentionAmount}
-                          </td>
-                          {type === "PURCHASE" && (
-                            <td className="px-4 py-3 text-right font-mono text-orange-700">
-                              {row.islrRetentionAmount}
-                            </td>
-                          )}
-                          {type === "SALE" && (
-                            <td className="px-4 py-3 text-right font-mono text-yellow-700">
-                              {row.igtfAmount}
-                            </td>
-                          )}
                         </tr>
-                      ) : (
-                        row.taxLines.map((line, idx) => (
-                          <tr key={`${row.id}-${line.id}`} className="hover:bg-zinc-50">
+                      ) : null;
+
+                      return (
+                        <React.Fragment key={row.id}>
+                          {row.taxLines.length === 0 ? (
+                            <tr className="hover:bg-zinc-50">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {new Date(row.date).toLocaleDateString("es-VE")}
+                              </td>
+                              <td className="px-4 py-3">{row.counterpartName}</td>
+                              <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
+                              <td className="px-4 py-3 font-mono text-xs">
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{row.invoiceNumber}</span>
+                                  {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
+                                    row.relatedDocNumber && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                        &#8594; Factura {row.relatedDocNumber}
+                                      </span>
+                                    )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs">
+                                {row.controlNumber ?? "—"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
+                                    disabled={isPendingVoucher && pendingVoucherId === row.id}
+                                    title="Descargar PDF de factura"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                    aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
+                                  >
+                                    {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
+                                    disabled={isPendingXML && pendingXMLId === row.id}
+                                    title="Descargar XML SENIAT"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+                                    aria-label={`Descargar XML factura ${row.invoiceNumber}`}
+                                  >
+                                    {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
+                                  </button>
+                                  {ncNdButton}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-zinc-400">—</td>
+                              <td className="px-4 py-3 text-right font-mono">—</td>
+                              <td className="px-4 py-3 text-right font-mono">—</td>
+                              <td className="px-4 py-3 text-right font-mono">—</td>
+                              <td className="px-4 py-3 text-right font-mono text-orange-700">
+                                {row.ivaRetentionAmount}
+                              </td>
+                              {type === "PURCHASE" && (
+                                <td className="px-4 py-3 text-right font-mono text-orange-700">
+                                  {row.islrRetentionAmount}
+                                </td>
+                              )}
+                              {type === "SALE" && (
+                                <td className="px-4 py-3 text-right font-mono text-yellow-700">
+                                  {row.igtfAmount}
+                                </td>
+                              )}
+                            </tr>
+                          ) : (
+                            row.taxLines.map((line, idx) => (
+                              <tr key={`${row.id}-${line.id}`} className="hover:bg-zinc-50">
                             <td className="px-4 py-3 whitespace-nowrap">
                               {idx === 0 ? new Date(row.date).toLocaleDateString("es-VE") : ""}
                             </td>
@@ -464,6 +493,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   >
                                     {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
                                   </button>
+                                  {ncNdButton}
                                 </div>
                               )}
                             </td>
@@ -489,9 +519,12 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                               </td>
                             )}
                           </tr>
-                        ))
-                      )
-                    )}
+                            ))
+                          )}
+                          {expansionRow}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
 
                   {/* Totales */}

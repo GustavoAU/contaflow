@@ -430,6 +430,131 @@ export async function createDebitNoteAction(input: unknown) {
   }
 }
 
+// ─── Búsqueda de facturas para picker NC/ND ────────────────────────────────────
+
+export type InvoicePickerItem = {
+  id: string;
+  invoiceNumber: string;
+  counterpartName: string;
+  totalAmountVes: string | null;
+  date: string; // ISO
+};
+
+/**
+ * Búsqueda liviana de FACTURAs (docType === FACTURA) del mismo tipo (SALE/PURCHASE).
+ * Devuelve hasta 10 resultados. Usado para el picker "Factura original" en NC/ND.
+ */
+export async function searchInvoicesForPickerAction(
+  companyId: string,
+  type: "SALE" | "PURCHASE",
+  query: string,
+): Promise<ActionResult<InvoicePickerItem[]>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+
+  try {
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        type,
+        docType: "FACTURA",
+        deletedAt: null,
+        ...(query.trim()
+          ? {
+              OR: [
+                { invoiceNumber: { contains: query, mode: "insensitive" } },
+                { counterpartName: { contains: query, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      select: { id: true, invoiceNumber: true, counterpartName: true, totalAmountVes: true, date: true },
+      orderBy: { date: "desc" },
+      take: 10,
+    });
+
+    return {
+      success: true,
+      data: invoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        counterpartName: inv.counterpartName,
+        totalAmountVes: inv.totalAmountVes ? inv.totalAmountVes.toString() : null,
+        date: inv.date.toISOString().slice(0, 10),
+      })),
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al buscar facturas" };
+  }
+}
+
+// ─── Notas de crédito/débito vinculadas a una factura ──────────────────────────
+
+export type CreditDebitNoteItem = {
+  id: string;
+  invoiceNumber: string;
+  docType: string; // "NOTA_CREDITO" | "NOTA_DEBITO"
+  date: string; // ISO
+  counterpartName: string;
+  totalAmountVes: string | null;
+  paymentStatus: string;
+};
+
+export async function getCreditDebitNotesAction(
+  companyId: string,
+  invoiceId: string,
+): Promise<ActionResult<CreditDebitNoteItem[]>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+
+  try {
+    const notes = await prisma.invoice.findMany({
+      where: { companyId, relatedInvoiceId: invoiceId, deletedAt: null },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        docType: true,
+        date: true,
+        counterpartName: true,
+        totalAmountVes: true,
+        paymentStatus: true,
+      },
+      orderBy: { date: "asc" },
+    });
+
+    return {
+      success: true,
+      data: notes.map((n) => ({
+        id: n.id,
+        invoiceNumber: n.invoiceNumber,
+        docType: n.docType,
+        date: n.date.toISOString().slice(0, 10),
+        counterpartName: n.counterpartName,
+        totalAmountVes: n.totalAmountVes ? n.totalAmountVes.toString() : null,
+        paymentStatus: n.paymentStatus,
+      })),
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al obtener notas" };
+  }
+}
+
 // ─── Obtener libro de compras o ventas ─────────────────────────────────────────
 export async function getInvoiceBookAction(input: unknown) {
   const parsed = InvoiceBookFilterSchema.safeParse(input);
