@@ -159,6 +159,7 @@ export async function linkRetentionToInvoice(
     }),
     prisma.auditLog.create({
       data: {
+        companyId,
         entityId: retentionId,
         entityName: "Retencion",
         action: "LINK_RETENTION_INVOICE",

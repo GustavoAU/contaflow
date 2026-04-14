@@ -30,6 +30,7 @@ export class CompanyService {
 
       await tx.auditLog.create({
         data: {
+          companyId: created.id,
           entityId: created.id,
           entityName: "Company",
           action: "CREATE",
@@ -72,6 +73,7 @@ export class CompanyService {
 
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: companyId,
           entityName: "Company",
           action: "ARCHIVE",
@@ -103,6 +105,7 @@ export class CompanyService {
 
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: companyId,
           entityName: "Company",
           action: "REACTIVATE",

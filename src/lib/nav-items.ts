@@ -31,6 +31,7 @@ import {
   Building2,
   ArchiveIcon,
   PackageIcon,
+  ShieldCheckIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -107,6 +108,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
         group: "Administración",
         items: [
           item("Configuración", p("/settings"), Settings),
+          item("Auditoría", p("/audit-log"), ShieldCheckIcon),
         ],
       },
     ],

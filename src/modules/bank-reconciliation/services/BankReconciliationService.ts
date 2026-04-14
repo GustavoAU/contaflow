@@ -64,6 +64,7 @@ export const BankReconciliationService = {
 
       await tx.auditLog.create({
         data: {
+          companyId,
           action: "BANK_TRANSACTION_MATCHED",
           entityName: "BankTransaction",
           entityId: bankTransactionId,

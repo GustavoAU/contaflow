@@ -45,6 +45,7 @@ export async function createInventoryItem(
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: created.id,
         entityName: "InventoryItem",
         action: "CREATE",
@@ -99,6 +100,7 @@ export async function updateInventoryItem(
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: itemId,
         entityName: "InventoryItem",
         action: "UPDATE",
@@ -128,6 +130,7 @@ export async function softDeleteInventoryItem(itemId: string, companyId: string,
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: itemId,
         entityName: "InventoryItem",
         action: "SOFT_DELETE",
@@ -206,6 +209,7 @@ export async function createDraftMovement(
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: created.id,
         entityName: "InventoryMovement",
         action: "CREATE_DRAFT",
@@ -247,6 +251,7 @@ export async function voidDraftMovement(input: VoidMovementInput, userId: string
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: movementId,
         entityName: "InventoryMovement",
         action: "VOID_DRAFT",

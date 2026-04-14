@@ -508,6 +508,7 @@ export class ReceivableService {
       // AuditLog
       await db.auditLog.create({
         data: {
+          companyId: input.companyId,
           entityId: payment.id,
           entityName: "InvoicePayment",
           action: "CREATE",
@@ -595,6 +596,7 @@ export class ReceivableService {
 
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: paymentId,
             entityName: "InvoicePayment",
             action: "CANCEL",

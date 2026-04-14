@@ -468,6 +468,7 @@ export class InvoiceService {
         // AuditLog #1: NC creation
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: nc.id,
             entityName: "Invoice",
             action: "CREATE_NC",
@@ -485,6 +486,7 @@ export class InvoiceService {
         // AuditLog #2: original invoice pendingAmount update
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: original.id,
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",
@@ -591,6 +593,7 @@ export class InvoiceService {
         // AuditLog #1: ND creation
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: nd.id,
             entityName: "Invoice",
             action: "CREATE_ND",
@@ -608,6 +611,7 @@ export class InvoiceService {
         // AuditLog #2: original invoice pendingAmount update
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: original.id,
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",

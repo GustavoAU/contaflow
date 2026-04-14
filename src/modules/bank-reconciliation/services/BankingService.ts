@@ -89,6 +89,7 @@ export const BankingService = {
       // AuditLog
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: statement.id,
           entityName: "BankStatement",
           action: "IMPORT",
@@ -175,6 +176,7 @@ export const BankingService = {
       // AuditLog
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: transactionId,
           entityName: "BankTransaction",
           action: "RECONCILE",
@@ -228,6 +230,7 @@ export const BankingService = {
       // AuditLog
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: transactionId,
           entityName: "BankTransaction",
           action: "UNRECONCILE",

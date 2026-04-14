@@ -202,6 +202,7 @@ export async function updateFiscalConfigAction(
 
       await tx.auditLog.create({
         data: {
+          companyId: parsed.data.companyId,
           entityId: parsed.data.companyId,
           entityName: "Company",
           action: "UPDATE_FISCAL_CONFIG",

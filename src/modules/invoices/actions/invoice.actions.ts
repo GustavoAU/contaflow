@@ -101,6 +101,7 @@ export async function createInvoiceAction(input: unknown) {
         );
         await tx.auditLog.create({
           data: {
+            companyId: parsed.data.companyId,
             entityId: inv.id,
             entityName: "Invoice",
             action: "CREATE",
