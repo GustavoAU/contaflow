@@ -20,6 +20,7 @@ import {
   voidDraftMovement,
   getInventoryItems,
   getDraftMovements,
+  getItemMovements,
 } from "../services/InventoryOperationsService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -205,6 +206,30 @@ export async function getInventoryItemsAction(
   try {
     const items = await getInventoryItems(companyId);
     return { success: true, data: items };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error inesperado" };
+  }
+}
+
+export async function getItemMovementsAction(
+  companyId: string,
+  itemId: string
+): Promise<ActionResult<Awaited<ReturnType<typeof getItemMovements>>>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.WRITERS))
+    return { success: false, error: "Se requiere autenticación" };
+
+  try {
+    const movements = await getItemMovements(companyId, itemId);
+    return { success: true, data: movements };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error inesperado" };
