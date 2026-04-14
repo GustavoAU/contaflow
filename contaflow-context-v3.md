@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 32 completada. Última sincronización: 2026-04-14_
-_v3.16: Fase 32 (KPIs ejecutivos: CxC/CxP/DSO/flujo de caja proyectado 90d). 926 tests GREEN._
+_Versión actualizada — Fase 23C Residual completada. Última sincronización: 2026-04-14_
+_v3.17: Fase 23C Residual (NC/ND UI: picker buscable + panel NC/ND en InvoiceBook). 936 tests GREEN.
 
 ## 1. Descripción del Producto
 
@@ -2001,3 +2001,31 @@ Fila de totales consolidada al pie de la tabla.
 ### Tests
 
 18 tests nuevos — CxC/CxP separados, workingCapital negativo, DSO null, DSO calculado, buckets cash flow, null guards, role guards. **926 total GREEN** | **0 TS errors**
+
+## Sección 51 — Fase 23C Residual: NC/ND UI Completo (2026-04-14)
+
+### Objetivo
+
+Cerrar el gap de UX en el workflow de Notas de Crédito/Débito: el campo "Factura original" exigía pegar un CUID a mano — inutilizable en producción. Se añade picker buscable y panel de visualización.
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `invoice.actions.ts` | +`searchInvoicesForPickerAction(companyId, type, query)` — busca FACTURAs del mismo tipo, take:10, ROLES.WRITERS |
+| `invoice.actions.ts` | +`getCreditDebitNotesAction(companyId, invoiceId)` — NC/ND vinculadas, ROLES.WRITERS |
+| `RelatedInvoicePicker.tsx` (nuevo) | Input buscable debounced (300ms) + dropdown + label "F-0001 — Cliente X" + clear button |
+| `CreditDebitNotesPanel.tsx` (nuevo) | Panel lazy-load: tabla NC/ND con badge tipo (NC verde / ND naranja), fecha, monto, estado |
+| `InvoiceForm.tsx` | Reemplaza raw input con `<RelatedInvoicePicker>` |
+| `InvoiceBook.tsx` | Botón "NC/ND" en columna de acciones para filas FACTURA; panel expandible en `<tr colSpan={12}>` usando React.Fragment |
+
+### UX antes → después
+
+| Antes | Después |
+|---|---|
+| Input de texto vacío — "pegue el ID de la factura" | Picker buscable: escribe "F-001" o "Cliente" y selecciona |
+| Sin forma de ver NC/ND desde el libro IVA | Botón "NC/ND" en cada FACTURA del libro → panel inline |
+
+### Tests
+
+10 tests nuevos — role guards (VIEWER, ADMINISTRATIVE, ACCOUNTANT), auth guard, null totalAmountVes, array vacío. **936 total GREEN** | **0 TS errors**
