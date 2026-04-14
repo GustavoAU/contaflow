@@ -95,7 +95,12 @@ export function FixedAssetList({ assets, companyId }: Props) {
           disabled={isPendingDepr}
           className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPendingDepr ? "Calculando..." : "Calcular Depreciación del Mes"}
+          {isPendingDepr ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Calculando...
+            </span>
+          ) : "Calcular Depreciación del Mes"}
         </button>
         {deprResult && (
           <p className="text-xs text-blue-700">{deprResult}</p>
