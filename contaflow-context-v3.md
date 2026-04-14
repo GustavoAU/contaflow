@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28D completada. Última sincronización: 2026-04-13_
-_v3.10: Fase 28D (Módulo Inventario — CPP + Serializable SSI + 2 servicios + 4 actions + 68 tests). 870 tests GREEN._
+_Versión actualizada — Fase 28E completada. Última sincronización: 2026-04-14_
+_v3.11: Fase 28E (UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado). 870 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -561,6 +561,7 @@ model FiscalYearClose {
 - ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
 - ✅ Fase 28C: Role guards con `canAccess()` en 13 action files — ADMINISTRATIVE bloqueado en módulos contables, OWNER bug fix en banking — Dashboard dinámico con badge de rol, CTAs y accesos rápidos por área (ver sección 43)
 - ✅ Fase 28D: Módulo Inventario — `InventoryItem` + `InventoryMovement` (Prisma + Neon) + `InventoryOperationsService` (CPP override, IDOR guards) + `InventoryAccountingService` (Serializable SSI, CPP fórmula, P2034) + 4 action files + 68 tests (870 total) (ver sección 44)
+- ✅ Fase 28E: UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado (ver sección 45)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1744,3 +1745,48 @@ HIGH-2: ADMINISTRATIVE bloqueado en `postMovementAction` y `voidPostedMovementAc
 - `InventoryAccountingService.test.ts` — 15 tests: CPP fórmula ENTRADA (avg=106.666…), SALIDA sin cambio de avg, HIGH-4 stock guard, asiento SALIDA, P2034, Serializable assertion, AuditLog  
 - `inventory-operations.actions.test.ts` — 27 tests: auth, rate limit, roles, Zod ceilings  
 - `inventory-accounting.actions.test.ts` — 11 tests: HIGH-2, P2034 propagation, WRITERS valuation
+
+## Sección 45 — Fase 28E: UI Módulo Inventario (2026-04-14)
+
+### Objetivo
+
+Exponer el módulo de inventario (Fase 28D) al usuario final con una UI diferenciada por rol, accesible desde la navegación principal.
+
+### Archivos creados
+
+| Archivo | Descripción |
+|---|---|
+| `src/app/(dashboard)/company/[companyId]/inventory/page.tsx` | Server component principal — carga de datos por rol y serialización Decimal→string |
+| `src/modules/inventory/components/InventoryItemForm.tsx` | Formulario crear/editar producto (modo dual: create o edit inline) |
+| `src/modules/inventory/components/InventoryItemList.tsx` | Tabla catálogo con stock coloreado, CPP, valor en libros, edición inline, soft-delete |
+| `src/modules/inventory/components/MovementForm.tsx` | Formulario ENTRADA/SALIDA/AJUSTE con selector tipo, info de ítem, idempotency key |
+| `src/modules/inventory/components/PendingMovementsList.tsx` | Cola DRAFT → Contabilizar/Anular para rol ACCOUNTANT+ |
+| `src/modules/inventory/components/InventoryValuation.tsx` | 3 KPI cards + tabla ordenada por valor con barra porcentual |
+
+### Modificaciones
+
+- `src/lib/nav-items.ts` — eliminado `comingSoon: true` de los 3 ítems de Inventario (OWNER/ADMIN, ACCOUNTANT, ADMINISTRATIVE)
+
+### Vista por rol
+
+| Sección | OWNER/ADMIN | ACCOUNTANT | ADMINISTRATIVE |
+|---|---|---|---|
+| Valoración CPP (InventoryValuation) | ✅ | ✅ | ❌ |
+| Movimientos pendientes (PendingMovementsList) | ✅ | ✅ | ❌ |
+| Agregar producto (InventoryItemForm) | ✅ | ❌ | ✅ |
+| Registrar movimiento (MovementForm) | ✅ | ❌ | ✅ |
+| Catálogo + editar (InventoryItemList, canEdit) | ✅ | read-only | ✅ |
+| Catálogo + eliminar (InventoryItemList, canDelete) | ✅ | ❌ | ❌ |
+
+### Patrones clave
+
+- `useTransition` en todos los formularios de mutación (patrón estándar del proyecto)
+- `softDeleteInventoryItemAction(companyId, itemId)` — 2 args posicionales (no objeto)
+- `canEdit={isOperations}` / `canDelete={isAdminOnly}` — props booleanas pasadas al cliente
+- Stock coloring: rojo si `=== 0`, amarillo si `< 5`, gris si normal
+- `crypto.randomUUID()` generado en cliente por cada submit de MovementForm
+- Decimal serializado a `string` en el server component antes de pasar a props
+
+### Tests
+
+Sin tests nuevos (componentes cliente — 870 total sin cambio).
