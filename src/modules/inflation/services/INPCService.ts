@@ -101,6 +101,7 @@ export class INPCService {
 
     await tx.auditLog.create({
       data: {
+        companyId: input.companyId,
         entityId: rate.id,
         entityName: "INPCRate",
         action: "UPSERT",
@@ -160,6 +161,7 @@ export class INPCService {
 
     await tx.auditLog.create({
       data: {
+        companyId: input.companyId,
         entityId: input.companyId,
         entityName: "Company",
         action: "SET_INFLATION_BASE",
@@ -361,6 +363,7 @@ export class INPCService {
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityId: journalTx.id,
         entityName: "InflationAdjustment",
         action: "RUN_ADJUSTMENT",

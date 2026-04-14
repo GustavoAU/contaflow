@@ -130,6 +130,7 @@ export async function postMovement(input: PostMovementInput, userId: string) {
         // ── AuditLog ──────────────────────────────────────────────────────────
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: movementId,
             entityName: "InventoryMovement",
             action: "POST",
@@ -247,6 +248,7 @@ export async function voidPostedMovement(input: VoidMovementInput, userId: strin
 
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: movementId,
             entityName: "InventoryMovement",
             action: "VOID_POSTED",

@@ -236,6 +236,7 @@ export class FiscalYearCloseService {
         // ── 9. AuditLog ───────────────────────────────────────────────────────
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: fiscalClose.id,
             entityName: "FiscalYearClose",
             action: "CLOSE",
@@ -369,6 +370,7 @@ export class FiscalYearCloseService {
         // ── 6. AuditLog ───────────────────────────────────────────────────────
         await tx.auditLog.create({
           data: {
+            companyId,
             entityId: fiscalClose.id,
             entityName: "FiscalYearClose",
             action: "APPROPRIATE",

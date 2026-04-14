@@ -86,6 +86,7 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 
         await tx.auditLog.create({
           data: {
+            companyId: data.companyId,
             entityId: created.id,
             entityName: "IGTFTransaction",
             action: "CREATE",

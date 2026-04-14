@@ -153,6 +153,7 @@ export class TransactionService {
 
       await tx.auditLog.create({
         data: {
+          companyId: validated.companyId,
           entityId: created.id,
           entityName: "Transaction",
           action: "CREATE",
@@ -234,6 +235,7 @@ export class TransactionService {
       // 6. AuditLog dentro del mismo $transaction
       await tx.auditLog.create({
         data: {
+          companyId: original.companyId,
           entityId: original.id,
           entityName: "Transaction",
           action: "VOID",

@@ -132,6 +132,7 @@ export async function createRetentionAction(
 
         await tx.auditLog.create({
           data: {
+            companyId: data.companyId,
             entityId: ret.id,
             entityName: "Retencion",
             action: "CREATE",
