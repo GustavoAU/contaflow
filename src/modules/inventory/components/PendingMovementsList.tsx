@@ -180,14 +180,19 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
                             title={!canPostThis ? "Configure las cuentas contables del producto primero" : ""}
                             className="rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {isPosting ? "..." : "Contabilizar"}
+                            {isPosting ? (
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                Contabilizando...
+                              </span>
+                            ) : "Contabilizar"}
                           </button>
                           <button
                             onClick={() => handleVoid(mov.id, mov.item.name)}
                             disabled={isPosting || isVoiding}
                             className="text-xs text-red-600 hover:underline disabled:opacity-40"
                           >
-                            {isVoiding ? "..." : "Anular"}
+                            {isVoiding ? "Anulando..." : "Anular"}
                           </button>
                         </div>
                       </td>

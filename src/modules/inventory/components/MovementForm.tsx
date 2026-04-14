@@ -243,7 +243,12 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
           disabled={isPending}
           className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Registrando..." : "Registrar movimiento"}
+          {isPending ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Registrando...
+            </span>
+          ) : "Registrar movimiento"}
         </button>
       </div>
     </form>
