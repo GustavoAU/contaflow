@@ -4,6 +4,7 @@
 // Lista de movimientos DRAFT pendientes de contabilización — dominio ACCOUNTANT
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { postMovementAction } from "../actions/inventory-accounting.actions";
 import { voidDraftMovementAction } from "../actions/inventory-operations.actions";
 
@@ -42,16 +43,10 @@ const TYPE_LABELS: Record<string, { label: string; className: string }> = {
 };
 
 export function PendingMovementsList({ movements, companyId, canPost }: Props) {
-  const [toast, setToast] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [postingId, setPostingId] = useState<string | null>(null);
   const [voidingId, setVoidingId] = useState<string | null>(null);
   const [isPendingPost, startPost] = useTransition();
   const [isPendingVoid, startVoid] = useTransition();
-
-  function showToast(type: "ok" | "err", text: string) {
-    setToast({ type, text });
-    setTimeout(() => setToast(null), 5000);
-  }
 
   function handlePost(movementId: string, itemName: string) {
     if (
@@ -66,9 +61,9 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
       const r = await postMovementAction({ movementId, companyId });
       setPostingId(null);
       if (r.success) {
-        showToast("ok", `Movimiento contabilizado — Asiento: ${r.data.transactionId}`);
+        toast.success(`Movimiento contabilizado — Asiento: ${r.data.transactionId}`);
       } else {
-        showToast("err", r.error);
+        toast.error(r.error);
       }
     });
   }
@@ -82,25 +77,15 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
       const r = await voidDraftMovementAction({ movementId, companyId });
       setVoidingId(null);
       if (r.success) {
-        showToast("ok", `Movimiento anulado.`);
+        toast.success(`Movimiento anulado.`);
       } else {
-        showToast("err", r.error);
+        toast.error(r.error);
       }
     });
   }
 
   return (
     <div className="space-y-3">
-      {toast && (
-        <div
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            toast.type === "ok" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-          }`}
-        >
-          {toast.text}
-        </div>
-      )}
-
       {movements.length === 0 ? (
         <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-6 text-center">
           <p className="text-sm font-medium text-green-800">Sin movimientos pendientes</p>

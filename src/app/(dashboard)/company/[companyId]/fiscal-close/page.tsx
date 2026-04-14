@@ -1,7 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/fiscal-close/page.tsx
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { Toaster } from "@/components/ui/sonner";
 import { getFiscalYearCloseHistoryAction, getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
 import { FiscalYearCloseManager } from "@/modules/fiscal-close/components/FiscalYearCloseManager";
 
@@ -55,7 +54,6 @@ export default async function FiscalClosePage({ params }: Props) {
         history={serializedHistory}
       />
 
-      <Toaster richColors position="top-right" />
     </div>
   );
 }
