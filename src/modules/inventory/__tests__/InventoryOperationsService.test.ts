@@ -30,6 +30,7 @@ import {
   createDraftMovement,
   voidDraftMovement,
   getInventoryItems,
+  getItemMovements,
 } from "../services/InventoryOperationsService";
 import prisma from "@/lib/prisma";
 
@@ -289,5 +290,48 @@ describe("getInventoryItems", () => {
         where: expect.objectContaining({ companyId: COMPANY_ID }),
       })
     );
+  });
+});
+
+// ─── getItemMovements ─────────────────────────────────────────────────────────
+
+describe("getItemMovements", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue({
+      id: "item-001",
+    } as never);
+    vi.mocked(prisma.inventoryMovement.findMany).mockResolvedValue([] as never);
+  });
+
+  it("CRITICAL-1: verifica ownership del ítem antes de consultar movimientos", async () => {
+    await getItemMovements(COMPANY_ID, "item-001");
+    expect(vi.mocked(prisma.inventoryItem.findFirstOrThrow)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "item-001", companyId: COMPANY_ID },
+      })
+    );
+  });
+
+  it("consulta movimientos con companyId e itemId en el where", async () => {
+    await getItemMovements(COMPANY_ID, "item-001");
+    expect(vi.mocked(prisma.inventoryMovement.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { companyId: COMPANY_ID, itemId: "item-001" },
+        orderBy: { date: "desc" },
+      })
+    );
+  });
+
+  it("lanza error si el ítem no pertenece a la empresa (CRITICAL-1)", async () => {
+    vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockRejectedValueOnce(
+      new Error("No encontrado")
+    );
+    await expect(getItemMovements(COMPANY_ID, "item-ajeno")).rejects.toThrow("No encontrado");
+    expect(vi.mocked(prisma.inventoryMovement.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("devuelve array vacío cuando no hay movimientos", async () => {
+    const result = await getItemMovements(COMPANY_ID, "item-001");
+    expect(result).toEqual([]);
   });
 });

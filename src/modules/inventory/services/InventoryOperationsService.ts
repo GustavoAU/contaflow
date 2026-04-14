@@ -282,3 +282,28 @@ export async function getDraftMovements(companyId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+export async function getItemMovements(companyId: string, itemId: string) {
+  // CRITICAL-1: verificar ownership del ítem antes de devolver sus movimientos
+  await prisma.inventoryItem.findFirstOrThrow({
+    where: { id: itemId, companyId },
+    select: { id: true },
+  });
+
+  return prisma.inventoryMovement.findMany({
+    where: { companyId, itemId },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      quantity: true,
+      unitCost: true,
+      totalCost: true,
+      date: true,
+      reference: true,
+      notes: true,
+      createdAt: true,
+    },
+    orderBy: { date: "desc" },
+  });
+}

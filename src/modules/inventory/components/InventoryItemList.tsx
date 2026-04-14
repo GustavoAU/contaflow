@@ -5,8 +5,9 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { softDeleteInventoryItemAction } from "../actions/inventory-operations.actions";
+import { softDeleteInventoryItemAction, getItemMovementsAction } from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
+import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
 
 export type InventoryItemRow = {
   id: string;
@@ -28,13 +29,18 @@ type Props = {
   items: InventoryItemRow[];
   companyId: string;
   accounts: AccountOption[];
-  canEdit: boolean; // OPERATIONS roles
-  canDelete: boolean; // ADMIN_ONLY roles
+  canEdit: boolean;    // OPERATIONS roles
+  canDelete: boolean;  // ADMIN_ONLY roles
+  canViewHistory?: boolean; // WRITERS y superior — default true
 };
 
-export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete }: Props) {
+export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete, canViewHistory = true }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historyItemId, setHistoryItemId] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<Record<string, MovementRow[]>>({});
+  const [historyError, setHistoryError] = useState<Record<string, string>>({});
   const [isPendingDelete, startDelete] = useTransition();
+  const [isPendingHistory, startHistory] = useTransition();
 
   function handleDelete(itemId: string, itemName: string) {
     if (!confirm(`¿Eliminar "${itemName}" del inventario? Esta acción es reversible solo manualmente.`))
@@ -45,6 +51,28 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
       else toast.error(r.error);
     });
   }
+
+  function handleToggleHistory(item: InventoryItemRow) {
+    if (historyItemId === item.id) {
+      setHistoryItemId(null);
+      return;
+    }
+    setHistoryItemId(item.id);
+    if (historyData[item.id]) return; // ya cargado
+
+    startHistory(async () => {
+      const r = await getItemMovementsAction(companyId, item.id);
+      if (r.success) {
+        setHistoryData((prev) => ({ ...prev, [item.id]: r.data as MovementRow[] }));
+        setHistoryError((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+      } else {
+        setHistoryError((prev) => ({ ...prev, [item.id]: r.error }));
+      }
+    });
+  }
+
+  // columnas totales según props
+  const totalCols = 7 + (canViewHistory ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <div className="space-y-3">
@@ -64,6 +92,9 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 <th className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
                 <th className="px-4 py-3 text-right">Valor en libros</th>
                 <th className="px-4 py-3 text-left">Cta. Inventario</th>
+                {canViewHistory && (
+                  <th className="px-4 py-3 text-center">Historial</th>
+                )}
                 {(canEdit || canDelete) && (
                   <th className="px-4 py-3 text-center">Acciones</th>
                 )}
@@ -75,6 +106,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 const cpp = parseFloat(item.averageCost);
                 const valor = stock * cpp;
                 const isEditing = editingId === item.id;
+                const isHistoryOpen = historyItemId === item.id;
 
                 return (
                   <>
@@ -117,6 +149,17 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                           ? `${item.accountCode} — ${item.accountName}`
                           : <span className="text-yellow-600">Sin cuenta</span>}
                       </td>
+                      {canViewHistory && (
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleToggleHistory(item)}
+                            disabled={isPendingHistory && historyItemId === item.id}
+                            className="text-xs text-indigo-600 hover:underline disabled:opacity-50"
+                          >
+                            {isHistoryOpen ? "Ocultar" : isPendingHistory && historyItemId === item.id ? "Cargando..." : "Ver historial"}
+                          </button>
+                        </td>
+                      )}
                       {(canEdit || canDelete) && (
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-3">
@@ -142,13 +185,27 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                       )}
                     </tr>
 
+                    {/* Panel de historial — fila de ancho completo */}
+                    {isHistoryOpen && (
+                      <tr key={`history-${item.id}`}>
+                        <td colSpan={totalCols} className="bg-indigo-50 px-6 py-4">
+                          <ItemMovementHistory
+                            itemName={item.name}
+                            sku={item.sku}
+                            stockQuantity={item.stockQuantity}
+                            averageCost={item.averageCost}
+                            unit={item.unit}
+                            movements={historyData[item.id] ?? null}
+                            error={historyError[item.id] ?? null}
+                          />
+                        </td>
+                      </tr>
+                    )}
+
                     {/* Formulario de edición inline */}
                     {isEditing && (
                       <tr key={`edit-${item.id}`}>
-                        <td
-                          colSpan={(canEdit || canDelete) ? 8 : 7}
-                          className="bg-blue-50 px-6 py-4"
-                        >
+                        <td colSpan={totalCols} className="bg-blue-50 px-6 py-4">
                           <p className="mb-3 text-sm font-medium text-blue-800">
                             Editando: {item.name}
                           </p>

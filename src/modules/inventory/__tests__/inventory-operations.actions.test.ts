@@ -53,6 +53,7 @@ vi.mock("../services/InventoryOperationsService", () => ({
   voidDraftMovement: vi.fn().mockResolvedValue({ id: "mov-001" }),
   getInventoryItems: vi.fn().mockResolvedValue([]),
   getDraftMovements: vi.fn().mockResolvedValue([]),
+  getItemMovements: vi.fn().mockResolvedValue([]),
 }));
 
 import {
@@ -62,6 +63,7 @@ import {
   createMovementAction,
   voidDraftMovementAction,
   getInventoryItemsAction,
+  getItemMovementsAction,
 } from "../actions/inventory-operations.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -270,5 +272,47 @@ describe("getInventoryItemsAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const result = await getInventoryItemsAction(COMPANY_ID);
     expect(result.success).toBe(false);
+  });
+});
+
+// ─── getItemMovementsAction ───────────────────────────────────────────────────
+
+describe("getItemMovementsAction", () => {
+  it("ADMINISTRATIVE puede ver historial (WRITERS)", async () => {
+    const result = await getItemMovementsAction(COMPANY_ID, "item-001");
+    expect(result).toEqual({ success: true, data: [] });
+    expect(vi.mocked(OpsService.getItemMovements)).toHaveBeenCalledWith(COMPANY_ID, "item-001");
+  });
+
+  it("ACCOUNTANT puede ver historial (WRITERS)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    const result = await getItemMovementsAction(COMPANY_ID, "item-001");
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza si no hay userId", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const result = await getItemMovementsAction(COMPANY_ID, "item-001");
+    expect(result).toEqual({ success: false, error: "No autorizado" });
+  });
+
+  it("rechaza si no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const result = await getItemMovementsAction(COMPANY_ID, "item-001");
+    expect(result).toEqual({ success: false, error: "Empresa no encontrada o acceso denegado" });
+  });
+
+  it("rechaza VIEWER (no está en WRITERS)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const result = await getItemMovementsAction(COMPANY_ID, "item-001");
+    expect(result.success).toBe(false);
+  });
+
+  it("propaga error del servicio", async () => {
+    vi.mocked(OpsService.getItemMovements).mockRejectedValueOnce(
+      new Error("Ítem no encontrado o sin acceso")
+    );
+    const result = await getItemMovementsAction(COMPANY_ID, "item-no-existe");
+    expect(result).toEqual({ success: false, error: "Ítem no encontrado o sin acceso" });
   });
 });
