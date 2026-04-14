@@ -90,7 +90,9 @@
       "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma migrate dev --name add_inventory_module --create-only)",
       "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma migrate deploy)",
       "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push --skip-generate)",
-      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push)"
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push)",
+      "Bash(grep -B1 \"^--$\")",
+      "Bash(echo \"TSC_EXIT: $?\")"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",

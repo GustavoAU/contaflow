@@ -1,7 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/payables/page.tsx
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { Toaster } from "@/components/ui/sonner";
 import { getPayablesAction } from "@/modules/receivables/actions/receivable.actions";
 import { AgingReportTable } from "@/modules/receivables/components/AgingReportTable";
 
@@ -37,7 +36,6 @@ export default async function PayablesPage({ params }: Props) {
         <AgingReportTable report={report} companyId={companyId} />
       ) : null}
 
-      <Toaster richColors position="top-right" />
     </div>
   );
 }
