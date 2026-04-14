@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { RifInput } from "@/components/invoices/RifInput";
+import { RelatedInvoicePicker } from "@/components/invoices/RelatedInvoicePicker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -665,25 +666,18 @@ export function InvoiceForm({
           {/* Factura original — sólo para NC/ND */}
           {(docType === "NOTA_CREDITO" || docType === "NOTA_DEBITO") && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">
-                  ID de Factura original <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={relatedInvoiceId}
-                  onChange={(e) => setRelatedInvoiceId(e.target.value)}
-                  required
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="ID de la factura a la que se vincula esta nota"
-                  aria-describedby="related-invoice-hint"
-                />
-                <p
-                  id="related-invoice-hint"
-                  className="mt-1 text-xs text-amber-700"
-                >
-                  Se vinculará automáticamente al libro IVA. El número de documento relacionado se deriva de la factura original.
-                </p>
-              </div>
+              <label className="mb-2 block text-xs font-medium text-zinc-700">
+                Factura original <span className="text-red-500">*</span>
+              </label>
+              <RelatedInvoicePicker
+                companyId={companyId}
+                type={type}
+                value={relatedInvoiceId}
+                onChange={setRelatedInvoiceId}
+              />
+              <p className="mt-1.5 text-xs text-amber-700">
+                El número de documento relacionado se deriva automáticamente de la factura seleccionada.
+              </p>
             </div>
           )}
 
