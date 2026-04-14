@@ -14,9 +14,10 @@ type NavbarProps = {
   companyName?: string;
   plan?: string;
   userRole?: UserRole;
+  notificationSlot?: React.ReactNode;
 };
 
-export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT" }: NavbarProps) {
+export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notificationSlot }: NavbarProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -150,8 +151,9 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT" }: Navb
           )}
         </nav>
 
-        {/* Derecha: usuario + hamburguesa mobile */}
+        {/* Derecha: notificaciones + usuario + hamburguesa mobile */}
         <div className="flex items-center gap-3">
+          {notificationSlot}
           <UserButton />
           {companyId && (
             <button
