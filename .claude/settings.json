@@ -93,7 +93,9 @@
       "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" npx prisma db push)",
       "Bash(grep -B1 \"^--$\")",
       "Bash(echo \"TSC_EXIT: $?\")",
-      "Bash(echo \"VITEST_EXIT: $?\")"
+      "Bash(echo \"VITEST_EXIT: $?\")",
+      "Bash(sed -n '294,312p' prisma/schema.prisma)",
+      "Bash(sed -n '346,415p' prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
