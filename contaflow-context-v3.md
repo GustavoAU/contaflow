@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 33 completada. Última sincronización: 2026-04-14_
-_v3.15: Fase 28G (historial movimientos inventario + CPP cards) + Fase 33 (campana notificaciones in-app). 908 tests GREEN._
+_Versión actualizada — Fase 32 completada. Última sincronización: 2026-04-14_
+_v3.16: Fase 32 (KPIs ejecutivos: CxC/CxP/DSO/flujo de caja proyectado 90d). 926 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -566,6 +566,7 @@ model FiscalYearClose {
 - ✅ Fase 31: AuditLog UI — `companyId` agregado a schema `AuditLog` (nullable + 2 indexes) + 44 `auditLog.create()` actualizados en 19 archivos + `AuditLogService` + `AuditLogTable` (filtros + DiffView) + page OWNER/ADMIN only + nav item — 881 tests (ver sección 47)
 - ✅ Fase 28G: Inventario UI completado — `getItemMovements()` con CRITICAL-1 ownership guard + `ItemMovementHistory` (CPP cards + tabla movimientos con badges) + columna "Historial" en `InventoryItemList` — 891 tests (ver sección 48)
 - ✅ Fase 33: Notificaciones in-app — `NotificationService.getAlerts()` (facturas vencidas/por vencer + retenciones PENDING + inventario DRAFT) + `NotificationBell` en navbar (badge por severity + dropdown lazy-load) — 908 tests (ver sección 49)
+- ✅ Fase 32: KPIs Ejecutivos — `KpiDashboardService` (CxC, CxP, DSO, flujo de caja proyectado 30/60/90d) + `ExecutiveKpiPanel` en dashboard empresa (OWNER/ADMIN/ACCOUNTANT) — 926 tests (ver sección 50)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1963,3 +1964,40 @@ Ordenación: error → warning → info.
 ### Tests
 
 17 tests nuevos — severidades, ordenación, singular/plural, href por empresa, role guards. **908 total GREEN** | **0 TS errors**
+
+## Sección 50 — Fase 32: KPIs Ejecutivos (2026-04-14)
+
+### Objetivo
+
+Añadir métricas financieras ejecutivas al dashboard de empresa: cartera pendiente, días de cobro promedio (DSO) y flujo de caja proyectado a 90 días — sin nueva tabla DB, todo computado on-the-fly.
+
+### KPIs implementados
+
+| KPI | Descripción | Fuente |
+|---|---|---|
+| CxC Total | Suma de `pendingAmount` en facturas SALE activas UNPAID/PARTIAL | `Invoice` |
+| CxP Total | Suma de `pendingAmount` en facturas PURCHASE activas UNPAID/PARTIAL | `Invoice` |
+| Capital de Trabajo | CxC − CxP (puede ser negativo) | Calculado |
+| DSO | `(CxC / ventas_últimos_30d) × 30` — null si sin ventas | `Invoice.totalAmountVes` |
+
+### Flujo de caja proyectado
+
+3 ventanas: 0-30d / 31-60d / 61-90d. Por ventana:
+- **Cobros**: `pendingAmount` de SALE con `dueDate` en rango
+- **Pagos**: `pendingAmount` de PURCHASE con `dueDate` en rango
+- **Neto**: cobros − pagos (con badge verde/rojo + ícono)
+
+Fila de totales consolidada al pie de la tabla.
+
+### Archivos nuevos/modificados
+
+| Archivo | Descripción |
+|---|---|
+| `KpiDashboardService.ts` (nuevo) | `getKpiSummary()` + `getCashFlowProjection()` — Decimal.js, sin mutaciones |
+| `kpi-dashboard.actions.ts` (nuevo) | `getKpiDashboardAction()` — guard ROLES.ACCOUNTING |
+| `ExecutiveKpiPanel.tsx` (nuevo) | 4 KPI cards + tabla flujo proyectado + botón Actualizar (`useTransition`) |
+| `company/[companyId]/page.tsx` | +fetch KPI server-side + `<ExecutiveKpiPanel>` para OWNER/ADMIN/ACCOUNTANT |
+
+### Tests
+
+18 tests nuevos — CxC/CxP separados, workingCapital negativo, DSO null, DSO calculado, buckets cash flow, null guards, role guards. **926 total GREEN** | **0 TS errors**
