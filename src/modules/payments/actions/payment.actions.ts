@@ -65,6 +65,7 @@ export async function createPaymentAction(
 
           await (tx as typeof prisma).auditLog.create({
             data: {
+              companyId: d.companyId,
               entityId: record.id,
               entityName: "PaymentRecord",
               action: "CREATE",

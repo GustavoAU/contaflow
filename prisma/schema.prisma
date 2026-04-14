@@ -278,6 +278,7 @@ model User {
 
 model AuditLog {
   id         String   @id @default(cuid())
+  companyId  String?
   entityId   String
   entityName String
   action     String
@@ -285,6 +286,9 @@ model AuditLog {
   oldValue   Json?
   newValue   Json
   createdAt  DateTime @default(now())
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([companyId, entityName, createdAt(sort: Desc)])
 }
 
 model AccountingPeriod {

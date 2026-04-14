@@ -137,6 +137,7 @@ export const BankStatementService = {
 
     await tx.auditLog.create({
       data: {
+        companyId,
         entityName: "BankTransaction",
         entityId: bankTransactionId,
         action: "UNRECONCILE",

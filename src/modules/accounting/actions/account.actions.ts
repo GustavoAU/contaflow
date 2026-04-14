@@ -139,6 +139,7 @@ export async function createAccountAction(
 
         await tx.auditLog.create({
           data: {
+            companyId: validated.companyId,
             entityId: created.id,
             entityName: "Account",
             action: "CREATE",
@@ -228,6 +229,7 @@ export async function updateAccountAction(
 
         await tx.auditLog.create({
           data: {
+            companyId: before.companyId,
             entityId: id,
             entityName: "Account",
             action: "UPDATE",

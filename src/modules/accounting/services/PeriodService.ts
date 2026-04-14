@@ -65,6 +65,7 @@ export class PeriodService {
 
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: created.id,
           entityName: "AccountingPeriod",
           action: "OPEN",
@@ -108,6 +109,7 @@ export class PeriodService {
 
       await tx.auditLog.create({
         data: {
+          companyId,
           entityId: updated.id,
           entityName: "AccountingPeriod",
           action: "CLOSE",
