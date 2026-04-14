@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28E completada. Última sincronización: 2026-04-14_
-_v3.11: Fase 28E (UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado). 870 tests GREEN._
+_Versión actualizada — Fase 28F completada. Última sincronización: 2026-04-14_
+_v3.12: Fase 28F (UX Hardening — Toaster global en layout, migración sonner, spinners). 870 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -562,6 +562,7 @@ model FiscalYearClose {
 - ✅ Fase 28C: Role guards con `canAccess()` en 13 action files — ADMINISTRATIVE bloqueado en módulos contables, OWNER bug fix en banking — Dashboard dinámico con badge de rol, CTAs y accesos rápidos por área (ver sección 43)
 - ✅ Fase 28D: Módulo Inventario — `InventoryItem` + `InventoryMovement` (Prisma + Neon) + `InventoryOperationsService` (CPP override, IDOR guards) + `InventoryAccountingService` (Serializable SSI, CPP fórmula, P2034) + 4 action files + 68 tests (870 total) (ver sección 44)
 - ✅ Fase 28E: UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado (ver sección 45)
+- ✅ Fase 28F: UX Hardening — Toaster global en company layout + migración sonner en 3 componentes + spinners en botones de acción (ver sección 46)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1790,3 +1791,39 @@ Exponer el módulo de inventario (Fase 28D) al usuario final con una UI diferenc
 ### Tests
 
 Sin tests nuevos (componentes cliente — 870 total sin cambio).
+
+## Sección 46 — Fase 28F: UX Hardening (2026-04-14)
+
+### Objetivo
+
+Eliminar la brecha de feedback visual: toasts silenciosos, spinners ausentes e inconsistencia en el patrón de error handling entre módulos.
+
+### Cambios
+
+**1. Toaster global**
+- `src/app/(dashboard)/company/[companyId]/layout.tsx` — `<Toaster richColors position="top-right" />` agregado
+- Cubría 0 de 9 páginas críticas (bank-reconciliation, exchange-rates, export, fixed-assets, inflation, inventory, invoices, iva-declaration, analytics). Bug: `InvoiceBook.tsx` llamaba `toast.error()` sin `<Toaster>` — silencioso
+- Eliminado `<Toaster>` duplicado de 6 páginas individuales (accounts, fiscal-close, payables, receivables, settings, transactions/new)
+
+**2. Migración a sonner en componentes con DIY toast**
+
+| Componente | Antes | Después |
+|---|---|---|
+| `InventoryItemList.tsx` | `useState + setTimeout` local | `toast.success/error` de sonner |
+| `PendingMovementsList.tsx` | `useState + setTimeout` local | `toast.success/error` de sonner |
+| `FixedAssetList.tsx` | `useState + setTimeout` local | `toast.success/error` de sonner |
+
+**3. Spinners visuales en botones de acción**
+
+| Componente | Botón |
+|---|---|
+| `InventoryItemForm.tsx` | submit (Creando.../Guardando...) |
+| `MovementForm.tsx` | submit (Registrando...) |
+| `FixedAssetList.tsx` | Calcular Depreciación del Mes |
+| `PendingMovementsList.tsx` | Contabilizar / Anulando... |
+
+Patrón: `<span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />`
+
+### Tests
+
+Sin tests nuevos — UI puro. 870 total GREEN.
