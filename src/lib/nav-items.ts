@@ -100,7 +100,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
           item("Importar", p("/import"), FileSpreadsheetIcon),
           item("Analítica", p("/analytics"), LineChart),
           item("Exportar Datos", p("/export"), ArchiveIcon),
-          item("Inventario", p("/inventory"), PackageIcon, true),
+          item("Inventario", p("/inventory"), PackageIcon),
         ],
       },
       {
@@ -138,7 +138,7 @@ function buildAccountantNav(companyId: string): NavConfig {
       {
         group: "Inventario",
         items: [
-          item("Inventario", p("/inventory"), PackageIcon, true),
+          item("Inventario", p("/inventory"), PackageIcon),
         ],
       },
       {
