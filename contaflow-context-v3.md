@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 31 completada. Última sincronización: 2026-04-14_
-_v3.13: Fase 31 (AuditLog UI — companyId en schema + tabla paginada con filtros + diff oldValue↔newValue). 881 tests GREEN._
+_Versión actualizada — Fase 33 completada. Última sincronización: 2026-04-14_
+_v3.15: Fase 28G (historial movimientos inventario + CPP cards) + Fase 33 (campana notificaciones in-app). 908 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -564,6 +564,8 @@ model FiscalYearClose {
 - ✅ Fase 28E: UI Módulo Inventario — 5 componentes cliente + page diferenciada por rol + nav activado (ver sección 45)
 - ✅ Fase 28F: UX Hardening — Toaster global en company layout + migración sonner en 3 componentes + spinners en botones de acción (ver sección 46)
 - ✅ Fase 31: AuditLog UI — `companyId` agregado a schema `AuditLog` (nullable + 2 indexes) + 44 `auditLog.create()` actualizados en 19 archivos + `AuditLogService` + `AuditLogTable` (filtros + DiffView) + page OWNER/ADMIN only + nav item — 881 tests (ver sección 47)
+- ✅ Fase 28G: Inventario UI completado — `getItemMovements()` con CRITICAL-1 ownership guard + `ItemMovementHistory` (CPP cards + tabla movimientos con badges) + columna "Historial" en `InventoryItemList` — 891 tests (ver sección 48)
+- ✅ Fase 33: Notificaciones in-app — `NotificationService.getAlerts()` (facturas vencidas/por vencer + retenciones PENDING + inventario DRAFT) + `NotificationBell` en navbar (badge por severity + dropdown lazy-load) — 908 tests (ver sección 49)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -1911,3 +1913,53 @@ item("Auditoría", p("/audit-log"), ShieldCheckIcon),
 ### Tests
 
 11 tests nuevos. **881 total GREEN** | **0 TS errors**
+
+## Sección 48 — Fase 28G: Inventario UI Completado (2026-04-14)
+
+### Objetivo
+
+Cerrar el módulo de inventario con historial de movimientos por ítem y cards de CPP visualmente prominentes.
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `InventoryOperationsService.ts` | +`getItemMovements(companyId, itemId)` con CRITICAL-1 ownership guard |
+| `inventory-operations.actions.ts` | +`getItemMovementsAction()` — guard ROLES.WRITERS |
+| `ItemMovementHistory.tsx` (nuevo) | Panel: 4 CPP cards (stock/CPP/valor/SKU) + tabla con type/status badges |
+| `InventoryItemList.tsx` | +columna "Historial", toggle por fila, `<tr>` ancho completo para el panel |
+
+### Tests
+
+10 tests nuevos — ownership guard, companyId+itemId en where, ordenación, lazy-load. **891 total GREEN**
+
+## Sección 49 — Fase 33: Notificaciones In-App (2026-04-14)
+
+### Objetivo
+
+Alertar a OWNER/ADMIN/ACCOUNTANT sobre eventos contables urgentes sin requerir nueva tabla DB — notificaciones computadas on-the-fly.
+
+### Alertas implementadas
+
+| Tipo | Severidad | Fuente |
+|---|---|---|
+| `INVOICE_OVERDUE` | error | `Invoice.dueDate < now`, `paymentStatus NOT IN [PAID, VOIDED]` |
+| `INVOICE_DUE_SOON` | warning | `Invoice.dueDate` en próximos 7 días |
+| `RETENCIONES_PENDING` | warning | `Retencion.status === PENDING` (count) |
+| `INVENTORY_DRAFTS` | info | `InventoryMovement.status === DRAFT` (count) |
+
+Ordenación: error → warning → info.
+
+### Archivos nuevos/modificados
+
+| Archivo | Descripción |
+|---|---|
+| `NotificationService.ts` (nuevo) | `getAlerts(companyId)` — 4 queries en `Promise.all` |
+| `notifications.actions.ts` (nuevo) | `getNotificationsAction()` — guard ROLES.ACCOUNTING |
+| `NotificationBell.tsx` (nuevo) | Campana con badge (rojo/amarillo/azul por severity) + dropdown lazy-load + refresh |
+| `layout.tsx` | Inyecta `<NotificationBell>` para roles ACCOUNTING via `notificationSlot` prop |
+| `Navbar.tsx` | +prop `notificationSlot?: React.ReactNode` — render entre nav y UserButton |
+
+### Tests
+
+17 tests nuevos — severidades, ordenación, singular/plural, href por empresa, role guards. **908 total GREEN** | **0 TS errors**
