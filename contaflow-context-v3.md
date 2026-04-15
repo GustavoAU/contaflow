@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28H completada. Última sincronización: 2026-04-14_
-_v3.18: Fase 28H (InventoryReportService + reportes existencias/movimientos + alerta LOW_STOCK). 956 tests GREEN.
+_Versión actualizada — Fase 28 completada. Última sincronización: 2026-04-14_
+_v3.19: Fase 28 (Módulo Compras y Ventas — QuotationService + OrderService + 45 tests). 1001 tests GREEN. Sección 34 Nómina revisada con estructura NOM-A/B/C/D/E + 4 adiciones._
 
 ## 1. Descripción del Producto
 
@@ -544,11 +544,12 @@ model FiscalYearClose {
 - ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40) | archivo `.claude/adr/ADR-010-testing-strategy.md` creado 2026-04-12
 - ✅ Fase 23C: NC/ND Workflow completo — completada 2026-04-12 (ver sección 41)
 - ✅ Fase 30: Exportación Masiva / Backup — ZIP fiscal con ExportJob + 24h expiry — completada 2026-04-13 (ver sección 42)
-- ⏳ Fase 23 Nómina (LOTTT) — dividida en subfases (ver sección 34)
-  - ⏳ Fase 23A: Wizard de configuración de nómina
-  - ⏳ Fase 23D: Cálculo, recibo PDF y causación contable  _(era 23C — renombrada para ceder slot a NC/ND)_
-  - ⏳ Fase 23E: Prestaciones sociales y pasivos laborales  _(era 23D)_
-  - ⏳ Fase 23F: Reportes legales (IVSS, Inces, Banavih, SENIAT)  _(era 23E)_
+- ⏳ Fase 23 Nómina (LOTTT) — dividida en 5 subfases (ver sección 34 — estructura revisada 2026-04-14)
+  - ⏳ Fase NOM-A: Wizard de configuración de nómina
+  - ⏳ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios
+  - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
+  - ⏳ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final
+  - ⏳ Fase NOM-E: Reportes legales (IVSS, INCES, Banavih, ARC/ISLR, SENIAT)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
@@ -1111,49 +1112,84 @@ Saldo según Libro al [Fecha]
 - **ui-agent**: doble columna + importador CSV con mapeador de columnas
 - **fiscal-agent**: IGTF auto-detect + diferencial cambiario USD/EUR
 
-## 34. Fase 23 — Nómina (LOTTT): Subfases
+## 34. Fase 23 — Nómina (LOTTT): Subfases _(estructura revisada 2026-04-14)_
 
 La nómina venezolana es el módulo más complejo del sistema. Dividida en 5 subfases
 para evitar saturación de contexto y errores de implementación.
 
 **Regla**: implementar una subfase por sesión de Claude Code. Reset de chat entre subfases.
-**Prerequisito**: tener al menos 5 clientes pagando antes de iniciar Fase 23A.
+**Prerequisito**: tener al menos 5 clientes pagando antes de iniciar Fase NOM-A.
 
-### Fase 23A — Wizard de Configuración de Nómina
+> **Nota de nomenclatura**: las subfases de Nómina usan prefijo `NOM-` para evitar colisión
+> con Fase 23B (auto-conciliación ✅) y Fase 23C (NC/ND ✅) ya completadas.
+
+### Resumen de subfases
+
+| Subfase | Contenido principal | Adiciones aprobadas 2026-04-14 |
+|---|---|---|
+| **NOM-A** | Wizard onboarding: tamaño, régimen LOTTT, moneda, frecuencia, organismos, cesta ticket, fideicomiso | — |
+| **NOM-B** | CRUD empleados + tipo contrato + conceptos configurables + organismos | +Calendario/feriados, tipos de ausencia, historial de salarios |
+| **NOM-C** | Motor de cálculo (quincenal/mensual) + recibo PDF + causación asiento | +Movimientos (HE, permisos, ausencias), guard doble-proceso |
+| **NOM-D** | Prestaciones (doble régimen) + intereses + vacaciones + utilidades | +Flujo Liquidación Final al egreso |
+| **NOM-E** | Forma 14-02 IVSS + INCES + Banavih + resumen SENIAT | +ARC/ISLR empleados (Forma AR-C) |
+
+---
+
+### Fase NOM-A — Wizard de Configuración de Nómina
 Onboarding guiado con opciones (no preguntas abiertas):
 - Tamaño empresa: < 20 / 20-100 / > 100 empleados
 - Régimen LOTTT: post-2012 / mixto (empleados de ambos regímenes)
 - Moneda de pago: VES / USD / mixto
 - Frecuencia: quincenal / mensual
-- Organismos activos (checkboxes): IVSS, Inces, Banavih
+- Organismos activos (checkboxes): IVSS, INCES, Banavih
 - Cesta ticket: tarjeta / efectivo / no aplica
 - Fideicomiso: banco externo / contabilidad interna
 
-### Fase 23B — Empleados y Conceptos
+### Fase NOM-B — Empleados, Conceptos, Feriados e Historial
 - CRUD de empleados con campos LOTTT completos
+- Tipo de contrato: tiempo indeterminado / determinado / obra determinada _(afecta liquidación)_
 - Tabla de conceptos configurables (salario base, bonos, comisiones, deducciones)
-- Cálculo automático IVSS, Inces, Banavih según configuración 23A
-- Horas extras, trabajo nocturno, días feriados
+- Cálculo automático IVSS, INCES, Banavih según configuración NOM-A
+- **+Calendario laboral**: feriados nacionales fijos + variables (Carnaval, Semana Santa)
+- **+Tipos de ausencia**: justificada / injustificada / reposo médico / permiso _(con/sin descuento)_
+- **+Historial de salarios** (`SalaryHistory`): fecha_desde, monto, moneda — necesario para cálculo retroactivo de prestaciones y aumentos salariales
 
-### Fase 23D — Cálculo, Recibo PDF y Causación Contable _(era 23C — renombrada para ceder slot a NC/ND Workflow)_
+### Fase NOM-C — Motor de Cálculo, Recibo PDF y Causación Contable
 - Motor de cálculo según frecuencia (quincenal/mensual)
+- **+Movimientos de nómina**: ausencias por período, horas extras (diurnas +25%, nocturnas +75%, feriado +100% — LOTTT Art. 118), permisos
+- **+Guard doble-proceso**: una nómina cerrada no puede recalcularse ni causarse dos veces
 - Recibo de pago PDF por empleado (A4 portrait)
-- Causación automática → asiento en `Transactions` (EXPENSE)
-- Retención ISLR si salario anual supera la UT
+- Causación automática → asiento en `Transactions` (EXPENSE) — integra con ExchangeRate si moneda USD/EUR
+- Retención ISLR si salario anual supera el UTAT exento
 
-### Fase 23E — Prestaciones Sociales y Pasivos Laborales _(era 23D)_
+### Fase NOM-D — Prestaciones Sociales, Pasivos Laborales y Liquidación Final
 - Cálculo de prestaciones (el más complejo — doble régimen pre/post 2012)
-- Intereses sobre prestaciones (tasa BCV activa)
+- Garantía de prestaciones trimestral (nuevo régimen LOTTT 2012)
+- Prestación de antigüedad (viejo régimen LOT 1997 — empleados mixtos)
+- Intereses sobre prestaciones (tasa BCV fideicomiso activa)
 - Vacaciones y bono vacacional por antigüedad (escala LOTTT)
-- Utilidades proporcionales (15 días mínimo)
-- Fideicomiso: registro en BD vs. banco externo
+- Utilidades proporcionales (mínimo 15 días — cierre al 31/12 del período fiscal activo)
+- Fideicomiso: registro en BD vs. banco externo (configurado en NOM-A)
+- **+Flujo de Liquidación Final**: trigger al marcar empleado como `TERMINATED` → calcula prestaciones acumuladas + vacaciones fraccionadas + utilidades fraccionadas + bono vacacional fraccionado + preaviso (según tipo de contrato y causa de egreso) → genera recibo PDF de liquidación separado del recibo de nómina
 
-### Fase 23F — Reportes Legales _(era 23E)_
+### Fase NOM-E — Reportes Legales e ISLR Empleados
 - Forma 14-02 IVSS (planilla mensual)
-- Planilla Inces (trimestral)
+- Planilla INCES (declaración trimestral)
 - Declaración Banavih
 - Resumen de nómina para SENIAT
+- **+ARC / ISLR empleados**: cálculo de ISLR persona natural sobre salario (tabla SENIAT progresiva), retención mensual, emisión de **Forma AR-C** (certificado de retenciones anual) y **Forma AR-I** (comprobante mensual)
 - Reportes por departamento / centro de costo
+
+---
+
+### Integraciones con módulos existentes (sin código nuevo — solo conectar)
+
+| Módulo | Integración |
+|---|---|
+| **ExchangeRate (Fase 14)** | Nóminas en USD → conversión BCV automática al día de pago |
+| **FiscalYear (Fase 15)** | Utilidades se cierran al 31/12 del período fiscal activo |
+| **AuditLog (Fase 31)** | Toda nómina procesada o modificada queda en `auditLog` |
+| **ReportCache (Fase 13C)** | Nóminas ya causadas no recalculan (guard doble-proceso) |
 
 ## 37. Fase 21 — Activos Fijos y Depreciación (VEN-NIF 16 / IAS 16) ✅ completada 2026-04-07
 
