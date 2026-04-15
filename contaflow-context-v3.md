@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase NOM-A completada. Última sincronización: 2026-04-15_
-_v3.20: Fase NOM-A (Wizard Configuración de Nómina — PayrollConfig + 6 enums + 28 tests). 1029 tests GREEN._
+_Versión actualizada — Fase NOM-B completada. Última sincronización: 2026-04-15_
+_v3.21: Fase NOM-B (Empleados, Conceptos, SalaryHistory — 5 modelos + 4 enums + 69 tests). 1098 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -546,7 +546,7 @@ model FiscalYearClose {
 - ✅ Fase 30: Exportación Masiva / Backup — ZIP fiscal con ExportJob + 24h expiry — completada 2026-04-13 (ver sección 42)
 - ⏳ Fase 23 Nómina (LOTTT) — dividida en 5 subfases (ver sección 34 — estructura revisada 2026-04-14)
   - ✅ Fase NOM-A: Wizard de configuración de nómina — completada 2026-04-15 (ver sección 53)
-  - ⏳ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios
+  - ✅ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios — completada 2026-04-15 (ver sección 54)
   - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
   - ⏳ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final
   - ⏳ Fase NOM-E: Reportes legales (IVSS, INCES, Banavih, ARC/ISLR, SENIAT)
@@ -2155,3 +2155,58 @@ Migración: `20260415_nom_a_payroll_config`
 28 nuevos: PayrollConfigService (8) + payroll-config.actions (20 — auth, ADMIN_ONLY, rate limit, Zod, NOM-A-01/02/04/05/06)
 
 **1029 tests GREEN** | **0 TS errors**
+
+---
+
+## Sección 54 — Fase NOM-B: Empleados, Conceptos e Historial de Salarios
+
+**Fecha:** 2026-04-15 | **Branch:** feat/fase-nom-b-empleados-conceptos | **Tests:** +69 (1098 total)
+
+### Modelos Prisma
+
+| Modelo | Descripción | Clave de integridad |
+|---|---|---|
+| `Employee` | Empleado con campos LOTTT | `@@unique([companyId, cedulaType, cedulaNumber])` |
+| `SalaryHistory` | Historial append-only de salarios | `@@index([employeeId, effectiveFrom DESC])` |
+| `PayrollConcept` | Catálogo de conceptos (asignaciones/deducciones) | `@@unique([companyId, code])` |
+| `PublicHoliday` | Feriados nacionales fijos o anuales | `@@index([companyId, date])` |
+| `AbsenceType` | Tipos de ausencia (justificada/médica/etc.) | `@@index([companyId, isActive])` |
+
+Nuevos enums: `ContractType` · `EmployeeStatus` · `ConceptType` · `AbsenceCategory`
+
+### Seguridad (pre-emptive audit NOM-B)
+
+| Finding | Tipo | Implementación |
+|---|---|---|
+| NOM-B-01 | CRITICAL | `companyMember.findFirst` en todas las actions antes de cualquier query |
+| NOM-B-02 | CRITICAL | `@@unique([companyId, cedulaType, cedulaNumber])` + P2002 → msg amigable |
+| NOM-B-03 | HIGH | `SalaryHistory.create` + `AuditLog.create` dentro de `$transaction` |
+| NOM-B-04 | HIGH | write = `ADMIN_ONLY`; read employees = `WRITERS`; read concepts = `ACCOUNTING` |
+| NOM-B-05 | MEDIUM | `terminationDate >= hireDate` validado en Zod |
+
+### Conceptos del sistema (seedDefaults — idempotente)
+
+9 conceptos pre-configurados: `SAL_BASE`, `HE_DIURNA`, `HE_NOCTURNA`, `BONO_NOCHE`, `CESTA_TICKET` (asignaciones) + `IVSS_OBR`, `INCES_OBR`, `FAOV_OBR`, `ISLR_RET` (deducciones). `isSystem=true` → no eliminables, solo desactivar.
+
+### Archivos creados
+
+- `prisma/migrations/20260415_nom_b_empleados_conceptos/migration.sql`
+- `src/modules/payroll/schemas/employee.schema.ts` (Create/Update/Terminate/AddSalary)
+- `src/modules/payroll/schemas/payroll-concept.schema.ts`
+- `src/modules/payroll/services/EmployeeService.ts`
+- `src/modules/payroll/services/PayrollConceptService.ts`
+- `src/modules/payroll/actions/employee.actions.ts` (6 actions)
+- `src/modules/payroll/actions/payroll-concept.actions.ts` (4 actions)
+- `src/modules/payroll/components/EmployeeList.tsx`
+- `src/modules/payroll/components/EmployeeForm.tsx`
+- `src/modules/payroll/components/SalaryHistoryPanel.tsx`
+- `src/modules/payroll/components/ConceptList.tsx`
+- `src/app/(dashboard)/company/[companyId]/payroll/employees/page.tsx`
+- `src/app/(dashboard)/company/[companyId]/payroll/employees/new/page.tsx`
+- `src/app/(dashboard)/company/[companyId]/payroll/employees/[employeeId]/page.tsx`
+- `src/app/(dashboard)/company/[companyId]/payroll/concepts/page.tsx`
+
+### Tests
+69 nuevos: EmployeeService (18) + employee.actions (31) + PayrollConceptService (12) + payroll-concept.actions (18 — incluyendo seedDefaults, system guard, IDOR, Zod)
+
+**1098 tests GREEN** | **0 TS errors**

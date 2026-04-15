@@ -97,8 +97,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 28H ✅ merged (Reportes Inventario — InventoryReportService + InventoryReportsView + minimumStock + LOW_STOCK alert)
 - Fase 28 ✅ merged (Módulo Compras y Ventas — QuotationService + OrderService + UI + 45 tests — 1001 total)
 - Fase NOM-A ✅ merged (Wizard Configuración Nómina — PayrollConfig + 6 enums + 28 tests — 1029 total)
+- Fase NOM-B ✅ merged (Empleados y Conceptos — Employee + SalaryHistory + PayrollConcept + 4 enums + 69 tests — 1098 total)
 
-**1029 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
+**1098 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
 
 ## Git workflow — MANDATORY
 
