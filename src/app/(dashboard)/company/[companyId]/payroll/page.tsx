@@ -1,13 +1,16 @@
 // src/app/(dashboard)/company/[companyId]/payroll/page.tsx
-// Fase NOM-A: Nómina — hub principal
+// Fase NOM-A/B: Nómina — hub principal
 // NOM-A-05: ADMIN_ONLY puede editar la config; otros roles ven la config en modo lectura.
 // NOM-A-01: companyId verificado via companyMember.findFirst antes de cualquier query.
+// NOM-B: Módulos Empleados y Conceptos ahora disponibles (config requerida).
 
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigService";
+import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import PayrollWizard from "@/modules/payroll/components/PayrollWizard";
 import PayrollConfigSummary from "@/modules/payroll/components/PayrollConfigSummary";
 
@@ -31,6 +34,11 @@ export default async function PayrollPage({ params }: Props) {
   // Solo leer config si el rol tiene acceso
   const config = canReadConfig
     ? await PayrollConfigService.getConfig(companyId)
+    : null;
+
+  const canReadEmployees = canAccess(member.role, ROLES.WRITERS);
+  const activeEmployeeCount = config && canReadEmployees
+    ? await EmployeeService.countActive(companyId)
     : null;
 
   return (
@@ -86,16 +94,54 @@ export default async function PayrollPage({ params }: Props) {
         )}
       </section>
 
-      {/* Próximas funcionalidades */}
+      {/* Módulos de Nómina */}
       {config && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Módulos de Nómina</h2>
           <div className="grid grid-cols-2 gap-3">
+            {/* Empleados — NOM-B disponible */}
+            {canReadEmployees ? (
+              <Link
+                href={`/company/${companyId}/payroll/employees`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Empleados</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {activeEmployeeCount !== null
+                    ? `${activeEmployeeCount} empleado${activeEmployeeCount !== 1 ? "s" : ""} activo${activeEmployeeCount !== 1 ? "s" : ""}`
+                    : "Gestión de empleados y contratos"}
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Empleados</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Conceptos — NOM-B disponible para ACCOUNTING */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/concepts`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Conceptos</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Catálogo de asignaciones y deducciones
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Conceptos</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Próximamente */}
             {[
-              { label: "Empleados", desc: "CRUD de empleados y conceptos", soon: true },
-              { label: "Cálculo de Nómina", desc: "Motor quincenal/mensual + recibo PDF", soon: true },
-              { label: "Prestaciones Sociales", desc: "Garantía trimestral + intereses BCV", soon: true },
-              { label: "Reportes Legales", desc: "IVSS, INCES, Banavih, ARC/ISLR", soon: true },
+              { label: "Cálculo de Nómina", desc: "Motor quincenal/mensual + recibo PDF" },
+              { label: "Prestaciones Sociales", desc: "Garantía trimestral + intereses BCV" },
+              { label: "Reportes Legales", desc: "IVSS, INCES, Banavih, ARC/ISLR" },
             ].map((m) => (
               <div
                 key={m.label}

@@ -166,6 +166,11 @@ model Company {
   orderNumberSequences        OrderNumberSequence[]
   // Fase NOM-A: Configuración de Nómina
   payrollConfig               PayrollConfig?
+  // Fase NOM-B: Empleados y Conceptos
+  employees                   Employee[]
+  payrollConcepts             PayrollConcept[]
+  publicHolidays              PublicHoliday[]
+  absenceTypes                AbsenceType[]
 }
 
 model CompanyMember {
@@ -1061,4 +1066,149 @@ model OrderItem {
   order       Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+}
+
+// ─── Fase NOM-B: Empleados, Conceptos, Feriados y Tipos de Ausencia ──────────
+
+enum ContractType {
+  INDEFINIDO        // Tiempo indeterminado (LOTTT Art. 61)
+  DETERMINADO       // Tiempo determinado (LOTTT Art. 64)
+  OBRA_DETERMINADA  // Por obra determinada (LOTTT Art. 62)
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+enum ConceptType {
+  EARNING    // Ingreso / asignación
+  DEDUCTION  // Deducción / descuento
+}
+
+enum AbsenceCategory {
+  JUSTIFIED    // Justificada (pagada)
+  UNJUSTIFIED  // Injustificada (puede descontar)
+  MEDICAL      // Reposo médico (IVSS cubre parcialmente)
+  PERMISSION   // Permiso especial (LOTTT Art. 420)
+}
+
+// ─── Employee ─────────────────────────────────────────────────────────────────
+// Campos LOTTT obligatorios: nombre, cédula, fecha ingreso, cargo, contrato, régimen
+// cedulaType + cedulaNumber forman clave única por empresa (@@unique)
+// onDelete: Restrict — nunca eliminar empleados con historial contable
+
+model Employee {
+  id              String         @id @default(cuid())
+  companyId       String
+  // Identificación
+  firstName       String
+  lastName        String
+  cedulaType      String         // "V" | "E"
+  cedulaNumber    String         // solo dígitos
+  // Contrato LOTTT
+  contractType    ContractType
+  employeeRegime  LottRegime     // por empleado — empresa MIXED puede tener ambos
+  hireDate        DateTime       @db.Date
+  terminationDate DateTime?      @db.Date
+  status          EmployeeStatus @default(ACTIVE)
+  // Cargo
+  position        String
+  department      String?
+  // Contacto
+  email           String?
+  phone           String?
+  // Datos bancarios (para nómina)
+  bankName        String?
+  bankAccount     String?
+  // Timestamps
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  salaryHistory   SalaryHistory[]
+
+  @@unique([companyId, cedulaType, cedulaNumber])
+  @@index([companyId, status])
+  @@index([companyId, lastName, firstName])
+}
+
+// ─── SalaryHistory ────────────────────────────────────────────────────────────
+// Append-only: cada cambio de salario agrega una fila nueva (no se elimina ni edita).
+// El salario vigente es el registro con mayor effectiveFrom <= hoy.
+// NOM-B-03: cada INSERT en SalaryHistory va acompañado de un AuditLog.
+
+model SalaryHistory {
+  id              String               @id @default(cuid())
+  companyId       String
+  employeeId      String
+  effectiveFrom   DateTime             @db.Date
+  amount          Decimal              @db.Decimal(19, 4)
+  currency        PayrollPaymentCurrency
+  createdByUserId String
+  createdAt       DateTime             @default(now())
+
+  employee        Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, effectiveFrom(sort: Desc)])
+  @@index([companyId])
+}
+
+// ─── PayrollConcept ───────────────────────────────────────────────────────────
+// Catálogo de conceptos de nómina configurables por empresa.
+// isSystem = true → conceptos generados automáticamente (IVSS, INCES, Banavih);
+// no se pueden eliminar, solo desactivar.
+
+model PayrollConcept {
+  id        String      @id @default(cuid())
+  companyId String
+  code      String      // corto, ej: "SAL_BASE", "IVSS_OBR"
+  name      String
+  type      ConceptType
+  isSystem  Boolean     @default(false)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([companyId, type, isActive])
+}
+
+// ─── PublicHoliday ────────────────────────────────────────────────────────────
+// Feriados nacionales (Art. 184–190 LOTTT).
+// isRecurring = true → se repite cada año en la misma fecha (mes/día).
+
+model PublicHoliday {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  date        DateTime @db.Date
+  isRecurring Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, date])
+}
+
+// ─── AbsenceType ─────────────────────────────────────────────────────────────
+// Tipos de ausencia configurables. isSystem = true → no eliminables.
+
+model AbsenceType {
+  id        String          @id @default(cuid())
+  companyId String
+  name      String
+  category  AbsenceCategory
+  isPaid    Boolean         @default(true)
+  isSystem  Boolean         @default(false)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, isActive])
 }
