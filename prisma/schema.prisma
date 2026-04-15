@@ -164,6 +164,8 @@ model Company {
   quotations                  Quotation[]
   orders                      Order[]
   orderNumberSequences        OrderNumberSequence[]
+  // Fase NOM-A: Configuración de Nómina
+  payrollConfig               PayrollConfig?
 }
 
 model CompanyMember {
@@ -987,6 +989,63 @@ model Order {
   @@unique([companyId, number, type])
   @@index([companyId, type, status])
   @@index([companyId, createdAt(sort: Desc)])
+}
+
+// ─── Fase NOM-A: Configuración de Nómina ────────────────────────────────────
+
+enum PayrollSizeRange {
+  SMALL   // < 20 empleados
+  MEDIUM  // 20-100 empleados
+  LARGE   // > 100 empleados
+}
+
+enum LottRegime {
+  POST_2012  // Solo régimen post-Ley LOTTT 2012
+  MIXED      // Empleados de ambos regímenes (pre-1997 LOT + post-2012)
+}
+
+enum PayrollPaymentCurrency {
+  VES
+  USD
+  MIXED
+}
+
+enum PayrollFrequency {
+  BIWEEKLY  // Quincenal
+  MONTHLY   // Mensual
+}
+
+enum CestaTicketType {
+  CARD  // Tarjeta de alimentación
+  CASH  // Efectivo
+  NONE  // No aplica
+}
+
+enum FideicomisoType {
+  EXTERNAL_BANK  // Fideicomiso en banco externo
+  INTERNAL       // Registro contable interno
+}
+
+model PayrollConfig {
+  id                String               @id @default(cuid())
+  companyId         String               @unique  // una config por empresa
+  // Empresa
+  sizeRange         PayrollSizeRange
+  lottRegime        LottRegime
+  // Organismos activos
+  ivssEnabled       Boolean              @default(true)
+  incesEnabled      Boolean              @default(true)
+  banavihEnabled    Boolean              @default(true)
+  cestaTicketType   CestaTicketType
+  // Pagos
+  paymentCurrency   PayrollPaymentCurrency
+  frequency         PayrollFrequency
+  fideicomiso       FideicomisoType
+  // Timestamps
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {
