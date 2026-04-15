@@ -142,6 +142,10 @@ export async function terminateEmployeeAction(
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede registrar egresos" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed)
+    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+
   const parsed = TerminateEmployeeSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };

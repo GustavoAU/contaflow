@@ -6,6 +6,7 @@
 // Conceptos de usuario: CRUD completo, solo ADMIN_ONLY en action.
 
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { ConceptType } from "@prisma/client";
 import type { CreateConceptInput, UpdateConceptInput } from "../schemas/payroll-concept.schema";
 
@@ -96,51 +97,94 @@ export const PayrollConceptService = {
   },
 
   // ── create — concepto personalizado (no isSystem) ─────────────────────────
-  async create(companyId: string, input: CreateConceptInput): Promise<PayrollConceptRow> {
-    const concept = await prisma.payrollConcept.create({
-      data: {
-        companyId,
-        code: input.code,
-        name: input.name,
-        type: input.type,
-        isSystem: false,
-        isActive: true,
-      },
+  // NOM-C-15: $transaction + AuditLog (operación de impacto fiscal — ADR-006 D-4)
+  async create(companyId: string, userId: string, input: CreateConceptInput): Promise<PayrollConceptRow> {
+    return prisma.$transaction(async (tx) => {
+      const concept = await tx.payrollConcept.create({
+        data: {
+          companyId,
+          code: input.code,
+          name: input.name,
+          type: input.type,
+          isSystem: false,
+          isActive: true,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "PayrollConcept",
+          entityId: concept.id,
+          action: "CREATE_PAYROLL_CONCEPT",
+          userId,
+          oldValue: Prisma.JsonNull,
+          newValue: { code: input.code, name: input.name, type: input.type },
+        },
+      });
+      return serialize(concept);
     });
-    return serialize(concept);
   },
 
   // ── update — actualiza nombre e isActive ──────────────────────────────────
   // No se puede cambiar el code ni el type (inmutables para integridad contable)
+  // NOM-C-15: $transaction + AuditLog
   async update(
     companyId: string,
+    userId: string,
     conceptId: string,
     input: UpdateConceptInput
   ): Promise<PayrollConceptRow> {
-    const concept = await prisma.payrollConcept.findFirst({
-      where: { id: conceptId, companyId },
-    });
-    if (!concept) throw new Error("Concepto no encontrado");
+    return prisma.$transaction(async (tx) => {
+      const concept = await tx.payrollConcept.findFirst({
+        where: { id: conceptId, companyId },
+      });
+      if (!concept) throw new Error("Concepto no encontrado");
 
-    const updated = await prisma.payrollConcept.update({
-      where: { id: conceptId },
-      data: { name: input.name, isActive: input.isActive },
+      const updated = await tx.payrollConcept.update({
+        where: { id: conceptId },
+        data: { name: input.name, isActive: input.isActive },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "PayrollConcept",
+          entityId: conceptId,
+          action: "UPDATE_PAYROLL_CONCEPT",
+          userId,
+          oldValue: { name: concept.name, isActive: concept.isActive },
+          newValue: { name: input.name, isActive: input.isActive },
+        },
+      });
+      return serialize(updated);
     });
-    return serialize(updated);
   },
 
-  // ── delete — solo conceptos no-sistema y sin movimientos futuros ──────────
+  // ── delete — solo conceptos no-sistema y sin líneas de nómina ────────────
   // NOM-B: solo permitir borrar si isSystem = false
-  // Los movimientos de nómina (NOM-C) tendrán FK a PayrollConcept — onDelete: Restrict
-  async delete(companyId: string, conceptId: string): Promise<void> {
-    const concept = await prisma.payrollConcept.findFirst({
-      where: { id: conceptId, companyId },
-    });
-    if (!concept) throw new Error("Concepto no encontrado");
-    if (concept.isSystem)
-      throw new Error("Los conceptos del sistema no se pueden eliminar. Puedes desactivarlos.");
+  // PayrollRunLine.conceptId → onDelete: Restrict (previene borrado con referencias)
+  // NOM-C-15: $transaction + AuditLog
+  async delete(companyId: string, userId: string, conceptId: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      const concept = await tx.payrollConcept.findFirst({
+        where: { id: conceptId, companyId },
+      });
+      if (!concept) throw new Error("Concepto no encontrado");
+      if (concept.isSystem)
+        throw new Error("Los conceptos del sistema no se pueden eliminar. Puedes desactivarlos.");
 
-    await prisma.payrollConcept.delete({ where: { id: conceptId } });
+      await tx.payrollConcept.delete({ where: { id: conceptId } });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "PayrollConcept",
+          entityId: conceptId,
+          action: "DELETE_PAYROLL_CONCEPT",
+          userId,
+          oldValue: { code: concept.code, name: concept.name, type: concept.type },
+          newValue: Prisma.JsonNull,
+        },
+      });
+    });
   },
 
   // ── getSystemConcepts — para uso en NOM-C (cálculo de nómina) ─────────────
