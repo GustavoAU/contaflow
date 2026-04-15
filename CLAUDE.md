@@ -101,6 +101,16 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **1098 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
 
+## Roadmap — pre-lanzamiento (ADR-012)
+
+Secuencia confirmada: **NOM-C → NOM-D → NOM-E → Fase 35A simplificada → LAUNCH**
+
+- **NOM-C** — Motor de cálculo nómina (quincenal/mensual, IVSS/INCES/Banavih, horas extra LOTTT, recibo PDF, asiento contable, guard doble-proceso)
+- **NOM-D** — Prestaciones sociales (garantía trimestral + intereses BCV), vacaciones, utilidades, Liquidación Final
+- **NOM-E** — Reportes legales: Forma 14-02 IVSS + INCES + Banavih + ARC/ISLR empleados
+- **Fase 35A simplificada** — Entidad `Vendor` / `Customer` con FK nullable en `Invoice` (sin P2P workflow)
+- **Fases 35B/35C/36A/36B** — DIFERIDAS a post-lanzamiento (P2P y O2C completos — ver ADR-012)
+
 ## Git workflow — MANDATORY
 
 - Every new phase or feature → `git checkout -b feat/fase-XX-description` before writing any code

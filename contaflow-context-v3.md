@@ -2210,3 +2210,58 @@ Nuevos enums: `ContractType` · `EmployeeStatus` · `ConceptType` · `AbsenceCat
 69 nuevos: EmployeeService (18) + employee.actions (31) + PayrollConceptService (12) + payroll-concept.actions (18 — incluyendo seedDefaults, system guard, IDOR, Zod)
 
 **1098 tests GREEN** | **0 TS errors**
+
+---
+
+## Sección 55 — Decisiones Estratégicas de Roadmap (2026-04-15)
+
+**Tipo:** Sesión de planificación estratégica — sin código generado.
+**Decisiones documentadas en:** ADR-012 (`.claude/adr/ADR-012-roadmap-sequencing.md`)
+
+### Contexto
+
+Se revisó el `ROADMAP_OPERACIONAL_CONTAFLOW.md` que proponía 5 nuevas fases operacionales (35A, 35B, 35C, 36A, 36B) con modelos Vendor, Customer, PurchaseOrder, GoodsReceipt, SalesOrder, Shipment (~150 tests nuevos). Se evaluó también el análisis de Gemini AI sobre brechas del producto.
+
+### Decisiones adoptadas
+
+#### 1. Secuencia pre-lanzamiento: NOM-C → NOM-D → NOM-E → [35A simplificado] → LAUNCH
+
+| Fase | Prioridad | Razón |
+|---|---|---|
+| **NOM-C** — Motor de cálculo nómina | 1 — INMEDIATA | Nómina sin cálculo no es nómina. Mayor ROI Venezuela |
+| **NOM-D** — Prestaciones, vacaciones, utilidades | 2 | Obligatorio legal LOTTT |
+| **NOM-E** — Reportes legales (Forma 14-02, ARC/ISLR) | 3 | Requisito SENIAT |
+| **35A simplificado** — Vendor/Customer básico | 4 — pre-launch | Formalizar entidad sin workflow P2P completo |
+| **35B/35C/36A/36B** — P2P y O2C completos | DIFERIDO | Post-launch, según feedback real de clientes |
+
+#### 2. Fases 35B-36B: diferidas a post-lanzamiento
+
+**Razón principal:** Fase 28 ya tiene `QuotationService` + `OrderService` (45 tests). Reconstruir esto como módulo P2P formal antes de tener un cliente real es YAGNI. La migración `Invoice.vendorName (String)` → `vendorId (FK)` implica backfill de datos históricos — riesgo no justificado sin demanda confirmada.
+
+#### 3. Brecha real identificada: entidad Vendor/Customer formal
+
+`Invoice.vendorName` y `Invoice.clientName` son `String` libres. El "círculo de confianza" (factura → retención → cuenta por pagar → asiento) funciona técnicamente pero no hay entidad formal que conecte documentos de un mismo proveedor. La Fase 35A simplificada crea `Vendor` / `Customer` con FK opcional en `Invoice` — sin romper datos existentes (backfill `null` en FKs nuevas, nombres históricos preservados en los String fields).
+
+#### 4. "Circle of trust" UI — gap de UX identificado
+
+La cadena contable existe en el backend pero no hay vista unificada. Post NOM-E se evaluará una pantalla "Expediente de Proveedor" que conecte visualmente:
+
+```
+Vendor → Invoices → Retenciones → CxP → Asientos contables
+```
+
+#### 5. Correcciones al análisis de Gemini
+
+| Punto Gemini | Estado real |
+|---|---|
+| "Inventario no existe" | INCORRECTO — Fase 28D ya implementó InventoryItem + InventoryMovement + CPP |
+| "Contabilidad bimonetaria incompleta" | PARCIALMENTE correcto — ExchangeRate + Invoice.exchangeRateId existen; falta balance sheet paralelo USD/VES en UI |
+| "Alerta bajo stock falta" | INCORRECTO — Fase 28H ya implementó LOW_STOCK + minimumStock + alertas |
+| "Feature creep de roadmap 35-36" | CORRECTO — diferir a post-launch es la decisión adoptada |
+| "Cerrar círculo de confianza" | CORRECTO — gap UI real, encolado post NOM-E |
+
+### Próxima fase confirmada
+
+**NOM-C — Motor de Cálculo de Nómina**
+
+Incluye: cálculo quincenal/mensual con conceptos NOM-B, IVSS/INCES/Banavih según config NOM-A, horas extra LOTTT, recibo de pago PDF, causación asiento contable automático, guard de doble-proceso.
