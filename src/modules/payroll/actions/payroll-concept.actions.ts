@@ -59,7 +59,7 @@ export async function createConceptAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const concept = await PayrollConceptService.create(companyId, parsed.data);
+    const concept = await PayrollConceptService.create(companyId, userId, parsed.data);
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -86,7 +86,7 @@ export async function updateConceptAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const concept = await PayrollConceptService.update(companyId, conceptId, parsed.data);
+    const concept = await PayrollConceptService.update(companyId, userId, conceptId, parsed.data);
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -106,7 +106,7 @@ export async function deleteConceptAction(
     return { success: false, error: "Solo el Administrador puede eliminar conceptos" };
 
   try {
-    await PayrollConceptService.delete(companyId, conceptId);
+    await PayrollConceptService.delete(companyId, userId, conceptId);
     revalidate(companyId);
     return { success: true, data: { deleted: true } };
   } catch (err) {
