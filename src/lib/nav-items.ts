@@ -33,6 +33,7 @@ import {
   PackageIcon,
   ShieldCheckIcon,
   ShoppingCartIcon,
+  UsersIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -104,6 +105,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
           item("Exportar Datos", p("/export"), ArchiveIcon),
           item("Inventario", p("/inventory"), PackageIcon),
           item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
+          item("Nómina", p("/payroll"), UsersIcon),
         ],
       },
       {
@@ -144,6 +146,7 @@ function buildAccountantNav(companyId: string): NavConfig {
         items: [
           item("Inventario", p("/inventory"), PackageIcon),
           item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
+          item("Nómina", p("/payroll"), UsersIcon),
         ],
       },
       {
@@ -179,6 +182,7 @@ function buildAdministrativeNav(companyId: string): NavConfig {
         items: [
           item("Inventario", p("/inventory"), PackageIcon, true),
           item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
+          item("Nómina", p("/payroll"), UsersIcon),
         ],
       },
     ],
