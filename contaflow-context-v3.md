@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 23C Residual completada. Última sincronización: 2026-04-14_
-_v3.17: Fase 23C Residual (NC/ND UI: picker buscable + panel NC/ND en InvoiceBook). 936 tests GREEN.
+_Versión actualizada — Fase 28H completada. Última sincronización: 2026-04-14_
+_v3.18: Fase 28H (InventoryReportService + reportes existencias/movimientos + alerta LOW_STOCK). 956 tests GREEN.
 
 ## 1. Descripción del Producto
 
@@ -567,6 +567,8 @@ model FiscalYearClose {
 - ✅ Fase 28G: Inventario UI completado — `getItemMovements()` con CRITICAL-1 ownership guard + `ItemMovementHistory` (CPP cards + tabla movimientos con badges) + columna "Historial" en `InventoryItemList` — 891 tests (ver sección 48)
 - ✅ Fase 33: Notificaciones in-app — `NotificationService.getAlerts()` (facturas vencidas/por vencer + retenciones PENDING + inventario DRAFT) + `NotificationBell` en navbar (badge por severity + dropdown lazy-load) — 908 tests (ver sección 49)
 - ✅ Fase 32: KPIs Ejecutivos — `KpiDashboardService` (CxC, CxP, DSO, flujo de caja proyectado 30/60/90d) + `ExecutiveKpiPanel` en dashboard empresa (OWNER/ADMIN/ACCOUNTANT) — 926 tests (ver sección 50)
+- ✅ Fase 23C Residual: NC/ND UI Completo — `RelatedInvoicePicker` + `CreditDebitNotesPanel` + `searchInvoicesForPickerAction` — 936 tests (ver sección 51)
+- ✅ Fase 28H: Reportes Inventario — `InventoryReportService` (getStockSummary CPP + getMovementReport) + `InventoryReportsView` (tabs Existencias/Movimientos) + `minimumStock Decimal?` en `InventoryItem` + alerta `LOW_STOCK` en `NotificationService` — 956 tests (ver sección 52)
 - ⏳ Fase 28: Módulo de Compras y Ventas
    - Cotizaciones/Presupuestos (pre-contable, sin asiento)
    - Órdenes de Compra vinculadas a cotización de proveedor
@@ -2029,3 +2031,39 @@ Cerrar el gap de UX en el workflow de Notas de Crédito/Débito: el campo "Factu
 ### Tests
 
 10 tests nuevos — role guards (VIEWER, ADMINISTRATIVE, ACCOUNTANT), auth guard, null totalAmountVes, array vacío. **936 total GREEN** | **0 TS errors**
+
+## Sección 52 — Fase 28H: Reportes de Inventario + Alerta Bajo Stock (2026-04-14)
+
+### Objetivo
+
+Dar a los roles ACCOUNTING (ACCOUNTANT/OWNER/ADMIN) visibilidad del inventario valorado (CPP) con dos reportes:
+- **Existencias**: tabla de todos los ítems con `qty × averageCost = totalValue`, bandera `isLowStock`, conteo de bajo stock y valor total del inventario.
+- **Movimientos**: filtros por rango de fecha, tipo (ENTRADA/SALIDA/AJUSTE), ítem y estado (DRAFT/POSTED); fila de totales.
+
+Además, agregar `minimumStock Decimal?` al schema `InventoryItem` para que el usuario configure el umbral por producto, y disparar una alerta `LOW_STOCK` en `NotificationBell` cuando `stockQuantity <= minimumStock`.
+
+### Archivos nuevos/modificados
+
+| Archivo | Cambio |
+|---|---|
+| `prisma/schema.prisma` | +`minimumStock Decimal? @db.Decimal(19,4)` en `InventoryItem` |
+| `prisma/migrations/20260414_fase28h_minimum_stock/migration.sql` | `ALTER TABLE "InventoryItem" ADD COLUMN "minimumStock" DECIMAL(19,4)` |
+| `InventoryReportService.ts` (nuevo) | `getStockSummary(companyId)` — Decimal.js CPP; `getMovementReport(companyId, filters)` — date range + filtros opcionales |
+| `inventory-reports.actions.ts` (nuevo) | `getStockSummaryAction` + `getMovementReportAction` — auth + ROLES.ACCOUNTING guard |
+| `InventoryReportsView.tsx` (nuevo) | Componente cliente con tabs Existencias / Movimientos; `StockTab` con cards resumen + tabla + badges isLowStock; `MovementsTab` con filtros + tabla con totales |
+| `inventory/page.tsx` | +`InventoryReportService.getStockSummary()` en Promise.all; sección "Reportes de inventario" al final (solo ACCOUNTING) |
+| `NotificationService.ts` | +`lowStockItems` query en Promise.all; alerta `LOW_STOCK` severity warning cuando qty ≤ minimumStock |
+| `NotificationService.test.ts` | +mock `inventoryItem.findMany` en beforeEach |
+
+### Tipos exportados
+
+```ts
+StockSummaryItem { id, sku, name, unit, stockQuantity, averageCost, totalValue, minimumStock, isLowStock }
+StockSummary     { items, totalInventoryValue, lowStockCount }
+MovementReportItem { id, date, type, status, quantity, unitCost, totalCost, reference, notes, invoiceId, itemId, itemSku, itemName, itemUnit }
+MovementReportFilters { from, to, type?, itemId?, status? }
+```
+
+### Tests
+
+20 tests nuevos (8 service + 11 actions + 1 notification). **956 total GREEN** | **0 TS errors**
