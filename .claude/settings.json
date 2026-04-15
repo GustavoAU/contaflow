@@ -99,7 +99,10 @@
       "Bash(ls src/app/\"\\(dashboard\\)\"/company/\\\\[companyId\\\\]/dashboard/)",
       "Bash(ls src/modules/analytics/)",
       "Bash(sed -i 's/_v3\\\\.16: Fase 32.*/_v3.17: Fase 23C Residual \\(NC\\\\/ND UI: picker buscable + panel NC\\\\/ND en InvoiceBook\\). 936 tests GREEN./' contaflow-context-v3.md)",
-      "Bash(sed -i 's/Versión actualizada — Fase 32 completada/Versión actualizada — Fase 23C Residual completada/' contaflow-context-v3.md)"
+      "Bash(sed -i 's/Versión actualizada — Fase 32 completada/Versión actualizada — Fase 23C Residual completada/' contaflow-context-v3.md)",
+      "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/employees/new\")",
+      "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/employees/[employeeId]\")",
+      "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/concepts\")"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
