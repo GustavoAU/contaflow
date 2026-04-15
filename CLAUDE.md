@@ -86,8 +86,17 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 21 ✅ merged (Activos Fijos y Depreciación VEN-NIF 16 — 3 métodos + asiento automático — 35 tests)
 - Fase 22 ✅ merged (Ajuste por Inflación INPC VEN-NIF 3 — INPCRate + InflationAdjustment + preview + Serializable — 32 tests)
 - Fase 23B ✅ merged (Auto-conciliación bancaria — Gemini Vision PDF + scoring 3 fuentes + guard período vacío + 30 tests)
+- Fases 28A/B/C ✅ merged (Expansión roles + Nav dinámico + Role guards en 13 actions)
+- Fase 28D ✅ merged (Módulo Inventario — CPP + Serializable SSI + 2 servicios + 68 tests)
+- Fases 28E/F ✅ merged (UI Inventario 5 componentes + UX Hardening sonner/spinners)
+- Fase 31 ✅ merged (AuditLog UI — companyId en schema + 44 auditLog.create() + AuditLogTable)
+- Fase 28G ✅ merged (Inventario UI completado — getItemMovements() + ItemMovementHistory)
+- Fase 33 ✅ merged (Notificaciones in-app — NotificationService + NotificationBell)
+- Fase 32 ✅ merged (KPIs Ejecutivos — KpiDashboardService + ExecutiveKpiPanel)
+- Fase 23C Residual ✅ merged (NC/ND UI — RelatedInvoicePicker + CreditDebitNotesPanel)
+- Fase 28H ✅ merged (Reportes Inventario — InventoryReportService + InventoryReportsView + minimumStock + LOW_STOCK alert)
 
-**753 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-08)
+**956 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-14)
 
 ## Git workflow — MANDATORY
 
