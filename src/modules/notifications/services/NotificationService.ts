@@ -3,6 +3,7 @@
 // Solo lectura: no muta datos.
 
 import prisma from "@/lib/prisma";
+import Decimal from "decimal.js";
 
 export type AlertSeverity = "error" | "warning" | "info";
 
@@ -27,7 +28,7 @@ export class NotificationService {
     const in7Days = new Date(now.getTime() + DAYS_7);
     const base = `/company/${companyId}`;
 
-    const [overdueInvoices, dueSoonInvoices, pendingRetenciones, draftMovements] =
+    const [overdueInvoices, dueSoonInvoices, pendingRetenciones, draftMovements, lowStockItems] =
       await Promise.all([
         // Facturas vencidas (dueDate < hoy, no pagadas ni anuladas)
         prisma.invoice.findMany({
@@ -63,6 +64,12 @@ export class NotificationService {
         // Movimientos de inventario en DRAFT
         prisma.inventoryMovement.count({
           where: { companyId, status: "DRAFT" },
+        }),
+
+        // Ítems con bajo stock (stockQuantity <= minimumStock)
+        prisma.inventoryItem.findMany({
+          where: { companyId, deletedAt: null, minimumStock: { not: null } },
+          select: { id: true, sku: true, name: true, stockQuantity: true, minimumStock: true },
         }),
       ]);
 
@@ -118,6 +125,22 @@ export class NotificationService {
         href: `${base}/inventory`,
         severity: "info",
       });
+    }
+
+    // ── Bajo stock ────────────────────────────────────────────────────────────
+    for (const item of lowStockItems) {
+      const qty = new Decimal(item.stockQuantity.toString());
+      const min = new Decimal(item.minimumStock!.toString());
+      if (qty.lte(min)) {
+        alerts.push({
+          id: `low-stock-${item.id}`,
+          type: "LOW_STOCK",
+          title: `Bajo stock: ${item.name}`,
+          description: `Existencia actual: ${qty.toFixed(2)} ${item.sku} — mínimo configurado: ${min.toFixed(2)}.`,
+          href: `${base}/inventory`,
+          severity: "warning",
+        });
+      }
     }
 
     // Ordenar: error primero, luego warning, luego info

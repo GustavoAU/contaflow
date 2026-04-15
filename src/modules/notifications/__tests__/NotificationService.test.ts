@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
     invoice: { findMany: vi.fn() },
     retencion: { count: vi.fn() },
     inventoryMovement: { count: vi.fn() },
+    inventoryItem: { findMany: vi.fn() },
   },
 }));
 
@@ -34,6 +35,7 @@ describe("NotificationService.getAlerts", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
     vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never);
   });
 
   afterEach(() => {
