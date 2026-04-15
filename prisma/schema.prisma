@@ -160,6 +160,10 @@ model Company {
   // Fase 28D: Inventario
   inventoryItems              InventoryItem[]
   inventoryMovements          InventoryMovement[]
+  // Fase 28: Compras y Ventas
+  quotations                  Quotation[]
+  orders                      Order[]
+  orderNumberSequences        OrderNumberSequence[]
 }
 
 model CompanyMember {
@@ -391,6 +395,9 @@ model Invoice {
   creditDebitNotes     Invoice[]         @relation("CreditDebitNotes")
   // Fase 28D: Inventario
   inventoryMovements   InventoryMovement[]
+  // Fase 28: Compras y Ventas
+  orderId              String?             @unique
+  order                Order?              @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -863,4 +870,136 @@ model ExportJob {
 
   @@index([companyId])
   @@index([createdBy])
+}
+
+// ─── Fase 28: Módulo Compras y Ventas ────────────────────────────────────────
+
+enum QuotationType {
+  PURCHASE  // Cotización de compra (enviada a proveedor)
+  SALE      // Presupuesto/Cotización de venta (enviada a cliente)
+}
+
+enum QuotationStatus {
+  DRAFT             // Borrador — editable
+  PENDING_APPROVAL  // Enviado a aprobación — solo lectura para ADMINISTRATIVE
+  APPROVED          // Aprobado — listo para convertir a Orden
+  REJECTED          // Rechazado — terminal
+  CANCELLED         // Cancelado — terminal
+  CONVERTED         // Convertido a Orden — terminal
+}
+
+enum OrderStatus {
+  DRAFT      // Borrador — editable
+  APPROVED   // Aprobado — listo para convertir a Factura
+  CONVERTED  // Convertido a Factura — terminal
+  CANCELLED  // Cancelado — terminal
+}
+
+enum OrderDocType {
+  PURCHASE_QUOTATION  // COT-XXXX
+  SALE_QUOTATION      // PRE-XXXX
+  PURCHASE_ORDER      // OC-XXXX
+  SALE_ORDER          // OV-XXXX
+}
+
+model OrderNumberSequence {
+  id         String       @id @default(cuid())
+  companyId  String
+  docType    OrderDocType
+  lastNumber Int          @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, docType])
+  @@index([companyId])
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  companyId       String
+  type            QuotationType
+  status          QuotationStatus @default(DRAFT)
+  number          String
+  counterpartName String
+  counterpartRif  String?
+  validUntil      DateTime        @db.Date
+  notes           String?
+  subtotal        Decimal         @db.Decimal(19, 4)
+  taxAmount       Decimal         @db.Decimal(19, 4)
+  total           Decimal         @db.Decimal(19, 4)
+  currency        Currency        @default(VES)
+  createdBy       String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  items           QuotationItem[]
+  order           Order?
+
+  @@unique([companyId, number, type])
+  @@index([companyId, type, status])
+  @@index([companyId, createdAt(sort: Desc)])
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  description String
+  unit        String
+  quantity    Decimal   @db.Decimal(19, 4)
+  unitPrice   Decimal   @db.Decimal(19, 4)
+  taxRate     Decimal   @db.Decimal(5, 2) @default(0)
+  totalPrice  Decimal   @db.Decimal(19, 4)
+
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+
+  @@index([quotationId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  companyId       String
+  type            QuotationType
+  status          OrderStatus @default(DRAFT)
+  number          String
+  quotationId     String?     @unique
+  counterpartName String
+  counterpartRif  String?
+  expectedDate    DateTime?   @db.Date
+  notes           String?
+  subtotal        Decimal     @db.Decimal(19, 4)
+  taxAmount       Decimal     @db.Decimal(19, 4)
+  total           Decimal     @db.Decimal(19, 4)
+  currency        Currency    @default(VES)
+  createdBy       String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  company         Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  quotation       Quotation?  @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+  invoice         Invoice?
+
+  @@unique([companyId, number, type])
+  @@index([companyId, type, status])
+  @@index([companyId, createdAt(sort: Desc)])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  description String
+  unit        String
+  quantity    Decimal @db.Decimal(19, 4)
+  unitPrice   Decimal @db.Decimal(19, 4)
+  taxRate     Decimal @db.Decimal(5, 2) @default(0)
+  totalPrice  Decimal @db.Decimal(19, 4)
+
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
 }
