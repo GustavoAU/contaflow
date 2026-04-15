@@ -171,6 +171,8 @@ model Company {
   payrollConcepts             PayrollConcept[]
   publicHolidays              PublicHoliday[]
   absenceTypes                AbsenceType[]
+  // Fase NOM-C: Motor de Cálculo de Nómina
+  payrollRuns                 PayrollRun[]
 }
 
 model CompanyMember {
@@ -211,6 +213,12 @@ model Account {
   // Fase 28D: Inventario
   inventoryItems              InventoryItem[]      @relation("InventoryItemAccount")
   inventoryItemsAsCogs        InventoryItem[]      @relation("CogsAccount")
+  // Fase NOM-C: Cuentas contables de nómina
+  payrollConfigsAsExpense     PayrollConfig[]      @relation("PayrollExpenseAccount")
+  payrollConfigsAsPayable     PayrollConfig[]      @relation("PayrollPayableAccount")
+  payrollConfigsAsIvss        PayrollConfig[]      @relation("PayrollIvssPayable")
+  payrollConfigsAsFaov        PayrollConfig[]      @relation("PayrollFaovPayable")
+  payrollConfigsAsInces       PayrollConfig[]      @relation("PayrollIncesPayable")
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -263,6 +271,8 @@ model Transaction {
   inflationAdjustments           InflationAdjustment[]
   // Fase 28D: Inventario
   inventoryMovement              InventoryMovement?
+  // Fase NOM-C: Motor de Nómina
+  payrollRun                     PayrollRun?
 
   @@unique([companyId, number])
 }
@@ -1046,11 +1056,23 @@ model PayrollConfig {
   paymentCurrency   PayrollPaymentCurrency
   frequency         PayrollFrequency
   fideicomiso       FideicomisoType
+  // Fase NOM-C: Cuentas contables para asiento de causación (nullable hasta configurar)
+  // ADR-013 Decisión 3: configurables por empresa (no hardcoded)
+  expenseAccountId      String?    // EXPENSE — Gastos de Personal / Sueldos y Salarios
+  payableAccountId      String?    // LIABILITY — Sueldos y Salarios por Pagar (neto empleados)
+  ivssPayableAccountId  String?    // LIABILITY — IVSS Obrero por Pagar
+  faovPayableAccountId  String?    // LIABILITY — FAOV / BANAVIH por Pagar
+  incesPayableAccountId String?    // LIABILITY — INCES por Pagar
   // Timestamps
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  company           Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company               Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expenseAccount        Account?             @relation("PayrollExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  payableAccount        Account?             @relation("PayrollPayableAccount", fields: [payableAccountId], references: [id], onDelete: Restrict)
+  ivssPayableAccount    Account?             @relation("PayrollIvssPayable", fields: [ivssPayableAccountId], references: [id], onDelete: Restrict)
+  faovPayableAccount    Account?             @relation("PayrollFaovPayable", fields: [faovPayableAccountId], references: [id], onDelete: Restrict)
+  incesPayableAccount   Account?             @relation("PayrollIncesPayable", fields: [incesPayableAccountId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {
@@ -1128,6 +1150,8 @@ model Employee {
 
   company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   salaryHistory   SalaryHistory[]
+  // Fase NOM-C
+  payrollRunLines PayrollRunLine[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -1171,7 +1195,9 @@ model PayrollConcept {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  // Fase NOM-C
+  payrollRunLines PayrollRunLine[]
 
   @@unique([companyId, code])
   @@index([companyId, type, isActive])
@@ -1211,4 +1237,85 @@ model AbsenceType {
   company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([companyId, isActive])
+}
+
+// ─── Fase NOM-C: Motor de Cálculo de Nómina ──────────────────────────────────
+
+enum PayrollRunStatus {
+  DRAFT      // Calculado — editable, no contabilizado
+  APPROVED   // Aprobado — asiento contable generado, inmutable
+  CANCELLED  // Anulado — estado terminal, solo desde DRAFT
+}
+
+// ─── PayrollRun ───────────────────────────────────────────────────────────────
+// Cabecera de un proceso de nómina para un período específico.
+// @@unique([companyId, periodStart, periodEnd]) previene doble-proceso a nivel DB.
+// onDelete: Restrict — nunca eliminar runs con líneas contabilizadas (ADR-003).
+// totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
+
+model PayrollRun {
+  id               String           @id @default(cuid())
+  companyId        String
+  periodStart      DateTime         @db.Date
+  periodEnd        DateTime         @db.Date
+  status           PayrollRunStatus @default(DRAFT)
+  // Totales calculados server-side al momento del cálculo (inmutables post-APPROVED)
+  totalEarnings    Decimal          @db.Decimal(18, 2)
+  totalDeductions  Decimal          @db.Decimal(18, 2)
+  totalNet         Decimal          @db.Decimal(18, 2)
+  employeeCount    Int
+  // Vínculo al asiento contable (nullable hasta APPROVED — ADR-013 Decisión 4)
+  transactionId    String?          @unique
+  // Auditoría
+  createdByUserId  String
+  approvedByUserId String?
+  cancelledByUserId String?
+  approvedAt       DateTime?
+  cancelledAt      DateTime?
+  // Previene doble submit desde UI (idempotencyKey único por request)
+  idempotencyKey   String           @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transaction      Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  lines            PayrollRunLine[]
+
+  // GUARD doble-proceso: un solo run activo por empresa y período (ADR-013 Decisión 1)
+  @@unique([companyId, periodStart, periodEnd])
+  @@index([companyId, status])
+  @@index([companyId, periodStart])
+}
+
+// ─── PayrollRunLine ───────────────────────────────────────────────────────────
+// Una línea = un concepto para un empleado en un run.
+// Almacena snapshot de salario + FK de auditoría (ADR-013 Decisión 2).
+// onDelete: Restrict — nunca eliminar líneas contabilizadas (ADR-003).
+
+model PayrollRunLine {
+  id                    String                @id @default(cuid())
+  companyId             String
+  payrollRunId          String
+  employeeId            String
+  conceptId             String
+  conceptCode           String                // snapshot del código al calcular
+  conceptType           ConceptType           // snapshot EARNING | DEDUCTION
+  amount                Decimal               @db.Decimal(18, 2)
+  // Campos de auditoría del motor de cálculo
+  basis                 Decimal?              @db.Decimal(18, 2) // base de cálculo (salario diario, etc.)
+  hours                 Decimal?              @db.Decimal(8, 2)  // solo HE_DIURNA / HE_NOCTURNA
+  rate                  Decimal?              @db.Decimal(6, 4)  // porcentaje aplicado (ej: 0.0400)
+  // Snapshot de salario — ADR-013 Decisión 2: FK + snapshot
+  salaryHistoryId       String?               // FK al SalaryHistory usado (trazabilidad)
+  salarySnapshotAmount  Decimal?              @db.Decimal(18, 2) // monto vigente al calcular (inmutable)
+  salarySnapshotCurrency PayrollPaymentCurrency?
+  createdAt             DateTime              @default(now())
+
+  payrollRun            PayrollRun            @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  employee              Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  concept               PayrollConcept        @relation(fields: [conceptId], references: [id], onDelete: Restrict)
+
+  @@index([payrollRunId])
+  @@index([companyId, employeeId])
+  @@index([companyId, payrollRunId, employeeId])
 }
