@@ -10,11 +10,13 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { getInventoryItems, getDraftMovements } from "@/modules/inventory/services/InventoryOperationsService";
 import { getInventoryValuation } from "@/modules/inventory/services/InventoryAccountingService";
+import { InventoryReportService } from "@/modules/inventory/services/InventoryReportService";
 import { InventoryItemList, type InventoryItemRow } from "@/modules/inventory/components/InventoryItemList";
 import { InventoryItemForm } from "@/modules/inventory/components/InventoryItemForm";
 import { MovementForm } from "@/modules/inventory/components/MovementForm";
 import { PendingMovementsList, type PendingMovement } from "@/modules/inventory/components/PendingMovementsList";
 import { InventoryValuation } from "@/modules/inventory/components/InventoryValuation";
+import { InventoryReportsView } from "@/modules/inventory/components/InventoryReportsView";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -44,10 +46,11 @@ export default async function InventoryPage({ params }: Props) {
     }),
   ]);
 
-  // Para ACCOUNTANT / OWNER / ADMIN: también cargar valoración y pendientes
-  const [valuation, pending] = await Promise.all([
+  // Para ACCOUNTANT / OWNER / ADMIN: también cargar valoración, pendientes y reporte de stock
+  const [valuation, pending, stockSummary] = await Promise.all([
     isAccounting ? getInventoryValuation(companyId) : null,
     isAccounting ? getDraftMovements(companyId) : null,
+    isAccounting ? InventoryReportService.getStockSummary(companyId) : null,
   ]);
 
   // Serializar Decimals → string para los componentes cliente
@@ -202,6 +205,24 @@ export default async function InventoryPage({ params }: Props) {
           canDelete={isAdminOnly}
         />
       </section>
+
+      {/* ── Reportes — solo ACCOUNTANT / OWNER / ADMIN ───────────────────────── */}
+      {isAccounting && stockSummary && (
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-gray-800">
+            Reportes de inventario
+          </h2>
+          <InventoryReportsView
+            companyId={companyId}
+            initialStock={stockSummary}
+            itemOptions={serializedItems.map((i) => ({
+              id: i.id,
+              sku: i.sku,
+              name: i.name,
+            }))}
+          />
+        </section>
+      )}
     </div>
   );
 }

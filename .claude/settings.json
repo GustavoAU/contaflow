@@ -95,7 +95,11 @@
       "Bash(echo \"TSC_EXIT: $?\")",
       "Bash(echo \"VITEST_EXIT: $?\")",
       "Bash(sed -n '294,312p' prisma/schema.prisma)",
-      "Bash(sed -n '346,415p' prisma/schema.prisma)"
+      "Bash(sed -n '346,415p' prisma/schema.prisma)",
+      "Bash(ls src/app/\"\\(dashboard\\)\"/company/\\\\[companyId\\\\]/dashboard/)",
+      "Bash(ls src/modules/analytics/)",
+      "Bash(sed -i 's/_v3\\\\.16: Fase 32.*/_v3.17: Fase 23C Residual \\(NC\\\\/ND UI: picker buscable + panel NC\\\\/ND en InvoiceBook\\). 936 tests GREEN./' contaflow-context-v3.md)",
+      "Bash(sed -i 's/Versión actualizada — Fase 32 completada/Versión actualizada — Fase 23C Residual completada/' contaflow-context-v3.md)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
