@@ -95,8 +95,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 32 ✅ merged (KPIs Ejecutivos — KpiDashboardService + ExecutiveKpiPanel)
 - Fase 23C Residual ✅ merged (NC/ND UI — RelatedInvoicePicker + CreditDebitNotesPanel)
 - Fase 28H ✅ merged (Reportes Inventario — InventoryReportService + InventoryReportsView + minimumStock + LOW_STOCK alert)
+- Fase 28 ✅ merged (Módulo Compras y Ventas — QuotationService + OrderService + UI + 45 tests — 1001 total)
+- Fase NOM-A ✅ merged (Wizard Configuración Nómina — PayrollConfig + 6 enums + 28 tests — 1029 total)
 
-**956 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-14)
+**1029 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
 
 ## Git workflow — MANDATORY
 

@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase 28 completada. Última sincronización: 2026-04-14_
-_v3.19: Fase 28 (Módulo Compras y Ventas — QuotationService + OrderService + 45 tests). 1001 tests GREEN. Sección 34 Nómina revisada con estructura NOM-A/B/C/D/E + 4 adiciones._
+_Versión actualizada — Fase NOM-A completada. Última sincronización: 2026-04-15_
+_v3.20: Fase NOM-A (Wizard Configuración de Nómina — PayrollConfig + 6 enums + 28 tests). 1029 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -545,7 +545,7 @@ model FiscalYearClose {
 - ✅ Fase 23C: NC/ND Workflow completo — completada 2026-04-12 (ver sección 41)
 - ✅ Fase 30: Exportación Masiva / Backup — ZIP fiscal con ExportJob + 24h expiry — completada 2026-04-13 (ver sección 42)
 - ⏳ Fase 23 Nómina (LOTTT) — dividida en 5 subfases (ver sección 34 — estructura revisada 2026-04-14)
-  - ⏳ Fase NOM-A: Wizard de configuración de nómina
+  - ✅ Fase NOM-A: Wizard de configuración de nómina — completada 2026-04-15 (ver sección 53)
   - ⏳ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios
   - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
   - ⏳ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final
@@ -2103,3 +2103,55 @@ MovementReportFilters { from, to, type?, itemId?, status? }
 ### Tests
 
 20 tests nuevos (8 service + 11 actions + 1 notification). **956 total GREEN** | **0 TS errors**
+
+## Sección 53 — Fase NOM-A: Wizard de Configuración de Nómina ✅ completada 2026-04-15
+
+### Objetivo
+Configurar la nómina de la empresa mediante un wizard guiado de 3 pasos, sin preguntas abiertas. Establece los parámetros que gobiernan todos los cálculos futuros (IVSS, INCES, Banavih, régimen LOTTT, frecuencia de pago).
+
+### Schema añadido
+```
+6 enums: PayrollSizeRange (SMALL/MEDIUM/LARGE), LottRegime (POST_2012/MIXED),
+         PayrollPaymentCurrency (VES/USD/MIXED), PayrollFrequency (BIWEEKLY/MONTHLY),
+         CestaTicketType (CARD/CASH/NONE), FideicomisoType (EXTERNAL_BANK/INTERNAL)
+
+model PayrollConfig {
+  companyId @unique  // singleton por empresa — sin Serializable, el @unique es el mutex
+  sizeRange, lottRegime, ivssEnabled, incesEnabled, banavihEnabled,
+  cestaTicketType, paymentCurrency, frequency, fideicomiso
+  // Sin deletedAt — historial en AuditLog (oldValue/newValue)
+}
+```
+Migración: `20260415_nom_a_payroll_config`
+
+### Seguridad — todos los findings del audit resueltos antes de implementar
+| Finding | Severidad | Solución implementada |
+|---|---|---|
+| NOM-A-01: IDOR en read actions | CRITICAL | `companyMember.findFirst` en toda action antes de DB |
+| NOM-A-02: UPSERT sin AuditLog | CRITICAL | `$transaction` con AuditLog (oldValue + newValue de todos los campos) |
+| NOM-A-03: toggles fiscales sin confirmación | HIGH | `window.confirm()` al desactivar IVSS/INCES/Banavih en wizard |
+| NOM-A-04: sin rate limit en UPSERT | HIGH | `checkRateLimit(userId, limiters.fiscal)` |
+| NOM-A-05: rol no definido para write | HIGH | `ROLES.ADMIN_ONLY` (OWNER/ADMIN) para write; `ROLES.ACCOUNTING` para read; todos para status |
+| NOM-A-06: info disclosure en status action | MEDIUM | auth guard en `getPayrollConfigStatusAction` |
+
+### Role matrix
+| Operación | VIEWER | ACCOUNTANT | ADMINISTRATIVE | ADMIN/OWNER |
+|---|---|---|---|---|
+| `getPayrollConfigStatusAction` | ✅ | ✅ | ✅ | ✅ |
+| `getPayrollConfigAction` | ❌ | ✅ | ✅ | ✅ |
+| `savePayrollConfigAction` | ❌ | ❌ | ❌ | ✅ ONLY |
+
+### Archivos creados
+- `prisma/migrations/20260415_nom_a_payroll_config/migration.sql`
+- `src/modules/payroll/schemas/payroll-config.schema.ts` — Zod (9 campos enum/boolean)
+- `src/modules/payroll/services/PayrollConfigService.ts` — getConfig, isConfigured, saveConfig
+- `src/modules/payroll/actions/payroll-config.actions.ts` — 3 actions con guards completos
+- `src/modules/payroll/components/PayrollWizard.tsx` — 3 pasos + resumen + confirmación organismos
+- `src/modules/payroll/components/PayrollConfigSummary.tsx` — vista read-only para no-admin
+- `src/app/(dashboard)/company/[companyId]/payroll/page.tsx` — SSR hub de nómina
+- `src/lib/nav-items.ts` — "Nómina" añadido a OWNER/ADMIN, ACCOUNTANT, ADMINISTRATIVE
+
+### Tests
+28 nuevos: PayrollConfigService (8) + payroll-config.actions (20 — auth, ADMIN_ONLY, rate limit, Zod, NOM-A-01/02/04/05/06)
+
+**1029 tests GREEN** | **0 TS errors**
