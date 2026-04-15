@@ -790,6 +790,7 @@ model InventoryItem {
   unit          String                          // "unidad", "kg", "litro", etc.
   averageCost   Decimal   @default(0) @db.Decimal(19, 4) // CPP vigente
   stockQuantity Decimal   @default(0) @db.Decimal(19, 4) // unidades en existencia
+  minimumStock  Decimal?  @db.Decimal(19, 4)             // umbral para alerta de bajo stock
   accountId     String?
   account       Account?  @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
   cogsAccountId String?
