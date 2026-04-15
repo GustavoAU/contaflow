@@ -1,0 +1,154 @@
+// src/modules/payroll/services/PayrollConceptService.ts
+// Fase NOM-B: CRUD de conceptos de nómina configurables
+//
+// Conceptos del sistema (isSystem=true): generados automáticamente al inicializar
+// la nómina, no se pueden eliminar pero sí desactivar.
+// Conceptos de usuario: CRUD completo, solo ADMIN_ONLY en action.
+
+import prisma from "@/lib/prisma";
+import type { ConceptType } from "@prisma/client";
+import type { CreateConceptInput, UpdateConceptInput } from "../schemas/payroll-concept.schema";
+
+// ─── Tipos públicos ───────────────────────────────────────────────────────────
+
+export interface PayrollConceptRow {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: ConceptType;
+  isSystem: boolean;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+// ─── Conceptos del sistema (seeded cuando se activan por primera vez) ─────────
+// Basados en la configuración NOM-A: IVSS, INCES, Banavih — se activan según
+// los flags ivssEnabled/incesEnabled/banavihEnabled de PayrollConfig.
+
+const SYSTEM_CONCEPTS: Array<{
+  code: string;
+  name: string;
+  type: ConceptType;
+}> = [
+  // Asignaciones
+  { code: "SAL_BASE", name: "Salario Básico", type: "EARNING" },
+  { code: "HE_DIURNA", name: "Horas Extra Diurnas (50%)", type: "EARNING" },
+  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)", type: "EARNING" },
+  { code: "BONO_NOCHE", name: "Bono Nocturno (30%)", type: "EARNING" },
+  { code: "CESTA_TICKET", name: "Cesta Ticket / Alimentación", type: "EARNING" },
+  // Deducciones
+  { code: "IVSS_OBR", name: "IVSS Obrero (4%)", type: "DEDUCTION" },
+  { code: "INCES_OBR", name: "INCES Trabajador (0.5%)", type: "DEDUCTION" },
+  { code: "FAOV_OBR", name: "Banavih / FAOV Trabajador (1%)", type: "DEDUCTION" },
+  { code: "ISLR_RET", name: "Retención ISLR Empleado", type: "DEDUCTION" },
+];
+
+// ─── Serialización ────────────────────────────────────────────────────────────
+
+function serialize(c: {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: ConceptType;
+  isSystem: boolean;
+  isActive: boolean;
+  updatedAt: Date;
+}): PayrollConceptRow {
+  return {
+    id: c.id,
+    companyId: c.companyId,
+    code: c.code,
+    name: c.name,
+    type: c.type,
+    isSystem: c.isSystem,
+    isActive: c.isActive,
+    updatedAt: c.updatedAt.toISOString(),
+  };
+}
+
+// ─── PayrollConceptService ────────────────────────────────────────────────────
+
+export const PayrollConceptService = {
+  // ── list — todos los conceptos de la empresa ──────────────────────────────
+  async list(companyId: string): Promise<PayrollConceptRow[]> {
+    const concepts = await prisma.payrollConcept.findMany({
+      where: { companyId },
+      orderBy: [{ type: "asc" }, { isSystem: "desc" }, { code: "asc" }],
+    });
+    return concepts.map(serialize);
+  },
+
+  // ── seedDefaults — crea los conceptos del sistema si no existen ───────────
+  // Idempotente: usa upsert por (companyId, code). Llamado al abrir la nómina
+  // por primera vez o cuando el admin accede a la lista de conceptos.
+  async seedDefaults(companyId: string): Promise<void> {
+    await Promise.all(
+      SYSTEM_CONCEPTS.map((concept) =>
+        prisma.payrollConcept.upsert({
+          where: { companyId_code: { companyId, code: concept.code } },
+          create: { companyId, ...concept, isSystem: true, isActive: true },
+          update: {},
+        })
+      )
+    );
+  },
+
+  // ── create — concepto personalizado (no isSystem) ─────────────────────────
+  async create(companyId: string, input: CreateConceptInput): Promise<PayrollConceptRow> {
+    const concept = await prisma.payrollConcept.create({
+      data: {
+        companyId,
+        code: input.code,
+        name: input.name,
+        type: input.type,
+        isSystem: false,
+        isActive: true,
+      },
+    });
+    return serialize(concept);
+  },
+
+  // ── update — actualiza nombre e isActive ──────────────────────────────────
+  // No se puede cambiar el code ni el type (inmutables para integridad contable)
+  async update(
+    companyId: string,
+    conceptId: string,
+    input: UpdateConceptInput
+  ): Promise<PayrollConceptRow> {
+    const concept = await prisma.payrollConcept.findFirst({
+      where: { id: conceptId, companyId },
+    });
+    if (!concept) throw new Error("Concepto no encontrado");
+
+    const updated = await prisma.payrollConcept.update({
+      where: { id: conceptId },
+      data: { name: input.name, isActive: input.isActive },
+    });
+    return serialize(updated);
+  },
+
+  // ── delete — solo conceptos no-sistema y sin movimientos futuros ──────────
+  // NOM-B: solo permitir borrar si isSystem = false
+  // Los movimientos de nómina (NOM-C) tendrán FK a PayrollConcept — onDelete: Restrict
+  async delete(companyId: string, conceptId: string): Promise<void> {
+    const concept = await prisma.payrollConcept.findFirst({
+      where: { id: conceptId, companyId },
+    });
+    if (!concept) throw new Error("Concepto no encontrado");
+    if (concept.isSystem)
+      throw new Error("Los conceptos del sistema no se pueden eliminar. Puedes desactivarlos.");
+
+    await prisma.payrollConcept.delete({ where: { id: conceptId } });
+  },
+
+  // ── getSystemConcepts — para uso en NOM-C (cálculo de nómina) ─────────────
+  async getSystemConcepts(companyId: string): Promise<PayrollConceptRow[]> {
+    const concepts = await prisma.payrollConcept.findMany({
+      where: { companyId, isSystem: true, isActive: true },
+      orderBy: { code: "asc" },
+    });
+    return concepts.map(serialize);
+  },
+};
