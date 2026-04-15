@@ -98,8 +98,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 28 ✅ merged (Módulo Compras y Ventas — QuotationService + OrderService + UI + 45 tests — 1001 total)
 - Fase NOM-A ✅ merged (Wizard Configuración Nómina — PayrollConfig + 6 enums + 28 tests — 1029 total)
 - Fase NOM-B ✅ merged (Empleados y Conceptos — Employee + SalaryHistory + PayrollConcept + 4 enums + 69 tests — 1098 total)
+- Fase NOM-C ✅ branch feat/fase-nom-c-motor-nomina (Motor Cálculo — PayrollRun + PayrollRunLine + PayrollCalculatorService + 58 tests — 1156 total)
 
-**1098 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
+**1156 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 

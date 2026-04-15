@@ -72,7 +72,8 @@ export const AddSalarySchema = z.object({
   amount: z
     .string()
     .min(1, { message: "El monto es requerido" })
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { message: "Monto inválido" }),
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { message: "Monto inválido" })
+    .refine((v) => Number(v) <= 999_999_999, { message: "El monto excede el límite permitido" }),
   currency: z.enum(["VES", "USD", "MIXED"], {
     error: "Selecciona la moneda",
   }),

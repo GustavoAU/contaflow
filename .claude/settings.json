@@ -102,7 +102,10 @@
       "Bash(sed -i 's/Versión actualizada — Fase 32 completada/Versión actualizada — Fase 23C Residual completada/' contaflow-context-v3.md)",
       "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/employees/new\")",
       "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/employees/[employeeId]\")",
-      "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/concepts\")"
+      "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/concepts\")",
+      "Bash(grep -n \"^## \\\\|^### \\\\|^# \\\\|^---$\\\\|ADR-0\" \"d:/Documents/Projects/React/modern-cg1/contaflow-contract.md\")",
+      "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/new\")",
+      "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/[runId]\")"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
