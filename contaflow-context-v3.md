@@ -2265,3 +2265,126 @@ Vendor → Invoices → Retenciones → CxP → Asientos contables
 **NOM-C — Motor de Cálculo de Nómina**
 
 Incluye: cálculo quincenal/mensual con conceptos NOM-B, IVSS/INCES/Banavih según config NOM-A, horas extra LOTTT, recibo de pago PDF, causación asiento contable automático, guard de doble-proceso.
+
+---
+
+## Sección 56 — Fase NOM-C: Motor de Cálculo de Nómina ✅ completada 2026-04-15
+
+**Tests:** 1156 GREEN (+58 vs NOM-B) | **TS errors:** 0 | **Branch mergeado:** `feat/fase-nom-c-motor-nomina` → `main` (commit `6a8762b`)
+
+### Modelos Prisma nuevos
+
+#### `PayrollRun`
+```prisma
+model PayrollRun {
+  id                String           @id @default(cuid())
+  companyId         String
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            PayrollRunStatus @default(DRAFT)
+  totalEarnings     Decimal          @db.Decimal(18, 2)
+  totalDeductions   Decimal          @db.Decimal(18, 2)
+  totalNet          Decimal          @db.Decimal(18, 2)
+  employeeCount     Int
+  transactionId     String?          @unique
+  idempotencyKey    String           @unique
+  createdByUserId   String
+  approvedByUserId  String?
+  cancelledByUserId String?
+  approvedAt        DateTime?
+  cancelledAt       DateTime?
+  @@unique([companyId, periodStart, periodEnd])
+}
+enum PayrollRunStatus { DRAFT / APPROVED / CANCELLED }
+```
+
+#### `PayrollRunLine`
+Una línea por empleado+concepto. Incluye salary snapshot (FK + amount) para inmutabilidad histórica (ADR-013 Dec. 2).
+
+```prisma
+model PayrollRunLine {
+  salaryHistoryId        String
+  salarySnapshotAmount   Decimal  @db.Decimal(18, 2)
+  salarySnapshotCurrency String
+  hours                  Decimal?
+  rate                   Decimal?
+}
+```
+
+#### `PayrollConfig` — 5 FKs contables añadidas
+`expenseAccountId`, `payableAccountId`, `ivssPayableAccountId`, `faovPayableAccountId`, `incesPayableAccountId` — todas nullable.
+
+### Servicios nuevos
+
+#### `PayrollCalculatorService` (puro — sin DB)
+Constantes legales fijas (ADR-013 Dec. 8 — INVIOLABLE):
+- `IVSS_WORKER_RATE = 0.04` (4%)
+- `INCES_WORKER_RATE = 0.02` (2%)
+- `FAOV_WORKER_RATE = 0.01` (1%)
+- `HE_DAY_MULTIPLIER = 1.5` (50% recargo LOTTT art. 118)
+- `HE_NIGHT_MULTIPLIER = 1.75` (75% recargo LOTTT art. 118)
+
+Conceptos calculados: `SAL_BASE` (proporcional a días trabajados), `HE_DIURNA`, `HE_NOCTURNA`, `IVSS_OBR`, `INCES_OBR`, `FAOV_OBR`. Guards: horas negativas → throw; neto < 0 → throw.
+
+#### `PayrollRunService`
+- `list(companyId)` — listado sin líneas
+- `getById(companyId, runId)` — IDOR guard por companyId en findFirst
+- `create()` — guard período contable abierto (year/month) → guard config → guard empleados activos → calcular → `$transaction` (create + createMany líneas + auditLog)
+- `approve()` — findFirst IDOR → guard status DRAFT → guard período → guard cuentas (expenseAccountId + payableAccountId requeridas) → `$transaction` (updateMany mutex `{ status: 'DRAFT' }` → transaction.create asiento consolidado → payrollRun.update → auditLog)
+- `cancel()` — solo DRAFT cancelable; APPROVED lanza error explícito
+
+### Server Actions (5)
+
+| Acción | Rol mínimo | Rate limit |
+|---|---|---|
+| `getPayrollRunsAction` | ACCOUNTING | No |
+| `getPayrollRunDetailAction` | ACCOUNTING | No |
+| `createPayrollRunAction` | ADMIN_ONLY | fiscal (30/min) |
+| `approvePayrollRunAction` | ADMIN_ONLY | fiscal (30/min) |
+| `cancelPayrollRunAction` | ADMIN_ONLY | fiscal (30/min) |
+
+`createPayrollRunAction` captura `P2002` → "Ya existe un proceso de nómina para este período" (guard doble-proceso).
+
+### Rutas UI
+
+| Ruta | Descripción |
+|---|---|
+| `/payroll/runs` | Listado de procesos (ACCOUNTING) |
+| `/payroll/runs/new` | Formulario creación (ADMIN_ONLY) |
+| `/payroll/runs/[runId]` | Detalle + aprobación/cancelación |
+
+### Decisiones arquitectónicas (ADR-013)
+
+8 decisiones documentadas. Las más críticas:
+- **Dec. 1:** Doble-proceso guard = `@@unique` + P2002 catch (Read Committed suficiente — no Serializable)
+- **Dec. 2:** Salary snapshot = FK (trazabilidad) + amount (verdad inmutable) — Opción C
+- **Dec. 3:** Cuentas contables configurables (5 FKs nullable en PayrollConfig)
+- **Dec. 4:** Asiento consolidado por run (un Transaction, no uno por empleado) — YAGNI
+- **Dec. 5:** Approve mutex = `updateMany({ where: { status: 'DRAFT' } })` — atómico bajo Read Committed
+- **Dec. 6:** ISLR = concepto manual (cálculo externo por ahora) — no automatizado en NOM-C
+- **Dec. 7:** Solo DRAFT cancelable; APPROVED requiere proceso de void separado (NOM-D scope)
+- **Dec. 8:** Tasas legales como constantes de código — no configurables en DB (ADR-006 D-3)
+
+### Fixes residuales NOM-B incluidos en NOM-C
+
+- **NOM-C-15:** `ConceptService` — añadido `auditLog.create` dentro de `$transaction` en create/update/delete
+- **NOM-C-16:** `AddSalarySchema.amount` — añadido ceiling `.refine(v => Number(v) <= 999_999_999)`
+- **NOM-C-18:** `terminateEmployeeAction` — añadido `checkRateLimit(userId, limiters.fiscal)`
+
+### Tests nuevos (+58)
+
+| Archivo | Tests |
+|---|---|
+| `PayrollCalculatorService.test.ts` | ~20 (motor puro — sin mocks DB) |
+| `PayrollRunService.test.ts` | ~17 (CRUD + estados + IDOR) |
+| `payroll-run.actions.test.ts` | ~23 (auth + rol + rate limit + Zod + P2002) |
+| `PayrollConceptService.test.ts` | Reescrito (+2 para auditLog) |
+
+### Próxima fase: NOM-D
+
+**NOM-D — Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT**
+- Garantía trimestral de prestaciones (5 días/trimestre)
+- Intereses sobre prestaciones (tasa BCV)
+- Vacaciones (15 días hábiles mínimo + bono vacacional)
+- Utilidades (15 días mínimo según LOTTT)
+- Liquidación Final: cálculo integrado + PDF recibo
