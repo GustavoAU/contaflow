@@ -173,6 +173,13 @@ model Company {
   absenceTypes                AbsenceType[]
   // Fase NOM-C: Motor de Cálculo de Nómina
   payrollRuns                 PayrollRun[]
+  // Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación
+  bcvBenefitRates             BcvBenefitRate[]
+  benefitBalances             BenefitBalance[]
+  benefitAccrualLines         BenefitAccrualLine[]
+  vacationRecords             VacationRecord[]
+  profitSharingRecords        ProfitSharingRecord[]
+  terminations                Termination[]
 }
 
 model CompanyMember {
@@ -219,6 +226,11 @@ model Account {
   payrollConfigsAsIvss        PayrollConfig[]      @relation("PayrollIvssPayable")
   payrollConfigsAsFaov        PayrollConfig[]      @relation("PayrollFaovPayable")
   payrollConfigsAsInces       PayrollConfig[]      @relation("PayrollIncesPayable")
+  // Fase NOM-D: cuentas de prestaciones
+  payrollConfigsAsBenefitsExpense  PayrollConfig[] @relation("PayrollBenefitsExpense")
+  payrollConfigsAsBenefitsPayable  PayrollConfig[] @relation("PayrollBenefitsPayable")
+  payrollConfigsAsVacationPayable  PayrollConfig[] @relation("PayrollVacationPayable")
+  payrollConfigsAsProfitPayable    PayrollConfig[] @relation("PayrollProfitPayable")
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
@@ -273,6 +285,11 @@ model Transaction {
   inventoryMovement              InventoryMovement?
   // Fase NOM-C: Motor de Nómina
   payrollRun                     PayrollRun?
+  // Fase NOM-D: Beneficios laborales
+  benefitAccrualLine             BenefitAccrualLine?
+  vacationRecord                 VacationRecord?
+  profitSharingRecord            ProfitSharingRecord?
+  termination                    Termination?
 
   @@unique([companyId, number])
 }
@@ -1063,6 +1080,15 @@ model PayrollConfig {
   ivssPayableAccountId  String?    // LIABILITY — IVSS Obrero por Pagar
   faovPayableAccountId  String?    // LIABILITY — FAOV / BANAVIH por Pagar
   incesPayableAccountId String?    // LIABILITY — INCES por Pagar
+  // Fase NOM-D: Cuentas contables para prestaciones sociales, vacaciones y utilidades
+  // ADR-014 Decisión 7: causación periódica requiere cuentas separadas
+  benefitsExpenseAccountId      String?    // EXPENSE — Gastos Prestaciones Sociales
+  benefitsPayableAccountId      String?    // LIABILITY — Prestaciones Sociales por Pagar
+  vacationPayableAccountId      String?    // LIABILITY — Vacaciones por Pagar
+  profitSharingPayableAccountId String?    // LIABILITY — Utilidades por Pagar
+  // Fase NOM-D: Configuración de beneficios legales
+  profitDays            Int              @default(15)  // días de utilidades (15–120 LOTTT Art. 131)
+  vacationBonusDays     Int              @default(7)   // días bono vacacional año 1 (LOTTT Art. 223)
   // Timestamps
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -1073,6 +1099,10 @@ model PayrollConfig {
   ivssPayableAccount    Account?             @relation("PayrollIvssPayable", fields: [ivssPayableAccountId], references: [id], onDelete: Restrict)
   faovPayableAccount    Account?             @relation("PayrollFaovPayable", fields: [faovPayableAccountId], references: [id], onDelete: Restrict)
   incesPayableAccount   Account?             @relation("PayrollIncesPayable", fields: [incesPayableAccountId], references: [id], onDelete: Restrict)
+  benefitsExpenseAccount      Account? @relation("PayrollBenefitsExpense", fields: [benefitsExpenseAccountId], references: [id], onDelete: Restrict)
+  benefitsPayableAccount      Account? @relation("PayrollBenefitsPayable", fields: [benefitsPayableAccountId], references: [id], onDelete: Restrict)
+  vacationPayableAccount      Account? @relation("PayrollVacationPayable", fields: [vacationPayableAccountId], references: [id], onDelete: Restrict)
+  profitSharingPayableAccount Account? @relation("PayrollProfitPayable", fields: [profitSharingPayableAccountId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {
@@ -1152,6 +1182,11 @@ model Employee {
   salaryHistory   SalaryHistory[]
   // Fase NOM-C
   payrollRunLines PayrollRunLine[]
+  // Fase NOM-D
+  benefitBalance  BenefitBalance?
+  vacationRecords VacationRecord[]
+  profitSharingRecords ProfitSharingRecord[]
+  terminations    Termination[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -1318,4 +1353,228 @@ model PayrollRunLine {
   @@index([payrollRunId])
   @@index([companyId, employeeId])
   @@index([companyId, payrollRunId, employeeId])
+}
+
+// ─── Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación ────
+// ADR-014: arquitectura de beneficios laborales LOTTT Venezuela
+
+// Tasa activa promedio BCV mensual — fuente oficial para intereses sobre prestaciones (Art. 143 LOTTT)
+// ADMIN-only: la tasa nunca viene del cliente en acciones de transacción (ADR-014 Dec. 2 / ADR-006 D-3)
+model BcvBenefitRate {
+  id              String   @id @default(cuid())
+  companyId       String
+  year            Int
+  month           Int      // 1–12
+  annualRate      Decimal  @db.Decimal(5, 2)  // porcentaje anual, ej: 45.50 = 45.5%
+  source          String   @default("BCV")    // "BCV" | "MANUAL"
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  accrualLines    BenefitAccrualLine[]
+
+  @@unique([companyId, year, month])
+  @@index([companyId, year, month])
+}
+
+// Saldo corriente de prestaciones por empleado — proyección desnormalizada para performance.
+// La fuente de verdad son los BenefitAccrualLine.
+// Uno por empleado — creado al contratar, cerrado (isLiquidated) al finalizar la liquidación.
+model BenefitBalance {
+  id              String    @id @default(cuid())
+  companyId       String
+  employeeId      String    @unique  // uno por empleado
+  currentBalance  Decimal   @db.Decimal(19, 4) @default(0)  // acumulado prestaciones
+  interestBalance Decimal   @db.Decimal(19, 4) @default(0)  // intereses BCV acumulados
+  isLiquidated    Boolean   @default(false)
+  liquidatedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  accrualLines    BenefitAccrualLine[]
+  termination     Termination?
+
+  @@index([companyId])
+  @@index([companyId, isLiquidated])
+}
+
+enum BenefitAccrualType {
+  QUARTERLY_ACCRUAL  // accrual trimestral Art. 142 LOTTT — asiento obligatorio
+  BCV_INTEREST       // intereses Art. 143 LOTTT — asiento obligatorio
+  ADJUSTMENT         // corrección administrativa — asiento opcional
+}
+
+// Evento de acumulación de prestaciones — inmutable post-creación (ADR-014 Dec. 3)
+// @@unique([benefitBalanceId, year, quarter, type]) para QUARTERLY_ACCRUAL previene doble-accrual (ADR-014 Dec. 1)
+model BenefitAccrualLine {
+  id                       String             @id @default(cuid())
+  companyId                String
+  benefitBalanceId         String
+  type                     BenefitAccrualType
+  // Período del evento
+  year                     Int
+  quarter                  Int?               // 1–4 para QUARTERLY_ACCRUAL
+  month                    Int?               // 1–12 para BCV_INTEREST
+  // Snapshot de salario integral al momento del accrual (inmutable post-creación — ADR-014 Dec. 3)
+  dailyNormalWage          Decimal?           @db.Decimal(19, 4)  // snapshot salario diario normal
+  profitDaysAliquot        Decimal?           @db.Decimal(19, 4)  // alícuota utilidades
+  vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 4)  // alícuota bono vacacional
+  integralDailyWage        Decimal?           @db.Decimal(19, 4)  // = suma de los tres campos
+  accrualDays              Int?               // días base del período (5 en año 1)
+  // Montos del evento
+  accrualAmount            Decimal            @db.Decimal(19, 4)
+  runningBalance           Decimal            @db.Decimal(19, 4)  // saldo acumulado post-evento
+  // Tasa BCV aplicada (solo BCV_INTEREST)
+  bcvRateId                String?
+  appliedRate              Decimal?           @db.Decimal(5, 2)   // snapshot de la tasa aplicada
+  // Asiento contable — NON-NULL para QUARTERLY_ACCRUAL y BCV_INTEREST
+  transactionId            String?            @unique
+  notes                    String?
+  createdByUserId          String
+  createdAt                DateTime           @default(now())
+
+  company                  Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  benefitBalance           BenefitBalance     @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  bcvRate                  BcvBenefitRate?    @relation(fields: [bcvRateId], references: [id], onDelete: Restrict)
+  transaction              Transaction?       @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  // Guard doble-accrual trimestral — P2002 si se intenta duplicar (ADR-014 Dec. 1)
+  @@unique([benefitBalanceId, year, quarter, type])
+  @@index([companyId])
+  @@index([benefitBalanceId, createdAt(sort: Desc)])
+  @@index([companyId, year, quarter])
+}
+
+// Registro de vacaciones causadas por el empleado (disfrute o pago).
+// Append-only — no se eliminan (ADR-003).
+// isFractional = true → fracción calculada en liquidación final.
+model VacationRecord {
+  id              String    @id @default(cuid())
+  companyId       String
+  employeeId      String
+  periodYear      Int       // año de devengo
+  vacationDays    Decimal   @db.Decimal(5, 2)   // días hábiles causados (máx 90 — Zod)
+  bonusDays       Decimal   @db.Decimal(5, 2)   // bono vacacional causado (máx 90 — Zod)
+  // Montos snapshot — dailyNormalWage calculado server-side, nunca del cliente (ADR-014 Dec. 3)
+  dailyNormalWage Decimal   @db.Decimal(19, 4)
+  vacationAmount  Decimal   @db.Decimal(19, 4)
+  bonusAmount     Decimal   @db.Decimal(19, 4)
+  // Período de disfrute
+  startDate       DateTime  @db.Date
+  endDate         DateTime  @db.Date
+  isFractional    Boolean   @default(false)     // true si es fracción en liquidación
+  // Asiento contable
+  transactionId   String?   @unique
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  transaction     Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, employeeId, periodYear, isFractional])
+  @@index([companyId, employeeId])
+  @@index([companyId, periodYear])
+}
+
+// Utilidades causadas por empleado por año fiscal (Art. 131-132 LOTTT).
+// Append-only — no se eliminan (ADR-003).
+// isFractional = true → fracción calculada en liquidación final.
+model ProfitSharingRecord {
+  id                  String    @id @default(cuid())
+  companyId           String
+  employeeId          String
+  fiscalYear          Int       // año fiscal de devengo
+  profitDays          Decimal   @db.Decimal(5, 2)   // días configurados (15–120 — Zod)
+  fractionalDays      Decimal   @db.Decimal(5, 2)   // días proporcionales al tiempo trabajado
+  monthsWorked        Int                           // meses completos en el año fiscal
+  // Snapshot de salario base — calculado server-side (ADR-014 Dec. 3)
+  baseSalarySnapshot  Decimal   @db.Decimal(19, 4)  // promedio salarial del período
+  profitAmount        Decimal   @db.Decimal(19, 4)  // fractionalDays × (baseSalary/30)
+  isFractional        Boolean   @default(false)     // true si es fracción en liquidación
+  // Asiento contable
+  transactionId       String?   @unique
+  createdByUserId     String
+  createdAt           DateTime  @default(now())
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  transaction         Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, employeeId, fiscalYear, isFractional])
+  @@index([companyId, employeeId])
+  @@index([companyId, fiscalYear])
+}
+
+enum TerminationStatus {
+  DRAFT      // editable — cálculos revisables
+  FINALIZING // mutex en tránsito — indica failure parcial si persiste (ADR-014 Dec. 6)
+  FINALIZED  // terminal e inmutable — documento laboral generado
+}
+
+enum TerminationReason {
+  RESIGNATION           // Renuncia voluntaria
+  DISMISSAL_JUSTIFIED   // Despido justificado (Art. 79 LOTTT)
+  DISMISSAL_UNJUSTIFIED // Despido injustificado — activa indemnización Art. 92
+  MUTUAL_AGREEMENT      // Mutuo acuerdo
+  CONTRACT_EXPIRY       // Vencimiento de contrato determinado
+  DEATH                 // Fallecimiento
+  DISABILITY            // Incapacidad total permanente
+}
+
+// Liquidación Final — documento laboral inmutable post-FINALIZED (ADR-014 Dec. 4).
+// Desnormalizado: cada monto es un snapshot calculado al momento de la liquidación.
+// Double-finalization guard: updateMany mutex con estado FINALIZING (ADR-014 Dec. 6).
+model Termination {
+  id                            String            @id @default(cuid())
+  companyId                     String
+  employeeId                    String
+  reason                        TerminationReason
+  status                        TerminationStatus @default(DRAFT)
+  terminationDate               DateTime          @db.Date
+  // Trazabilidad de origen (ADR-014 Dec. 4)
+  benefitBalanceId              String?           @unique
+  // ── Componentes snapshot de la liquidación ──
+  // Prestaciones
+  benefitsAccumulatedAmount     Decimal           @db.Decimal(19, 4) @default(0)
+  benefitsInterestAmount        Decimal           @db.Decimal(19, 4) @default(0)
+  // Vacaciones fraccionadas
+  vacationFractionalDays        Decimal           @db.Decimal(5, 2)  @default(0)
+  vacationFractionalAmount      Decimal           @db.Decimal(19, 4) @default(0)
+  vacationBonusFractionalAmount Decimal           @db.Decimal(19, 4) @default(0)
+  // Utilidades fraccionadas
+  profitSharingFractionalDays   Decimal           @db.Decimal(5, 2)  @default(0)
+  profitSharingFractionalAmount Decimal           @db.Decimal(19, 4) @default(0)
+  profitSharingBaseSalary       Decimal?          @db.Decimal(19, 4) // promedio snapshot (ADR-014 Dec. 8)
+  // Indemnización Art. 92 (solo DISMISSAL_UNJUSTIFIED)
+  indemnificationAmount         Decimal           @db.Decimal(19, 4) @default(0)
+  // Otros conceptos pendientes
+  pendingConceptsAmount         Decimal           @db.Decimal(19, 4) @default(0)
+  pendingConceptsNotes          String?
+  // Totales
+  totalGrossAmount              Decimal           @db.Decimal(19, 4) @default(0)
+  deductionsAmount              Decimal           @db.Decimal(19, 4) @default(0)
+  totalNetAmount                Decimal           @db.Decimal(19, 4) @default(0)
+  // Asiento contable de liquidación (NON-NULL al finalizar)
+  transactionId                 String?           @unique
+  // Idempotencia — previene doble-submit desde UI
+  idempotencyKey                String            @unique
+  // Auditoría
+  createdByUserId               String
+  finalizedByUserId             String?
+  finalizedAt                   DateTime?
+  deletedAt                     DateTime?         // soft delete
+  createdAt                     DateTime          @default(now())
+  updatedAt                     DateTime          @updatedAt
+
+  company                       Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee                      Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  benefitBalance                BenefitBalance?   @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  transaction                   Transaction?      @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId])
+  @@index([companyId, status])
+  @@index([companyId, terminationDate(sort: Desc)])
 }

@@ -2387,4 +2387,127 @@ Conceptos calculados: `SAL_BASE` (proporcional a días trabajados), `HE_DIURNA`,
 - Intereses sobre prestaciones (tasa BCV)
 - Vacaciones (15 días hábiles mínimo + bono vacacional)
 - Utilidades (15 días mínimo según LOTTT)
+
+---
+
+## Sección 57 — Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final ⏳ en progreso 2026-04-16
+
+**Branch:** `feat/fase-nom-d-prestaciones` | **ADR:** ADR-014 (8 decisiones) | **Decisiones validadas:** 2026-04-16
+
+### Scope
+
+| Componente | LOTTT | Estado |
+|---|---|---|
+| Garantía trimestral de prestaciones | Art. 142 | ✅ BenefitAccrualService |
+| Intereses BCV sobre prestaciones | Art. 143 | ✅ BenefitAccrualService |
+| Registro tasa BCV (ADMIN) | Art. 143 | ✅ BenefitAccrualService |
+| Vacaciones + bono vacacional | Art. 190–192 | ⏳ VacationService |
+| Utilidades fraccionadas | Art. 131–132 | ⏳ ProfitSharingService |
+| Liquidación Final (wizard DRAFT→FINALIZED) | Art. 92, 102–105 | ⏳ TerminationService |
+
+### Modelos Prisma nuevos (migración 20260415_nom_d_prestaciones_sociales)
+
+#### Enums nuevos
+- `BenefitAccrualType`: `QUARTERLY_ACCRUAL | BCV_INTEREST | ADJUSTMENT`
+- `TerminationStatus`: `DRAFT | FINALIZING | FINALIZED`
+- `TerminationReason`: `RESIGNATION | DISMISSAL_JUSTIFIED | DISMISSAL_UNJUSTIFIED | MUTUAL_AGREEMENT | CONTRACT_EXPIRY | DEATH | DISABILITY`
+
+#### `BcvBenefitRate`
+Tabla de tasas BCV mensuales por empresa. ADMIN-only. Nunca aceptada del cliente en acciones de transacción (ADR-014 Dec. 2 / ADR-006 D-3 extendido).
+```
+@@unique([companyId, year, month])
+```
+
+#### `BenefitBalance`
+Saldo corriente desnormalizado por empleado (para performance). Se actualiza dentro del mismo `$transaction` que crea `BenefitAccrualLine`.
+```
+@@unique([employeeId])  // un saldo por empleado
+```
+
+#### `BenefitAccrualLine`
+Evento por evento — audit trail completo de prestaciones.
+```
+@@unique([benefitBalanceId, year, quarter, type])  // guard doble-accrual (ADR-014 Dec. 1)
+@@unique([transactionId])
+```
+Campos snapshot inmutables: `dailyNormalWage`, `profitDaysAliquot`, `vacationBonusDaysAliquot`, `integralDailyWage` — nunca del cliente.
+
+#### `VacationRecord`
+Un registro por período de vacaciones. Guard doble-pago:
+```
+@@unique([companyId, employeeId, periodYear, isFractional])
+```
+
+#### `ProfitSharingRecord`
+Un registro por año fiscal de utilidades.
+```
+@@unique([companyId, employeeId, fiscalYear, isFractional])
+```
+
+#### `Termination`
+Liquidación final desnormalizada con 11 campos de monto por componente. Estado máquina DRAFT→FINALIZING→FINALIZED.
+```
+@@unique([idempotencyKey])   // guard idempotencia
+@@unique([benefitBalanceId]) // un solo balance por liquidación
+@@unique([transactionId])
+```
+
+#### `PayrollConfig` — 6 campos nuevos
+4 FKs contables: `benefitsExpenseAccountId`, `benefitsPayableAccountId`, `vacationPayableAccountId`, `profitSharingPayableAccountId`.
+2 configs: `profitDays` (default 15), `vacationBonusDays` (default 7).
+
+### Servicios
+
+#### `BenefitAccrualService` ✅
+- `getOrCreateBalance(companyId, employeeId, userId)` — obtiene o crea `BenefitBalance`
+- `getBalance(companyId, employeeId)` → `BenefitBalanceRow | null` — IDOR guard por companyId
+- `accrueQuarter(companyId, userId, year, quarter)` — accrual trimestral batch para todos los activos. Guard: período OPEN, config OK, P2002 → skip (doble-accrual). Asiento DB/CR por causación (VEN-NIF / NIC 19).
+- `postBenefitInterest(companyId, userId, year, month)` — intereses BCV. Tasa de `BcvBenefitRate` DB (nunca cliente). Factor mensual = annualRate/100/12.
+- `createBcvRate(companyId, userId, year, month, annualRate)` — ADMIN-only insert de tasa.
+- `listBcvRates(companyId)` — listado de tasas registradas.
+
+#### `VacationService` ⏳
+- `create()`, `listByEmployee()`
+
+#### `ProfitSharingService` ⏳
+- `calculate()`, `listByEmployee()`
+
+#### `TerminationService` ⏳
+- `create()`, `finalize()`, `getById()`, `list()`
+
+### Decisiones arquitectónicas clave (ADR-014)
+
+| Decisión | Elección | Razón |
+|---|---|---|
+| Schema accrual | BenefitBalance + BenefitAccrualLine (Opción C) | Audit trail completo; accrual independiente del ciclo de nómina |
+| Tasa BCV | Tabla BcvBenefitRate ADMIN-only | CRITICAL-3 — nunca del cliente |
+| Salario integral | Snapshot al momento del evento | Costo histórico VEN-NIF — cambios posteriores no retroactivos |
+| Liquidación | Manual wizard DRAFT→FINALIZING→FINALIZED | Documento legal con firma LOTTT Art. 102–105 |
+| Aislamiento | Read Committed (@@unique mutex + updateMany mutex) | Serializable solo para correlativos fiscales (ADR-001) |
+| Double-accrual | @@unique + P2002 catch | Atómico bajo Read Committed |
+| Double-finalization | updateMany mutex estado FINALIZING | Atómico + estado recuperable para soporte |
+| Asiento | Un Transaction por evento de causación | VEN-NIF / NIC 19 — devengado periódico |
+| Meses fraccionados | 15+ días = mes completo | Jurisprudencia TSJ Sala Social |
+
+### Security findings NOM-D (todos pre-emptados)
+
+| Finding | Mitigación |
+|---|---|
+| Double-accrual | `@@unique([benefitBalanceId, year, quarter, type])` + P2002 skip |
+| IDOR en mutaciones | `findFirst({ where: { id, companyId } })` siempre |
+| Tasa BCV del cliente | Solo en tabla `BcvBenefitRate` ADMIN-only; acciones de interés no reciben `rate` |
+| Double-finalization | `updateMany` mutex + estado `FINALIZING` |
+| profitDays fuera de rango | Zod: `.int().min(15).max(120)` |
+| vacationDays sin ceiling | Zod: `vacationDays.max(90)`, `bonusDays.max(90)` |
+| dailyWage del cliente | Ningún schema NOM-D acepta `dailyWage` del cliente |
+| Termination de TERMINATED | Guard `employee.status === 'ACTIVE'` en `TerminationService.create()` |
+| Rate limit faltante | `checkRateLimit(userId, limiters.fiscal)` en todas las acciones write |
+
+### Fixes NOM-B residuales (MEDIUM) — implementados antes de NOM-D
+
+| Fix | Archivo | Cambio |
+|---|---|---|
+| `terminationDate >= hireDate` | `EmployeeService.terminate()` | Guard explícito con mensaje claro |
+| `initialSalaryAmount` ceiling | `CreateEmployeeSchema` | `.refine(v => Number(v) <= 999_999_999)` |
+| `addSalary` bloqueado TERMINATED | `EmployeeService.addSalary()` | Guard `employee.status === 'TERMINATED'` |
 - Liquidación Final: cálculo integrado + PDF recibo
