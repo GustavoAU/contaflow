@@ -32,7 +32,12 @@ export const CreateEmployeeSchema = z.object({
   bankName: z.string().max(100).optional(),
   bankAccount: z.string().max(30).optional(),
   // Salario inicial (opcional al crear)
-  initialSalaryAmount: z.string().optional(),
+  initialSalaryAmount: z
+    .string()
+    .optional()
+    .refine((v) => !v || (Number(v) > 0 && Number(v) <= 999_999_999), {
+      message: "El monto excede el límite permitido",
+    }),
   initialSalaryCurrency: z.enum(["VES", "USD", "MIXED"]).optional(),
 });
 

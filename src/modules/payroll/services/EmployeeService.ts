@@ -345,6 +345,12 @@ export const EmployeeService = {
       if (!previous) throw new Error("Empleado no encontrado");
       if (previous.status === "TERMINATED") throw new Error("El empleado ya está egresado");
 
+      // NOM-D residual fix: terminationDate debe ser >= hireDate
+      const terminationDateObj = new Date(input.terminationDate);
+      if (terminationDateObj < previous.hireDate) {
+        throw new Error("La fecha de egreso no puede ser anterior a la fecha de ingreso");
+      }
+
       const updated = await tx.employee.update({
         where: { id: employeeId },
         data: {
@@ -383,6 +389,10 @@ export const EmployeeService = {
         where: { id: employeeId, companyId },
       });
       if (!employee) throw new Error("Empleado no encontrado");
+      // NOM-D residual fix: no modificar salario de empleado egresado
+      if (employee.status === "TERMINATED") {
+        throw new Error("No se puede modificar el salario de un empleado egresado");
+      }
 
       const entry = await tx.salaryHistory.create({
         data: {
