@@ -137,23 +137,68 @@ export default async function PayrollPage({ params }: Props) {
               </div>
             )}
 
-            {/* Próximamente */}
-            {[
-              { label: "Cálculo de Nómina", desc: "Motor quincenal/mensual + recibo PDF" },
-              { label: "Prestaciones Sociales", desc: "Garantía trimestral + intereses BCV" },
-              { label: "Reportes Legales", desc: "IVSS, INCES, Banavih, ARC/ISLR" },
-            ].map((m) => (
-              <div
-                key={m.label}
-                className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60"
+            {/* Cálculo de Nómina — NOM-C */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/runs`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-700">{m.label}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{m.desc}</p>
-                <span className="mt-2 inline-block rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
-                  Próximamente
-                </span>
+                <p className="font-medium text-gray-800">Cálculo de Nómina</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Motor quincenal/mensual + recibo PDF
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Cálculo de Nómina</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
               </div>
-            ))}
+            )}
+
+            {/* Prestaciones Sociales — NOM-D */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/benefits`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Prestaciones Sociales</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Garantía trimestral + intereses BCV
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Prestaciones Sociales</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Liquidaciones Finales — NOM-D */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/terminations`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Liquidaciones Finales</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Cálculo de egreso LOTTT
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Liquidaciones Finales</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Reportes Legales — NOM-E (próximamente) */}
+            <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+              <p className="font-medium text-gray-700">Reportes Legales</p>
+              <p className="mt-0.5 text-xs text-gray-500">IVSS, INCES, Banavih, ARC/ISLR</p>
+              <span className="mt-2 inline-block rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
+                Próximamente
+              </span>
+            </div>
           </div>
         </section>
       )}
