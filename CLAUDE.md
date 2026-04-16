@@ -99,9 +99,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase NOM-A ✅ merged (Wizard Configuración Nómina — PayrollConfig + 6 enums + 28 tests — 1029 total)
 - Fase NOM-B ✅ merged (Empleados y Conceptos — Employee + SalaryHistory + PayrollConcept + 4 enums + 69 tests — 1098 total)
 - Fase NOM-C ✅ merged (Motor Cálculo — PayrollRun + PayrollRunLine + PayrollCalculatorService + 58 tests — 1156 total)
-- Fase NOM-D ⏳ en progreso (Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT — branch `feat/fase-nom-d-prestaciones`)
+- Fase NOM-D ✅ merged (Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT — 77 tests — 1233 total)
 
-**1156 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-15)
+**1233 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-16)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 

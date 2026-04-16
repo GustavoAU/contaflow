@@ -548,7 +548,7 @@ model FiscalYearClose {
   - ✅ Fase NOM-A: Wizard de configuración de nómina — completada 2026-04-15 (ver sección 53)
   - ✅ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios — completada 2026-04-15 (ver sección 54)
   - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
-  - ⏳ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final
+  - ✅ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final (1233 tests)
   - ⏳ Fase NOM-E: Reportes legales (IVSS, INCES, Banavih, ARC/ISLR, SENIAT)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
@@ -2380,9 +2380,9 @@ Conceptos calculados: `SAL_BASE` (proporcional a días trabajados), `HE_DIURNA`,
 | `payroll-run.actions.test.ts` | ~23 (auth + rol + rate limit + Zod + P2002) |
 | `PayrollConceptService.test.ts` | Reescrito (+2 para auditLog) |
 
-### Próxima fase: NOM-D
+### ~~Próxima fase: NOM-D~~ (completada)
 
-**NOM-D — Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT**
+**NOM-D — Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT** ✅
 - Garantía trimestral de prestaciones (5 días/trimestre)
 - Intereses sobre prestaciones (tasa BCV)
 - Vacaciones (15 días hábiles mínimo + bono vacacional)
@@ -2390,9 +2390,9 @@ Conceptos calculados: `SAL_BASE` (proporcional a días trabajados), `HE_DIURNA`,
 
 ---
 
-## Sección 57 — Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final ⏳ en progreso 2026-04-16
+## Sección 57 — Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final ✅ completada 2026-04-16
 
-**Branch:** `feat/fase-nom-d-prestaciones` | **ADR:** ADR-014 (8 decisiones) | **Decisiones validadas:** 2026-04-16
+**Branch:** `feat/fase-nom-d-prestaciones` (mergeada a `main`) | **ADR:** ADR-014 (8 decisiones) | **Tests:** 1233 GREEN
 
 ### Scope
 
@@ -2401,9 +2401,9 @@ Conceptos calculados: `SAL_BASE` (proporcional a días trabajados), `HE_DIURNA`,
 | Garantía trimestral de prestaciones | Art. 142 | ✅ BenefitAccrualService |
 | Intereses BCV sobre prestaciones | Art. 143 | ✅ BenefitAccrualService |
 | Registro tasa BCV (ADMIN) | Art. 143 | ✅ BenefitAccrualService |
-| Vacaciones + bono vacacional | Art. 190–192 | ⏳ VacationService |
-| Utilidades fraccionadas | Art. 131–132 | ⏳ ProfitSharingService |
-| Liquidación Final (wizard DRAFT→FINALIZED) | Art. 92, 102–105 | ⏳ TerminationService |
+| Vacaciones + bono vacacional | Art. 190–192 | ✅ VacationService |
+| Utilidades fraccionadas | Art. 131–132 | ✅ ProfitSharingService |
+| Liquidación Final (wizard DRAFT→FINALIZED) | Art. 92, 102–105 | ✅ TerminationService |
 
 ### Modelos Prisma nuevos (migración 20260415_nom_d_prestaciones_sociales)
 
@@ -2466,14 +2466,14 @@ Liquidación final desnormalizada con 11 campos de monto por componente. Estado 
 - `createBcvRate(companyId, userId, year, month, annualRate)` — ADMIN-only insert de tasa.
 - `listBcvRates(companyId)` — listado de tasas registradas.
 
-#### `VacationService` ⏳
-- `create()`, `listByEmployee()`
+#### `VacationService` ✅
+- `create()`, `listByEmployee()`, `computeFractionalDays()`
 
-#### `ProfitSharingService` ⏳
+#### `ProfitSharingService` ✅
 - `calculate()`, `listByEmployee()`
 
-#### `TerminationService` ⏳
-- `create()`, `finalize()`, `getById()`, `list()`
+#### `TerminationService` ✅
+- `create()`, `update()`, `finalize()` (mutex DRAFT→FINALIZING→FINALIZED), `getById()`, `list()`
 
 ### Decisiones arquitectónicas clave (ADR-014)
 
