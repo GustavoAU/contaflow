@@ -2579,3 +2579,62 @@ Guards: auth → companyMember → `ROLES.ACCOUNTING`. IDOR en ARC: `employee.fi
 - **NOM-E-03**: ARC usa ingresos reales del año (no proyección) — correcto para el documento anual definitivo
 - **utValue en PayrollConfig** (no en la action): centraliza la configuración y no requiere que el usuario ingrese la UT en cada reporte
 - **No `$transaction`, no `AuditLog`, no rate limiting** en acciones read-only de reportes
+
+## Sección 59 — Fase 35A: Vendor / Customer — Círculo de Confianza ✅ completada 2026-04-19
+
+### Alcance
+
+Entidades `Vendor` y `Customer` con FK nullable en `Invoice`. Cierra el gap entre `Invoice.counterpartName` (string libre) y una entidad estructurada con RIF, email, teléfono.
+
+### Schema (ADR-003 compliant)
+
+```prisma
+model Vendor {
+  id, companyId, name, rif?, email?, phone?, address?
+  deletedAt DateTime?   // soft-delete (no isActive boolean)
+  @@unique([companyId, rif])
+  @@index([companyId, deletedAt])
+}
+model Customer { … mismo esquema … }
+
+// En Invoice:
+vendorId   String?  // FK nullable — strings libres preservados
+customerId String?  // FK nullable
+```
+
+**Decisión clave**: `deletedAt: DateTime?` en vez de `isActive: Boolean` — cumple ADR-003, filtra con `deletedAt: null` en todos los listados.
+
+**NULL RIF**: `@@unique([companyId, rif])` con índice parcial `WHERE rif IS NOT NULL` — los NULLs no violan la constraint (PostgreSQL correcto).
+
+### Servicios
+
+- `VendorService`: list, get (post-fetch ownership), create, update, softDelete (cuenta invoices vinculadas), linkToInvoice
+- `CustomerService`: mismo contrato
+
+### Actions — guards de seguridad aplicados
+
+| Guard | Implementación |
+|---|---|
+| CRITICAL-1 IDOR | `invoice.companyId === companyId` AND `vendor.companyId === companyId` antes de UPDATE |
+| HIGH-1 vendor inactivo | `vendor.deletedAt !== null → false` en linkToInvoice |
+| HIGH-2 rate limit | `checkRateLimit(userId, limiters.fiscal)` en create/update/delete/link |
+| HIGH-3 RIF regex | `VEN_RIF_REGEX` de `@/lib/fiscal-validators` en schemas Zod |
+| MEDIUM-1 trim | `.trim().min(1).max(200)` en name, `.max(500)` en address |
+| MEDIUM-3 linked count | `invoice.count` antes de softDelete → retorna `{ linkedCount }` al caller |
+| LOW-2 get IDOR | post-fetch `vendor.companyId === companyId` check |
+
+### UI
+
+- `/company/[companyId]/vendors` — CRUD lista (canWrite: WRITERS+, canDelete: ADMIN_ONLY)
+- `/company/[companyId]/customers` — CRUD lista
+- Nav: Proveedores + Clientes en Owner/Admin, Accountant, Administrative
+
+### Tests
+
+| Suite | Tests |
+|---|---|
+| `VendorService.test.ts` | 14 tests (IDOR, soft-delete, link guards) |
+| `CustomerService.test.ts` | 5 tests |
+| `vendor.actions.test.ts` | 22 tests (auth, role, rate-limit, schema, IDOR) |
+| `vendor.schemas.test.ts` | 13 tests (RIF, trim, email) |
+| **Total acumulado** | **1332 tests GREEN** |
