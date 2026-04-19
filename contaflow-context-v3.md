@@ -544,16 +544,16 @@ model FiscalYearClose {
 - ✅ ADR-010: Testing Strategy — completada 2026-04-08 (ver sección 40) | archivo `.claude/adr/ADR-010-testing-strategy.md` creado 2026-04-12
 - ✅ Fase 23C: NC/ND Workflow completo — completada 2026-04-12 (ver sección 41)
 - ✅ Fase 30: Exportación Masiva / Backup — ZIP fiscal con ExportJob + 24h expiry — completada 2026-04-13 (ver sección 42)
-- ⏳ Fase 23 Nómina (LOTTT) — dividida en 5 subfases (ver sección 34 — estructura revisada 2026-04-14)
+- ✅ Fase 23 Nómina (LOTTT) — dividida en 5 subfases, todas completadas (ver sección 34)
   - ✅ Fase NOM-A: Wizard de configuración de nómina — completada 2026-04-15 (ver sección 53)
   - ✅ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios — completada 2026-04-15 (ver sección 54)
-  - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
-  - ✅ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final (1233 tests)
-  - ✅ Fase NOM-E: Reportes legales — IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR (1278 tests)
+  - ✅ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable — completada 2026-04-15 (ver sección 56)
+  - ✅ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final — completada 2026-04-16 (ver sección 57)
+  - ✅ Fase NOM-E: Reportes legales — IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR — completada 2026-04-19 (ver sección 58)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
-- ⏳ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — ~15 tests
+- ⏳ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — ~15 tests (EN PROGRESO)
   - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, declaración IVA vencida, retenciones sin vincular, extracto sin conciliar >30d
   - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
   - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard (lazy, TTL 5min)
@@ -570,17 +570,12 @@ model FiscalYearClose {
 - ✅ Fase 32: KPIs Ejecutivos — `KpiDashboardService` (CxC, CxP, DSO, flujo de caja proyectado 30/60/90d) + `ExecutiveKpiPanel` en dashboard empresa (OWNER/ADMIN/ACCOUNTANT) — 926 tests (ver sección 50)
 - ✅ Fase 23C Residual: NC/ND UI Completo — `RelatedInvoicePicker` + `CreditDebitNotesPanel` + `searchInvoicesForPickerAction` — 936 tests (ver sección 51)
 - ✅ Fase 28H: Reportes Inventario — `InventoryReportService` (getStockSummary CPP + getMovementReport) + `InventoryReportsView` (tabs Existencias/Movimientos) + `minimumStock Decimal?` en `InventoryItem` + alerta `LOW_STOCK` en `NotificationService` — 956 tests (ver sección 52)
-- ⏳ Fase 28: Módulo de Compras y Ventas
-   - Cotizaciones/Presupuestos (pre-contable, sin asiento)
-   - Órdenes de Compra vinculadas a cotización de proveedor
-   - Órdenes de Venta vinculadas a presupuesto cliente
-   - Conversión OC → Factura de Compra (Invoice tipo PURCHASE)
-   - Conversión OV → Factura de Venta (Invoice tipo SALE)
-   - Trazabilidad: factura hereda datos de la OC/OV origen
-   - Regla VEN-NIF: OC/OV no generan asiento contable —
-     solo registran compromiso pre-contable
-   - Validez de oferta configurable (crítico por inflación VES)
-   - Flujo de aprobación de cotizaciones
+- ✅ Fase 28: Módulo de Compras y Ventas — QuotationService + OrderService + UI + 45 tests — completada 2026-04-15 (ver sección 55)
+  - Cotizaciones/Presupuestos (pre-contable, sin asiento)
+  - Órdenes de Compra vinculadas a cotización de proveedor
+  - Órdenes de Venta vinculadas a presupuesto cliente
+  - Conversión OC → Factura / OV → Factura (trazabilidad origen)
+  - Fases 35B/35C/36A/36B (P2P + O2C completos): DIFERIDAS a post-launch (ADR-012)
 - ⏳ Fase 29A: TaxPlugin Architecture — `interface TaxPlugin { VE | CO }`, `VenezuelaTaxPlugin` extrae lógica VEN-NIF, `ColombiaTaxPlugin` stub, `Company.country` enum — prerequisito Fase 29 — ~15 tests
 - ⏳ Fase 29: Expansión Colombia (DIAN)
 - ✅ Fase 30: Exportación Masiva / Backup Contable — ZIP descargable (libros IVA, asientos, retenciones, activos, Forma 30 por mes) + ExportJob 24h expiry — 23 tests (ver sección 42)
