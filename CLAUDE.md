@@ -101,8 +101,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase NOM-C ✅ merged (Motor Cálculo — PayrollRun + PayrollRunLine + PayrollCalculatorService + 58 tests — 1156 total)
 - Fase NOM-D ✅ merged (Prestaciones Sociales, Vacaciones, Utilidades, Liquidación Final LOTTT — 77 tests — 1233 total)
 - Fase NOM-E ✅ merged (Reportes Legales: IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR Tarifa 1 — 45 tests — 1278 total)
+- Fase 35A ✅ merged (Vendor + Customer: CRUD soft-delete + 12 actions + IDOR guards + 54 tests — 1332 total)
 
-**1278 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
+**1332 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
