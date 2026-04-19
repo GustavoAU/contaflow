@@ -1089,6 +1089,10 @@ model PayrollConfig {
   // Fase NOM-D: Configuración de beneficios legales
   profitDays            Int              @default(15)  // días de utilidades (15–120 LOTTT Art. 131)
   vacationBonusDays     Int              @default(7)   // días bono vacacional año 1 (LOTTT Art. 223)
+  // Fase NOM-E: Valor de la Unidad Tributaria para cálculo de techo IVSS (LSS Art. 62)
+  // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
+  // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
+  utValue               Decimal?         @db.Decimal(10, 2)
   // Timestamps
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
