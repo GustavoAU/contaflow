@@ -553,10 +553,10 @@ model FiscalYearClose {
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
-- ⏳ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — ~15 tests (EN PROGRESO)
-  - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, declaración IVA vencida, retenciones sin vincular, extracto sin conciliar >30d
+- ✅ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — 22 tests — completada 2026-04-19 (ver sección 60)
+  - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, retenciones sin vincular, extracto sin conciliar >30d
   - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
-  - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard (lazy, TTL 5min)
+  - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard
 - ⏳ Fase 27: PWA + modo offline
 - ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
 - ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
@@ -2633,3 +2633,51 @@ customerId String?  // FK nullable
 | `vendor.actions.test.ts` | 22 tests (auth, role, rate-limit, schema, IDOR) |
 | `vendor.schemas.test.ts` | 13 tests (RIF, trim, email) |
 | **Total acumulado** | **1332 tests GREEN** |
+
+---
+
+## Sección 60 — Fase 26B: IA Tareas Pendientes ✅ completada 2026-04-19
+
+**Tests:** 1354 GREEN (+22 vs Fase 35A) | **TS errors:** 0 | **Branch mergeado:** `feat/fase-26b-ai-tareas-pendientes` → `main`
+
+### Objetivo
+
+Panel de compliance fiscal en el Dashboard que detecta automáticamente tareas pendientes usando queries Prisma determinísticas, con resumen ejecutivo en lenguaje natural generado por Gemini Flash.
+
+### Archivos creados
+
+| Archivo | Descripción |
+|---|---|
+| `src/modules/dashboard/services/PendingTasksService.ts` | Motor de reglas: 5 queries `Promise.all`, retorna `PendingTask[]` + `totalCount` |
+| `src/modules/dashboard/actions/pending-tasks.actions.ts` | `getPendingTasksAction` — auth + IDOR + rol ACCOUNTING + rate limit doble |
+| `src/modules/dashboard/components/PendingTasksWidget.tsx` | Widget cliente con severity colors + link de corrección + badge de resumen IA |
+| `src/modules/dashboard/__tests__/PendingTasksService.test.ts` | 9 tests de servicio |
+| `src/modules/dashboard/__tests__/pending-tasks.actions.test.ts` | 13 tests de action (guards + graceful fallback) |
+
+### Detectores implementados
+
+| Detector | Modelo Prisma | Severity | Link de corrección |
+|---|---|---|---|
+| Facturas sin causar | `Invoice.transactionId = null` | error | `/invoices` |
+| Período abierto >30d | `AccountingPeriod.status = OPEN, openedAt < 30d` | warning | `/settings` |
+| Activos sin depreciar este mes | `FixedAsset` ACTIVE sin `entries` del mes | warning | `/fixed-assets` |
+| Retenciones sin vincular | `Retencion.invoiceId = null, status = PENDING` | warning | `/retentions` |
+| Extractos sin conciliar >30d | `BankStatement.status = OPEN, periodEnd < 30d` | info | `/bank-reconciliation` |
+
+### Resumen IA (Gemini Flash)
+
+- Solo pasa **counts y tipos** al LLM — nunca texto libre del usuario (finding 26B-02)
+- Rate limit: `limiters.ocr` (10/min) independiente del rate limit fiscal
+- Fallback graceful: si Gemini falla, el widget muestra las tareas sin resumen
+- Presentado con badge `SparklesIcon` + fondo violeta en el Dashboard
+
+### Security (todos resueltos antes de implementar)
+
+| Finding | Severidad | Solución |
+|---|---|---|
+| 26B-01 IDOR | CRITICAL | `companyMember.findFirst({ where: { companyId, userId } })` |
+| 26B-02 Prompt injection | HIGH | Solo counts en el prompt, nunca texto del usuario |
+| 26B-03 Rate limit Gemini | HIGH | `checkRateLimit(userId, limiters.ocr)` antes de llamar fetch |
+| 26B-05 Rol mínimo | MEDIUM | `canAccess(member.role, ROLES.ACCOUNTING)` |
+
+**1354 tests GREEN** | **0 TS errors**
