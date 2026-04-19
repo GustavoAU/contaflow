@@ -490,6 +490,18 @@ export function InvoiceForm({
 
   const totalIva = sumTaxLines(taxLines);
 
+  // ─── Subtotal y total general ────────────────────────────────────────────────
+  const subtotal = taxLines
+    .reduce((acc, l) => {
+      try { return acc.plus(new Decimal(l.base || "0")); } catch { return acc; }
+    }, new Decimal(0))
+    .toFixed(2);
+
+  const totalAmount = new Decimal(subtotal)
+    .plus(new Decimal(totalIva))
+    .plus(new Decimal(igtfCalculation?.igtfAmount ?? "0"))
+    .toFixed(2);
+
   return (
     <>
       <div className="rounded-lg border bg-white p-6">
@@ -710,16 +722,9 @@ export function InvoiceForm({
           </div>
           {currency !== "VES" && (
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-              Los montos se ingresan en VES (conversión a la tasa BCV del día). Asegúrese de haber{" "}
-              <a
-                href={`/company/${companyId}/exchange-rates`}
-                className="font-semibold underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                registrado la tasa BCV
-              </a>{" "}
-              para la fecha seleccionada. Si no existe tasa, la factura no podrá guardarse.
+              Los montos se ingresan en VES (conversión a la tasa BCV del día). Use el widget{" "}
+              <strong>BCV</strong> en el encabezado para actualizar la tasa del día. Si no existe
+              tasa para la fecha seleccionada, la factura no podrá guardarse.
             </div>
           )}
 
@@ -797,16 +802,35 @@ export function InvoiceForm({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
                     Línea {idx + 1}
+                    {line.luxuryGroupId && (
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 uppercase">
+                        Bloque suntuario
+                      </span>
+                    )}
                   </span>
-                  {taxLines.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeTaxLine(line.id)}
-                      className="text-xs font-medium text-red-400 hover:text-red-600"
-                    >
-                      Eliminar
-                    </button>
-                  )}
+                  {(() => {
+                    // Slave IVA_GENERAL de un par suntuario: nunca mostrar eliminar —
+                    // se gestiona como bloque desde la línea IVA_ADICIONAL.
+                    if (line.taxType === "IVA_GENERAL" && line.luxuryGroupId) return null;
+
+                    // Calcular cuántas líneas quedarían tras eliminar
+                    const isLuxuryMaster = line.taxType === "IVA_ADICIONAL" && !!line.luxuryGroupId;
+                    const remaining = isLuxuryMaster
+                      ? taxLines.filter((l) => l.luxuryGroupId !== line.luxuryGroupId).length
+                      : taxLines.filter((l) => l.id !== line.id).length;
+
+                    if (remaining < 1) return null; // no dejar el form sin líneas
+
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => removeTaxLine(line.id)}
+                        className="text-xs font-medium text-red-400 hover:text-red-600"
+                      >
+                        {isLuxuryMaster ? "Eliminar bloque" : "Eliminar"}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* Tipo de impuesto */}
@@ -1009,6 +1033,39 @@ export function InvoiceForm({
               )}
             </div>
           )}
+
+          {/* ─── Resumen de la factura ────────────────────────────────────── */}
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-zinc-700">Resumen</p>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Subtotal (Base Imponible)</span>
+                <span className="font-mono font-medium text-zinc-800 tabular-nums">
+                  {formatCurrencyAmount(subtotal, currency)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Total IVA</span>
+                <span className="font-mono font-medium text-zinc-800 tabular-nums">
+                  {formatCurrencyAmount(totalIva, currency)}
+                </span>
+              </div>
+              {igtfCalculation && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">IGTF (3%)</span>
+                  <span className="font-mono font-medium text-yellow-700 tabular-nums">
+                    {formatCurrencyAmount(igtfCalculation.igtfAmount, currency)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-zinc-200 pt-2">
+                <span className="font-semibold text-zinc-700">Total a Pagar</span>
+                <span className="font-mono font-bold text-blue-700 tabular-nums">
+                  {formatCurrencyAmount(totalAmount, currency)}
+                </span>
+              </div>
+            </div>
+          </div>
 
           <Button type="submit" disabled={isPending} className="w-full">
             {isPending ? "Guardando..." : "Registrar Factura"}
