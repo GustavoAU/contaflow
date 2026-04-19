@@ -17,4 +17,14 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   silent: process.env.NODE_ENV !== "production",
   // No inyectar release en dev para evitar warnings
   disableLogger: true,
+  // Incluir source maps de chunks más anchos para mejor stack trace resolution en Seer
+  widenClientFileUpload: true,
+  // Tunnel: proxea eventos de Sentry a través de /monitoring para evitar ad-blockers.
+  // Definido aquí Y en sentry.client.config.ts → tunnel.
+  tunnelRoute: "/monitoring",
+  // Eliminar source maps del bundle de producción después de subirlos a Sentry
+  // (evita que sean accesibles públicamente)
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
 });

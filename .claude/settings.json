@@ -105,7 +105,9 @@
       "Bash(mkdir -p \"src/app/\\(dashboard\\)/company/[companyId]/payroll/concepts\")",
       "Bash(grep -n \"^## \\\\|^### \\\\|^# \\\\|^---$\\\\|ADR-0\" \"d:/Documents/Projects/React/modern-cg1/contaflow-contract.md\")",
       "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/new\")",
-      "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/[runId]\")"
+      "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/[runId]\")",
+      "Bash(find /d/Documents/Projects/React/modern-cg1/src/modules/exchange-rates -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -l {} \\\\;)",
+      "Bash(awk '{sum+=$1} END {print \"Total exchange-rates:\", sum, \"lines\"}')"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",

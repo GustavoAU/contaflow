@@ -7,4 +7,13 @@ Sentry.init({
   enabled: process.env.NODE_ENV === "production",
   tracesSampleRate: 0.05,
   sendDefaultPii: false,
+
+  beforeSend(event) {
+    event.tags = {
+      ...event.tags,
+      runtime: "edge",
+      service: "contaflow-middleware",
+    };
+    return event;
+  },
 });
