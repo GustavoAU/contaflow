@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ROLE_LABELS, canAccess, ROLES } from "@/lib/auth-helpers";
 import type { UserRole } from "@/lib/nav-items";
+import { getPendingTasksAction } from "@/modules/dashboard/actions/pending-tasks.actions";
+import { PendingTasksWidget } from "@/modules/dashboard/components/PendingTasksWidget";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -192,6 +194,9 @@ export default async function CompanyDashboardPage({ params }: Props) {
 
   // Fetch KPI data for accounting roles (non-blocking — falls back gracefully)
   const kpiResult = showKpis ? await getKpiDashboardAction(companyId) : null;
+
+  // Fetch pending tasks for ACCOUNTING+ roles (non-blocking — falls back gracefully)
+  const pendingTasksResult = showKpis ? await getPendingTasksAction(companyId) : null;
 
   return (
     <div className="space-y-6">
@@ -376,6 +381,11 @@ export default async function CompanyDashboardPage({ params }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── Tareas pendientes IA (OWNER, ADMIN, ACCOUNTANT) ────────────── */}
+      {showKpis && pendingTasksResult?.success && pendingTasksResult.data.tasks.length > 0 && (
+        <PendingTasksWidget companyId={companyId} data={pendingTasksResult.data} />
       )}
 
       {/* ─── KPIs ejecutivos (OWNER, ADMIN, ACCOUNTANT) ──────────────────── */}
