@@ -191,14 +191,22 @@ export default async function PayrollPage({ params }: Props) {
               </div>
             )}
 
-            {/* Reportes Legales — NOM-E (próximamente) */}
-            <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
-              <p className="font-medium text-gray-700">Reportes Legales</p>
-              <p className="mt-0.5 text-xs text-gray-500">IVSS, INCES, Banavih, ARC/ISLR</p>
-              <span className="mt-2 inline-block rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
-                Próximamente
-              </span>
-            </div>
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/reports`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Reportes Legales</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  IVSS, INCES, Banavih, ARC/ISLR
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Reportes Legales</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
           </div>
         </section>
       )}
