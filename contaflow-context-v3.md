@@ -549,7 +549,7 @@ model FiscalYearClose {
   - ✅ Fase NOM-B: Empleados, conceptos, feriados, historial de salarios — completada 2026-04-15 (ver sección 54)
   - ⏳ Fase NOM-C: Motor de cálculo + recibo PDF + causación contable
   - ✅ Fase NOM-D: Prestaciones, vacaciones, utilidades + Liquidación Final (1233 tests)
-  - ⏳ Fase NOM-E: Reportes legales (IVSS, INCES, Banavih, ARC/ISLR, SENIAT)
+  - ✅ Fase NOM-E: Reportes legales — IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR (1278 tests)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: MCP + Asistente Contable IA
@@ -2511,3 +2511,71 @@ Liquidación final desnormalizada con 11 campos de monto por componente. Estado 
 | `initialSalaryAmount` ceiling | `CreateEmployeeSchema` | `.refine(v => Number(v) <= 999_999_999)` |
 | `addSalary` bloqueado TERMINATED | `EmployeeService.addSalary()` | Guard `employee.status === 'TERMINATED'` |
 - Liquidación Final: cálculo integrado + PDF recibo
+
+## Sección 58 — Fase NOM-E: Reportes Legales — IVSS, Banavih, INCES, ARC/ISLR ✅ completada 2026-04-19
+
+### Alcance implementado
+
+| Reporte | Base legal | Periodicidad | PDF |
+|---|---|---|---|
+| IVSS Forma 14-02 | LSS Art. 62 | Mensual | ✅ |
+| Banavih / FAOV | LAH Art. 172 | Mensual | ✅ |
+| INCES | Ley INCES Art. 30 | Trimestral | ✅ |
+| ARC / ISLR Tarifa 1 | Decreto 1808 | Anual (por empleado) | ✅ |
+
+### Schema
+
+- `PayrollConfig.utValue Decimal?` — valor de la Unidad Tributaria para techo IVSS (10 UT) y desgravamen ISLR (774 UT). NULL = no aplicar techo.
+- Migración: `20260419_nom_e_ut_value`
+
+### Servicios
+
+**`PayrollReportService`** — servicio de datos puro (sin mutaciones):
+- `getIvssReport(companyId, year, month)` → salario base, techo 10 UT, aportes obrero/patronal 4%/9%
+- `getBanavihReport(companyId, year, month)` → FAOV 1% obrero + 1% patronal
+- `getIncesReport(companyId, year, quarter)` → 2% sobre salario + 0.5% patronal sobre utilidades
+- `getArcReport(companyId, employeeId, year)` → ingresos anuales reales, desgravamen 774 UT, ISLR Tarifa 1 progresivo, retención anual acumulada
+
+**Constantes ISLR Tarifa 1 (Decreto 1808):**
+```
+0–1000 UT: 0% | 1000–1500: 6% (-60) | 1500–2000: 9% (-105)
+2000–2500: 12% (-165) | 2500–3000: 16% (-265) | 3000–4000: 22% (-445) | >4000: 34% (-925)
+```
+
+**`PayrollPdfReportService`** — genera PDFs con `react-pdf/renderer` usando `React.createElement` (patrón `.ts`):
+- `generateIvssPdf`, `generateBanavihPdf`, `generateIncesPdf`, `generateArcPdf`
+
+### Actions
+
+`payroll-reports.actions.ts` — 8 actions read-only:
+- `getIvssReportAction` / `exportIvssPdfAction`
+- `getBanavihReportAction` / `exportBanavihPdfAction`
+- `getIncesReportAction` / `exportIncesPdfAction`
+- `getArcReportAction` / `exportArcPdfAction`
+
+Guards: auth → companyMember → `ROLES.ACCOUNTING`. IDOR en ARC: `employee.findFirst({ where: { id, companyId } })`.
+
+### UI
+
+- `/payroll/reports` — hub con 4 tarjetas color-coded
+- `/payroll/reports/ivss` — selector mes/año + tabla + PDF
+- `/payroll/reports/banavih` — selector mes/año + tabla + PDF
+- `/payroll/reports/inces` — selector trimestre/año + tabla + PDF
+- `/payroll/reports/arc` — selector empleado + año + tabla + PDF
+- `PeriodSelector.tsx` — componente reutilizable discriminado (mode: "month" | "quarter")
+- `payroll/page.tsx` — bloque "Reportes Legales" activo para ACCOUNTING+
+
+### Tests
+
+| Suite | Tests |
+|---|---|
+| `PayrollReportService.test.ts` | 34 tests (calcularIslr, IVSS, Banavih, INCES, ARC) |
+| `payroll-reports.actions.test.ts` | 11 tests (auth, role, IDOR guards) |
+| **Total acumulado** | **1278 tests GREEN** |
+
+### Decisiones de diseño
+
+- **NOM-E-01**: empleados ACTIVE siempre incluidos aunque sea con montos 0 (cumplimiento LSS Forma 14-02)
+- **NOM-E-03**: ARC usa ingresos reales del año (no proyección) — correcto para el documento anual definitivo
+- **utValue en PayrollConfig** (no en la action): centraliza la configuración y no requiere que el usuario ingrese la UT en cada reporte
+- **No `$transaction`, no `AuditLog`, no rate limiting** en acciones read-only de reportes
