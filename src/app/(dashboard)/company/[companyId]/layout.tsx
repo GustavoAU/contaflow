@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { NotificationBell } from "@/modules/notifications/components/NotificationBell";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 
 type Props = {
   children: React.ReactNode;
@@ -17,6 +19,13 @@ export default async function CompanyLayout({ children, params }: Props) {
   const company = companies.find((c) => c.id === companyId);
 
   if (!company) redirect("/dashboard");
+
+  // Inyectar contexto de empresa y rol en Sentry para que Seer pueda
+  // correlacionar cualquier error en esta sesión con la empresa correcta.
+  const { userId } = await auth();
+  Sentry.setUser(userId ? { id: userId } : null);
+  Sentry.setTag("companyId", companyId);
+  Sentry.setTag("userRole", company.role);
 
   const showNotifications = canAccess(company.role, ROLES.ACCOUNTING);
 
