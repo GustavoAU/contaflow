@@ -180,6 +180,9 @@ model Company {
   vacationRecords             VacationRecord[]
   profitSharingRecords        ProfitSharingRecord[]
   terminations                Termination[]
+  // Fase 35A: Vendor / Customer
+  vendors                     Vendor[]
+  customers                   Customer[]
 }
 
 model CompanyMember {
@@ -432,6 +435,11 @@ model Invoice {
   // Fase 28: Compras y Ventas
   orderId              String?             @unique
   order                Order?              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  // Fase 35A: Vendor / Customer
+  vendorId             String?
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerId           String?
+  customer             Customer?           @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -1581,4 +1589,43 @@ model Termination {
   @@index([companyId, employeeId])
   @@index([companyId, status])
   @@index([companyId, terminationDate(sort: Desc)])
+}
+
+// Fase 35A: Vendor / Customer
+model Vendor {
+  id          String    @id @default(cuid())
+  companyId   String
+  name        String
+  rif         String?
+  email       String?
+  phone       String?
+  address     String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoices    Invoice[]
+
+  @@unique([companyId, rif])
+  @@index([companyId, deletedAt])
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  companyId   String
+  name        String
+  rif         String?
+  email       String?
+  phone       String?
+  address     String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoices    Invoice[]
+
+  @@unique([companyId, rif])
+  @@index([companyId, deletedAt])
 }
