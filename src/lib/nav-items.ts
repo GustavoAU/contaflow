@@ -20,7 +20,6 @@ import {
   ScanIcon,
   FileSpreadsheetIcon,
   ReceiptIcon,
-  BanknoteIcon,
   ReceiptText,
   TrendingUpIcon,
   WalletIcon,
@@ -86,8 +85,6 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
         items: [
           item("Libros IVA", p("/invoices"), ReceiptText),
           item("Retenciones", p("/retentions"), ReceiptIcon),
-          item("IGTF", p("/igtf"), BanknoteIcon),
-          item("Tasas BCV", p("/exchange-rates"), TrendingUpIcon),
           item("Activos Fijos", p("/fixed-assets"), Building2),
           item("Inflación INPC", p("/inflation"), TrendingUpIcon),
           item("Declaración IVA", p("/iva-declaration"), ScrollText),
@@ -133,8 +130,6 @@ function buildAccountantNav(companyId: string): NavConfig {
         group: "Contabilidad",
         items: [
           item("Retenciones", p("/retentions"), ReceiptIcon),
-          item("IGTF", p("/igtf"), BanknoteIcon),
-          item("Tasas BCV", p("/exchange-rates"), TrendingUpIcon),
           item("Activos Fijos", p("/fixed-assets"), Building2),
           item("Inflación INPC", p("/inflation"), TrendingUpIcon),
           item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),

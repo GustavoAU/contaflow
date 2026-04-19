@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
+import { BcvRateWidget } from "@/components/layout/BcvRateWidget";
 
 type NavbarProps = {
   companyId?: string;
@@ -151,8 +152,9 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
           )}
         </nav>
 
-        {/* Derecha: notificaciones + usuario + hamburguesa mobile */}
+        {/* Derecha: tasa BCV + notificaciones + usuario + hamburguesa mobile */}
         <div className="flex items-center gap-3">
+          {companyId && <BcvRateWidget companyId={companyId} />}
           {notificationSlot}
           <UserButton />
           {companyId && (
