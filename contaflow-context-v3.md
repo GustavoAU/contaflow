@@ -552,7 +552,7 @@ model FiscalYearClose {
   - ✅ Fase NOM-E: Reportes legales — IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR — completada 2026-04-19 (ver sección 58)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
-- ⏳ Fase 26: MCP + Asistente Contable IA
+- ⏳ Fase 26: Asistente Contable IA — chat en lenguaje natural con contexto financiero completo, Gemini Flash, análisis de imágenes (Gemini Vision), sugerencia de asientos, modo auditoría (ver diseño aprobado sección 61)
 - ✅ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — 22 tests — completada 2026-04-19 (ver sección 60)
   - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, retenciones sin vincular, extracto sin conciliar >30d
   - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
@@ -2679,5 +2679,124 @@ Panel de compliance fiscal en el Dashboard que detecta automáticamente tareas p
 | 26B-02 Prompt injection | HIGH | Solo counts en el prompt, nunca texto del usuario |
 | 26B-03 Rate limit Gemini | HIGH | `checkRateLimit(userId, limiters.ocr)` antes de llamar fetch |
 | 26B-05 Rol mínimo | MEDIUM | `canAccess(member.role, ROLES.ACCOUNTING)` |
+
+---
+
+## Sección 61 — Fase 26: Asistente Contable IA — Diseño aprobado (2026-04-19)
+
+### Arquitectura general
+
+```
+Usuario pregunta (texto o imagen)
+  → ai-assistant.actions.ts (IDOR + rol + rate limit)
+  → AIContextBuilderService.buildContext(companyId)  ← queries DB
+  → Gemini Flash (texto) / Gemini Vision (imagen)
+  → Respuesta en español como contador venezolano
+```
+
+Sin MCP real (Anthropic API bloqueada en Venezuela). Gemini ya está en el stack.
+Historial de chat: estado del cliente (no persistido en DB).
+
+---
+
+### TIER 1 — Contexto financiero de la empresa (DB queries)
+
+| Dato | Fuente Prisma |
+|------|--------------|
+| KPIs del mes (ingreso/egreso/utilidad bruta) | `KpiDashboardService` existente |
+| Plan de cuentas con saldos activos | `Account` + `Transaction` — solo cuentas con movimiento en período activo o saldo ≠ 0 en últimos 3 meses (ver Limitación) |
+| Balance General snapshot | Agregado por tipo: Activo / Pasivo / Patrimonio totales |
+| Estado de Resultados del período | Ingresos vs Gastos del mes activo |
+| Saldos bancarios | `BankAccount` |
+| IVA posición del mes | Facturas SALE vs PURCHASE — débito vs crédito fiscal |
+| Cuentas por cobrar vencidas (top 5 por monto) | `Receivable` — overdue, desc por monto |
+| Cuentas por pagar vencidas (top 5 por monto) | `Payable` — overdue, desc por monto |
+| Nómina del mes | `PayrollRun` — total devengado, empleados activos |
+| Activos fijos (cantidad + valor neto) | `FixedAsset` status ACTIVE |
+| Inventario (valor CPP total) | `InventoryItem` |
+| Retenciones IVA/ISLR pendientes | `Retencion` status PENDING |
+| Tipos de cambio actuales (BCV) | `ExchangeRate` más reciente |
+| Ajuste INPC pendiente | `InflationAdjustment` |
+| Anomalías fiscales activas | `PendingTasksService.getPendingTasks()` — count + severidad máxima |
+| Estado del período contable | `AccountingPeriod` — OPEN/CLOSED + fecha de apertura |
+
+**Limitación de cuentas en contexto:** Se priorizan cuentas con movimiento en el período activo. Se excluyen cuentas con saldo cero y sin movimiento hace más de 3 meses. Esto evita saturar el contexto de Gemini con cuentas inactivas.
+
+---
+
+### TIER 2 — Conocimiento contable embebido en system prompt
+
+Reglas estáticas inyectadas en el prompt de sistema (no requieren DB):
+
+- **DEBE/HABER/PATRIMONIO**: Regla T — saldo normal deudor: Activos (1.x) y Gastos (5.x, 6.x). Saldo normal acreedor: Pasivos (2.x), Patrimonio (3.x), Ingresos (4.x).
+- **Plan de Cuentas SENIAT**: 1.x Activo, 2.x Pasivo, 3.x Patrimonio, 4.x Ingreso, 5.x Gasto, 6.x Costo.
+- **VEN-NIF**: NIF 1 (presentación), NIF 3 (ajuste por inflación INPC), NIF 16 (activos fijos).
+- **IVA venezolano**: Alícuotas 16% general / 8% reducida / 31% lujo / 0% exento. Declaración día 15 del mes siguiente.
+- **IGTF 3%**: Aplica en pagos con Zelle, Cashea, divisas, criptomonedas y contribuyentes especiales pagando en VES. No aplica en transferencias VES entre no-contribuyentes especiales.
+- **Retenciones IVA**: 75% / 100% — solo si `isSpecialContributor`. Plazo: primera quincena del mes siguiente.
+- **Diferencial cambiario**: Ganancia/pérdida por diferencia entre tipo de registro y tipo de liquidación. Cuenta 7.x o dentro de Otros Ingresos/Gastos según VEN-NIF.
+- **Decreto 1808 ISLR**: Tabla de alícuotas por concepto (honorarios, arrendamiento, servicios, etc.) — 60+ keywords en `islr-suggestions.ts` ya implementado.
+- **LOTTT**: Prestaciones 15 días/trimestre + intereses BCV, vacaciones 15 días + 1 día/año, utilidades mínimo 15 días.
+
+---
+
+### TIER 3 — Capacidades avanzadas
+
+**3A. Análisis de imágenes (Gemini Vision)**
+- Ya disponible en el stack (Fase OCR-v2).
+- El usuario puede subir: imagen de una cuenta, estado financiero, comprobante, captura de pantalla.
+- Gemini analiza la imagen + contexto de la empresa y responde.
+- Caso de uso clave: "¿Esta cuenta es de DEBE o HABER?" con imagen del plan de cuentas.
+
+**3B. Sugerencia de asiento desde lenguaje natural**
+- Usuario describe: "Pagué Bs. 500 de electricidad en efectivo".
+- AI propone asiento contable con cuentas del plan propio de la empresa:
+  ```
+  DEBE  5.1.04 Servicios Públicos     Bs. 500,00
+  HABER 1.1.01 Caja                   Bs. 500,00
+  ```
+- El AI valida partida doble (DEBE = HABER) antes de presentar.
+- El asiento es solo sugerencia — el contador lo confirma y causa manualmente.
+
+**3C. Modo auditoría de período**
+- El usuario activa "auditar período actual".
+- Se llama `PendingTasksService.getPendingTasks()` (alias conceptual: FiscalAnomalyDetectorService).
+- El AI presenta un reporte narrativo de hallazgos con severidad y acciones recomendadas.
+- **Nota**: `FiscalAnomalyDetectorService` no existe como clase separada — se usa `PendingTasksService` que ya detecta las 5 anomalías contables críticas. Si en el futuro se amplía a más detectores, se crea el servicio propio.
+
+---
+
+### Archivos a crear
+
+```
+src/modules/ai-assistant/
+  services/
+    AIContextBuilderService.ts       ← queries DB, ensambla contexto
+  actions/
+    ai-assistant.actions.ts          ← IDOR + rol + rate limit + Gemini call
+  components/
+    AIAssistantChat.tsx              ← UI chat con historial en estado cliente
+    AIAssistantPage.tsx              ← wrapper de página
+  __tests__/
+    AIContextBuilderService.test.ts  ← ~8 tests
+    ai-assistant.actions.test.ts     ← ~8 tests
+
+src/app/(dashboard)/company/[companyId]/ai-assistant/
+  page.tsx                           ← Server Component, pasa companyId
+```
+
+Nav: agregar "Asistente IA" en `src/lib/nav-items.ts` para roles ACCOUNTANT+.
+
+---
+
+### Seguridad (pre-audit)
+
+| Finding | Severidad | Mitigación |
+|---------|-----------|------------|
+| IDOR — companyId | CRITICAL | `companyMember.findFirst({ where: { companyId, userId } })` |
+| Prompt injection | HIGH | Contexto = datos estructurados DB, no texto libre del usuario — la pregunta va separada |
+| Rate limit Gemini | HIGH | `limiters.ocr` (10/min) compartido con OCR |
+| Imagen maliciosa | MEDIUM | Gemini Vision procesa en sandbox de Google — no ejecuta código |
+| Rol mínimo | MEDIUM | `canAccess(member.role, ROLES.ACCOUNTING)` |
 
 **1354 tests GREEN** | **0 TS errors**
