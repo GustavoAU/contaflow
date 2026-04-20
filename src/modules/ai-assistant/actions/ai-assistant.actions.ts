@@ -13,6 +13,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { AIContextBuilderService } from "../services/AIContextBuilderService";
+import { FiscalAnomalyDetectorService } from "../services/FiscalAnomalyDetectorService";
 
 const GEMINI_TEXT_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
@@ -115,13 +116,28 @@ export async function sendMessageAction(
   // Detectar modo auditoría
   const isAuditMode = /audit|auditar|auditor[ií]a|errores.*(período|mes|contab)/i.test(userMessage);
 
-  // Construir contexto financiero
-  const ctx = await AIContextBuilderService.buildContext(companyId);
-  const systemPrompt = AIContextBuilderService.buildSystemPrompt(ctx);
+  // Construir contexto financiero (y anomalías en paralelo si modo auditoría)
+  const [ctx, anomalyReport] = await Promise.all([
+    AIContextBuilderService.buildContext(companyId),
+    isAuditMode ? FiscalAnomalyDetectorService.detect(companyId) : Promise.resolve(null),
+  ]);
+
+  // Prompt base + sección de auditoría inyectada si corresponde
+  const basePrompt = AIContextBuilderService.buildSystemPrompt(ctx);
+  const systemPrompt = anomalyReport
+    ? `${basePrompt}\n\n═══════════════════════════════════════════════\n${FiscalAnomalyDetectorService.formatForPrompt(anomalyReport)}\n═══════════════════════════════════════════════`
+    : basePrompt;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    // Fallback sin IA: modo auditoría devuelve tareas, resto devuelve aviso
+    // Fallback sin IA: modo auditoría devuelve reporte de anomalías, resto devuelve aviso
+    if (isAuditMode && anomalyReport) {
+      return {
+        success: true,
+        reply: FiscalAnomalyDetectorService.formatForPrompt(anomalyReport),
+        isAuditMode: true,
+      };
+    }
     if (isAuditMode) {
       return {
         success: true,
@@ -141,6 +157,13 @@ export async function sendMessageAction(
 
   if (!reply) {
     // Graceful fallback
+    if (isAuditMode && anomalyReport) {
+      return {
+        success: true,
+        reply: FiscalAnomalyDetectorService.formatForPrompt(anomalyReport),
+        isAuditMode: true,
+      };
+    }
     if (isAuditMode) {
       return {
         success: true,
