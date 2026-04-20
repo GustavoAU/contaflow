@@ -107,7 +107,23 @@
       "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/new\")",
       "Bash(mkdir -p \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/[companyId]/payroll/runs/[runId]\")",
       "Bash(find /d/Documents/Projects/React/modern-cg1/src/modules/exchange-rates -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -l {} \\\\;)",
-      "Bash(awk '{sum+=$1} END {print \"Total exchange-rates:\", sum, \"lines\"}')"
+      "Bash(awk '{sum+=$1} END {print \"Total exchange-rates:\", sum, \"lines\"}')",
+      "Bash(grep -n \"ivss\\\\|inces\\\\|banavih\\\\|IVSS\\\\|INCES\\\\|BANAVIH\" src/modules/payroll/schemas/*.ts)",
+      "Bash(echo \"GENERATE_EXIT: $?\")",
+      "Bash(ls \"d:/Documents/Projects/React/modern-cg1/src/app/\\(dashboard\\)/company/\\\\\\\\[companyId\\\\\\\\]/\")",
+      "Bash(sed -n '335,380p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '484,510p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '615,650p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '727,800p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '832,870p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '1303,1345p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '300,335p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '695,730p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '108,115p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '9,30p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '64,100p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '395,430p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)",
+      "Bash(sed -n '465,490p' d:/Documents/Projects/React/modern-cg1/prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
@@ -115,7 +131,8 @@
       "\\tmp",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\invoices",
-      "d:\\Documents\\Projects\\React\\modern-cg1\\.claude"
+      "d:\\Documents\\Projects\\React\\modern-cg1\\.claude",
+      "D:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\payroll\\reports"
     ]
   }
 }
