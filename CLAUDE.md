@@ -103,8 +103,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase NOM-E ✅ merged (Reportes Legales: IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR Tarifa 1 — 45 tests — 1278 total)
 - Fase 35A ✅ merged (Vendor + Customer: CRUD soft-delete + 12 actions + IDOR guards + 54 tests — 1332 total)
 - Fase 26B ✅ merged (IA Tareas Pendientes — PendingTasksService + Gemini summary + PendingTasksWidget — 22 tests — 1354 total)
+- Fase 26 ✅ merged (Asistente Contable IA — AIContextBuilderService 14 queries + sendMessageAction + AIAssistantChat + Gemini Vision — 22 tests — 1376 total)
 
-**1354 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
+**1376 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 

@@ -552,7 +552,7 @@ model FiscalYearClose {
   - ✅ Fase NOM-E: Reportes legales — IVSS Forma 14-02 + Banavih + INCES + ARC/ISLR — completada 2026-04-19 (ver sección 58)
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
-- ⏳ Fase 26: Asistente Contable IA — chat en lenguaje natural con contexto financiero completo, Gemini Flash, análisis de imágenes (Gemini Vision), sugerencia de asientos, modo auditoría (ver diseño aprobado sección 61)
+- ✅ Fase 26: Asistente Contable IA — AIContextBuilderService (14 queries) + sendMessageAction + AIAssistantChat + Gemini Vision — 22 tests — completada 2026-04-19 (ver sección 61)
 - ⏳ Fase 26B: IA Tareas Pendientes + Detector de Anomalías Fiscales (ver sección 60)
   - ✅ **Parte 1 completada 2026-04-19**: `PendingTasksService` (5 detectores prospectivos) + `PendingTasksWidget` + Gemini resumen ejecutivo — 22 tests
   - ⏳ **Parte 2 pendiente**: `FiscalAnomalyDetectorService` — detector retrospectivo de errores ya cometidos en contabilidad
