@@ -553,10 +553,11 @@ model FiscalYearClose {
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ⏳ Fase 26: Asistente Contable IA — chat en lenguaje natural con contexto financiero completo, Gemini Flash, análisis de imágenes (Gemini Vision), sugerencia de asientos, modo auditoría (ver diseño aprobado sección 61)
-- ✅ Fase 26B: IA Assistant de Tareas Pendientes — motor de reglas Prisma + Gemini Flash resumen ejecutivo — 22 tests — completada 2026-04-19 (ver sección 60)
-  - Detecta: facturas sin causar, períodos sin cerrar, activos sin depreciar, retenciones sin vincular, extracto sin conciliar >30d
-  - Reglas = queries Prisma (determinístico). Gemini redacta resumen; si falla → muestra tareas directamente
-  - `PendingTasksService.ts` + `getPendingTasksAction` + `PendingTasksWidget.tsx` en Dashboard
+- ⏳ Fase 26B: IA Tareas Pendientes + Detector de Anomalías Fiscales (ver sección 60)
+  - ✅ **Parte 1 completada 2026-04-19**: `PendingTasksService` (5 detectores prospectivos) + `PendingTasksWidget` + Gemini resumen ejecutivo — 22 tests
+  - ⏳ **Parte 2 pendiente**: `FiscalAnomalyDetectorService` — detector retrospectivo de errores ya cometidos en contabilidad
+  - **Distinción clave**: `PendingTasksService` = "¿qué falta hacer?" (prospectivo). `FiscalAnomalyDetectorService` = "¿qué errores ya se cometieron en el período?" (retrospectivo/auditoría)
+  - Ejemplos de anomalías retrospectivas: asiento descuadrado, cuenta inexistente usada, transacción en período cerrado, retención aplicada sin comprobante vinculado
 - ⏳ Fase 27: PWA + modo offline
 - ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
 - ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
@@ -2717,10 +2718,12 @@ Historial de chat: estado del cliente (no persistido en DB).
 | Retenciones IVA/ISLR pendientes | `Retencion` status PENDING |
 | Tipos de cambio actuales (BCV) | `ExchangeRate` más reciente |
 | Ajuste INPC pendiente | `InflationAdjustment` |
-| Anomalías fiscales activas | `PendingTasksService.getPendingTasks()` — count + severidad máxima |
+| Tareas pendientes | `PendingTasksService.getPendingTasks()` — count + severidad máxima (prospectivo: "qué falta hacer") |
 | Estado del período contable | `AccountingPeriod` — OPEN/CLOSED + fecha de apertura |
 
 **Limitación de cuentas en contexto:** Se priorizan cuentas con movimiento en el período activo. Se excluyen cuentas con saldo cero y sin movimiento hace más de 3 meses. Esto evita saturar el contexto de Gemini con cuentas inactivas.
+
+> **Nota**: Las anomalías retrospectivas ("errores ya cometidos") son responsabilidad de `FiscalAnomalyDetectorService`, que se implementa en Fase 26B Parte 2. Fase 26 solo consume el resultado; si el servicio no existe aún, el modo auditoría muestra las tareas pendientes como proxy.
 
 ---
 
@@ -2760,9 +2763,10 @@ Reglas estáticas inyectadas en el prompt de sistema (no requieren DB):
 
 **3C. Modo auditoría de período**
 - El usuario activa "auditar período actual".
-- Se llama `PendingTasksService.getPendingTasks()` (alias conceptual: FiscalAnomalyDetectorService).
-- El AI presenta un reporte narrativo de hallazgos con severidad y acciones recomendadas.
-- **Nota**: `FiscalAnomalyDetectorService` no existe como clase separada — se usa `PendingTasksService` que ya detecta las 5 anomalías contables críticas. Si en el futuro se amplía a más detectores, se crea el servicio propio.
+- Se llama `FiscalAnomalyDetectorService.detectAnomalies(companyId, periodId)` (implementado en Fase 26B Parte 2).
+- El AI presenta un reporte narrativo de hallazgos retrospectivos: errores ya cometidos, asientos descuadrados, transacciones en período cerrado, retenciones sin comprobante.
+- **Dependencia**: Si `FiscalAnomalyDetectorService` no está disponible (Fase 26B Parte 2 no completada), el modo auditoría usa `PendingTasksService` como fallback temporal y lo indica en la respuesta.
+- **Diferencia con TIER 1**: TIER 1 usa `PendingTasksService` para contexto pasivo ("hay 3 facturas sin causar"). Modo auditoría usa `FiscalAnomalyDetectorService` para diagnóstico activo ("el asiento #1234 está descuadrado por Bs. 50").
 
 ---
 
