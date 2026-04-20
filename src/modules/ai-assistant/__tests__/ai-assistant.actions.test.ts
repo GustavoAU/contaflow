@@ -6,6 +6,8 @@ const mockAuth = vi.hoisted(() => vi.fn());
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 const mockBuildContext = vi.hoisted(() => vi.fn());
 const mockBuildSystemPrompt = vi.hoisted(() => vi.fn());
+const mockDetect = vi.hoisted(() => vi.fn());
+const mockFormatForPrompt = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -20,6 +22,12 @@ vi.mock("../services/AIContextBuilderService", () => ({
   AIContextBuilderService: {
     buildContext: mockBuildContext,
     buildSystemPrompt: mockBuildSystemPrompt,
+  },
+}));
+vi.mock("../services/FiscalAnomalyDetectorService", () => ({
+  FiscalAnomalyDetectorService: {
+    detect: mockDetect,
+    formatForPrompt: mockFormatForPrompt,
   },
 }));
 
@@ -56,6 +64,16 @@ describe("sendMessageAction", () => {
     setupRateLimit();
     mockBuildContext.mockResolvedValue(EMPTY_CTX);
     mockBuildSystemPrompt.mockReturnValue("system prompt");
+    mockDetect.mockResolvedValue({
+      companyId: COMPANY_ID,
+      detectedAt: new Date(),
+      anomalies: [],
+      totalCritical: 0,
+      totalHigh: 0,
+      totalMedium: 0,
+      clean: true,
+    });
+    mockFormatForPrompt.mockReturnValue("AUDITORÍA CONTABLE: No se detectaron anomalías.");
   });
 
   // ─── Auth guard ───────────────────────────────────────────────────────────────
@@ -108,18 +126,16 @@ describe("sendMessageAction", () => {
     process.env.GEMINI_API_KEY = original;
   });
 
-  it("sin GEMINI_API_KEY + modo auditoría: devuelve fallback de tareas", async () => {
+  it("sin GEMINI_API_KEY + modo auditoría: devuelve reporte del detector de anomalías", async () => {
     const original = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
-    mockBuildContext.mockResolvedValue({
-      ...EMPTY_CTX,
-      pendingTasks: [{ type: "INVOICES_SIN_CAUSAR", severity: "error", count: 2 }],
-    });
+    mockFormatForPrompt.mockReturnValue("AUDITORÍA CONTABLE: 1 CRÍTICO | ASIENTO_DESCUADRADO");
     const result = await sendMessageAction(COMPANY_ID, "auditar el período actual");
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.isAuditMode).toBe(true);
-      expect(result.reply).toContain("INVOICES_SIN_CAUSAR");
+      expect(result.reply).toContain("AUDITORÍA CONTABLE");
+      expect(mockDetect).toHaveBeenCalledWith(COMPANY_ID);
     }
     process.env.GEMINI_API_KEY = original;
   });
