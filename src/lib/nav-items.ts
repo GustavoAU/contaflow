@@ -35,6 +35,7 @@ import {
   UsersIcon,
   Truck,
   UserCheck,
+  SparklesIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -110,6 +111,12 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
         ],
       },
       {
+        group: "IA",
+        items: [
+          item("Asistente IA", p("/ai-assistant"), SparklesIcon),
+        ],
+      },
+      {
         group: "Administración",
         items: [
           item("Configuración", p("/settings"), Settings),
@@ -156,6 +163,12 @@ function buildAccountantNav(companyId: string): NavConfig {
           item("Declaración IVA", p("/iva-declaration"), ScrollText),
           item("Reportes", p("/reports"), BarChart3),
           item("Exportar Datos", p("/export"), ArchiveIcon),
+        ],
+      },
+      {
+        group: "IA",
+        items: [
+          item("Asistente IA", p("/ai-assistant"), SparklesIcon),
         ],
       },
     ],
