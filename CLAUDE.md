@@ -104,8 +104,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 35A ✅ merged (Vendor + Customer: CRUD soft-delete + 12 actions + IDOR guards + 54 tests — 1332 total)
 - Fase 26B ✅ merged (IA Tareas Pendientes — PendingTasksService + Gemini summary + PendingTasksWidget — 22 tests — 1354 total)
 - Fase 26 ✅ merged (Asistente Contable IA — AIContextBuilderService 14 queries + sendMessageAction + AIAssistantChat + Gemini Vision — 22 tests — 1376 total)
+- Fase 26B Parte 2 ✅ merged (FiscalAnomalyDetectorService — detector retrospectivo: asientos descuadrados + retenciones sin factura + CxC +90d + saldo anormal — 15 tests — 1391 total)
 
-**1376 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
+**1391 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-19)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
