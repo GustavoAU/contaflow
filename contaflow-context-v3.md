@@ -553,11 +553,10 @@ model FiscalYearClose {
 - ⏳ Fase 24: Firma Electrónica + QR (SUSCERTE)
 - ⏳ Fase 25: Stripe + pagos automáticos
 - ✅ Fase 26: Asistente Contable IA — AIContextBuilderService (14 queries) + sendMessageAction + AIAssistantChat + Gemini Vision — 22 tests — completada 2026-04-19 (ver sección 61)
-- ⏳ Fase 26B: IA Tareas Pendientes + Detector de Anomalías Fiscales (ver sección 60)
-  - ✅ **Parte 1 completada 2026-04-19**: `PendingTasksService` (5 detectores prospectivos) + `PendingTasksWidget` + Gemini resumen ejecutivo — 22 tests
-  - ⏳ **Parte 2 pendiente**: `FiscalAnomalyDetectorService` — detector retrospectivo de errores ya cometidos en contabilidad
+- ✅ Fase 26B: IA Tareas Pendientes + Detector de Anomalías Fiscales (ver sección 60) — completada 2026-04-19
+  - ✅ **Parte 1**: `PendingTasksService` (5 detectores prospectivos) + `PendingTasksWidget` + Gemini resumen ejecutivo — 22 tests
+  - ✅ **Parte 2**: `FiscalAnomalyDetectorService` — 4 detectores retrospectivos: asientos descuadrados (CRITICAL) + retenciones sin factura (HIGH) + CxC +90d (HIGH) + saldo anormal (MEDIUM) — 15 tests — 1391 total
   - **Distinción clave**: `PendingTasksService` = "¿qué falta hacer?" (prospectivo). `FiscalAnomalyDetectorService` = "¿qué errores ya se cometieron en el período?" (retrospectivo/auditoría)
-  - Ejemplos de anomalías retrospectivas: asiento descuadrado, cuenta inexistente usada, transacción en período cerrado, retención aplicada sin comprobante vinculado
 - ⏳ Fase 27: PWA + modo offline
 - ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
 - ✅ Fase 28B: Nav dinámico por rol — `src/lib/nav-items.ts` (`getNavItems(role, companyId)`) + Navbar refactorizado con dropdown agrupado por sección + badge "Pronto" para Inventario + layout pasa `userRole` (ver sección 43)
@@ -2761,32 +2760,42 @@ Reglas estáticas inyectadas en el prompt de sistema (no requieren DB):
 - El AI valida partida doble (DEBE = HABER) antes de presentar.
 - El asiento es solo sugerencia — el contador lo confirma y causa manualmente.
 
-**3C. Modo auditoría de período**
+**3C. Modo auditoría de período** ✅ Implementado en Fase 26B Parte 2
 - El usuario activa "auditar período actual".
-- Se llama `FiscalAnomalyDetectorService.detectAnomalies(companyId, periodId)` (implementado en Fase 26B Parte 2).
-- El AI presenta un reporte narrativo de hallazgos retrospectivos: errores ya cometidos, asientos descuadrados, transacciones en período cerrado, retenciones sin comprobante.
-- **Dependencia**: Si `FiscalAnomalyDetectorService` no está disponible (Fase 26B Parte 2 no completada), el modo auditoría usa `PendingTasksService` como fallback temporal y lo indica en la respuesta.
-- **Diferencia con TIER 1**: TIER 1 usa `PendingTasksService` para contexto pasivo ("hay 3 facturas sin causar"). Modo auditoría usa `FiscalAnomalyDetectorService` para diagnóstico activo ("el asiento #1234 está descuadrado por Bs. 50").
+- `FiscalAnomalyDetectorService.detect(companyId)` corre en paralelo con `buildContext` vía `Promise.all`.
+- El reporte se inyecta en el system prompt de Gemini como sección adicional `AUDITORÍA CONTABLE`.
+- Si Gemini no está disponible (sin API key), `formatForPrompt(report)` se devuelve directamente como fallback.
+- **Diferencia con TIER 1**: TIER 1 usa `PendingTasksService` para contexto pasivo ("hay 3 facturas sin causar"). Modo auditoría usa `FiscalAnomalyDetectorService` para diagnóstico activo ("el asiento #1234 está descuadrado").
+
+**Detectores implementados en FiscalAnomalyDetectorService:**
+
+| Detector | Nivel | Descripción |
+|---|---|---|
+| `ASIENTO_DESCUADRADO` | CRITICAL | Transacciones POSTED donde Σ journalEntries ≠ 0 (ε = 0.01) |
+| `RETENCION_SIN_FACTURA` | HIGH | Retenciones con `invoiceId = null` |
+| `CXC_VENCIDA_90_DIAS` | HIGH | Facturas SALE vencidas hace >90 días |
+| `SALDO_ANORMAL` | MEDIUM | Cuentas con signo de balance contrario al tipo (ASSET crédito, LIABILITY débito) |
 
 ---
 
-### Archivos a crear
+### Archivos creados
 
 ```
 src/modules/ai-assistant/
   services/
-    AIContextBuilderService.ts       ← queries DB, ensambla contexto
+    AIContextBuilderService.ts          ← queries DB, ensambla contexto (14 queries)
+    FiscalAnomalyDetectorService.ts     ← detector retrospectivo (Fase 26B Parte 2)
   actions/
-    ai-assistant.actions.ts          ← IDOR + rol + rate limit + Gemini call
+    ai-assistant.actions.ts             ← IDOR + rol + rate limit + Gemini call
   components/
-    AIAssistantChat.tsx              ← UI chat con historial en estado cliente
-    AIAssistantPage.tsx              ← wrapper de página
+    AIAssistantChat.tsx                 ← UI chat con historial en estado cliente
   __tests__/
-    AIContextBuilderService.test.ts  ← ~8 tests
-    ai-assistant.actions.test.ts     ← ~8 tests
+    AIContextBuilderService.test.ts     ← 11 tests
+    ai-assistant.actions.test.ts        ← 11 tests
+    FiscalAnomalyDetectorService.test.ts ← 15 tests
 
 src/app/(dashboard)/company/[companyId]/ai-assistant/
-  page.tsx                           ← Server Component, pasa companyId
+  page.tsx                              ← Server Component, pasa companyId
 ```
 
 Nav: agregar "Asistente IA" en `src/lib/nav-items.ts` para roles ACCOUNTANT+.
