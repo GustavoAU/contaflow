@@ -68,7 +68,7 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
           {error && <p className="text-sm text-red-600 text-center py-8">{error}</p>}
           {schedule && (
             <table className="w-full text-sm">
-              <thead className="text-xs font-semibold text-gray-500 uppercase border-b">
+              <thead className="sticky top-0 z-10 bg-white text-xs font-semibold text-gray-500 uppercase border-b">
                 <tr>
                   <th className="py-2 text-left">Período</th>
                   <th className="py-2 text-right">Cuota</th>
