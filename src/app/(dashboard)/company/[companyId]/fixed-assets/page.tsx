@@ -28,13 +28,12 @@ export default async function FixedAssetsPage({ params }: Props) {
     }),
   ]);
 
-  // Serializar Decimals para el cliente
   const serializedAssets = assets.map((a) => ({
     ...a,
-    acquisitionCost: a.acquisitionCost,
-    residualValue: a.residualValue,
-    bookValue: a.bookValue,
-    accumulatedDepreciation: a.accumulatedDepreciation,
+    acquisitionCost: a.acquisitionCost.toFixed(2),
+    residualValue: a.residualValue.toFixed(2),
+    bookValue: a.bookValue.toFixed(2),
+    accumulatedDepreciation: a.accumulatedDepreciation.toFixed(2),
   }));
 
   return (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { getDepreciationScheduleAction } from "../actions/fixed-asset.actions";
+import { formatAmount } from "@/lib/format";
 
 type Props = {
   assetId: string;
@@ -23,6 +24,12 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
       else setError(r.error);
     });
   }, [assetId, companyId]);
+
+  // Bloquear scroll del body mientras el modal está abierto
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
 
   const MONTHS = [
     "", "Ene","Feb","Mar","Abr","May","Jun",
@@ -80,13 +87,13 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
                         {MONTHS[row.month]} {row.year}
                       </td>
                       <td className="py-1.5 text-right font-mono text-gray-800">
-                        {row.amount.toFixed(2)}
+                        {formatAmount(Number(row.amount))}
                       </td>
                       <td className="py-1.5 text-right font-mono text-orange-700">
-                        {row.accumulated.toFixed(2)}
+                        {formatAmount(Number(row.accumulated))}
                       </td>
                       <td className="py-1.5 text-right font-mono font-semibold text-gray-900">
-                        {row.bookValue.toFixed(2)}
+                        {formatAmount(Number(row.bookValue))}
                       </td>
                       <td className="py-1.5 text-center">
                         {posted ? (
