@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Decimal } from "decimal.js";
 import { previewInflationAdjustmentAction, runInflationAdjustmentAction } from "../actions/inpc.actions";
-import type { AdjustmentPreviewRow } from "../services/INPCService";
+import type { SerializedPreviewRow } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
 
 const MONTHS = [
@@ -29,7 +28,7 @@ export function InflationAdjustmentPanel({
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
   const [adjustmentAccountId, setAdjustmentAccountId] = useState(equityAccounts[0]?.id ?? "");
 
-  const [preview, setPreview]           = useState<AdjustmentPreviewRow[] | null>(null);
+  const [preview, setPreview]           = useState<SerializedPreviewRow[] | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [runResult, setRunResult]       = useState<string | null>(null);
   const [runError, setRunError]         = useState<string | null>(null);
@@ -76,7 +75,7 @@ export function InflationAdjustmentPanel({
       });
       if (r.success) {
         setRunResult(
-          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${r.data.totalAdjustment.toFixed(2)}, factor ${r.data.factor.toFixed(4)}.`,
+          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${r.data.totalAdjustment}, factor ${parseFloat(r.data.factor).toFixed(4)}.`,
         );
         setPreview(null);
       } else {
@@ -86,7 +85,7 @@ export function InflationAdjustmentPanel({
   }
 
   const totalAdjustment = preview
-    ? preview.reduce((acc, r) => acc.plus(r.adjustmentAmount.abs()), new Decimal(0))
+    ? preview.reduce((acc, r) => acc + Math.abs(parseFloat(r.adjustmentAmount)), 0)
     : null;
 
   return (
@@ -152,7 +151,7 @@ export function InflationAdjustmentPanel({
             <h3 className="text-sm font-semibold text-gray-800">
               Asientos proyectados — {MONTHS[periodMonth]} {periodYear}
             </h3>
-            {preview.length > 0 && totalAdjustment && (
+            {preview.length > 0 && totalAdjustment !== null && (
               <span className="text-xs text-gray-500">
                 Total abs: <span className="font-mono font-semibold">{totalAdjustment.toFixed(2)}</span>
               </span>
@@ -172,29 +171,44 @@ export function InflationAdjustmentPanel({
                       <th className="px-4 py-2 text-left">Cuenta</th>
                       <th className="px-4 py-2 text-left">Tipo</th>
                       <th className="px-4 py-2 text-right">Saldo Actual</th>
-                      <th className="px-4 py-2 text-right">Factor</th>
+                      <th
+                        className="px-4 py-2 text-right cursor-help"
+                        title="Factor = INPC del período ÷ INPC del período base"
+                      >
+                        Factor ⓘ
+                      </th>
                       <th className="px-4 py-2 text-right">Ajuste</th>
+                      <th className="px-4 py-2 text-right">Saldo Reexp.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {preview.map((row) => (
-                      <tr key={row.accountId} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">
-                          <span className="font-mono text-xs text-gray-500">{row.accountCode}</span>{" "}
-                          <span className="text-gray-900">{row.accountName}</span>
-                        </td>
-                        <td className="px-4 py-2 text-xs text-gray-500">{row.accountType}</td>
-                        <td className="px-4 py-2 text-right font-mono text-gray-700">
-                          {row.originalBalance.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono text-gray-500">
-                          {row.cumulativeIndex.toFixed(4)}
-                        </td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${row.adjustmentAmount.greaterThan(0) ? "text-green-700" : "text-red-700"}`}>
-                          {row.adjustmentAmount.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
+                    {preview.map((row) => {
+                      const reexpressed = (parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount)).toFixed(2);
+                      return (
+                        <tr key={row.accountId} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">
+                            <span className="font-mono text-xs text-gray-500">{row.accountCode}</span>{" "}
+                            <span className="text-gray-900">{row.accountName}</span>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-500">{row.accountType}</td>
+                          <td className="px-4 py-2 text-right font-mono text-gray-700">
+                            {row.originalBalance}
+                          </td>
+                          <td
+                            className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
+                            title={`INPC período / INPC base = ${parseFloat(row.cumulativeIndex).toFixed(6)}`}
+                          >
+                            {parseFloat(row.cumulativeIndex).toFixed(4)}
+                          </td>
+                          <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(row.adjustmentAmount) > 0 ? "text-green-700" : "text-red-700"}`}>
+                            {row.adjustmentAmount}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-semibold text-indigo-700">
+                            {reexpressed}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
