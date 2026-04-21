@@ -3,8 +3,14 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import type { FixedAssetSummary } from "../services/FixedAssetService";
-import { postMonthlyDepreciationAction, disposeFixedAssetAction } from "../actions/fixed-asset.actions";
+import {
+  postMonthlyDepreciationAction,
+  disposeFixedAssetAction,
+  catchUpAssetDepreciationAction,
+  catchUpAllAssetsDepreciationAction,
+} from "../actions/fixed-asset.actions";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
+import { formatAmount } from "@/lib/format";
 
 const METHOD_LABELS: Record<string, string> = {
   LINEA_RECTA: "Línea Recta",
@@ -30,6 +36,9 @@ export function FixedAssetList({ assets, companyId }: Props) {
   const [deprResult, setDeprResult] = useState<string | null>(null);
   const [scheduleAssetId, setScheduleAssetId] = useState<string | null>(null);
   const [isPendingDispose, startDispose] = useTransition();
+  const [isPendingCatchUp, startCatchUp] = useTransition();
+  const [isPendingCatchUpAll, startCatchUpAll] = useTransition();
+  const [catchUpResult, setCatchUpResult] = useState<string | null>(null);
 
   function handlePostDepreciation() {
     startDepr(async () => {
@@ -55,6 +64,58 @@ export function FixedAssetList({ assets, companyId }: Props) {
       });
       if (r.success) toast.success(`Activo "${assetName}" dado de baja correctamente`);
       else toast.error(r.error);
+    });
+  }
+
+  function handleCatchUpAsset(assetId: string, assetName: string) {
+    setCatchUpResult(null);
+    startCatchUp(async () => {
+      const r = await catchUpAssetDepreciationAction({ assetId, companyId });
+      if (r.success) {
+        const { processed, skipped, errors, noPeriods, nextPeriodLabel } = r.data;
+        if (noPeriods) {
+          toast.info(`"${assetName}": aún no tiene períodos depreciables. El primer período será ${nextPeriodLabel}.`);
+        } else if (processed === 0 && skipped > 0) {
+          toast.info(`"${assetName}" ya está al día — ${skipped} período${skipped !== 1 ? "s" : ""} ya registrado${skipped !== 1 ? "s" : ""}.`);
+        } else if (processed > 0) {
+          toast.success(`"${assetName}": ${processed} período${processed !== 1 ? "s" : ""} calculado${processed !== 1 ? "s" : ""}${skipped > 0 ? `, ${skipped} ya existían` : ""}.`);
+        }
+        if (errors.length > 0) {
+          toast.warning(`${errors.length} advertencia${errors.length !== 1 ? "s" : ""}: ${errors[0]}`);
+        }
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  function handleCatchUpAll() {
+    setCatchUpResult(null);
+    startCatchUpAll(async () => {
+      const r = await catchUpAllAssetsDepreciationAction({ companyId });
+      if (r.success) {
+        const { totalProcessed, totalSkipped, assetErrors } = r.data;
+        const errorCount = Object.keys(assetErrors).length;
+        if (totalProcessed > 0) {
+          toast.success(`${totalProcessed} período${totalProcessed !== 1 ? "s" : ""} de depreciación calculado${totalProcessed !== 1 ? "s" : ""} correctamente.`);
+        } else if (totalSkipped > 0) {
+          toast.info("Todos los activos ya están al día.");
+        } else {
+          toast.info("No hay activos con períodos depreciables pendientes.");
+        }
+        const msg = [
+          totalProcessed > 0 ? `${totalProcessed} período${totalProcessed !== 1 ? "s" : ""} calculado${totalProcessed !== 1 ? "s" : ""}` : null,
+          totalSkipped > 0 ? `${totalSkipped} ya existían` : null,
+          errorCount > 0 ? `${errorCount} activo${errorCount !== 1 ? "s" : ""} con advertencias` : null,
+        ].filter(Boolean).join(" · ");
+        setCatchUpResult(msg || "Sin cambios.");
+        if (errorCount > 0) {
+          const firstAsset = Object.keys(assetErrors)[0]!;
+          toast.warning(`${firstAsset}: ${assetErrors[firstAsset]![0]}`);
+        }
+      } else {
+        toast.error(r.error);
+      }
     });
   }
 
@@ -105,6 +166,23 @@ export function FixedAssetList({ assets, companyId }: Props) {
         {deprResult && (
           <p className="text-xs text-blue-700">{deprResult}</p>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleCatchUpAll}
+            disabled={isPendingCatchUpAll}
+            className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {isPendingCatchUpAll ? (
+              <span className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Calculando...
+              </span>
+            ) : "Calcular todos al día"}
+          </button>
+        </div>
+        {catchUpResult && (
+          <p className="w-full text-xs text-indigo-700">{catchUpResult}</p>
+        )}
       </div>
 
       {/* Tabla de activos */}
@@ -133,13 +211,13 @@ export function FixedAssetList({ assets, companyId }: Props) {
                     <td className="px-4 py-3 font-medium text-gray-900">{a.name}</td>
                     <td className="px-4 py-3 text-gray-600">{METHOD_LABELS[a.depreciationMethod] ?? a.depreciationMethod}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-800">
-                      {a.acquisitionCost.toFixed(2)}
+                      {formatAmount(String(a.acquisitionCost))}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-orange-700">
-                      {a.accumulatedDepreciation.toFixed(2)}
+                      {formatAmount(String(a.accumulatedDepreciation))}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
-                      {a.bookValue.toFixed(2)}
+                      {formatAmount(String(a.bookValue))}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {a.lastEntryDate
@@ -159,6 +237,15 @@ export function FixedAssetList({ assets, companyId }: Props) {
                         >
                           Tabla
                         </button>
+                        {a.status === "ACTIVE" && (
+                          <button
+                            onClick={() => handleCatchUpAsset(a.id, a.name)}
+                            disabled={isPendingCatchUp}
+                            className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
+                          >
+                            Poner al día
+                          </button>
+                        )}
                         {a.status === "ACTIVE" && (
                           <button
                             onClick={() => handleDispose(a.id, a.name)}

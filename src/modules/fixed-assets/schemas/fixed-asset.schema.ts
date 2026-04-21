@@ -33,6 +33,19 @@ export const PostMonthlyDepreciationSchema = z.object({
 
 export type PostMonthlyDepreciationInput = z.infer<typeof PostMonthlyDepreciationSchema>;
 
+export const CatchUpAssetSchema = z.object({
+  assetId: z.string().min(1),
+  companyId: z.string().min(1),
+});
+
+export type CatchUpAssetInput = z.infer<typeof CatchUpAssetSchema>;
+
+export const CatchUpAllAssetsSchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export type CatchUpAllAssetsInput = z.infer<typeof CatchUpAllAssetsSchema>;
+
 export const DisposeFixedAssetSchema = z.object({
   assetId: z.string().min(1),
   companyId: z.string().min(1),
