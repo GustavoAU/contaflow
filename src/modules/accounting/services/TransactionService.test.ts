@@ -316,6 +316,52 @@ describe("voidTransaction", () => {
       })
     );
   });
+
+  it("hard-lock: lanza error si el período del asiento está CLOSED", async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "CLOSED",
+    } as never);
+
+    await expect(
+      TransactionService.voidTransaction({
+        transactionId: "tx-original",
+        userId: "user-1",
+        reason: "Intento en período cerrado",
+      })
+    ).rejects.toThrow("No se puede anular un asiento en un período cerrado");
+  });
+
+  it("hard-lock: permite anular si el período está OPEN (sin período registrado también permite)", async () => {
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
+
+    const voidTx = { id: "tx-void", number: "2026-03-000002", entries: [] };
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
+      fn({
+        ...prisma,
+        transaction: {
+          ...prisma.transaction,
+          create: vi.fn().mockResolvedValue(voidTx),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        auditLog: { create: vi.fn() },
+      } as never)
+    );
+
+    const result = await TransactionService.voidTransaction({
+      transactionId: "tx-original",
+      userId: "user-1",
+      reason: "Corrección en período abierto",
+    });
+
+    expect(result).toMatchObject({ id: "tx-void" });
+  });
 });
 
 // ─── getTransactionsByCompany ─────────────────────────────────────────────────
