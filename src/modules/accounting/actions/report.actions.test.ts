@@ -290,4 +290,43 @@ describe("getBalanceSheetAction", () => {
     expect(result.data.totalLiabilities).toBe("400.00");
     expect(result.data.isBalanced).toBe(false);
   });
+
+  it("contra-activo (saldo crédito) reduce totalActivos — regresión bug balance.abs()", async () => {
+    // Regresión: antes se usaba balance.abs() para ASSET, inflando el total.
+    // Maquinaria 10.000 + Dep. Acumulada -4.000 = Valor Neto 6.000
+    vi.mocked(prisma.account.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "acc-1", code: "1640", name: "Maquinaria", type: "ASSET",
+          journalEntries: [{ amount: { toString: () => "10000" } }],
+        },
+        {
+          id: "acc-2", code: "1691", name: "Depreciación Acumulada Maquinaria", type: "ASSET",
+          journalEntries: [{ amount: { toString: () => "-4000" } }],
+        },
+        {
+          id: "acc-3", code: "2205", name: "Proveedores", type: "LIABILITY",
+          journalEntries: [{ amount: { toString: () => "-4000" } }],
+        },
+        {
+          id: "acc-4", code: "3105", name: "Capital", type: "EQUITY",
+          journalEntries: [{ amount: { toString: () => "-2000" } }],
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never); // segunda llamada: REVENUE/EXPENSE
+
+    const result = await getBalanceSheetAction("company-1");
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // El contra-activo REDUCE totalActivos (6.000), no lo infla (14.000)
+    expect(result.data.totalAssets).toBe("6000.00");
+    expect(result.data.totalLiabilities).toBe("4000.00");
+    expect(result.data.totalEquity).toBe("2000.00");
+    expect(result.data.isBalanced).toBe(true);
+
+    // El balance de la fila es con signo, no abs()
+    const depRow = result.data.assets.find((r) => r.code === "1691");
+    expect(depRow?.balance).toBe("-4000.00");
+  });
 });
