@@ -9,6 +9,7 @@ import {
   rejectQuotationAction,
 } from "../actions/quotation.actions";
 import type { QuotationRow } from "../services/QuotationService";
+import { formatAmount } from "@/lib/format";
 
 interface Props {
   companyId: string;
@@ -79,6 +80,11 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
         <tbody className="divide-y divide-gray-100 bg-white">
           {quotations.map((q) => {
             const badge = STATUS_BADGE[q.status] ?? { label: q.status, cls: "bg-gray-100 text-gray-700" };
+            const today = new Date().toISOString().split("T")[0]!;
+            const isExpired =
+              q.validUntil &&
+              q.validUntil < today &&
+              (q.status === "DRAFT" || q.status === "PENDING_APPROVAL" || q.status === "APPROVED");
             return (
               <tr key={q.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-xs text-blue-700">{q.number}</td>
@@ -93,14 +99,23 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                     <div className="text-xs text-gray-400">{q.counterpartRif}</div>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{q.validUntil}</td>
+                <td className={`px-4 py-3 ${isExpired ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                  {q.validUntil}
+                </td>
                 <td className="px-4 py-3 font-mono text-right">
-                  {q.currency} {Number(q.total).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                  {q.currency} {formatAmount(q.total)}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
-                    {badge.label}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                    {isExpired && (
+                      <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+                        Vencida
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">

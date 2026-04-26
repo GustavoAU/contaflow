@@ -58,7 +58,7 @@ describe("ExchangeRateService.getRateForDate", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("retorna la tasa si existe", async () => {
-    vi.mocked(prisma.exchangeRate.findUnique).mockResolvedValue(RATE_RECORD as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(RATE_RECORD as never);
 
     const result = await ExchangeRateService.getRateForDate("company-1", "USD", DATE);
 
@@ -67,7 +67,7 @@ describe("ExchangeRateService.getRateForDate", () => {
   });
 
   it("lanza error si no existe tasa para la fecha", async () => {
-    vi.mocked(prisma.exchangeRate.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
 
     await expect(
       ExchangeRateService.getRateForDate("company-1", "USD", DATE),

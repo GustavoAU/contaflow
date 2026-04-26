@@ -1,5 +1,13 @@
 # ContaFlow — Agent Guide
 
+## Knowledge Base (leer antes de implementar)
+
+- **`.claude/PROMPT_V8.md`** — Reglas inviolables R-1 a R-5, checklist pre-merge
+- **`.claude/ontologia/ontologia-v8-indice.md`** — Fuente de verdad contable V8 (catálogo cuentas, matrices, reglas)
+- **`.claude/ontologia/quick-reference.md`** — Tabla rápida cuentas, validaciones copy-paste, reglas de oro
+- **`.claude/adr/ADR-015-BORRADOR-eventos-extemporaneos.md`** — Ajustes extemporáneos / retroactivos (pendiente aprobación)
+- **`.claude/design/caja-chica-spec.md`** — Especificación Módulo Caja Chica (Fase 35D)
+
 ## Stack
 
 Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Clerk | Zod 4 | Vitest 4 | Decimal.js | @upstash/ratelimit | @sentry/nextjs

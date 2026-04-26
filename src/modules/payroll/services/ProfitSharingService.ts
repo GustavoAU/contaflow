@@ -7,7 +7,7 @@
 //   baseSalarySnapshot = promedio de SalaryHistory en el año fiscal (server-side)
 //   profitAmount = fractionalDays × (baseSalarySnapshot / 30)
 //
-// Guard doble-pago: @@unique([companyId, employeeId, fiscalYear, isFractional]) + P2002.
+// Guard doble-pago: @@unique([companyId, employeeId, fiscalYear]) + P2002.
 // baseSalarySnapshot calculado server-side — NUNCA del cliente (ADR-014 Dec. 3).
 //
 // Security findings addressed:
@@ -156,18 +156,20 @@ export const ProfitSharingService = {
 
     const isFractional = input.isFractional ?? false;
 
-    // Guard: período contable del mes de referencia
+    // Guard: período contable del mes actual — el asiento se causa hoy,
+    // no en diciembre del año fiscal (que puede no existir aún).
+    const today = new Date();
     const period = await prisma.accountingPeriod.findFirst({
       where: {
         companyId,
-        year: periodEnd.getFullYear(),
-        month: periodEnd.getMonth() + 1,
+        year: today.getFullYear(),
+        month: today.getMonth() + 1,
         status: "OPEN",
       },
     });
     if (!period) {
       throw new Error(
-        `El período contable ${periodEnd.getFullYear()}-${String(periodEnd.getMonth() + 1).padStart(2, "0")} está cerrado o no existe`
+        `El período contable ${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")} está cerrado o no existe`
       );
     }
 
@@ -180,7 +182,7 @@ export const ProfitSharingService = {
             companyId,
             periodId: period.id,
             number: `NOM-D-UTIL-${input.fiscalYear}-${employeeId.slice(-6)}${isFractional ? "-F" : ""}`,
-            date: periodEnd,
+            date: today,
             description: `Utilidades ${input.fiscalYear}${isFractional ? " (fraccionadas)" : ""} — ${employee.firstName} ${employee.lastName}`,
             userId,
             type: "DIARIO",
@@ -237,14 +239,14 @@ export const ProfitSharingService = {
         });
 
         return serializeProfitSharing(record);
-      });
+      }, { timeout: 15000, maxWait: 15000 });
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2002"
       ) {
         throw new Error(
-          `Ya existe un registro de utilidades ${isFractional ? "fraccionadas" : ""} para el año fiscal ${input.fiscalYear} de este empleado`
+          `Ya existe un registro de utilidades para el año fiscal ${input.fiscalYear} de este empleado`
         );
       }
       throw err;

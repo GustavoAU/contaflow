@@ -183,7 +183,7 @@ describe("BenefitAccrualService.accrueQuarter", () => {
 
     await expect(
       BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("está cerrado o no existe");
+    ).rejects.toThrow("No hay período contable abierto para");
   });
 
   it("throws if payroll config missing", async () => {
@@ -213,17 +213,35 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     ).rejects.toThrow("No hay empleados activos");
   });
 
-  it("calculates accrual correctly (5 días × salario integral)", async () => {
+  it("calculates accrual correctly (5 días base + 0.5 adicionales por antigüedad × salario integral)", async () => {
+    // BASE_EMPLOYEE.hireDate = 2025-01-01; Q1-2026 end = 2026-03-31 → ~1.24 years → 1 completed → +2/año → 0.5/trim
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
 
     const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
     expect(result.employeesProcessed).toBe(1);
 
     // dailyNormal = 3000/30 = 100
-    // profitAliq = 100 * 15 / 360 = 4.1667
-    // bonusAliq = 100 * 7 / 360 = 1.9444
-    // integral = 100 + 4.1667 + 1.9444 = 106.1111
-    // accrual = 106.1111 * 5 = 530.5556
+    // profitAliq  = 100 * 15 / 360 = 4.1667
+    // bonusAliq   = 100 * 7  / 360 = 1.9444
+    // integral    = 106.1111
+    // totalDays   = 5 (base) + 0.5 (1 año antigüedad) = 5.5
+    // accrual     = 106.1111 × 5.5 = 583.6111
+    const accrued = new Decimal(result.totalAccrued);
+    expect(accrued.gte("583")).toBe(true);
+    expect(accrued.lte("584")).toBe(true);
+  });
+
+  it("calculates accrual with 0 additional days for employee under 1 year", async () => {
+    const recentEmployee = {
+      ...BASE_EMPLOYEE,
+      hireDate: new Date("2026-01-15"), // less than 1 year at Q1-2026 end
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([recentEmployee] as never);
+
+    const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
+    expect(result.employeesProcessed).toBe(1);
+
+    // 0 additional days → 5 days only → 106.1111 * 5 = 530.5556
     const accrued = new Decimal(result.totalAccrued);
     expect(accrued.gte("530")).toBe(true);
     expect(accrued.lte("531")).toBe(true);

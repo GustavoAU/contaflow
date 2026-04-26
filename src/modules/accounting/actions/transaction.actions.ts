@@ -212,6 +212,70 @@ export async function getTransactionsByPeriodAction(
  * No requiere auth — el control de acceso para reabrir período está en PeriodService.
  * Exportado para uso desde PeriodService o acciones de cierre/reapertura.
  */
-export function invalidatePeriodCache(companyId: string, periodId: string): void {
+export async function invalidatePeriodCache(companyId: string, periodId: string): Promise<void> {
   invalidatePeriod(companyId, periodId);
+}
+
+// ─── Obtener detalle de un asiento ────────────────────────────────────────────
+
+export async function getTransactionByIdAction(
+  companyId: string,
+  transactionId: string
+): Promise<ActionResult<{
+  id: string;
+  number: string;
+  date: string;
+  description: string;
+  reference: string | null;
+  notes: string | null;
+  type: string;
+  status: string;
+  entries: { id: string; amount: string; account: { id: string; code: string; name: string; type: string } }[];
+}>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "No autorizado" };
+
+  try {
+    const tx = await prisma.transaction.findFirst({
+      where: { id: transactionId, companyId },
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        description: true,
+        reference: true,
+        notes: true,
+        type: true,
+        status: true,
+        entries: {
+          select: {
+            id: true,
+            amount: true,
+            account: { select: { id: true, code: true, name: true, type: true } },
+          },
+          orderBy: { amount: "desc" },
+        },
+      },
+    });
+
+    if (!tx) return { success: false, error: "Asiento no encontrado" };
+
+    return {
+      success: true,
+      data: {
+        ...tx,
+        date: tx.date.toISOString(),
+        entries: tx.entries.map((e) => ({ ...e, amount: e.amount.toString() })),
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al obtener el asiento" };
+  }
 }

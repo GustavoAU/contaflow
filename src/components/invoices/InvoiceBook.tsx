@@ -10,11 +10,11 @@ import {
   getInvoiceBookAction,
   exportInvoiceBookPDFAction,
   exportInvoiceVoucherPDFAction,
-  exportInvoiceXMLAction,
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
 import * as XLSX from "xlsx";
+import { formatAmount } from "@/lib/format";
 
 type Props = {
   companyId: string;
@@ -52,8 +52,6 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
   const [isPendingPDF, startTransitionPDF] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
   const [pendingVoucherId, setPendingVoucherId] = useState<string | null>(null);
-  const [isPendingXML, startTransitionXML] = useTransition();
-  const [pendingXMLId, setPendingXMLId] = useState<string | null>(null);
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -104,26 +102,6 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       a.download = `factura-${invoiceNumber}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    });
-  }
-
-  function handleExportInvoiceXML(invoiceId: string, invoiceNumber: string) {
-    setPendingXMLId(invoiceId);
-    startTransitionXML(async () => {
-      const res = await exportInvoiceXMLAction(invoiceId, companyId);
-      setPendingXMLId(null);
-      if (!res.success) {
-        toast.error(res.error);
-        return;
-      }
-      const blob = new Blob([res.xml], { type: "application/xml" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = res.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`XML descargado: ${res.filename}`);
     });
   }
 
@@ -351,12 +329,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                       <th className="px-4 py-3 text-right">IVA Ret.</th>
                       {type === "PURCHASE" && <th className="px-4 py-3 text-right">ISLR Ret.</th>}
                       {type === "SALE" && <th className="px-4 py-3 text-right">IGTF</th>}
+                      <th className="px-4 py-3 text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {result.rows.map((row) => {
                       const isFactura = row.docType === "FACTURA";
                       const ncNdOpen = expandedNcNdId === row.id;
+                      const rowTotal = row.taxLines.reduce(
+                        (acc, line) => acc + parseFloat(line.base) + parseFloat(line.amount),
+                        0
+                      ) + parseFloat(row.igtfAmount);
 
                       // Botón NC/ND solo para FACTURAs
                       const ncNdButton = isFactura ? (
@@ -413,16 +396,6 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   >
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
-                                    disabled={isPendingXML && pendingXMLId === row.id}
-                                    title="Descargar XML SENIAT"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
-                                    aria-label={`Descargar XML factura ${row.invoiceNumber}`}
-                                  >
-                                    {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
-                                  </button>
                                   {ncNdButton}
                                 </div>
                               </td>
@@ -443,6 +416,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   {row.igtfAmount}
                                 </td>
                               )}
+                              <td className="px-4 py-3 text-right font-mono text-zinc-400">—</td>
                             </tr>
                           ) : (
                             row.taxLines.map((line, idx) => (
@@ -483,16 +457,6 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   >
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExportInvoiceXML(row.id, row.invoiceNumber)}
-                                    disabled={isPendingXML && pendingXMLId === row.id}
-                                    title="Descargar XML SENIAT"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
-                                    aria-label={`Descargar XML factura ${row.invoiceNumber}`}
-                                  >
-                                    {isPendingXML && pendingXMLId === row.id ? "…" : "XML"}
-                                  </button>
                                   {ncNdButton}
                                 </div>
                               )}
@@ -518,6 +482,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                 {idx === 0 ? row.igtfAmount : ""}
                               </td>
                             )}
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                              {idx === 0 ? formatAmount(rowTotal) : ""}
+                            </td>
                           </tr>
                             ))
                           )}
@@ -533,10 +500,11 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                       <td colSpan={6} className="px-4 py-3 text-right text-xs text-zinc-500">
                         TOTALES
                       </td>
+                      <td className="px-4 py-3"></td>{/* Impuesto col */}
                       <td className="px-4 py-3 text-right font-mono">
                         {result.summary.totalBaseGeneral}
                       </td>
-                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3"></td>{/* Tasa% col */}
                       <td className="px-4 py-3 text-right font-mono">
                         {result.summary.totalIvaGeneral}
                       </td>
@@ -553,6 +521,15 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                           {result.summary.totalIgtf}
                         </td>
                       )}
+                      <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
+                        {formatAmount(result.rows.reduce((acc, row) => {
+                          const rt = row.taxLines.reduce(
+                            (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
+                            0
+                          ) + parseFloat(row.igtfAmount);
+                          return acc + rt;
+                        }, 0))}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>

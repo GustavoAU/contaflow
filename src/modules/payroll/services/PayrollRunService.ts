@@ -157,12 +157,12 @@ export const PayrollRunService = {
     const periodEnd = new Date(input.periodEnd);
 
     // ── Guard período contable (NOM-C-13) ─────────────────────────────────
-    // El período contable cubre el mes/año de la fecha de inicio de la nómina
+    // Usar métodos UTC para evitar desfase de zona horaria (VEN = UTC-4)
     const openPeriod = await prisma.accountingPeriod.findFirst({
       where: {
         companyId,
-        year: periodStart.getFullYear(),
-        month: periodStart.getMonth() + 1,
+        year: periodStart.getUTCFullYear(),
+        month: periodStart.getUTCMonth() + 1,
         status: "OPEN",
       },
     });
@@ -339,8 +339,8 @@ export const PayrollRunService = {
     const openPeriod = await prisma.accountingPeriod.findFirst({
       where: {
         companyId,
-        year: run.periodStart.getFullYear(),
-        month: run.periodStart.getMonth() + 1,
+        year: run.periodStart.getUTCFullYear(),
+        month: run.periodStart.getUTCMonth() + 1,
         status: "OPEN",
       },
     });

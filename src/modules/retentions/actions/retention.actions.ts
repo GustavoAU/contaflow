@@ -69,7 +69,9 @@ export async function createRetentionAction(
     const calc = RetentionService.calculate(
       data.taxBase,
       data.ivaRetentionPct as 75 | 100,
-      data.islrCode
+      data.islrCode,
+      16,
+      data.type
     );
 
     // Idempotencia: clave provista por cliente o generada aquí (constante para este request)

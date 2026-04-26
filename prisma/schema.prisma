@@ -177,6 +177,7 @@ model Company {
   bcvBenefitRates             BcvBenefitRate[]
   benefitBalances             BenefitBalance[]
   benefitAccrualLines         BenefitAccrualLine[]
+  benefitAdvances             BenefitAdvance[]
   vacationRecords             VacationRecord[]
   profitSharingRecords        ProfitSharingRecord[]
   terminations                Termination[]
@@ -290,6 +291,7 @@ model Transaction {
   payrollRun                     PayrollRun?
   // Fase NOM-D: Beneficios laborales
   benefitAccrualLine             BenefitAccrualLine?
+  benefitAdvance                 BenefitAdvance?
   vacationRecord                 VacationRecord?
   profitSharingRecord            ProfitSharingRecord?
   termination                    Termination?
@@ -1195,10 +1197,11 @@ model Employee {
   // Fase NOM-C
   payrollRunLines PayrollRunLine[]
   // Fase NOM-D
-  benefitBalance  BenefitBalance?
-  vacationRecords VacationRecord[]
+  benefitBalance   BenefitBalance?
+  benefitAdvances  BenefitAdvance[]
+  vacationRecords  VacationRecord[]
   profitSharingRecords ProfitSharingRecord[]
-  terminations    Termination[]
+  terminations     Termination[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -1370,17 +1373,23 @@ model PayrollRunLine {
 // ─── Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación ────
 // ADR-014: arquitectura de beneficios laborales LOTTT Venezuela
 
-// Tasa activa promedio BCV mensual — fuente oficial para intereses sobre prestaciones (Art. 143 LOTTT)
+enum BcvRateType {
+  ACTIVA    // Tasa activa BCV (Art. 143 LOTTT — valor por defecto)
+  PROMEDIO  // Tasa promedio BCV (alternativa)
+}
+
+// Tasa activa BCV mensual — fuente oficial para intereses sobre prestaciones (Art. 143 LOTTT)
 // ADMIN-only: la tasa nunca viene del cliente en acciones de transacción (ADR-014 Dec. 2 / ADR-006 D-3)
 model BcvBenefitRate {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   companyId       String
   year            Int
-  month           Int      // 1–12
-  annualRate      Decimal  @db.Decimal(5, 2)  // porcentaje anual, ej: 45.50 = 45.5%
-  source          String   @default("BCV")    // "BCV" | "MANUAL"
+  month           Int         // 1–12
+  annualRate      Decimal     @db.Decimal(5, 2)  // porcentaje anual, ej: 17.50 = 17.5%
+  rateType        BcvRateType @default(ACTIVA)    // ACTIVA por mandato Art. 143 LOTTT
+  source          String      @default("BCV")     // "BCV" | "MANUAL"
   createdByUserId String
-  createdAt       DateTime @default(now())
+  createdAt       DateTime    @default(now())
 
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   accrualLines    BenefitAccrualLine[]
@@ -1406,6 +1415,7 @@ model BenefitBalance {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   accrualLines    BenefitAccrualLine[]
+  advances        BenefitAdvance[]
   termination     Termination?
 
   @@index([companyId])
@@ -1434,7 +1444,8 @@ model BenefitAccrualLine {
   profitDaysAliquot        Decimal?           @db.Decimal(19, 4)  // alícuota utilidades
   vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 4)  // alícuota bono vacacional
   integralDailyWage        Decimal?           @db.Decimal(19, 4)  // = suma de los tres campos
-  accrualDays              Int?               // días base del período (5 en año 1)
+  accrualDays              Int?               // días base del período (siempre 5 — Art. 142)
+  additionalDays           Decimal?           @db.Decimal(5, 2)  // días adicionales por antigüedad (+2/año, máx 30 — Art. 142)
   // Montos del evento
   accrualAmount            Decimal            @db.Decimal(19, 4)
   runningBalance           Decimal            @db.Decimal(19, 4)  // saldo acumulado post-evento
@@ -1457,6 +1468,38 @@ model BenefitAccrualLine {
   @@index([companyId])
   @@index([benefitBalanceId, createdAt(sort: Desc)])
   @@index([companyId, year, quarter])
+}
+
+// ─── Anticipo de Prestaciones Sociales (Art. 144 LOTTT) ──────────────────────
+// Máximo 75% del saldo acumulado. Motivos tasados por la ley.
+// Inmutable post-registro — cancelaciones vía asiento inverso + AuditLog.
+
+enum BenefitAdvanceReason {
+  HOUSING    // Adquisición, construcción o remodelación de vivienda principal
+  HEALTH     // Gastos médicos graves del trabajador o su familia
+  EDUCATION  // Pago de estudios del trabajador o sus hijos
+}
+
+model BenefitAdvance {
+  id               String               @id @default(cuid())
+  companyId        String
+  employeeId       String
+  benefitBalanceId String
+  amount           Decimal              @db.Decimal(19, 4)  // monto del anticipo
+  reason           BenefitAdvanceReason
+  notes            String?
+  transactionId    String?              @unique  // asiento débito al saldo (obligatorio)
+  createdByUserId  String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  benefitBalance   BenefitBalance       @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  transaction      Transaction?         @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId])
+  @@index([companyId])
 }
 
 // Registro de vacaciones causadas por el empleado (disfrute o pago).
@@ -1515,7 +1558,7 @@ model ProfitSharingRecord {
   employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   transaction         Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
-  @@unique([companyId, employeeId, fiscalYear, isFractional])
+  @@unique([companyId, employeeId, fiscalYear])
   @@index([companyId, employeeId])
   @@index([companyId, fiscalYear])
 }

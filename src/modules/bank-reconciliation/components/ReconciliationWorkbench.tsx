@@ -129,12 +129,18 @@ function getMatchLabel(tx: BankTransaction): string {
 
 function SummaryBar({ summary, currency }: { summary: Summary; currency: string }) {
   const differenceNum = parseFloat(summary.difference);
-  const diffColor =
-    differenceNum === 0
-      ? "text-green-700"
-      : differenceNum > 0
-        ? "text-amber-700"
-        : "text-red-700";
+  const isZero = differenceNum === 0;
+  const diffCardClass = isZero
+    ? "bg-green-50 border-green-300"
+    : differenceNum > 0
+      ? "bg-amber-50 border-amber-400"
+      : "bg-red-50 border-red-400";
+  const diffColor = isZero
+    ? "text-green-700"
+    : differenceNum > 0
+      ? "text-amber-700"
+      : "text-red-700";
+  const diffLabelColor = isZero ? "text-green-600" : differenceNum > 0 ? "text-amber-600" : "text-red-600";
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -156,11 +162,11 @@ function SummaryBar({ summary, currency }: { summary: Summary; currency: string 
         </div>
         <div className="mt-0.5 text-xs text-amber-600">Pendientes</div>
       </div>
-      <div className="rounded-lg border bg-zinc-50 p-3 text-center">
+      <div className={`rounded-lg border-2 p-3 text-center ${diffCardClass}`}>
         <div className={`text-xl font-bold tabular-nums ${diffColor}`} style={{ fontVariantNumeric: "tabular-nums" }}>
           {fmtAmount(summary.difference)} {currency}
         </div>
-        <div className="mt-0.5 text-xs text-zinc-500">Diferencia</div>
+        <div className={`mt-0.5 text-xs font-medium ${diffLabelColor}`}>Diferencia</div>
       </div>
     </div>
   );

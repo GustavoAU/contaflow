@@ -36,6 +36,10 @@ export interface PayrollConfigRow {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  benefitsExpenseAccountId: string | null;
+  benefitsPayableAccountId: string | null;
+  vacationPayableAccountId: string | null;
+  profitSharingPayableAccountId: string | null;
   updatedAt: string;
 }
 
@@ -49,6 +53,10 @@ export interface SavePayrollConfigInput {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  benefitsExpenseAccountId?: string | null;
+  benefitsPayableAccountId?: string | null;
+  vacationPayableAccountId?: string | null;
+  profitSharingPayableAccountId?: string | null;
 }
 
 // ─── Serialización ────────────────────────────────────────────────────────────
@@ -65,6 +73,10 @@ function serializeConfig(c: {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  benefitsExpenseAccountId: string | null;
+  benefitsPayableAccountId: string | null;
+  vacationPayableAccountId: string | null;
+  profitSharingPayableAccountId: string | null;
   updatedAt: Date;
 }): PayrollConfigRow {
   return {
@@ -79,6 +91,10 @@ function serializeConfig(c: {
     paymentCurrency: c.paymentCurrency,
     frequency: c.frequency,
     fideicomiso: c.fideicomiso,
+    benefitsExpenseAccountId: c.benefitsExpenseAccountId,
+    benefitsPayableAccountId: c.benefitsPayableAccountId,
+    vacationPayableAccountId: c.vacationPayableAccountId,
+    profitSharingPayableAccountId: c.profitSharingPayableAccountId,
     updatedAt: c.updatedAt.toISOString(),
   };
 }

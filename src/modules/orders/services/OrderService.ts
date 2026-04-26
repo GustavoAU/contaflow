@@ -282,17 +282,50 @@ export const OrderService = {
           counterpartName: order.counterpartName,
           counterpartRif: order.counterpartRif ?? "",
           currency: order.currency,
-          totalAmountVes: order.total,     // total pre-contable de la orden
+          totalAmountVes: order.total,
           createdBy: userId,
           periodId: invoiceData.periodId ?? null,
           orderId: order.id,
-          // Defaults for required fiscal fields
           ivaRetentionAmount: 0,
           igtfBase: 0,
           igtfAmount: 0,
           islrRetentionAmount: 0,
         },
       });
+
+      // Build InvoiceTaxLine records grouped by taxRate
+      const rateToType = (rate: Decimal) => {
+        const r = rate.toNumber();
+        if (r === 8)  return "IVA_REDUCIDO"  as const;
+        if (r === 31) return "IVA_ADICIONAL" as const;
+        if (r === 0)  return "EXENTO"        as const;
+        return "IVA_GENERAL" as const;
+      };
+
+      const taxGroups = new Map<string, { base: Decimal; rate: Decimal }>();
+      for (const item of order.items) {
+        const key = item.taxRate.toString();
+        const itemBase = new Decimal(item.unitPrice.toString()).mul(new Decimal(item.quantity.toString()));
+        const existing = taxGroups.get(key);
+        if (existing) {
+          existing.base = existing.base.add(itemBase);
+        } else {
+          taxGroups.set(key, { base: itemBase, rate: new Decimal(item.taxRate.toString()) });
+        }
+      }
+
+      for (const { base, rate } of taxGroups.values()) {
+        const amount = base.mul(rate).div(100);
+        await tx.invoiceTaxLine.create({
+          data: {
+            invoiceId: invoice.id,
+            taxType: rateToType(rate),
+            base,
+            rate,
+            amount,
+          },
+        });
+      }
 
       // Mark order as CONVERTED
       await tx.order.update({

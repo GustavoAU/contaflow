@@ -24,7 +24,7 @@ export default async function InflationPage({ params }: Props) {
       where: { id: companyId },
       select: { id: true, name: true, inflationBaseYear: true, inflationBaseMonth: true },
     }),
-    prisma.$transaction(async (tx) => INPCService.getRates(companyId, tx)),
+    INPCService.getRates(companyId, prisma),
     prisma.account.findMany({
       where: { companyId, type: "EQUITY", deletedAt: null },
       select: { id: true, code: true, name: true },
@@ -67,7 +67,11 @@ export default async function InflationPage({ params }: Props) {
         {isAdmin && (
           <INPCRateForm companyId={companyId} />
         )}
-        <INPCRateTable rates={rates} />
+        <INPCRateTable rates={rates.map((r) => ({
+          ...r,
+          indexValue: r.indexValue.toFixed(6),
+          createdAt: r.createdAt.toISOString(),
+        }))} />
       </section>
 
       {/* Panel de ajuste — solo ADMIN */}

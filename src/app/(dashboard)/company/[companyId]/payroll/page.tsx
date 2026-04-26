@@ -66,12 +66,25 @@ export default async function PayrollPage({ params }: Props) {
           )}
         </div>
 
-        {/* Admin: muestra wizard (editable aunque ya exista config) */}
-        {isAdmin && (
+        {/* Admin sin config: muestra wizard */}
+        {isAdmin && !config && (
           <PayrollWizard
             companyId={companyId}
-            initial={config}
+            initial={null}
           />
+        )}
+
+        {/* Admin con config: muestra resumen + enlace para editar */}
+        {isAdmin && config && (
+          <div className="space-y-3">
+            <PayrollConfigSummary cfg={config} />
+            <Link
+              href={`/company/${companyId}/payroll/config/edit`}
+              className="inline-block rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              Editar configuración
+            </Link>
+          </div>
         )}
 
         {/* No-admin con acceso de lectura: muestra resumen */}
@@ -169,6 +182,42 @@ export default async function PayrollPage({ params }: Props) {
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Prestaciones Sociales</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Vacaciones — NOM-D */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/vacations`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Vacaciones</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Registro y bono vacacional (Art. 190–192 LOTTT)
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Vacaciones</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
+            {/* Utilidades — NOM-D */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/profit-sharing`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Utilidades</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Cálculo anual/fraccionado (Art. 131–132 LOTTT)
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Utilidades</p>
                 <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
               </div>
             )}

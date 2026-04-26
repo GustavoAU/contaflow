@@ -30,6 +30,7 @@ export default function BcvRateList({ rates }: Props) {
             <th className="px-4 py-3 text-left font-medium text-gray-600">Año</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Mes</th>
             <th className="px-4 py-3 text-right font-medium text-gray-600">Tasa anual (%)</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-600">Tipo</th>
             <th className="px-4 py-3 text-left font-medium text-gray-600">Fuente</th>
           </tr>
         </thead>
@@ -40,6 +41,15 @@ export default function BcvRateList({ rates }: Props) {
               <td className="px-4 py-3">{MONTHS[r.month]}</td>
               <td className="px-4 py-3 text-right font-mono">
                 {Number(r.annualRate).toFixed(2)}%
+              </td>
+              <td className="px-4 py-3">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                  r.rateType === "ACTIVA"
+                    ? "bg-blue-50 text-blue-700"
+                    : "bg-gray-100 text-gray-600"
+                }`}>
+                  {r.rateType === "ACTIVA" ? "Activa" : "Promedio"}
+                </span>
               </td>
               <td className="px-4 py-3 text-gray-500 uppercase text-xs">{r.source}</td>
             </tr>

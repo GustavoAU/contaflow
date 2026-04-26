@@ -43,21 +43,26 @@ function Section({
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
-              <tr key={row.id} className="border-b last:border-0 hover:bg-zinc-50">
-                <td className="px-4 py-2 text-zinc-600">
-                  <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
-                  {row.name}
-                </td>
-                <td className="px-4 py-2 text-right font-mono">{formatAmount(row.balance)}</td>
-              </tr>
-            ))
+            rows.map((row, i) => {
+              const isNegative = parseFloat(row.balance) < 0;
+              return (
+                <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
+                  <td className="px-4 py-2 text-zinc-600">
+                    <span className="mr-2 font-mono text-xs text-zinc-400">{row.code === "—" ? "" : row.code}</span>
+                    {row.name}
+                  </td>
+                  <td className={`tabular-nums px-4 py-2 text-right font-mono ${isNegative ? "text-red-600" : ""}`}>
+                    {isNegative ? `(${formatAmount(String(Math.abs(parseFloat(row.balance))))})` : formatAmount(row.balance)}
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
         <tfoot>
           <tr className={`border-t ${colorClass}`}>
             <td className="px-4 py-2 font-semibold">Total {title}</td>
-            <td className="px-4 py-2 text-right font-mono font-semibold">{formatAmount(total)}</td>
+            <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold">{formatAmount(total)} Bs.</td>
           </tr>
         </tfoot>
       </table>
@@ -120,21 +125,21 @@ export default async function BalanceSheetPage({ params }: Props) {
           <div
             className={`rounded-lg border-2 p-4 ${result.data.isBalanced ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p
-                  className={`font-bold ${result.data.isBalanced ? "text-green-800" : "text-red-800"}`}
-                >
-                  {result.data.isBalanced ? "✅ Balance cuadrado" : "⚠️ Balance descuadrado"}
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Pasivos + Patrimonio = {formatAmount(result.data.totalLiabilitiesAndEquity)}
+            <p className={`font-bold ${result.data.isBalanced ? "text-green-800" : "text-red-800"}`}>
+              {result.data.isBalanced ? "✅ Balance cuadrado" : "⚠️ Balance descuadrado"}
+            </p>
+            <div className="mt-2 flex items-center gap-3 text-sm">
+              <div className="text-center">
+                <p className="text-xs text-zinc-500">Activos</p>
+                <p className="tabular-nums font-mono font-bold">
+                  {formatAmount(result.data.totalAssets)} Bs.
                 </p>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-zinc-500">Total Activos</p>
-                <p className="font-mono text-lg font-bold">
-                  {formatAmount(result.data.totalAssets)}
+              <span className="text-zinc-400 font-bold">=</span>
+              <div className="text-center">
+                <p className="text-xs text-zinc-500">Pasivos + Patrimonio</p>
+                <p className="tabular-nums font-mono font-bold">
+                  {formatAmount(result.data.totalLiabilitiesAndEquity)} Bs.
                 </p>
               </div>
             </div>

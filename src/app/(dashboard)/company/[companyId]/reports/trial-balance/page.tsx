@@ -65,22 +65,22 @@ export default async function TrialBalancePage({ params }: Props) {
                 <th className="px-4 py-3 text-left font-medium text-zinc-500">Código</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500">Cuenta</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500">Tipo</th>
-                <th className="px-4 py-3 text-right font-medium text-zinc-500">Débitos</th>
-                <th className="px-4 py-3 text-right font-medium text-zinc-500">Créditos</th>
-                <th className="px-4 py-3 text-right font-medium text-zinc-500">Saldo</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-500">Débitos (Bs.)</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-500">Créditos (Bs.)</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-500">Saldo (Bs.)</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-zinc-50">
+              {rows.map((row, i) => (
+                <tr key={row.id} className={`${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
                   <td className="px-4 py-3 font-mono font-medium text-blue-600">{row.code}</td>
                   <td className="px-4 py-3 font-medium">{row.name}</td>
                   <td className={`px-4 py-3 text-xs font-semibold ${TYPE_COLORS[row.type]}`}>
                     {TYPE_LABELS[row.type]}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">{row.totalDebit}</td>
-                  <td className="px-4 py-3 text-right font-mono">{row.totalCredit}</td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold">{row.balance}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono">{row.totalDebit}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono">{row.totalCredit}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono font-semibold">{row.balance}</td>
                 </tr>
               ))}
             </tbody>
@@ -90,14 +90,14 @@ export default async function TrialBalancePage({ params }: Props) {
                 <td colSpan={3} className="px-4 py-3 font-bold">
                   TOTALES
                 </td>
-                <td className="px-4 py-3 text-right font-mono font-bold">
+                <td className="tabular-nums px-4 py-3 text-right font-mono font-bold">
                   {grandTotalDebit.toFixed(2)}
                 </td>
-                <td className="px-4 py-3 text-right font-mono font-bold">
+                <td className="tabular-nums px-4 py-3 text-right font-mono font-bold">
                   {grandTotalCredit.toFixed(2)}
                 </td>
                 <td
-                  className={`px-4 py-3 text-right font-mono font-bold ${
+                  className={`tabular-nums px-4 py-3 text-right font-mono font-bold ${
                     isBalanced ? "text-green-600" : "text-red-600"
                   }`}
                 >
@@ -105,11 +105,13 @@ export default async function TrialBalancePage({ params }: Props) {
                 </td>
               </tr>
               <tr>
-                <td colSpan={6} className="px-4 py-2 text-right text-xs">
+                <td colSpan={6} className={`px-4 py-2 text-right text-xs ${isBalanced ? "bg-green-50" : "bg-red-50"}`}>
                   {isBalanced ? (
-                    <span className="font-semibold text-green-600">✓ Balanceado</span>
+                    <span className="font-semibold text-green-600">✓ Balanceado — Débitos = Créditos</span>
                   ) : (
-                    <span className="font-semibold text-red-600">⚠ Diferencia detectada</span>
+                    <span className="font-semibold text-red-600">
+                      ⚠ Desbalanceado — diferencia: {Math.abs(grandBalance).toFixed(2)} Bs.
+                    </span>
                   )}
                 </td>
               </tr>

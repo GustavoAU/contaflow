@@ -1,14 +1,21 @@
 "use client";
 
-import type { INPCRateRow } from "../services/INPCService";
-
 const MONTHS = [
   "","Enero","Febrero","Marzo","Abril","Mayo","Junio",
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
 
+type SerializedINPCRate = {
+  id: string;
+  year: number;
+  month: number;
+  indexValue: string;
+  source: string | null;
+  createdAt: string;
+};
+
 type Props = {
-  rates: INPCRateRow[];
+  rates: SerializedINPCRate[];
 };
 
 export function INPCRateTable({ rates }: Props) {
@@ -38,11 +45,11 @@ export function INPCRateTable({ rates }: Props) {
                 {MONTHS[r.month]} {r.year}
               </td>
               <td className="px-4 py-3 text-right font-mono text-gray-800">
-                {r.indexValue.toFixed(6)}
+                {r.indexValue}
               </td>
               <td className="px-4 py-3 text-gray-500">{r.source ?? "BCV"}</td>
               <td className="px-4 py-3 text-gray-400 text-xs">
-                {r.createdAt.toLocaleDateString("es-VE")}
+                {new Date(r.createdAt).toLocaleDateString("es-VE")}
               </td>
             </tr>
           ))}

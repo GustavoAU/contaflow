@@ -3,7 +3,6 @@
 // src/modules/iva-declaration/components/Forma30View.tsx
 
 import { useState, useTransition } from "react";
-import { Decimal } from "decimal.js";
 import { generarForma30Action, type Forma30ActionResult } from "../actions/generarForma30.action";
 import { exportForma30PDFAction } from "../actions/exportForma30PDF.action";
 
@@ -12,20 +11,40 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-function fmt(d: Decimal): string {
+function fmt(s: string): string {
   return new Intl.NumberFormat("es-VE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(d.toNumber());
+  }).format(parseFloat(s));
 }
 
-function Row({ label, base, tax }: { label: string; base: Decimal; tax?: Decimal }) {
+function isZero(s: string): boolean {
+  return parseFloat(s) === 0;
+}
+
+function NumCell({ value, colSpan, bold }: { value: string; colSpan?: number; bold?: boolean }) {
+  const zero = isZero(value);
+  return (
+    <td
+      colSpan={colSpan}
+      className={`py-2 text-right text-sm tabular-nums [font-variant-numeric:tabular-nums] ${bold ? "font-semibold" : "font-medium"} font-mono ${zero ? "text-zinc-300" : ""}`}
+    >
+      {fmt(value)}
+    </td>
+  );
+}
+
+function Row({ label, base, tax }: { label: string; base: string; tax?: string }) {
   return (
     <tr className="border-b last:border-0">
-      <td className="py-2 pr-4 text-sm text-zinc-600">{label}</td>
-      <td className="py-2 pr-4 text-right font-mono text-sm">{fmt(base)}</td>
+      <td className={`py-2 pr-4 text-sm ${isZero(base) && (tax === undefined || isZero(tax)) ? "text-zinc-400" : "text-zinc-600"}`}>
+        {label}
+      </td>
+      <td className={`py-2 pr-4 text-right font-mono text-sm tabular-nums [font-variant-numeric:tabular-nums] ${isZero(base) ? "text-zinc-300" : ""}`}>
+        {fmt(base)}
+      </td>
       {tax !== undefined && (
-        <td className="py-2 text-right font-mono text-sm font-medium">{fmt(tax)}</td>
+        <NumCell value={tax} bold />
       )}
     </tr>
   );
@@ -42,8 +61,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
           <thead>
             <tr className="border-b text-xs text-zinc-400">
               <th className="pb-1 text-left font-normal">Concepto</th>
-              <th className="pb-1 text-right font-normal">Base Imponible</th>
-              <th className="pb-1 text-right font-normal">Impuesto</th>
+              <th className="pb-1 text-right font-normal">Base Imponible (Bs.)</th>
+              <th className="pb-1 text-right font-normal">Impuesto (Bs.)</th>
             </tr>
           </thead>
           <tbody>{children}</tbody>
@@ -69,10 +88,13 @@ function SectionSimple({ title, children }: { title: string; children: React.Rea
 }
 
 function SimpleRow({ label, value }: { label: string; value: string }) {
+  const zero = isZero(value);
   return (
     <tr className="border-b last:border-0">
-      <td className="py-2 pr-4 text-sm text-zinc-600">{label}</td>
-      <td className="py-2 text-right font-mono text-sm font-medium">{value}</td>
+      <td className={`py-2 pr-4 text-sm ${zero ? "text-zinc-400" : "text-zinc-600"}`}>{label}</td>
+      <td className={`py-2 text-right font-mono text-sm font-medium tabular-nums [font-variant-numeric:tabular-nums] ${zero ? "text-zinc-300" : ""}`}>
+        {fmt(value)}
+      </td>
     </tr>
   );
 }
@@ -123,6 +145,11 @@ export function Forma30View({ companyId }: Props) {
   }
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentDate.getFullYear() - i);
+
+  // Prorrateo: hay ventas exentas/exoneradas Y también créditos fiscales de compras gravadas
+  const showProrrateoAlert = result
+    && parseFloat(result.seccionA.exentasExoneradas.base) > 0
+    && parseFloat(result.seccionB.totalCreditosFiscales) > 0;
 
   return (
     <div className="space-y-6">
@@ -178,7 +205,6 @@ export function Forma30View({ companyId }: Props) {
                 Declaración IVA — {MESES[result.month - 1]} {result.year}
               </h2>
               <div className="mt-1 flex gap-3 text-xs text-zinc-400">
-
                 {!result.periodExists && (
                   <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-yellow-700">
                     Período no registrado
@@ -205,6 +231,16 @@ export function Forma30View({ companyId }: Props) {
             </button>
           </div>
 
+          {/* Alerta de prorrateo */}
+          {showProrrateoAlert && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span className="font-semibold">Prorrateo de créditos fiscales:</span>{" "}
+              Este período tiene ventas exentas/exoneradas y compras con IVA. Según el Art. 34 de la Ley del IVA,
+              los créditos fiscales deben prorratearse en función del porcentaje de ventas gravadas sobre el total.
+              Verifica el cálculo antes de presentar la declaración.
+            </div>
+          )}
+
           {/* Sección A — Débitos */}
           <Section title="A — Débitos Fiscales (Ventas)">
             <Row label="A1. Ventas alícuota general (16%)" base={result.seccionA.general.base} tax={result.seccionA.general.tax} />
@@ -215,7 +251,7 @@ export function Forma30View({ companyId }: Props) {
             <tr className="border-t bg-zinc-50 font-semibold">
               <td className="py-2 pr-4 text-sm">Total Débitos Fiscales</td>
               <td />
-              <td className="py-2 text-right font-mono text-sm">{fmt(result.seccionA.totalDebitosFiscales)}</td>
+              <NumCell value={result.seccionA.totalDebitosFiscales} bold />
             </tr>
           </Section>
 
@@ -229,24 +265,24 @@ export function Forma30View({ companyId }: Props) {
             <tr className="border-t bg-zinc-50 font-semibold">
               <td className="py-2 pr-4 text-sm">Total Créditos Fiscales</td>
               <td />
-              <td className="py-2 text-right font-mono text-sm">{fmt(result.seccionB.totalCreditosFiscales)}</td>
+              <NumCell value={result.seccionB.totalCreditosFiscales} bold />
             </tr>
           </Section>
 
           {/* Sección C — Retenciones */}
           <SectionSimple title="C — Retenciones IVA">
-            <SimpleRow label="C1. Retenciones IVA sufridas (clientes nos retuvieron)" value={fmt(result.seccionC.retencionesIvaSufridas)} />
-            <SimpleRow label="C2. Retenciones IVA practicadas (retuvimos a proveedores)" value={fmt(result.seccionC.retencionesIvaPracticadas)} />
+            <SimpleRow label="C1. Retenciones IVA sufridas (clientes nos retuvieron)" value={result.seccionC.retencionesIvaSufridas} />
+            <SimpleRow label="C2. Retenciones IVA practicadas (retuvimos a proveedores)" value={result.seccionC.retencionesIvaPracticadas} />
             <tr className="border-t bg-zinc-50 font-semibold">
               <td className="py-2 pr-4 text-sm">Total Retenciones</td>
-              <td className="py-2 text-right font-mono text-sm">{fmt(result.seccionC.totalRetenciones)}</td>
+              <NumCell value={result.seccionC.totalRetenciones} bold />
             </tr>
           </SectionSimple>
 
           {/* Sección D — IGTF */}
           <SectionSimple title="D — IGTF">
-            <SimpleRow label="Base IGTF" value={fmt(result.seccionD.igtfBase)} />
-            <SimpleRow label="Total IGTF pagado" value={fmt(result.seccionD.igtfTotal)} />
+            <SimpleRow label="Base IGTF" value={result.seccionD.igtfBase} />
+            <SimpleRow label="Total IGTF pagado" value={result.seccionD.igtfTotal} />
           </SectionSimple>
 
           {/* Sección E — Cuota */}
@@ -260,14 +296,14 @@ export function Forma30View({ companyId }: Props) {
                   Débitos − Créditos − Retenciones
                 </p>
               </div>
-              <p className={`font-mono text-xl font-bold ${result.seccionE.esSaldoAFavor ? "text-blue-700" : "text-zinc-900"}`}>
-                {result.seccionE.esSaldoAFavor ? "−" : ""}{fmt(result.seccionE.cuotaPeriodo.abs())}
+              <p className={`font-mono text-xl font-bold tabular-nums [font-variant-numeric:tabular-nums] ${result.seccionE.esSaldoAFavor ? "text-blue-700" : "text-zinc-900"}`}>
+                {result.seccionE.esSaldoAFavor ? "−" : ""}Bs. {fmt(result.seccionE.cuotaPeriodo)}
               </p>
             </div>
           </div>
 
           <p className="text-right text-xs text-zinc-300">
-            Calculado: {result.calculatedAt.toLocaleString("es-VE")}
+            Calculado: {new Date(result.calculatedAt).toLocaleString("es-VE")}
           </p>
         </div>
       )}

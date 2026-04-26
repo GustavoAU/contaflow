@@ -16,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
     },
     invoice: { create: vi.fn() },
+    invoiceTaxLine: { create: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -171,6 +172,7 @@ describe("OrderService.convertOrderToInvoice", () => {
       fn({
         order: prisma.order,
         invoice: prisma.invoice,
+        invoiceTaxLine: prisma.invoiceTaxLine,
         auditLog: prisma.auditLog,
       })) as never
     );

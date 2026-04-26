@@ -25,6 +25,7 @@ import { ROLE_LABELS, canAccess, ROLES } from "@/lib/auth-helpers";
 import type { UserRole } from "@/lib/nav-items";
 import { getPendingTasksAction } from "@/modules/dashboard/actions/pending-tasks.actions";
 import { PendingTasksWidget } from "@/modules/dashboard/components/PendingTasksWidget";
+import { getVacationAlertsAction } from "@/modules/payroll/actions/nom-d.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -198,6 +199,11 @@ export default async function CompanyDashboardPage({ params }: Props) {
   // Fetch pending tasks for ACCOUNTING+ roles (non-blocking — falls back gracefully)
   const pendingTasksResult = showKpis ? await getPendingTasksAction(companyId) : null;
 
+  // Fetch vacation alerts for ADMIN+ roles only
+  const isAdmin = canAccess(role, ROLES.ADMIN_ONLY);
+  const vacationAlertsResult = isAdmin ? await getVacationAlertsAction(companyId) : null;
+  const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
+
   return (
     <div className="space-y-6">
       {/* ─── Encabezado ─────────────────────────────────────────────────── */}
@@ -242,6 +248,37 @@ export default async function CompanyDashboardPage({ params }: Props) {
           <p className="text-sm font-medium text-green-800">
             Período activo: {MONTH_NAMES[m.activePeriod.month]} {m.activePeriod.year}
           </p>
+        </div>
+      )}
+
+      {/* ─── Alerta: vacaciones por agotar ──────────────────────────────── */}
+      {vacationAlerts.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+          <AlertCircleIcon className="h-5 w-5 shrink-0 text-orange-500 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-orange-800">
+              {vacationAlerts.length === 1
+                ? "Un empleado tiene vacaciones por agotarse"
+                : `${vacationAlerts.length} empleados tienen vacaciones por agotarse`}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {vacationAlerts.map((a) => (
+                <li key={a.employeeId} className="text-xs text-orange-700">
+                  {a.fullName} —{" "}
+                  {a.remaining === 0
+                    ? "sin días restantes"
+                    : `${a.remaining} día${a.remaining !== 1 ? "s" : ""} restante${a.remaining !== 1 ? "s" : ""}`}{" "}
+                  de {a.entitlement} días anuales
+                </li>
+              ))}
+            </ul>
+          </div>
+          <a
+            href={`/company/${companyId}/payroll/vacations`}
+            className="shrink-0 text-xs font-medium text-orange-700 hover:underline"
+          >
+            Ver vacaciones →
+          </a>
         </div>
       )}
 

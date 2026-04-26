@@ -193,7 +193,7 @@ describe("ProfitSharingService.calculate", () => {
 
     await expect(
       ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 })
-    ).rejects.toThrow("Ya existe un registro de utilidades");
+    ).rejects.toThrow(`Ya existe un registro de utilidades para el año fiscal 2026 de este empleado`);
   });
 
   it("returns serialized record", async () => {

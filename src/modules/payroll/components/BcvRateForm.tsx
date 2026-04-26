@@ -16,6 +16,7 @@ export default function BcvRateForm({ companyId }: Props) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [annualRate, setAnnualRate] = useState("");
+  const [rateType, setRateType] = useState<"ACTIVA" | "PROMEDIO">("ACTIVA");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,6 +25,7 @@ export default function BcvRateForm({ companyId }: Props) {
         year,
         month,
         annualRate: parseFloat(annualRate),
+        rateType,
       });
       if (result.success) {
         toast.success("Tasa BCV registrada correctamente");
@@ -36,7 +38,7 @@ export default function BcvRateForm({ companyId }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Año</label>
           <input
@@ -75,12 +77,28 @@ export default function BcvRateForm({ companyId }: Props) {
             min={0}
             max={500}
             step={0.01}
-            placeholder="Ej: 17.50"
+            placeholder="Ej. 17.50"
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Tipo de tasa
+          </label>
+          <select
+            value={rateType}
+            onChange={(e) => setRateType(e.target.value as "ACTIVA" | "PROMEDIO")}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="ACTIVA">Activa (Art. 143 LOTTT)</option>
+            <option value="PROMEDIO">Promedio</option>
+          </select>
+        </div>
       </div>
+      <p className="text-xs text-gray-400">
+        Art. 143 LOTTT — usar la <strong>Tasa Activa</strong> vigente publicada por el BCV.
+      </p>
       <button
         type="submit"
         disabled={isPending}
