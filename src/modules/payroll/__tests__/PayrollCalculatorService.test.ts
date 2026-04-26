@@ -19,6 +19,7 @@ const SYSTEM_CONCEPTS = [
   { code: "IVSS_OBR", conceptId: "c-ivss" },
   { code: "INCES_OBR", conceptId: "c-inces" },
   { code: "FAOV_OBR", conceptId: "c-faov" },
+  { code: "RPE_OBR", conceptId: "c-rpe" },
 ];
 
 const BASE_CONFIG: PayrollCalculatorConfig = {
@@ -26,6 +27,8 @@ const BASE_CONFIG: PayrollCalculatorConfig = {
   ivssEnabled: true,
   incesEnabled: true,
   banavihEnabled: true,
+  rpeEnabled: true,
+  salaryMinimumVes: new Decimal(0), // sin tope — retro-compatible
   systemConcepts: SYSTEM_CONCEPTS,
 };
 
@@ -203,11 +206,11 @@ describe("PayrollCalculatorService.calculate", () => {
   it("calcula correctamente para un empleado sin novedades", () => {
     const result = PayrollCalculatorService.calculate([makeEmp()], [], BASE_CONFIG);
     // totalEarnings = 30000 (SAL_BASE)
-    // totalDeductions = 1200 (IVSS) + 600 (INCES) + 300 (FAOV) = 2100
-    // totalNet = 27900
+    // totalDeductions = 1200 (IVSS) + 600 (INCES) + 300 (FAOV) + 150 (RPE) = 2250
+    // totalNet = 27750
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("2100.00");
-    expect(result.totalNet.toFixed(2)).toBe("27900.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2250.00");
+    expect(result.totalNet.toFixed(2)).toBe("27750.00");
   });
 
   it("incluye conceptos manuales en el cálculo", () => {
@@ -221,8 +224,8 @@ describe("PayrollCalculatorService.calculate", () => {
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
-    expect(result.totalDeductions.toFixed(2)).toBe("2600.00"); // 2100 + 500
-    expect(result.totalNet.toFixed(2)).toBe("27400.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2750.00"); // 2250 + 500
+    expect(result.totalNet.toFixed(2)).toBe("27250.00");
   });
 
   it("calcula múltiples empleados sumando correctamente", () => {
@@ -233,11 +236,11 @@ describe("PayrollCalculatorService.calculate", () => {
       salaryAmount: new Decimal("20000"),
     });
     const result = PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG);
-    // emp1: net = 27900, emp2: net = 20000 * (1 - 0.07) = 18600
-    // total earnings: 50000, deductions: 2100 + 1400 = 3500, net: 46500
+    // emp1: 30000 → ded: 1200+600+300+150=2250, net=27750
+    // emp2: 20000 → ded: 800+400+200+100=1500, net=18500
     expect(result.totalEarnings.toFixed(2)).toBe("50000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("3500.00");
-    expect(result.totalNet.toFixed(2)).toBe("46500.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("3750.00");
+    expect(result.totalNet.toFixed(2)).toBe("46250.00");
   });
 
   it("preserva snapshot de salario en cada línea", () => {
@@ -253,5 +256,107 @@ describe("PayrollCalculatorService.calculate", () => {
     const result = PayrollCalculatorService.calculate([makeEmp()], [], config);
     expect(result.lines).toHaveLength(0);
     expect(result.totalNet.toFixed(2)).toBe("0.00");
+  });
+});
+
+// ─── RPE_OBR — Paro Forzoso 0.5% (LSSO Art. 7) ──────────────────────────────
+
+describe("PayrollCalculatorService — RPE_OBR", () => {
+  it("calcula RPE 0.5% del salario", () => {
+    const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), BASE_CONFIG);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR");
+    expect(rpe).toBeDefined();
+    expect(rpe!.conceptType).toBe("DEDUCTION");
+    // 30000 * 0.005 = 150
+    expect(rpe!.amount.toFixed(2)).toBe("150.00");
+    expect(rpe!.rate!.toFixed(3)).toBe("0.005");
+  });
+
+  it("no genera RPE si rpeEnabled = false", () => {
+    const config = { ...BASE_CONFIG, rpeEnabled: false };
+    const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), config);
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")).toBeUndefined();
+  });
+
+  it("no genera RPE si RPE_OBR no está en systemConcepts", () => {
+    const conceptsWithoutRpe = SYSTEM_CONCEPTS.filter((c) => c.code !== "RPE_OBR");
+    const config = { ...BASE_CONFIG, systemConcepts: conceptsWithoutRpe };
+    const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), config);
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")).toBeUndefined();
+  });
+});
+
+// ─── Topes de cotización (salaryMinimumVes > 0) ───────────────────────────────
+
+describe("PayrollCalculatorService — topes de cotización", () => {
+  const salaryMin = new Decimal("130"); // salario mínimo de referencia
+
+  it("sin tope (salaryMinimumVes=0): aplica tasa sobre salario completo", () => {
+    const salary = new Decimal("1000"); // 7.69× el mínimo — supera topes
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: new Decimal(0),
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
+    // Sin tope: 1000 * 0.04 = 40
+    expect(ivss!.amount.toFixed(2)).toBe("40.00");
+  });
+
+  it("IVSS: capped a 5×salaryMin cuando salario supera el tope", () => {
+    const salary = new Decimal("1000");  // supera 5×130=650
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
+    // base cappada = min(1000, 5×130) = 650; 650 * 0.04 = 26
+    expect(ivss!.amount.toFixed(2)).toBe("26.00");
+    expect(ivss!.basis!.toFixed(2)).toBe("650.00");
+  });
+
+  it("FAOV: capped a 10×salaryMin cuando salario supera el tope", () => {
+    const salary = new Decimal("2000");  // supera 10×130=1300
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR");
+    // base cappada = min(2000, 10×130) = 1300; 1300 * 0.01 = 13
+    expect(faov!.amount.toFixed(2)).toBe("13.00");
+    expect(faov!.basis!.toFixed(2)).toBe("1300.00");
+  });
+
+  it("RPE: capped a 5×salaryMin cuando salario supera el tope", () => {
+    const salary = new Decimal("1000");
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR");
+    // base cappada = min(1000, 5×130) = 650; 650 * 0.005 = 3.25
+    expect(rpe!.amount.toFixed(2)).toBe("3.25");
+    expect(rpe!.basis!.toFixed(2)).toBe("650.00");
+  });
+
+  it("sin tope cuando salario está por debajo del límite", () => {
+    const salary = new Decimal("500");  // menor que 5×130=650
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
+    // Sin recorte: 500 * 0.04 = 20 (500 < 650)
+    expect(ivss!.amount.toFixed(2)).toBe("20.00");
+    expect(ivss!.basis!.toFixed(2)).toBe("500.00");
   });
 });

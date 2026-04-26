@@ -2,6 +2,7 @@
 // Fase NOM-D: Tests de VacationService
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
@@ -193,7 +194,6 @@ describe("VacationService.create", () => {
 
   it("double-pay guard: P2002 → friendly error", async () => {
     vi.mocked(prisma.$transaction).mockImplementation(() => {
-      const { Prisma } = require("@prisma/client");
       throw new Prisma.PrismaClientKnownRequestError("Unique constraint", {
         code: "P2002",
         clientVersion: "5.0",

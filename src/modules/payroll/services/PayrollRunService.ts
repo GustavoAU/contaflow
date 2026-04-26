@@ -211,6 +211,10 @@ export const PayrollRunService = {
       ivssEnabled: config.ivssEnabled,
       incesEnabled: config.incesEnabled,
       banavihEnabled: config.banavihEnabled,
+      rpeEnabled: config.rpeEnabled,
+      salaryMinimumVes: config.salaryMinimumVes
+        ? new Decimal(config.salaryMinimumVes.toString())
+        : new Decimal(0),
       systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
     };
 
@@ -357,9 +361,11 @@ export const PayrollRunService = {
         ivssPayableAccountId: true,
         faovPayableAccountId: true,
         incesPayableAccountId: true,
+        rpePayableAccountId: true,
         ivssEnabled: true,
         incesEnabled: true,
         banavihEnabled: true,
+        rpeEnabled: true,
       },
     });
     if (!config) throw new Error("Configure la nómina antes de aprobar");
@@ -406,6 +412,12 @@ export const PayrollRunService = {
             .reduce((s, l) => s.plus(l.amount), new Decimal(0))
         : new Decimal(0);
 
+      const rpeTotal = config.rpeEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "RPE_OBR" && l.conceptType === "DEDUCTION")
+            .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+        : new Decimal(0);
+
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
       // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
       // DÉBITO: Gastos de Personal (totalEarnings)
@@ -440,6 +452,10 @@ export const PayrollRunService = {
               // CRÉDITO — INCES por Pagar (si aplica)
               ...(config.incesPayableAccountId && incesTotal.greaterThan(0)
                 ? [{ accountId: config.incesPayableAccountId, amount: incesTotal.negated() }]
+                : []),
+              // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
+              ...(config.rpePayableAccountId && rpeTotal.greaterThan(0)
+                ? [{ accountId: config.rpePayableAccountId, amount: rpeTotal.negated() }]
                 : []),
             ],
           },
