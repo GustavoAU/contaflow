@@ -2,6 +2,7 @@
 // Fase NOM-D: Tests de BenefitAccrualService
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
@@ -259,7 +260,6 @@ describe("BenefitAccrualService.accrueQuarter", () => {
       ((fn: (tx: typeof prisma) => unknown) => {
         callCount++;
         if (callCount === 1) {
-          const { Prisma } = require("@prisma/client");
           const err = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
             code: "P2002",
             clientVersion: "5.0",
@@ -278,7 +278,6 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
 
     vi.mocked(prisma.$transaction).mockImplementation(() => {
-      const { Prisma } = require("@prisma/client");
       const err = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
         code: "P2002",
         clientVersion: "5.0",

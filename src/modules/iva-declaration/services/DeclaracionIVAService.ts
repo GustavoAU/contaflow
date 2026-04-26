@@ -126,7 +126,7 @@ export class DeclaracionIVAService {
     let aReducida = zeroRow();
     let aAdicionalLujo = zeroRow();
     let aExentasBase = ZERO;
-    let aExportacionesBase = ZERO;
+    const aExportacionesBase = ZERO;
     let c1SufriBas = ZERO; // retenciones IVA sufridas
 
     for (const inv of saleInvoices) {
