@@ -45,6 +45,7 @@ export function RelatedInvoicePicker({ companyId, type, value, onChange }: Props
   // Limpiar selección si el padre resetea el valor
   useEffect(() => {
     if (!value) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(null);
       setQuery("");
     }
