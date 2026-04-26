@@ -2,7 +2,7 @@
 // src/modules/bank-reconciliation/components/AutoReconciliationPanel.tsx
 "use client";
 
-import { useReducer, useTransition, useMemo, useRef } from "react";
+import { useReducer, useTransition, useMemo, useRef, useState } from "react";
 import {
   UploadIcon,
   FileTextIcon,
@@ -96,14 +96,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
     ] as [() => string, (v: string) => void];
   }, []);
 
-  // Usamos useState simple para search porque useMemo no es adecuado aquí
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [searchVal, setSearchVal] = (function useSearchState() {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { useState } = require("react") as typeof import("react");
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useState("");
-  })();
+  const [searchVal, setSearchVal] = useState("");
 
   void search; void setSearch; // silenciar warning de vars no usadas
 
@@ -484,7 +477,6 @@ function ResultSection({
   pending,
   onToggle,
 }: ResultSectionProps) {
-  const { useState } = require("react") as typeof import("react");
   const [open, setOpen] = useState(defaultOpen);
 
   if (count === 0) return null;
