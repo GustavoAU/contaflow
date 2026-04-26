@@ -69,7 +69,7 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
     return (
       <div className="text-center py-12 text-gray-500">
         <p className="text-lg font-medium">No hay procesos de nómina</p>
-        <p className="text-sm mt-1">Crea el primer proceso con el botón "Nuevo Proceso"</p>
+        <p className="text-sm mt-1">Crea el primer proceso con el botón &quot;Nuevo Proceso&quot;</p>
       </div>
     );
   }

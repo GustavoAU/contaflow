@@ -2,6 +2,7 @@
 // Fase NOM-D: Tests de TerminationService
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
@@ -201,7 +202,6 @@ describe("TerminationService.create", () => {
   });
 
   it("idempotency key duplicate → P2002 → friendly error", async () => {
-    const { Prisma } = require("@prisma/client");
     vi.mocked(prisma.termination.create).mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Unique constraint", {
         code: "P2002",
