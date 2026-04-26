@@ -3,7 +3,7 @@ datasource db {
 }
 
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 enum AccountType {
@@ -30,23 +30,23 @@ enum PeriodStatus {
 }
 
 enum UserRole {
-  OWNER         // Propietario — creador de la empresa, acceso total
-  ADMIN         // Administrador — acceso total, asignado por el propietario
-  ACCOUNTANT    // Contador — módulos contables
+  OWNER // Propietario — creador de la empresa, acceso total
+  ADMIN // Administrador — acceso total, asignado por el propietario
+  ACCOUNTANT // Contador — módulos contables
   ADMINISTRATIVE // Administrativo — módulos operativos (Fase 28+)
-  VIEWER        // Observador — solo lectura en su área
+  VIEWER // Observador — solo lectura en su área
 }
 
 enum TransactionStatus {
-  POSTED    // Contabilizado — inmutable
-  VOIDED    // Anulado con contrapartida
+  POSTED // Contabilizado — inmutable
+  VOIDED // Anulado con contrapartida
 }
 
 enum TransactionType {
-  DIARIO    // Operaciones normales
-  APERTURA  // Inicio del periodo
-  AJUSTE    // Correcciones al cierre
-  CIERRE    // Cierre del periodo
+  DIARIO // Operaciones normales
+  APERTURA // Inicio del periodo
+  AJUSTE // Correcciones al cierre
+  CIERRE // Cierre del periodo
 }
 
 enum RetentionType {
@@ -106,84 +106,84 @@ enum PaymentMethod {
 }
 
 enum InvoicePaymentStatus {
-  UNPAID    // Sin pagos
-  PARTIAL   // Pagado parcialmente
-  PAID      // Cancelado totalmente
-  VOIDED    // Factura anulada (deletedAt no nulo)
+  UNPAID // Sin pagos
+  PARTIAL // Pagado parcialmente
+  PAID // Cancelado totalmente
+  VOIDED // Factura anulada (deletedAt no nulo)
 }
 
 model Company {
-  id           String        @id @default(cuid())
-  name         String
-  transactions Transaction[]
-  periods AccountingPeriod[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  rif       String?   @unique  // RIF para Venezuela
-  address   String?
-  members   CompanyMember[]
-  accounts  Account[]
-  status CompanyStatus @default(ACTIVE)
-  plan CompanyPlan @default(FREE)
-  isSpecialContributor Boolean @default(false)
-  retenciones Retencion[]
-  igtfTransactions IGTFTransaction[]
-  invoices    Invoice[]
-  controlNumberSequences ControlNumberSequence[]
-  retentionSequences     RetentionSequence[]
-  exchangeRates          ExchangeRate[]
-  paymentRecords         PaymentRecord[]
+  id                        String                  @id @default(cuid())
+  name                      String
+  transactions              Transaction[]
+  periods                   AccountingPeriod[]
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  rif                       String?                 @unique // RIF para Venezuela
+  address                   String?
+  members                   CompanyMember[]
+  accounts                  Account[]
+  status                    CompanyStatus           @default(ACTIVE)
+  plan                      CompanyPlan             @default(FREE)
+  isSpecialContributor      Boolean                 @default(false)
+  retenciones               Retencion[]
+  igtfTransactions          IGTFTransaction[]
+  invoices                  Invoice[]
+  controlNumberSequences    ControlNumberSequence[]
+  retentionSequences        RetentionSequence[]
+  exchangeRates             ExchangeRate[]
+  paymentRecords            PaymentRecord[]
   // Fase 16: Cartera CxC/CxP
-  paymentTermDays             Int     @default(30)
-  invoicePayments             InvoicePayment[]
+  paymentTermDays           Int                     @default(30)
+  invoicePayments           InvoicePayment[]
   // Fase 17: Conciliación Bancaria
-  bankAccounts                BankAccount[]
+  bankAccounts              BankAccount[]
   // Fase 13D: companyId desnormalizado en BankTransaction para RLS
-  bankTransactions            BankTransaction[] @relation("BankTransactionCompany")
+  bankTransactions          BankTransaction[]       @relation("BankTransactionCompany")
   // Fase 15: Cierre de ejercicio económico
-  resultAccountId             String?
-  resultAccount               Account?         @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
-  retainedEarningsAccountId   String?
-  retainedEarningsAccount     Account?         @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
-  fiscalYearCloses            FiscalYearClose[]
+  resultAccountId           String?
+  resultAccount             Account?                @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
+  retainedEarningsAccountId String?
+  retainedEarningsAccount   Account?                @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
+  fiscalYearCloses          FiscalYearClose[]
   // Fase 13C Bloque 3: Snapshots de saldos por período
-  periodSnapshots             PeriodSnapshot[]
+  periodSnapshots           PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssets                 FixedAsset[]
+  fixedAssets               FixedAsset[]
   // Fase 22: Ajuste por Inflación (INPC / VEN-NIF 3)
-  inflationBaseYear           Int?
-  inflationBaseMonth          Int?
-  inpcRates                   INPCRate[]
-  inflationAdjustments        InflationAdjustment[]
+  inflationBaseYear         Int?
+  inflationBaseMonth        Int?
+  inpcRates                 INPCRate[]
+  inflationAdjustments      InflationAdjustment[]
   // Fase 30: Exportación Masiva
-  exportJobs                  ExportJob[]
+  exportJobs                ExportJob[]
   // Fase 28D: Inventario
-  inventoryItems              InventoryItem[]
-  inventoryMovements          InventoryMovement[]
+  inventoryItems            InventoryItem[]
+  inventoryMovements        InventoryMovement[]
   // Fase 28: Compras y Ventas
-  quotations                  Quotation[]
-  orders                      Order[]
-  orderNumberSequences        OrderNumberSequence[]
+  quotations                Quotation[]
+  orders                    Order[]
+  orderNumberSequences      OrderNumberSequence[]
   // Fase NOM-A: Configuración de Nómina
-  payrollConfig               PayrollConfig?
+  payrollConfig             PayrollConfig?
   // Fase NOM-B: Empleados y Conceptos
-  employees                   Employee[]
-  payrollConcepts             PayrollConcept[]
-  publicHolidays              PublicHoliday[]
-  absenceTypes                AbsenceType[]
+  employees                 Employee[]
+  payrollConcepts           PayrollConcept[]
+  publicHolidays            PublicHoliday[]
+  absenceTypes              AbsenceType[]
   // Fase NOM-C: Motor de Cálculo de Nómina
-  payrollRuns                 PayrollRun[]
+  payrollRuns               PayrollRun[]
   // Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación
-  bcvBenefitRates             BcvBenefitRate[]
-  benefitBalances             BenefitBalance[]
-  benefitAccrualLines         BenefitAccrualLine[]
-  benefitAdvances             BenefitAdvance[]
-  vacationRecords             VacationRecord[]
-  profitSharingRecords        ProfitSharingRecord[]
-  terminations                Termination[]
+  bcvBenefitRates           BcvBenefitRate[]
+  benefitBalances           BenefitBalance[]
+  benefitAccrualLines       BenefitAccrualLine[]
+  benefitAdvances           BenefitAdvance[]
+  vacationRecords           VacationRecord[]
+  profitSharingRecords      ProfitSharingRecord[]
+  terminations              Termination[]
   // Fase 35A: Vendor / Customer
-  vendors                     Vendor[]
-  customers                   Customer[]
+  vendors                   Vendor[]
+  customers                 Customer[]
 }
 
 model CompanyMember {
@@ -193,95 +193,97 @@ model CompanyMember {
   role      UserRole @default(ACCOUNTANT)
   user      User     @relation(fields: [userId], references: [id])
   company   Company  @relation(fields: [companyId], references: [id])
+
   @@unique([userId, companyId])
 }
 
 model Account {
-  id             String         @id @default(cuid())
-  name           String
-  code           String
-  type           AccountType
-  description    String?
-  companyId      String
-  company        Company        @relation(fields: [companyId], references: [id])
-  journalEntries JournalEntry[]
-  deletedAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                              String                @id @default(cuid())
+  name                            String
+  code                            String
+  type                            AccountType
+  description                     String?
+  companyId                       String
+  company                         Company               @relation(fields: [companyId], references: [id])
+  journalEntries                  JournalEntry[]
+  deletedAt                       DateTime?
+  createdAt                       DateTime              @default(now())
+  updatedAt                       DateTime              @updatedAt
   // Fase 15: relaciones inversas para cuentas de cierre
-  companiesAsResult           Company[] @relation("ResultAccount")
-  companiesAsRetainedEarnings Company[] @relation("RetainedEarningsAccount")
+  companiesAsResult               Company[]             @relation("ResultAccount")
+  companiesAsRetainedEarnings     Company[]             @relation("RetainedEarningsAccount")
   // Fase 17: Conciliación Bancaria
-  bankAccount                 BankAccount?
+  bankAccount                     BankAccount?
   // Fase 13C Bloque 3: Snapshots de saldos por período
-  periodSnapshots             PeriodSnapshot[]
+  periodSnapshots                 PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssetsAsAsset          FixedAsset[] @relation("FixedAssetAccount")
-  fixedAssetsAsDepreciation   FixedAsset[] @relation("DepreciationExpenseAccount")
-  fixedAssetsAsAccDepreciation FixedAsset[] @relation("AccumulatedDepreciationAccount")
+  fixedAssetsAsAsset              FixedAsset[]          @relation("FixedAssetAccount")
+  fixedAssetsAsDepreciation       FixedAsset[]          @relation("DepreciationExpenseAccount")
+  fixedAssetsAsAccDepreciation    FixedAsset[]          @relation("AccumulatedDepreciationAccount")
   // Fase 22: Ajuste por Inflación
-  inflationAdjustments        InflationAdjustment[]
+  inflationAdjustments            InflationAdjustment[]
   // Fase 28D: Inventario
-  inventoryItems              InventoryItem[]      @relation("InventoryItemAccount")
-  inventoryItemsAsCogs        InventoryItem[]      @relation("CogsAccount")
+  inventoryItems                  InventoryItem[]       @relation("InventoryItemAccount")
+  inventoryItemsAsCogs            InventoryItem[]       @relation("CogsAccount")
   // Fase NOM-C: Cuentas contables de nómina
-  payrollConfigsAsExpense     PayrollConfig[]      @relation("PayrollExpenseAccount")
-  payrollConfigsAsPayable     PayrollConfig[]      @relation("PayrollPayableAccount")
-  payrollConfigsAsIvss        PayrollConfig[]      @relation("PayrollIvssPayable")
-  payrollConfigsAsFaov        PayrollConfig[]      @relation("PayrollFaovPayable")
-  payrollConfigsAsInces       PayrollConfig[]      @relation("PayrollIncesPayable")
-  payrollConfigsAsRpe         PayrollConfig[]      @relation("PayrollRpePayable")
+  payrollConfigsAsExpense         PayrollConfig[]       @relation("PayrollExpenseAccount")
+  payrollConfigsAsPayable         PayrollConfig[]       @relation("PayrollPayableAccount")
+  payrollConfigsAsIvss            PayrollConfig[]       @relation("PayrollIvssPayable")
+  payrollConfigsAsFaov            PayrollConfig[]       @relation("PayrollFaovPayable")
+  payrollConfigsAsInces           PayrollConfig[]       @relation("PayrollIncesPayable")
+  payrollConfigsAsRpe             PayrollConfig[]       @relation("PayrollRpePayable")
   // Fase NOM-D: cuentas de prestaciones
-  payrollConfigsAsBenefitsExpense  PayrollConfig[] @relation("PayrollBenefitsExpense")
-  payrollConfigsAsBenefitsPayable  PayrollConfig[] @relation("PayrollBenefitsPayable")
-  payrollConfigsAsVacationPayable  PayrollConfig[] @relation("PayrollVacationPayable")
-  payrollConfigsAsProfitPayable    PayrollConfig[] @relation("PayrollProfitPayable")
+  payrollConfigsAsBenefitsExpense PayrollConfig[]       @relation("PayrollBenefitsExpense")
+  payrollConfigsAsBenefitsPayable PayrollConfig[]       @relation("PayrollBenefitsPayable")
+  payrollConfigsAsVacationPayable PayrollConfig[]       @relation("PayrollVacationPayable")
+  payrollConfigsAsProfitPayable   PayrollConfig[]       @relation("PayrollProfitPayable")
+
   @@unique([companyId, code])
   @@unique([companyId, name])
 }
 
 model IGTFTransaction {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
+  company       Company      @relation(fields: [companyId], references: [id])
   transactionId String?
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
-  amount        Decimal  @db.Decimal(19, 4)
-  igtfRate      Decimal  @db.Decimal(5, 2)
-  igtfAmount    Decimal  @db.Decimal(19, 4)
-  currency      Currency @default(USD)
+  amount        Decimal      @db.Decimal(19, 4)
+  igtfRate      Decimal      @db.Decimal(5, 2)
+  igtfAmount    Decimal      @db.Decimal(19, 4)
+  currency      Currency     @default(USD)
   concept       String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime     @default(now())
   createdBy     String
 }
 
 model Transaction {
-  id          String         @id @default(cuid())
-  number      String
-  date        DateTime       @default(now())
-  description String
-  reference   String?
-  companyId   String
-  company     Company        @relation(fields: [companyId], references: [id])
-  userId      String
-  entries     JournalEntry[]
-  createdAt   DateTime       @default(now())
-  status      TransactionStatus @default(POSTED)
-  type        TransactionType   @default(DIARIO)
-  notes       String?
-  voidedById  String?
-  voidedBy    Transaction?      @relation("VoidRelation", fields: [voidedById], references: [id])
-  voids       Transaction[]     @relation("VoidRelation")
-  periodId    String?
-  period      AccountingPeriod? @relation(fields: [periodId], references: [id])
-  retenciones Retencion[]
-  igtfTransactions IGTFTransaction[]
-  invoices    Invoice[]
+  id                             String                @id @default(cuid())
+  number                         String
+  date                           DateTime              @default(now())
+  description                    String
+  reference                      String?
+  companyId                      String
+  company                        Company               @relation(fields: [companyId], references: [id])
+  userId                         String
+  entries                        JournalEntry[]
+  createdAt                      DateTime              @default(now())
+  status                         TransactionStatus     @default(POSTED)
+  type                           TransactionType       @default(DIARIO)
+  notes                          String?
+  voidedById                     String?
+  voidedBy                       Transaction?          @relation("VoidRelation", fields: [voidedById], references: [id])
+  voids                          Transaction[]         @relation("VoidRelation")
+  periodId                       String?
+  period                         AccountingPeriod?     @relation(fields: [periodId], references: [id])
+  retenciones                    Retencion[]
+  igtfTransactions               IGTFTransaction[]
+  invoices                       Invoice[]
   // Fase 15: relaciones inversas para asientos de cierre
-  fiscalYearCloseAsClosing       FiscalYearClose? @relation("ClosingTransaction")
-  fiscalYearCloseAsAppropriation FiscalYearClose? @relation("AppropriationTransaction")
+  fiscalYearCloseAsClosing       FiscalYearClose?      @relation("ClosingTransaction")
+  fiscalYearCloseAsAppropriation FiscalYearClose?      @relation("AppropriationTransaction")
   // Fase 17B: conciliación bancaria
-  bankTransactionMatches         BankTransaction[] @relation("BankTransactionMatch")
+  bankTransactionMatches         BankTransaction[]     @relation("BankTransactionMatch")
   // Fase 21: Activos Fijos — asiento de depreciación generado
   depreciationEntry              DepreciationEntry?
   // Fase 22: Ajuste por Inflación
@@ -305,18 +307,18 @@ model JournalEntry {
   // Convención: positivo = Débito, negativo = Crédito
   amount        Decimal     @db.Decimal(19, 4)
   transactionId String
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   accountId     String
   account       Account     @relation(fields: [accountId], references: [id])
 }
 
 model User {
-  id        String    @id
+  id        String          @id
   name      String?
-  email     String   @unique
-  role      UserRole  @default(ACCOUNTANT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  email     String          @unique
+  role      UserRole        @default(ACCOUNTANT)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
   companies CompanyMember[]
 }
 
@@ -336,18 +338,18 @@ model AuditLog {
 }
 
 model AccountingPeriod {
-  id          String       @id @default(cuid())
-  companyId   String
-  company     Company      @relation(fields: [companyId], references: [id])
-  year        Int
-  month       Int          // 1-12
-  status      PeriodStatus @default(OPEN)
-  openedAt    DateTime     @default(now())
-  closedAt    DateTime?
-  openedBy    String       // userId
-  closedBy    String?      // userId
-  transactions Transaction[]
-  invoices    Invoice[]
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  year            Int
+  month           Int // 1-12
+  status          PeriodStatus     @default(OPEN)
+  openedAt        DateTime         @default(now())
+  closedAt        DateTime?
+  openedBy        String // userId
+  closedBy        String? // userId
+  transactions    Transaction[]
+  invoices        Invoice[]
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots PeriodSnapshot[]
 
@@ -388,61 +390,61 @@ model Retencion {
 }
 
 model Invoice {
-  id                   String            @id @default(cuid())
-  companyId            String
-  company              Company           @relation(fields: [companyId], references: [id])
-  type                 InvoiceType
-  docType              InvoiceDocType    @default(FACTURA)
-  taxCategory          TaxCategory       @default(GRAVADA)
-  invoiceNumber        String
-  controlNumber        String?
-  relatedDocNumber     String?
-  importFormNumber     String?
-  reportZStart         String?           // Reporte Z — número inicial
-  reportZEnd           String?           // Reporte Z — número final
-  date                 DateTime
-  counterpartName      String
-  counterpartRif       String
-  ivaRetentionAmount   Decimal           @default(0) @db.Decimal(19, 4)
-  ivaRetentionVoucher  String?
-  ivaRetentionDate     DateTime?
-  islrRetentionAmount  Decimal           @default(0) @db.Decimal(19, 4)
-  igtfBase             Decimal           @default(0) @db.Decimal(19, 4)
-  igtfAmount           Decimal           @default(0) @db.Decimal(19, 4)
-  currency             Currency          @default(VES)
-  exchangeRateId       String?
-  exchangeRate         ExchangeRate?     @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
-  taxLines             InvoiceTaxLine[]
-  retenciones          Retencion[]
-  paymentRecords       PaymentRecord[]
-  transactionId        String?
-  transaction          Transaction?      @relation(fields: [transactionId], references: [id])
-  periodId             String?
-  period               AccountingPeriod? @relation(fields: [periodId], references: [id])
-  idempotencyKey       String?           @unique
-  deletedAt            DateTime?
-  createdAt            DateTime          @default(now())
-  createdBy            String
+  id                  String               @id @default(cuid())
+  companyId           String
+  company             Company              @relation(fields: [companyId], references: [id])
+  type                InvoiceType
+  docType             InvoiceDocType       @default(FACTURA)
+  taxCategory         TaxCategory          @default(GRAVADA)
+  invoiceNumber       String
+  controlNumber       String?
+  relatedDocNumber    String?
+  importFormNumber    String?
+  reportZStart        String? // Reporte Z — número inicial
+  reportZEnd          String? // Reporte Z — número final
+  date                DateTime
+  counterpartName     String
+  counterpartRif      String
+  ivaRetentionAmount  Decimal              @default(0) @db.Decimal(19, 4)
+  ivaRetentionVoucher String?
+  ivaRetentionDate    DateTime?
+  islrRetentionAmount Decimal              @default(0) @db.Decimal(19, 4)
+  igtfBase            Decimal              @default(0) @db.Decimal(19, 4)
+  igtfAmount          Decimal              @default(0) @db.Decimal(19, 4)
+  currency            Currency             @default(VES)
+  exchangeRateId      String?
+  exchangeRate        ExchangeRate?        @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  taxLines            InvoiceTaxLine[]
+  retenciones         Retencion[]
+  paymentRecords      PaymentRecord[]
+  transactionId       String?
+  transaction         Transaction?         @relation(fields: [transactionId], references: [id])
+  periodId            String?
+  period              AccountingPeriod?    @relation(fields: [periodId], references: [id])
+  idempotencyKey      String?              @unique
+  deletedAt           DateTime?
+  createdAt           DateTime             @default(now())
+  createdBy           String
   // Fase 16: CxC/CxP
-  dueDate              DateTime?
-  totalAmountVes       Decimal?          @db.Decimal(19, 4)
-  pendingAmount        Decimal?          @db.Decimal(19, 4)
-  paymentStatus        InvoicePaymentStatus @default(UNPAID)
-  invoicePayments      InvoicePayment[]
+  dueDate             DateTime?
+  totalAmountVes      Decimal?             @db.Decimal(19, 4)
+  pendingAmount       Decimal?             @db.Decimal(19, 4)
+  paymentStatus       InvoicePaymentStatus @default(UNPAID)
+  invoicePayments     InvoicePayment[]
   // Fase 23C: NC/ND Workflow (Reglamento IVA Art. 58)
-  relatedInvoiceId     String?
-  relatedInvoice       Invoice?          @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
-  creditDebitNotes     Invoice[]         @relation("CreditDebitNotes")
+  relatedInvoiceId    String?
+  relatedInvoice      Invoice?             @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  creditDebitNotes    Invoice[]            @relation("CreditDebitNotes")
   // Fase 28D: Inventario
-  inventoryMovements   InventoryMovement[]
+  inventoryMovements  InventoryMovement[]
   // Fase 28: Compras y Ventas
-  orderId              String?             @unique
-  order                Order?              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId             String?              @unique
+  order               Order?               @relation(fields: [orderId], references: [id], onDelete: Restrict)
   // Fase 35A: Vendor / Customer
-  vendorId             String?
-  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  customerId           String?
-  customer             Customer?           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vendorId            String?
+  vendor              Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerId          String?
+  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -459,20 +461,20 @@ model ControlNumberSequence {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, invoiceType])
   @@index([companyId])
 }
 
 model InvoiceTaxLine {
-  id          String      @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  taxType     TaxLineType
-  base        Decimal     @db.Decimal(19, 4)
-  rate        Decimal     @db.Decimal(5, 2)
-  amount      Decimal     @db.Decimal(19, 4)
+  id        String      @id @default(cuid())
+  invoiceId String
+  invoice   Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxType   TaxLineType
+  base      Decimal     @db.Decimal(19, 4)
+  rate      Decimal     @db.Decimal(5, 2)
+  amount    Decimal     @db.Decimal(19, 4)
 }
 
 model RetentionSequence {
@@ -485,14 +487,14 @@ model RetentionSequence {
 
 // Tipo de cambio BCV oficial — 1 USD/EUR = X VES
 model ExchangeRate {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   currency  Currency
-  rate      Decimal  @db.Decimal(19, 6)
-  date      DateTime @db.Date
-  source    String   @default("BCV")
-  createdAt DateTime @default(now())
+  rate      Decimal   @db.Decimal(19, 6)
+  date      DateTime  @db.Date
+  source    String    @default("BCV")
+  createdAt DateTime  @default(now())
   createdBy String
   invoices  Invoice[]
 
@@ -505,29 +507,29 @@ model ExchangeRate {
 
 // Registro de pagos por medio de pago digital (PagoMóvil, Zelle, Cashea, etc.)
 model PaymentRecord {
-  id               String        @id @default(cuid())
+  id               String            @id @default(cuid())
   companyId        String
-  company          Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
   invoiceId        String?
-  invoice          Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  invoice          Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   method           PaymentMethod
-  amountVes        Decimal       @db.Decimal(19, 4)    // siempre en VES
-  currency         Currency      @default(VES)          // moneda del pago original
-  amountOriginal   Decimal?      @db.Decimal(19, 4)    // monto en moneda original (Zelle USD)
+  amountVes        Decimal           @db.Decimal(19, 4) // siempre en VES
+  currency         Currency          @default(VES) // moneda del pago original
+  amountOriginal   Decimal?          @db.Decimal(19, 4) // monto en moneda original (Zelle USD)
   exchangeRateId   String?
-  exchangeRate     ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
+  exchangeRate     ExchangeRate?     @relation(fields: [exchangeRateId], references: [id])
   // PagoMóvil
   referenceNumber  String?
   originBank       String?
   destBank         String?
   // Cashea
-  commissionPct    Decimal?      @db.Decimal(5, 2)
-  commissionAmount Decimal?      @db.Decimal(19, 4)
+  commissionPct    Decimal?          @db.Decimal(5, 2)
+  commissionAmount Decimal?          @db.Decimal(19, 4)
   // IGTF (Zelle & Cashea USD)
-  igtfAmount       Decimal?      @db.Decimal(19, 4)
+  igtfAmount       Decimal?          @db.Decimal(19, 4)
   date             DateTime
   notes            String?
-  createdAt        DateTime      @default(now())
+  createdAt        DateTime          @default(now())
   createdBy        String
   // Fase 17B: conciliación bancaria
   bankTransactions BankTransaction[]
@@ -541,28 +543,28 @@ model PaymentRecord {
 // Representa el cierre anual de cuentas de resultado (VEN-NIF).
 // Existencia de registro = ejercicio cerrado (@@unique enforces idempotency).
 model FiscalYearClose {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  year        Int
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  year      Int
 
-  closedAt    DateTime @default(now())
-  closedBy    String   // userId Clerk
+  closedAt DateTime @default(now())
+  closedBy String // userId Clerk
 
   // Asiento 1: cierre de cuentas de resultado (OBLIGATORIO)
-  closingTransactionId       String      @unique
-  closingTransaction         Transaction @relation("ClosingTransaction", fields: [closingTransactionId], references: [id], onDelete: Restrict)
+  closingTransactionId String      @unique
+  closingTransaction   Transaction @relation("ClosingTransaction", fields: [closingTransactionId], references: [id], onDelete: Restrict)
 
   // Asiento 2: apropiación resultado → patrimonio (OPCIONAL — post-AGO)
-  appropriationTransactionId String?     @unique
+  appropriationTransactionId String?      @unique
   appropriationTransaction   Transaction? @relation("AppropriationTransaction", fields: [appropriationTransactionId], references: [id], onDelete: Restrict)
 
   // Snapshot inmutable de montos al momento del cierre
-  totalRevenue   Decimal @db.Decimal(19, 4)
-  totalExpenses  Decimal @db.Decimal(19, 4)
-  netResult      Decimal @db.Decimal(19, 4) // positivo = ganancia, negativo = pérdida
+  totalRevenue  Decimal @db.Decimal(19, 4)
+  totalExpenses Decimal @db.Decimal(19, 4)
+  netResult     Decimal @db.Decimal(19, 4) // positivo = ganancia, negativo = pérdida
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([companyId, year])
   @@index([companyId])
@@ -573,29 +575,29 @@ model FiscalYearClose {
 // (medios de pago digitales). InvoicePayment representa la cancelación VEN-NIF
 // de una cuenta por cobrar o por pagar.
 model InvoicePayment {
-  id              String        @id @default(cuid())
-  companyId       String
-  company         Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  invoiceId       String
-  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  amount          Decimal       @db.Decimal(19, 4)   // monto aplicado en VES
-  currency        Currency      @default(VES)
-  amountOriginal  Decimal?      @db.Decimal(19, 4)   // monto en moneda original si != VES
-  exchangeRateId  String?
-  exchangeRate    ExchangeRate? @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
-  method          PaymentMethod
-  referenceNumber String?
-  originBank      String?
-  destBank        String?
-  commissionPct   Decimal?      @db.Decimal(5, 4)
-  igtfAmount      Decimal?      @db.Decimal(19, 4)
-  date            DateTime
-  notes           String?
-  createdBy       String
-  createdAt       DateTime      @default(now())
-  idempotencyKey  String        @unique
-  deletedAt       DateTime?
-  deletedBy       String?
+  id               String            @id @default(cuid())
+  companyId        String
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoiceId        String
+  invoice          Invoice           @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount           Decimal           @db.Decimal(19, 4) // monto aplicado en VES
+  currency         Currency          @default(VES)
+  amountOriginal   Decimal?          @db.Decimal(19, 4) // monto en moneda original si != VES
+  exchangeRateId   String?
+  exchangeRate     ExchangeRate?     @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  method           PaymentMethod
+  referenceNumber  String?
+  originBank       String?
+  destBank         String?
+  commissionPct    Decimal?          @db.Decimal(5, 4)
+  igtfAmount       Decimal?          @db.Decimal(19, 4)
+  date             DateTime
+  notes            String?
+  createdBy        String
+  createdAt        DateTime          @default(now())
+  idempotencyKey   String            @unique
+  deletedAt        DateTime?
+  deletedBy        String?
   // Fase 17: Conciliación Bancaria
   bankTransactions BankTransaction[]
 
@@ -606,81 +608,81 @@ model InvoicePayment {
 // ─── Fase 17: Conciliación Bancaria ───────────────────────────────────────────
 
 enum BankTransactionType {
-  CREDIT   // Entrada de dinero (abono)
-  DEBIT    // Salida de dinero (cargo)
+  CREDIT // Entrada de dinero (abono)
+  DEBIT // Salida de dinero (cargo)
 }
 
 enum BankStatementStatus {
-  OPEN     // Estado de trabajo activo
-  CLOSED   // Conciliado / cerrado
+  OPEN // Estado de trabajo activo
+  CLOSED // Conciliado / cerrado
 }
 
 model BankAccount {
-  id              String   @id @default(cuid())
-  companyId       String
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  accountId       String   @unique
-  account         Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  name            String
-  bankName        String
-  accountNumber   String?
-  currency        Currency @default(VES)
-  closingBalance  Decimal  @db.Decimal(19, 4) @default(0)
-  isActive        Boolean  @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  createdBy       String
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  accountId      String    @unique
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  name           String
+  bankName       String
+  accountNumber  String?
+  currency       Currency  @default(VES)
+  closingBalance Decimal   @default(0) @db.Decimal(19, 4)
+  isActive       Boolean   @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  createdBy      String
 
-  statements  BankStatement[]
+  statements BankStatement[]
 
   @@index([companyId])
 }
 
 model BankStatement {
-  id              String              @id @default(cuid())
-  bankAccountId   String
-  bankAccount     BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
-  periodStart     DateTime            @db.Date
-  periodEnd       DateTime            @db.Date
-  openingBalance  Decimal             @db.Decimal(19, 4)
-  closingBalance  Decimal             @db.Decimal(19, 4)
-  status          BankStatementStatus @default(OPEN)
-  importedAt      DateTime            @default(now())
-  importedBy      String
-  deletedAt       DateTime?
+  id             String              @id @default(cuid())
+  bankAccountId  String
+  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  periodStart    DateTime            @db.Date
+  periodEnd      DateTime            @db.Date
+  openingBalance Decimal             @db.Decimal(19, 4)
+  closingBalance Decimal             @db.Decimal(19, 4)
+  status         BankStatementStatus @default(OPEN)
+  importedAt     DateTime            @default(now())
+  importedBy     String
+  deletedAt      DateTime?
 
-  transactions    BankTransaction[]
+  transactions BankTransaction[]
 
   @@index([bankAccountId])
 }
 
 model BankTransaction {
-  id                    String              @id @default(cuid())
-  statementId           String
-  statement             BankStatement       @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  id                     String              @id @default(cuid())
+  statementId            String
+  statement              BankStatement       @relation(fields: [statementId], references: [id], onDelete: Restrict)
   // Desnormalizado desde BankStatement→BankAccount para soportar RLS policy (Fase 13D)
-  companyId             String
-  company               Company             @relation("BankTransactionCompany", fields: [companyId], references: [id], onDelete: Restrict)
-  date                  DateTime            @db.Date
-  description           String
-  type                  BankTransactionType
-  amount                Decimal             @db.Decimal(19, 4)
-  reference             String?
-  isReconciled          Boolean             @default(false)
+  companyId              String
+  company                Company             @relation("BankTransactionCompany", fields: [companyId], references: [id], onDelete: Restrict)
+  date                   DateTime            @db.Date
+  description            String
+  type                   BankTransactionType
+  amount                 Decimal             @db.Decimal(19, 4)
+  reference              String?
+  isReconciled           Boolean             @default(false)
   // Match tipo 1: InvoicePayment — cancelación cartera CxC/CxP (Fase 17)
-  matchedPaymentId      String?
-  matchedPayment        InvoicePayment?     @relation(fields: [matchedPaymentId], references: [id], onDelete: Restrict)
+  matchedPaymentId       String?
+  matchedPayment         InvoicePayment?     @relation(fields: [matchedPaymentId], references: [id], onDelete: Restrict)
   // Match tipo 2: Transaction — asiento de libro mayor (Fase 17B)
-  matchedTransactionId  String?
-  matchedTransaction    Transaction?        @relation("BankTransactionMatch", fields: [matchedTransactionId], references: [id], onDelete: Restrict)
+  matchedTransactionId   String?
+  matchedTransaction     Transaction?        @relation("BankTransactionMatch", fields: [matchedTransactionId], references: [id], onDelete: Restrict)
   // Match tipo 3: PaymentRecord — pago multi-medio digital (Fase 17B)
-  matchedPaymentRecordId  String?
-  matchedPaymentRecord    PaymentRecord?    @relation(fields: [matchedPaymentRecordId], references: [id], onDelete: Restrict)
-  matchedAt             DateTime?
-  matchedBy             String?
-  deletedAt             DateTime?
+  matchedPaymentRecordId String?
+  matchedPaymentRecord   PaymentRecord?      @relation(fields: [matchedPaymentRecordId], references: [id], onDelete: Restrict)
+  matchedAt              DateTime?
+  matchedBy              String?
+  deletedAt              DateTime?
 
-  createdAt             DateTime            @default(now())
+  createdAt DateTime @default(now())
 
   @@index([companyId])
   @@index([statementId])
@@ -696,18 +698,18 @@ model BankTransaction {
 // Nota: ExchangeRate (Fase 14) cubre las tasas históricas — no se necesita
 // un modelo separado ExchangeRateSnapshot.
 model PeriodSnapshot {
-  id              String           @id @default(cuid())
+  id              String   @id @default(cuid())
   companyId       String
   periodId        String
   accountId       String
-  balanceVes      Decimal          @db.Decimal(19,4)
-  balanceOriginal Decimal?         @db.Decimal(19,4)
-  currency        Currency         @default(VES)
-  snapshotAt      DateTime         @default(now())
+  balanceVes      Decimal  @db.Decimal(19, 4)
+  balanceOriginal Decimal? @db.Decimal(19, 4)
+  currency        Currency @default(VES)
+  snapshotAt      DateTime @default(now())
 
-  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  period   AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  account  Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  period  AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  account Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
 
   @@unique([periodId, accountId])
   @@index([companyId, periodId])
@@ -716,14 +718,14 @@ model PeriodSnapshot {
 // ─── Fase 21: Activos Fijos y Depreciación (VEN-NIF 16 / IAS 16) ─────────────
 
 enum DepreciationMethod {
-  LINEA_RECTA         // (Costo − Valor Residual) / Vida Útil en meses
-  SUMA_DIGITOS        // Sum-of-years-digits
+  LINEA_RECTA // (Costo − Valor Residual) / Vida Útil en meses
+  SUMA_DIGITOS // Sum-of-years-digits
   UNIDADES_PRODUCCION // (Costo − Valor Residual) / Total Unidades × Unidades del período
 }
 
 enum FixedAssetStatus {
   ACTIVE
-  DISPOSED           // Dado de baja
+  DISPOSED // Dado de baja
   FULLY_DEPRECIATED
 }
 
@@ -734,17 +736,17 @@ model FixedAsset {
   name                     String
   description              String?
   // Cuentas contables vinculadas
-  assetAccountId           String              // → Account tipo ASSET
+  assetAccountId           String // → Account tipo ASSET
   assetAccount             Account             @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
-  depreciationAccountId    String              // → Account tipo EXPENSE (gasto depreciación)
+  depreciationAccountId    String // → Account tipo EXPENSE (gasto depreciación)
   depreciationAccount      Account             @relation("DepreciationExpenseAccount", fields: [depreciationAccountId], references: [id], onDelete: Restrict)
-  accDepreciationAccountId String              // → Account tipo ASSET crédito (depreciación acumulada)
+  accDepreciationAccountId String // → Account tipo ASSET crédito (depreciación acumulada)
   accDepreciationAccount   Account             @relation("AccumulatedDepreciationAccount", fields: [accDepreciationAccountId], references: [id], onDelete: Restrict)
   // Datos del activo
   acquisitionDate          DateTime            @db.Date
   acquisitionCost          Decimal             @db.Decimal(19, 4)
-  residualValue            Decimal             @db.Decimal(19, 4) @default(0)
-  usefulLifeMonths         Int                 // vida útil en meses
+  residualValue            Decimal             @default(0) @db.Decimal(19, 4)
+  usefulLifeMonths         Int // vida útil en meses
   depreciationMethod       DepreciationMethod  @default(LINEA_RECTA)
   status                   FixedAssetStatus    @default(ACTIVE)
   // Solo para UNIDADES_PRODUCCION
@@ -762,19 +764,19 @@ model FixedAsset {
 }
 
 model DepreciationEntry {
-  id                      String      @id @default(cuid())
+  id                      String       @id @default(cuid())
   companyId               String
   fixedAssetId            String
-  fixedAsset              FixedAsset  @relation(fields: [fixedAssetId], references: [id], onDelete: Restrict)
+  fixedAsset              FixedAsset   @relation(fields: [fixedAssetId], references: [id], onDelete: Restrict)
   periodYear              Int
-  periodMonth             Int         // 1–12
-  amount                  Decimal     @db.Decimal(19, 4)
-  accumulatedDepreciation Decimal     @db.Decimal(19, 4)
-  bookValue               Decimal     @db.Decimal(19, 4)  // costo − depreciación acumulada
-  transactionId           String?     @unique              // → Transaction generada
+  periodMonth             Int // 1–12
+  amount                  Decimal      @db.Decimal(19, 4)
+  accumulatedDepreciation Decimal      @db.Decimal(19, 4)
+  bookValue               Decimal      @db.Decimal(19, 4) // costo − depreciación acumulada
+  transactionId           String?      @unique // → Transaction generada
   transaction             Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   postedAt                DateTime?
-  createdAt               DateTime    @default(now())
+  createdAt               DateTime     @default(now())
 
   @@unique([fixedAssetId, periodYear, periodMonth])
   @@index([companyId, periodYear, periodMonth])
@@ -783,32 +785,32 @@ model DepreciationEntry {
 // ─── Fase 22: Ajuste por Inflación Fiscal (INPC / VEN-NIF 3) ─────────────────
 
 model INPCRate {
-  id          String   @id @default(cuid())
-  companyId   String
-  year        Int
-  month       Int      // 1-12
-  indexValue  Decimal  @db.Decimal(18, 6)  // índice INPC publicado por BCV
-  source      String?  @default("BCV")
-  createdAt   DateTime @default(now())
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  id         String   @id @default(cuid())
+  companyId  String
+  year       Int
+  month      Int // 1-12
+  indexValue Decimal  @db.Decimal(18, 6) // índice INPC publicado por BCV
+  source     String?  @default("BCV")
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, year, month])
   @@index([companyId])
 }
 
 model InflationAdjustment {
-  id               String      @id @default(cuid())
+  id               String   @id @default(cuid())
   companyId        String
   periodYear       Int
-  periodMonth      Int         // período que se está ajustando
-  baseYear         Int         // año del índice base usado
-  baseMonth        Int         // mes del índice base usado
+  periodMonth      Int // período que se está ajustando
+  baseYear         Int // año del índice base usado
+  baseMonth        Int // mes del índice base usado
   accountId        String
-  originalAmount   Decimal     @db.Decimal(19, 4)  // saldo de la cuenta antes del ajuste (ADR-002)
-  adjustmentAmount Decimal     @db.Decimal(19, 4)  // monto del ajuste = original × (factor − 1) (ADR-002)
-  cumulativeIndex  Decimal     @db.Decimal(18, 6)  // factor = currentIndex / baseIndex
-  transactionId    String      // NON-NULLABLE — VEN-NIF 3: todo ajuste DEBE tener asiento
-  createdAt        DateTime    @default(now())
+  originalAmount   Decimal  @db.Decimal(19, 4) // saldo de la cuenta antes del ajuste (ADR-002)
+  adjustmentAmount Decimal  @db.Decimal(19, 4) // monto del ajuste = original × (factor − 1) (ADR-002)
+  cumulativeIndex  Decimal  @db.Decimal(18, 6) // factor = currentIndex / baseIndex
+  transactionId    String // NON-NULLABLE — VEN-NIF 3: todo ajuste DEBE tener asiento
+  createdAt        DateTime @default(now())
 
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   account     Account     @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -821,35 +823,35 @@ model InflationAdjustment {
 // ─── Fase 28D: Módulo Inventario ─────────────────────────────────────────────
 
 enum MovementType {
-  ENTRADA  // compra, recepción de producción, ajuste positivo
-  SALIDA   // venta, consumo, ajuste negativo
-  AJUSTE   // corrección administrativa — requiere motivo
+  ENTRADA // compra, recepción de producción, ajuste positivo
+  SALIDA // venta, consumo, ajuste negativo
+  AJUSTE // corrección administrativa — requiere motivo
 }
 
 enum MovementStatus {
-  DRAFT   // registrado sin asiento — solo ADMINISTRATIVE puede ver
-  POSTED  // asiento generado y contabilizado — ACCOUNTANT aprobó
-  VOIDED  // anulado con contrapartida — NUNCA DELETE
+  DRAFT // registrado sin asiento — solo ADMINISTRATIVE puede ver
+  POSTED // asiento generado y contabilizado — ACCOUNTANT aprobó
+  VOIDED // anulado con contrapartida — NUNCA DELETE
 }
 
 model InventoryItem {
-  id            String    @id @default(cuid())
+  id            String              @id @default(cuid())
   companyId     String
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   sku           String
   name          String
   description   String?
-  unit          String                          // "unidad", "kg", "litro", etc.
-  averageCost   Decimal   @default(0) @db.Decimal(19, 4) // CPP vigente
-  stockQuantity Decimal   @default(0) @db.Decimal(19, 4) // unidades en existencia
-  minimumStock  Decimal?  @db.Decimal(19, 4)             // umbral para alerta de bajo stock
+  unit          String // "unidad", "kg", "litro", etc.
+  averageCost   Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente
+  stockQuantity Decimal             @default(0) @db.Decimal(19, 4) // unidades en existencia
+  minimumStock  Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
   accountId     String?
-  account       Account?  @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  account       Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
   cogsAccountId String?
-  cogsAccount   Account?  @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
+  cogsAccount   Account?            @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
   deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   createdBy     String
   movements     InventoryMovement[]
 
@@ -866,9 +868,9 @@ model InventoryMovement {
   item           InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
   type           MovementType
   status         MovementStatus @default(DRAFT)
-  quantity       Decimal        @db.Decimal(19, 4)  // siempre positivo
-  unitCost       Decimal        @db.Decimal(19, 4)  // CPP snapshot al momento del movimiento
-  totalCost      Decimal        @db.Decimal(19, 4)  // quantity × unitCost — almacenado, no calculado en consulta
+  quantity       Decimal        @db.Decimal(19, 4) // siempre positivo
+  unitCost       Decimal        @db.Decimal(19, 4) // CPP snapshot al momento del movimiento
+  totalCost      Decimal        @db.Decimal(19, 4) // quantity × unitCost — almacenado, no calculado en consulta
   invoiceId      String?
   invoice        Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   transactionId  String?        @unique
@@ -902,13 +904,13 @@ model ExportJob {
   id        String          @id @default(cuid())
   companyId String
   company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdBy String          // Clerk userId
+  createdBy String // Clerk userId
   status    ExportJobStatus @default(PENDING)
   dateFrom  DateTime        @db.Date
   dateTo    DateTime        @db.Date
-  fileData  Bytes?          // ZIP contents — null until DONE
-  fileSize  Int?            // bytes, for UI display
-  expiresAt DateTime?       // set to now()+24h on DONE
+  fileData  Bytes? // ZIP contents — null until DONE
+  fileSize  Int? // bytes, for UI display
+  expiresAt DateTime? // set to now()+24h on DONE
   errorMsg  String?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
@@ -920,31 +922,31 @@ model ExportJob {
 // ─── Fase 28: Módulo Compras y Ventas ────────────────────────────────────────
 
 enum QuotationType {
-  PURCHASE  // Cotización de compra (enviada a proveedor)
-  SALE      // Presupuesto/Cotización de venta (enviada a cliente)
+  PURCHASE // Cotización de compra (enviada a proveedor)
+  SALE // Presupuesto/Cotización de venta (enviada a cliente)
 }
 
 enum QuotationStatus {
-  DRAFT             // Borrador — editable
-  PENDING_APPROVAL  // Enviado a aprobación — solo lectura para ADMINISTRATIVE
-  APPROVED          // Aprobado — listo para convertir a Orden
-  REJECTED          // Rechazado — terminal
-  CANCELLED         // Cancelado — terminal
-  CONVERTED         // Convertido a Orden — terminal
+  DRAFT // Borrador — editable
+  PENDING_APPROVAL // Enviado a aprobación — solo lectura para ADMINISTRATIVE
+  APPROVED // Aprobado — listo para convertir a Orden
+  REJECTED // Rechazado — terminal
+  CANCELLED // Cancelado — terminal
+  CONVERTED // Convertido a Orden — terminal
 }
 
 enum OrderStatus {
-  DRAFT      // Borrador — editable
-  APPROVED   // Aprobado — listo para convertir a Factura
-  CONVERTED  // Convertido a Factura — terminal
-  CANCELLED  // Cancelado — terminal
+  DRAFT // Borrador — editable
+  APPROVED // Aprobado — listo para convertir a Factura
+  CONVERTED // Convertido a Factura — terminal
+  CANCELLED // Cancelado — terminal
 }
 
 enum OrderDocType {
-  PURCHASE_QUOTATION  // COT-XXXX
-  SALE_QUOTATION      // PRE-XXXX
-  PURCHASE_ORDER      // OC-XXXX
-  SALE_ORDER          // OV-XXXX
+  PURCHASE_QUOTATION // COT-XXXX
+  SALE_QUOTATION // PRE-XXXX
+  PURCHASE_ORDER // OC-XXXX
+  SALE_ORDER // OV-XXXX
 }
 
 model OrderNumberSequence {
@@ -955,7 +957,7 @@ model OrderNumberSequence {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  company    Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, docType])
   @@index([companyId])
@@ -980,9 +982,9 @@ model Quotation {
   updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
 
-  company         Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  items           QuotationItem[]
-  order           Order?
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  items   QuotationItem[]
+  order   Order?
 
   @@unique([companyId, number, type])
   @@index([companyId, type, status])
@@ -990,44 +992,44 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String    @id @default(cuid())
+  id          String  @id @default(cuid())
   quotationId String
   description String
   unit        String
-  quantity    Decimal   @db.Decimal(19, 4)
-  unitPrice   Decimal   @db.Decimal(19, 4)
-  taxRate     Decimal   @db.Decimal(5, 2) @default(0)
-  totalPrice  Decimal   @db.Decimal(19, 4)
+  quantity    Decimal @db.Decimal(19, 4)
+  unitPrice   Decimal @db.Decimal(19, 4)
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  totalPrice  Decimal @db.Decimal(19, 4)
 
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
 
   @@index([quotationId])
 }
 
 model Order {
-  id              String      @id @default(cuid())
+  id              String        @id @default(cuid())
   companyId       String
   type            QuotationType
-  status          OrderStatus @default(DRAFT)
+  status          OrderStatus   @default(DRAFT)
   number          String
-  quotationId     String?     @unique
+  quotationId     String?       @unique
   counterpartName String
   counterpartRif  String?
-  expectedDate    DateTime?   @db.Date
+  expectedDate    DateTime?     @db.Date
   notes           String?
-  subtotal        Decimal     @db.Decimal(19, 4)
-  taxAmount       Decimal     @db.Decimal(19, 4)
-  total           Decimal     @db.Decimal(19, 4)
-  currency        Currency    @default(VES)
+  subtotal        Decimal       @db.Decimal(19, 4)
+  taxAmount       Decimal       @db.Decimal(19, 4)
+  total           Decimal       @db.Decimal(19, 4)
+  currency        Currency      @default(VES)
   createdBy       String
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
 
-  company         Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  quotation       Quotation?  @relation(fields: [quotationId], references: [id], onDelete: Restrict)
-  items           OrderItem[]
-  invoice         Invoice?
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  quotation Quotation?  @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  items     OrderItem[]
+  invoice   Invoice?
 
   @@unique([companyId, number, type])
   @@index([companyId, type, status])
@@ -1037,14 +1039,14 @@ model Order {
 // ─── Fase NOM-A: Configuración de Nómina ────────────────────────────────────
 
 enum PayrollSizeRange {
-  SMALL   // < 20 empleados
-  MEDIUM  // 20-100 empleados
-  LARGE   // > 100 empleados
+  SMALL // < 20 empleados
+  MEDIUM // 20-100 empleados
+  LARGE // > 100 empleados
 }
 
 enum LottRegime {
-  POST_2012  // Solo régimen post-Ley LOTTT 2012
-  MIXED      // Empleados de ambos regímenes (pre-1997 LOT + post-2012)
+  POST_2012 // Solo régimen post-Ley LOTTT 2012
+  MIXED // Empleados de ambos regímenes (pre-1997 LOT + post-2012)
 }
 
 enum PayrollPaymentCurrency {
@@ -1054,73 +1056,73 @@ enum PayrollPaymentCurrency {
 }
 
 enum PayrollFrequency {
-  BIWEEKLY  // Quincenal
-  MONTHLY   // Mensual
+  BIWEEKLY // Quincenal
+  MONTHLY // Mensual
 }
 
 enum CestaTicketType {
-  CARD  // Tarjeta de alimentación
-  CASH  // Efectivo
-  NONE  // No aplica
+  CARD // Tarjeta de alimentación
+  CASH // Efectivo
+  NONE // No aplica
 }
 
 enum FideicomisoType {
-  EXTERNAL_BANK  // Fideicomiso en banco externo
-  INTERNAL       // Registro contable interno
+  EXTERNAL_BANK // Fideicomiso en banco externo
+  INTERNAL // Registro contable interno
 }
 
 model PayrollConfig {
-  id                String               @id @default(cuid())
-  companyId         String               @unique  // una config por empresa
+  id                            String                 @id @default(cuid())
+  companyId                     String                 @unique // una config por empresa
   // Empresa
-  sizeRange         PayrollSizeRange
-  lottRegime        LottRegime
+  sizeRange                     PayrollSizeRange
+  lottRegime                    LottRegime
   // Organismos activos
-  ivssEnabled       Boolean              @default(true)
-  incesEnabled      Boolean              @default(true)
-  banavihEnabled    Boolean              @default(true)
-  rpeEnabled        Boolean              @default(true)   // Paro Forzoso RPE 0.5% (LSSO Art. 7)
-  cestaTicketType   CestaTicketType
+  ivssEnabled                   Boolean                @default(true)
+  incesEnabled                  Boolean                @default(true)
+  banavihEnabled                Boolean                @default(true)
+  rpeEnabled                    Boolean                @default(true) // Paro Forzoso RPE 0.5% (LSSO Art. 7)
+  cestaTicketType               CestaTicketType
   // Pagos
-  paymentCurrency   PayrollPaymentCurrency
-  frequency         PayrollFrequency
-  fideicomiso       FideicomisoType
+  paymentCurrency               PayrollPaymentCurrency
+  frequency                     PayrollFrequency
+  fideicomiso                   FideicomisoType
   // Fase NOM-C: Cuentas contables para asiento de causación (nullable hasta configurar)
   // ADR-013 Decisión 3: configurables por empresa (no hardcoded)
-  expenseAccountId      String?    // EXPENSE — Gastos de Personal / Sueldos y Salarios
-  payableAccountId      String?    // LIABILITY — Sueldos y Salarios por Pagar (neto empleados)
-  ivssPayableAccountId  String?    // LIABILITY — IVSS Obrero por Pagar
-  faovPayableAccountId  String?    // LIABILITY — FAOV / BANAVIH por Pagar
-  incesPayableAccountId String?    // LIABILITY — INCES por Pagar
-  rpePayableAccountId   String?    // LIABILITY — Paro Forzoso RPE por Pagar
+  expenseAccountId              String? // EXPENSE — Gastos de Personal / Sueldos y Salarios
+  payableAccountId              String? // LIABILITY — Sueldos y Salarios por Pagar (neto empleados)
+  ivssPayableAccountId          String? // LIABILITY — IVSS Obrero por Pagar
+  faovPayableAccountId          String? // LIABILITY — FAOV / BANAVIH por Pagar
+  incesPayableAccountId         String? // LIABILITY — INCES por Pagar
+  rpePayableAccountId           String? // LIABILITY — Paro Forzoso RPE por Pagar
   // Fase NOM-D: Cuentas contables para prestaciones sociales, vacaciones y utilidades
   // ADR-014 Decisión 7: causación periódica requiere cuentas separadas
-  benefitsExpenseAccountId      String?    // EXPENSE — Gastos Prestaciones Sociales
-  benefitsPayableAccountId      String?    // LIABILITY — Prestaciones Sociales por Pagar
-  vacationPayableAccountId      String?    // LIABILITY — Vacaciones por Pagar
-  profitSharingPayableAccountId String?    // LIABILITY — Utilidades por Pagar
+  benefitsExpenseAccountId      String? // EXPENSE — Gastos Prestaciones Sociales
+  benefitsPayableAccountId      String? // LIABILITY — Prestaciones Sociales por Pagar
+  vacationPayableAccountId      String? // LIABILITY — Vacaciones por Pagar
+  profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
   // Fase NOM-D: Configuración de beneficios legales
-  profitDays            Int              @default(15)  // días de utilidades (15–120 LOTTT Art. 131)
-  vacationBonusDays     Int              @default(7)   // días bono vacacional año 1 (LOTTT Art. 223)
+  profitDays                    Int                    @default(15) // días de utilidades (15–120 LOTTT Art. 131)
+  vacationBonusDays             Int                    @default(7) // días bono vacacional año 1 (LOTTT Art. 223)
   // Fase NOM-E: Valor de la Unidad Tributaria para cálculo de techo IVSS (LSS Art. 62)
   // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
   // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
-  utValue               Decimal?         @db.Decimal(10, 2)
+  utValue                       Decimal?               @db.Decimal(10, 2)
   // Tope de cotización: salario mínimo nacional vigente (Bs/mes).
   // Cuando > 0: IVSS cap = 5 × salaryMinimumVes; FAOV cap = 10 × salaryMinimumVes.
   // Cuando NULL/0: sin tope (uso previo al decreto — mantiene retro-compatibilidad).
-  salaryMinimumVes      Decimal?         @db.Decimal(18, 2)
+  salaryMinimumVes              Decimal?               @db.Decimal(18, 2)
   // Timestamps
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
 
-  company               Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  expenseAccount        Account?             @relation("PayrollExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
-  payableAccount        Account?             @relation("PayrollPayableAccount", fields: [payableAccountId], references: [id], onDelete: Restrict)
-  ivssPayableAccount    Account?             @relation("PayrollIvssPayable", fields: [ivssPayableAccountId], references: [id], onDelete: Restrict)
-  faovPayableAccount    Account?             @relation("PayrollFaovPayable", fields: [faovPayableAccountId], references: [id], onDelete: Restrict)
-  incesPayableAccount   Account?             @relation("PayrollIncesPayable", fields: [incesPayableAccountId], references: [id], onDelete: Restrict)
-  rpePayableAccount     Account?             @relation("PayrollRpePayable", fields: [rpePayableAccountId], references: [id], onDelete: Restrict)
+  company                     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expenseAccount              Account? @relation("PayrollExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  payableAccount              Account? @relation("PayrollPayableAccount", fields: [payableAccountId], references: [id], onDelete: Restrict)
+  ivssPayableAccount          Account? @relation("PayrollIvssPayable", fields: [ivssPayableAccountId], references: [id], onDelete: Restrict)
+  faovPayableAccount          Account? @relation("PayrollFaovPayable", fields: [faovPayableAccountId], references: [id], onDelete: Restrict)
+  incesPayableAccount         Account? @relation("PayrollIncesPayable", fields: [incesPayableAccountId], references: [id], onDelete: Restrict)
+  rpePayableAccount           Account? @relation("PayrollRpePayable", fields: [rpePayableAccountId], references: [id], onDelete: Restrict)
   benefitsExpenseAccount      Account? @relation("PayrollBenefitsExpense", fields: [benefitsExpenseAccountId], references: [id], onDelete: Restrict)
   benefitsPayableAccount      Account? @relation("PayrollBenefitsPayable", fields: [benefitsPayableAccountId], references: [id], onDelete: Restrict)
   vacationPayableAccount      Account? @relation("PayrollVacationPayable", fields: [vacationPayableAccountId], references: [id], onDelete: Restrict)
@@ -1134,10 +1136,10 @@ model OrderItem {
   unit        String
   quantity    Decimal @db.Decimal(19, 4)
   unitPrice   Decimal @db.Decimal(19, 4)
-  taxRate     Decimal @db.Decimal(5, 2) @default(0)
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
   totalPrice  Decimal @db.Decimal(19, 4)
 
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
 }
@@ -1145,9 +1147,9 @@ model OrderItem {
 // ─── Fase NOM-B: Empleados, Conceptos, Feriados y Tipos de Ausencia ──────────
 
 enum ContractType {
-  INDEFINIDO        // Tiempo indeterminado (LOTTT Art. 61)
-  DETERMINADO       // Tiempo determinado (LOTTT Art. 64)
-  OBRA_DETERMINADA  // Por obra determinada (LOTTT Art. 62)
+  INDEFINIDO // Tiempo indeterminado (LOTTT Art. 61)
+  DETERMINADO // Tiempo determinado (LOTTT Art. 64)
+  OBRA_DETERMINADA // Por obra determinada (LOTTT Art. 62)
 }
 
 enum EmployeeStatus {
@@ -1157,15 +1159,15 @@ enum EmployeeStatus {
 }
 
 enum ConceptType {
-  EARNING    // Ingreso / asignación
-  DEDUCTION  // Deducción / descuento
+  EARNING // Ingreso / asignación
+  DEDUCTION // Deducción / descuento
 }
 
 enum AbsenceCategory {
-  JUSTIFIED    // Justificada (pagada)
-  UNJUSTIFIED  // Injustificada (puede descontar)
-  MEDICAL      // Reposo médico (IVSS cubre parcialmente)
-  PERMISSION   // Permiso especial (LOTTT Art. 420)
+  JUSTIFIED // Justificada (pagada)
+  UNJUSTIFIED // Injustificada (puede descontar)
+  MEDICAL // Reposo médico (IVSS cubre parcialmente)
+  PERMISSION // Permiso especial (LOTTT Art. 420)
 }
 
 // ─── Employee ─────────────────────────────────────────────────────────────────
@@ -1179,11 +1181,11 @@ model Employee {
   // Identificación
   firstName       String
   lastName        String
-  cedulaType      String         // "V" | "E"
-  cedulaNumber    String         // solo dígitos
+  cedulaType      String // "V" | "E"
+  cedulaNumber    String // solo dígitos
   // Contrato LOTTT
   contractType    ContractType
-  employeeRegime  LottRegime     // por empleado — empresa MIXED puede tener ambos
+  employeeRegime  LottRegime // por empleado — empresa MIXED puede tener ambos
   hireDate        DateTime       @db.Date
   terminationDate DateTime?      @db.Date
   status          EmployeeStatus @default(ACTIVE)
@@ -1200,16 +1202,16 @@ model Employee {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  salaryHistory   SalaryHistory[]
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  salaryHistory        SalaryHistory[]
   // Fase NOM-C
-  payrollRunLines PayrollRunLine[]
+  payrollRunLines      PayrollRunLine[]
   // Fase NOM-D
-  benefitBalance   BenefitBalance?
-  benefitAdvances  BenefitAdvance[]
-  vacationRecords  VacationRecord[]
+  benefitBalance       BenefitBalance?
+  benefitAdvances      BenefitAdvance[]
+  vacationRecords      VacationRecord[]
   profitSharingRecords ProfitSharingRecord[]
-  terminations     Termination[]
+  terminations         Termination[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -1222,16 +1224,16 @@ model Employee {
 // NOM-B-03: cada INSERT en SalaryHistory va acompañado de un AuditLog.
 
 model SalaryHistory {
-  id              String               @id @default(cuid())
+  id              String                 @id @default(cuid())
   companyId       String
   employeeId      String
-  effectiveFrom   DateTime             @db.Date
-  amount          Decimal              @db.Decimal(19, 4)
+  effectiveFrom   DateTime               @db.Date
+  amount          Decimal                @db.Decimal(19, 4)
   currency        PayrollPaymentCurrency
   createdByUserId String
-  createdAt       DateTime             @default(now())
+  createdAt       DateTime               @default(now())
 
-  employee        Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([employeeId, effectiveFrom(sort: Desc)])
   @@index([companyId])
@@ -1243,11 +1245,11 @@ model SalaryHistory {
 // no se pueden eliminar, solo desactivar.
 
 model PayrollConcept {
-  id        String      @id @default(cuid())
-  companyId String
-  code      String      // corto, ej: "SAL_BASE", "IVSS_OBR"
-  name      String
-  type      ConceptType
+  id                    String      @id @default(cuid())
+  companyId             String
+  code                  String // corto, ej: "SAL_BASE", "IVSS_OBR"
+  name                  String
+  type                  ConceptType
   isSystem              Boolean     @default(false)
   isActive              Boolean     @default(true)
   // LOTTT: indica si este concepto impacta el salario integral (base de prestaciones/vacaciones).
@@ -1256,7 +1258,7 @@ model PayrollConcept {
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C
   payrollRunLines PayrollRunLine[]
 
@@ -1276,7 +1278,7 @@ model PublicHoliday {
   isRecurring Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([companyId, date])
 }
@@ -1295,7 +1297,7 @@ model AbsenceType {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([companyId, isActive])
 }
@@ -1303,9 +1305,9 @@ model AbsenceType {
 // ─── Fase NOM-C: Motor de Cálculo de Nómina ──────────────────────────────────
 
 enum PayrollRunStatus {
-  DRAFT      // Calculado — editable, no contabilizado
-  APPROVED   // Aprobado — asiento contable generado, inmutable
-  CANCELLED  // Anulado — estado terminal, solo desde DRAFT
+  DRAFT // Calculado — editable, no contabilizado
+  APPROVED // Aprobado — asiento contable generado, inmutable
+  CANCELLED // Anulado — estado terminal, solo desde DRAFT
 }
 
 // ─── PayrollRun ───────────────────────────────────────────────────────────────
@@ -1315,32 +1317,32 @@ enum PayrollRunStatus {
 // totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
 
 model PayrollRun {
-  id               String           @id @default(cuid())
-  companyId        String
-  periodStart      DateTime         @db.Date
-  periodEnd        DateTime         @db.Date
-  status           PayrollRunStatus @default(DRAFT)
+  id                String           @id @default(cuid())
+  companyId         String
+  periodStart       DateTime         @db.Date
+  periodEnd         DateTime         @db.Date
+  status            PayrollRunStatus @default(DRAFT)
   // Totales calculados server-side al momento del cálculo (inmutables post-APPROVED)
-  totalEarnings    Decimal          @db.Decimal(18, 2)
-  totalDeductions  Decimal          @db.Decimal(18, 2)
-  totalNet         Decimal          @db.Decimal(18, 2)
-  employeeCount    Int
+  totalEarnings     Decimal          @db.Decimal(18, 2)
+  totalDeductions   Decimal          @db.Decimal(18, 2)
+  totalNet          Decimal          @db.Decimal(18, 2)
+  employeeCount     Int
   // Vínculo al asiento contable (nullable hasta APPROVED — ADR-013 Decisión 4)
-  transactionId    String?          @unique
+  transactionId     String?          @unique
   // Auditoría
-  createdByUserId  String
-  approvedByUserId String?
+  createdByUserId   String
+  approvedByUserId  String?
   cancelledByUserId String?
-  approvedAt       DateTime?
-  cancelledAt      DateTime?
+  approvedAt        DateTime?
+  cancelledAt       DateTime?
   // Previene doble submit desde UI (idempotencyKey único por request)
-  idempotencyKey   String           @unique
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  idempotencyKey    String           @unique
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
-  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  transaction      Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  lines            PayrollRunLine[]
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transaction Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  lines       PayrollRunLine[]
 
   // GUARD doble-proceso: un solo run activo por empresa y período (ADR-013 Decisión 1)
   @@unique([companyId, periodStart, periodEnd])
@@ -1354,27 +1356,27 @@ model PayrollRun {
 // onDelete: Restrict — nunca eliminar líneas contabilizadas (ADR-003).
 
 model PayrollRunLine {
-  id                    String                @id @default(cuid())
-  companyId             String
-  payrollRunId          String
-  employeeId            String
-  conceptId             String
-  conceptCode           String                // snapshot del código al calcular
-  conceptType           ConceptType           // snapshot EARNING | DEDUCTION
-  amount                Decimal               @db.Decimal(18, 2)
+  id                     String                  @id @default(cuid())
+  companyId              String
+  payrollRunId           String
+  employeeId             String
+  conceptId              String
+  conceptCode            String // snapshot del código al calcular
+  conceptType            ConceptType // snapshot EARNING | DEDUCTION
+  amount                 Decimal                 @db.Decimal(18, 2)
   // Campos de auditoría del motor de cálculo
-  basis                 Decimal?              @db.Decimal(18, 2) // base de cálculo (salario diario, etc.)
-  hours                 Decimal?              @db.Decimal(8, 2)  // solo HE_DIURNA / HE_NOCTURNA
-  rate                  Decimal?              @db.Decimal(6, 4)  // porcentaje aplicado (ej: 0.0400)
+  basis                  Decimal?                @db.Decimal(18, 2) // base de cálculo (salario diario, etc.)
+  hours                  Decimal?                @db.Decimal(8, 2) // solo HE_DIURNA / HE_NOCTURNA
+  rate                   Decimal?                @db.Decimal(6, 4) // porcentaje aplicado (ej: 0.0400)
   // Snapshot de salario — ADR-013 Decisión 2: FK + snapshot
-  salaryHistoryId       String?               // FK al SalaryHistory usado (trazabilidad)
-  salarySnapshotAmount  Decimal?              @db.Decimal(18, 2) // monto vigente al calcular (inmutable)
+  salaryHistoryId        String? // FK al SalaryHistory usado (trazabilidad)
+  salarySnapshotAmount   Decimal?                @db.Decimal(18, 2) // monto vigente al calcular (inmutable)
   salarySnapshotCurrency PayrollPaymentCurrency?
-  createdAt             DateTime              @default(now())
+  createdAt              DateTime                @default(now())
 
-  payrollRun            PayrollRun            @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
-  employee              Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  concept               PayrollConcept        @relation(fields: [conceptId], references: [id], onDelete: Restrict)
+  payrollRun PayrollRun     @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  concept    PayrollConcept @relation(fields: [conceptId], references: [id], onDelete: Restrict)
 
   @@index([payrollRunId])
   @@index([companyId, employeeId])
@@ -1385,8 +1387,8 @@ model PayrollRunLine {
 // ADR-014: arquitectura de beneficios laborales LOTTT Venezuela
 
 enum BcvRateType {
-  ACTIVA    // Tasa activa BCV (Art. 143 LOTTT — valor por defecto)
-  PROMEDIO  // Tasa promedio BCV (alternativa)
+  ACTIVA // Tasa activa BCV (Art. 143 LOTTT — valor por defecto)
+  PROMEDIO // Tasa promedio BCV (alternativa)
 }
 
 // Tasa activa BCV mensual — fuente oficial para intereses sobre prestaciones (Art. 143 LOTTT)
@@ -1395,15 +1397,15 @@ model BcvBenefitRate {
   id              String      @id @default(cuid())
   companyId       String
   year            Int
-  month           Int         // 1–12
-  annualRate      Decimal     @db.Decimal(5, 2)  // porcentaje anual, ej: 17.50 = 17.5%
-  rateType        BcvRateType @default(ACTIVA)    // ACTIVA por mandato Art. 143 LOTTT
-  source          String      @default("BCV")     // "BCV" | "MANUAL"
+  month           Int // 1–12
+  annualRate      Decimal     @db.Decimal(5, 2) // porcentaje anual, ej: 17.50 = 17.5%
+  rateType        BcvRateType @default(ACTIVA) // ACTIVA por mandato Art. 143 LOTTT
+  source          String      @default("BCV") // "BCV" | "MANUAL"
   createdByUserId String
   createdAt       DateTime    @default(now())
 
-  company         Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  accrualLines    BenefitAccrualLine[]
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  accrualLines BenefitAccrualLine[]
 
   @@unique([companyId, year, month])
   @@index([companyId, year, month])
@@ -1415,28 +1417,28 @@ model BcvBenefitRate {
 model BenefitBalance {
   id              String    @id @default(cuid())
   companyId       String
-  employeeId      String    @unique  // uno por empleado
-  currentBalance  Decimal   @db.Decimal(19, 4) @default(0)  // acumulado prestaciones
-  interestBalance Decimal   @db.Decimal(19, 4) @default(0)  // intereses BCV acumulados
+  employeeId      String    @unique // uno por empleado
+  currentBalance  Decimal   @default(0) @db.Decimal(19, 4) // acumulado prestaciones
+  interestBalance Decimal   @default(0) @db.Decimal(19, 4) // intereses BCV acumulados
   isLiquidated    Boolean   @default(false)
   liquidatedAt    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  accrualLines    BenefitAccrualLine[]
-  advances        BenefitAdvance[]
-  termination     Termination?
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee     Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  accrualLines BenefitAccrualLine[]
+  advances     BenefitAdvance[]
+  termination  Termination?
 
   @@index([companyId])
   @@index([companyId, isLiquidated])
 }
 
 enum BenefitAccrualType {
-  QUARTERLY_ACCRUAL  // accrual trimestral Art. 142 LOTTT — asiento obligatorio
-  BCV_INTEREST       // intereses Art. 143 LOTTT — asiento obligatorio
-  ADJUSTMENT         // corrección administrativa — asiento opcional
+  QUARTERLY_ACCRUAL // accrual trimestral Art. 142 LOTTT — asiento obligatorio
+  BCV_INTEREST // intereses Art. 143 LOTTT — asiento obligatorio
+  ADJUSTMENT // corrección administrativa — asiento opcional
 }
 
 // Evento de acumulación de prestaciones — inmutable post-creación (ADR-014 Dec. 3)
@@ -1448,31 +1450,31 @@ model BenefitAccrualLine {
   type                     BenefitAccrualType
   // Período del evento
   year                     Int
-  quarter                  Int?               // 1–4 para QUARTERLY_ACCRUAL
-  month                    Int?               // 1–12 para BCV_INTEREST
+  quarter                  Int? // 1–4 para QUARTERLY_ACCRUAL
+  month                    Int? // 1–12 para BCV_INTEREST
   // Snapshot de salario integral al momento del accrual (inmutable post-creación — ADR-014 Dec. 3)
-  dailyNormalWage          Decimal?           @db.Decimal(19, 4)  // snapshot salario diario normal
-  profitDaysAliquot        Decimal?           @db.Decimal(19, 4)  // alícuota utilidades
-  vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 4)  // alícuota bono vacacional
-  integralDailyWage        Decimal?           @db.Decimal(19, 4)  // = suma de los tres campos
-  accrualDays              Int?               // días base del período (siempre 5 — Art. 142)
-  additionalDays           Decimal?           @db.Decimal(5, 2)  // días adicionales por antigüedad (+2/año, máx 30 — Art. 142)
+  dailyNormalWage          Decimal?           @db.Decimal(19, 4) // snapshot salario diario normal
+  profitDaysAliquot        Decimal?           @db.Decimal(19, 4) // alícuota utilidades
+  vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 4) // alícuota bono vacacional
+  integralDailyWage        Decimal?           @db.Decimal(19, 4) // = suma de los tres campos
+  accrualDays              Int? // días base del período (siempre 5 — Art. 142)
+  additionalDays           Decimal?           @db.Decimal(5, 2) // días adicionales por antigüedad (+2/año, máx 30 — Art. 142)
   // Montos del evento
   accrualAmount            Decimal            @db.Decimal(19, 4)
-  runningBalance           Decimal            @db.Decimal(19, 4)  // saldo acumulado post-evento
+  runningBalance           Decimal            @db.Decimal(19, 4) // saldo acumulado post-evento
   // Tasa BCV aplicada (solo BCV_INTEREST)
   bcvRateId                String?
-  appliedRate              Decimal?           @db.Decimal(5, 2)   // snapshot de la tasa aplicada
+  appliedRate              Decimal?           @db.Decimal(5, 2) // snapshot de la tasa aplicada
   // Asiento contable — NON-NULL para QUARTERLY_ACCRUAL y BCV_INTEREST
   transactionId            String?            @unique
   notes                    String?
   createdByUserId          String
   createdAt                DateTime           @default(now())
 
-  company                  Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  benefitBalance           BenefitBalance     @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
-  bcvRate                  BcvBenefitRate?    @relation(fields: [bcvRateId], references: [id], onDelete: Restrict)
-  transaction              Transaction?       @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  benefitBalance BenefitBalance  @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  bcvRate        BcvBenefitRate? @relation(fields: [bcvRateId], references: [id], onDelete: Restrict)
+  transaction    Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   // Guard doble-accrual trimestral — P2002 si se intenta duplicar (ADR-014 Dec. 1)
   @@unique([benefitBalanceId, year, quarter, type])
@@ -1486,9 +1488,9 @@ model BenefitAccrualLine {
 // Inmutable post-registro — cancelaciones vía asiento inverso + AuditLog.
 
 enum BenefitAdvanceReason {
-  HOUSING    // Adquisición, construcción o remodelación de vivienda principal
-  HEALTH     // Gastos médicos graves del trabajador o su familia
-  EDUCATION  // Pago de estudios del trabajador o sus hijos
+  HOUSING // Adquisición, construcción o remodelación de vivienda principal
+  HEALTH // Gastos médicos graves del trabajador o su familia
+  EDUCATION // Pago de estudios del trabajador o sus hijos
 }
 
 model BenefitAdvance {
@@ -1496,18 +1498,18 @@ model BenefitAdvance {
   companyId        String
   employeeId       String
   benefitBalanceId String
-  amount           Decimal              @db.Decimal(19, 4)  // monto del anticipo
+  amount           Decimal              @db.Decimal(19, 4) // monto del anticipo
   reason           BenefitAdvanceReason
   notes            String?
-  transactionId    String?              @unique  // asiento débito al saldo (obligatorio)
+  transactionId    String?              @unique // asiento débito al saldo (obligatorio)
   createdByUserId  String
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
-  company          Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  benefitBalance   BenefitBalance       @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
-  transaction      Transaction?         @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee       Employee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  benefitBalance BenefitBalance @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([companyId, employeeId])
   @@index([companyId])
@@ -1517,28 +1519,28 @@ model BenefitAdvance {
 // Append-only — no se eliminan (ADR-003).
 // isFractional = true → fracción calculada en liquidación final.
 model VacationRecord {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   companyId       String
   employeeId      String
-  periodYear      Int       // año de devengo
-  vacationDays    Decimal   @db.Decimal(5, 2)   // días hábiles causados (máx 90 — Zod)
-  bonusDays       Decimal   @db.Decimal(5, 2)   // bono vacacional causado (máx 90 — Zod)
+  periodYear      Int // año de devengo
+  vacationDays    Decimal  @db.Decimal(5, 2) // días hábiles causados (máx 90 — Zod)
+  bonusDays       Decimal  @db.Decimal(5, 2) // bono vacacional causado (máx 90 — Zod)
   // Montos snapshot — dailyNormalWage calculado server-side, nunca del cliente (ADR-014 Dec. 3)
-  dailyNormalWage Decimal   @db.Decimal(19, 4)
-  vacationAmount  Decimal   @db.Decimal(19, 4)
-  bonusAmount     Decimal   @db.Decimal(19, 4)
+  dailyNormalWage Decimal  @db.Decimal(19, 4)
+  vacationAmount  Decimal  @db.Decimal(19, 4)
+  bonusAmount     Decimal  @db.Decimal(19, 4)
   // Período de disfrute
-  startDate       DateTime  @db.Date
-  endDate         DateTime  @db.Date
-  isFractional    Boolean   @default(false)     // true si es fracción en liquidación
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  isFractional    Boolean  @default(false) // true si es fracción en liquidación
   // Asiento contable
-  transactionId   String?   @unique
+  transactionId   String?  @unique
   createdByUserId String
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime @default(now())
 
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  transaction     Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, employeeId, periodYear, isFractional])
   @@index([companyId, employeeId])
@@ -1549,25 +1551,25 @@ model VacationRecord {
 // Append-only — no se eliminan (ADR-003).
 // isFractional = true → fracción calculada en liquidación final.
 model ProfitSharingRecord {
-  id                  String    @id @default(cuid())
-  companyId           String
-  employeeId          String
-  fiscalYear          Int       // año fiscal de devengo
-  profitDays          Decimal   @db.Decimal(5, 2)   // días configurados (15–120 — Zod)
-  fractionalDays      Decimal   @db.Decimal(5, 2)   // días proporcionales al tiempo trabajado
-  monthsWorked        Int                           // meses completos en el año fiscal
+  id                 String   @id @default(cuid())
+  companyId          String
+  employeeId         String
+  fiscalYear         Int // año fiscal de devengo
+  profitDays         Decimal  @db.Decimal(5, 2) // días configurados (15–120 — Zod)
+  fractionalDays     Decimal  @db.Decimal(5, 2) // días proporcionales al tiempo trabajado
+  monthsWorked       Int // meses completos en el año fiscal
   // Snapshot de salario base — calculado server-side (ADR-014 Dec. 3)
-  baseSalarySnapshot  Decimal   @db.Decimal(19, 4)  // promedio salarial del período
-  profitAmount        Decimal   @db.Decimal(19, 4)  // fractionalDays × (baseSalary/30)
-  isFractional        Boolean   @default(false)     // true si es fracción en liquidación
+  baseSalarySnapshot Decimal  @db.Decimal(19, 4) // promedio salarial del período
+  profitAmount       Decimal  @db.Decimal(19, 4) // fractionalDays × (baseSalary/30)
+  isFractional       Boolean  @default(false) // true si es fracción en liquidación
   // Asiento contable
-  transactionId       String?   @unique
-  createdByUserId     String
-  createdAt           DateTime  @default(now())
+  transactionId      String?  @unique
+  createdByUserId    String
+  createdAt          DateTime @default(now())
 
-  company             Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  transaction         Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, employeeId, fiscalYear])
   @@index([companyId, employeeId])
@@ -1575,19 +1577,19 @@ model ProfitSharingRecord {
 }
 
 enum TerminationStatus {
-  DRAFT      // editable — cálculos revisables
+  DRAFT // editable — cálculos revisables
   FINALIZING // mutex en tránsito — indica failure parcial si persiste (ADR-014 Dec. 6)
-  FINALIZED  // terminal e inmutable — documento laboral generado
+  FINALIZED // terminal e inmutable — documento laboral generado
 }
 
 enum TerminationReason {
-  RESIGNATION           // Renuncia voluntaria
-  DISMISSAL_JUSTIFIED   // Despido justificado (Art. 79 LOTTT)
+  RESIGNATION // Renuncia voluntaria
+  DISMISSAL_JUSTIFIED // Despido justificado (Art. 79 LOTTT)
   DISMISSAL_UNJUSTIFIED // Despido injustificado — activa indemnización Art. 92
-  MUTUAL_AGREEMENT      // Mutuo acuerdo
-  CONTRACT_EXPIRY       // Vencimiento de contrato determinado
-  DEATH                 // Fallecimiento
-  DISABILITY            // Incapacidad total permanente
+  MUTUAL_AGREEMENT // Mutuo acuerdo
+  CONTRACT_EXPIRY // Vencimiento de contrato determinado
+  DEATH // Fallecimiento
+  DISABILITY // Incapacidad total permanente
 }
 
 // Liquidación Final — documento laboral inmutable post-FINALIZED (ADR-014 Dec. 4).
@@ -1604,25 +1606,25 @@ model Termination {
   benefitBalanceId              String?           @unique
   // ── Componentes snapshot de la liquidación ──
   // Prestaciones
-  benefitsAccumulatedAmount     Decimal           @db.Decimal(19, 4) @default(0)
-  benefitsInterestAmount        Decimal           @db.Decimal(19, 4) @default(0)
+  benefitsAccumulatedAmount     Decimal           @default(0) @db.Decimal(19, 4)
+  benefitsInterestAmount        Decimal           @default(0) @db.Decimal(19, 4)
   // Vacaciones fraccionadas
-  vacationFractionalDays        Decimal           @db.Decimal(5, 2)  @default(0)
-  vacationFractionalAmount      Decimal           @db.Decimal(19, 4) @default(0)
-  vacationBonusFractionalAmount Decimal           @db.Decimal(19, 4) @default(0)
+  vacationFractionalDays        Decimal           @default(0) @db.Decimal(5, 2)
+  vacationFractionalAmount      Decimal           @default(0) @db.Decimal(19, 4)
+  vacationBonusFractionalAmount Decimal           @default(0) @db.Decimal(19, 4)
   // Utilidades fraccionadas
-  profitSharingFractionalDays   Decimal           @db.Decimal(5, 2)  @default(0)
-  profitSharingFractionalAmount Decimal           @db.Decimal(19, 4) @default(0)
+  profitSharingFractionalDays   Decimal           @default(0) @db.Decimal(5, 2)
+  profitSharingFractionalAmount Decimal           @default(0) @db.Decimal(19, 4)
   profitSharingBaseSalary       Decimal?          @db.Decimal(19, 4) // promedio snapshot (ADR-014 Dec. 8)
   // Indemnización Art. 92 (solo DISMISSAL_UNJUSTIFIED)
-  indemnificationAmount         Decimal           @db.Decimal(19, 4) @default(0)
+  indemnificationAmount         Decimal           @default(0) @db.Decimal(19, 4)
   // Otros conceptos pendientes
-  pendingConceptsAmount         Decimal           @db.Decimal(19, 4) @default(0)
+  pendingConceptsAmount         Decimal           @default(0) @db.Decimal(19, 4)
   pendingConceptsNotes          String?
   // Totales
-  totalGrossAmount              Decimal           @db.Decimal(19, 4) @default(0)
-  deductionsAmount              Decimal           @db.Decimal(19, 4) @default(0)
-  totalNetAmount                Decimal           @db.Decimal(19, 4) @default(0)
+  totalGrossAmount              Decimal           @default(0) @db.Decimal(19, 4)
+  deductionsAmount              Decimal           @default(0) @db.Decimal(19, 4)
+  totalNetAmount                Decimal           @default(0) @db.Decimal(19, 4)
   // Asiento contable de liquidación (NON-NULL al finalizar)
   transactionId                 String?           @unique
   // Idempotencia — previene doble-submit desde UI
@@ -1631,14 +1633,14 @@ model Termination {
   createdByUserId               String
   finalizedByUserId             String?
   finalizedAt                   DateTime?
-  deletedAt                     DateTime?         // soft delete
+  deletedAt                     DateTime? // soft delete
   createdAt                     DateTime          @default(now())
   updatedAt                     DateTime          @updatedAt
 
-  company                       Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee                      Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  benefitBalance                BenefitBalance?   @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
-  transaction                   Transaction?      @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  benefitBalance BenefitBalance? @relation(fields: [benefitBalanceId], references: [id], onDelete: Restrict)
+  transaction    Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([companyId, employeeId])
   @@index([companyId, status])
@@ -1647,38 +1649,38 @@ model Termination {
 
 // Fase 35A: Vendor / Customer
 model Vendor {
-  id          String    @id @default(cuid())
-  companyId   String
-  name        String
-  rif         String?
-  email       String?
-  phone       String?
-  address     String?
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  companyId String
+  name      String
+  rif       String?
+  email     String?
+  phone     String?
+  address   String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  invoices    Invoice[]
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoices Invoice[]
 
   @@unique([companyId, rif])
   @@index([companyId, deletedAt])
 }
 
 model Customer {
-  id          String    @id @default(cuid())
-  companyId   String
-  name        String
-  rif         String?
-  email       String?
-  phone       String?
-  address     String?
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  companyId String
+  name      String
+  rif       String?
+  email     String?
+  phone     String?
+  address   String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  invoices    Invoice[]
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoices Invoice[]
 
   @@unique([companyId, rif])
   @@index([companyId, deletedAt])

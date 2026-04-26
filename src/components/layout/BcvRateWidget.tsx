@@ -26,6 +26,7 @@ export function BcvRateWidget({ companyId }: Props) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRates();
   }, [companyId]); // eslint-disable-line react-hooks/exhaustive-deps
 

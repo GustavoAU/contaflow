@@ -203,6 +203,20 @@ export class TransactionService {
       throw new Error("Esta transaccion ya fue anulada anteriormente");
     }
 
+    // 3b. Hard-lock: no se puede anular en un período cerrado
+    const originalPeriod = await prisma.accountingPeriod.findFirst({
+      where: {
+        companyId: original.companyId,
+        year: original.date.getFullYear(),
+        month: original.date.getMonth() + 1,
+      },
+    });
+    if (originalPeriod?.status === "CLOSED") {
+      throw new Error(
+        `No se puede anular un asiento en un período cerrado (${original.date.getFullYear()}-${String(original.date.getMonth() + 1).padStart(2, "0")})`
+      );
+    }
+
     // 4. Generar numero para el asiento de anulacion
     const voidDate = new Date();
     const voidNumber = await TransactionService.generateTransactionNumber(
