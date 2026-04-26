@@ -2,7 +2,7 @@
 // src/modules/bank-reconciliation/components/AutoReconciliationPanel.tsx
 "use client";
 
-import { useReducer, useTransition, useMemo, useRef, useState } from "react";
+import { useReducer, useTransition, useRef, useState } from "react";
 import {
   UploadIcon,
   FileTextIcon,
@@ -88,17 +88,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
   const [state, dispatch] = useReducer(reducer, { step: "UPLOAD", error: null });
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useMemo(() => {
-    let v = "";
-    return [
-      () => v,
-      (next: string) => { v = next; },
-    ] as [() => string, (v: string) => void];
-  }, []);
-
   const [searchVal, setSearchVal] = useState("");
-
-  void search; void setSearch; // silenciar warning de vars no usadas
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
