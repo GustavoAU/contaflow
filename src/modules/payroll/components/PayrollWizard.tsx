@@ -70,14 +70,17 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     ivssEnabled: initial?.ivssEnabled ?? true,
     incesEnabled: initial?.incesEnabled ?? true,
     banavihEnabled: initial?.banavihEnabled ?? true,
+    rpeEnabled: initial?.rpeEnabled ?? true,
     cestaTicketType: initial?.cestaTicketType ?? "CARD",
     paymentCurrency: initial?.paymentCurrency ?? "VES",
     frequency: initial?.frequency ?? "BIWEEKLY",
     fideicomiso: initial?.fideicomiso ?? "INTERNAL",
+    salaryMinimumVes: initial?.salaryMinimumVes ?? "",
     benefitsExpenseAccountId: initial?.benefitsExpenseAccountId ?? "",
     benefitsPayableAccountId: initial?.benefitsPayableAccountId ?? "",
     vacationPayableAccountId: initial?.vacationPayableAccountId ?? "",
     profitSharingPayableAccountId: initial?.profitSharingPayableAccountId ?? "",
+    rpePayableAccountId: initial?.rpePayableAccountId ?? "",
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -85,13 +88,14 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
   }
 
   // NOM-A-03: advertencia si el usuario intenta desactivar un organismo obligatorio
-  function toggleOrganism(key: "ivssEnabled" | "incesEnabled" | "banavihEnabled") {
+  function toggleOrganism(key: "ivssEnabled" | "incesEnabled" | "banavihEnabled" | "rpeEnabled") {
     const current = form[key];
     if (current) {
       const labels: Record<string, string> = {
         ivssEnabled: "IVSS",
         incesEnabled: "INCES",
         banavihEnabled: "Banavih (FAOV)",
+        rpeEnabled: "Paro Forzoso (RPE)",
       };
       const ok = window.confirm(
         `Deshabilitar ${labels[key]} eliminará el cálculo de aportes patronales y obreros correspondientes. ` +
@@ -107,10 +111,12 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     startTransition(async () => {
       const payload = {
         ...form,
+        salaryMinimumVes: form.salaryMinimumVes || null,
         benefitsExpenseAccountId: form.benefitsExpenseAccountId || null,
         benefitsPayableAccountId: form.benefitsPayableAccountId || null,
         vacationPayableAccountId: form.vacationPayableAccountId || null,
         profitSharingPayableAccountId: form.profitSharingPayableAccountId || null,
+        rpePayableAccountId: form.rpePayableAccountId || null,
       };
       const result = await savePayrollConfigAction(companyId, payload);
       if (!result.success) {
@@ -214,9 +220,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             </p>
             {(
               [
-                { key: "ivssEnabled", label: "IVSS (Seguro Social — 11% patronal + 4% obrero)" },
+                { key: "ivssEnabled", label: "IVSS (Seg. Social — 11% patronal + 4% obrero)" },
                 { key: "incesEnabled", label: "INCES (2% patronal + 0.5% trabajador)" },
                 { key: "banavihEnabled", label: "Banavih / FAOV (1% patronal + 1% trabajador)" },
+                { key: "rpeEnabled", label: "Paro Forzoso RPE (0.5% obrero — LSSO Art. 7)" },
               ] as const
             ).map(({ key, label }) => (
               <label key={key} className="flex cursor-pointer items-center gap-3 py-1">
@@ -229,6 +236,24 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 <span className="text-sm">{label}</span>
               </label>
             ))}
+
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Salario mínimo nacional vigente (Bs/mes)
+            </label>
+            <p className="text-xs text-gray-500 mb-1">
+              Requerido para aplicar topes de cotización (IVSS: 5×, FAOV: 10×, INCES/RPE: 5×).
+            </p>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="ej. 130.00"
+              value={form.salaryMinimumVes}
+              onChange={(e) => set("salaryMinimumVes", e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
           </div>
 
           <div>
@@ -338,6 +363,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                   { key: "benefitsPayableAccountId", label: "Prestaciones Sociales por Pagar" },
                   { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
                   { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
+                  { key: "rpePayableAccountId", label: "Paro Forzoso RPE por Pagar" },
                 ] as const
               ).map(({ key, label }) => (
                 <div key={key}>
@@ -369,10 +395,14 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 form.ivssEnabled && "IVSS",
                 form.incesEnabled && "INCES",
                 form.banavihEnabled && "Banavih",
+                form.rpeEnabled && "RPE",
               ]
                 .filter(Boolean)
                 .join(" · ") || "Ninguno"}
             </p>
+            {form.salaryMinimumVes && (
+              <p>Salario mínimo: Bs {form.salaryMinimumVes} (topes activos)</p>
+            )}
             <p>Cesta ticket: {CESTA_LABELS[form.cestaTicketType]}</p>
             <p>Moneda: {CURRENCY_LABELS[form.paymentCurrency]}</p>
             <p>Frecuencia: {FREQUENCY_LABELS[form.frequency]}</p>
