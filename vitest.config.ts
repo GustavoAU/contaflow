@@ -7,14 +7,16 @@ import path from "path";
 // which is undefined in the Vitest environment, crashing all tests.
 // Component tests that need JSX use // @vitest-environment jsdom on the first line.
 
-// Note: pool is set to 'vmForks' because the default 'forks' pool does not
-// properly initialize the Vitest runner context on Windows/Node 22 (Vitest 4.x).
-// 'vmForks' uses Node.js vm isolation which works correctly.
+// Note: pool is conditional by platform:
+// - CI (Linux): 'forks' — default pool, proper process-level isolation per test file;
+//   vmForks fails to isolate vi.mock() state between files on Ubuntu runners.
+// - Windows dev: 'vmForks' — required because the 'forks' pool does not properly
+//   initialize the Vitest runner context on Windows/Node 22 (Vitest 4.x).
 export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    pool: "vmForks",
+    pool: process.env.CI ? "forks" : "vmForks",
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
