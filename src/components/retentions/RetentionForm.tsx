@@ -41,6 +41,7 @@ export function RetentionForm({ companyId, userId }: Props) {
   // Debounce 400ms para sugerencia ISLR al escribir el concepto
   useEffect(() => {
     if (!islrConcept.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIslrSuggestion(null);
       return;
     }
