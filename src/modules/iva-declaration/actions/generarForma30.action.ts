@@ -8,11 +8,92 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
-import type { Forma30Result } from "../types/forma30.types";
+import type { Forma30Result, TaxLineRow } from "../types/forma30.types";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
-export type Forma30ActionResult = Forma30Result & { fiscalYearClosed: boolean };
+export type SerializedTaxLine = { base: string; tax: string };
+export type SerializedBaseOnly = { base: string };
+
+export type SerializedForma30Result = {
+  companyId: string;
+  year: number;
+  month: number;
+  periodExists: boolean;
+  isSpecialContributor: boolean;
+  fiscalYearClosed: boolean;
+  calculatedAt: string;
+  seccionA: {
+    general: SerializedTaxLine;
+    reducida: SerializedTaxLine;
+    adicionalLujo: SerializedTaxLine;
+    exentasExoneradas: SerializedBaseOnly;
+    exportaciones: SerializedBaseOnly;
+    totalDebitosFiscales: string;
+  };
+  seccionB: {
+    general: SerializedTaxLine;
+    reducida: SerializedTaxLine;
+    adicionalLujo: SerializedTaxLine;
+    exentasExoneradas: SerializedBaseOnly;
+    importaciones: SerializedTaxLine;
+    totalCreditosFiscales: string;
+  };
+  seccionC: {
+    retencionesIvaSufridas: string;
+    retencionesIvaPracticadas: string;
+    totalRetenciones: string;
+  };
+  seccionD: { igtfBase: string; igtfTotal: string };
+  seccionE: { cuotaPeriodo: string; esSaldoAFavor: boolean };
+};
+
+function stl(tl: TaxLineRow): SerializedTaxLine {
+  return { base: tl.base.toFixed(2), tax: tl.tax.toFixed(2) };
+}
+
+function serializeForma30(r: Forma30Result, fiscalYearClosed: boolean): SerializedForma30Result {
+  return {
+    companyId: r.companyId,
+    year: r.year,
+    month: r.month,
+    periodExists: r.periodExists,
+    isSpecialContributor: r.isSpecialContributor,
+    fiscalYearClosed,
+    calculatedAt: r.calculatedAt.toISOString(),
+    seccionA: {
+      general: stl(r.seccionA.general),
+      reducida: stl(r.seccionA.reducida),
+      adicionalLujo: stl(r.seccionA.adicionalLujo),
+      exentasExoneradas: { base: r.seccionA.exentasExoneradas.base.toFixed(2) },
+      exportaciones: { base: r.seccionA.exportaciones.base.toFixed(2) },
+      totalDebitosFiscales: r.seccionA.totalDebitosFiscales.toFixed(2),
+    },
+    seccionB: {
+      general: stl(r.seccionB.general),
+      reducida: stl(r.seccionB.reducida),
+      adicionalLujo: stl(r.seccionB.adicionalLujo),
+      exentasExoneradas: { base: r.seccionB.exentasExoneradas.base.toFixed(2) },
+      importaciones: stl(r.seccionB.importaciones),
+      totalCreditosFiscales: r.seccionB.totalCreditosFiscales.toFixed(2),
+    },
+    seccionC: {
+      retencionesIvaSufridas: r.seccionC.retencionesIvaSufridas.toFixed(2),
+      retencionesIvaPracticadas: r.seccionC.retencionesIvaPracticadas.toFixed(2),
+      totalRetenciones: r.seccionC.totalRetenciones.toFixed(2),
+    },
+    seccionD: {
+      igtfBase: r.seccionD.igtfBase.toFixed(2),
+      igtfTotal: r.seccionD.igtfTotal.toFixed(2),
+    },
+    seccionE: {
+      cuotaPeriodo: r.seccionE.cuotaPeriodo.abs().toFixed(2),
+      esSaldoAFavor: r.seccionE.esSaldoAFavor,
+    },
+  };
+}
+
+export type Forma30ActionResult = SerializedForma30Result;
 
 /**
  * Server Action para calcular la Forma 30 SENIAT de un período mensual.
@@ -68,7 +149,7 @@ export async function generarForma30Action(
 
     return {
       success: true,
-      data: { ...result, fiscalYearClosed },
+      data: serializeForma30(result, fiscalYearClosed),
     };
   } catch (err) {
     if (err instanceof Error) return { success: false, error: err.message };

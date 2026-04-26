@@ -14,9 +14,47 @@ import {
   RunInflationAdjustmentSchema,
   SetInflationBaseSchema,
 } from "../schemas/inpc.schema";
-import type { INPCRateRow, AdjustmentPreviewRow, InflationAdjustmentSummary } from "../services/INPCService";
+import type { AdjustmentPreviewRow, InflationAdjustmentSummary } from "../services/INPCService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+export type SerializedPreviewRow = {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  originalBalance: string;
+  cumulativeIndex: string;
+  adjustmentAmount: string;
+};
+
+export type SerializedAdjustmentSummary = {
+  adjustedAccounts: number;
+  totalAdjustment: string;
+  transactionId: string;
+  factor: string;
+};
+
+function serializePreviewRow(r: AdjustmentPreviewRow): SerializedPreviewRow {
+  return {
+    accountId: r.accountId,
+    accountCode: r.accountCode,
+    accountName: r.accountName,
+    accountType: r.accountType,
+    originalBalance: r.originalBalance.toFixed(2),
+    cumulativeIndex: r.cumulativeIndex.toFixed(6),
+    adjustmentAmount: r.adjustmentAmount.toFixed(2),
+  };
+}
+
+function serializeSummary(s: InflationAdjustmentSummary): SerializedAdjustmentSummary {
+  return {
+    adjustedAccounts: s.adjustedAccounts,
+    totalAdjustment: s.totalAdjustment.toFixed(2),
+    transactionId: s.transactionId,
+    factor: s.factor.toFixed(6),
+  };
+}
 
 // ─── Upsert índice INPC mensual ────────────────────────────────────────────────
 
@@ -54,7 +92,7 @@ export async function upsertINPCRateAction(input: unknown): Promise<ActionResult
 
 // ─── Listar índices INPC ───────────────────────────────────────────────────────
 
-export async function getINPCRatesAction(companyId: string): Promise<ActionResult<INPCRateRow[]>> {
+export async function getINPCRatesAction(companyId: string): Promise<ActionResult<{ id: string; year: number; month: number; indexValue: string; source: string | null; createdAt: string }[]>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -68,7 +106,7 @@ export async function getINPCRatesAction(companyId: string): Promise<ActionResul
     const rates = await prisma.$transaction(async (tx) =>
       INPCService.getRates(companyId, tx)
     );
-    return { success: true, data: rates };
+    return { success: true, data: rates.map((r) => ({ ...r, indexValue: r.indexValue.toFixed(6), createdAt: r.createdAt.toISOString() })) };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al obtener los índices INPC" };
@@ -110,7 +148,7 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
 
 export async function previewInflationAdjustmentAction(
   input: unknown,
-): Promise<ActionResult<AdjustmentPreviewRow[]>> {
+): Promise<ActionResult<SerializedPreviewRow[]>> {
   const parsed = RunInflationAdjustmentSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -134,7 +172,7 @@ export async function previewInflationAdjustmentAction(
       )
     );
 
-    return { success: true, data: preview };
+    return { success: true, data: preview.map(serializePreviewRow) };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al calcular el preview del ajuste" };
@@ -145,7 +183,7 @@ export async function previewInflationAdjustmentAction(
 
 export async function runInflationAdjustmentAction(
   input: unknown,
-): Promise<ActionResult<InflationAdjustmentSummary>> {
+): Promise<ActionResult<SerializedAdjustmentSummary>> {
   const parsed = RunInflationAdjustmentSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -231,7 +269,7 @@ export async function runInflationAdjustmentAction(
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/inflation`);
-    return { success: true, data: result };
+    return { success: true, data: serializeSummary(result) };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al ejecutar el ajuste por inflación" };

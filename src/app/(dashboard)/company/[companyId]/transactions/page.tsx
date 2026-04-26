@@ -66,14 +66,13 @@ export default async function TransactionsPage({ params }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {transactions.map((tx) => {
-                const totalDebit = tx.entries
-                  .filter((e) => Number(e.amount) > 0)
-                  .reduce((acc, e) => acc + Number(e.amount), 0);
-
-                return (
+              {transactions.map((tx) => (
                   <tr key={tx.id} className="transition-colors hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-mono font-medium text-blue-600">{tx.number}</td>
+                    <td className="px-4 py-3 font-mono font-medium">
+                      <Link href={`/company/${companyId}/transactions/${tx.id}`} className="text-blue-600 hover:underline">
+                        {tx.number}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-zinc-600">
                       {new Date(tx.date).toLocaleDateString("es-VE")}
                     </td>
@@ -81,15 +80,14 @@ export default async function TransactionsPage({ params }: Props) {
                     <td className="px-4 py-3">
                       <span className="text-zinc-500">{TYPE_LABELS[tx.type]}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono">{totalDebit.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{tx.totalDebit}</td>
                     <td className="px-4 py-3">
                       <Badge variant={STATUS_COLORS[tx.status]}>
                         {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
                       </Badge>
                     </td>
                   </tr>
-                );
-              })}
+                ))}
             </tbody>
           </table>
         </div>

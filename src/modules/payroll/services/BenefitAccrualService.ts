@@ -18,9 +18,21 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { Prisma } from "@prisma/client";
 
-// Días de accrual por LOTTT Art. 142:
-//   Año 1: 5 días/trimestre × 4 trimestres = 15 días/año
-const ACCRUAL_DAYS_PER_QUARTER = 5;
+// Días base por LOTTT Art. 142: 5 días/trimestre (15/año)
+const BASE_DAYS_PER_QUARTER = 5;
+
+// Días adicionales por antigüedad Art. 142 LOTTT:
+// A partir del 2do año: +2 días/año de servicio (máx 30 adicionales/año).
+// Se prorratea trimestralmente: additionalAnnual / 4.
+// Returns prorated additional days for the quarter.
+// Art. 142: after year 1 → 2 days × years_of_service per year, max 30. Prorated /4 per quarter.
+function calcAdditionalDays(hireDate: Date, quarterEndDate: Date): Decimal {
+  const ms = 365.25 * 24 * 60 * 60 * 1000;
+  const yearsOfService = Math.floor((quarterEndDate.getTime() - hireDate.getTime()) / ms);
+  if (yearsOfService < 1) return new Decimal(0);
+  const additionalAnnual = Math.min(yearsOfService * 2, 30);
+  return new Decimal(additionalAnnual).div(4);
+}
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -34,6 +46,7 @@ export interface AccrualLineRow {
   runningBalance: string;
   integralDailyWage: string | null;
   accrualDays: number | null;
+  additionalDays: string | null;
   appliedRate: string | null;
   transactionId: string | null;
   createdAt: string;
@@ -53,6 +66,7 @@ export interface BcvRateRow {
   year: number;
   month: number;
   annualRate: string;
+  rateType: string;
   source: string;
 }
 
@@ -66,6 +80,7 @@ function serializeLine(l: {
   runningBalance: Decimal;
   integralDailyWage: Decimal | null;
   accrualDays: number | null;
+  additionalDays: Decimal | null;
   appliedRate: Decimal | null;
   transactionId: string | null;
   createdAt: Date;
@@ -80,6 +95,7 @@ function serializeLine(l: {
     runningBalance: l.runningBalance.toString(),
     integralDailyWage: l.integralDailyWage?.toString() ?? null,
     accrualDays: l.accrualDays,
+    additionalDays: l.additionalDays?.toString() ?? null,
     appliedRate: l.appliedRate?.toString() ?? null,
     transactionId: l.transactionId,
     createdAt: l.createdAt.toISOString(),
@@ -131,14 +147,22 @@ export const BenefitAccrualService = {
   ): Promise<{ employeesProcessed: number; totalAccrued: string }> {
     if (quarter < 1 || quarter > 4) throw new Error("El trimestre debe ser entre 1 y 4");
 
-    // Guard: período contable del último mes del trimestre debe estar OPEN
-    const quarterEndMonth = quarter * 3; // Q1→3, Q2→6, Q3→9, Q4→12
+    // Guard: busca un período OPEN en cualquier mes del trimestre (el procesamiento
+    // puede hacerse antes de que cierre el trimestre — se registra en el período activo)
+    const quarterEndMonth = quarter * 3;   // Q1→3, Q2→6, Q3→9, Q4→12
+    const quarterStartMonth = (quarter - 1) * 3 + 1; // Q1→1, Q2→4, Q3→7, Q4→10
     const period = await prisma.accountingPeriod.findFirst({
-      where: { companyId, year, month: quarterEndMonth, status: "OPEN" },
+      where: {
+        companyId,
+        year,
+        month: { gte: quarterStartMonth, lte: quarterEndMonth },
+        status: "OPEN",
+      },
+      orderBy: { month: "desc" },
     });
     if (!period) {
       throw new Error(
-        `El período contable ${year}-${String(quarterEndMonth).padStart(2, "0")} está cerrado o no existe`
+        `No hay período contable abierto para el ${year} Q${quarter} (meses ${quarterStartMonth}–${quarterEndMonth})`
       );
     }
 
@@ -182,7 +206,10 @@ export const BenefitAccrualService = {
       const vacationBonusDaysAliquot = dailyNormalWage.mul(config.vacationBonusDays).div(360);
       const integralDailyWage = dailyNormalWage.add(profitDaysAliquot).add(vacationBonusDaysAliquot);
 
-      const accrualAmount = integralDailyWage.mul(ACCRUAL_DAYS_PER_QUARTER);
+      // Días adicionales por antigüedad Art. 142 LOTTT (prorrateados trimestre)
+      const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
+      const totalDays = new Decimal(BASE_DAYS_PER_QUARTER).add(additionalDays);
+      const accrualAmount = integralDailyWage.mul(totalDays);
 
       // Ensure BenefitBalance exists
       let balance = emp.benefitBalance;
@@ -204,7 +231,7 @@ export const BenefitAccrualService = {
               periodId: period.id,
               number: `NOM-D-Q${quarter}-${year}-${emp.id.slice(-6)}`,
               date: quarterEndDate,
-              description: `Acumulación prestaciones Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+              description: `Acumulación prestaciones Q${quarter}/${year} — ${emp.firstName} ${emp.lastName} (${BASE_DAYS_PER_QUARTER}d base${additionalDays.gt(0) ? `+${additionalDays.toFixed(2)}d antig.` : ""})`,
               userId,
               type: "DIARIO",
               entries: {
@@ -234,7 +261,8 @@ export const BenefitAccrualService = {
               profitDaysAliquot: profitDaysAliquot.toFixed(4),
               vacationBonusDaysAliquot: vacationBonusDaysAliquot.toFixed(4),
               integralDailyWage: integralDailyWage.toFixed(4),
-              accrualDays: ACCRUAL_DAYS_PER_QUARTER,
+              accrualDays: BASE_DAYS_PER_QUARTER,
+              additionalDays: additionalDays.toFixed(2),
               accrualAmount: accrualAmount.toFixed(4),
               runningBalance: runningBalance.toFixed(4),
               transactionId: transaction.id,
@@ -438,7 +466,8 @@ export const BenefitAccrualService = {
     userId: string,
     year: number,
     month: number,
-    annualRate: number
+    annualRate: number,
+    rateType: "ACTIVA" | "PROMEDIO" = "ACTIVA"
   ): Promise<BcvRateRow> {
     const rate = await prisma.bcvBenefitRate.create({
       data: {
@@ -446,6 +475,7 @@ export const BenefitAccrualService = {
         year,
         month,
         annualRate: new Decimal(annualRate).toFixed(2),
+        rateType,
         createdByUserId: userId,
       },
     });
@@ -454,6 +484,7 @@ export const BenefitAccrualService = {
       year: rate.year,
       month: rate.month,
       annualRate: rate.annualRate.toString(),
+      rateType: rate.rateType,
       source: rate.source,
     };
   },
@@ -469,6 +500,7 @@ export const BenefitAccrualService = {
       year: r.year,
       month: r.month,
       annualRate: r.annualRate.toString(),
+      rateType: r.rateType,
       source: r.source,
     }));
   },

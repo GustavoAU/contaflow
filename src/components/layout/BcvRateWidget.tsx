@@ -1,101 +1,135 @@
-// src/components/layout/BcvRateWidget.tsx
-// Widget compacto en el header que muestra la tasa USD/VES (BCV) más reciente.
-// Al montar: lee de la BD. Botón ↻ dispara auto-fetch desde dolarapi.com y guarda en BD.
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import {
   fetchBcvRateAction,
-  getLatestRateAction,
+  fetchBcvEurRateAction,
+  getLatestRatesWithDeltaAction,
+  type RateWithDelta,
 } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
 type Props = { companyId: string };
 
 export function BcvRateWidget({ companyId }: Props) {
-  const [rate, setRate] = useState<string | null>(null);
-  const [rateDate, setRateDate] = useState<string | null>(null);
+  const [usd, setUsd] = useState<RateWithDelta | null>(null);
+  const [eur, setEur] = useState<RateWithDelta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  async function loadRates() {
+    const res = await getLatestRatesWithDeltaAction(companyId);
+    if (res.success) {
+      setUsd(res.data.usd);
+      setEur(res.data.eur);
+    }
+  }
+
   useEffect(() => {
-    void getLatestRateAction(companyId, "USD").then((res) => {
-      if (res.success && res.data) {
-        setRate(res.data.rate);
-        setRateDate(normalizeDate(res.data.date));
-      }
-    });
-  }, [companyId]);
+    void loadRates();
+  }, [companyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleRefresh() {
     setError(null);
     startTransition(async () => {
-      const res = await fetchBcvRateAction(companyId);
-      if (res.success && res.data) {
-        setRate(res.data.rate);
-        setRateDate(normalizeDate(res.data.date));
-      } else if (!res.success) {
-        setError(res.error ?? "Error al obtener tasa");
+      const [resUsd, resEur] = await Promise.all([
+        fetchBcvRateAction(companyId),
+        fetchBcvEurRateAction(companyId),
+      ]);
+      if (!resUsd.success) {
+        setError(resEur.success ? "Sin conexión BCV (USD)" : "Sin conexión BCV");
+        return;
+      }
+      // Actualizar estado directamente con la data retornada por la action
+      // (evita un segundo round-trip a BD que puede devolver datos stale)
+      const usdDelta = usd
+        ? (parseFloat(resUsd.data.rate) - parseFloat(usd.rate)).toFixed(4)
+        : null;
+      setUsd({ ...resUsd.data, delta: usdDelta });
+
+      if (resEur.success) {
+        const eurDelta = eur
+          ? (parseFloat(resEur.data.rate) - parseFloat(eur.rate)).toFixed(4)
+          : null;
+        setEur({ ...resEur.data, delta: eurDelta });
       }
     });
   }
 
-  // No renderizar hasta que haya tasa en BD (evita parpadeo de placeholder vacío)
-  if (!rate) return null;
-
-  const formattedRate = parseFloat(rate).toLocaleString("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  if (!usd && !eur) return null;
 
   return (
-    <div className="hidden items-center gap-1.5 md:flex">
-      <div
-        className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs"
-        title={rateDate ? `Tasa BCV del ${rateDate}` : "Tasa BCV USD/VES"}
-      >
-        <span className="font-medium text-zinc-400">BCV</span>
-        <span className="font-mono font-semibold text-zinc-800">$ {formattedRate}</span>
-        {rateDate && (
-          <span className="text-zinc-400">{formatDisplayDate(rateDate)}</span>
-        )}
+    <div className="hidden items-center gap-1 md:flex">
+      <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs">
+        {usd && <RateTicker label="USD" symbol="$" rate={usd} />}
+        {usd && eur && <span className="text-zinc-300">|</span>}
+        {eur && <RateTicker label="EUR" symbol="€" rate={eur} />}
         <button
           type="button"
           onClick={handleRefresh}
           disabled={isPending}
-          title="Actualizar tasa desde BCV"
+          title="Actualizar tasas BCV"
           className="ml-0.5 rounded p-0.5 text-zinc-400 transition-colors hover:text-blue-600 disabled:cursor-wait"
-          aria-label="Actualizar tasa BCV"
+          aria-label="Actualizar tasas BCV"
         >
           <RefreshCw className={`h-3 w-3 ${isPending ? "animate-spin" : ""}`} />
         </button>
       </div>
       {error && (
-        <span className="max-w-32 truncate text-xs text-red-500" title={error}>
-          Sin conexión BCV
-        </span>
+        <span className="text-xs text-red-500">{error}</span>
       )}
     </div>
   );
 }
 
-function normalizeDate(d: unknown): string {
-  if (typeof d === "string") return d.split("T")[0];
-  if (d instanceof Date) return d.toISOString().split("T")[0];
-  return String(d).split("T")[0];
+function RateTicker({ label, symbol, rate }: { label: string; symbol: string; rate: RateWithDelta }) {
+  const delta = rate.delta ? parseFloat(rate.delta) : null;
+  const isUp = delta !== null && delta > 0;
+  const isDown = delta !== null && delta < 0;
+
+  const dateDisplay = formatDate(rate.date);
+  const rawRate = parseFloat(rate.rate);
+  const truncated = Math.trunc(rawRate * 10000) / 10000;
+  const formattedRate = truncated.toLocaleString("es-VE", {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
+  const formattedDelta = delta !== null
+    ? (isUp ? "+" : "") + (Math.trunc(Math.abs(delta) * 10000) / 10000).toFixed(4)
+    : null;
+
+  return (
+    <span
+      className="flex items-center gap-1"
+      title={`${label}/VES — ${dateDisplay}`}
+    >
+      <span className="font-medium text-zinc-400">{label}</span>
+      <span className="font-mono font-semibold text-zinc-800">
+        {symbol} {formattedRate}
+      </span>
+      {formattedDelta && (
+        <span className={`flex items-center gap-0.5 font-mono ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400"}`}>
+          {isUp ? (
+            <TrendingUp className="h-2.5 w-2.5" />
+          ) : isDown ? (
+            <TrendingDown className="h-2.5 w-2.5" />
+          ) : (
+            <Minus className="h-2.5 w-2.5" />
+          )}
+          {formattedDelta}
+        </span>
+      )}
+    </span>
+  );
 }
 
-/** Muestra "19 abr" en lugar de "2026-04-19" para ahorrar espacio */
-function formatDisplayDate(iso: string): string {
+function formatDate(d: Date | string): string {
   try {
-    const [year, month, day] = iso.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    return date.toLocaleDateString("es-VE", {
-      day: "numeric",
-      month: "short",
-      timeZone: "UTC",
-    });
+    const iso = typeof d === "string" ? d : d.toISOString();
+    const [year, month, day] = iso.split("T")[0]!.split("-").map(Number);
+    const date = new Date(Date.UTC(year!, month! - 1, day!));
+    return date.toLocaleDateString("es-VE", { day: "numeric", month: "short", timeZone: "UTC" });
   } catch {
-    return iso;
+    return String(d);
   }
 }

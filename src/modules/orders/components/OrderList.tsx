@@ -5,6 +5,7 @@ import { useTransition, useState } from "react";
 import { toast } from "sonner";
 import { approveOrderAction, convertOrderToInvoiceAction } from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
+import { formatAmount } from "@/lib/format";
 
 interface Props {
   companyId: string;
@@ -158,6 +159,11 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
           <tbody className="divide-y divide-gray-100 bg-white">
             {orders.map((o) => {
               const badge = STATUS_BADGE[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-700" };
+              const today = new Date().toISOString().split("T")[0]!;
+              const isExpired =
+                o.expectedDate &&
+                o.expectedDate < today &&
+                (o.status === "DRAFT" || o.status === "APPROVED");
               return (
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-blue-700">{o.number}</td>
@@ -172,14 +178,23 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                       <div className="text-xs text-gray-400">{o.counterpartRif}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{o.expectedDate ?? "—"}</td>
+                  <td className={`px-4 py-3 ${isExpired ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                    {o.expectedDate ?? "—"}
+                  </td>
                   <td className="px-4 py-3 font-mono text-right">
-                    {o.currency} {Number(o.total).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                    {o.currency} {formatAmount(o.total)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
-                      {badge.label}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                      {isExpired && (
+                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+                          Vencida
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">

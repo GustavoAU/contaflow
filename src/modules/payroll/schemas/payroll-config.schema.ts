@@ -28,6 +28,11 @@ export const PayrollConfigSchema = z.object({
   fideicomiso: z.enum(["EXTERNAL_BANK", "INTERNAL"], {
     error: "Selecciona la modalidad de fideicomiso",
   }),
+  // Paso 3 — Cuentas contables NOM-D (opcionales; requeridas para prestaciones/vacaciones/utilidades)
+  benefitsExpenseAccountId: z.string().optional().nullable(),
+  benefitsPayableAccountId: z.string().optional().nullable(),
+  vacationPayableAccountId: z.string().optional().nullable(),
+  profitSharingPayableAccountId: z.string().optional().nullable(),
 });
 
 export type PayrollConfigInput = z.infer<typeof PayrollConfigSchema>;

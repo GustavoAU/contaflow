@@ -7,6 +7,7 @@ import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYe
 
 // ─── Tipos de paginación ──────────────────────────────────────────────────────
 
+// Used by the paginated endpoints (includes entry lines for per-entry display).
 export type TransactionRow = {
   id: string;
   number: string;
@@ -20,6 +21,17 @@ export type TransactionRow = {
     amount: Decimal;
     account: { id: string; name: string; code: string } | null;
   }[];
+};
+
+// Used by the Libro Diario list — header-only, no entry detail (R-1 separation).
+export type TransactionSummaryRow = {
+  id: string;
+  number: string;
+  date: Date;
+  description: string;
+  status: string;
+  type: string;
+  totalDebit: string; // computed server-side with Decimal.js (R-5)
 };
 
 export type TransactionPage = {
@@ -252,18 +264,33 @@ export class TransactionService {
   }
 
   /**
-   * Obtiene todas las transacciones de una empresa ordenadas por fecha.
+   * Retorna una vista de Libro Diario: cabeceras de asientos + total débito.
+   * NO incluye el detalle de líneas (JournalEntry) — eso es Libro Mayor (R-1).
+   * El totalDebit se calcula server-side con Decimal.js (R-5).
    */
-  static async getTransactionsByCompany(companyId: string) {
-    return prisma.transaction.findMany({
+  static async getTransactionsByCompany(companyId: string): Promise<TransactionSummaryRow[]> {
+    const rows = await prisma.transaction.findMany({
       where: { companyId },
       orderBy: { date: "desc" },
       include: {
-        entries: {
-          include: { account: true },
-        },
+        entries: { select: { amount: true } },
       },
     });
+
+    return rows.map((tx) => ({
+      id: tx.id,
+      number: tx.number,
+      date: tx.date,
+      description: tx.description,
+      status: tx.status,
+      type: tx.type,
+      totalDebit: tx.entries
+        .reduce((sum, e) => {
+          const amt = new Decimal(e.amount.toString());
+          return amt.greaterThan(0) ? sum.plus(amt) : sum;
+        }, new Decimal(0))
+        .toFixed(2),
+    }));
   }
 
   /**

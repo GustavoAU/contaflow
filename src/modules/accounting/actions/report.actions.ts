@@ -310,23 +310,25 @@ export async function getBalanceSheetAction(
   dateTo?: Date
 ): Promise<ActionResult<BalanceSheet>> {
   try {
-    const accounts = await prisma.account.findMany({
-      where: {
-        companyId,
-        type: { in: ["ASSET", "LIABILITY", "EQUITY"] },
-      },
-      orderBy: { code: "asc" },
-      include: {
-        journalEntries: {
-          where: {
-            transaction: {
-              status: "POSTED",
-              ...(dateTo ? { date: { lte: dateTo } } : {}),
-            },
+    const [accounts, incomeAccounts] = await Promise.all([
+      prisma.account.findMany({
+        where: { companyId, type: { in: ["ASSET", "LIABILITY", "EQUITY"] } },
+        orderBy: { code: "asc" },
+        include: {
+          journalEntries: {
+            where: { transaction: { status: "POSTED", ...(dateTo ? { date: { lte: dateTo } } : {}) } },
           },
         },
-      },
-    });
+      }),
+      prisma.account.findMany({
+        where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+        include: {
+          journalEntries: {
+            where: { transaction: { status: "POSTED", ...(dateTo ? { date: { lte: dateTo } } : {}) } },
+          },
+        },
+      }),
+    ]);
 
     let totalAssets = new Decimal(0);
     let totalLiabilities = new Decimal(0);
@@ -339,31 +341,51 @@ export async function getBalanceSheetAction(
     for (const account of accounts) {
       if (account.journalEntries.length === 0) continue;
 
-      const balance = account.journalEntries.reduce((acc, entry) => {
-        return acc.plus(new Decimal(entry.amount.toString()));
-      }, new Decimal(0));
-
-      const row: BalanceSheetRow = {
-        id: account.id,
-        code: account.code,
-        name: account.name,
-        balance: balance.abs().toFixed(2),
-      };
+      const balance = account.journalEntries.reduce(
+        (acc, entry) => acc.plus(new Decimal(entry.amount.toString())),
+        new Decimal(0),
+      );
 
       if (account.type === "ASSET") {
-        assets.push(row);
-        totalAssets = totalAssets.plus(balance.abs());
+        // Activos: saldo normal = deudor (positivo). Contra-activos (dep. acum.) = acreedor (negativo) → reducen el total.
+        assets.push({ id: account.id, code: account.code, name: account.name, balance: balance.toFixed(2) });
+        totalAssets = totalAssets.plus(balance);
       } else if (account.type === "LIABILITY") {
-        liabilities.push(row);
-        totalLiabilities = totalLiabilities.plus(balance.abs());
+        // Pasivos: saldo normal = acreedor (negativo en el sistema) → se niega para mostrar positivo.
+        const display = balance.negated();
+        liabilities.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
+        totalLiabilities = totalLiabilities.plus(display);
       } else {
-        equity.push(row);
-        totalEquity = totalEquity.plus(balance.abs());
+        // Patrimonio: igual que pasivos.
+        const display = balance.negated();
+        equity.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
+        totalEquity = totalEquity.plus(display);
       }
     }
 
+    // Resultado del ejercicio (sin asientos de cierre, se incluye como línea de patrimonio)
+    let totalRevenues = new Decimal(0);
+    let totalExpenses = new Decimal(0);
+    for (const account of incomeAccounts) {
+      if (account.journalEntries.length === 0) continue;
+      const balance = account.journalEntries.reduce(
+        (acc, entry) => acc.plus(new Decimal(entry.amount.toString())),
+        new Decimal(0),
+      );
+      if (account.type === "REVENUE") {
+        totalRevenues = totalRevenues.plus(balance.negated()); // crédito → negado = positivo
+      } else {
+        totalExpenses = totalExpenses.plus(balance); // débito → positivo
+      }
+    }
+    const netIncome = totalRevenues.minus(totalExpenses);
+    if (!netIncome.isZero()) {
+      equity.push({ id: "net-income", code: "—", name: "Resultado del Ejercicio", balance: netIncome.toFixed(2) });
+      totalEquity = totalEquity.plus(netIncome);
+    }
+
     const totalLiabilitiesAndEquity = totalLiabilities.plus(totalEquity);
-    const isBalanced = totalAssets.equals(totalLiabilitiesAndEquity);
+    const isBalanced = totalAssets.minus(totalLiabilitiesAndEquity).abs().lessThan(new Decimal("0.02"));
 
     return {
       success: true,

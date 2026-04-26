@@ -5,14 +5,22 @@
 // Solo visible para ADMIN_ONLY — el server guard rechaza a otros roles en la action
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
 
 type Step = 1 | 2 | 3;
 
+interface AccountOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
 interface Props {
   companyId: string;
   initial?: PayrollConfigRow | null;
+  accounts?: AccountOption[];
   onSaved?: (cfg: PayrollConfigRow) => void;
 }
 
@@ -49,11 +57,11 @@ const CESTA_LABELS: Record<string, string> = {
   NONE: "No aplica",
 };
 
-export default function PayrollWizard({ companyId, initial, onSaved }: Props) {
+export default function PayrollWizard({ companyId, initial, accounts = [], onSaved }: Props) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   // Form state — defaults from existing config or sensible defaults
   const [form, setForm] = useState({
@@ -66,6 +74,10 @@ export default function PayrollWizard({ companyId, initial, onSaved }: Props) {
     paymentCurrency: initial?.paymentCurrency ?? "VES",
     frequency: initial?.frequency ?? "BIWEEKLY",
     fideicomiso: initial?.fideicomiso ?? "INTERNAL",
+    benefitsExpenseAccountId: initial?.benefitsExpenseAccountId ?? "",
+    benefitsPayableAccountId: initial?.benefitsPayableAccountId ?? "",
+    vacationPayableAccountId: initial?.vacationPayableAccountId ?? "",
+    profitSharingPayableAccountId: initial?.profitSharingPayableAccountId ?? "",
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -93,25 +105,21 @@ export default function PayrollWizard({ companyId, initial, onSaved }: Props) {
   function handleSubmit() {
     setError(null);
     startTransition(async () => {
-      const result = await savePayrollConfigAction(companyId, form);
+      const payload = {
+        ...form,
+        benefitsExpenseAccountId: form.benefitsExpenseAccountId || null,
+        benefitsPayableAccountId: form.benefitsPayableAccountId || null,
+        vacationPayableAccountId: form.vacationPayableAccountId || null,
+        profitSharingPayableAccountId: form.profitSharingPayableAccountId || null,
+      };
+      const result = await savePayrollConfigAction(companyId, payload);
       if (!result.success) {
         setError(result.error);
         return;
       }
-      setSaved(true);
       onSaved?.(result.data);
+      router.push(`/company/${companyId}/payroll`);
     });
-  }
-
-  if (saved) {
-    return (
-      <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
-        <p className="text-lg font-semibold text-green-800">Configuración guardada</p>
-        <p className="mt-1 text-sm text-green-700">
-          La nómina quedó configurada correctamente. Puedes modificarla en cualquier momento.
-        </p>
-      </div>
-    );
   }
 
   return (
@@ -316,6 +324,40 @@ export default function PayrollWizard({ companyId, initial, onSaved }: Props) {
               </label>
             ))}
           </div>
+
+          {/* Cuentas contables NOM-D */}
+          {accounts.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-700">Cuentas contables — Beneficios legales</p>
+              <p className="text-xs text-gray-500">
+                Requeridas para registrar prestaciones sociales, vacaciones y utilidades.
+              </p>
+              {(
+                [
+                  { key: "benefitsExpenseAccountId", label: "Gasto Prestaciones Sociales" },
+                  { key: "benefitsPayableAccountId", label: "Prestaciones Sociales por Pagar" },
+                  { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
+                  { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
+                ] as const
+              ).map(({ key, label }) => (
+                <div key={key}>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                  <select
+                    value={form[key]}
+                    onChange={(e) => set(key, e.target.value)}
+                    className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} — {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Resumen */}
           <div className="rounded bg-gray-50 p-4 text-xs text-gray-600 space-y-1">

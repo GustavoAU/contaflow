@@ -11,7 +11,8 @@ export type PendingTaskType =
   | "PERIODO_ABIERTO_VIEJO"
   | "ACTIVOS_SIN_DEPRECIAR"
   | "RETENCIONES_SIN_VINCULAR"
-  | "EXTRACTO_SIN_CONCILIAR";
+  | "EXTRACTO_SIN_CONCILIAR"
+  | "STOCK_BAJO";
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -40,6 +41,7 @@ export const PendingTasksService = {
       activosSinDepreciarCount,
       retencionesSinVincularCount,
       extractosSinConciliarCount,
+      stockBajoCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -96,6 +98,15 @@ export const PendingTasksService = {
           deletedAt: null,
         },
       }),
+
+      // 6. Ítems de inventario con stock por debajo del mínimo (column comparison → raw)
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) AS count FROM "InventoryItem"
+        WHERE "companyId" = ${companyId}
+          AND "deletedAt" IS NULL
+          AND "minimumStock" IS NOT NULL
+          AND "stockQuantity" < "minimumStock"
+      `.then(([r]) => Number(r.count)),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -145,6 +156,18 @@ export const PendingTasksService = {
         description: `${retencionesSinVincularCount} retención${pl ? "es" : ""} pendiente${pl ? "s" : ""} sin factura asociada.`,
         count: retencionesSinVincularCount,
         href: "/retentions",
+      });
+    }
+
+    if (stockBajoCount > 0) {
+      const pl = stockBajoCount > 1;
+      tasks.push({
+        type: "STOCK_BAJO",
+        severity: "error",
+        title: "Alerta de bajo stock",
+        description: `${stockBajoCount} producto${pl ? "s" : ""} ${pl ? "tienen" : "tiene"} stock por debajo del mínimo.`,
+        count: stockBajoCount,
+        href: "/inventory",
       });
     }
 

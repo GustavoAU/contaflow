@@ -323,13 +323,17 @@ describe("voidTransaction", () => {
 describe("getTransactionsByCompany", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("retorna todas las transacciones de la empresa ordenadas por fecha desc", async () => {
+  it("retorna resúmenes de Libro Diario ordenados por fecha desc (R-1: sin entry detail)", async () => {
     const rows = [makeRow("2"), makeRow("1")];
     vi.mocked(prisma.transaction.findMany).mockResolvedValue(rows as never);
 
     const result = await TransactionService.getTransactionsByCompany("company-1");
 
     expect(result).toHaveLength(2);
+    // R-1: el resultado es un resumen — no expone entries individuales
+    expect(result[0]).not.toHaveProperty("entries");
+    // R-5: totalDebit es string calculado con Decimal, no Number()
+    expect(result[0]).toHaveProperty("totalDebit", "0.00");
     expect(prisma.transaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { companyId: "company-1" },
@@ -344,6 +348,22 @@ describe("getTransactionsByCompany", () => {
     const result = await TransactionService.getTransactionsByCompany("company-nueva");
 
     expect(result).toEqual([]);
+  });
+
+  it("totalDebit calculado correctamente con Decimal.js (R-5)", async () => {
+    const rowWithEntries = {
+      ...makeRow("1"),
+      entries: [
+        { amount: { toString: () => "1000.00" } },
+        { amount: { toString: () => "-1000.00" } },
+        { amount: { toString: () => "500.00" } },
+      ],
+    };
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([rowWithEntries] as never);
+
+    const result = await TransactionService.getTransactionsByCompany("company-1");
+
+    expect(result[0].totalDebit).toBe("1500.00");
   });
 });
 

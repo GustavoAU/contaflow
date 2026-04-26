@@ -51,6 +51,12 @@ export default async function IncomeStatementPage({ params }: Props) {
               <h2 className="font-semibold text-green-800">Ingresos</h2>
             </div>
             <table className="w-full text-sm">
+              <thead className="border-b">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-500">Monto (Bs.)</th>
+                </tr>
+              </thead>
               <tbody>
                 {result.data.revenues.length === 0 ? (
                   <tr>
@@ -59,13 +65,13 @@ export default async function IncomeStatementPage({ params }: Props) {
                     </td>
                   </tr>
                 ) : (
-                  result.data.revenues.map((row) => (
-                    <tr key={row.id} className="border-b last:border-0 hover:bg-zinc-50">
+                  result.data.revenues.map((row, i) => (
+                    <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
                       <td className="px-4 py-2 text-zinc-600">
                         <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
                         {row.name}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono">
+                      <td className="tabular-nums px-4 py-2 text-right font-mono">
                         {formatAmount(row.balance)}
                       </td>
                     </tr>
@@ -75,7 +81,7 @@ export default async function IncomeStatementPage({ params }: Props) {
               <tfoot>
                 <tr className="border-t bg-green-50">
                   <td className="px-4 py-2 font-semibold text-green-800">Total Ingresos</td>
-                  <td className="px-4 py-2 text-right font-mono font-semibold text-green-800">
+                  <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold text-green-800">
                     {formatAmount(result.data.totalRevenues)}
                   </td>
                 </tr>
@@ -89,6 +95,12 @@ export default async function IncomeStatementPage({ params }: Props) {
               <h2 className="font-semibold text-red-800">Gastos</h2>
             </div>
             <table className="w-full text-sm">
+              <thead className="border-b">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
+                  <th className="px-4 py-2 text-right font-medium text-zinc-500">Monto (Bs.)</th>
+                </tr>
+              </thead>
               <tbody>
                 {result.data.expenses.length === 0 ? (
                   <tr>
@@ -97,13 +109,13 @@ export default async function IncomeStatementPage({ params }: Props) {
                     </td>
                   </tr>
                 ) : (
-                  result.data.expenses.map((row) => (
-                    <tr key={row.id} className="border-b last:border-0 hover:bg-zinc-50">
+                  result.data.expenses.map((row, i) => (
+                    <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
                       <td className="px-4 py-2 text-zinc-600">
                         <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
                         {row.name}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono">
+                      <td className="tabular-nums px-4 py-2 text-right font-mono">
                         {formatAmount(row.balance)}
                       </td>
                     </tr>
@@ -113,7 +125,7 @@ export default async function IncomeStatementPage({ params }: Props) {
               <tfoot>
                 <tr className="border-t bg-red-50">
                   <td className="px-4 py-2 font-semibold text-red-800">Total Gastos</td>
-                  <td className="px-4 py-2 text-right font-mono font-semibold text-red-800">
+                  <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold text-red-800">
                     {formatAmount(result.data.totalExpenses)}
                   </td>
                 </tr>
@@ -124,21 +136,30 @@ export default async function IncomeStatementPage({ params }: Props) {
           {/* Resultado neto */}
           {(() => {
             const net = parseFloat(result.data.netIncome);
+            const revenues = parseFloat(result.data.totalRevenues);
             const isProfit = net >= 0;
+            const margin = revenues > 0 ? ((net / revenues) * 100).toFixed(1) : null;
             return (
               <div
                 className={`rounded-lg border-2 p-4 ${isProfit ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}
               >
                 <div className="flex items-center justify-between">
+                  <div>
+                    <span
+                      className={`text-lg font-bold ${isProfit ? "text-green-800" : "text-red-800"}`}
+                    >
+                      {isProfit ? "✅ Utilidad del Período" : "❌ Pérdida del Período"}
+                    </span>
+                    {margin !== null && (
+                      <p className={`mt-1 text-xs ${isProfit ? "text-green-600" : "text-red-600"}`}>
+                        Margen neto: {isProfit ? "+" : ""}{margin}% sobre ingresos
+                      </p>
+                    )}
+                  </div>
                   <span
-                    className={`text-lg font-bold ${isProfit ? "text-green-800" : "text-red-800"}`}
+                    className={`tabular-nums font-mono text-xl font-bold ${isProfit ? "text-green-700" : "text-red-700"}`}
                   >
-                    {isProfit ? "✅ Utilidad del Período" : "❌ Pérdida del Período"}
-                  </span>
-                  <span
-                    className={`font-mono text-xl font-bold ${isProfit ? "text-green-700" : "text-red-700"}`}
-                  >
-                    {formatAmount(result.data.netIncome)}
+                    {formatAmount(result.data.netIncome)} Bs.
                   </span>
                 </div>
               </div>

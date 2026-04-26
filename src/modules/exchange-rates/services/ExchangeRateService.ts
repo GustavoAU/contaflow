@@ -43,8 +43,9 @@ export class ExchangeRateService {
     currency: Currency,
     date: Date,
   ): Promise<ExchangeRateSummary> {
-    const record = await prisma.exchangeRate.findUnique({
-      where: { companyId_currency_date: { companyId, currency, date } },
+    const record = await prisma.exchangeRate.findFirst({
+      where: { companyId, currency, date: { lte: date } },
+      orderBy: { date: "desc" },
     });
     if (!record) {
       const dateStr = date.toISOString().split("T")[0];

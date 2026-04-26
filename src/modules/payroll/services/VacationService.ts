@@ -210,7 +210,7 @@ export const VacationService = {
         });
 
         return serializeVacation(record);
-      });
+      }, { timeout: 15000, maxWait: 15000 });
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -235,6 +235,50 @@ export const VacationService = {
       orderBy: [{ periodYear: "desc" }, { createdAt: "desc" }],
     });
     return records.map(serializeVacation);
+  },
+
+  // ── getEmployeesWithLowVacationBalance — empleados con ≤1 día restante ─────
+  // Usado por el dashboard para mostrar alerta de vacaciones por agotar.
+  async getEmployeesWithLowVacationBalance(
+    companyId: string,
+    threshold = 1
+  ): Promise<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]> {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+
+    const employees = await prisma.employee.findMany({
+      where: { companyId, status: "ACTIVE" },
+      select: { id: true, firstName: true, lastName: true, hireDate: true },
+    });
+
+    const records = await prisma.vacationRecord.findMany({
+      where: { companyId, periodYear: currentYear },
+      select: { employeeId: true, vacationDays: true },
+    });
+
+    const usedByEmployee = new Map<string, number>();
+    for (const r of records) {
+      const prev = usedByEmployee.get(r.employeeId) ?? 0;
+      usedByEmployee.set(r.employeeId, prev + Number(r.vacationDays));
+    }
+
+    const alerts: { employeeId: string; fullName: string; remaining: number; entitlement: number }[] = [];
+    for (const emp of employees) {
+      const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
+      const yearsOfService = Math.floor((today.getTime() - emp.hireDate.getTime()) / msPerYear);
+      const entitlement = Math.max(15, 14 + yearsOfService);
+      const used = usedByEmployee.get(emp.id) ?? 0;
+      const remaining = entitlement - used;
+      if (remaining <= threshold && remaining >= 0) {
+        alerts.push({
+          employeeId: emp.id,
+          fullName: `${emp.firstName} ${emp.lastName}`,
+          remaining,
+          entitlement,
+        });
+      }
+    }
+    return alerts;
   },
 
   // ── computeFractional — calcula días fraccionados sin persistir ───────────

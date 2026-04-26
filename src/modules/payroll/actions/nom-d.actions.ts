@@ -18,6 +18,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { BenefitAccrualService, type BenefitBalanceRow, type BcvRateRow } from "../services/BenefitAccrualService";
+import { BenefitAdvanceService, type BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import { VacationService, type VacationRecordRow } from "../services/VacationService";
 import { ProfitSharingService, type ProfitSharingRecordRow } from "../services/ProfitSharingService";
 import { TerminationService, type TerminationRow } from "../services/TerminationService";
@@ -29,6 +30,7 @@ import {
   CalculateProfitSharingSchema,
   CreateTerminationSchema,
   UpdateTerminationSchema,
+  RegisterBenefitAdvanceSchema,
 } from "../schemas/nom-d.schema";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -86,7 +88,8 @@ export async function createBcvRateAction(
       userId,
       parsed.data.year,
       parsed.data.month,
-      parsed.data.annualRate
+      parsed.data.annualRate,
+      parsed.data.rateType
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -459,3 +462,72 @@ export async function listTerminationsAction(
     return { success: false, error: handlePrismaError(err) };
   }
 }
+
+// ─── Anticipo de Prestaciones (Art. 144 LOTTT) ────────────────────────────────
+
+export async function registerBenefitAdvanceAction(
+  companyId: string,
+  rawInput: unknown
+): Promise<Result<BenefitAdvanceRow>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
+    return { success: false, error: "Se requiere rol de Administrador" };
+  }
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+
+  const parsed = RegisterBenefitAdvanceSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  try {
+    const data = await BenefitAdvanceService.registerAdvance(companyId, userId, {
+      employeeId: parsed.data.employeeId,
+      amount: parsed.data.amount,
+      reason: parsed.data.reason,
+      notes: parsed.data.notes,
+    });
+    revalidateNomD(companyId);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: handlePrismaError(err) };
+  }
+}
+
+export async function listBenefitAdvancesAction(
+  companyId: string,
+  employeeId: string
+): Promise<Result<BenefitAdvanceRow[]>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
+    return { success: false, error: "Se requiere rol de Contador o superior" };
+  }
+
+  try {
+    const data = await BenefitAdvanceService.listAdvances(companyId, employeeId);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: handlePrismaError(err) };
+  }
+}
+
+export async function getVacationAlertsAction(
+  companyId: string
+): Promise<Result<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
+    return { success: false, error: "Se requiere rol de Administrador o superior" };
+  }
+  try {
+    const data = await VacationService.getEmployeesWithLowVacationBalance(companyId);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: handlePrismaError(err) };
+  }
+}
+

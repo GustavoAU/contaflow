@@ -49,7 +49,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
 
   function handleClose() {
     startClose(async () => {
-      const result = await closeFiscalYearAction({ companyId, year: yearToClose, closedBy: "" });
+      const result = await closeFiscalYearAction({ companyId, year: yearToClose });
       if (result.success) {
         toast.success(
           `Ejercicio ${yearToClose} cerrado. Resultado neto: ${Number(result.data.netResult) >= 0 ? "+" : ""}${result.data.netResult} Bs.`
@@ -75,7 +75,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
 
   function handleAppropriation(year: number) {
     startAppropriation(async () => {
-      const result = await appropriateFiscalYearResultAction({ companyId, year, approvedBy: "" });
+      const result = await appropriateFiscalYearResultAction({ companyId, year });
       if (result.success) {
         toast.success(`Asiento de apropiación del ejercicio ${year} registrado.`);
         setLocalHistory((prev) =>

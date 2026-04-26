@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunService } from "@/modules/payroll/services/PayrollRunService";
 import { PayrollRunDetail } from "@/modules/payroll/components/PayrollRunDetail";
+import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigService";
 
 interface Props {
   params: Promise<{ companyId: string; runId: string }>;
@@ -33,10 +34,14 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
 
   // NOM-C-01: getById ya incluye companyId en el where (IDOR guard)
-  const run = await PayrollRunService.getById(companyId, runId);
+  const [run, config] = await Promise.all([
+    PayrollRunService.getById(companyId, runId),
+    PayrollConfigService.getConfig(companyId),
+  ]);
   if (!run) notFound();
 
   const canAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
+  const currency = config?.paymentCurrency ?? "VES";
 
   return (
     <div className="space-y-6 p-6">
@@ -49,7 +54,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} />
+      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} />
     </div>
   );
 }

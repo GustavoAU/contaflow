@@ -66,6 +66,20 @@ describe("RetentionService.calculate", () => {
     expect(result.islrAmount).toBe("20.00");
     expect(result.totalRetention).toBe("180.00");
   });
+
+  it("Solo ISLR: totalRetention excluye IVA, ivaRetention = 0", () => {
+    const result = RetentionService.calculate("1000.00", 75, "HONORARIOS_PN", 16, "ISLR");
+    expect(result.ivaRetention).toBe("0.00");
+    expect(result.islrAmount).toBe("50.00");
+    expect(result.totalRetention).toBe("50.00");
+  });
+
+  it("Solo IVA con type='IVA': totalRetention excluye ISLR", () => {
+    const result = RetentionService.calculate("1000.00", 75, undefined, 16, "IVA");
+    expect(result.ivaRetention).toBe("120.00");
+    expect(result.islrAmount).toBeNull();
+    expect(result.totalRetention).toBe("120.00");
+  });
 });
 
 describe("RetentionService.validateRif", () => {

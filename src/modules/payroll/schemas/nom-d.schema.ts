@@ -19,6 +19,7 @@ export const CreateBcvRateSchema = z.object({
     .number()
     .positive({ message: "La tasa debe ser positiva" })
     .max(500, { message: "La tasa anual no puede superar el 500%" }),
+  rateType: z.enum(["ACTIVA", "PROMEDIO"]).default("ACTIVA"),
 });
 
 export type CreateBcvRateInput = z.infer<typeof CreateBcvRateSchema>;
@@ -150,3 +151,25 @@ export const UpdateTerminationSchema = z.object({
 });
 
 export type UpdateTerminationInput = z.infer<typeof UpdateTerminationSchema>;
+
+// ─── Anticipo de Prestaciones (Art. 144 LOTTT) ────────────────────────────────
+
+export const RegisterBenefitAdvanceSchema = z.object({
+  employeeId: z.string().min(1, { message: "Selecciona un empleado" }),
+  // amount como string → Decimal en el service (patrón del stack)
+  amount: z
+    .string()
+    .min(1, { message: "El monto es requerido" })
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, {
+      message: "El monto debe ser un número positivo",
+    })
+    .refine((v) => Number(v) <= 999_999_999, {
+      message: "El monto excede el límite permitido",
+    }),
+  reason: z.enum(["HOUSING", "HEALTH", "EDUCATION"], {
+    error: "Selecciona un motivo válido (Vivienda, Salud o Educación)",
+  }),
+  notes: z.string().max(500, { message: "Las notas no pueden exceder 500 caracteres" }).optional().nullable(),
+});
+
+export type RegisterBenefitAdvanceInput = z.infer<typeof RegisterBenefitAdvanceSchema>;

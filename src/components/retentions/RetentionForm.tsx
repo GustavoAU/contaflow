@@ -100,7 +100,9 @@ export function RetentionForm({ companyId, userId }: Props) {
       ? RetentionCalculator.calculate(
           taxBase,
           ivaRetentionPct,
-          retentionType !== "IVA" ? islrCode : undefined
+          retentionType !== "IVA" ? islrCode : undefined,
+          16,
+          retentionType
         )
       : null;
 
@@ -316,14 +318,18 @@ export function RetentionForm({ companyId, userId }: Props) {
           {preview && (
             <div className="space-y-1 rounded-lg bg-blue-50 p-4 text-sm">
               <p className="mb-2 font-semibold text-blue-800">Vista previa del cálculo</p>
-              <div className="flex justify-between">
-                <span className="text-zinc-600">IVA (16%):</span>
-                <span className="font-mono">{preview.ivaAmount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-600">Retención IVA ({ivaRetentionPct}%):</span>
-                <span className="font-mono">{preview.ivaRetention}</span>
-              </div>
+              {retentionType !== "ISLR" && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-600">IVA (16%):</span>
+                    <span className="font-mono">{preview.ivaAmount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-600">Retención IVA ({ivaRetentionPct}%):</span>
+                    <span className="font-mono">{preview.ivaRetention}</span>
+                  </div>
+                </>
+              )}
               {preview.islrAmount && (
                 <div className="flex justify-between">
                   <span className="text-zinc-600">

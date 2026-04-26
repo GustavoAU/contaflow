@@ -61,8 +61,6 @@ export default async function PayrollRunsPage({ params }: Props) {
         companyId={companyId}
         runs={runs}
         canAdmin={canAdmin}
-        onApprove={() => {}}
-        onViewDetail={() => {}}
       />
     </div>
   );

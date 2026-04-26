@@ -54,19 +54,21 @@ export class RetentionCalculator {
     taxBase: string,
     ivaRetentionPct: 75 | 100 = 75,
     islrCode?: string,
-    ivaRate: number = 16
+    ivaRate: number = 16,
+    type: "IVA" | "ISLR" | "AMBAS" = "AMBAS"
   ): RetentionCalculation {
+    const includeIva = type !== "ISLR";
     const iva = this.calculateIvaRetention(taxBase, ivaRate, ivaRetentionPct);
     const islr = islrCode ? this.calculateIslrRetention(taxBase, islrCode) : null;
 
-    const total = new Decimal(iva.ivaRetention).plus(
+    const total = (includeIva ? new Decimal(iva.ivaRetention) : new Decimal(0)).plus(
       islr ? new Decimal(islr.islrAmount) : new Decimal(0)
     );
 
     return {
       taxBase,
-      ivaAmount: iva.ivaAmount,
-      ivaRetention: iva.ivaRetention,
+      ivaAmount: includeIva ? iva.ivaAmount : "0.00",
+      ivaRetention: includeIva ? iva.ivaRetention : "0.00",
       ivaRetentionPct: iva.ivaRetentionPct,
       islrAmount: islr?.islrAmount ?? null,
       islrRetentionPct: islr?.islrRetentionPct ?? null,

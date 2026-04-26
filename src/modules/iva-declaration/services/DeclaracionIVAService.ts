@@ -18,6 +18,11 @@ function addRow(acc: TaxLineRow, base: Decimal, tax: Decimal, sign: 1 | -1 = 1):
   };
 }
 
+function vesRate(inv: { currency: string; exchangeRate: { rate: { toString(): string } } | null }): Decimal {
+  if (inv.currency === "VES" || !inv.exchangeRate) return new Decimal(1);
+  return new Decimal(inv.exchangeRate.rate.toString());
+}
+
 export class DeclaracionIVAService {
   /**
    * Calcula la Forma 30 SENIAT para un período mensual.
@@ -67,6 +72,8 @@ export class DeclaracionIVAService {
         docType: true,
         taxCategory: true,
         ivaRetentionAmount: true,
+        currency: true,
+        exchangeRate: { select: { rate: true } },
         taxLines: {
           select: { taxType: true, base: true, amount: true },
         },
@@ -84,6 +91,8 @@ export class DeclaracionIVAService {
       select: {
         docType: true,
         taxCategory: true,
+        currency: true,
+        exchangeRate: { select: { rate: true } },
         taxLines: {
           select: { taxType: true, base: true, amount: true },
         },
@@ -123,14 +132,13 @@ export class DeclaracionIVAService {
     for (const inv of saleInvoices) {
       // NOTA_CREDITO invierte signo (reduce débitos)
       const sign: 1 | -1 = inv.docType === "NOTA_CREDITO" ? -1 : 1;
+      const fx = vesRate(inv);
 
-      // Facturas exentas/exoneradas sin taxLines — capturar la base del subtotal implícita
+      // Facturas exentas/exoneradas — capturar la base del subtotal implícita
       if (inv.taxCategory === "EXENTA" || inv.taxCategory === "EXONERADA") {
-        // La base exenta/exonerada puede estar en taxLines tipo EXENTO o no tener taxLines
-        // Calculamos la suma de bases de taxLines EXENTO; si no hay, ignoramos (exento sin base declarada)
         for (const tl of inv.taxLines) {
           if (tl.taxType === "EXENTO") {
-            aExentasBase = aExentasBase.plus(new Decimal(tl.base.toString()).times(sign));
+            aExentasBase = aExentasBase.plus(new Decimal(tl.base.toString()).times(fx).times(sign));
           }
         }
         continue;
@@ -140,8 +148,8 @@ export class DeclaracionIVAService {
       if (inv.taxCategory === "NO_SUJETA") continue;
 
       for (const tl of inv.taxLines) {
-        const base = new Decimal(tl.base.toString());
-        const amount = new Decimal(tl.amount.toString());
+        const base = new Decimal(tl.base.toString()).times(fx);
+        const amount = new Decimal(tl.amount.toString()).times(fx);
         switch (tl.taxType) {
           case "IVA_GENERAL":
             aGeneral = addRow(aGeneral, base, amount, sign);
@@ -158,7 +166,7 @@ export class DeclaracionIVAService {
         }
       }
 
-      // Retenciones IVA sufridas (solo si isSpecialContributor)
+      // Retenciones IVA sufridas (solo si isSpecialContributor) — ya están en VES
       if (isSpecialContributor && inv.ivaRetentionAmount) {
         c1SufriBas = c1SufriBas.plus(new Decimal(inv.ivaRetentionAmount.toString()).times(sign));
       }
@@ -184,13 +192,15 @@ export class DeclaracionIVAService {
       // NO_SUJETA — excluir
       if (inv.taxCategory === "NO_SUJETA") continue;
 
+      const fx = vesRate(inv);
+
       // Importaciones van a B5
       const isImport =
         inv.docType === "PLANILLA_IMPORTACION" || inv.taxCategory === "IMPORTACION";
 
       for (const tl of inv.taxLines) {
-        const base = new Decimal(tl.base.toString());
-        const amount = new Decimal(tl.amount.toString());
+        const base = new Decimal(tl.base.toString()).times(fx);
+        const amount = new Decimal(tl.amount.toString()).times(fx);
         if (isImport) {
           bImportaciones = addRow(bImportaciones, base, amount);
         } else {

@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import type { EmployeeListRow } from "../services/EmployeeService";
+import { formatAmount } from "@/lib/format";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Activo",
@@ -77,9 +78,7 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
               <td className="px-4 py-3 text-gray-600">
                 {emp.currentSalaryAmount ? (
                   <span>
-                    {Number(emp.currentSalaryAmount).toLocaleString("es-VE", {
-                      minimumFractionDigits: 2,
-                    })}{" "}
+                    {formatAmount(emp.currentSalaryAmount, emp.currentSalaryCurrency ?? undefined)}{" "}
                     <span className="text-xs text-gray-400">{emp.currentSalaryCurrency}</span>
                   </span>
                 ) : (

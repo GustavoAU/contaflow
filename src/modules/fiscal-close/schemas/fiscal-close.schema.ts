@@ -8,7 +8,6 @@ export const CloseFiscalYearSchema = z.object({
     .int()
     .min(2000, { error: "Año inválido" })
     .max(2100, { error: "Año inválido" }),
-  closedBy: z.string().min(1, { error: "userId es requerido" }),
 });
 
 export const AppropriateResultSchema = z.object({
@@ -18,7 +17,6 @@ export const AppropriateResultSchema = z.object({
     .int()
     .min(2000, { error: "Año inválido" })
     .max(2100, { error: "Año inválido" }),
-  approvedBy: z.string().min(1, { error: "userId es requerido" }),
 });
 
 export const UpdateFiscalConfigSchema = z.object({

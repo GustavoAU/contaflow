@@ -155,7 +155,12 @@ export default async function BenefitsPage({ params }: Props) {
               </summary>
               <div className="px-4 py-4 border-t bg-white">
                 {balance ? (
-                  <BenefitBalancePanel balance={balance} />
+                  <BenefitBalancePanel
+                    balance={balance}
+                    canAdmin={isAdmin}
+                    companyId={companyId}
+                    employeeId={emp.id}
+                  />
                 ) : (
                   <p className="text-sm text-gray-500 italic">
                     Este empleado no tiene prestaciones registradas todavía.

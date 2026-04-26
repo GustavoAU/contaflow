@@ -11,7 +11,7 @@
 import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
 
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // Tipos mínimos para la respuesta de la API de Gemini
 interface GeminiPart {

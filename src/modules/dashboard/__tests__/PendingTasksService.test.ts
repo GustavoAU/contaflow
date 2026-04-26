@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
     fixedAsset: { count: vi.fn() },
     retencion: { count: vi.fn() },
     bankStatement: { count: vi.fn() },
+    $queryRaw: vi.fn(),
   },
 }));
 
@@ -20,6 +21,7 @@ function mockAllZero() {
   vi.mocked(prisma.fixedAsset.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bankStatement.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
 }
 
 describe("PendingTasksService.getPendingTasks", () => {
