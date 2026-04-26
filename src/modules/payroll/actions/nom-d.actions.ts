@@ -3,7 +3,7 @@
 //
 // Seguridad (ADR-014 + ADR-006 extendido):
 //   CRITICAL-3: tasa BCV nunca del cliente — postBenefitInterestAction NO recibe rate
-//   NOM-D-01:  companyMember.findFirst verifica tenant antes de toda query
+//   NOM-D-01:  companyMember.findFirst verifica tenant antes de toda query // ADR-004-EXCEPTION: IDOR guard — where:{userId,companyId} en resolveAuth()
 //   NOM-D-02:  checkRateLimit(limiters.fiscal) en toda acción write
 //   NOM-D-03:  write = ADMIN_ONLY; read = ACCOUNTING
 //   NOM-D-04:  P2002 → mensaje amigable (doble-accrual, doble-pago)

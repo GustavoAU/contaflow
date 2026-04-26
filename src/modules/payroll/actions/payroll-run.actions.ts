@@ -2,7 +2,7 @@
 // Fase NOM-C: Server Actions para procesos de nómina
 //
 // Seguridad (ADR-013):
-//   NOM-C-01: companyMember.findFirst verifica tenant antes de toda query
+//   NOM-C-01: companyMember.findFirst verifica tenant antes de toda query // ADR-004-EXCEPTION: IDOR guard — where:{userId,companyId} en resolveAuth()
 //   NOM-C-02: P2002 del @@unique mapeado a mensaje amigable
 //   NOM-C-08: checkRateLimit(limiters.fiscal) en create/approve/cancel
 //   NOM-C-09: create/approve/cancel = ADMIN_ONLY; list/get = ACCOUNTING
