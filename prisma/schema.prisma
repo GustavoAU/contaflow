@@ -230,6 +230,7 @@ model Account {
   payrollConfigsAsIvss        PayrollConfig[]      @relation("PayrollIvssPayable")
   payrollConfigsAsFaov        PayrollConfig[]      @relation("PayrollFaovPayable")
   payrollConfigsAsInces       PayrollConfig[]      @relation("PayrollIncesPayable")
+  payrollConfigsAsRpe         PayrollConfig[]      @relation("PayrollRpePayable")
   // Fase NOM-D: cuentas de prestaciones
   payrollConfigsAsBenefitsExpense  PayrollConfig[] @relation("PayrollBenefitsExpense")
   payrollConfigsAsBenefitsPayable  PayrollConfig[] @relation("PayrollBenefitsPayable")
@@ -1078,6 +1079,7 @@ model PayrollConfig {
   ivssEnabled       Boolean              @default(true)
   incesEnabled      Boolean              @default(true)
   banavihEnabled    Boolean              @default(true)
+  rpeEnabled        Boolean              @default(true)   // Paro Forzoso RPE 0.5% (LSSO Art. 7)
   cestaTicketType   CestaTicketType
   // Pagos
   paymentCurrency   PayrollPaymentCurrency
@@ -1090,6 +1092,7 @@ model PayrollConfig {
   ivssPayableAccountId  String?    // LIABILITY — IVSS Obrero por Pagar
   faovPayableAccountId  String?    // LIABILITY — FAOV / BANAVIH por Pagar
   incesPayableAccountId String?    // LIABILITY — INCES por Pagar
+  rpePayableAccountId   String?    // LIABILITY — Paro Forzoso RPE por Pagar
   // Fase NOM-D: Cuentas contables para prestaciones sociales, vacaciones y utilidades
   // ADR-014 Decisión 7: causación periódica requiere cuentas separadas
   benefitsExpenseAccountId      String?    // EXPENSE — Gastos Prestaciones Sociales
@@ -1103,6 +1106,10 @@ model PayrollConfig {
   // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
   // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
   utValue               Decimal?         @db.Decimal(10, 2)
+  // Tope de cotización: salario mínimo nacional vigente (Bs/mes).
+  // Cuando > 0: IVSS cap = 5 × salaryMinimumVes; FAOV cap = 10 × salaryMinimumVes.
+  // Cuando NULL/0: sin tope (uso previo al decreto — mantiene retro-compatibilidad).
+  salaryMinimumVes      Decimal?         @db.Decimal(18, 2)
   // Timestamps
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -1113,6 +1120,7 @@ model PayrollConfig {
   ivssPayableAccount    Account?             @relation("PayrollIvssPayable", fields: [ivssPayableAccountId], references: [id], onDelete: Restrict)
   faovPayableAccount    Account?             @relation("PayrollFaovPayable", fields: [faovPayableAccountId], references: [id], onDelete: Restrict)
   incesPayableAccount   Account?             @relation("PayrollIncesPayable", fields: [incesPayableAccountId], references: [id], onDelete: Restrict)
+  rpePayableAccount     Account?             @relation("PayrollRpePayable", fields: [rpePayableAccountId], references: [id], onDelete: Restrict)
   benefitsExpenseAccount      Account? @relation("PayrollBenefitsExpense", fields: [benefitsExpenseAccountId], references: [id], onDelete: Restrict)
   benefitsPayableAccount      Account? @relation("PayrollBenefitsPayable", fields: [benefitsPayableAccountId], references: [id], onDelete: Restrict)
   vacationPayableAccount      Account? @relation("PayrollVacationPayable", fields: [vacationPayableAccountId], references: [id], onDelete: Restrict)
@@ -1240,10 +1248,13 @@ model PayrollConcept {
   code      String      // corto, ej: "SAL_BASE", "IVSS_OBR"
   name      String
   type      ConceptType
-  isSystem  Boolean     @default(false)
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  isSystem              Boolean     @default(false)
+  isActive              Boolean     @default(true)
+  // LOTTT: indica si este concepto impacta el salario integral (base de prestaciones/vacaciones).
+  // false → CESTA_TICKET, bonos no salariales. true → SAL_BASE, HE_DIURNA, HE_NOCTURNA, etc.
+  affectsSalaryIntegral Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C

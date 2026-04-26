@@ -28,10 +28,12 @@ const BASE_INPUT = {
   ivssEnabled: true,
   incesEnabled: true,
   banavihEnabled: true,
+  rpeEnabled: true,
   cestaTicketType: "CARD" as const,
   paymentCurrency: "VES" as const,
   frequency: "BIWEEKLY" as const,
   fideicomiso: "INTERNAL" as const,
+  salaryMinimumVes: null,
 };
 
 function makeConfigDb(overrides = {}) {
@@ -39,6 +41,17 @@ function makeConfigDb(overrides = {}) {
     id: "cfg-1",
     companyId: COMPANY_ID,
     ...BASE_INPUT,
+    // Nullable account IDs expected by serializeConfig
+    expenseAccountId: null,
+    payableAccountId: null,
+    ivssPayableAccountId: null,
+    faovPayableAccountId: null,
+    incesPayableAccountId: null,
+    rpePayableAccountId: null,
+    benefitsExpenseAccountId: null,
+    benefitsPayableAccountId: null,
+    vacationPayableAccountId: null,
+    profitSharingPayableAccountId: null,
     createdAt: new Date("2026-04-15"),
     updatedAt: new Date("2026-04-15"),
     ...overrides,

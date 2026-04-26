@@ -15,6 +15,10 @@ export const PayrollConfigSchema = z.object({
   ivssEnabled: z.boolean(),
   incesEnabled: z.boolean(),
   banavihEnabled: z.boolean(),
+  rpeEnabled: z.boolean(),
+  // Salario mínimo nacional vigente en Bs (para topes de cotización).
+  // Cuando null/vacío: sin tope (empresa no lo ha configurado aún).
+  salaryMinimumVes: z.string().optional().nullable(),
   cestaTicketType: z.enum(["CARD", "CASH", "NONE"], {
     error: "Selecciona el tipo de cesta ticket",
   }),
@@ -33,6 +37,7 @@ export const PayrollConfigSchema = z.object({
   benefitsPayableAccountId: z.string().optional().nullable(),
   vacationPayableAccountId: z.string().optional().nullable(),
   profitSharingPayableAccountId: z.string().optional().nullable(),
+  rpePayableAccountId: z.string().optional().nullable(),
 });
 
 export type PayrollConfigInput = z.infer<typeof PayrollConfigSchema>;

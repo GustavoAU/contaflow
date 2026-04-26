@@ -32,14 +32,17 @@ export interface PayrollConfigRow {
   ivssEnabled: boolean;
   incesEnabled: boolean;
   banavihEnabled: boolean;
+  rpeEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  salaryMinimumVes: string | null;
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
+  rpePayableAccountId: string | null;
   updatedAt: string;
 }
 
@@ -49,14 +52,17 @@ export interface SavePayrollConfigInput {
   ivssEnabled: boolean;
   incesEnabled: boolean;
   banavihEnabled: boolean;
+  rpeEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  salaryMinimumVes?: string | null;
   benefitsExpenseAccountId?: string | null;
   benefitsPayableAccountId?: string | null;
   vacationPayableAccountId?: string | null;
   profitSharingPayableAccountId?: string | null;
+  rpePayableAccountId?: string | null;
 }
 
 // ─── Serialización ────────────────────────────────────────────────────────────
@@ -69,14 +75,17 @@ function serializeConfig(c: {
   ivssEnabled: boolean;
   incesEnabled: boolean;
   banavihEnabled: boolean;
+  rpeEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  salaryMinimumVes: { toString(): string } | null;
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
+  rpePayableAccountId: string | null;
   updatedAt: Date;
 }): PayrollConfigRow {
   return {
@@ -87,14 +96,17 @@ function serializeConfig(c: {
     ivssEnabled: c.ivssEnabled,
     incesEnabled: c.incesEnabled,
     banavihEnabled: c.banavihEnabled,
+    rpeEnabled: c.rpeEnabled,
     cestaTicketType: c.cestaTicketType,
     paymentCurrency: c.paymentCurrency,
     frequency: c.frequency,
     fideicomiso: c.fideicomiso,
+    salaryMinimumVes: c.salaryMinimumVes ? c.salaryMinimumVes.toString() : null,
     benefitsExpenseAccountId: c.benefitsExpenseAccountId,
     benefitsPayableAccountId: c.benefitsPayableAccountId,
     vacationPayableAccountId: c.vacationPayableAccountId,
     profitSharingPayableAccountId: c.profitSharingPayableAccountId,
+    rpePayableAccountId: c.rpePayableAccountId,
     updatedAt: c.updatedAt.toISOString(),
   };
 }
@@ -158,10 +170,12 @@ export const PayrollConfigService = {
                 ivssEnabled: previous.ivssEnabled,
                 incesEnabled: previous.incesEnabled,
                 banavihEnabled: previous.banavihEnabled,
+                rpeEnabled: previous.rpeEnabled,
                 cestaTicketType: previous.cestaTicketType,
                 paymentCurrency: previous.paymentCurrency,
                 frequency: previous.frequency,
                 fideicomiso: previous.fideicomiso,
+                salaryMinimumVes: previous.salaryMinimumVes?.toString() ?? null,
               }
             : Prisma.JsonNull,
           newValue: {
@@ -170,10 +184,12 @@ export const PayrollConfigService = {
             ivssEnabled: input.ivssEnabled,
             incesEnabled: input.incesEnabled,
             banavihEnabled: input.banavihEnabled,
+            rpeEnabled: input.rpeEnabled,
             cestaTicketType: input.cestaTicketType,
             paymentCurrency: input.paymentCurrency,
             frequency: input.frequency,
             fideicomiso: input.fideicomiso,
+            salaryMinimumVes: input.salaryMinimumVes ?? null,
           },
         },
       });
