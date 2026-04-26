@@ -14,12 +14,18 @@ import Decimal from "decimal.js";
 import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@prisma/client";
 
 // ─── Tasas legales venezolanas (inmutables — ADR-006 D-3) ────────────────────
-// LSS Art. 62: IVSS obrero 4%
+// LSS Art. 62: IVSS obrero 4% | tope: 5 × salario mínimo
 const IVSS_WORKER_RATE = new Decimal("0.04");
-// Ley INCES Art. 30: trabajador 2%
+const IVSS_CAP_MULTIPLES = new Decimal("5");
+// Ley INCES Art. 30: trabajador 2% | tope: 5 × salario mínimo (igual que IVSS)
 const INCES_WORKER_RATE = new Decimal("0.02");
-// LAH Art. 172: FAOV obrero 1%
+const INCES_CAP_MULTIPLES = new Decimal("5");
+// LAH Art. 172: FAOV obrero 1% | tope: 10 × salario mínimo
 const FAOV_WORKER_RATE = new Decimal("0.01");
+const FAOV_CAP_MULTIPLES = new Decimal("10");
+// LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | tope: 5 × salario mínimo
+const RPE_WORKER_RATE = new Decimal("0.005");
+const RPE_CAP_MULTIPLES = new Decimal("5");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // LOTTT Art. 118: HE nocturna 75% recargo (multiplicador 1.75×)
@@ -61,6 +67,12 @@ export interface PayrollCalculatorConfig {
   ivssEnabled: boolean;
   incesEnabled: boolean;
   banavihEnabled: boolean;
+  rpeEnabled: boolean;
+  // Salario mínimo vigente en Bs. Cuando > 0 se aplican topes de cotización:
+  //   IVSS/INCES/RPE: base ≤ 5 × salaryMinimumVes
+  //   FAOV: base ≤ 10 × salaryMinimumVes
+  // Cuando 0 o null: sin tope (retro-compatible con empresas sin configurar).
+  salaryMinimumVes: Decimal;
   systemConcepts: SystemConceptRef[];
 }
 
@@ -85,10 +97,16 @@ export interface PayrollCalculatorResult {
   totalNet: Decimal;
 }
 
-// ─── Helper interno ───────────────────────────────────────────────────────────
+// ─── Helpers internos ────────────────────────────────────────────────────────
 
 function findConcept(systemConcepts: SystemConceptRef[], code: string): string | undefined {
   return systemConcepts.find((c) => c.code === code)?.conceptId;
+}
+
+// Aplica el tope legal de cotización. Cuando salaryMin es 0 no hay tope.
+function cappedBasis(salary: Decimal, salaryMin: Decimal, multiples: Decimal): Decimal {
+  if (salaryMin.lte(0)) return salary;
+  return Decimal.min(salary, salaryMin.mul(multiples));
 }
 
 // ─── PayrollCalculatorService ─────────────────────────────────────────────────
@@ -160,7 +178,7 @@ export const PayrollCalculatorService = {
     config: PayrollCalculatorConfig
   ): CalculatorLineOutput[] {
     const lines: CalculatorLineOutput[] = [];
-    const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled } = config;
+    const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
     const salary = emp.salaryAmount;
 
     const salaryBase = {
@@ -230,50 +248,70 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── IVSS_OBR (4% — solo si ivssEnabled) ──────────────────────────────────
+    // ── IVSS_OBR (4%, tope 5×salMin — solo si ivssEnabled) ──────────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
-      const amount = salary.times(IVSS_WORKER_RATE).toDecimalPlaces(2);
+      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const amount = basis.times(IVSS_WORKER_RATE).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
         conceptId: ivssObrId,
         employeeId: emp.employeeId,
         conceptType: "DEDUCTION",
         amount,
-        basis: salary,
+        basis,
         rate: IVSS_WORKER_RATE,
         ...salaryBase,
       });
     }
 
-    // ── INCES_OBR (2% — solo si incesEnabled) ────────────────────────────────
+    // ── INCES_OBR (2%, tope 5×salMin — solo si incesEnabled) ────────────────
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
-      const amount = salary.times(INCES_WORKER_RATE).toDecimalPlaces(2);
+      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const amount = basis.times(INCES_WORKER_RATE).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
         conceptId: incesObrId,
         employeeId: emp.employeeId,
         conceptType: "DEDUCTION",
         amount,
-        basis: salary,
+        basis,
         rate: INCES_WORKER_RATE,
         ...salaryBase,
       });
     }
 
-    // ── FAOV_OBR (1% — solo si banavihEnabled) ───────────────────────────────
+    // ── FAOV_OBR (1%, tope 10×salMin — solo si banavihEnabled) ──────────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const amount = salary.times(FAOV_WORKER_RATE).toDecimalPlaces(2);
+      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const amount = basis.times(FAOV_WORKER_RATE).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
         conceptId: faovObrId,
         employeeId: emp.employeeId,
         conceptType: "DEDUCTION",
         amount,
-        basis: salary,
+        basis,
         rate: FAOV_WORKER_RATE,
+        ...salaryBase,
+      });
+    }
+
+    // ── RPE_OBR (0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────────
+    const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
+    if (rpeEnabled && rpeObrId) {
+      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const amount = basis.times(RPE_WORKER_RATE).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "RPE_OBR",
+        conceptId: rpeObrId,
+        employeeId: emp.employeeId,
+        conceptType: "DEDUCTION",
+        amount,
+        basis,
+        rate: RPE_WORKER_RATE,
         ...salaryBase,
       });
     }

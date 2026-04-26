@@ -31,18 +31,21 @@ const SYSTEM_CONCEPTS: Array<{
   code: string;
   name: string;
   type: ConceptType;
+  affectsSalaryIntegral: boolean;
 }> = [
-  // Asignaciones
-  { code: "SAL_BASE", name: "Salario Básico", type: "EARNING" },
-  { code: "HE_DIURNA", name: "Horas Extra Diurnas (50%)", type: "EARNING" },
-  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)", type: "EARNING" },
-  { code: "BONO_NOCHE", name: "Bono Nocturno (30%)", type: "EARNING" },
-  { code: "CESTA_TICKET", name: "Cesta Ticket / Alimentación", type: "EARNING" },
-  // Deducciones
-  { code: "IVSS_OBR", name: "IVSS Obrero (4%)", type: "DEDUCTION" },
-  { code: "INCES_OBR", name: "INCES Trabajador (0.5%)", type: "DEDUCTION" },
-  { code: "FAOV_OBR", name: "Banavih / FAOV Trabajador (1%)", type: "DEDUCTION" },
-  { code: "ISLR_RET", name: "Retención ISLR Empleado", type: "DEDUCTION" },
+  // Asignaciones — afectan salario integral (LOTTT Art. 104)
+  { code: "SAL_BASE",     name: "Salario Básico",                  type: "EARNING",   affectsSalaryIntegral: true  },
+  { code: "HE_DIURNA",   name: "Horas Extra Diurnas (50%)",        type: "EARNING",   affectsSalaryIntegral: true  },
+  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)",     type: "EARNING",   affectsSalaryIntegral: true  },
+  { code: "BONO_NOCHE",  name: "Bono Nocturno (30%)",              type: "EARNING",   affectsSalaryIntegral: true  },
+  // CESTA_TICKET: beneficio social — NO afecta salario integral (LOTTT Art. 105 / LCEA Art. 5)
+  { code: "CESTA_TICKET", name: "Cesta Ticket / Alimentación",     type: "EARNING",   affectsSalaryIntegral: false },
+  // Deducciones — no afectan salario integral (son retenciones, no ingresos)
+  { code: "IVSS_OBR",   name: "IVSS Obrero (4%)",                  type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "INCES_OBR",  name: "INCES Trabajador (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "FAOV_OBR",   name: "Banavih / FAOV Trabajador (1%)",    type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "RPE_OBR",    name: "Paro Forzoso RPE (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "ISLR_RET",   name: "Retención ISLR Empleado",           type: "DEDUCTION", affectsSalaryIntegral: false },
 ];
 
 // ─── Serialización ────────────────────────────────────────────────────────────
@@ -89,8 +92,18 @@ export const PayrollConceptService = {
       SYSTEM_CONCEPTS.map((concept) =>
         prisma.payrollConcept.upsert({
           where: { companyId_code: { companyId, code: concept.code } },
-          create: { companyId, ...concept, isSystem: true, isActive: true },
-          update: {},
+          create: {
+            companyId,
+            code: concept.code,
+            name: concept.name,
+            type: concept.type,
+            affectsSalaryIntegral: concept.affectsSalaryIntegral,
+            isSystem: true,
+            isActive: true,
+          },
+          update: {
+            affectsSalaryIntegral: concept.affectsSalaryIntegral,
+          },
         })
       )
     );

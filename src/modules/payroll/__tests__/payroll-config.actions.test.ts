@@ -46,10 +46,12 @@ const VALID_INPUT = {
   ivssEnabled: true,
   incesEnabled: true,
   banavihEnabled: true,
+  rpeEnabled: true,
   cestaTicketType: "CARD",
   paymentCurrency: "VES",
   frequency: "BIWEEKLY",
   fideicomiso: "INTERNAL",
+  salaryMinimumVes: null,
 };
 
 // ── savePayrollConfigAction ────────────────────────────────────────────────────
