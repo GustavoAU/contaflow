@@ -11,7 +11,7 @@ export type CreateCreditDebitNoteInput = {
   date: Date;
   counterpartName: string;
   counterpartRif: string;
-  taxLines: Array<{ taxType: string; base: string; rate: string; amount: string }>;
+  taxLines: Array<{ taxType: string; base: string; rate: string; amount: string; description?: string }>;
   ivaRetentionAmount: string;
   islrRetentionAmount: string;
   igtfBase: string;
@@ -31,6 +31,7 @@ export type InvoiceTaxLineSerialized = {
   base: string;
   rate: string;
   amount: string;
+  description: string | null;
 };
 
 export type InvoiceBookRow = {
@@ -206,6 +207,7 @@ export class InvoiceService {
             base: new Decimal(line.base),
             rate: new Decimal(line.rate),
             amount: new Decimal(line.amount),
+            description: line.description ?? null,
           })),
         },
       },
@@ -373,6 +375,7 @@ export class InvoiceService {
         base: line.base.toFixed(2),
         rate: line.rate.toFixed(2),
         amount: line.amount.toFixed(2),
+        description: line.description ?? null,
       })),
     }));
 
@@ -448,6 +451,7 @@ export class InvoiceService {
                 base: new Decimal(line.base),
                 rate: new Decimal(line.rate),
                 amount: new Decimal(line.amount),
+                description: line.description ?? null,
               })),
             },
           },
@@ -567,6 +571,7 @@ export class InvoiceService {
                 base: new Decimal(line.base),
                 rate: new Decimal(line.rate),
                 amount: new Decimal(line.amount),
+                description: line.description ?? null,
               })),
             },
           },
@@ -685,6 +690,7 @@ export class InvoiceService {
         base: line.base.toFixed(2),
         rate: line.rate.toFixed(2),
         amount: line.amount.toFixed(2),
+        description: line.description ?? null,
       })),
     }));
 

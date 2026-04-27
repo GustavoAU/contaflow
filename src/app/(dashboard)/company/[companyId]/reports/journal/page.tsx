@@ -1,6 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
 import { getJournalAction } from "@/modules/accounting/actions/report.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
+import { JournalExportButton } from "@/components/reports/JournalExportButton";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { JournalTransaction } from "@/modules/accounting/actions/report.actions";
@@ -97,18 +98,27 @@ export default async function JournalPage({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={`/company/${companyId}/reports`}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Reportes
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Libro Diario</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Registro cronológico de todos los asientos contabilizados
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <Link
+            href={`/company/${companyId}/reports`}
+            className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            Reportes
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Libro Diario</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Registro cronológico de todos los asientos contabilizados
+            {from || to ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}` : ""}
+          </p>
+        </div>
+        {transactions.length > 0 && (
+          <JournalExportButton
+            transactions={transactions}
+            period={from || to ? `${from ?? "inicio"} al ${to ?? "hoy"}` : "todos los períodos"}
+          />
+        )}
       </div>
 
       <div className="rounded-lg border bg-white p-4">
