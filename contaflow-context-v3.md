@@ -556,6 +556,7 @@ model FiscalYearClose {
 - ✅ Fase 26B: IA Tareas Pendientes + Detector de Anomalías Fiscales (ver sección 60) — completada 2026-04-19
   - ✅ **Parte 1**: `PendingTasksService` (5 detectores prospectivos) + `PendingTasksWidget` + Gemini resumen ejecutivo — 22 tests
   - ✅ **Parte 2**: `FiscalAnomalyDetectorService` — 4 detectores retrospectivos: asientos descuadrados (CRITICAL) + retenciones sin factura (HIGH) + CxC +90d (HIGH) + saldo anormal (MEDIUM) — 15 tests — 1391 total
+- ✅ Mejora #22 — Crédito fiscal período anterior en Forma 30 — `SeccionE.creditoFiscalPeriodoAnterior` + fórmula actualizada + UI input + 7 tests — 1443 total (commit `9085ca4`, 2026-04-26)
   - **Distinción clave**: `PendingTasksService` = "¿qué falta hacer?" (prospectivo). `FiscalAnomalyDetectorService` = "¿qué errores ya se cometieron en el período?" (retrospectivo/auditoría)
 - ⏳ Fase 27: PWA + modo offline
 - ✅ Fase 28A: Expansión roles — `UserRole { OWNER ADMIN ACCOUNTANT ADMINISTRATIVE VIEWER }` + migration SQL + `src/lib/auth-helpers.ts` (`canAccess`, `ROLES`, `ROLE_LABELS`, `ROLE_HIERARCHY`) + CompanyService asigna OWNER al creador (ver sección 43)
@@ -1339,13 +1340,14 @@ model InflationAdjustment {
 
 ### Módulo `src/modules/iva-declaration/`
 
-- **`DeclaracionIVAService.ts`** — `calcularForma30(companyId, year, month)` → `Forma30Data`
+- **`DeclaracionIVAService.ts`** — `calculate(companyId, year, month, tx?, creditoFiscalPeriodoAnterior?)` → `Forma30Result`
   - Agrega taxLines por alícuota (IVA_GENERAL 16%, IVA_REDUCIDO 8%, IVA_ADICIONAL 15%, EXENTO)
   - Suma retenciones IVA soportadas (PURCHASE) y retenidas (SALE + isSpecialContributor)
   - Calcula débito fiscal, crédito fiscal, retenciones, saldo a pagar/favor
+  - `SeccionE.creditoFiscalPeriodoAnterior` — 5° arg opcional, guard negativo → 0, reduce cuota
   - VEN-NIF: artículos 43–46 LIVA
-- **`generarForma30Action(companyId, year, month)`** — auth-gated, rate limiting fiscal
-- **`Forma30View.tsx`** — tabla fiscal resumen + filas por alícuota + saldo final coloreado
+- **`generarForma30Action(companyId, year, month, creditoFiscalPeriodoAnterior?)`** — auth-gated, rate limiting fiscal, nonnegative schema guard
+- **`Forma30View.tsx`** — tabla fiscal + input crédito anterior + fila E1 condicional + saldo coloreado
 
 ### Fase 19C — PDF export ✅
 
@@ -1353,10 +1355,17 @@ model InflationAdjustment {
 - **`exportForma30PDFAction()`** — retorna `{ success: true; buffer: number[] }`
 - Botón "Exportar PDF" en Forma30View
 
+### Mejora #22 — Crédito fiscal período anterior ✅ (commit `9085ca4`)
+
+- `SeccionE` extendida con `creditoFiscalPeriodoAnterior: Decimal`
+- Fórmula: `cuota = débitos − créditos − retenciones − créditoAnterior`
+- Entrada manual en UI (puede ser de una declaración anterior fuera del sistema)
+- Guard: valores negativos se tratan como 0; schema `nonnegative().optional().default(0)`
+
 ### Tests
 
-- 23 tests `DeclaracionIVAService.test.ts` + 17 tests `Forma30PDFService.test.ts` (unit)
-- Action tests incluidos
+- 27 tests `DeclaracionIVAService.test.ts` + 14 tests `generarForma30.action.test.ts` + 17 tests `Forma30PDFService.test.ts` (unit)
+- 7 tests nuevos para crédito anterior incluidos
 
 ### Rutas
 
