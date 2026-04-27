@@ -176,6 +176,7 @@ export const BenefitAccrualService = {
     }
 
     // Empleados activos con salario vigente
+    const quarterStartDate = new Date(year, quarterStartMonth - 1, 1);
     const quarterEndDate = new Date(year, quarterEndMonth - 1 + 1, 0); // último día del trimestre
     const employees = await prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
@@ -191,6 +192,28 @@ export const BenefitAccrualService = {
 
     if (employees.length === 0) throw new Error("No hay empleados activos para acumular prestaciones");
 
+    // Conceptos salariales con affectsSalaryIntegral=true de nóminas APPROVED del trimestre.
+    // Se promedian por 3 meses para obtener el componente mensual del salario integral (LOTTT Art. 142).
+    const integralLines = await prisma.payrollRunLine.findMany({
+      where: {
+        companyId,
+        conceptType: "EARNING",
+        payrollRun: {
+          status: "APPROVED",
+          periodStart: { gte: quarterStartDate },
+          periodEnd: { lte: quarterEndDate },
+        },
+        concept: { affectsSalaryIntegral: true },
+      },
+      select: { employeeId: true, amount: true },
+    });
+
+    const integralByEmployee = new Map<string, Decimal>();
+    for (const line of integralLines) {
+      const prev = integralByEmployee.get(line.employeeId) ?? new Decimal(0);
+      integralByEmployee.set(line.employeeId, prev.plus(new Decimal(line.amount.toString())));
+    }
+
     let totalAccrued = new Decimal(0);
     let processed = 0;
 
@@ -199,7 +222,9 @@ export const BenefitAccrualService = {
       if (!salaryRow) continue; // sin salario registrado — saltar
 
       const monthlyWage = new Decimal(salaryRow.amount.toString());
-      const dailyNormalWage = monthlyWage.div(30);
+      // Promedio mensual de conceptos salariales del trimestre (affectsSalaryIntegral=true)
+      const avgMonthlyIntegralConcepts = (integralByEmployee.get(emp.id) ?? new Decimal(0)).div(3);
+      const dailyNormalWage = monthlyWage.plus(avgMonthlyIntegralConcepts).div(30);
 
       // Salario integral = dailyNormal + alícuota utilidades + alícuota bono vacacional (ADR-014 Dec. 3)
       const profitDaysAliquot = dailyNormalWage.mul(config.profitDays).div(360);

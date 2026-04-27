@@ -32,6 +32,9 @@ vi.mock("@/lib/prisma", () => ({
     employee: {
       findMany: vi.fn(),
     },
+    payrollRunLine: {
+      findMany: vi.fn(),
+    },
     transaction: {
       create: vi.fn(),
     },
@@ -166,6 +169,7 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     mockTx();
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never); // sin conceptos integrales por defecto
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
     vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
     vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);
@@ -288,6 +292,54 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     await expect(
       BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
     ).rejects.toThrow("Ya existe una acumulación");
+  });
+
+  it("incluye conceptos salariales (affectsSalaryIntegral=true) en el salario integral — regresión ítem 56", async () => {
+    // BASE_EMPLOYEE: salario 3000, hireDate 2025-01-01 → 1+ año → 5.5 días totales
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
+
+    // 3 corridas de nómina en el trimestre: bono salarial 300 cada una → total 900
+    // avgMonthlyIntegralConcepts = 900 / 3 = 300
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: EMP_ID, amount: new Decimal("300") },
+      { employeeId: EMP_ID, amount: new Decimal("300") },
+      { employeeId: EMP_ID, amount: new Decimal("300") },
+    ] as never);
+
+    const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
+    expect(result.employeesProcessed).toBe(1);
+
+    // dailyNormal = (3000 + 300) / 30 = 110
+    // profitAliq  = 110 * 15 / 360 = 4.5833
+    // bonusAliq   = 110 * 7  / 360 = 2.1389
+    // integral    = 116.7222
+    // totalDays   = 5.5
+    // accrual     = 116.7222 × 5.5 ≈ 641.97
+    const accrued = new Decimal(result.totalAccrued);
+    expect(accrued.gte("641")).toBe(true);
+    expect(accrued.lte("643")).toBe(true);
+
+    // Verificar que se consultó payrollRunLine con affectsSalaryIntegral=true
+    expect(vi.mocked(prisma.payrollRunLine.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          concept: { affectsSalaryIntegral: true },
+          conceptType: "EARNING",
+        }),
+      })
+    );
+  });
+
+  it("empleado sin conceptos integrales usa solo salario base (sin regresión)", async () => {
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
+    // payrollRunLine.findMany ya devuelve [] por defecto en beforeEach
+
+    const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
+
+    // Igual que el test original: dailyNormal = 3000/30 = 100
+    const accrued = new Decimal(result.totalAccrued);
+    expect(accrued.gte("583")).toBe(true);
+    expect(accrued.lte("584")).toBe(true);
   });
 });
 
