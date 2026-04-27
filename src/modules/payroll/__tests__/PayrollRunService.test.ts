@@ -213,7 +213,7 @@ describe("PayrollRunService.create", () => {
 
     await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
 
-    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0][0];
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR");
     expect(ivssLine).toBeDefined();
@@ -243,7 +243,7 @@ describe("PayrollRunService.create", () => {
     await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
 
     expect(vi.mocked(PayrollConceptService.seedDefaults)).toHaveBeenCalledWith(COMPANY_ID);
-    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0][0];
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const rpeLine = lines.find((l) => l.conceptCode === "RPE_OBR");
     expect(rpeLine).toBeDefined();
