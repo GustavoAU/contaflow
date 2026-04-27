@@ -17,6 +17,11 @@ Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Cler
 - `src/lib/prisma.ts`: singleton adapter-pg with `DATABASE_URL` (pooled)
 - Migrations: `DATABASE_URL_DIRECT` in `prisma.config.ts`
 - After every `prisma generate` → ALWAYS restart `npm run dev`
+- **`prisma migrate dev` (sin `--create-only`) ESTÁ ROTO** — el shadow DB falla al replicar `20260331_fase17_bank_reconciliation` porque esa migración carece de timestamp numérico y se aplica en un orden incorrecto en el shadow efímero. **Workflow obligatorio para migraciones:**
+  1. Crear carpeta `prisma/migrations/YYYYMMDD_nombre/migration.sql` manualmente
+  2. `npx prisma db execute --file prisma/migrations/YYYYMMDD_nombre/migration.sql`
+  3. `npx prisma migrate resolve --applied YYYYMMDD_nombre`
+  4. `npx prisma generate`
 
 ## Module structure
 
