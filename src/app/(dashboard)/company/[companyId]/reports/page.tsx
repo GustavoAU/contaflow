@@ -1,6 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
 import Link from "next/link";
-import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon } from "lucide-react";
+import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -10,6 +10,12 @@ export default async function ReportsPage({ params }: Props) {
   const { companyId } = await params;
 
   const reports = [
+    {
+      title: "Libro Diario",
+      description: "Registro cronológico de todos los asientos con partida doble completa",
+      href: `/company/${companyId}/reports/journal`,
+      icon: ClipboardListIcon,
+    },
     {
       title: "Libro Mayor",
       description: "Movimientos detallados por cuenta con saldo acumulado",

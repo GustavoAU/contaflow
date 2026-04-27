@@ -253,11 +253,13 @@ export class FixedAssetService {
             {
               accountId: asset.depreciationAccountId,
               amount: calc.amount,
+              description: `Depreciación: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
             },
             // Crédito: Depreciación Acumulada (negativo = crédito en nuestro modelo)
             {
               accountId: asset.accDepreciationAccountId,
               amount: calc.amount.negated(),
+              description: `Dep. Acumulada: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
             },
           ],
         },

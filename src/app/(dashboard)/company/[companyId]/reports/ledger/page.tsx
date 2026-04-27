@@ -1,12 +1,13 @@
 // src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx
 import { getLedgerAction } from "@/modules/accounting/actions/report.actions";
-import { redirect } from "next/navigation";
+import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { LedgerAccount } from "@/modules/accounting/actions/report.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -16,6 +17,13 @@ const TYPE_LABELS: Record<string, string> = {
   REVENUE: "Ingreso",
   EXPENSE: "Gasto",
 };
+
+function fmt(v: string): string {
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parseFloat(v));
+}
 
 function AccountBlock({ account, companyId }: { account: LedgerAccount; companyId: string }) {
   return (
@@ -30,19 +38,21 @@ function AccountBlock({ account, companyId }: { account: LedgerAccount; companyI
         <div className="flex gap-6 text-sm">
           <span className="text-zinc-500">
             Débitos (Bs.):{" "}
-            <span className="tabular-nums font-mono font-semibold text-zinc-800">
-              {account.totalDebit}
+            <span className="font-mono font-semibold tabular-nums text-zinc-800">
+              {fmt(account.totalDebit)}
             </span>
           </span>
           <span className="text-zinc-500">
             Créditos (Bs.):{" "}
-            <span className="tabular-nums font-mono font-semibold text-zinc-800">
-              {account.totalCredit}
+            <span className="font-mono font-semibold tabular-nums text-zinc-800">
+              {fmt(account.totalCredit)}
             </span>
           </span>
           <span className="text-zinc-500">
             Saldo (Bs.):{" "}
-            <span className="tabular-nums font-mono font-bold text-blue-600">{account.balance}</span>
+            <span className="font-mono font-bold tabular-nums text-blue-600">
+              {fmt(account.balance)}
+            </span>
           </span>
         </div>
       </div>
@@ -74,10 +84,14 @@ function AccountBlock({ account, companyId }: { account: LedgerAccount; companyI
                 </Link>
               </td>
               <td className="max-w-xs truncate px-4 py-2">{entry.description}</td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono">{entry.debit || "—"}</td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono">{entry.credit || "—"}</td>
+              <td className="tabular-nums px-4 py-2 text-right font-mono">
+                {entry.debit ? fmt(entry.debit) : "—"}
+              </td>
+              <td className="tabular-nums px-4 py-2 text-right font-mono">
+                {entry.credit ? fmt(entry.credit) : "—"}
+              </td>
               <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold">
-                {entry.balance}
+                {fmt(entry.balance)}
               </td>
             </tr>
           ))}
@@ -87,36 +101,51 @@ function AccountBlock({ account, companyId }: { account: LedgerAccount; companyI
   );
 }
 
-export default async function LedgerPage({ params }: Props) {
+export default async function LedgerPage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const result = await getLedgerAction(companyId);
+  const { from, to } = await searchParams;
 
-  if (!result.success) redirect("/dashboard");
+  const dateFrom = from ? new Date(from) : undefined;
+  const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
-  const accounts = result.data;
+  const result = await getLedgerAction(companyId, dateFrom, dateTo);
+
+  const accounts = result.success ? result.data : [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Encabezado */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href={`/company/${companyId}/reports`}
-            className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-            Reportes
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight">Libro Mayor</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Movimientos por cuenta — todos los períodos
-          </p>
-        </div>
+      <div>
+        <Link
+          href={`/company/${companyId}/reports`}
+          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          Reportes
+        </Link>
+        <h1 className="text-2xl font-bold tracking-tight">Libro Mayor</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Movimientos por cuenta
+          {from || to
+            ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}`
+            : " — todos los períodos"}
+        </p>
       </div>
 
+      <div className="rounded-lg border bg-white p-4">
+        <DateRangeFilter defaultFrom={from} defaultTo={to} />
+      </div>
+
+      {!result.success && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {result.error}
+        </div>
+      )}
+
       {accounts.length === 0 ? (
-        <div className="text-muted-foreground py-12 text-center text-sm">
-          No hay movimientos registrados.
+        <div className="py-12 text-center text-sm text-zinc-400">
+          No hay movimientos registrados
+          {from || to ? " en el período seleccionado" : ""}.
         </div>
       ) : (
         <div className="space-y-8">
