@@ -183,6 +183,36 @@ describe("PayrollRunService.create", () => {
       PayrollRunService.create(COMPANY_ID, USER_ID, INPUT)
     ).rejects.toThrow("No hay empleados activos");
   });
+
+  it("aplica tope salario mínimo en IVSS cuando salaryMinimumVes > 0 — regresión ítem 55", async () => {
+    mockTx();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ivssEnabled: true, incesEnabled: false, banavihEnabled: false, rpeEnabled: false,
+      frequency: "MONTHLY",
+      salaryMinimumVes: new Decimal("130"),
+    } as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([{
+      id: "emp-1",
+      salaryHistory: [{ id: "sal-1", amount: new Decimal("1000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
+    }] as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE" },
+      { id: "c-ivss", code: "IVSS_OBR" },
+    ] as never);
+    vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
+    vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0][0];
+    const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
+    const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR");
+    expect(ivssLine).toBeDefined();
+    // Sin tope: 1000×0.04=40. Con salaryMin=130 → tope=5×130=650 → 650×0.04=26
+    expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("26.00");
+  });
 });
 
 // ─── approve — mutex updateMany (NOM-C-03) ────────────────────────────────────

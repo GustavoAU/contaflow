@@ -654,6 +654,8 @@ async function main() {
         ivssEnabled: true,
         incesEnabled: true,
         banavihEnabled: true,
+        rpeEnabled: true,
+        salaryMinimumVes: "130.00",
         cestaTicketType: "CARD" as CestaTicketType,
         fideicomiso: "INTERNAL" as FideicomisoType,
         expenseAccountId: accounts["5105"],
