@@ -218,14 +218,24 @@ export class TransactionService {
       );
     }
 
-    // 4. Generar numero para el asiento de anulacion
+    // 4. Verificar que hay un período abierto para registrar el asiento de anulación
+    const activePeriodForVoid = await prisma.accountingPeriod.findFirst({
+      where: { companyId: original.companyId, status: "OPEN" },
+    });
+    if (!activePeriodForVoid) {
+      throw new Error(
+        "No hay período contable abierto. No se puede registrar el asiento de anulación."
+      );
+    }
+
+    // 5. Generar numero para el asiento de anulacion
     const voidDate = new Date();
     const voidNumber = await TransactionService.generateTransactionNumber(
       original.companyId,
       voidDate
     );
 
-    // 5. Crear asiento de contrapartida y marcar original como VOIDED
+    // 6. Crear asiento de contrapartida y marcar original como VOIDED
     const voidTransaction = await prisma.$transaction(async (tx) => {
       // Crear asiento espejo con montos invertidos
       const voidTx = await tx.transaction.create({
@@ -238,6 +248,7 @@ export class TransactionService {
           date: voidDate,
           type: original.type,
           status: "POSTED",
+          periodId: activePeriodForVoid.id,
           entries: {
             create: original.entries.map((entry) => ({
               accountId: entry.accountId,

@@ -219,6 +219,9 @@ describe("voidTransaction", () => {
   it("anula la transaccion correctamente en el happy path", async () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null); // para generateTransactionNumber
     vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
+    vi.mocked(prisma.accountingPeriod.findFirst)
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never) // período original
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never); // período activo para anulación
 
     const voidTx = { id: "tx-void", number: "2026-03-000002", entries: [] };
     vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
@@ -272,6 +275,9 @@ describe("voidTransaction", () => {
   it("crea el asiento espejo con montos invertidos", async () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
+    vi.mocked(prisma.accountingPeriod.findFirst)
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never) // período original
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never); // período activo para anulación
 
     const createMock = vi.fn().mockResolvedValue({ id: "tx-void", entries: [] });
     const updateMock = vi.fn().mockResolvedValue({});
@@ -333,13 +339,28 @@ describe("voidTransaction", () => {
     ).rejects.toThrow("No se puede anular un asiento en un período cerrado");
   });
 
-  it("hard-lock: permite anular si el período está OPEN (sin período registrado también permite)", async () => {
+  it("hard-lock: lanza error si no hay período activo para el asiento de anulación", async () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
-      id: "period-1",
-      status: "OPEN",
-    } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst)
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never) // período original OPEN
+      .mockResolvedValueOnce(null as never); // sin período activo para anular
+
+    await expect(
+      TransactionService.voidTransaction({
+        transactionId: "tx-original",
+        userId: "user-1",
+        reason: "Sin período activo disponible",
+      })
+    ).rejects.toThrow("No hay período contable abierto");
+  });
+
+  it("hard-lock: permite anular si el período está OPEN", async () => {
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(ORIGINAL_TX as never);
+    vi.mocked(prisma.accountingPeriod.findFirst)
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never) // período original
+      .mockResolvedValueOnce({ id: "period-1", status: "OPEN" } as never); // período activo para anulación
 
     const voidTx = { id: "tx-void", number: "2026-03-000002", entries: [] };
     vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
