@@ -114,8 +114,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 26 ✅ merged (Asistente Contable IA — AIContextBuilderService 14 queries + sendMessageAction + AIAssistantChat + Gemini Vision — 22 tests — 1376 total)
 - Fase 26B Parte 2 ✅ merged (FiscalAnomalyDetectorService — detector retrospectivo: asientos descuadrados + retenciones sin factura + CxC +90d + saldo anormal — 15 tests — 1391 total)
 - Mejora #22 ✅ merged (Forma 30: crédito fiscal período anterior — SeccionE extendida + guard negativo + UI input E1 + 7 tests — 1443 total)
+- Fase 35E ✅ merged (Glosa analítica JournalEntry — `description String?` + 10 servicios + Libro Mayor fallback — ADR-016 — 1443 total)
 
-**1443 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-26)
+**1443 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-27)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 

@@ -178,17 +178,17 @@ export class FiscalYearCloseService {
         // El neto va a la cuenta Resultado del Ejercicio
         const closingEntries: Prisma.JournalEntryCreateManyTransactionInput[] = [];
 
-        for (const { accountId, balance } of Object.values(revenueByAccount)) {
+        for (const { accountId, account, balance } of Object.values(revenueByAccount)) {
           if (!balance.isZero()) {
             // Débito la cuenta de ingreso por su saldo crédito (invertido)
-            closingEntries.push({ accountId, amount: balance.negated().toDecimalPlaces(4) });
+            closingEntries.push({ accountId, amount: balance.negated().toDecimalPlaces(4), description: `Cierre año ${year} — ${account.name}` });
           }
         }
 
-        for (const { accountId, balance } of Object.values(expenseByAccount)) {
+        for (const { accountId, account, balance } of Object.values(expenseByAccount)) {
           if (!balance.isZero()) {
             // Crédito la cuenta de gasto por su saldo débito (invertido)
-            closingEntries.push({ accountId, amount: balance.negated().toDecimalPlaces(4) });
+            closingEntries.push({ accountId, amount: balance.negated().toDecimalPlaces(4), description: `Cierre año ${year} — ${account.name}` });
           }
         }
 
@@ -197,6 +197,7 @@ export class FiscalYearCloseService {
         const resultEntry: Prisma.JournalEntryCreateManyTransactionInput = {
           accountId: company.resultAccountId,
           amount: netResult.negated().toDecimalPlaces(4), // ganancia = crédito (negativo)
+          description: `Resultado del ejercicio ${year}`,
         };
         closingEntries.push(resultEntry);
 
@@ -340,10 +341,12 @@ export class FiscalYearCloseService {
           {
             accountId: company.resultAccountId,
             amount: netResult.toDecimalPlaces(4), // débito si ganancia, crédito si pérdida
+            description: `Apropiación resultado — año ${year}`,
           },
           {
             accountId: company.retainedEarningsAccountId,
             amount: netResult.negated().toDecimalPlaces(4), // contrapartida
+            description: `Traslado a utilidades retenidas — año ${year}`,
           },
         ];
 

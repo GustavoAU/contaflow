@@ -32,6 +32,7 @@
 | **34** | Backup Fiscal (V8) | Hash SHA256 + Object Storage + Background Jobs |
 | **35** | Recuperación ante Desastres (V8) | Re-validación de integridad + Comunicación SENIAT |
 | **36** | INPC y Reexpresión VEN-NIF 3 | Partidas monetarias/no monetarias, REPOMO, filtro isMonetary |
+| **37** | Glosa Analítica en JournalEntry | Campo `description` por línea — credibilidad fiscal Libro Mayor |
 
 ---
 
@@ -239,6 +240,74 @@ El INPC del mes debe existir antes de ejecutar (error explícito si falta).
 
 ---
 
+---
+
+## Sección 37: Glosa Analítica en JournalEntry (ADR-016)
+
+### 37.1 Concepto
+
+Cada línea de `JournalEntry` debe llevar su propia glosa que explica el **rol específico** de esa línea en la operación, no la descripción genérica del `Transaction`.
+
+**Problema sin glosa analítica:**
+```
+Fecha       Descripción                              Débito    Crédito
+2026-04-01  Venta de mercancía factura #100         1,160.00
+2026-04-01  Venta de mercancía factura #100                    1,000.00
+2026-04-01  Venta de mercancía factura #100                      160.00
+```
+
+**Con glosa analítica (credibilidad fiscal):**
+```
+Fecha       Descripción                                   Débito    Crédito
+2026-04-01  Clientes CxC — factura #100                 1,160.00
+2026-04-01  Ventas gravadas 16% — factura #100                    1,000.00
+2026-04-01  IVA 16% sobre venta — factura #100                      160.00
+```
+
+### 37.2 Schema
+
+```prisma
+model JournalEntry {
+  id            String      @id @default(cuid())
+  amount        Decimal     @db.Decimal(19, 4)
+  description   String?     // Glosa analítica — nullable para retrocompatibilidad
+  transactionId String
+  transaction   Transaction @relation(...)
+  accountId     String
+  account       Account     @relation(...)
+}
+```
+
+- **Nullable:** entradas históricas sin glosa usan fallback `transaction.description`
+- **Inmutable:** una vez creada, la glosa es parte del asiento — NO se modifica
+
+### 37.3 Regla de UI — Fallback
+
+```typescript
+// getLedgerAction — siempre mostrar algo significativo
+description: entry.description ?? entry.transaction.description,
+```
+
+### 37.4 Convención de templates por módulo
+
+| Módulo | Template |
+|---|---|
+| Ventas/Compras (IVA) | `"IVA [%]% sobre [venta/compra] — factura #[ref]"` |
+| Ventas/Compras (base) | `"[Ventas/Compras] gravadas [%]% — factura #[ref]"` |
+| Clientes/Proveedores | `"[Clientes CxC / Proveedores CxP] — factura #[ref]"` |
+| Nómina | `"Nómina [periodLabel] — [concepto]"` |
+| Prestaciones | `"Accrual prestaciones LOTTT Art.142 — [periodo]"` |
+| Vacaciones | `"Accrual vacaciones LOTTT Art.190 — [periodo]"` |
+| Utilidades | `"Accrual utilidades LOTTT Art.131 — [año]"` |
+| Inventario ENTRADA | `"ENTRADA inventario — [item.name] — factura #[ref]"` |
+| Inventario COGS | `"COGS — Costo venta [item.name] — factura #[ref]"` |
+| INPC reexpresión | `"Reexpresión INPC — [account.name] — factor [X.XX] — [periodo]"` |
+| REPOMO | `"REPOMO — posición monetaria neta — [periodo]"` |
+| Depreciación | `"Depreciación: [asset.name] — método [method] — [mes/año]"` |
+| Cierre anual | `"Cierre año [año] — [account.name]"` |
+
+---
+
 ## ADR-015 (Borrador) — Eventos Extemporáneos
 
 Ver: `.claude/adr/ADR-015-BORRADOR-eventos-extemporaneos.md`
@@ -266,3 +335,4 @@ Ver: `.claude/adr/ADR-015-BORRADOR-eventos-extemporaneos.md`
 10. ✅ ¿Es reportable a SENIAT? → Segregación por alícuota / código ISLR
 11. ✅ ¿Pago en divisas? → Crear IGTFShadowTransaction (Sección 32)
 12. ✅ ¿Genera reporte fiscal? → Hash SHA256 + Object Storage (Sección 34)
+13. ✅ ¿Crea JournalEntry? → Incluir `description` con glosa analítica por línea (Sección 37 / ADR-016)

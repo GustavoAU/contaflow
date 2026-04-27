@@ -227,7 +227,7 @@ export async function getLedgerAction(
           return {
             date: entry.transaction.date,
             number: entry.transaction.number,
-            description: entry.transaction.description,
+            description: entry.description ?? entry.transaction.description,
             debit: amount.greaterThan(0) ? amount.toFixed(2) : "",
             credit: amount.lessThan(0) ? amount.abs().toFixed(2) : "",
             balance: runningBalance.toFixed(2),

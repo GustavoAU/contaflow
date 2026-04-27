@@ -239,10 +239,12 @@ export const BenefitAccrualService = {
                   {
                     accountId: config.benefitsExpenseAccountId!,
                     amount: accrualAmount.toDecimalPlaces(4), // Débito
+                    description: `Accrual prestaciones LOTTT Art.142 — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                   },
                   {
                     accountId: config.benefitsPayableAccountId!,
                     amount: accrualAmount.negated().toDecimalPlaces(4), // Crédito
+                    description: `Pasivo prestaciones — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                   },
                 ],
               },
@@ -400,10 +402,12 @@ export const BenefitAccrualService = {
                 {
                   accountId: config.benefitsExpenseAccountId!,
                   amount: interestAmount.toDecimalPlaces(4), // Débito
+                  description: `Intereses BCV sobre prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
                 },
                 {
                   accountId: config.benefitsPayableAccountId!,
                   amount: interestAmount.negated().toDecimalPlaces(4), // Crédito
+                  description: `Pasivo intereses prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
                 },
               ],
             },
