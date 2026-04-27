@@ -8,6 +8,7 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
+import { Decimal } from "decimal.js";
 import type { Forma30Result, TaxLineRow } from "../types/forma30.types";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -45,7 +46,7 @@ export type SerializedForma30Result = {
     totalRetenciones: string;
   };
   seccionD: { igtfBase: string; igtfTotal: string };
-  seccionE: { cuotaPeriodo: string; esSaldoAFavor: boolean };
+  seccionE: { creditoFiscalPeriodoAnterior: string; cuotaPeriodo: string; esSaldoAFavor: boolean };
 };
 
 function stl(tl: TaxLineRow): SerializedTaxLine {
@@ -87,6 +88,7 @@ function serializeForma30(r: Forma30Result, fiscalYearClosed: boolean): Serializ
       igtfTotal: r.seccionD.igtfTotal.toFixed(2),
     },
     seccionE: {
+      creditoFiscalPeriodoAnterior: r.seccionE.creditoFiscalPeriodoAnterior.toFixed(2),
       cuotaPeriodo: r.seccionE.cuotaPeriodo.abs().toFixed(2),
       esSaldoAFavor: r.seccionE.esSaldoAFavor,
     },
@@ -110,7 +112,8 @@ export type Forma30ActionResult = SerializedForma30Result;
 export async function generarForma30Action(
   companyId: string,
   year: number,
-  month: number
+  month: number,
+  creditoFiscalPeriodoAnterior?: number
 ): Promise<ActionResult<Forma30ActionResult>> {
   // 1. Autenticación
   const { userId } = await auth();
@@ -121,7 +124,7 @@ export async function generarForma30Action(
   if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
 
   // 3. Validar input
-  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month });
+  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -141,10 +144,13 @@ export async function generarForma30Action(
     );
 
     // 6. Calcular Forma 30
+    const credito = new Decimal(parsed.data.creditoFiscalPeriodoAnterior);
     const result = await DeclaracionIVAService.calculate(
       parsed.data.companyId,
       parsed.data.year,
-      parsed.data.month
+      parsed.data.month,
+      undefined,
+      credito
     );
 
     return {

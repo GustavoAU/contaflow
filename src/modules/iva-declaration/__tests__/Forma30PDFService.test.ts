@@ -57,6 +57,7 @@ const validParams: Forma30PDFParams = {
     igtfTotal: ZERO,
   },
   seccionE: {
+    creditoFiscalPeriodoAnterior: ZERO,
     cuotaPeriodo: new Decimal("320.00"),
     esSaldoAFavor: false,
   },
@@ -109,7 +110,7 @@ describe("generateForma30PDF", () => {
         totalRetenciones: ZERO,
       },
       seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-      seccionE: { cuotaPeriodo: ZERO, esSaldoAFavor: false },
+      seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false },
     };
     await expect(generateForma30PDF(zeroParams)).resolves.toBeInstanceOf(Buffer);
   });
@@ -118,6 +119,7 @@ describe("generateForma30PDF", () => {
     const params: Forma30PDFParams = {
       ...validParams,
       seccionE: {
+        creditoFiscalPeriodoAnterior: ZERO,
         cuotaPeriodo: new Decimal("-160.00"),
         esSaldoAFavor: true,
       },
@@ -135,6 +137,7 @@ describe("generateForma30PDF", () => {
         totalRetenciones: new Decimal("360.00"),
       },
       seccionE: {
+        creditoFiscalPeriodoAnterior: ZERO,
         cuotaPeriodo: new Decimal("440.00"),
         esSaldoAFavor: false,
       },

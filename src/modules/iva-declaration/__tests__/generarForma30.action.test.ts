@@ -65,7 +65,7 @@ const MOCK_FORMA30 = {
     totalRetenciones: ZERO,
   },
   seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-  seccionE: { cuotaPeriodo: ZERO, esSaldoAFavor: false },
+  seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false },
   calculatedAt: new Date(),
 };
 
@@ -176,5 +176,31 @@ describe("generarForma30Action — security", () => {
 
     expect(callOrder[0]).toBe("auth");
     expect(callOrder[1]).toBe("companyMember");
+  });
+
+  it("creditoFiscalPeriodoAnterior válido llega al servicio (5 argumentos)", async () => {
+    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, 500);
+
+    expect(result.success).toBe(true);
+    // El servicio debe ser llamado con el 5to argumento (Decimal de 500)
+    const calls = vi.mocked(DeclaracionIVAService.calculate).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall[4]?.toString()).toBe("500");
+  });
+
+  it("falla con crédito negativo (schema guard)", async () => {
+    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, -100);
+
+    expect(result.success).toBe(false);
+  });
+
+  it("creditoFiscalPeriodoAnterior omitido equivale a 0", async () => {
+    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.seccionE.creditoFiscalPeriodoAnterior).toBe("0.00");
+    }
   });
 });
