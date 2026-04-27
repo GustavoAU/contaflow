@@ -74,7 +74,12 @@ export interface SeccionD {
 /** Sección E — Cuota del período o saldo a favor */
 export interface SeccionE {
   /**
-   * Fórmula: totalDebitosFiscales - totalCreditosFiscales - totalRetenciones
+   * E1: Crédito fiscal arrastrado del período anterior (saldo a favor mes previo).
+   * Ingresado manualmente por el usuario. Siempre >= 0.
+   */
+  creditoFiscalPeriodoAnterior: Decimal;
+  /**
+   * Fórmula: totalDebitosFiscales - totalCreditosFiscales - totalRetenciones - creditoFiscalPeriodoAnterior
    * Positivo → monto a pagar. Negativo → saldo a favor.
    */
   cuotaPeriodo: Decimal;

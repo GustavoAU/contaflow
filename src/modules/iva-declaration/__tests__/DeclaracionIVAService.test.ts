@@ -298,4 +298,60 @@ describe("DeclaracionIVAService.calculate", () => {
       expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY_ID }) })
     );
   });
+
+  it("creditoFiscalPeriodoAnterior = 0 por defecto", async () => {
+    const result = await DeclaracionIVAService.calculate(COMPANY_ID, YEAR, MONTH);
+    expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("0");
+  });
+
+  it("Sección E: crédito anterior reduce la cuota a pagar", async () => {
+    mockPrisma.invoice.findMany.mockImplementation(({ where }: { where: { type: string } }) => {
+      if (where.type === "SALE") {
+        return [makeSaleInvoice({ taxLines: [makeTaxLine("IVA_GENERAL", "1000", "160")] })];
+      }
+      if (where.type === "PURCHASE") {
+        return [makePurchaseInvoice({ taxLines: [makeTaxLine("IVA_GENERAL", "500", "80")] })];
+      }
+      return [];
+    });
+
+    // débitos 160, créditos 80, retenciones 0 → sin crédito anterior: 80
+    // con crédito anterior 30 → 80 - 30 = 50
+    const result = await DeclaracionIVAService.calculate(
+      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("30")
+    );
+
+    expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("30");
+    expect(result.seccionE.cuotaPeriodo.toString()).toBe("50");
+    expect(result.seccionE.esSaldoAFavor).toBe(false);
+  });
+
+  it("Sección E: crédito anterior puede generar saldo a favor (crédito > cuota bruta)", async () => {
+    mockPrisma.invoice.findMany.mockImplementation(({ where }: { where: { type: string } }) => {
+      if (where.type === "SALE") {
+        return [makeSaleInvoice({ taxLines: [makeTaxLine("IVA_GENERAL", "1000", "160")] })];
+      }
+      if (where.type === "PURCHASE") {
+        return [makePurchaseInvoice({ taxLines: [makeTaxLine("IVA_GENERAL", "500", "80")] })];
+      }
+      return [];
+    });
+
+    // cuota bruta = 80; crédito anterior 200 → saldo a favor −120
+    const result = await DeclaracionIVAService.calculate(
+      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("200")
+    );
+
+    expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("200");
+    expect(result.seccionE.cuotaPeriodo.lt(new Decimal(0))).toBe(true);
+    expect(result.seccionE.esSaldoAFavor).toBe(true);
+  });
+
+  it("Sección E: crédito negativo se trata como cero (guard)", async () => {
+    const result = await DeclaracionIVAService.calculate(
+      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("-100")
+    );
+
+    expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("0");
+  });
 });

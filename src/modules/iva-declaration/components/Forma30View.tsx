@@ -107,6 +107,7 @@ export function Forma30View({ companyId }: Props) {
   const currentDate = new Date();
   const [year, setYear] = useState(currentDate.getFullYear());
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
+  const [creditoAnterior, setCreditoAnterior] = useState("0");
   const [result, setResult] = useState<Forma30ActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -114,8 +115,9 @@ export function Forma30View({ companyId }: Props) {
 
   function handleCalcular() {
     setError(null);
+    const credito = parseFloat(creditoAnterior) || 0;
     startTransition(async () => {
-      const res = await generarForma30Action(companyId, year, month);
+      const res = await generarForma30Action(companyId, year, month, credito);
       if (res.success) {
         setResult(res.data);
       } else {
@@ -178,6 +180,20 @@ export function Forma30View({ companyId }: Props) {
               <option key={i + 1} value={i + 1}>{m}</option>
             ))}
           </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-zinc-500">
+            Crédito fiscal período anterior (Bs.)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={creditoAnterior}
+            onChange={(e) => setCreditoAnterior(e.target.value)}
+            placeholder="0.00"
+            className="w-40 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+          />
         </div>
         <button
           onClick={handleCalcular}
@@ -287,18 +303,28 @@ export function Forma30View({ companyId }: Props) {
 
           {/* Sección E — Cuota */}
           <div className={`rounded-lg border-2 p-4 ${result.seccionE.esSaldoAFavor ? "border-blue-300 bg-blue-50" : "border-zinc-300 bg-zinc-50"}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-zinc-700">
-                  E — {result.seccionE.esSaldoAFavor ? "Saldo a Favor (Crédito Fiscal)" : "Cuota a Pagar"}
-                </p>
-                <p className="mt-0.5 text-xs text-zinc-400">
-                  Débitos − Créditos − Retenciones
+            <div className="space-y-3">
+              {!isZero(result.seccionE.creditoFiscalPeriodoAnterior) && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-zinc-500">E1. Crédito fiscal período anterior</span>
+                  <span className="font-mono font-medium text-blue-700 tabular-nums [font-variant-numeric:tabular-nums]">
+                    − Bs. {fmt(result.seccionE.creditoFiscalPeriodoAnterior)}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-700">
+                    E — {result.seccionE.esSaldoAFavor ? "Saldo a Favor (Crédito Fiscal)" : "Cuota a Pagar"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    Débitos − Créditos − Retenciones{!isZero(result.seccionE.creditoFiscalPeriodoAnterior) ? " − Crédito Anterior" : ""}
+                  </p>
+                </div>
+                <p className={`font-mono text-xl font-bold tabular-nums [font-variant-numeric:tabular-nums] ${result.seccionE.esSaldoAFavor ? "text-blue-700" : "text-zinc-900"}`}>
+                  {result.seccionE.esSaldoAFavor ? "−" : ""}Bs. {fmt(result.seccionE.cuotaPeriodo)}
                 </p>
               </div>
-              <p className={`font-mono text-xl font-bold tabular-nums [font-variant-numeric:tabular-nums] ${result.seccionE.esSaldoAFavor ? "text-blue-700" : "text-zinc-900"}`}>
-                {result.seccionE.esSaldoAFavor ? "−" : ""}Bs. {fmt(result.seccionE.cuotaPeriodo)}
-              </p>
             </div>
           </div>
 

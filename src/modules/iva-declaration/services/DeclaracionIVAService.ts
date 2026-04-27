@@ -39,7 +39,8 @@ export class DeclaracionIVAService {
     companyId: string,
     year: number,
     month: number,
-    tx?: PrismaClient
+    tx?: PrismaClient,
+    creditoFiscalPeriodoAnterior: Decimal = ZERO
   ): Promise<Forma30Result> {
     const db = tx ?? prisma;
 
@@ -268,11 +269,14 @@ export class DeclaracionIVAService {
     };
 
     // ── Calcular Sección E (Cuota o saldo a favor) ───────────────────────────
+    const credito = creditoFiscalPeriodoAnterior.lt(ZERO) ? ZERO : creditoFiscalPeriodoAnterior;
     const cuota = seccionA.totalDebitosFiscales
       .minus(seccionB.totalCreditosFiscales)
-      .minus(seccionC.totalRetenciones);
+      .minus(seccionC.totalRetenciones)
+      .minus(credito);
 
     const seccionE: SeccionE = {
+      creditoFiscalPeriodoAnterior: credito,
       cuotaPeriodo: cuota,
       esSaldoAFavor: cuota.lt(ZERO),
     };
