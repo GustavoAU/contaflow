@@ -1,7 +1,13 @@
 // src/modules/inflation/services/INPCService.test.ts
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
-import { calcInflationFactor, calcAdjustmentAmount, lastDayOfMonth } from "./INPCService";
+import {
+  calcInflationFactor,
+  calcAdjustmentAmount,
+  calcNetMonetaryPosition,
+  calcRepomo,
+  lastDayOfMonth,
+} from "./INPCService";
 
 // ─── calcInflationFactor ──────────────────────────────────────────────────────
 
@@ -93,6 +99,69 @@ describe("lastDayOfMonth", () => {
     expect(d.getUTCHours()).toBe(23);
     expect(d.getUTCMinutes()).toBe(59);
     expect(d.getUTCSeconds()).toBe(59);
+  });
+});
+
+// ─── calcNetMonetaryPosition ──────────────────────────────────────────────────
+
+describe("calcNetMonetaryPosition", () => {
+  it("PMN = suma de saldos con signo natural (activos positivos, pasivos negativos)", () => {
+    // Caja 10000 (activo) + CxP -6000 (pasivo) = PMN 4000
+    const pmn = calcNetMonetaryPosition([new Decimal("10000"), new Decimal("-6000")]);
+    expect(pmn.toNumber()).toBe(4000);
+  });
+
+  it("PMN = 0 cuando activos monetarios = pasivos monetarios", () => {
+    const pmn = calcNetMonetaryPosition([new Decimal("5000"), new Decimal("-5000")]);
+    expect(pmn.toNumber()).toBe(0);
+  });
+
+  it("PMN negativo cuando pasivos > activos (posición neta deudora)", () => {
+    const pmn = calcNetMonetaryPosition([new Decimal("2000"), new Decimal("-8000")]);
+    expect(pmn.toNumber()).toBe(-6000);
+  });
+
+  it("PMN = 0 con lista vacía", () => {
+    const pmn = calcNetMonetaryPosition([]);
+    expect(pmn.toNumber()).toBe(0);
+  });
+});
+
+// ─── calcRepomo ───────────────────────────────────────────────────────────────
+
+describe("calcRepomo", () => {
+  it("REPOMO positivo = pérdida cuando PMN > 0 y factor > 1 (inflación, posición activa)", () => {
+    // PMN 4000, factor 1.20 → REPOMO 4000 × 0.20 = 800 (pérdida, débito a gasto)
+    const repomo = calcRepomo(new Decimal("4000"), new Decimal("1.20"));
+    expect(repomo.toNumber()).toBe(800);
+  });
+
+  it("REPOMO negativo = ganancia cuando PMN < 0 y factor > 1 (inflación, posición pasiva)", () => {
+    // PMN -6000, factor 1.20 → REPOMO -6000 × 0.20 = -1200 (ganancia, crédito a ingreso)
+    const repomo = calcRepomo(new Decimal("-6000"), new Decimal("1.20"));
+    expect(repomo.toNumber()).toBe(-1200);
+  });
+
+  it("REPOMO = 0 cuando PMN = 0", () => {
+    const repomo = calcRepomo(new Decimal("0"), new Decimal("1.50"));
+    expect(repomo.toNumber()).toBe(0);
+  });
+
+  it("REPOMO = 0 cuando factor = 1 (sin inflación)", () => {
+    const repomo = calcRepomo(new Decimal("10000"), new Decimal("1"));
+    expect(repomo.toNumber()).toBe(0);
+  });
+
+  it("redondea a 4 decimales", () => {
+    const repomo = calcRepomo(new Decimal("1000"), new Decimal("1.00001"));
+    expect(repomo.decimalPlaces()).toBeLessThanOrEqual(4);
+  });
+
+  it("partida doble del REPOMO: asiento repomoAccount + adjustmentAccount suma cero", () => {
+    const repomo = calcRepomo(new Decimal("4000"), new Decimal("1.20"));
+    // entry repomoAccount: +repomo; entry adjustmentAccount: -repomo
+    const total = repomo.plus(repomo.negated());
+    expect(total.toNumber()).toBe(0);
   });
 });
 

@@ -31,6 +31,7 @@
 | **33** | Bonos No Salariales (V8) | isPresttacional = false |
 | **34** | Backup Fiscal (V8) | Hash SHA256 + Object Storage + Background Jobs |
 | **35** | Recuperación ante Desastres (V8) | Re-validación de integridad + Comunicación SENIAT |
+| **36** | INPC y Reexpresión VEN-NIF 3 | Partidas monetarias/no monetarias, REPOMO, filtro isMonetary |
 
 ---
 
@@ -156,6 +157,85 @@ Asiento automático en pago:
 - Transacción incompleta: archivo existe sin hash → recalcular; hash existe sin archivo → re-generar
 - Descuadre post-cierre: asiento de corrección en mes actual (NO reabrir período cerrado)
 - Comunicación SENIAT: template documentado para incidentes de integridad
+
+---
+
+## Sección 36: INPC y Reexpresión de Cuentas (VEN-NIF 3)
+
+### 36.1 Concepto
+
+En entorno hiperinflacionario, cuentas no monetarias pierden poder adquisitivo.
+VEN-NIF 3 (= NIC 29) obliga reexpresarlas al índice INPC de cierre de período.
+
+**Partidas monetarias (NO se reexpresan)** — valor fijo en VES:
+- Caja, Bancos, CxC, CxP, IVA por pagar, préstamos en VES
+
+**Partidas no monetarias (SÍ se reexpresan):**
+- Inventario, Activos Fijos, Capital, Gastos históricos acumulados
+- Factor = INPC(cierre) / INPC(base configurado por empresa)
+
+### 36.2 Schema
+
+```
+Account.isMonetary  Boolean @default(false)
+  — true : Caja/Bancos/CxC y cualquier cuenta de valor fijo en VES
+  — false : participa en reexpresión INPC (default)
+```
+
+Modelo de registro: **`InflationAdjustment`** (existente desde Fase 22).
+No crear `INPCReexpressionAdjustment` — sería duplicado.
+
+### 36.3 Enfoques de indexación
+
+**Enfoque A — Base fija (implementado, Fase 22):**
+- Factor = INPC(período actual) / INPC(base de empresa)
+- Ventaja: simple, configurable, práctica venezolana mayoritaria
+- Limitación: no distingue cuándo se adquirió cada activo
+
+**Enfoque B — Base por origen de saldo (VEN-NIF 3 puro, futuro):**
+- Factor = INPC(cierre) / INPC(mes en que se originó el saldo)
+- Requiere rastrear fecha de origen por JournalEntry o InflationAdjustment
+
+### 36.4 REPOMO — Resultado por Posición Monetaria Neta
+
+Las cuentas monetarias NO se reexpresan, pero generan una pérdida/ganancia
+implícita por exposición a la inflación:
+
+```
+Posición Monetaria Neta (PMN) = Σ(activos monetarios) − Σ(pasivos monetarios)
+PMN > 0 (más activos que pasivos) → PÉRDIDA monetaria  (Db. Gasto REPOMO)
+PMN < 0 (más pasivos que activos) → GANANCIA monetaria (Cr. Ingreso REPOMO)
+
+Asiento REPOMO = PMN × (factor − 1), signo según posición
+```
+
+### 36.5 Flujo de ejecución (action separada del cierre de período)
+
+```
+runInflationAdjustmentAction(companyId, periodYear, periodMonth):
+  1. Obtener accounts donde isMonetary = false, con saldo ≠ 0
+  2. Calcular factor (Enfoque A: currentIndex / baseIndex)
+  3. Crear asientos de reexpresión en InflationAdjustment + Transaction
+  4. Calcular REPOMO: PMN = Σ activos monetarios − Σ pasivos monetarios
+  5. Si REPOMO ≠ 0: crear asiento separado en misma Transaction
+```
+
+Nota: integración con `closePeriodAction` es decisión ADR pendiente.
+El INPC del mes debe existir antes de ejecutar (error explícito si falta).
+
+### 36.6 Validaciones
+
+- Solo cuentas `isMonetary = false` participan en reexpresión
+- INPC del período base y período actual deben existir (error si faltan)
+- Guard de idempotencia: si ya existe `InflationAdjustment` para ese período → error
+- Asiento REPOMO cuadra con las cuentas monetarias como contrapartida implícita
+
+### Conflicto #5: Cuentas monetarias vs no monetarias
+
+> **Ontología dice:** Sección 36 → cuentas monetarias NO se reexpresan,
+> no monetarias SÍ en cierre de período VEN-NIF 3.
+> **Implementación:** `Account.isMonetary = true` para Caja/Bancos/CxC.
+> En `runInflationAdjustmentAction`, filtrar `isMonetary = false` + calcular REPOMO.
 
 ---
 

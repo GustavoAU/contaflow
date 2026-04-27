@@ -48,12 +48,13 @@ vi.mock("../services/INPCService", async (importOriginal) => {
       upsertRate: vi.fn().mockResolvedValue({ id: "rate_1" }),
       getRates: vi.fn().mockResolvedValue([]),
       setInflationBase: vi.fn().mockResolvedValue(undefined),
-      previewAdjustment: vi.fn().mockResolvedValue([]),
+      previewAdjustment: vi.fn().mockResolvedValue({ rows: [], repomo: null }),
       runAdjustment: vi.fn().mockResolvedValue({
         adjustedAccounts: 3,
         totalAdjustment: new Decimal("1500.00"),
         transactionId: "tx_1",
         factor: new Decimal("1.15"),
+        repomo: null,
       }),
     },
   };
@@ -167,7 +168,10 @@ describe("previewInflationAdjustmentAction", () => {
   it("retorna preview vacío cuando no hay cuentas con saldo", async () => {
     const r = await previewInflationAdjustmentAction(validInput);
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data).toEqual([]);
+    if (r.success) {
+      expect(r.data.rows).toEqual([]);
+      expect(r.data.repomo).toBeNull();
+    }
   });
 
   it("falla si no está autenticado", async () => {

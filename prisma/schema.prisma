@@ -203,6 +203,8 @@ model Account {
   code                            String
   type                            AccountType
   description                     String?
+  // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — no se reexpresa por INPC; genera REPOMO
+  isMonetary                      Boolean               @default(false)
   companyId                       String
   company                         Company               @relation(fields: [companyId], references: [id])
   journalEntries                  JournalEntry[]
