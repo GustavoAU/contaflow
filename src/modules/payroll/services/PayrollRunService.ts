@@ -24,6 +24,7 @@ import {
   type ManualConceptCalculationInput,
   type PayrollCalculatorConfig,
 } from "./PayrollCalculatorService";
+import { PayrollConceptService } from "./PayrollConceptService";
 import type { CreatePayrollRunInput } from "../schemas/payroll-run.schema";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -198,6 +199,11 @@ export const PayrollRunService = {
     if (employees.length === 0) {
       throw new Error("No hay empleados activos para procesar");
     }
+
+    // ── Garantizar que los conceptos del sistema existen (idempotente) ───────
+    // Necesario para empresas que nunca visitaron la página de conceptos
+    // y para sincronizar nuevos conceptos del sistema (ej: RPE_OBR — ítem 54)
+    await PayrollConceptService.seedDefaults(companyId);
 
     // ── Obtener conceptos del sistema de la empresa ────────────────────────
     // NOM-C-07: siempre de la DB con companyId — nunca del input del cliente
