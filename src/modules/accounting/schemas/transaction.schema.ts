@@ -15,6 +15,7 @@ function isValidAmount(v: string | undefined): boolean {
 
 export const JournalEntrySchema = z.object({
   accountId: z.string().min(1, { message: "Selecciona una cuenta" }),
+  description: z.string().max(200).optional().or(z.literal("")),
   debit: z
     .string()
     .optional()
