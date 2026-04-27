@@ -471,13 +471,14 @@ model ControlNumberSequence {
 }
 
 model InvoiceTaxLine {
-  id        String      @id @default(cuid())
-  invoiceId String
-  invoice   Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  taxType   TaxLineType
-  base      Decimal     @db.Decimal(19, 4)
-  rate      Decimal     @db.Decimal(5, 2)
-  amount    Decimal     @db.Decimal(19, 4)
+  id          String      @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxType     TaxLineType
+  base        Decimal     @db.Decimal(19, 4)
+  rate        Decimal     @db.Decimal(5, 2)
+  amount      Decimal     @db.Decimal(19, 4)
+  description String?
 }
 
 model RetentionSequence {

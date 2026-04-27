@@ -67,6 +67,7 @@ const sampleInvoice = {
       base: "1000.00",
       rate: "16.00",
       amount: "160.00",
+      description: null,
     },
   ],
 }

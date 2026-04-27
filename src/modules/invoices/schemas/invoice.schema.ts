@@ -35,6 +35,7 @@ const CANONICAL_TAX_RATES: Record<string, string> = {
 export const TaxLineSchema = z
   .object({
     taxType: TaxLineTypeSchema,
+    description: z.string().optional(),
     base: z
       .string()
       .min(1, { error: "La base es requerida" })

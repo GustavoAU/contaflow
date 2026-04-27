@@ -33,10 +33,11 @@ type TaxLineType = "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
 type TaxLine = {
   id: string;
   taxType: TaxLineType;
+  description: string;
   base: string;
   rate: string;
   amount: string;
-  luxuryGroupId: string | null; // Para vincular líneas de lujo con su IVA general hermana
+  luxuryGroupId: string | null;
 };
 
 type Props = {
@@ -121,6 +122,7 @@ export function InvoiceForm({
     {
       id: newLineId(),
       taxType: "IVA_GENERAL",
+      description: "",
       base: "",
       rate: "16",
       amount: "0.00",
@@ -174,6 +176,7 @@ export function InvoiceForm({
           {
             id: `ocr-${crypto.randomUUID()}`,
             taxType: "IVA_GENERAL",
+            description: "",
             base,
             rate: "16",
             amount: calcAmount(base, "16"),
@@ -223,6 +226,7 @@ export function InvoiceForm({
       {
         id: newLineId(),
         taxType: "IVA_GENERAL",
+        description: "",
         base: "",
         rate: "16",
         amount: "0.00",
@@ -271,6 +275,7 @@ export function InvoiceForm({
           {
             id: crypto.randomUUID(),
             taxType: "IVA_GENERAL" as TaxLineType,
+            description: "",
             base: line.base,
             rate: "16",
             amount: calcAmount(line.base, "16"),
@@ -437,6 +442,7 @@ export function InvoiceForm({
           .filter((l) => l.base && !new Decimal(l.base || "0").isZero())
           .map((l) => ({
             taxType: l.taxType,
+            description: l.description || undefined,
             base: l.base,
             rate: l.rate,
             amount: l.amount,
@@ -466,6 +472,7 @@ export function InvoiceForm({
           {
             id: newLineId(),
             taxType: "IVA_GENERAL",
+            description: "",
             base: "",
             rate: "16",
             amount: "0.00",
@@ -860,6 +867,20 @@ export function InvoiceForm({
                   )}
                 </div>
 
+                {/* Glosa / descripción de la línea */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">
+                    Glosa <span className="font-normal text-zinc-400">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={line.description}
+                    onChange={(e) => updateTaxLine(line.id, "description", e.target.value)}
+                    placeholder="Ej: Venta de mercancías, Servicio de consultoría..."
+                    className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
                 {/* Base + Tasa + Monto */}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
@@ -1107,6 +1128,7 @@ export function InvoiceForm({
                     {
                       id: newLineId(),
                       taxType: "EXENTO",
+                      description: "",
                       base: "",
                       rate: "0",
                       amount: "0.00",

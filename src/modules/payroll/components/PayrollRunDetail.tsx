@@ -6,6 +6,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
 import { approvePayrollRunAction } from "../actions/payroll-run.actions";
 import { formatAmount } from "@/lib/format";
@@ -61,6 +62,37 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
     return acc;
   }, {});
 
+  function handleExportExcel() {
+    const rows: (string | number)[][] = [];
+    rows.push(["NÓMINA", "", "", "", ""]);
+    rows.push([`Período: ${run.periodStart} — ${run.periodEnd}`, "", "", "", ""]);
+    rows.push([`Moneda: ${currency}`, "", "", "", ""]);
+    rows.push([]);
+    rows.push(["Empleado", "Concepto", "Tipo", "Monto", "Moneda"]);
+
+    for (const [, lines] of Object.entries(byEmployee)) {
+      for (const line of lines) {
+        rows.push([
+          line.employeeName,
+          conceptLabel(line.conceptCode),
+          line.conceptType === "EARNING" ? "Asignación" : "Deducción",
+          parseFloat(line.amount),
+          currency,
+        ]);
+      }
+    }
+
+    rows.push([]);
+    rows.push(["", "", "Total Asignaciones", parseFloat(run.totalEarnings), currency]);
+    rows.push(["", "", "Total Deducciones", parseFloat(run.totalDeductions), currency]);
+    rows.push(["", "", "Neto a Pagar", parseFloat(run.totalNet), currency]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Nómina");
+    XLSX.writeFile(wb, `Nómina ${run.periodStart} - ${run.periodEnd}.xlsx`);
+  }
+
   function handleApprove() {
     setError(null);
     setShowConfirm(false);
@@ -89,9 +121,20 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
               {run.employeeCount} empleados · {currency}
             </p>
           </div>
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
-            {STATUS_LABELS[run.status] ?? run.status}
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-zinc-50 text-zinc-700"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Exportar Excel
+            </button>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
+              {STATUS_LABELS[run.status] ?? run.status}
+            </span>
+          </div>
         </div>
 
         {/* Totales */}

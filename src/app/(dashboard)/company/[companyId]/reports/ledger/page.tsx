@@ -1,6 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx
 import { getLedgerAction } from "@/modules/accounting/actions/report.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
+import { LedgerExportButton } from "@/components/reports/LedgerExportButton";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { LedgerAccount } from "@/modules/accounting/actions/report.actions";
@@ -115,21 +116,29 @@ export default async function LedgerPage({ params, searchParams }: Props) {
   return (
     <div className="space-y-6">
       {/* Encabezado */}
-      <div>
-        <Link
-          href={`/company/${companyId}/reports`}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Reportes
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Libro Mayor</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Movimientos por cuenta
-          {from || to
-            ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}`
-            : " — todos los períodos"}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <Link
+            href={`/company/${companyId}/reports`}
+            className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            Reportes
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Libro Mayor</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Movimientos por cuenta
+            {from || to
+              ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}`
+              : " — todos los períodos"}
+          </p>
+        </div>
+        {accounts.length > 0 && (
+          <LedgerExportButton
+            accounts={accounts}
+            period={from || to ? `${from ?? "inicio"} al ${to ?? "hoy"}` : "todos los períodos"}
+          />
+        )}
       </div>
 
       <div className="rounded-lg border bg-white p-4">
