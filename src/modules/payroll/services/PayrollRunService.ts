@@ -424,6 +424,7 @@ export const PayrollRunService = {
       // CRÉDITO: Sueldos por Pagar (totalNet), IVSS, FAOV, INCES por Pagar
       const expenseAccountId = config.expenseAccountId!;
       const payableAccountId = config.payableAccountId!;
+      const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
 
       const asiento = await tx.transaction.create({
         data: {
@@ -438,24 +439,24 @@ export const PayrollRunService = {
           entries: {
             create: [
               // DÉBITO — Gastos de Personal (positivo)
-              { accountId: expenseAccountId, amount: run.totalEarnings },
+              { accountId: expenseAccountId, amount: run.totalEarnings, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados` },
               // CRÉDITO — Sueldos y Salarios por Pagar (negativo)
-              { accountId: payableAccountId, amount: run.totalNet.negated() },
+              { accountId: payableAccountId, amount: run.totalNet.negated(), description: `Nómina ${nomPeriod} — neto a pagar empleados` },
               // CRÉDITO — IVSS Obrero por Pagar (si aplica)
               ...(config.ivssPayableAccountId && ivssTotal.greaterThan(0)
-                ? [{ accountId: config.ivssPayableAccountId, amount: ivssTotal.negated() }]
+                ? [{ accountId: config.ivssPayableAccountId, amount: ivssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero` }]
                 : []),
               // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
               ...(config.faovPayableAccountId && faovTotal.greaterThan(0)
-                ? [{ accountId: config.faovPayableAccountId, amount: faovTotal.negated() }]
+                ? [{ accountId: config.faovPayableAccountId, amount: faovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero` }]
                 : []),
               // CRÉDITO — INCES por Pagar (si aplica)
               ...(config.incesPayableAccountId && incesTotal.greaterThan(0)
-                ? [{ accountId: config.incesPayableAccountId, amount: incesTotal.negated() }]
+                ? [{ accountId: config.incesPayableAccountId, amount: incesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero` }]
                 : []),
               // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
               ...(config.rpePayableAccountId && rpeTotal.greaterThan(0)
-                ? [{ accountId: config.rpePayableAccountId, amount: rpeTotal.negated() }]
+                ? [{ accountId: config.rpePayableAccountId, amount: rpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero` }]
                 : []),
             ],
           },

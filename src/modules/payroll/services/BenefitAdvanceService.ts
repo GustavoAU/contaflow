@@ -131,10 +131,12 @@ export const BenefitAdvanceService = {
               {
                 accountId: config.benefitsPayableAccountId!, // Db Prestaciones por Pagar (reduce pasivo)
                 amount: new Decimal(amount).toDecimalPlaces(4),
+                description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
               },
               {
                 accountId: config.benefitsExpenseAccountId!, // Cr Gasto Prestaciones (contrapartida)
                 amount: new Decimal(amount).negated().toDecimalPlaces(4),
+                description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
               },
             ],
           },

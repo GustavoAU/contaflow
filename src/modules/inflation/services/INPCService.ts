@@ -371,18 +371,24 @@ export class INPCService {
 
     const factor = preview[0]?.cumulativeIndex ?? repomo?.factor ?? new Decimal(1);
 
+    const periodLabel = `${periodYear}/${String(periodMonth).padStart(2, "0")}`;
+
     // Construir entradas: reexpresión de cuentas no monetarias
-    const journalEntries: { accountId: string; amount: Decimal }[] = [
-      ...preview.map((r) => ({ accountId: r.accountId, amount: r.adjustmentAmount })),
-      { accountId: adjustmentAccountId, amount: totalNet.negated() },
+    const journalEntries: { accountId: string; amount: Decimal; description?: string }[] = [
+      ...preview.map((r) => ({
+        accountId: r.accountId,
+        amount: r.adjustmentAmount,
+        description: `Reexpresión INPC — ${r.accountName} — factor ${factor.toFixed(4)} — ${periodLabel}`,
+      })),
+      { accountId: adjustmentAccountId, amount: totalNet.negated(), description: `Diferencial reexpresión INPC — ${periodLabel}` },
     ];
 
     // Asiento REPOMO si aplica (VEN-NIF 3 §36.4)
     let repomoRegistered: Decimal | null = null;
     if (repomo && !repomo.repomoAmount.isZero() && repomoAccountId) {
       journalEntries.push(
-        { accountId: repomoAccountId, amount: repomo.repomoAmount },
-        { accountId: adjustmentAccountId, amount: repomo.repomoAmount.negated() },
+        { accountId: repomoAccountId, amount: repomo.repomoAmount, description: `REPOMO — posición monetaria neta — ${periodLabel}` },
+        { accountId: adjustmentAccountId, amount: repomo.repomoAmount.negated(), description: `REPOMO contrapartida — ${periodLabel}` },
       );
       repomoRegistered = repomo.repomoAmount;
     }
@@ -402,6 +408,7 @@ export class INPCService {
           create: journalEntries.map((e) => ({
             accountId: e.accountId,
             amount: e.amount,
+            description: e.description,
           })),
         },
       },

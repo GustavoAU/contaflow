@@ -468,24 +468,29 @@ export const TerminationService = {
       const pendingTotal = new Decimal(termination.pendingConceptsAmount.toString());
 
       // Entradas de débito (eliminación de pasivos) + crédito (pago neto + deducciones)
-      const journalEntries: Array<{ accountId: string; amount: Decimal }> = [];
+      const empName = termination.employeeId.slice(-6);
+      const liqDate = terminationDate.toISOString().split("T")[0];
+      const journalEntries: Array<{ accountId: string; amount: Decimal; description?: string }> = [];
 
       if (benefitsTotal.gt(0) && config.benefitsPayableAccountId) {
         journalEntries.push({
           accountId: config.benefitsPayableAccountId,
           amount: benefitsTotal.toDecimalPlaces(4), // Débito — cancela el pasivo
+          description: `Liquidación final — prestaciones sociales — ${empName} — ${liqDate}`,
         });
       }
       if (vacTotal.gt(0) && config.vacationPayableAccountId) {
         journalEntries.push({
           accountId: config.vacationPayableAccountId,
           amount: vacTotal.toDecimalPlaces(4),
+          description: `Liquidación final — vacaciones fraccionadas — ${empName} — ${liqDate}`,
         });
       }
       if (profitTotal.gt(0) && config.profitSharingPayableAccountId) {
         journalEntries.push({
           accountId: config.profitSharingPayableAccountId,
           amount: profitTotal.toDecimalPlaces(4),
+          description: `Liquidación final — utilidades fraccionadas — ${empName} — ${liqDate}`,
         });
       }
       if (indemTotal.gt(0) && config.benefitsPayableAccountId) {
@@ -493,12 +498,14 @@ export const TerminationService = {
         journalEntries.push({
           accountId: config.benefitsPayableAccountId,
           amount: indemTotal.toDecimalPlaces(4),
+          description: `Liquidación final — indemnización Art.92 LOTTT — ${empName} — ${liqDate}`,
         });
       }
       if (pendingTotal.gt(0) && config.benefitsExpenseAccountId) {
         journalEntries.push({
           accountId: config.benefitsExpenseAccountId,
           amount: pendingTotal.toDecimalPlaces(4),
+          description: `Liquidación final — conceptos pendientes — ${empName} — ${liqDate}`,
         });
       }
 
@@ -507,6 +514,7 @@ export const TerminationService = {
         journalEntries.push({
           accountId: config.payableAccountId!,
           amount: totalNet.negated().toDecimalPlaces(4),
+          description: `Liquidación final — neto a pagar — ${empName} — ${liqDate}`,
         });
       }
 
@@ -515,6 +523,7 @@ export const TerminationService = {
         journalEntries.push({
           accountId: config.ivssPayableAccountId,
           amount: deductions.negated().toDecimalPlaces(4),
+          description: `Liquidación final — retenciones legales — ${empName} — ${liqDate}`,
         });
       }
 

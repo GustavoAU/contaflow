@@ -91,15 +91,15 @@ export async function postMovement(input: PostMovementInput, userId: string) {
           movement.type === "ENTRADA"
             ? [
                 // Débito: Inventario (activo aumenta)
-                { accountId: item.accountId, amount: totalCost },
+                { accountId: item.accountId, amount: totalCost, description: `ENTRADA inventario — ${item.name} × ${qty}` },
                 // Crédito: COGS/contrapartida no requerida en ENTRADA standalone — omitir
                 // (el asiento de compra completo se genera via InvoiceService)
               ]
             : [
                 // Débito: COGS (gasto)
-                { accountId: item.cogsAccountId!, amount: totalCost },
+                { accountId: item.cogsAccountId!, amount: totalCost, description: `COGS — Costo venta ${item.name} × ${qty}` },
                 // Crédito: Inventario (activo disminuye)
-                { accountId: item.accountId, amount: totalCost.negated() },
+                { accountId: item.accountId, amount: totalCost.negated(), description: `${movement.type} inventario — ${item.name} × ${qty}` },
               ];
 
         const journalTx = await tx.transaction.create({
