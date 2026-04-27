@@ -91,6 +91,7 @@ export class TransactionService {
     // 2. Convertir debit/credit a amount
     const entries = validated.entries.map((entry) => ({
       accountId: entry.accountId,
+      description: entry.description || undefined,
       amount:
         entry.debit && Number(entry.debit) > 0
           ? new Decimal(entry.debit)
@@ -241,6 +242,9 @@ export class TransactionService {
             create: original.entries.map((entry) => ({
               accountId: entry.accountId,
               amount: new Decimal(entry.amount.toString()).negated(),
+              description: entry.description
+                ? `ANULACIÓN: ${entry.description}`
+                : undefined,
             })),
           },
         },

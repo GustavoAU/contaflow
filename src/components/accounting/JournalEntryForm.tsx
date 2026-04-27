@@ -49,6 +49,7 @@ type Props = {
 
 const EntryRowSchema = z.object({
   accountId: z.string().min(1, "Selecciona una cuenta"),
+  description: z.string().optional(),
   debit: z.string(),
   credit: z.string(),
 });
@@ -89,8 +90,8 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
       notes: "",
       type: "DIARIO",
       entries: [
-        { accountId: "", debit: "", credit: "" },
-        { accountId: "", debit: "", credit: "" },
+        { accountId: "", description: "", debit: "", credit: "" },
+        { accountId: "", description: "", debit: "", credit: "" },
       ],
     },
   });
@@ -143,6 +144,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
         type: values.type,
         entries: values.entries.map((e) => ({
           accountId: e.accountId,
+          description: e.description || undefined,
           debit: e.debit || "0",
           credit: e.credit || "0",
         })),
@@ -279,11 +281,14 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
             <div className="space-y-2">
               {/* Header */}
               <div className="grid grid-cols-12 gap-2 px-2">
-                <span className="col-span-5 text-xs font-medium text-zinc-500">Cuenta</span>
-                <span className="col-span-3 text-right text-xs font-medium text-zinc-500">
+                <span className="col-span-4 text-xs font-medium text-zinc-500">Cuenta</span>
+                <span className="col-span-3 text-xs font-medium text-zinc-500">
+                  Glosa <span className="font-normal text-zinc-400">(opcional)</span>
+                </span>
+                <span className="col-span-2 text-right text-xs font-medium text-zinc-500">
                   Debito
                 </span>
-                <span className="col-span-3 text-right text-xs font-medium text-zinc-500">
+                <span className="col-span-2 text-right text-xs font-medium text-zinc-500">
                   Haber
                 </span>
                 <span className="col-span-1" />
@@ -293,7 +298,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
               {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-12 items-start gap-2">
                   {/* Cuenta */}
-                  <div className="col-span-5">
+                  <div className="col-span-4">
                     <FormField
                       control={form.control}
                       name={`entries.${index}.accountId`}
@@ -319,8 +324,28 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                     />
                   </div>
 
-                  {/* Debito */}
+                  {/* Glosa analítica */}
                   <div className="col-span-3">
+                    <FormField
+                      control={form.control}
+                      name={`entries.${index}.description`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              className="h-9 text-sm"
+                              placeholder="Ej: IVA 16% sobre venta..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Debito */}
+                  <div className="col-span-2">
                     <FormField
                       control={form.control}
                       name={`entries.${index}.debit`}
@@ -341,7 +366,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                   </div>
 
                   {/* Credito */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <FormField
                       control={form.control}
                       name={`entries.${index}.credit`}
@@ -383,7 +408,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ accountId: "", debit: "", credit: "" })}
+              onClick={() => append({ accountId: "", description: "", debit: "", credit: "" })}
               className="gap-2"
             >
               <PlusIcon className="h-4 w-4" />
