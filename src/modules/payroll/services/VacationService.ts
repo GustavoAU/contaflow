@@ -160,10 +160,12 @@ export const VacationService = {
                 {
                   accountId: config.benefitsExpenseAccountId!,
                   amount: totalAmount.toDecimalPlaces(4), // Débito
+                  description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
                 },
                 {
                   accountId: config.vacationPayableAccountId!,
                   amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
+                  description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
                 },
               ],
             },

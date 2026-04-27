@@ -191,10 +191,12 @@ export const ProfitSharingService = {
                 {
                   accountId: config.benefitsExpenseAccountId!,
                   amount: profitAmount.toDecimalPlaces(4), // Débito
+                  description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
                 },
                 {
                   accountId: config.profitSharingPayableAccountId!,
                   amount: profitAmount.negated().toDecimalPlaces(4), // Crédito
+                  description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
                 },
               ],
             },
