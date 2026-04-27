@@ -72,7 +72,103 @@ export type BalanceSheet = {
   isBalanced: boolean;
 };
 
+// ─── Libro Diario ─────────────────────────────────────────────────────────────
+
+export type JournalLine = {
+  accountCode: string;
+  accountName: string;
+  debit: string;
+  credit: string;
+};
+
+export type JournalTransaction = {
+  id: string;
+  number: string;
+  date: Date;
+  description: string;
+  reference: string | null;
+  type: string;
+  lines: JournalLine[];
+  totalDebit: string;
+  totalCredit: string;
+};
+
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+export async function getJournalAction(
+  companyId: string,
+  dateFrom?: Date,
+  dateTo?: Date
+): Promise<ActionResult<JournalTransaction[]>> {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        companyId,
+        status: "POSTED",
+        ...(dateFrom || dateTo
+          ? {
+              date: {
+                ...(dateFrom ? { gte: dateFrom } : {}),
+                ...(dateTo ? { lte: dateTo } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: [{ date: "asc" }, { number: "asc" }],
+      include: {
+        entries: {
+          include: {
+            account: { select: { code: true, name: true } },
+          },
+          orderBy: { amount: "desc" }, // débitos primero (positivos), créditos después
+        },
+      },
+    });
+
+    const result: JournalTransaction[] = transactions.map((tx) => {
+      let totalDebit = new Decimal(0);
+      let totalCredit = new Decimal(0);
+
+      const lines: JournalLine[] = tx.entries.map((entry) => {
+        const amount = new Decimal(entry.amount.toString());
+        if (amount.greaterThan(0)) {
+          totalDebit = totalDebit.plus(amount);
+          return {
+            accountCode: entry.account?.code ?? "—",
+            accountName: entry.account?.name ?? "—",
+            debit: amount.toFixed(2),
+            credit: "",
+          };
+        } else {
+          totalCredit = totalCredit.plus(amount.abs());
+          return {
+            accountCode: entry.account?.code ?? "—",
+            accountName: entry.account?.name ?? "—",
+            debit: "",
+            credit: amount.abs().toFixed(2),
+          };
+        }
+      });
+
+      return {
+        id: tx.id,
+        number: tx.number,
+        date: tx.date,
+        description: tx.description,
+        reference: tx.reference,
+        type: tx.type,
+        lines,
+        totalDebit: totalDebit.toFixed(2),
+        totalCredit: totalCredit.toFixed(2),
+      };
+    });
+
+    return { success: true, data: result };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el Libro Diario" };
+  }
+}
 
 // ─── Libro Mayor ──────────────────────────────────────────────────────────────
 
