@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { previewInflationAdjustmentAction, runInflationAdjustmentAction } from "../actions/inpc.actions";
-import type { SerializedPreviewRow } from "../actions/inpc.actions";
+import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
 
 const MONTHS = [
@@ -13,6 +13,7 @@ const MONTHS = [
 type Props = {
   companyId: string;
   equityAccounts: Pick<Account, "id" | "code" | "name">[];
+  repomoAccounts: Pick<Account, "id" | "code" | "name">[];
   inflationBaseYear: number | null;
   inflationBaseMonth: number | null;
 };
@@ -20,6 +21,7 @@ type Props = {
 export function InflationAdjustmentPanel({
   companyId,
   equityAccounts,
+  repomoAccounts,
   inflationBaseYear,
   inflationBaseMonth,
 }: Props) {
@@ -27,12 +29,14 @@ export function InflationAdjustmentPanel({
   const [periodYear, setPeriodYear]   = useState(now.getFullYear());
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
   const [adjustmentAccountId, setAdjustmentAccountId] = useState(equityAccounts[0]?.id ?? "");
+  const [repomoAccountId, setRepomoAccountId] = useState(repomoAccounts[0]?.id ?? "");
 
-  const [preview, setPreview]           = useState<SerializedPreviewRow[] | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [runResult, setRunResult]       = useState<string | null>(null);
-  const [runError, setRunError]         = useState<string | null>(null);
-  const [showConfirm, setShowConfirm]   = useState(false);
+  const [previewRows, setPreviewRows]       = useState<SerializedPreviewRow[] | null>(null);
+  const [previewRepomo, setPreviewRepomo]   = useState<SerializedRepomo | null>(null);
+  const [previewError, setPreviewError]     = useState<string | null>(null);
+  const [runResult, setRunResult]           = useState<string | null>(null);
+  const [runError, setRunError]             = useState<string | null>(null);
+  const [showConfirm, setShowConfirm]       = useState(false);
 
   const [isPendingPreview, startPreview] = useTransition();
   const [isPendingRun, startRun]         = useTransition();
@@ -43,7 +47,8 @@ export function InflationAdjustmentPanel({
 
   function handlePreview() {
     setPreviewError(null);
-    setPreview(null);
+    setPreviewRows(null);
+    setPreviewRepomo(null);
     setRunResult(null);
     setRunError(null);
     setShowConfirm(false);
@@ -54,9 +59,11 @@ export function InflationAdjustmentPanel({
         periodYear,
         periodMonth,
         adjustmentAccountId,
+        repomoAccountId: repomoAccountId || undefined,
       });
       if (r.success) {
-        setPreview(r.data);
+        setPreviewRows(r.data.rows);
+        setPreviewRepomo(r.data.repomo);
       } else {
         setPreviewError(r.error);
       }
@@ -72,21 +79,29 @@ export function InflationAdjustmentPanel({
         periodYear,
         periodMonth,
         adjustmentAccountId,
+        repomoAccountId: repomoAccountId || undefined,
       });
       if (r.success) {
+        const repomoMsg = r.data.repomo
+          ? `, REPOMO: Bs. ${r.data.repomo}`
+          : "";
         setRunResult(
-          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${r.data.totalAdjustment}, factor ${parseFloat(r.data.factor).toFixed(4)}.`,
+          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${r.data.totalAdjustment}, factor ${parseFloat(r.data.factor).toFixed(4)}${repomoMsg}.`,
         );
-        setPreview(null);
+        setPreviewRows(null);
+        setPreviewRepomo(null);
       } else {
         setRunError(r.error);
       }
     });
   }
 
-  const totalAdjustment = preview
-    ? preview.reduce((acc, r) => acc + Math.abs(parseFloat(r.adjustmentAmount)), 0)
+  const totalAdjustment = previewRows
+    ? previewRows.reduce((acc, r) => acc + Math.abs(parseFloat(r.adjustmentAmount)), 0)
     : null;
+
+  const hasPreview = previewRows !== null;
+  const hasRows = hasPreview && (previewRows.length > 0 || previewRepomo !== null);
 
   return (
     <div className="space-y-4">
@@ -132,6 +147,26 @@ export function InflationAdjustmentPanel({
               ))}
             </select>
           </div>
+          {repomoAccounts.length > 0 && (
+            <div>
+              <label
+                className="block text-xs font-medium text-gray-600 mb-1 cursor-help"
+                title="Cuenta que registra el Resultado por Posición Monetaria Neta (VEN-NIF 3 §36.4)"
+              >
+                Cuenta REPOMO ⓘ
+              </label>
+              <select
+                value={repomoAccountId}
+                onChange={(e) => setRepomoAccountId(e.target.value)}
+                className="rounded border border-gray-300 px-2 py-1.5 text-sm min-w-48"
+              >
+                <option value="">— Sin REPOMO —</option>
+                {repomoAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             onClick={handlePreview}
             disabled={isPendingPreview || !adjustmentAccountId}
@@ -141,24 +176,31 @@ export function InflationAdjustmentPanel({
           </button>
         </div>
 
+        {repomoAccounts.length === 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-1.5">
+            No hay cuentas de Ingreso/Gasto disponibles para registrar el REPOMO. Crea una cuenta de tipo
+            REVENUE o EXPENSE para el resultado por inflación.
+          </p>
+        )}
+
         {previewError && <p className="text-xs text-red-600">{previewError}</p>}
       </div>
 
       {/* Vista previa de asientos */}
-      {preview !== null && (
+      {hasPreview && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">
               Asientos proyectados — {MONTHS[periodMonth]} {periodYear}
             </h3>
-            {preview.length > 0 && totalAdjustment !== null && (
+            {hasRows && totalAdjustment !== null && (
               <span className="text-xs text-gray-500">
-                Total abs: <span className="font-mono font-semibold">{totalAdjustment.toFixed(2)}</span>
+                Total reexpresión: <span className="font-mono font-semibold">{totalAdjustment.toFixed(2)}</span>
               </span>
             )}
           </div>
 
-          {preview.length === 0 ? (
+          {!hasRows ? (
             <p className="text-sm text-gray-500 py-4 text-center">
               No hay cuentas con saldo en el período especificado.
             </p>
@@ -182,7 +224,7 @@ export function InflationAdjustmentPanel({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {preview.map((row) => {
+                    {previewRows.map((row) => {
                       const reexpressed = (parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount)).toFixed(2);
                       return (
                         <tr key={row.accountId} className="hover:bg-gray-50">
@@ -209,6 +251,36 @@ export function InflationAdjustmentPanel({
                         </tr>
                       );
                     })}
+
+                    {/* Fila REPOMO — VEN-NIF 3 §36.4 */}
+                    {previewRepomo && (
+                      <tr className="bg-amber-50 border-t-2 border-amber-200">
+                        <td className="px-4 py-2" colSpan={2}>
+                          <span className="font-medium text-amber-800">REPOMO</span>{" "}
+                          <span className="text-xs text-amber-600">
+                            (PMN: {previewRepomo.netMonetaryPosition}) × (factor − 1)
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-amber-700">
+                          {previewRepomo.netMonetaryPosition}
+                        </td>
+                        <td
+                          className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
+                          title={`Factor = ${parseFloat(previewRepomo.factor).toFixed(6)}`}
+                        >
+                          {parseFloat(previewRepomo.factor).toFixed(4)}
+                        </td>
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(previewRepomo.repomoAmount) > 0 ? "text-red-700" : "text-green-700"}`}>
+                          {previewRepomo.repomoAmount}
+                          <span className="ml-1 text-xs font-normal">
+                            {parseFloat(previewRepomo.repomoAmount) > 0 ? "(pérdida)" : "(ganancia)"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right text-xs text-amber-600">
+                          {repomoAccountId ? "se registra" : "sin cuenta REPOMO"}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

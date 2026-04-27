@@ -14,7 +14,7 @@ import {
   RunInflationAdjustmentSchema,
   SetInflationBaseSchema,
 } from "../schemas/inpc.schema";
-import type { AdjustmentPreviewRow, InflationAdjustmentSummary } from "../services/INPCService";
+import type { AdjustmentPreviewRow, RepomoPreview, InflationAdjustmentSummary } from "../services/INPCService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -28,11 +28,23 @@ export type SerializedPreviewRow = {
   adjustmentAmount: string;
 };
 
+export type SerializedRepomo = {
+  netMonetaryPosition: string;
+  factor: string;
+  repomoAmount: string; // positivo = pérdida (gasto), negativo = ganancia (ingreso)
+};
+
+export type SerializedPreviewResult = {
+  rows: SerializedPreviewRow[];
+  repomo: SerializedRepomo | null;
+};
+
 export type SerializedAdjustmentSummary = {
   adjustedAccounts: number;
   totalAdjustment: string;
   transactionId: string;
   factor: string;
+  repomo: string | null;
 };
 
 function serializePreviewRow(r: AdjustmentPreviewRow): SerializedPreviewRow {
@@ -47,12 +59,21 @@ function serializePreviewRow(r: AdjustmentPreviewRow): SerializedPreviewRow {
   };
 }
 
+function serializeRepomo(r: RepomoPreview): SerializedRepomo {
+  return {
+    netMonetaryPosition: r.netMonetaryPosition.toFixed(2),
+    factor: r.factor.toFixed(6),
+    repomoAmount: r.repomoAmount.toFixed(2),
+  };
+}
+
 function serializeSummary(s: InflationAdjustmentSummary): SerializedAdjustmentSummary {
   return {
     adjustedAccounts: s.adjustedAccounts,
     totalAdjustment: s.totalAdjustment.toFixed(2),
     transactionId: s.transactionId,
     factor: s.factor.toFixed(6),
+    repomo: s.repomo?.toFixed(2) ?? null,
   };
 }
 
@@ -148,7 +169,7 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
 
 export async function previewInflationAdjustmentAction(
   input: unknown,
-): Promise<ActionResult<SerializedPreviewRow[]>> {
+): Promise<ActionResult<SerializedPreviewResult>> {
   const parsed = RunInflationAdjustmentSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -162,7 +183,7 @@ export async function previewInflationAdjustmentAction(
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
-    const preview = await prisma.$transaction(async (tx) =>
+    const result = await prisma.$transaction(async (tx) =>
       INPCService.previewAdjustment(
         parsed.data.companyId,
         parsed.data.periodYear,
@@ -172,7 +193,13 @@ export async function previewInflationAdjustmentAction(
       )
     );
 
-    return { success: true, data: preview.map(serializePreviewRow) };
+    return {
+      success: true,
+      data: {
+        rows: result.rows.map(serializePreviewRow),
+        repomo: result.repomo ? serializeRepomo(result.repomo) : null,
+      },
+    };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al calcular el preview del ajuste" };

@@ -85,6 +85,7 @@ describe("createAccountAction", () => {
       name: "Caja General",
       code: "1105",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(true);
@@ -104,6 +105,7 @@ describe("createAccountAction", () => {
       name: "Caja General",
       code: "1105",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(false);
@@ -124,6 +126,7 @@ describe("createAccountAction", () => {
       name: "Caja General",
       code: "1105",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(false);
@@ -138,6 +141,7 @@ describe("createAccountAction", () => {
       name: "Caja Nueva",
       code: "1105",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(false);
@@ -155,6 +159,7 @@ describe("createAccountAction", () => {
       name: "Caja General",
       code: "1999",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(false);
@@ -169,6 +174,7 @@ describe("createAccountAction", () => {
         name: "Cuenta X",
         code,
         type: "ASSET",
+        isMonetary: false,
       });
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -192,6 +198,7 @@ describe("createAccountAction", () => {
         name: "Cuenta",
         code,
         type: "ASSET",
+        isMonetary: false,
       });
       expect(result.success, `código "${code}" debe ser válido`).toBe(true);
     }
@@ -209,6 +216,7 @@ describe("createAccountAction", () => {
       name: "Caja General",
       code: "1105",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(true);
@@ -226,6 +234,7 @@ describe("createAccountAction", () => {
       name: "Cuenta Especial",
       code: "9999",
       type: "ASSET",
+      isMonetary: false,
     });
 
     expect(result.success).toBe(true);

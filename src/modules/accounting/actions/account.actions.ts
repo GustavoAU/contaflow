@@ -23,6 +23,8 @@ const CreateAccountSchema = z.object({
     error: "Tipo de cuenta invalido",
   }),
   description: z.string().max(255).optional(),
+  // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — excluida de reexpresión INPC
+  isMonetary: z.boolean().default(false),
 });
 
 const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
@@ -133,6 +135,7 @@ export async function createAccountAction(
             code: validated.code,
             type: validated.type,
             description: validated.description,
+            isMonetary: validated.isMonetary,
             companyId: validated.companyId,
           },
         });

@@ -2,6 +2,7 @@
 //
 // Fase 22 — Ajuste por Inflación Fiscal (INPC / VEN-NIF 3)
 // ADR-008: transactionId NON-NULLABLE, Serializable, withCompanyContext
+// Sección 36: filtro isMonetary + REPOMO (Resultado por Posición Monetaria Neta)
 
 import { Decimal } from "decimal.js";
 import type { PrismaClient, AccountType } from "@prisma/client";
@@ -30,11 +31,24 @@ export type AdjustmentPreviewRow = {
   adjustmentAmount: Decimal;  // originalBalance × (factor − 1)
 };
 
+// VEN-NIF 3 §36.4: resultado por posición monetaria neta
+export type RepomoPreview = {
+  netMonetaryPosition: Decimal; // Σ activos monetarios + Σ pasivos monetarios (con signos naturales)
+  factor: Decimal;
+  repomoAmount: Decimal; // PMN × (factor − 1); positivo = pérdida (gasto), negativo = ganancia (ingreso)
+};
+
+export type AdjustmentPreviewResult = {
+  rows: AdjustmentPreviewRow[];   // cuentas no monetarias
+  repomo: RepomoPreview | null;   // null si no hay cuentas monetarias o PMN = 0
+};
+
 export type InflationAdjustmentSummary = {
   adjustedAccounts: number;
-  totalAdjustment: Decimal;   // suma de abs(adjustmentAmount)
+  totalAdjustment: Decimal;   // suma de abs(adjustmentAmount) de cuentas no monetarias
   transactionId: string;
   factor: Decimal;
+  repomo: Decimal | null;     // monto REPOMO registrado; null si no aplica
 };
 
 // ─── Pure functions (testables sin BD) ────────────────────────────────────────
@@ -49,18 +63,35 @@ export function calcInflationFactor(baseIndex: Decimal, currentIndex: Decimal): 
 }
 
 /**
- * Calcula el monto del ajuste de inflación para una cuenta.
+ * Calcula el monto del ajuste de inflación para una cuenta no monetaria.
  * adjustmentAmount = balance × (factor − 1)
  *
  * Convención de signos (consistente con JournalEntry):
  *   - Positivo = Débito
  *   - Negativo = Crédito
- * El ajuste hereda el signo del saldo, lo que produce el efecto correcto:
- *   - ASSET (saldo positivo, factor > 1) → ajuste positivo → débito → aumenta activo ✓
- *   - LIABILITY (saldo negativo, factor > 1) → ajuste negativo → crédito → aumenta pasivo ✓
  */
 export function calcAdjustmentAmount(balance: Decimal, factor: Decimal): Decimal {
   return balance.times(factor.minus(1)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * Calcula la Posición Monetaria Neta (PMN).
+ * PMN = Σ saldos de cuentas monetarias (con signo natural del sistema).
+ * ASSET monetario: saldo positivo. LIABILITY monetario: saldo negativo.
+ * PMN > 0 → más activos monetarios → pérdida por inflación (REPOMO > 0 si factor > 1).
+ */
+export function calcNetMonetaryPosition(monetaryBalances: Decimal[]): Decimal {
+  return monetaryBalances.reduce((acc, b) => acc.plus(b), new Decimal(0));
+}
+
+/**
+ * Calcula el REPOMO (Resultado por Posición Monetaria Neta).
+ * repomoAmount = PMN × (factor − 1)
+ * Positivo = pérdida monetaria (débito a gasto REPOMO).
+ * Negativo = ganancia monetaria (crédito a ingreso REPOMO).
+ */
+export function calcRepomo(netMonetaryPosition: Decimal, factor: Decimal): Decimal {
+  return netMonetaryPosition.times(factor.minus(1)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
 }
 
 /**
@@ -209,7 +240,11 @@ export class INPCService {
 
   /**
    * Genera el preview del ajuste por inflación SIN escribir en BD.
-   * Retorna los asientos proyectados para cada cuenta con saldo no nulo.
+   *
+   * Sección 36 VEN-NIF 3:
+   * - Cuentas monetarias (isMonetary=true): excluidas de reexpresión → contribuyen al REPOMO.
+   * - Cuentas no monetarias (isMonetary=false): reexpresadas con factor = currentIndex / baseIndex.
+   * - REPOMO = PMN × (factor − 1); se muestra en el preview, se registra en runAdjustment.
    */
   static async previewAdjustment(
     companyId: string,
@@ -217,7 +252,7 @@ export class INPCService {
     periodMonth: number,
     adjustmentAccountId: string,
     tx: Tx,
-  ): Promise<AdjustmentPreviewRow[]> {
+  ): Promise<AdjustmentPreviewResult> {
     const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
 
     if (!company.inflationBaseYear || !company.inflationBaseMonth) {
@@ -243,24 +278,30 @@ export class INPCService {
     const factor = calcInflationFactor(baseIndex, currentIndex);
 
     const balances = await INPCService.getAccountBalances(companyId, periodYear, periodMonth, tx);
-    if (balances.length === 0) return [];
+    if (balances.length === 0) return { rows: [], repomo: null };
 
-    // Filtrar la cuenta actualizadora (no se ajusta a sí misma)
-    const accountIds = balances
-      .map((b) => b.accountId)
-      .filter((id) => id !== adjustmentAccountId);
+    // Excluir la cuenta actualizadora de ambos grupos
+    const relevantBalances = balances.filter((b) => b.accountId !== adjustmentAccountId);
+    const accountIds = relevantBalances.map((b) => b.accountId);
 
     const accounts = await tx.account.findMany({
       where: { id: { in: accountIds }, companyId },
-      select: { id: true, code: true, name: true, type: true },
+      select: { id: true, code: true, name: true, type: true, isMonetary: true },
     });
     const accountMap = new Map(accounts.map((a) => [a.id, a]));
 
     const rows: AdjustmentPreviewRow[] = [];
-    for (const b of balances) {
-      if (b.accountId === adjustmentAccountId) continue;
+    const monetaryBalances: Decimal[] = [];
+
+    for (const b of relevantBalances) {
       const acct = accountMap.get(b.accountId);
       if (!acct) continue;
+
+      if (acct.isMonetary) {
+        // VEN-NIF 3: no reexpresar — acumular para REPOMO
+        monetaryBalances.push(b.balance);
+        continue;
+      }
 
       const adjustmentAmount = calcAdjustmentAmount(b.balance, factor);
       if (adjustmentAmount.isZero()) continue;
@@ -276,13 +317,23 @@ export class INPCService {
       });
     }
 
-    return rows;
+    // Calcular REPOMO si hay cuentas monetarias
+    let repomo: RepomoPreview | null = null;
+    if (monetaryBalances.length > 0) {
+      const netMonetaryPosition = calcNetMonetaryPosition(monetaryBalances);
+      const repomoAmount = calcRepomo(netMonetaryPosition, factor);
+      if (!repomoAmount.isZero()) {
+        repomo = { netMonetaryPosition, factor, repomoAmount };
+      }
+    }
+
+    return { rows, repomo };
   }
 
   /**
    * Ejecuta el ajuste por inflación para un período.
    * Crea Transaction (tipo AJUSTE) + JournalEntry[] + InflationAdjustment[].
-   * Idempotente: si ya existe el ajuste para una cuenta, retorna error P2002.
+   * Si hay cuentas monetarias y se provee repomoAccountId, agrega asiento REPOMO.
    * ADR-008 D-6: llamar desde $transaction con isolationLevel: Serializable.
    */
   static async runAdjustment(
@@ -290,7 +341,7 @@ export class INPCService {
     userId: string,
     tx: Tx,
   ): Promise<InflationAdjustmentSummary> {
-    const { companyId, periodYear, periodMonth, adjustmentAccountId } = input;
+    const { companyId, periodYear, periodMonth, adjustmentAccountId, repomoAccountId } = input;
 
     // Guard: verificar que no existan ajustes ya registrados para este período
     const existingCount = await tx.inflationAdjustment.count({
@@ -302,8 +353,10 @@ export class INPCService {
       );
     }
 
-    const preview = await INPCService.previewAdjustment(companyId, periodYear, periodMonth, adjustmentAccountId, tx);
-    if (preview.length === 0) {
+    const { rows: preview, repomo } = await INPCService.previewAdjustment(
+      companyId, periodYear, periodMonth, adjustmentAccountId, tx,
+    );
+    if (preview.length === 0 && !repomo) {
       throw new Error("No existen cuentas con saldo en el período especificado para ajustar.");
     }
 
@@ -312,25 +365,29 @@ export class INPCService {
     const txNumber = `INF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
     const periodDate = new Date(Date.UTC(periodYear, periodMonth - 1, 1));
 
-    // Suma neta de todos los ajustes → va a la cuenta actualizadora (signo negado)
+    // Suma neta de ajustes de cuentas no monetarias
     const totalNet = preview.reduce((acc, r) => acc.plus(r.adjustmentAmount), new Decimal(0));
     const totalAbsolute = preview.reduce((acc, r) => acc.plus(r.adjustmentAmount.abs()), new Decimal(0));
 
-    // Construir entradas de journal
-    const journalEntries = [
-      // Una entrada por cuenta ajustada
-      ...preview.map((r) => ({
-        accountId: r.accountId,
-        amount: r.adjustmentAmount,
-      })),
-      // Entrada neta de la cuenta actualizadora (contrapartida)
-      {
-        accountId: adjustmentAccountId,
-        amount: totalNet.negated(),
-      },
+    const factor = preview[0]?.cumulativeIndex ?? repomo?.factor ?? new Decimal(1);
+
+    // Construir entradas: reexpresión de cuentas no monetarias
+    const journalEntries: { accountId: string; amount: Decimal }[] = [
+      ...preview.map((r) => ({ accountId: r.accountId, amount: r.adjustmentAmount })),
+      { accountId: adjustmentAccountId, amount: totalNet.negated() },
     ];
 
-    // Obtener baseYear/Month para los registros InflationAdjustment
+    // Asiento REPOMO si aplica (VEN-NIF 3 §36.4)
+    let repomoRegistered: Decimal | null = null;
+    if (repomo && !repomo.repomoAmount.isZero() && repomoAccountId) {
+      journalEntries.push(
+        { accountId: repomoAccountId, amount: repomo.repomoAmount },
+        { accountId: adjustmentAccountId, amount: repomo.repomoAmount.negated() },
+      );
+      repomoRegistered = repomo.repomoAmount;
+    }
+
+    // Obtener baseYear/Month para registros InflationAdjustment
     const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
 
     const journalTx = await tx.transaction.create({
@@ -338,28 +395,35 @@ export class INPCService {
         companyId,
         number: txNumber,
         date: periodDate,
-        description: `Ajuste por Inflación INPC: ${periodYear}/${String(periodMonth).padStart(2, "0")} (factor ${preview[0]!.cumulativeIndex.toFixed(4)})`,
+        description: `Ajuste por Inflación INPC: ${periodYear}/${String(periodMonth).padStart(2, "0")} (factor ${factor.toFixed(4)})`,
         type: "AJUSTE",
         userId,
-        entries: { create: journalEntries },
+        entries: {
+          create: journalEntries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+          })),
+        },
       },
     });
 
-    // Crear registros InflationAdjustment (uno por cuenta ajustada)
-    await tx.inflationAdjustment.createMany({
-      data: preview.map((r) => ({
-        companyId,
-        periodYear,
-        periodMonth,
-        baseYear: company.inflationBaseYear!,
-        baseMonth: company.inflationBaseMonth!,
-        accountId: r.accountId,
-        originalAmount: r.originalBalance,
-        adjustmentAmount: r.adjustmentAmount,
-        cumulativeIndex: r.cumulativeIndex,
-        transactionId: journalTx.id,
-      })),
-    });
+    // Registrar InflationAdjustment solo para cuentas no monetarias
+    if (preview.length > 0) {
+      await tx.inflationAdjustment.createMany({
+        data: preview.map((r) => ({
+          companyId,
+          periodYear,
+          periodMonth,
+          baseYear: company.inflationBaseYear!,
+          baseMonth: company.inflationBaseMonth!,
+          accountId: r.accountId,
+          originalAmount: r.originalBalance,
+          adjustmentAmount: r.adjustmentAmount,
+          cumulativeIndex: r.cumulativeIndex,
+          transactionId: journalTx.id,
+        })),
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -374,7 +438,8 @@ export class INPCService {
           periodMonth,
           adjustedAccounts: preview.length,
           totalAdjustment: totalAbsolute.toFixed(4),
-          factor: preview[0]!.cumulativeIndex.toFixed(6),
+          factor: factor.toFixed(6),
+          repomo: repomoRegistered?.toFixed(4) ?? null,
         },
       },
     });
@@ -383,7 +448,8 @@ export class INPCService {
       adjustedAccounts: preview.length,
       totalAdjustment: totalAbsolute,
       transactionId: journalTx.id,
-      factor: preview[0]!.cumulativeIndex,
+      factor,
+      repomo: repomoRegistered,
     };
   }
 }

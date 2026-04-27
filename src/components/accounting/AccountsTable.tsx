@@ -51,6 +51,7 @@ type Account = {
   code: string;
   type: AccountType;
   description: string | null;
+  isMonetary: boolean;
   companyId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -61,6 +62,7 @@ const AccountFormSchema = z.object({
   code: z.string().min(1, "El codigo es requerido"),
   type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
   description: z.string().optional(),
+  isMonetary: z.boolean(),
 });
 
 type AccountFormValues = z.infer<typeof AccountFormSchema>;
@@ -97,7 +99,7 @@ export function AccountsTable({
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(AccountFormSchema),
-    defaultValues: { name: "", code: "", type: "ASSET", description: "" },
+    defaultValues: { name: "", code: "", type: "ASSET", description: "", isMonetary: false },
   });
 
   const loadAccounts = async () => {
@@ -111,7 +113,7 @@ export function AccountsTable({
 
   async function openCreate() {
     setEditing(null);
-    form.reset({ name: "", code: "", type: "ASSET", description: "" });
+    form.reset({ name: "", code: "", type: "ASSET", description: "", isMonetary: false });
     setDialogOpen(true);
     await new Promise((resolve) => setTimeout(resolve, 50));
     const result = await getNextAccountCodeAction("ASSET", companyId);
@@ -125,6 +127,7 @@ export function AccountsTable({
       code: account.code,
       type: account.type,
       description: account.description ?? "",
+      isMonetary: account.isMonetary,
     });
     setDialogOpen(true);
   }
@@ -186,6 +189,12 @@ export function AccountsTable({
               <TableHead>Nombre</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Descripcion</TableHead>
+              <TableHead
+                className="text-center cursor-help"
+                title="Partida monetaria (VEN-NIF 3): Caja, Bancos, CxC, CxP. No se reexpresa por INPC."
+              >
+                Monetaria ⓘ
+              </TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -199,6 +208,13 @@ export function AccountsTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground max-w-xs truncate">
                   {account.description ?? "—"}
+                </TableCell>
+                <TableCell className="text-center">
+                  {account.isMonetary ? (
+                    <Badge variant="secondary" className="text-xs">Monetaria</Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -285,6 +301,29 @@ export function AccountsTable({
                       <Input placeholder="Descripcion de la cuenta..." {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isMonetary"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-3 rounded-lg border p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5">
+                      <FormLabel className="font-medium">Partida Monetaria (VEN-NIF 3)</FormLabel>
+                      <p className="text-muted-foreground text-xs">
+                        Marcar para Caja, Bancos, CxC, CxP y similares. Estas cuentas no se reexpresan
+                        por inflación INPC — su efecto se registra como REPOMO.
+                      </p>
+                    </div>
                   </FormItem>
                 )}
               />

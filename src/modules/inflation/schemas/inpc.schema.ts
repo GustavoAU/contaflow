@@ -15,10 +15,12 @@ export const UpsertINPCRateSchema = z.object({
 export type UpsertINPCRateInput = z.infer<typeof UpsertINPCRateSchema>;
 
 export const RunInflationAdjustmentSchema = z.object({
-  companyId:          z.string().min(1, "Empresa requerida"),
-  periodYear:         z.number().int().min(2000).max(2100),
-  periodMonth:        z.number().int().min(1).max(12),
+  companyId:           z.string().min(1, "Empresa requerida"),
+  periodYear:          z.number().int().min(2000).max(2100),
+  periodMonth:         z.number().int().min(1).max(12),
   adjustmentAccountId: z.string().min(1, "Cuenta actualizadora requerida"),
+  // VEN-NIF 3 Sección 36.4: cuenta que absorbe el REPOMO (Resultado por Posición Monetaria)
+  repomoAccountId:     z.string().min(1).optional(),
 });
 
 export type RunInflationAdjustmentInput = z.infer<typeof RunInflationAdjustmentSchema>;
