@@ -26,6 +26,8 @@ import type { UserRole } from "@/lib/nav-items";
 import { getPendingTasksAction } from "@/modules/dashboard/actions/pending-tasks.actions";
 import { PendingTasksWidget } from "@/modules/dashboard/components/PendingTasksWidget";
 import { getVacationAlertsAction } from "@/modules/payroll/actions/nom-d.actions";
+import { getP2034CountersAction } from "@/modules/analytics/actions/p2034-counters.actions";
+import { P2034Widget } from "@/modules/analytics/components/P2034Widget";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -201,8 +203,12 @@ export default async function CompanyDashboardPage({ params }: Props) {
 
   // Fetch vacation alerts for ADMIN+ roles only
   const isAdmin = canAccess(role, ROLES.ADMIN_ONLY);
-  const vacationAlertsResult = isAdmin ? await getVacationAlertsAction(companyId) : null;
+  const [vacationAlertsResult, p2034Result] = await Promise.all([
+    isAdmin ? getVacationAlertsAction(companyId) : Promise.resolve(null),
+    isAdmin ? getP2034CountersAction(companyId) : Promise.resolve(null),
+  ]);
   const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
+  const p2034Data = p2034Result?.success ? p2034Result.data : [];
 
   return (
     <div className="space-y-6">
@@ -424,6 +430,9 @@ export default async function CompanyDashboardPage({ params }: Props) {
       {showKpis && pendingTasksResult?.success && pendingTasksResult.data.tasks.length > 0 && (
         <PendingTasksWidget companyId={companyId} data={pendingTasksResult.data} />
       )}
+
+      {/* ─── Conflictos de concurrencia P2034 (OWNER, ADMIN) ────────────── */}
+      {isAdmin && <P2034Widget data={p2034Data} />}
 
       {/* ─── KPIs ejecutivos (OWNER, ADMIN, ACCOUNTANT) ──────────────────── */}
       {showKpis && kpiResult?.success && (
