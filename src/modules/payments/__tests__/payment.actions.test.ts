@@ -28,7 +28,7 @@ vi.mock("../services/PaymentService", () => ({
 }));
 
 import prisma from "@/lib/prisma";
-import { createPaymentAction } from "../actions/payment.actions";
+import { createPaymentAction, listPaymentsAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -128,5 +128,73 @@ describe("createPaymentAction — security", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
+  });
+});
+
+// ─── listPaymentsAction — IDOR regression tests ───────────────────────────────
+describe("listPaymentsAction — IDOR guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(PaymentService.list).mockResolvedValue([MOCK_PAYMENT] as never);
+  });
+
+  it("retorna { success: false } si no hay sesión autenticada", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+
+    const result = await listPaymentsAction(COMPANY_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+    expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
+    expect(PaymentService.list).not.toHaveBeenCalled();
+  });
+
+  it("retorna { success: false } si rate limit está agotado", async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: false });
+
+    const result = await listPaymentsAction(COMPANY_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
+    expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
+    expect(PaymentService.list).not.toHaveBeenCalled();
+  });
+
+  it("retorna { success: false } si el usuario no es miembro de la empresa (IDOR)", async () => {
+    // Simula un usuario autenticado intentando listar pagos de OTRA empresa
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
+
+    const result = await listPaymentsAction("otra-empresa-id");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+    expect(PaymentService.list).not.toHaveBeenCalled();
+  });
+
+  it("permite acceso a VIEWER (operación de solo lectura — guard es de membresía)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
+      { ...MEMBER, role: "VIEWER" } as never,
+    );
+
+    const result = await listPaymentsAction(COMPANY_ID);
+
+    // VIEWER es miembro válido — el guard IDOR verifica membresía, no rol de escritura
+    expect(result.success).toBe(true);
+    expect(PaymentService.list).toHaveBeenCalled();
+  });
+
+  it("happy path: retorna lista de pagos para miembro con acceso", async () => {
+    const result = await listPaymentsAction(COMPANY_ID);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toHaveLength(1);
+    expect(prisma.companyMember.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: COMPANY_ID, userId: USER_ID }),
+      }),
+    );
   });
 });

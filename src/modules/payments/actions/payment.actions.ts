@@ -108,6 +108,16 @@ export async function listPaymentsAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+
     const data = await PaymentService.list(companyId);
     return { success: true, data };
   } catch {
