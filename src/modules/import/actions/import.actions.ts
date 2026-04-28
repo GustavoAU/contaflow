@@ -36,7 +36,7 @@ export async function importAccountsAction(
 
 export async function downloadTemplateAction(): Promise<ActionResult<string>> {
   try {
-    const buffer = ImportService.generateAccountsTemplate();
+    const buffer = await ImportService.generateAccountsTemplate();
     const base64 = buffer.toString("base64");
     return { success: true, data: base64 };
   } catch (error) {
