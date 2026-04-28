@@ -193,7 +193,15 @@
       "Bash(sed -n '444,455p' src/modules/invoices/services/InvoiceService.ts)",
       "Bash(sed -n '563,575p' src/modules/invoices/services/InvoiceService.ts)",
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\); console.log\\('xlsx:', p.dependencies.xlsx\\); console.log\\('prisma:', p.dependencies['@prisma/client']\\)\")",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('@clerk/nextjs:', p.dependencies['@clerk/nextjs']\\)\")",
+      "Bash(grep -rn 'sql`\\\\|$executeRaw\\\\|$queryRaw' /d/Documents/Projects/React/modern-cg1/src/ '--include=*.ts')",
+      "Bash(grep -n 'quotationItem.deleteMany\\\\|quotation.update\\\\|$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/services/QuotationService.ts)",
+      "Bash(grep -A5 '$queryRaw' /d/Documents/Projects/React/modern-cg1/src/modules/analytics/services/DashboardAnalyticsService.ts)",
+      "Bash(grep -A5 '$queryRaw' /d/Documents/Projects/React/modern-cg1/src/modules/dashboard/services/PendingTasksService.ts)",
+      "Bash(grep -A3 '$executeRaw' /d/Documents/Projects/React/modern-cg1/src/lib/prisma-rls.ts)",
+      "Bash(grep -n 'QuotationService.update\\\\|quotation.*update\\\\|$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/actions/quotation.actions.ts)",
+      "Bash(grep -n '$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/services/QuotationService.ts)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
