@@ -114,14 +114,23 @@ export default function ConceptList({ companyId, initial, canWrite }: Props) {
                     </td>
                     {canWrite && (
                       <td className="px-4 py-2 text-right">
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => toggleActive(concept)}
-                          className="mr-3 text-xs text-blue-600 hover:underline disabled:opacity-50"
-                        >
-                          {concept.isActive ? "Desactivar" : "Activar"}
-                        </button>
+                        {concept.isSystem ? (
+                          <span
+                            title="Este concepto es requerido por ley y no puede desactivarse"
+                            className="mr-3 cursor-not-allowed text-xs text-gray-400"
+                          >
+                            {concept.isActive ? "Desactivar" : "Activar"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => toggleActive(concept)}
+                            className="mr-3 text-xs text-blue-600 hover:underline disabled:opacity-50"
+                          >
+                            {concept.isActive ? "Desactivar" : "Activar"}
+                          </button>
+                        )}
                         {!concept.isSystem && (
                           <button
                             type="button"
