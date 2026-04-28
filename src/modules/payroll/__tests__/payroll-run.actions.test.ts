@@ -30,14 +30,20 @@ vi.mock("../services/PayrollRunService", () => ({
   },
 }));
 
+vi.mock("../services/PayrollBankTxtService", () => ({
+  PayrollBankTxtService: { generate: vi.fn() },
+}));
+
 import prisma from "@/lib/prisma";
 import { PayrollRunService } from "../services/PayrollRunService";
+import { PayrollBankTxtService } from "../services/PayrollBankTxtService";
 import {
   getPayrollRunsAction,
   getPayrollRunDetailAction,
   createPayrollRunAction,
   approvePayrollRunAction,
   cancelPayrollRunAction,
+  exportPayrollBankTxtAction,
 } from "../actions/payroll-run.actions";
 import { Prisma } from "@prisma/client";
 
@@ -264,5 +270,66 @@ describe("cancelPayrollRunAction", () => {
     const result = await cancelPayrollRunAction(COMPANY_ID, VALID_CANCEL);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("aprobado");
+  });
+});
+
+// ─── exportPayrollBankTxtAction ───────────────────────────────────────────────
+
+describe("exportPayrollBankTxtAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const BANK_FILE = {
+    rows: [],
+    totalEmployees: 2,
+    totalAmount: "2300.00",
+    warningCount: 0,
+    txt: "# NOMINA\nCEDULA|NOMBRE|BANCO|CUENTA|MONTO\nV-12345678|JUAN PEREZ|BANESCO|01340|1500.00",
+  };
+
+  it("retorna el archivo TXT para ACCOUNTING", async () => {
+    mockUserId.mockReturnValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTANT_MEMBER as never);
+    vi.mocked(PayrollBankTxtService.generate).mockResolvedValue(BANK_FILE);
+
+    const result = await exportPayrollBankTxtAction(COMPANY_ID, RUN_ID);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.txt).toContain("NOMINA");
+      expect(result.data.totalEmployees).toBe(2);
+    }
+  });
+
+  it("retorna error si no autenticado", async () => {
+    mockUserId.mockReturnValue({ userId: null });
+
+    const result = await exportPayrollBankTxtAction(COMPANY_ID, RUN_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna error si VIEWER (sin rol ACCOUNTING)", async () => {
+    mockUserId.mockReturnValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(VIEWER_MEMBER as never);
+
+    const result = await exportPayrollBankTxtAction(COMPANY_ID, RUN_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Acceso denegado");
+    expect(PayrollBankTxtService.generate).not.toHaveBeenCalled();
+  });
+
+  it("propaga error del servicio", async () => {
+    mockUserId.mockReturnValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
+    vi.mocked(PayrollBankTxtService.generate).mockRejectedValue(
+      new Error("Proceso de nómina no encontrado"),
+    );
+
+    const result = await exportPayrollBankTxtAction(COMPANY_ID, RUN_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("no encontrado");
   });
 });
