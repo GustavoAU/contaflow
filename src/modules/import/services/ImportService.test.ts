@@ -1,6 +1,6 @@
 // src/modules/import/services/ImportService.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -17,41 +17,47 @@ vi.mock("@/lib/prisma", () => ({
 import prisma from "@/lib/prisma";
 import { ImportService } from "./ImportService";
 
-function makeExcelBuffer(rows: object[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  return Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+async function makeExcelBuffer(rows: object[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sheet1");
+
+  if (rows.length > 0) {
+    ws.addRow(Object.keys(rows[0]));
+    rows.forEach((row) => ws.addRow(Object.values(row)));
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }
 
 describe("ImportService.parseAccountsExcel", () => {
-  it("parsea un Excel v├ílido correctamente", () => {
-    const buffer = makeExcelBuffer([
+  it("parsea un Excel válido correctamente", async () => {
+    const buffer = await makeExcelBuffer([
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo" },
       { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY" },
     ]);
 
-    const rows = ImportService.parseAccountsExcel(buffer);
+    const rows = await ImportService.parseAccountsExcel(buffer);
     expect(rows).toHaveLength(2);
     expect(rows[0].codigo).toBe("1105");
     expect(rows[1].tipo).toBe("LIABILITY");
   });
 
-  it("lanza error si el tipo es inv├ílido", () => {
-    const buffer = makeExcelBuffer([{ codigo: "1105", nombre: "Caja", tipo: "INVALIDO" }]);
+  it("lanza error si el tipo es inválido", async () => {
+    const buffer = await makeExcelBuffer([{ codigo: "1105", nombre: "Caja", tipo: "INVALIDO" }]);
 
-    expect(() => ImportService.parseAccountsExcel(buffer)).toThrow();
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow();
   });
 
-  it("lanza error si el archivo est├í vac├¡o", () => {
-    const buffer = makeExcelBuffer([]);
-    expect(() => ImportService.parseAccountsExcel(buffer)).toThrow();
+  it("lanza error si el archivo está vacío", async () => {
+    const buffer = await makeExcelBuffer([]);
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow();
   });
 
-  it("normaliza columnas en may├║sculas", () => {
-    const buffer = makeExcelBuffer([{ CODIGO: "3105", NOMBRE: "Capital", TIPO: "equity" }]);
+  it("normaliza columnas en mayúsculas", async () => {
+    const buffer = await makeExcelBuffer([{ CODIGO: "3105", NOMBRE: "Capital", TIPO: "equity" }]);
 
-    const rows = ImportService.parseAccountsExcel(buffer);
+    const rows = await ImportService.parseAccountsExcel(buffer);
     expect(rows[0].tipo).toBe("EQUITY");
   });
 });
@@ -86,20 +92,23 @@ describe("ImportService.importAccounts", () => {
 });
 
 describe("ImportService.generateAccountsTemplate", () => {
-  it("genera un buffer Excel v├ílido", () => {
-    const buffer = ImportService.generateAccountsTemplate();
+  it("genera un buffer Excel válido", async () => {
+    const buffer = await ImportService.generateAccountsTemplate();
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
   });
 
-  it("el Excel generado tiene las columnas correctas", () => {
-    const buffer = ImportService.generateAccountsTemplate();
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[];
+  it("el Excel generado tiene las columnas correctas", async () => {
+    const buffer = await ImportService.generateAccountsTemplate();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    const firstRow = (ws.getRow(1).values as (string | null)[]).slice(1).map((v) =>
+      String(v ?? "").toLowerCase()
+    );
 
-    expect(rows[0]).toHaveProperty("codigo");
-    expect(rows[0]).toHaveProperty("nombre");
-    expect(rows[0]).toHaveProperty("tipo");
+    expect(firstRow).toContain("codigo");
+    expect(firstRow).toContain("nombre");
+    expect(firstRow).toContain("tipo");
   });
 });

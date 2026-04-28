@@ -1,26 +1,39 @@
 // src/modules/import/services/ImportService.ts
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import prisma from "@/lib/prisma";
 import { ImportAccountsSchema, type ImportAccountRow } from "../schemas/import.schema";
 
 export class ImportService {
-  static parseAccountsExcel(buffer: Buffer): ImportAccountRow[] {
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, unknown>[];
+  static async parseAccountsExcel(buffer: Buffer): Promise<ImportAccountRow[]> {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
 
-    // Normalizar columnas a minúsculas sin espacios
-    const normalized = rows.map((row) => ({
-      codigo: String(row["codigo"] ?? row["Codigo"] ?? row["CODIGO"] ?? "").trim(),
-      nombre: String(row["nombre"] ?? row["Nombre"] ?? row["NOMBRE"] ?? "").trim(),
-      tipo: String(row["tipo"] ?? row["Tipo"] ?? row["TIPO"] ?? "")
-        .trim()
-        .toUpperCase(),
-      descripcion:
-        String(row["descripcion"] ?? row["Descripcion"] ?? row["DESCRIPCION"] ?? "").trim() ||
-        undefined,
-    }));
+    const allRows: unknown[][] = [];
+    ws.eachRow((row: ExcelJS.Row) => {
+      allRows.push((row.values as unknown[]).slice(1));
+    });
+
+    if (allRows.length < 2) throw new Error("El archivo está vacío");
+
+    const headers = (allRows[0] as (string | null)[]).map((h) =>
+      String(h ?? "").toLowerCase().trim()
+    );
+    const dataRows = allRows.slice(1);
+
+    const normalized = dataRows.map((arr) => {
+      const values = arr as unknown[];
+      const get = (key: string) => {
+        const idx = headers.indexOf(key);
+        return idx >= 0 ? values[idx] : undefined;
+      };
+      return {
+        codigo: String(get("codigo") ?? "").trim(),
+        nombre: String(get("nombre") ?? "").trim(),
+        tipo: String(get("tipo") ?? "").trim().toUpperCase(),
+        descripcion: String(get("descripcion") ?? "").trim() || undefined,
+      };
+    });
 
     return ImportAccountsSchema.parse(normalized);
   }
@@ -75,38 +88,31 @@ export class ImportService {
     return { created, skipped, errors };
   }
 
-  static generateAccountsTemplate(): Buffer {
+  static async generateAccountsTemplate(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Plan de Cuentas");
+
+    ws.columns = [
+      { header: "codigo", width: 10 },
+      { header: "nombre", width: 30 },
+      { header: "tipo", width: 12 },
+      { header: "descripcion", width: 35 },
+    ];
+
     const data = [
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo en caja" },
       { codigo: "1110", nombre: "Bancos", tipo: "ASSET", descripcion: "Cuentas bancarias" },
-      {
-        codigo: "2105",
-        nombre: "Proveedores",
-        tipo: "LIABILITY",
-        descripcion: "Cuentas por pagar",
-      },
-      {
-        codigo: "3105",
-        nombre: "Capital Social",
-        tipo: "EQUITY",
-        descripcion: "Capital de la empresa",
-      },
+      { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY", descripcion: "Cuentas por pagar" },
+      { codigo: "3105", nombre: "Capital Social", tipo: "EQUITY", descripcion: "Capital de la empresa" },
       { codigo: "4105", nombre: "Ventas", tipo: "REVENUE", descripcion: "Ingresos por ventas" },
-      {
-        codigo: "5105",
-        nombre: "Gastos de Operación",
-        tipo: "EXPENSE",
-        descripcion: "Gastos operativos",
-      },
+      { codigo: "5105", nombre: "Gastos de Operación", tipo: "EXPENSE", descripcion: "Gastos operativos" },
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Plan de Cuentas");
+    data.forEach((row) =>
+      ws.addRow([row.codigo, row.nombre, row.tipo, row.descripcion])
+    );
 
-    // Ancho de columnas
-    worksheet["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 35 }];
-
-    return Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+    const buffer = await wb.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }

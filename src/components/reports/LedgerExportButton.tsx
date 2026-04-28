@@ -1,7 +1,6 @@
 "use client";
 
 // src/components/reports/LedgerExportButton.tsx
-import * as XLSX from "xlsx";
 import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LedgerAccount } from "@/modules/accounting/actions/report.actions";
@@ -21,19 +20,19 @@ interface Props {
 }
 
 export function LedgerExportButton({ accounts, period, companyName }: Props) {
-  function handleExport() {
-    const rows: (string | number)[][] = [];
+  async function handleExport() {
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Libro Mayor");
 
-    // Encabezado de documento
-    rows.push([companyName ?? "Empresa", "", "", "", "", ""]);
-    rows.push(["LIBRO MAYOR", "", "", "", "", ""]);
-    rows.push([`Período: ${period}`, "", "", "", "", ""]);
-    rows.push([]);
-    rows.push(["Código", "Cuenta", "Tipo", "Débito (Bs.)", "Crédito (Bs.)", "Saldo (Bs.)"]);
+    ws.addRow([companyName ?? "Empresa"]);
+    ws.addRow(["LIBRO MAYOR"]);
+    ws.addRow([`Período: ${period}`]);
+    ws.addRow([]);
+    ws.addRow(["Código", "Cuenta", "Tipo", "Débito (Bs.)", "Crédito (Bs.)", "Saldo (Bs.)"]);
 
     for (const account of accounts) {
-      // Fila resumen de cuenta
-      rows.push([
+      ws.addRow([
         account.code,
         account.name,
         TYPE_LABELS[account.type] ?? account.type,
@@ -41,12 +40,10 @@ export function LedgerExportButton({ accounts, period, companyName }: Props) {
         parseFloat(account.totalCredit),
         parseFloat(account.balance),
       ]);
-
-      // Encabezado de movimientos
-      rows.push(["", "Fecha", "Número", "Descripción", "Débito (Bs.)", "Crédito (Bs.)", "Saldo acumulado (Bs.)"]);
+      ws.addRow(["", "Fecha", "Número", "Descripción", "Débito (Bs.)", "Crédito (Bs.)", "Saldo acumulado (Bs.)"]);
 
       for (const entry of account.entries) {
-        rows.push([
+        ws.addRow([
           "",
           new Date(entry.date).toLocaleDateString("es-VE"),
           entry.number,
@@ -57,13 +54,19 @@ export function LedgerExportButton({ accounts, period, companyName }: Props) {
         ]);
       }
 
-      rows.push([]); // separador entre cuentas
+      ws.addRow([]);
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Libro Mayor");
-    XLSX.writeFile(wb, `Libro Mayor - ${period}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Libro Mayor - ${period}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (

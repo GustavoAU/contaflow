@@ -1,7 +1,6 @@
 "use client";
 
 // src/components/reports/JournalExportButton.tsx
-import * as XLSX from "xlsx";
 import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { JournalTransaction } from "@/modules/accounting/actions/report.actions";
@@ -20,18 +19,20 @@ interface Props {
 }
 
 export function JournalExportButton({ transactions, period, companyName }: Props) {
-  function handleExport() {
-    const rows: (string | number)[][] = [];
+  async function handleExport() {
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Libro Diario");
 
-    rows.push([companyName ?? "Empresa", "", "", "", "", ""]);
-    rows.push(["LIBRO DIARIO", "", "", "", "", ""]);
-    rows.push([`Período: ${period}`, "", "", "", "", ""]);
-    rows.push([]);
-    rows.push(["Número", "Fecha", "Tipo", "Descripción", "Referencia", "Código", "Cuenta", "Débito (Bs.)", "Crédito (Bs.)"]);
+    ws.addRow([companyName ?? "Empresa"]);
+    ws.addRow(["LIBRO DIARIO"]);
+    ws.addRow([`Período: ${period}`]);
+    ws.addRow([]);
+    ws.addRow(["Número", "Fecha", "Tipo", "Descripción", "Referencia", "Código", "Cuenta", "Débito (Bs.)", "Crédito (Bs.)"]);
 
     for (const tx of transactions) {
       for (const line of tx.lines) {
-        rows.push([
+        ws.addRow([
           tx.number,
           new Date(tx.date).toLocaleDateString("es-VE"),
           TYPE_LABELS[tx.type] ?? tx.type,
@@ -43,25 +44,24 @@ export function JournalExportButton({ transactions, period, companyName }: Props
           line.credit ? parseFloat(line.credit) : "",
         ]);
       }
-      // fila de sumas iguales
-      rows.push([
-        "",
-        "",
-        "",
-        "Sumas iguales",
-        "",
-        "",
-        "",
+      ws.addRow([
+        "", "", "", "Sumas iguales", "", "", "",
         parseFloat(tx.totalDebit),
         parseFloat(tx.totalCredit),
       ]);
-      rows.push([]); // separador entre asientos
+      ws.addRow([]);
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Libro Diario");
-    XLSX.writeFile(wb, `Libro Diario - ${period}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Libro Diario - ${period}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
