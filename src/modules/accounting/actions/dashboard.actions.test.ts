@@ -1,19 +1,22 @@
 // src/modules/accounting/actions/dashboard.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// ─── Hoisted mocks ────────────────────────────────────────────────────────────
+const mockAuth = vi.hoisted(() => vi.fn());
+const mockCheckRateLimit = vi.hoisted(() => vi.fn());
+
+vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: mockCheckRateLimit,
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
 vi.mock("@/lib/prisma", () => ({
   default: {
-    account: {
-      count: vi.fn(),
-      findMany: vi.fn(),
-    },
-    transaction: {
-      count: vi.fn(),
-      findFirst: vi.fn(),
-    },
-    accountingPeriod: {
-      findFirst: vi.fn(),
-    },
+    companyMember: { findFirst: vi.fn() },
+    account: { count: vi.fn(), findMany: vi.fn() },
+    transaction: { count: vi.fn(), findFirst: vi.fn() },
+    accountingPeriod: { findFirst: vi.fn() },
   },
 }));
 
@@ -33,10 +36,15 @@ const mockLastTransaction = {
   date: new Date("2026-03-10"),
 };
 
-beforeEach(() => vi.clearAllMocks());
-
 describe("getDashboardMetricsAction", () => {
-  it("retorna m├®tricas correctamente con data", async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
+
+  it("retorna métricas correctamente con data", async () => {
     vi.mocked(prisma.account.count).mockResolvedValue(6);
     vi.mocked(prisma.transaction.count)
       .mockResolvedValueOnce(1) // totalTransactions
@@ -67,7 +75,7 @@ describe("getDashboardMetricsAction", () => {
     }
   });
 
-  it("retorna m├®tricas vac├¡as si no hay data", async () => {
+  it("retorna métricas vacías si no hay data", async () => {
     vi.mocked(prisma.account.count).mockResolvedValue(0);
     vi.mocked(prisma.transaction.count).mockResolvedValue(0);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);

@@ -201,7 +201,8 @@ export const QuotationService = {
   async updateQuotation(
     companyId: string,
     quotationId: string,
-    input: Partial<CreateQuotationInput>
+    userId: string,
+    input: Partial<CreateQuotationInput>,
   ): Promise<QuotationRow> {
     const existing = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
@@ -218,30 +219,55 @@ export const QuotationService = {
     if (input.notes !== undefined) updates.notes = input.notes?.trim() || null;
     if (input.currency) updates.currency = input.currency;
 
+    let itemsComputed: ReturnType<typeof computeTotals>["computed"] | null = null;
     if (input.items && input.items.length > 0) {
       const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
+      itemsComputed = computed;
       updates.subtotal = subtotal;
       updates.taxAmount = taxAmount;
       updates.total = total;
-      // Replace items
-      await prisma.quotationItem.deleteMany({ where: { quotationId } });
-      updates.items = {
-        create: computed.map((c) => ({
-          description: c.description,
-          unit: c.unit,
-          quantity: c.quantity,
-          unitPrice: c.unitPrice,
-          taxRate: c.taxRate,
-          totalPrice: c.totalPrice,
-        })),
-      };
     }
 
-    const quotation = await prisma.quotation.update({
-      where: { id: quotationId },
-      data: updates,
-      include: { items: true },
-    });
+    const quotation = await prisma.$transaction(
+      async (tx) => {
+        if (itemsComputed) {
+          await tx.quotationItem.deleteMany({ where: { quotationId } });
+          updates.items = {
+            create: itemsComputed.map((c) => ({
+              description: c.description,
+              unit: c.unit,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              taxRate: c.taxRate,
+              totalPrice: c.totalPrice,
+            })),
+          };
+        }
+
+        const updated = await tx.quotation.update({
+          where: { id: quotationId },
+          data: updates,
+          include: { items: true },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityId: quotationId,
+            entityName: "Quotation",
+            action: "UPDATE",
+            userId,
+            newValue: {
+              updatedFields: Object.keys(updates).filter((k) => k !== "items"),
+              itemsReplaced: itemsComputed !== null,
+            },
+          },
+        });
+
+        return updated;
+      },
+      { isolationLevel: "Serializable" },
+    );
 
     return serializeQuotation(quotation);
   },

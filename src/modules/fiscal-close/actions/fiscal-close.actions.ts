@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 import {
   CloseFiscalYearSchema,
@@ -55,6 +56,9 @@ export async function closeFiscalYearAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
     // Solo ADMIN puede ejecutar el cierre de ejercicio
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
@@ -104,6 +108,9 @@ export async function appropriateFiscalYearResultAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
@@ -143,6 +150,9 @@ export async function updateFiscalConfigAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },

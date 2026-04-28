@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // GET /api/export/download?jobId=<id>
 // CRITICAL-1: verifies job.createdBy === clerkUserId + companyId membership
@@ -9,6 +10,11 @@ export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
     return new NextResponse("No autorizado", { status: 401 });
+  }
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) {
+    return new NextResponse("Demasiadas solicitudes. Intente más tarde.", { status: 429 });
   }
 
   const jobId = request.nextUrl.searchParams.get("jobId");

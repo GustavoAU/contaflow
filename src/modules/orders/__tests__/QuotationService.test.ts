@@ -14,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
     },
     quotationItem: { deleteMany: vi.fn() },
+    auditLog: { create: vi.fn() },
   },
 }));
 
@@ -194,5 +195,76 @@ describe("QuotationService — status transitions", () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.number).toBe("COT-0001");
     expect(results[0]!.total).toBe("638.00");
+  });
+});
+
+describe("QuotationService.updateQuotation — $transaction + AuditLog (MEDIUM)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.quotation.findFirst).mockResolvedValue(makeQuotationDb() as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({
+          quotationItem: prisma.quotationItem,
+          quotation: prisma.quotation,
+          auditLog: prisma.auditLog,
+        })) as never,
+    );
+    vi.mocked(prisma.quotation.update).mockResolvedValue(makeQuotationDb() as never);
+    vi.mocked(prisma.quotationItem.deleteMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("lanza error si la cotización no existe", async () => {
+    vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      QuotationService.updateQuotation(COMPANY_ID, "nonexistent", USER_ID, {}),
+    ).rejects.toThrow("Cotización no encontrada");
+  });
+
+  it("lanza error si la cotización no está en DRAFT", async () => {
+    vi.mocked(prisma.quotation.findFirst).mockResolvedValue(
+      makeQuotationDb({ status: "APPROVED" }) as never,
+    );
+
+    await expect(
+      QuotationService.updateQuotation(COMPANY_ID, "quot-1", USER_ID, { counterpartName: "Nuevo" }),
+    ).rejects.toThrow("Solo se puede editar");
+  });
+
+  it("ejecuta deleteMany + update + auditLog dentro de $transaction", async () => {
+    await QuotationService.updateQuotation(COMPANY_ID, "quot-1", USER_ID, {
+      items: [ITEM_INPUT],
+      counterpartName: "Proveedor Nuevo",
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.quotationItem.deleteMany).toHaveBeenCalledWith({
+      where: { quotationId: "quot-1" },
+    });
+    expect(prisma.quotation.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "quot-1" } }),
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: COMPANY_ID,
+          entityId: "quot-1",
+          entityName: "Quotation",
+          action: "UPDATE",
+          userId: USER_ID,
+        }),
+      }),
+    );
+  });
+
+  it("NO llama deleteMany si no hay items en el input", async () => {
+    await QuotationService.updateQuotation(COMPANY_ID, "quot-1", USER_ID, {
+      counterpartName: "Solo nombre",
+    });
+
+    expect(prisma.quotationItem.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
   });
 });
