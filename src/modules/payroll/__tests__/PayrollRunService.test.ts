@@ -35,6 +35,9 @@ vi.mock("@/lib/prisma", () => ({
     accountingPeriod: {
       findFirst: vi.fn(),
     },
+    legalThreshold: {
+      findFirst: vi.fn(),
+    },
     transaction: {
       create: vi.fn(),
     },
@@ -134,6 +137,7 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
       id: "period-1", status: "OPEN",
     } as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null); // sin threshold → fallback a config
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
       ivssEnabled: true, incesEnabled: true, banavihEnabled: true, frequency: "MONTHLY",
     } as never);

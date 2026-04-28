@@ -25,6 +25,7 @@ import {
   type PayrollCalculatorConfig,
 } from "./PayrollCalculatorService";
 import { PayrollConceptService } from "./PayrollConceptService";
+import { LegalThresholdService } from "./LegalThresholdService";
 import type { CreatePayrollRunInput } from "../schemas/payroll-run.schema";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -212,15 +213,24 @@ export const PayrollRunService = {
       select: { id: true, code: true },
     });
 
+    // Tope salario mínimo: LegalThreshold vigente al inicio del período,
+    // con fallback a PayrollConfig.salaryMinimumVes para retrocompatibilidad.
+    const thresholdSalMin = await LegalThresholdService.getActive(
+      companyId,
+      "SALARY_MIN_VES",
+      new Date(input.periodStart),
+    );
+    const salaryMinimumVes =
+      thresholdSalMin ??
+      (config.salaryMinimumVes ? new Decimal(config.salaryMinimumVes.toString()) : new Decimal(0));
+
     const calcConfig: PayrollCalculatorConfig = {
       frequency: config.frequency,
       ivssEnabled: config.ivssEnabled,
       incesEnabled: config.incesEnabled,
       banavihEnabled: config.banavihEnabled,
       rpeEnabled: config.rpeEnabled,
-      salaryMinimumVes: config.salaryMinimumVes
-        ? new Decimal(config.salaryMinimumVes.toString())
-        : new Decimal(0),
+      salaryMinimumVes,
       systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
     };
 
