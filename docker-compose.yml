@@ -1,0 +1,124 @@
+# ContaFlow — docker-compose.yml para despliegue self-hosted (ADR-017 Tier 3)
+#
+# Uso:
+#   1. Copiar .env.enterprise.example → .env.production
+#   2. Completar todas las variables (especialmente Clerk y secretos)
+#   3. docker compose --env-file .env.production up -d
+#
+# IMPORTANTE: Clerk sigue siendo cloud. Para auth 100% on-premise
+#             contactar equipo ContaFlow (ADR-017 §Tier 3 limitaciones).
+
+services:
+  # ── Base de datos PostgreSQL ─────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-contaflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable POSTGRES_PASSWORD requerida}
+      POSTGRES_DB: ${POSTGRES_DB:-contaflow}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-contaflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - contaflow_net
+
+  # ── Redis (rate limiting — opcional) ────────────────────────────────────────
+  # Si no se configura UPSTASH_REDIS_REST_URL, el rate limiting es no-op.
+  # Este servicio es opcional pero recomendado en producción.
+  # Requiere Upstash-compatible Redis REST API (ver nota en ADR-017).
+  # Para usar Redis local con la API REST de Upstash:
+  #   https://github.com/upstash/serverless-redis-http
+  redis:
+    image: ghcr.io/upstash/serverless-redis-http:latest
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis_backend:6379
+    depends_on:
+      - redis_backend
+    ports:
+      - "8079:80"
+    networks:
+      - contaflow_net
+
+  redis_backend:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - contaflow_net
+
+  # ── MinIO (almacenamiento de objetos — reportes fiscales R-2) ────────────────
+  # Reemplaza Vercel Blob / S3 para cumplir R-2 (blindaje fiscal on-premise).
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-contaflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Variable MINIO_ROOT_PASSWORD requerida}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - contaflow_net
+
+  # ── Aplicación ContaFlow ──────────────────────────────────────────────────────
+  app:
+    image: contaflow:latest
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?Requerido}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Base de datos — la app usa el pooler; las migraciones usan DIRECT
+      DATABASE_URL: postgresql://${POSTGRES_USER:-contaflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-contaflow}?sslmode=disable
+      DATABASE_URL_DIRECT: postgresql://${POSTGRES_USER:-contaflow}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-contaflow}?sslmode=disable
+      # Clerk (cloud — requerido)
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?Requerido}
+      # Redis (opcional — si no se define, rate limiting es no-op)
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-http://redis:80}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-local}
+      # IA — al menos uno requerido para módulos de IA
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      # Almacenamiento (MinIO o S3-compatible)
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://minio:9000}
+      STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-contaflow}
+      STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-contaflow-fiscal}
+      # Sentry (opcional — dejar vacío para deshabilitar)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ORG: ${SENTRY_ORG:-}
+      SENTRY_PROJECT: ${SENTRY_PROJECT:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - contaflow_net
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
+
+networks:
+  contaflow_net:
+    driver: bridge

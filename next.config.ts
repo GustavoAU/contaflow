@@ -39,6 +39,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Standalone output para Docker: copia solo las dependencias necesarias al contenedor
+  output: process.env.DOCKER_BUILD === "1" ? "standalone" : undefined,
   async headers() {
     return [
       {
