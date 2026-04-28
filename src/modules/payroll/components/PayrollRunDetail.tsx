@@ -6,8 +6,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
-import { approvePayrollRunAction } from "../actions/payroll-run.actions";
+import { approvePayrollRunAction, cancelPayrollRunAction } from "../actions/payroll-run.actions";
 import { formatAmount } from "@/lib/format";
 
 interface Props {
@@ -51,6 +52,7 @@ function conceptLabel(code: string): string {
 export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isRecalculating, startRecalculate] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -99,6 +101,22 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
     a.download = `Nómina ${run.periodStart} - ${run.periodEnd}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleRecalculate() {
+    setError(null);
+    startRecalculate(async () => {
+      const result = await cancelPayrollRunAction(companyId, { runId: run.id });
+      if (result.success) {
+        toast.success("Nómina cancelada — puedes crear una nueva con las mismas fechas");
+        router.push(
+          `/company/${companyId}/payroll/runs/new?start=${run.periodStart}&end=${run.periodEnd}`
+        );
+      } else {
+        setError(result.error);
+        toast.error(result.error);
+      }
+    });
   }
 
   function handleApprove() {
@@ -169,16 +187,26 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
 
         {/* Acciones */}
         {canAdmin && run.status === "DRAFT" && (
-          <div className="mt-6 flex gap-3 items-center">
+          <div className="mt-6 flex flex-wrap gap-3 items-center">
             <button
               onClick={() => setShowConfirm(true)}
-              disabled={isPending}
-              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              disabled={isPending || isRecalculating}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
             >
+              {isPending && <Loader2Icon className="size-4 animate-spin" />}
               {isPending ? "Aprobando…" : "Aprobar Nómina"}
             </button>
+            <button
+              onClick={handleRecalculate}
+              disabled={isPending || isRecalculating}
+              title="Cancela este borrador y abre el formulario con las mismas fechas para recalcular"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 disabled:opacity-50"
+            >
+              {isRecalculating && <Loader2Icon className="size-4 animate-spin" />}
+              {isRecalculating ? "Cancelando…" : "Recalcular"}
+            </button>
             <p className="text-xs text-gray-400">
-              Esta acción generará el asiento contable y no podrá revertirse directamente.
+              Aprobar generará el asiento contable y no podrá revertirse directamente.
             </p>
           </div>
         )}

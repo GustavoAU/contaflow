@@ -10,10 +10,12 @@ import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 
 interface Props {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ start?: string; end?: string }>;
 }
 
-export default async function NewPayrollRunPage({ params }: Props) {
+export default async function NewPayrollRunPage({ params, searchParams }: Props) {
   const { companyId } = await params;
+  const { start, end } = await searchParams;
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
@@ -35,7 +37,12 @@ export default async function NewPayrollRunPage({ params }: Props) {
 
   return (
     <div className="p-6 max-w-2xl">
-      <PayrollRunForm companyId={companyId} activeEmployeeCount={activeEmployeeCount} />
+      <PayrollRunForm
+        companyId={companyId}
+        activeEmployeeCount={activeEmployeeCount}
+        initialStart={start}
+        initialEnd={end}
+      />
     </div>
   );
 }
