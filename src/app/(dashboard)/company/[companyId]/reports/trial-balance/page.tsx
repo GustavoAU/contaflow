@@ -24,6 +24,13 @@ const TYPE_COLORS: Record<string, string> = {
   EXPENSE: "text-orange-600",
 };
 
+function fmt(v: string | number): string {
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(typeof v === "string" ? parseFloat(v) : v);
+}
+
 export default async function TrialBalancePage({ params }: Props) {
   const { companyId } = await params;
   const result = await getTrialBalanceAction(companyId);
@@ -78,9 +85,9 @@ export default async function TrialBalancePage({ params }: Props) {
                   <td className={`px-4 py-3 text-xs font-semibold ${TYPE_COLORS[row.type]}`}>
                     {TYPE_LABELS[row.type]}
                   </td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono">{row.totalDebit}</td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono">{row.totalCredit}</td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono font-semibold">{row.balance}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalDebit)}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalCredit)}</td>
+                  <td className="tabular-nums px-4 py-3 text-right font-mono font-semibold">{fmt(row.balance)}</td>
                 </tr>
               ))}
             </tbody>
@@ -91,17 +98,17 @@ export default async function TrialBalancePage({ params }: Props) {
                   TOTALES
                 </td>
                 <td className="tabular-nums px-4 py-3 text-right font-mono font-bold">
-                  {grandTotalDebit.toFixed(2)}
+                  {fmt(grandTotalDebit)}
                 </td>
                 <td className="tabular-nums px-4 py-3 text-right font-mono font-bold">
-                  {grandTotalCredit.toFixed(2)}
+                  {fmt(grandTotalCredit)}
                 </td>
                 <td
                   className={`tabular-nums px-4 py-3 text-right font-mono font-bold ${
                     isBalanced ? "text-green-600" : "text-red-600"
                   }`}
                 >
-                  {grandBalance.toFixed(2)}
+                  {fmt(grandBalance)}
                 </td>
               </tr>
               <tr>
@@ -110,7 +117,7 @@ export default async function TrialBalancePage({ params }: Props) {
                     <span className="font-semibold text-green-600">✓ Balanceado — Débitos = Créditos</span>
                   ) : (
                     <span className="font-semibold text-red-600">
-                      ⚠ Desbalanceado — diferencia: {Math.abs(grandBalance).toFixed(2)} Bs.
+                      ⚠ Desbalanceado — diferencia: {fmt(Math.abs(grandBalance))} Bs.
                     </span>
                   )}
                 </td>
