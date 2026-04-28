@@ -17,6 +17,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
+import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
 import {
   CreatePayrollRunSchema,
   ApprovePayrollRunSchema,
@@ -185,6 +186,28 @@ export async function cancelPayrollRunAction(
     return { success: true, data: run };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error al cancelar proceso de nómina";
+    return { success: false, error: msg };
+  }
+}
+
+// ─── exportPayrollBankTxtAction — ACCOUNTING ─────────────────────────────────
+// Genera el archivo TXT de pago masivo bancario (Ítem 53).
+// Accesible desde ACCOUNTING+ — cualquier rol que pueda ver la nómina puede
+// generar el archivo de pago. El contenido lo descarga el cliente, no se persiste.
+export async function exportPayrollBankTxtAction(
+  companyId: string,
+  runId: string,
+): Promise<Result<BankPaymentFile>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Acceso denegado" };
+
+  try {
+    const file = await PayrollBankTxtService.generate(companyId, runId);
+    return { success: true, data: file };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al generar archivo de pago";
     return { success: false, error: msg };
   }
 }

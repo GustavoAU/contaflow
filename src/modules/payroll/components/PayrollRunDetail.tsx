@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
-import { approvePayrollRunAction, cancelPayrollRunAction } from "../actions/payroll-run.actions";
+import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
 import { formatAmount } from "@/lib/format";
 
 interface Props {
@@ -53,6 +53,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRecalculating, startRecalculate] = useTransition();
+  const [isExportingTxt, startExportTxt] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -101,6 +102,29 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
     a.download = `Nómina ${run.periodStart} - ${run.periodEnd}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleExportBankTxt() {
+    startExportTxt(async () => {
+      const res = await exportPayrollBankTxtAction(companyId, run.id);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      const { txt, warningCount } = res.data;
+      if (warningCount > 0) {
+        toast.warning(
+          `${warningCount} empleado(s) sin datos bancarios — revisa la sección Empleados antes de enviar al banco.`,
+        );
+      }
+      const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pago-Masivo-${run.periodStart}-${run.periodEnd}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   function handleRecalculate() {
@@ -157,6 +181,23 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
               </svg>
               Exportar Excel
             </button>
+            {run.status === "APPROVED" && (
+              <button
+                onClick={handleExportBankTxt}
+                disabled={isExportingTxt}
+                title="Descarga archivo TXT compatible con portales de pago masivo de bancos venezolanos (pipe-delimited)"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-zinc-50 text-zinc-700 disabled:opacity-50"
+              >
+                {isExportingTxt ? (
+                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                )}
+                TXT Banco
+              </button>
+            )}
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
               {STATUS_LABELS[run.status] ?? run.status}
             </span>
