@@ -13,7 +13,7 @@ import {
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, fmtDate } from "@/lib/format";
 
 type Props = {
   companyId: string;
@@ -141,7 +141,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
     result.rows.forEach((row: InvoiceBookRow) => {
       if (row.taxLines.length === 0) {
         ws.addRow([
-          new Date(row.date).toLocaleDateString("es-VE"),
+          fmtDate(row.date),
           row.counterpartName,
           row.counterpartRif,
           row.invoiceNumber,
@@ -159,7 +159,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       } else {
         row.taxLines.forEach((line, idx) => {
           ws.addRow([
-            idx === 0 ? new Date(row.date).toLocaleDateString("es-VE") : "",
+            idx === 0 ? fmtDate(row.date) : "",
             idx === 0 ? row.counterpartName : "",
             idx === 0 ? row.counterpartRif : "",
             idx === 0 ? row.invoiceNumber : "",
@@ -363,7 +363,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                           {row.taxLines.length === 0 ? (
                             <tr className="hover:bg-zinc-50">
                               <td className="px-4 py-3 whitespace-nowrap">
-                                {new Date(row.date).toLocaleDateString("es-VE")}
+                                {fmtDate(row.date)}
                               </td>
                               <td className="px-4 py-3">{row.counterpartName}</td>
                               <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
@@ -419,7 +419,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                             row.taxLines.map((line, idx) => (
                               <tr key={`${row.id}-${line.id}`} className="hover:bg-zinc-50">
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {idx === 0 ? new Date(row.date).toLocaleDateString("es-VE") : ""}
+                              {idx === 0 ? fmtDate(row.date) : ""}
                             </td>
                             <td className="px-4 py-3">{idx === 0 ? row.counterpartName : ""}</td>
                             <td className="px-4 py-3 font-mono text-xs">
