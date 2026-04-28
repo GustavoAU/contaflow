@@ -200,6 +200,9 @@ export async function createRetentionAction(
           };
         }
       }
+      if ("code" in error && (error as { code: string }).code === "P2034") {
+        return { success: false, error: "Conflicto de concurrencia — reintente la operación" };
+      }
       return { success: false, error: error.message };
     }
     return { success: false, error: "Error al crear la retención" };
