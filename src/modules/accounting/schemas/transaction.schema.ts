@@ -89,7 +89,7 @@ export const CreateTransactionSchema = z
 export const VoidTransactionSchema = z.object({
   transactionId: z.string().min(1),
   userId: z.string().min(1),
-  reason: z.string().min(10, "Minimo 10 caracteres para el motivo"),
+  reason: z.string().trim().min(10, "Minimo 10 caracteres para el motivo").max(500, "Máximo 500 caracteres"),
 });
 
 export type JournalEntryInput = z.infer<typeof JournalEntrySchema>;

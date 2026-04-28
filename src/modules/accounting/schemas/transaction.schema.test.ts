@@ -1,6 +1,6 @@
 // src/modules/accounting/schemas/transaction.schema.test.ts
 import { describe, it, expect } from "vitest";
-import { CreateTransactionSchema } from "./transaction.schema";
+import { CreateTransactionSchema, VoidTransactionSchema } from "./transaction.schema";
 
 // ÔöÇÔöÇÔöÇ Datos base para los tests ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
@@ -148,5 +148,40 @@ describe("CreateTransactionSchema", () => {
       });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+// ─── VoidTransactionSchema ────────────────────────────────────────────────────
+
+describe("VoidTransactionSchema", () => {
+  const BASE_VOID = {
+    transactionId: "tx-1",
+    userId: "user-1",
+    reason: "Error en el monto registrado",
+  };
+
+  it("acepta un motivo válido", () => {
+    expect(VoidTransactionSchema.safeParse(BASE_VOID).success).toBe(true);
+  });
+
+  it("rechaza motivo menor a 10 caracteres", () => {
+    const result = VoidTransactionSchema.safeParse({ ...BASE_VOID, reason: "corto" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza motivo mayor a 500 caracteres", () => {
+    const result = VoidTransactionSchema.safeParse({ ...BASE_VOID, reason: "a".repeat(501) });
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta motivo exactamente de 500 caracteres", () => {
+    const result = VoidTransactionSchema.safeParse({ ...BASE_VOID, reason: "a".repeat(500) });
+    expect(result.success).toBe(true);
+  });
+
+  it("trim elimina espacios antes de validar longitud mínima", () => {
+    // 9 espacios + 1 char = 10 chars pero trim → 1 char → falla min(10)
+    const result = VoidTransactionSchema.safeParse({ ...BASE_VOID, reason: "         x" });
+    expect(result.success).toBe(false);
   });
 });

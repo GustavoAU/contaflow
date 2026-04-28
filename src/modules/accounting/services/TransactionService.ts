@@ -204,17 +204,30 @@ export class TransactionService {
       throw new Error("Esta transaccion ya fue anulada anteriormente");
     }
 
-    // 3b. Hard-lock: no se puede anular en un período cerrado
-    const originalPeriod = await prisma.accountingPeriod.findFirst({
-      where: {
-        companyId: original.companyId,
-        year: original.date.getFullYear(),
-        month: original.date.getMonth() + 1,
-      },
+    // 3b. Hard-lock: no se puede anular en un período cerrado (R-3)
+    // Usa el FK periodId del asiento — no heurística de fecha, que falla cuando
+    // el período asignado no coincide con el mes calendario de la transacción.
+    if (!original.periodId) {
+      throw new Error(
+        "El asiento no tiene período contable asignado y no puede ser anulado."
+      );
+    }
+    const originalPeriod = await prisma.accountingPeriod.findUnique({
+      where: { id: original.periodId },
+      select: { status: true, year: true, month: true },
     });
     if (originalPeriod?.status === "CLOSED") {
       throw new Error(
-        `No se puede anular un asiento en un período cerrado (${original.date.getFullYear()}-${String(original.date.getMonth() + 1).padStart(2, "0")})`
+        `No se puede anular un asiento en un período cerrado (${originalPeriod.year}-${String(originalPeriod.month).padStart(2, "0")})`
+      );
+    }
+
+    // 3c. Hard-lock: no se puede anular si el año fiscal ya fue cerrado (MEDIUM)
+    const voidYear = new Date().getFullYear();
+    const isFYClosed = await FiscalYearCloseService.isFiscalYearClosed(original.companyId, voidYear);
+    if (isFYClosed) {
+      throw new Error(
+        `No se puede registrar el asiento de anulación: el año fiscal ${voidYear} ya fue cerrado.`
       );
     }
 
