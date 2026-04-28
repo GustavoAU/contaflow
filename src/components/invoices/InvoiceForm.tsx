@@ -1019,7 +1019,15 @@ export function InvoiceForm({
                 <input
                   type="checkbox"
                   checked={paidInForeign}
-                  onChange={(e) => setPaidInForeign(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setPaidInForeign(checked);
+                    if (checked) {
+                      try {
+                        setIgtfBase(new Decimal(subtotal).plus(new Decimal(totalIva)).toFixed(2));
+                      } catch { /* taxLines vacíos — dejar igtfBase como está */ }
+                    }
+                  }}
                   className="rounded"
                 />
                 Pago recibido en divisas
@@ -1029,6 +1037,7 @@ export function InvoiceForm({
                   <div>
                     <label className="mb-1 block text-xs font-medium text-zinc-600">
                       Base IGTF (3%)
+                      <span className="ml-1 font-normal text-zinc-400">(subtotal + IVA)</span>
                     </label>
                     <input
                       type="number"
