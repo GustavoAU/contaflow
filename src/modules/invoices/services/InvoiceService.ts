@@ -388,7 +388,8 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
-    return prismaDefault.$transaction(
+    try {
+    return await prismaDefault.$transaction(
       async (tx) => {
         // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
         const original = await tx.invoice.findFirst({
@@ -506,6 +507,12 @@ export class InvoiceService {
       },
       { isolationLevel: "Serializable" }
     );
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
+        throw new Error("Conflicto de concurrencia — reintente la operación");
+      }
+      throw err;
+    }
   }
 
   // ─── Crear Nota de Débito ────────────────────────────────────────────────────
@@ -514,7 +521,8 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
-    return prismaDefault.$transaction(
+    try {
+    return await prismaDefault.$transaction(
       async (tx) => {
         // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
         const original = await tx.invoice.findFirst({
@@ -632,6 +640,12 @@ export class InvoiceService {
       },
       { isolationLevel: "Serializable" }
     );
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
+        throw new Error("Conflicto de concurrencia — reintente la operación");
+      }
+      throw err;
+    }
   }
 
   // ─── Obtener NC/ND de una factura ────────────────────────────────────────────

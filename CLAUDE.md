@@ -2,7 +2,7 @@
 
 ## Knowledge Base (leer antes de implementar)
 
-- **`.claude/PROMPT_V8.md`** — Reglas inviolables R-1 a R-5, checklist pre-merge
+- **`## Reglas Inviolables` (abajo)** — R-1 a R-5, checklist pre-merge, conflictos comunes (consolidado desde PROMPT_V8.md)
 - **`.claude/ontologia/ontologia-v8-indice.md`** — Fuente de verdad contable V8 (catálogo cuentas, matrices, reglas)
 - **`.claude/ontologia/quick-reference.md`** — Tabla rápida cuentas, validaciones copy-paste, reglas de oro
 - **`.claude/adr/ADR-015-BORRADOR-eventos-extemporaneos.md`** — Ajustes extemporáneos / retroactivos (pendiente aprobación)
@@ -11,10 +11,65 @@
 ### Regla de lectura obligatoria
 
 **ANTES de implementar cualquier tarea que involucre:** nueva cuenta contable, nuevo asiento o tipo de asiento, nuevo módulo fiscal, nueva fase de nómina, schema Prisma con impacto contable, o lógica de cálculo de impuestos/retenciones/prestaciones — debes leer primero:
-1. `.claude/PROMPT_V8.md`
+1. `## Reglas Inviolables` (sección abajo en este archivo)
 2. `.claude/ontologia/quick-reference.md`
 
 No es necesario leerlos para: bugs de UI, exportaciones Excel/PDF, fixes de tipado TypeScript, tests, migraciones de campos no-contables, ni mejoras de UX puras.
+
+## Reglas Inviolables (NUNCA LAS ROMPAS)
+
+### R-1: Separación de Libros
+**Nunca mezcles Libro Diario con Libro Mayor.**
+- Libro Diario = `Transaction` (operación original)
+- Libro Mayor = `JournalEntry` (desagregado en líneas de débito/crédito)
+- Si necesitas un `Transaction` sin `JournalEntry`, documéntalo en un ADR.
+
+### R-2: Blindaje Fiscal
+**Cualquier reporte fiscal DEBE cumplir:**
+- Contenido va a Object Storage (S3/R2/Vercel Blob), NO a la BD
+- Solo metadatos + `contentHash` (SHA256) en BD
+- Background job genera el reporte, no Server Action
+- Si un reporte entra a producción sin hash, está roto.
+
+### R-3: Bloqueo de Períodos Cerrados
+**Si una acción afecta un período `CLOSED`, bloquéala automáticamente.**
+- Excepción: ADR-015 (ajuste extemporáneo — registra en período ACTUAL, referencia al PASADO)
+- Cualquier otra cosa = ERROR 403 inmediato.
+
+### R-4: Crítica Honesta
+Si el código viola la Ontología → señalarlo explícitamente. Si hay gap → plantear ADR nuevo. No callar problemas.
+
+### R-5: Cero Comas Flotantes (CRÍTICO)
+**NUNCA uses `number` nativo para dinero. SIEMPRE es `Decimal.js`.**
+```typescript
+// ❌ PROHIBIDO
+const ivaAmount: number = baseAmount * 0.16;
+// ✅ OBLIGATORIO
+const ivaAmount = baseAmount.multipliedBy(new Decimal('0.16'));
+```
+Si lo olvidas, el sistema descuadra centavos. El SENIAT multa.
+
+### Conflictos Comunes
+
+| Conflicto | Regla |
+|---|---|
+| ¿Puedo usar `number` para dinero? | NUNCA → `Decimal.js` |
+| ¿Dónde va el IGTF? | `PaymentRecord` en `recordPaymentAction` (Sección 32) |
+| ¿Cuándo es Serializable? | Correlativos (ADR-001) SÍ; si dudas → Read Committed + `@@unique` |
+| ¿Cómo ajusto período cerrado? | ADR-015 → asiento en mes actual con FK al período original |
+
+### Checklist Pre-Merge
+
+```
+[ ] ¿Respeto R-1 (separación de libros)?
+[ ] ¿Respeto R-2 (blindaje fiscal)?
+[ ] ¿Respeto R-3 (bloqueo de períodos)?
+[ ] ¿CERO `number` nativo en variables de dinero?
+[ ] tsc --noEmit = 0 errores
+[ ] npx vitest run = 0 fallos
+[ ] AuditLog creado en mismo $transaction
+[ ] ADR nuevo si hay decisión no documentada
+```
 
 ## Stack
 
@@ -209,6 +264,9 @@ Eliminado completamente. Los CVEs de xlsx (Prototype Pollution + ReDoS, GHSA-4r6
 
 ### `@hono/node-server` moderate — ignorado intencionalmente
 Está dentro de `@prisma/dev`, herramienta exclusivamente de desarrollo (Prisma Studio). El fix requeriría bajar Prisma de 7.4.1 a 6.x — breaking change inaceptable. El middleware bypass de serveStatic no afecta producción.
+
+### Advisory locks (Opción B) — PENDIENTE post-lanzamiento
+Evaluación diferida: reemplazar `isolationLevel: Serializable` en transacciones de correlativos por `pg_advisory_xact_lock(abs(hashtext(companyId || invoiceType)))` con READ COMMITTED. Serializa solo las transacciones que compiten por el mismo correlativo en lugar de todo el snapshot. Requiere `tx.$executeRaw` (Prisma no tiene soporte nativo). Compatible con PgBouncer transaction mode (advisory xact locks se liberan al finalizar la transacción). **No implementar hasta que métricas post-lanzamiento muestren contención real (P2034 frecuentes en logs).** FiscalYearClose, INPCService e InventoryAccounting deben quedarse en Serializable siempre — protegen lecturas agregadas, no solo correlativos.
 
 ---
 
