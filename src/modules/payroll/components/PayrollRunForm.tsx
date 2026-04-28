@@ -11,6 +11,7 @@ import { createPayrollRunAction } from "../actions/payroll-run.actions";
 
 interface Props {
   companyId: string;
+  activeEmployeeCount?: number;
 }
 
 function generateIdempotencyKey(): string {
@@ -50,7 +51,7 @@ function computeEndFromStart(startISO: string): string {
   return `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 }
 
-export function PayrollRunForm({ companyId }: Props) {
+export function PayrollRunForm({ companyId, activeEmployeeCount }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const defaults = getDefaultPeriod();
@@ -91,6 +92,17 @@ export function PayrollRunForm({ companyId }: Props) {
         <p className="mt-1 text-sm text-gray-500">
           Se calcularán automáticamente todos los empleados activos con salario vigente.
         </p>
+        {activeEmployeeCount !== undefined && (
+          <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+            activeEmployeeCount === 0
+              ? "bg-amber-50 text-amber-700"
+              : "bg-blue-50 text-blue-700"
+          }`}>
+            {activeEmployeeCount === 0
+              ? "Sin empleados activos registrados"
+              : `Se procesarán ${activeEmployeeCount} empleado${activeEmployeeCount !== 1 ? "s" : ""} activo${activeEmployeeCount !== 1 ? "s" : ""}`}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunForm } from "@/modules/payroll/components/PayrollRunForm";
+import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 
 interface Props {
   params: Promise<{ companyId: string }>;
@@ -30,9 +31,11 @@ export default async function NewPayrollRunPage({ params }: Props) {
     );
   }
 
+  const activeEmployeeCount = await EmployeeService.countActive(companyId);
+
   return (
     <div className="p-6 max-w-2xl">
-      <PayrollRunForm companyId={companyId} />
+      <PayrollRunForm companyId={companyId} activeEmployeeCount={activeEmployeeCount} />
     </div>
   );
 }
