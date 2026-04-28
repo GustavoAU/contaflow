@@ -8,6 +8,14 @@
 - **`.claude/adr/ADR-015-BORRADOR-eventos-extemporaneos.md`** — Ajustes extemporáneos / retroactivos (pendiente aprobación)
 - **`.claude/design/caja-chica-spec.md`** — Especificación Módulo Caja Chica (Fase 35D)
 
+### Regla de lectura obligatoria
+
+**ANTES de implementar cualquier tarea que involucre:** nueva cuenta contable, nuevo asiento o tipo de asiento, nuevo módulo fiscal, nueva fase de nómina, schema Prisma con impacto contable, o lógica de cálculo de impuestos/retenciones/prestaciones — debes leer primero:
+1. `.claude/PROMPT_V8.md`
+2. `.claude/ontologia/quick-reference.md`
+
+No es necesario leerlos para: bugs de UI, exportaciones Excel/PDF, fixes de tipado TypeScript, tests, migraciones de campos no-contables, ni mejoras de UX puras.
+
 ## Stack
 
 Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon | Clerk | Zod 4 | Vitest 4 | Decimal.js | @upstash/ratelimit | @sentry/nextjs
@@ -150,6 +158,19 @@ Secuencia confirmada: **NOM-C → NOM-D → NOM-E → Fase 35A simplificada → 
 3. If any check fails: stop, fix every error, rerun all checks, then report results to the user BEFORE mentioning the next phase.
 
 **Never carry TS errors or failing tests across a phase boundary.** Technical debt discovered mid-session must be fixed in the same session. If pre-existing errors are found during `/siguiente-paso`, list them explicitly and fix them before the phase analysis output.
+
+### security-agent — cuándo es OBLIGATORIO (no saltarse nunca)
+
+El `security-agent` no es solo para fases nuevas. Es obligatorio ante CUALQUIERA de estos triggers, aunque sea un cambio pequeño mid-session:
+
+- Nueva Server Action o modificación de una existente
+- Nuevo modelo Prisma o campo nuevo en modelo existente con datos sensibles (montos, RIF, credenciales)
+- Nueva ruta de API o endpoint
+- Cambio en lógica de autenticación, autorización o roles
+- Nuevo campo de entrada del usuario (formulario, schema Zod) que llegue a la base de datos
+- Cualquier cambio que toque `companyId` guards o aislamiento multi-tenant
+
+**No requiere security-agent:** exportaciones Excel/PDF client-side, fixes de tipado TS, cambios de UI puramente visual, actualización de documentación, tests.
 
 ## Principles — operational rules
 
