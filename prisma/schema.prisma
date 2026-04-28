@@ -166,6 +166,8 @@ model Company {
   orderNumberSequences      OrderNumberSequence[]
   // Fase NOM-A: Configuración de Nómina
   payrollConfig             PayrollConfig?
+  // Ítem 72: Histórico de topes legales (salario mínimo, UT)
+  legalThresholds           LegalThreshold[]
   // Fase NOM-B: Empleados y Conceptos
   employees                 Employee[]
   payrollConcepts           PayrollConcept[]
@@ -1073,6 +1075,33 @@ enum CestaTicketType {
 enum FideicomisoType {
   EXTERNAL_BANK // Fideicomiso en banco externo
   INTERNAL // Registro contable interno
+}
+
+enum LegalThresholdType {
+  SALARY_MIN_VES // Salario mínimo mensual nacional (Bs.) — Decreto presidencial
+  UT_VALUE       // Unidad Tributaria (Bs.) — Providencia SENIAT
+}
+
+// ─── LegalThreshold ───────────────────────────────────────────────────────────
+// Histórico de topes legales venezolanos por empresa.
+// Cada vez que un decreto modifica el salario mínimo o la UT, el administrador
+// agrega una nueva fila con effectiveFrom = fecha de vigencia.
+// PayrollRunService consulta el tope vigente a la fecha del período calculado.
+
+model LegalThreshold {
+  id            String               @id @default(cuid())
+  companyId     String
+  type          LegalThresholdType
+  effectiveFrom DateTime             @db.Date
+  value         Decimal              @db.Decimal(18, 2)
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, type, effectiveFrom])
+  @@index([companyId, type, effectiveFrom])
 }
 
 model PayrollConfig {

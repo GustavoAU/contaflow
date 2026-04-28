@@ -256,6 +256,17 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
               </div>
             )}
+
+            {/* Topes Legales — Ítem 72 */}
+            <Link
+              href={`/company/${companyId}/payroll/legal-thresholds`}
+              className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+            >
+              <p className="font-medium text-gray-800">Topes Legales</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Salario mínimo y Unidad Tributaria por decreto
+              </p>
+            </Link>
           </div>
         </section>
       )}
