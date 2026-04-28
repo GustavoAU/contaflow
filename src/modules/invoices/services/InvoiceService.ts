@@ -3,6 +3,8 @@ import { Decimal } from "decimal.js";
 import prismaDefault, { prisma } from "@/lib/prisma";
 import type { Prisma, TaxLineType } from "@prisma/client";
 import type { CreateInvoiceInput, InvoiceBookFilter } from "../schemas/invoice.schema";
+import * as Sentry from "@sentry/nextjs";
+import { redis } from "@/lib/ratelimit";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -388,6 +390,7 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
+    const txStart = Date.now();
     try {
     return await prismaDefault.$transaction(
       async (tx) => {
@@ -509,6 +512,17 @@ export class InvoiceService {
     );
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
+        const duration = Date.now() - txStart;
+        Sentry.withScope((scope) => {
+          scope.setTag("companyId", companyId);
+          scope.setExtra("attempt", 1);
+          scope.setExtra("duration_ms", duration);
+          Sentry.captureMessage("P2034 createCreditNote", "warning");
+        });
+        if (redis) {
+          const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
+          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+        }
         throw new Error("Conflicto de concurrencia — reintente la operación");
       }
       throw err;
@@ -521,6 +535,7 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
+    const txStart = Date.now();
     try {
     return await prismaDefault.$transaction(
       async (tx) => {
@@ -642,6 +657,17 @@ export class InvoiceService {
     );
     } catch (err: unknown) {
       if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
+        const duration = Date.now() - txStart;
+        Sentry.withScope((scope) => {
+          scope.setTag("companyId", companyId);
+          scope.setExtra("attempt", 1);
+          scope.setExtra("duration_ms", duration);
+          Sentry.captureMessage("P2034 createDebitNote", "warning");
+        });
+        if (redis) {
+          const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
+          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+        }
         throw new Error("Conflicto de concurrencia — reintente la operación");
       }
       throw err;
