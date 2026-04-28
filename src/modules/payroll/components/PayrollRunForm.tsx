@@ -12,6 +12,8 @@ import { createPayrollRunAction } from "../actions/payroll-run.actions";
 interface Props {
   companyId: string;
   activeEmployeeCount?: number;
+  initialStart?: string;
+  initialEnd?: string;
 }
 
 function generateIdempotencyKey(): string {
@@ -51,12 +53,12 @@ function computeEndFromStart(startISO: string): string {
   return `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 }
 
-export function PayrollRunForm({ companyId, activeEmployeeCount }: Props) {
+export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, initialEnd }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const defaults = getDefaultPeriod();
-  const [periodStart, setPeriodStart] = useState(defaults.start);
-  const [periodEnd, setPeriodEnd] = useState(defaults.end);
+  const [periodStart, setPeriodStart] = useState(initialStart ?? defaults.start);
+  const [periodEnd, setPeriodEnd] = useState(initialEnd ?? defaults.end);
   const [error, setError] = useState<string | null>(null);
 
   function handleStartChange(value: string) {
