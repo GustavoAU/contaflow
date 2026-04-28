@@ -40,6 +40,16 @@ function getDefaultPeriod(): { start: string; end: string } {
   }
 }
 
+function computeEndFromStart(startISO: string): string {
+  const [year, month, day] = startISO.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const mm = String(month).padStart(2, "0");
+  if (day <= 15) {
+    return `${year}-${mm}-15`;
+  }
+  return `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+}
+
 export function PayrollRunForm({ companyId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -47,6 +57,11 @@ export function PayrollRunForm({ companyId }: Props) {
   const [periodStart, setPeriodStart] = useState(defaults.start);
   const [periodEnd, setPeriodEnd] = useState(defaults.end);
   const [error, setError] = useState<string | null>(null);
+
+  function handleStartChange(value: string) {
+    setPeriodStart(value);
+    if (value) setPeriodEnd(computeEndFromStart(value));
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,7 +101,7 @@ export function PayrollRunForm({ companyId }: Props) {
           <input
             type="date"
             value={periodStart}
-            onChange={(e) => setPeriodStart(e.target.value)}
+            onChange={(e) => handleStartChange(e.target.value)}
             required
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -121,9 +136,10 @@ export function PayrollRunForm({ companyId }: Props) {
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando…" : "Calcular Nómina"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Calculando…" : "Calcular Nómina"}
         </button>
         <button
           type="button"
