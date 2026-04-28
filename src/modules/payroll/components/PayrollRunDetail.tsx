@@ -6,7 +6,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
 import { approvePayrollRunAction } from "../actions/payroll-run.actions";
 import { formatAmount } from "@/lib/format";
@@ -62,17 +61,20 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
     return acc;
   }, {});
 
-  function handleExportExcel() {
-    const rows: (string | number)[][] = [];
-    rows.push(["NÓMINA", "", "", "", ""]);
-    rows.push([`Período: ${run.periodStart} — ${run.periodEnd}`, "", "", "", ""]);
-    rows.push([`Moneda: ${currency}`, "", "", "", ""]);
-    rows.push([]);
-    rows.push(["Empleado", "Concepto", "Tipo", "Monto", "Moneda"]);
+  async function handleExportExcel() {
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Nómina");
+
+    ws.addRow(["NÓMINA"]);
+    ws.addRow([`Período: ${run.periodStart} — ${run.periodEnd}`]);
+    ws.addRow([`Moneda: ${currency}`]);
+    ws.addRow([]);
+    ws.addRow(["Empleado", "Concepto", "Tipo", "Monto", "Moneda"]);
 
     for (const [, lines] of Object.entries(byEmployee)) {
       for (const line of lines) {
-        rows.push([
+        ws.addRow([
           line.employeeName,
           conceptLabel(line.conceptCode),
           line.conceptType === "EARNING" ? "Asignación" : "Deducción",
@@ -82,15 +84,21 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
       }
     }
 
-    rows.push([]);
-    rows.push(["", "", "Total Asignaciones", parseFloat(run.totalEarnings), currency]);
-    rows.push(["", "", "Total Deducciones", parseFloat(run.totalDeductions), currency]);
-    rows.push(["", "", "Neto a Pagar", parseFloat(run.totalNet), currency]);
+    ws.addRow([]);
+    ws.addRow(["", "", "Total Asignaciones", parseFloat(run.totalEarnings), currency]);
+    ws.addRow(["", "", "Total Deducciones", parseFloat(run.totalDeductions), currency]);
+    ws.addRow(["", "", "Neto a Pagar", parseFloat(run.totalNet), currency]);
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Nómina");
-    XLSX.writeFile(wb, `Nómina ${run.periodStart} - ${run.periodEnd}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Nómina ${run.periodStart} - ${run.periodEnd}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function handleApprove() {

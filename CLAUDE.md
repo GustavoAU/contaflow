@@ -129,7 +129,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Mejora #22 ✅ merged (Forma 30: crédito fiscal período anterior — SeccionE extendida + guard negativo + UI input E1 + 7 tests — 1443 total)
 - Fase 35E ✅ merged (Glosa analítica JournalEntry — `description String?` + 10 servicios + Libro Mayor fallback — ADR-016 — 1443 total)
 
-**1443 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-27)
+**1461 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-27)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
@@ -196,3 +196,30 @@ El `security-agent` no es solo para fases nuevas. Es obligatorio ante CUALQUIERA
 
 - Files/folders in English
 - UI content in Spanish
+
+## Dependencias — decisiones
+
+Documentado para evitar re-investigar en sesiones futuras.
+
+### `next` — upgrade 16.1.6 → 16.2.4 (2026-04-27)
+Ejecutado. Resuelve 5 CVEs HIGH: CSRF bypass en Server Actions (null origin), HTTP request smuggling, DoS en Server Components, y DoS por image cache/buffer ilimitado. Bump de patch dentro de v16 — sin breaking changes.
+
+### `xlsx` → `exceljs` (2026-04-27)
+Eliminado completamente. Los CVEs de xlsx (Prototype Pollution + ReDoS, GHSA-4r6h-8v6p-xvw6 / GHSA-5pgg-2g8v-p4x9) afectan **parsing** de archivos maliciosos — riesgo real en `ImportService` y `AccountsImporter`. Migración cubre 7 archivos: ImportService.ts, ImportService.test.ts, AccountsImporter.tsx, JournalExportButton.tsx, LedgerExportButton.tsx, InvoiceBook.tsx, PayrollRunDetail.tsx. Para exceljs en client components con Next.js: webpack fallback `{ fs: false, path: false, child_process: false, net: false, tls: false }` en next.config.ts, más `import type ExcelJS from "exceljs"` para los tipos, e `import("exceljs")` dinámico en runtime. El tipo `Buffer` de exceljs difiere del de Node.js moderno — usar `buffer as unknown as Parameters<typeof wb.xlsx.load>[0]` para castear sin perder seguridad. Nota: exceljs introduce `uuid` moderate (uso interno, bajo riesgo — no exponemos el parámetro `buf`).
+
+### `@hono/node-server` moderate — ignorado intencionalmente
+Está dentro de `@prisma/dev`, herramienta exclusivamente de desarrollo (Prisma Studio). El fix requeriría bajar Prisma de 7.4.1 a 6.x — breaking change inaceptable. El middleware bypass de serveStatic no afecta producción.
+
+---
+
+## Dinámica de trabajo — AI Software Factory
+
+Estas reglas aplican en CADA sesión, sin excepción:
+
+1. **Memoria activa**: Cuando se descubre un patrón nuevo, una regla de negocio implícita o una decisión arquitectónica tomada en el camino, se documenta de inmediato — en `CLAUDE.md`, un ADR nuevo, o `quick-reference.md`. No se deja solo en el chat.
+
+2. **Contexto primero**: Al inicio de cada sesión importante, leer `CLAUDE.md` y los archivos relevantes antes de proponer cualquier implementación. Es una obligación, no una sugerencia.
+
+3. **Feedback loop con tests**: Cada fase termina con `tsc` y `vitest` en verde. Si algo falla, se analiza, se corrige, y si revela una regla nueva, se documenta antes de continuar.
+
+4. **Proponer mejoras al conocimiento base**: Si `CLAUDE.md` está desactualizado, falta una regla o hay algo ambiguo, señalarlo proactivamente. No esperar a que el usuario lo note.
