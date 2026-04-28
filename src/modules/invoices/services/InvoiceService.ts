@@ -132,6 +132,13 @@ export type InvoiceBookPage = {
   total: number;             // count total para mostrar "X de Y"
 };
 
+// P2034 retry delays in ms: 0ms before attempt 1, 50ms before attempt 2, 100ms before attempt 3
+const P2034_DELAYS = [0, 50, 100] as const;
+
+function isP2034(err: unknown): err is Error {
+  return err instanceof Error && "code" in err && (err as { code: string }).code === "P2034";
+}
+
 export class InvoiceService {
   // ─── Calcular pendingAmount inicial (VEN-NIF) ────────────────────────────────
   // pendingAmount = totalAmountVes - ivaRetentionAmount - islrRetentionAmount
@@ -390,8 +397,14 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
-    const txStart = Date.now();
-    try {
+    const MAX_ATTEMPTS = 3;
+    let lastP2034Err: unknown;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (attempt > 1) await new Promise((r) => setTimeout(r, P2034_DELAYS[attempt - 1]));
+
+      const txStart = Date.now();
+      try {
     return await prismaDefault.$transaction(
       async (tx) => {
         // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
@@ -510,23 +523,29 @@ export class InvoiceService {
       },
       { isolationLevel: "Serializable" }
     );
-    } catch (err: unknown) {
-      if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
-        const duration = Date.now() - txStart;
-        Sentry.withScope((scope) => {
-          scope.setTag("companyId", companyId);
-          scope.setExtra("attempt", 1);
-          scope.setExtra("duration_ms", duration);
-          Sentry.captureMessage("P2034 createCreditNote", "warning");
-        });
-        if (redis) {
-          const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
-          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+      } catch (err: unknown) {
+        if (isP2034(err)) {
+          if (redis) {
+            const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
+            await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+          }
+          lastP2034Err = err;
+          if (attempt === MAX_ATTEMPTS) {
+            Sentry.withScope((scope) => {
+              scope.setTag("companyId", companyId);
+              scope.setExtra("attempt", attempt);
+              scope.setExtra("duration_ms", Date.now() - txStart);
+              Sentry.captureMessage("P2034 createCreditNote", "warning");
+            });
+          }
+          continue;
         }
-        throw new Error("Conflicto de concurrencia — reintente la operación");
+        throw err;
       }
-      throw err;
     }
+
+    void lastP2034Err;
+    throw new Error("Conflicto de concurrencia — reintente la operación");
   }
 
   // ─── Crear Nota de Débito ────────────────────────────────────────────────────
@@ -535,8 +554,14 @@ export class InvoiceService {
     data: CreateCreditDebitNoteInput,
     createdBy: string
   ) {
-    const txStart = Date.now();
-    try {
+    const MAX_ATTEMPTS = 3;
+    let lastP2034Err: unknown;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (attempt > 1) await new Promise((r) => setTimeout(r, P2034_DELAYS[attempt - 1]));
+
+      const txStart = Date.now();
+      try {
     return await prismaDefault.$transaction(
       async (tx) => {
         // Guard multi-tenant: findFirst with companyId prevents IDOR (ADR-004)
@@ -655,23 +680,29 @@ export class InvoiceService {
       },
       { isolationLevel: "Serializable" }
     );
-    } catch (err: unknown) {
-      if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
-        const duration = Date.now() - txStart;
-        Sentry.withScope((scope) => {
-          scope.setTag("companyId", companyId);
-          scope.setExtra("attempt", 1);
-          scope.setExtra("duration_ms", duration);
-          Sentry.captureMessage("P2034 createDebitNote", "warning");
-        });
-        if (redis) {
-          const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
-          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+      } catch (err: unknown) {
+        if (isP2034(err)) {
+          if (redis) {
+            const key = `p2034:${companyId}:${new Date().toISOString().slice(0, 10)}`;
+            await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+          }
+          lastP2034Err = err;
+          if (attempt === MAX_ATTEMPTS) {
+            Sentry.withScope((scope) => {
+              scope.setTag("companyId", companyId);
+              scope.setExtra("attempt", attempt);
+              scope.setExtra("duration_ms", Date.now() - txStart);
+              Sentry.captureMessage("P2034 createDebitNote", "warning");
+            });
+          }
+          continue;
         }
-        throw new Error("Conflicto de concurrencia — reintente la operación");
+        throw err;
       }
-      throw err;
     }
+
+    void lastP2034Err;
+    throw new Error("Conflicto de concurrencia — reintente la operación");
   }
 
   // ─── Obtener NC/ND de una factura ────────────────────────────────────────────

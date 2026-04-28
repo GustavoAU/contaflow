@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
+import type { Retencion } from "@prisma/client";
 import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
 import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
@@ -107,9 +108,17 @@ export async function createRetentionAction(
     }
 
     // $transaction Serializable — getNextVoucherNumber requiere SSI
-    txStart = Date.now();
-    const retention = await prisma.$transaction(async (tx) =>
-      withCompanyContext(data.companyId, tx, async (tx) => {
+    // Retry loop: hasta 3 intentos con backoff 50ms/100ms ante P2034
+    const P2034_DELAYS = [0, 50, 100] as const;
+    const MAX_ATTEMPTS = 3;
+    let retention!: Retencion;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (attempt > 1) await new Promise((r) => setTimeout(r, P2034_DELAYS[attempt - 1]));
+      txStart = Date.now();
+      try {
+        retention = await prisma.$transaction(async (tx) =>
+          withCompanyContext(data.companyId, tx, async (tx) => {
         const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
 
         const ret = await tx.retencion.create({
@@ -153,7 +162,28 @@ export async function createRetentionAction(
 
         return ret;
       })
-    , { isolationLevel: "Serializable" });
+        , { isolationLevel: "Serializable" });
+        break; // success — exit retry loop
+      } catch (innerErr: unknown) {
+        if (innerErr instanceof Error && "code" in innerErr && (innerErr as { code: string }).code === "P2034") {
+          if (redis) {
+            const key = `p2034:${data.companyId}:${new Date().toISOString().slice(0, 10)}`;
+            await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+          }
+          if (attempt === MAX_ATTEMPTS) {
+            Sentry.withScope((scope) => {
+              scope.setTag("companyId", input.companyId);
+              scope.setExtra("attempt", attempt);
+              scope.setExtra("duration_ms", Date.now() - txStart);
+              Sentry.captureMessage("P2034 createRetentionAction", "warning");
+            });
+            return { success: false, error: "Conflicto de concurrencia — reintente la operación" };
+          }
+          continue;
+        }
+        throw innerErr; // P2002, other errors — let outer catch handle
+      }
+    }
 
     revalidatePath(`/company/${data.companyId}/retentions`);
 
@@ -202,20 +232,6 @@ export async function createRetentionAction(
             },
           };
         }
-      }
-      if ("code" in error && (error as { code: string }).code === "P2034") {
-        const duration = Date.now() - txStart;
-        Sentry.withScope((scope) => {
-          scope.setTag("companyId", input.companyId);
-          scope.setExtra("attempt", 1);
-          scope.setExtra("duration_ms", duration);
-          Sentry.captureMessage("P2034 createRetentionAction", "warning");
-        });
-        if (redis) {
-          const key = `p2034:${input.companyId}:${new Date().toISOString().slice(0, 10)}`;
-          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
-        }
-        return { success: false, error: "Conflicto de concurrencia — reintente la operación" };
       }
       return { success: false, error: error.message };
     }
