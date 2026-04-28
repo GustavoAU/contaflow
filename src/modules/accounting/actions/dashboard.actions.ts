@@ -1,10 +1,26 @@
 // src/modules/accounting/actions/dashboard.actions.ts
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 export async function getDashboardMetricsAction(companyId: string) {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" } as const;
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." } as const;
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member || !canAccess(member.role, ROLES.ALL))
+    return { success: false, error: "Acceso denegado" } as const;
+
   try {
     const now = new Date();
     const year = now.getUTCFullYear();
@@ -19,50 +35,30 @@ export async function getDashboardMetricsAction(companyId: string) {
       lastTransaction,
       trialBalance,
     ] = await Promise.all([
-      // Total de cuentas
       prisma.account.count({ where: { companyId } }),
-
-      // Total de asientos
+      prisma.transaction.count({ where: { companyId, status: "POSTED" } }),
       prisma.transaction.count({
-        where: { companyId, status: "POSTED" },
+        where: { companyId, status: "POSTED", date: { gte: monthStart } },
       }),
-
-      // Asientos del mes actual
-      prisma.transaction.count({
-        where: {
-          companyId,
-          status: "POSTED",
-          date: { gte: monthStart },
-        },
-      }),
-
-      // Período activo
       prisma.accountingPeriod.findFirst({
         where: { companyId, status: "OPEN" },
         orderBy: { year: "desc" },
       }),
-
-      // Último asiento
       prisma.transaction.findFirst({
         where: { companyId, status: "POSTED" },
         orderBy: { date: "desc" },
         select: { number: true, description: true, date: true },
       }),
-
-      // Balance para calcular activos y pasivos
       prisma.account.findMany({
         where: { companyId },
         include: {
           journalEntries: {
-            where: {
-              transaction: { status: "POSTED" },
-            },
+            where: { transaction: { status: "POSTED" } },
           },
         },
       }),
     ]);
 
-    // Calcular totales por tipo
     let totalAssets = new Decimal(0);
     let totalLiabilities = new Decimal(0);
     let totalRevenue = new Decimal(0);
@@ -71,7 +67,7 @@ export async function getDashboardMetricsAction(companyId: string) {
     for (const account of trialBalance) {
       const balance = account.journalEntries.reduce(
         (acc, e) => acc.plus(new Decimal(e.amount.toString())),
-        new Decimal(0)
+        new Decimal(0),
       );
 
       if (account.type === "ASSET") totalAssets = totalAssets.plus(balance);

@@ -1,5 +1,24 @@
 // src/modules/accounting/actions/report.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// ─── Hoisted mocks ────────────────────────────────────────────────────────────
+const mockAuth = vi.hoisted(() => vi.fn());
+const mockCheckRateLimit = vi.hoisted(() => vi.fn());
+
+vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: mockCheckRateLimit,
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  default: {
+    companyMember: { findFirst: vi.fn() },
+    account: { findMany: vi.fn() },
+    transaction: { findMany: vi.fn() },
+  },
+}));
+
 import prisma from "@/lib/prisma";
 import {
   getLedgerAction,
@@ -8,19 +27,8 @@ import {
   getBalanceSheetAction,
 } from "./report.actions";
 
-// ÔöÇÔöÇÔöÇ Configuraci├│n de Mocks ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-vi.mock("@/lib/prisma", () => ({
-  default: {
-    account: {
-      findMany: vi.fn(),
-    },
-  },
-}));
-
-// ÔöÇÔöÇÔöÇ Mocks de Datos ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-
-// Mock de cuenta con movimientos de d├®bito (Activo)
 const mockAccountAsset = {
   id: "acc-1",
   code: "1110",
@@ -33,7 +41,7 @@ const mockAccountAsset = {
       transaction: {
         id: "tx-1",
         number: "2026-03-000001",
-        description: "Venta de mercanc├¡a",
+        description: "Venta de mercancía",
         date: new Date("2026-03-10"),
         status: "POSTED",
       },
@@ -41,7 +49,6 @@ const mockAccountAsset = {
   ],
 };
 
-// Mock de cuenta con movimientos de cr├®dito (Ingreso)
 const mockAccountRevenue = {
   id: "acc-2",
   code: "4135",
@@ -54,7 +61,7 @@ const mockAccountRevenue = {
       transaction: {
         id: "tx-1",
         number: "2026-03-000001",
-        description: "Venta de mercanc├¡a",
+        description: "Venta de mercancía",
         date: new Date("2026-03-10"),
         status: "POSTED",
       },
@@ -62,10 +69,21 @@ const mockAccountRevenue = {
   ],
 };
 
-// ÔöÇÔöÇÔöÇ Pruebas del Libro Mayor (getLedgerAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Setup auth/rateLimit por defecto ─────────────────────────────────────────
+
+function setupAuthOk() {
+  mockAuth.mockResolvedValue({ userId: "user-1" });
+  mockCheckRateLimit.mockResolvedValue({ allowed: true });
+  vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+}
+
+// ─── getLedgerAction ──────────────────────────────────────────────────────────
 
 describe("getLedgerAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
 
   it("retorna cuentas con movimientos correctamente", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountAsset] as never);
@@ -82,7 +100,7 @@ describe("getLedgerAction", () => {
     }
   });
 
-  it("calcula saldo acumulado correctamente para cuentas de cr├®dito", async () => {
+  it("calcula saldo acumulado correctamente para cuentas de crédito", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountRevenue] as never);
 
     const result = await getLedgerAction("company-1");
@@ -108,12 +126,15 @@ describe("getLedgerAction", () => {
   });
 });
 
-// ÔöÇÔöÇÔöÇ Pruebas del Balance de Comprobaci├│n (getTrialBalanceAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── getTrialBalanceAction ────────────────────────────────────────────────────
 
 describe("getTrialBalanceAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
 
-  it("retorna balance de comprobaci├│n balanceado", async () => {
+  it("retorna balance de comprobación balanceado", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       mockAccountAsset,
       mockAccountRevenue,
@@ -141,10 +162,13 @@ describe("getTrialBalanceAction", () => {
   });
 });
 
-// ÔöÇÔöÇÔöÇ Pruebas del Estado de Resultados (getIncomeStatementAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── getIncomeStatementAction ─────────────────────────────────────────────────
 
 describe("getIncomeStatementAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
 
   it("retorna utilidad cuando ingresos > gastos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
@@ -172,7 +196,7 @@ describe("getIncomeStatementAction", () => {
     expect(result.data.netIncome).toBe("600.00");
   });
 
-  it("retorna p├®rdida cuando gastos > ingresos", async () => {
+  it("retorna pérdida cuando gastos > ingresos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       {
         id: "acc-1",
@@ -202,18 +226,18 @@ describe("getIncomeStatementAction", () => {
     const result = await getIncomeStatementAction(
       "company-1",
       new Date("2026-01-01"),
-      new Date("2026-03-31")
+      new Date("2026-03-31"),
     );
 
     expect(result.success).toBe(true);
     expect(vi.mocked(prisma.account.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: "company-1" }),
-      })
+      }),
     );
   });
 
-  it("retorna listas vac├¡as si no hay movimientos", async () => {
+  it("retorna listas vacías si no hay movimientos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([] as never);
 
     const result = await getIncomeStatementAction("company-1");
@@ -225,10 +249,13 @@ describe("getIncomeStatementAction", () => {
   });
 });
 
-// ÔöÇÔöÇÔöÇ Pruebas del Balance General (getBalanceSheetAction) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── getBalanceSheetAction ────────────────────────────────────────────────────
 
 describe("getBalanceSheetAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
 
   it("retorna balance cuadrado cuando Activos = Pasivos + Patrimonio", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([
@@ -285,15 +312,12 @@ describe("getBalanceSheetAction", () => {
     const result = await getBalanceSheetAction("company-1");
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // Verificamos totales y estado de balance
     expect(result.data.totalAssets).toBe("1000.00");
     expect(result.data.totalLiabilities).toBe("400.00");
     expect(result.data.isBalanced).toBe(false);
   });
 
   it("contra-activo (saldo crédito) reduce totalActivos — regresión bug balance.abs()", async () => {
-    // Regresión: antes se usaba balance.abs() para ASSET, inflando el total.
-    // Maquinaria 10.000 + Dep. Acumulada -4.000 = Valor Neto 6.000
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
         {
@@ -313,19 +337,17 @@ describe("getBalanceSheetAction", () => {
           journalEntries: [{ amount: { toString: () => "-2000" } }],
         },
       ] as never)
-      .mockResolvedValueOnce([] as never); // segunda llamada: REVENUE/EXPENSE
+      .mockResolvedValueOnce([] as never);
 
     const result = await getBalanceSheetAction("company-1");
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    // El contra-activo REDUCE totalActivos (6.000), no lo infla (14.000)
     expect(result.data.totalAssets).toBe("6000.00");
     expect(result.data.totalLiabilities).toBe("4000.00");
     expect(result.data.totalEquity).toBe("2000.00");
     expect(result.data.isBalanced).toBe(true);
 
-    // El balance de la fila es con signo, no abs()
     const depRow = result.data.assets.find((r) => r.code === "1691");
     expect(depRow?.balance).toBe("-4000.00");
   });

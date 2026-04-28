@@ -2,7 +2,10 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 import { Decimal } from "decimal.js";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -95,11 +98,35 @@ export type JournalTransaction = {
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
+// ─── Guard compartido ─────────────────────────────────────────────────────────
+
+async function guardAccounting(
+  companyId: string,
+): Promise<{ userId: string } | { success: false; error: string }> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Acceso denegado" };
+
+  return { userId };
+}
+
 export async function getJournalAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ): Promise<ActionResult<JournalTransaction[]>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
   try {
     const transactions = await prisma.transaction.findMany({
       where: {
@@ -175,8 +202,11 @@ export async function getJournalAction(
 export async function getLedgerAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ): Promise<ActionResult<LedgerAccount[]>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
   try {
     const accounts = await prisma.account.findMany({
       where: { companyId },
@@ -259,8 +289,11 @@ export async function getLedgerAction(
 export async function getTrialBalanceAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ): Promise<ActionResult<TrialBalanceRow[]>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
   try {
     const accounts = await prisma.account.findMany({
       where: { companyId },
@@ -324,8 +357,11 @@ export async function getTrialBalanceAction(
 export async function getIncomeStatementAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date
+  dateTo?: Date,
 ): Promise<ActionResult<IncomeStatement>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
   try {
     const accounts = await prisma.account.findMany({
       where: {
@@ -403,8 +439,11 @@ export async function getIncomeStatementAction(
 
 export async function getBalanceSheetAction(
   companyId: string,
-  dateTo?: Date
+  dateTo?: Date,
 ): Promise<ActionResult<BalanceSheet>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
   try {
     const [accounts, incomeAccounts] = await Promise.all([
       prisma.account.findMany({
@@ -443,23 +482,19 @@ export async function getBalanceSheetAction(
       );
 
       if (account.type === "ASSET") {
-        // Activos: saldo normal = deudor (positivo). Contra-activos (dep. acum.) = acreedor (negativo) → reducen el total.
         assets.push({ id: account.id, code: account.code, name: account.name, balance: balance.toFixed(2) });
         totalAssets = totalAssets.plus(balance);
       } else if (account.type === "LIABILITY") {
-        // Pasivos: saldo normal = acreedor (negativo en el sistema) → se niega para mostrar positivo.
         const display = balance.negated();
         liabilities.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
         totalLiabilities = totalLiabilities.plus(display);
       } else {
-        // Patrimonio: igual que pasivos.
         const display = balance.negated();
         equity.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
         totalEquity = totalEquity.plus(display);
       }
     }
 
-    // Resultado del ejercicio (sin asientos de cierre, se incluye como línea de patrimonio)
     let totalRevenues = new Decimal(0);
     let totalExpenses = new Decimal(0);
     for (const account of incomeAccounts) {
@@ -469,9 +504,9 @@ export async function getBalanceSheetAction(
         new Decimal(0),
       );
       if (account.type === "REVENUE") {
-        totalRevenues = totalRevenues.plus(balance.negated()); // crédito → negado = positivo
+        totalRevenues = totalRevenues.plus(balance.negated());
       } else {
-        totalExpenses = totalExpenses.plus(balance); // débito → positivo
+        totalExpenses = totalExpenses.plus(balance);
       }
     }
     const netIncome = totalRevenues.minus(totalExpenses);
