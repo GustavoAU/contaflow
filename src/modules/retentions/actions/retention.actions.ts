@@ -7,7 +7,8 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
 import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
@@ -35,6 +36,7 @@ export type RetentionSummary = {
 export async function createRetentionAction(
   input: CreateRetentionInput
 ): Promise<ActionResult<RetentionSummary>> {
+  let txStart = 0;
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -105,6 +107,7 @@ export async function createRetentionAction(
     }
 
     // $transaction Serializable — getNextVoucherNumber requiere SSI
+    txStart = Date.now();
     const retention = await prisma.$transaction(async (tx) =>
       withCompanyContext(data.companyId, tx, async (tx) => {
         const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
@@ -201,6 +204,17 @@ export async function createRetentionAction(
         }
       }
       if ("code" in error && (error as { code: string }).code === "P2034") {
+        const duration = Date.now() - txStart;
+        Sentry.withScope((scope) => {
+          scope.setTag("companyId", input.companyId);
+          scope.setExtra("attempt", 1);
+          scope.setExtra("duration_ms", duration);
+          Sentry.captureMessage("P2034 createRetentionAction", "warning");
+        });
+        if (redis) {
+          const key = `p2034:${input.companyId}:${new Date().toISOString().slice(0, 10)}`;
+          await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+        }
         return { success: false, error: "Conflicto de concurrencia — reintente la operación" };
       }
       return { success: false, error: error.message };
