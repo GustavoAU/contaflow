@@ -119,7 +119,17 @@ export async function getTransactionsByCompanyAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof TransactionService.getTransactionsByCompany>>>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
     if (!companyId) return { success: false, error: "Company ID es requerido" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!member || !canAccess(member.role, ROLES.ALL)) {
+      return { success: false, error: "No autorizado" };
+    }
 
     const transactions = await TransactionService.getTransactionsByCompany(companyId);
 
@@ -141,6 +151,13 @@ export async function getTransactionsPaginatedAction(
   if (!userId) return { success: false, error: "No autorizado" };
 
   if (!companyId) return { success: false, error: "Company ID es requerido" };
+
+  const member = await prisma.companyMember.findUnique({
+    where: { userId_companyId: { userId, companyId } },
+  });
+  if (!member || !canAccess(member.role, ROLES.ALL)) {
+    return { success: false, error: "No autorizado" };
+  }
 
   try {
     const page = await TransactionService.getTransactionsPaginated(companyId, cursor, limit);
