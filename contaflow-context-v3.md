@@ -1,7 +1,7 @@
 # ContaFlow — Contexto Completo del Proyecto
 
-_Versión actualizada — Fase NOM-B completada. Última sincronización: 2026-04-15_
-_v3.21: Fase NOM-B (Empleados, Conceptos, SalaryHistory — 5 modelos + 4 enums + 69 tests). 1098 tests GREEN._
+_Versión actualizada — Sesión 2026-04-27. Última sincronización: 2026-04-27_
+_v3.28: Excel exports (Libro Mayor + Libro Diario + Nómina) + Glosa en líneas de factura + fix TS18048 ítem 54/55. 1448 tests GREEN._
 
 ## 1. Descripción del Producto
 
@@ -282,10 +282,18 @@ src/modules/[nombre]/
 ## 17. Estado Actual — Branch main
 
 **Branch activa**: `main`
-**Tests**: 755/755 passing · **CI**: ✅ verde
-**Último commit**: merge ADR-010 — testing tier + INPC guard + integration tests base
+**Tests**: 1448/1448 passing · **CI**: ✅ verde · **TS errors**: 0
+**Último commit**: feat/excel-exports-glosa — Excel Libro Mayor/Diario/Nómina + glosa en InvoiceTaxLine (2026-04-27)
 
 ### Fases completadas (en orden cronológico)
+
+**2026-04-27 — Excel exports + Glosa factura (sesión actual)**
+- ✅ `LedgerExportButton.tsx` — exportar Libro Mayor a Excel (por cuenta + movimientos)
+- ✅ `JournalExportButton.tsx` — exportar Libro Diario a Excel (una fila por línea de asiento)
+- ✅ `PayrollRunDetail.tsx` — exportar Nómina a Excel (empleados × conceptos, totales)
+- ✅ Glosa en `InvoiceTaxLine` — migración `20260427_invoice_taxline_description` + campo `description String?` en schema + InvoiceService + InvoiceForm UI
+- ✅ Fix TS18048 — non-null assertions en `PayrollRunService.test.ts` (ítems 54/55)
+
 - ✅ Fase 17: Conciliación Bancaria — hardening seguridad (commit `f110d93`)
 - ✅ Fase 17B: BankReconciliationService + CsvImporter + ADR-008 schema 3-way match (commits `4f041f7` → `faf1972`)
 - ✅ Fase 13D: RLS Row Level Security — withCompanyContext + 14 tablas (commit `0ada843`)
