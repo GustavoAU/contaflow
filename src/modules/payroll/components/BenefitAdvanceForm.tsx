@@ -35,7 +35,9 @@ export default function BenefitAdvanceForm({
   const [reason, setReason] = useState<"HOUSING" | "HEALTH" | "EDUCATION">("HOUSING");
   const [notes, setNotes] = useState("");
 
-  const limit75 = (maxAmount * 0.75).toFixed(2);
+  const limit75Raw = maxAmount * 0.75;
+  const limit75 = limit75Raw.toFixed(2);
+  const limit75Fmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(limit75Raw);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,7 +63,7 @@ export default function BenefitAdvanceForm({
         Registrar Anticipo (Art. 144 LOTTT)
       </p>
       <p className="text-xs text-amber-700">
-        Máximo permitido: <span className="font-mono font-semibold">{limit75}</span>{" "}
+        Máximo permitido: <span className="font-mono font-semibold">{limit75Fmt}</span>{" "}
         (75% del saldo de garantía {maxAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })})
       </p>
 
