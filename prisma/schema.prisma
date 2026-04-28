@@ -1079,7 +1079,7 @@ enum FideicomisoType {
 
 enum LegalThresholdType {
   SALARY_MIN_VES // Salario mínimo mensual nacional (Bs.) — Decreto presidencial
-  UT_VALUE       // Unidad Tributaria (Bs.) — Providencia SENIAT
+  UT_VALUE // Unidad Tributaria (Bs.) — Providencia SENIAT
 }
 
 // ─── LegalThreshold ───────────────────────────────────────────────────────────
@@ -1089,14 +1089,14 @@ enum LegalThresholdType {
 // PayrollRunService consulta el tope vigente a la fecha del período calculado.
 
 model LegalThreshold {
-  id            String               @id @default(cuid())
+  id            String             @id @default(cuid())
   companyId     String
   type          LegalThresholdType
-  effectiveFrom DateTime             @db.Date
-  value         Decimal              @db.Decimal(18, 2)
+  effectiveFrom DateTime           @db.Date
+  value         Decimal            @db.Decimal(18, 2)
   notes         String?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 

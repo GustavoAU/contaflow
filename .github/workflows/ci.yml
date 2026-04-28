@@ -135,6 +135,7 @@ jobs:
           # Para cada archivo .ts en src/modules (excl. tests)
           while IFS= read -r file; do
             grep -n "findMany\|findFirst" "$file" \
+              | grep -Ev ":[[:space:]]*//" \
               | grep -v "companyId" \
               | grep -v "// ADR-004-EXCEPTION" \
               | while IFS=: read -r linenum rest; do
