@@ -116,7 +116,7 @@ function InvoiceRow({
   invoiceType: "SALE" | "PURCHASE"
   rowIndex: number
 }) {
-  const dateStr = new Date(row.date).toLocaleDateString("es-VE")
+  const dateStr = new Date(row.date.getUTCFullYear(), row.date.getUTCMonth(), row.date.getUTCDate()).toLocaleDateString("es-VE")
   const rowStyle = rowIndex % 2 === 0 ? styles.tableRow : styles.tableRowAlt
 
   if (row.taxLines.length === 0) {
