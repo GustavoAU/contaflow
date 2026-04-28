@@ -287,9 +287,9 @@ jobs:
 
       - run: npm ci
 
-      # xlsx (SheetJS) tiene vulnerabilidades conocidas sin fix — auditamos solo critical
-      - name: npm audit (CRITICAL only)
-        run: npm audit --audit-level=critical
+      # xlsx migrado a exceljs — podemos subir el umbral a HIGH
+      - name: npm audit (HIGH or above)
+        run: npm audit --audit-level=high
 
   # ============================================================================
   # RESULT CHECK

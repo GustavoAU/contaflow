@@ -183,8 +183,18 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Fase 26B Parte 2 ✅ merged (FiscalAnomalyDetectorService — detector retrospectivo: asientos descuadrados + retenciones sin factura + CxC +90d + saldo anormal — 15 tests — 1391 total)
 - Mejora #22 ✅ merged (Forma 30: crédito fiscal período anterior — SeccionE extendida + guard negativo + UI input E1 + 7 tests — 1443 total)
 - Fase 35E ✅ merged (Glosa analítica JournalEntry — `description String?` + 10 servicios + Libro Mayor fallback — ADR-016 — 1443 total)
+- Security hardening pre-lanzamiento ✅ merged (middleware.ts Clerk + IDOR listPaymentsAction + security headers + audit-level HIGH — 1466 tests)
 
-**1461 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-27)
+**1466 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-28)
+
+### middleware.ts — rutas protegidas y públicas
+
+`src/middleware.ts` creado con Clerk v7 (`clerkMiddleware` + `createRouteMatcher`).
+
+- **Rutas públicas**: `/`, `/sign-in(.*)`, `/sign-up(.*)`, `/monitoring(.*)`, `/api/webhook/(.*)`
+- **Todas las demás rutas**: protegidas con `auth.protect()` — redirige a sign-in si no autenticado
+- **Matcher**: excluye archivos estáticos `_next`, imágenes, fuentes, etc.; siempre cubre `/(api|trpc)(.*)`
+- **Pendiente post-lanzamiento**: nonce strategy en CSP para eliminar `unsafe-inline`; rate limit en `/monitoring` handler para prevenir flood de cuota Sentry (LOW finding security-agent)
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
