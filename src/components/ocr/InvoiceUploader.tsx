@@ -1,4 +1,4 @@
-// src/components/ocr/InvoiceUploader.tsx
+﻿// src/components/ocr/InvoiceUploader.tsx
 "use client";
 
 import { useState, useTransition, useRef } from "react";
@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon, ArrowRightIcon } from "lucide-react";
+import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon, ArrowRightIcon, Loader2Icon } from "lucide-react";
 import { extractInvoiceAction } from "@/modules/ocr/actions/ocr.actions";
 import type { ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
 
@@ -157,7 +157,7 @@ export function InvoiceUploader({ companyId }: Props) {
           <div className="flex gap-3">
             <Button onClick={handleScan} disabled={!base64 || isPending} className="flex-1 gap-2">
               <ScanIcon className="h-4 w-4" />
-              {isPending ? "Analizando..." : "Escanear Factura"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Analizando..." : "Escanear Factura"}
             </Button>
 
             {base64 && (

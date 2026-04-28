@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/PostInterestForm.tsx
 // Fase NOM-D: Intereses sobre prestaciones (Art. 143 LOTTT)
 // CRITICAL-3: NO recibe tasa — BenefitAccrualService.postBenefitInterest lee BcvBenefitRate
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { postBenefitInterestAction } from "../actions/nom-d.actions";
 
@@ -74,7 +75,7 @@ export default function PostInterestForm({ companyId }: Props) {
           disabled={isPending}
           className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
         >
-          {isPending ? "Registrando…" : "Registrar intereses"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando…" : "Registrar intereses"}
         </button>
       </form>
 

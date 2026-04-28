@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 // src/modules/inventory/components/InventoryReportsView.tsx
 // Panel de reportes de inventario — tabs: Existencias | Movimientos
 // Roles: OWNER, ADMIN, ACCOUNTANT
 
 import { useState, useTransition } from "react";
-import { RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon } from "lucide-react";
 import {
   getStockSummaryAction,
   getMovementReportAction,
@@ -268,7 +268,7 @@ function MovementsTab({
               disabled={isPending}
               className="w-full rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending ? "Buscando..." : "Buscar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Buscando..." : "Buscar"}
             </button>
           </div>
         </div>

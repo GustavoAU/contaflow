@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +112,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
                   size="sm"
                   disabled={!isConfigured || isPendingClose}
                 >
-                  {isPendingClose ? "Cerrando..." : `Cerrar Ejercicio ${yearToClose}`}
+                  {isPendingClose && <Loader2Icon className="animate-spin" />}{isPendingClose ? "Cerrando..." : `Cerrar Ejercicio ${yearToClose}`}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>

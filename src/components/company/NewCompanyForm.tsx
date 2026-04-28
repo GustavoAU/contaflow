@@ -3,6 +3,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ export function NewCompanyForm({ userId }: Props) {
 
         {/* Botón */}
         <Button onClick={handleSubmit} disabled={isPending} className="w-full">
+          {isPending && <Loader2Icon className="animate-spin" />}
           {isPending ? "Creando empresa..." : "Crear Empresa"}
         </Button>
       </div>

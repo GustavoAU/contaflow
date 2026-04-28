@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useTransition, useState } from "react";
+import { Loader2Icon } from "lucide-react";
 import { upsertExchangeRateAction, fetchBcvRateAction } from "../actions/exchange-rate.actions";
 import type { ExchangeRateSummary } from "../services/ExchangeRateService";
 
@@ -176,7 +177,7 @@ export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
         disabled={isPending}
         className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {isPending ? "Guardando..." : "Guardar tasa"}
+        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar tasa"}
       </button>
     </form>
   );

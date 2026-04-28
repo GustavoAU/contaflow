@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition, useId, useRef, useEffect } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -1098,6 +1099,7 @@ export function InvoiceForm({
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">
+            {isPending && <Loader2Icon className="animate-spin" />}
             {isPending ? "Guardando..." : "Registrar Factura"}
           </Button>
         </form>

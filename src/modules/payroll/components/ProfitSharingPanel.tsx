@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/ProfitSharingPanel.tsx
 // Fase NOM-D: Panel de utilidades por empleado (cálculo + historial)
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { calculateProfitSharingAction } from "../actions/nom-d.actions";
 import type { ProfitSharingRecordRow } from "../services/ProfitSharingService";
 
@@ -149,7 +150,7 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
               disabled={isPending || alreadyExistsForYear}
               className="rounded bg-green-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
-              {isPending ? "Calculando..." : "Confirmar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando..." : "Confirmar"}
             </button>
           </div>
         </div>

@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 // src/modules/notifications/components/NotificationBell.tsx
 // Campana de alertas en la navbar — se monta solo para roles ACCOUNTING.
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
-import { Bell, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
+import { Bell, AlertCircle, AlertTriangle, Info, X, Loader2Icon } from "lucide-react";
 import { getNotificationsAction } from "../actions/notifications.actions";
 import type { NotificationAlert, AlertSeverity } from "../services/NotificationService";
 
@@ -153,7 +153,7 @@ export function NotificationBell({ companyId }: Props) {
                 disabled={isPending}
                 className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50"
               >
-                {isPending ? "Actualizando..." : "Actualizar"}
+                {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
               </button>
             </div>
           )}

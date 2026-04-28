@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { createFixedAssetAction } from "../actions/fixed-asset.actions";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
@@ -165,7 +166,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
           disabled={isPending}
           className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Guardando..." : "Registrar Activo"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Registrar Activo"}
         </button>
       </div>
     </form>

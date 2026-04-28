@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -99,7 +100,7 @@ export function FiscalConfigForm({
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending ? "Guardando..." : "Guardar configuración"}
+        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar configuración"}
       </Button>
     </form>
   );

@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/VacationPanel.tsx
 // Fase NOM-D: Panel de vacaciones por empleado (registro + historial)
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { createVacationAction } from "../actions/nom-d.actions";
 import type { VacationRecordRow } from "../services/VacationService";
 
@@ -197,7 +198,7 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
               disabled={isPending || !form.startDate || !form.endDate}
               className="rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending ? "Registrando..." : "Confirmar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando..." : "Confirmar"}
             </button>
           </div>
         </div>

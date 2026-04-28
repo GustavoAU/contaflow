@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 // src/modules/analytics/components/ExecutiveKpiPanel.tsx
 // Panel de KPIs ejecutivos: CxC, CxP, DSO, capital de trabajo + flujo proyectado.
 
 import { useState, useTransition } from "react";
-import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, Loader2Icon } from "lucide-react";
 import { getKpiDashboardAction } from "../actions/kpi-dashboard.actions";
 import type { KpiDashboardData } from "../actions/kpi-dashboard.actions";
 
@@ -63,7 +63,7 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
           className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50 transition-colors"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
-          {isPending ? "Actualizando..." : "Actualizar"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
         </button>
       </div>
 

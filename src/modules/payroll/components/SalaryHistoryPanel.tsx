@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/SalaryHistoryPanel.tsx
 // Fase NOM-B: historial de salarios + formulario de nuevo salario (ADMIN_ONLY)
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { addSalaryAction } from "../actions/employee.actions";
 import type { SalaryHistoryRow } from "../services/EmployeeService";
 
@@ -108,7 +109,7 @@ export default function SalaryHistoryPanel({
               disabled={isPending}
               className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending ? "Guardando..." : "Guardar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
             </button>
             <button
               type="button"

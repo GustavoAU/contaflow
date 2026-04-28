@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { Loader2Icon } from "lucide-react";
 import { suggestIslrCode, type IslrSuggestion } from "@/lib/islr-suggestions";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -347,6 +348,7 @@ export function RetentionForm({ companyId, userId }: Props) {
           )}
 
           <Button type="submit" disabled={isPending} className="w-full">
+            {isPending && <Loader2Icon className="animate-spin" />}
             {isPending ? "Guardando..." : "Crear Retención"}
           </Button>
         </form>

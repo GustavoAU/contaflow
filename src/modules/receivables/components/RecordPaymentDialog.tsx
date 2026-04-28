@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,7 +207,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={isPending || !isAmountValid}>
-            {isPending ? "Registrando..." : "Confirmar pago"}
+            {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando..." : "Confirmar pago"}
           </Button>
         </DialogFooter>
       </DialogContent>

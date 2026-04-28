@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState, useEffect } from "react";
+import { Loader2Icon } from "lucide-react";
 import { createPaymentAction } from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
@@ -353,8 +354,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
       >
+        {isPending && <Loader2Icon className="size-4 animate-spin" />}
         {isPending ? "Guardando..." : "Registrar pago"}
       </button>
     </form>

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
-import { PlusIcon, PencilIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -332,7 +332,7 @@ export function AccountsTable({
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isPending}>
-                  {isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Cuenta"}
+                  {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Cuenta"}
                 </Button>
               </DialogFooter>
             </form>
