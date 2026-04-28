@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { previewInflationAdjustmentAction, runInflationAdjustmentAction } from "../actions/inpc.actions";
 import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
@@ -172,7 +173,7 @@ export function InflationAdjustmentPanel({
             disabled={isPendingPreview || !adjustmentAccountId}
             className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {isPendingPreview ? "Calculando..." : "Vista Previa"}
+            {isPendingPreview && <Loader2Icon className="animate-spin" />}{isPendingPreview ? "Calculando..." : "Vista Previa"}
           </button>
         </div>
 
@@ -304,7 +305,7 @@ export function InflationAdjustmentPanel({
                     disabled={isPendingRun}
                     className="rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
-                    {isPendingRun ? "Registrando..." : "Confirmar"}
+                    {isPendingRun && <Loader2Icon className="animate-spin" />}{isPendingRun ? "Registrando..." : "Confirmar"}
                   </button>
                   <button
                     onClick={() => setShowConfirm(false)}

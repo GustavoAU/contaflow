@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 // src/modules/bank-reconciliation/components/AutoReconciliationPanel.tsx
 "use client";
 
@@ -11,6 +11,7 @@ import {
   XCircleIcon,
   CheckIcon,
   XIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { parseBankStatementAction, runAutoReconciliationAction, confirmSuggestedAction } from "../actions/auto-reconciliation.actions";
 import type {
@@ -300,7 +301,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
               disabled={isPending}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {isPending ? "Confirmando..." : "Confirmar seleccionadas"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Confirmando..." : "Confirmar seleccionadas"}
             </button>
           </div>
         )}
@@ -383,7 +384,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
               className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <CheckCircleIcon className="h-4 w-4" />
-              {isPending ? "Procesando..." : "Iniciar conciliación automática"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Procesando..." : "Iniciar conciliación automática"}
             </button>
             <button
               onClick={() => dispatch({ type: "RESET" })}
@@ -420,7 +421,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
           disabled={isPending}
           className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? "Analizando PDF..." : "Seleccionar PDF"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Analizando PDF..." : "Seleccionar PDF"}
         </button>
       </div>
 

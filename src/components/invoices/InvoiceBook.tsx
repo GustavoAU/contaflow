@@ -1,7 +1,8 @@
-// src/components/invoices/InvoiceBook.tsx
+﻿// src/components/invoices/InvoiceBook.tsx
 "use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import React from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -268,7 +269,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
             </div>
 
             <Button onClick={handleSearch} disabled={isPending}>
-              {isPending ? "Cargando..." : "Consultar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Cargando..." : "Consultar"}
             </Button>
 
             {result && result.rows.length > 0 && (

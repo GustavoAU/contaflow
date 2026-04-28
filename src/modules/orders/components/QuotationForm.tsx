@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 // src/modules/orders/components/QuotationForm.tsx
 // Formulario de creación de cotización/presupuesto con líneas dinámicas
 
 import { useTransition, useState } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { createQuotationAction } from "../actions/quotation.actions";
 
@@ -244,7 +245,7 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
         disabled={isPending}
         className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {isPending ? "Guardando…" : "Crear cotización"}
+        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando…" : "Crear cotización"}
       </button>
     </form>
   );

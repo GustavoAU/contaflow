@@ -1,10 +1,10 @@
-// src/components/company/ReactivateCompanyButton.tsx
+﻿// src/components/company/ReactivateCompanyButton.tsx
 "use client";
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArchiveRestoreIcon } from "lucide-react";
+import { ArchiveRestoreIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { reactivateCompanyAction } from "@/modules/company/actions/company.actions";
 
@@ -39,7 +39,7 @@ export function ReactivateCompanyButton({ companyId, companyName, userId }: Prop
       className="w-full gap-2"
     >
       <ArchiveRestoreIcon className="h-4 w-4" />
-      {isPending ? "Reactivando..." : "Reactivar Empresa"}
+      {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Reactivando..." : "Reactivar Empresa"}
     </Button>
   );
 }

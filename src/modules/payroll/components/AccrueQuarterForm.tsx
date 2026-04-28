@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/AccrueQuarterForm.tsx
 // Fase NOM-D: Acumulación trimestral de prestaciones sociales (Art. 142 LOTTT)
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { accrueQuarterAction } from "../actions/nom-d.actions";
 
@@ -69,7 +70,7 @@ export default function AccrueQuarterForm({ companyId }: Props) {
           disabled={isPending}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Procesando…" : "Ejecutar acumulación"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Procesando…" : "Ejecutar acumulación"}
         </button>
       </form>
 

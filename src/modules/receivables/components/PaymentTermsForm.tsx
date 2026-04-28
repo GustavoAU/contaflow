@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ export function PaymentTermsForm({ companyId, currentPaymentTermDays }: Props) {
         variant="outline"
         size="sm"
       >
-        {isPending ? "Guardando..." : "Guardar"}
+        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
       </Button>
     </div>
   );

@@ -7,7 +7,7 @@ import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { PlusIcon, Trash2Icon, AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon, AlertCircleIcon, CheckCircle2Icon, Loader2Icon } from "lucide-react";
 import Decimal from "decimal.js";
 
 import { Button } from "@/components/ui/button";
@@ -388,16 +388,18 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
 
                   {/* Eliminar */}
                   <div className="col-span-1 flex justify-center pt-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => fields.length > 2 && remove(index)}
-                      disabled={fields.length <= 2}
-                      className="h-9 w-9 p-0 text-zinc-400 hover:text-red-500"
-                    >
-                      <Trash2Icon className="h-4 w-4" />
-                    </Button>
+                    <span title={fields.length <= 2 ? "Se requieren mínimo 2 líneas en el asiento" : undefined}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => fields.length > 2 && remove(index)}
+                        disabled={fields.length <= 2}
+                        className="h-9 w-9 p-0 text-zinc-400 hover:text-red-500"
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </span>
                   </div>
                 </div>
               ))}
@@ -465,6 +467,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
               Cancelar
             </Button>
             <Button type="submit" disabled={isPending || !isBalanced}>
+              {isPending && <Loader2Icon className="animate-spin" />}
               {isPending ? "Contabilizando..." : "Contabilizar Asiento"}
             </Button>
           </div>

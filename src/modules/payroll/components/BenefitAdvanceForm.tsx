@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/BenefitAdvanceForm.tsx
 // Anticipo de Prestaciones Sociales — Art. 144 LOTTT
 // Máximo 75% del saldo acumulado. Motivos tasados por ley.
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { registerBenefitAdvanceAction } from "../actions/nom-d.actions";
 import type { BenefitAdvanceRow } from "../services/BenefitAdvanceService";
@@ -119,7 +120,7 @@ export default function BenefitAdvanceForm({
           disabled={isPending}
           className="rounded-md bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
         >
-          {isPending ? "Registrando…" : "Confirmar anticipo"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando…" : "Confirmar anticipo"}
         </button>
       </div>
     </form>

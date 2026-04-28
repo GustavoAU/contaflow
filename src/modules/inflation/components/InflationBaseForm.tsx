@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { setInflationBaseAction } from "../actions/inpc.actions";
 
 const MONTHS = [
@@ -62,7 +63,7 @@ export function InflationBaseForm({ companyId, currentBaseYear, currentBaseMonth
         disabled={isPending}
         className="rounded bg-gray-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
       >
-        {isPending ? "Guardando..." : "Guardar Base"}
+        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar Base"}
       </button>
       {saved && <span className="text-xs text-green-600">Período base actualizado</span>}
       {error && <span className="text-xs text-red-600">{error}</span>}

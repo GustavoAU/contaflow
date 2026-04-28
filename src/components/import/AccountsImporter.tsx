@@ -1,4 +1,4 @@
-// src/components/import/AccountsImporter.tsx
+﻿// src/components/import/AccountsImporter.tsx
 "use client";
 
 import { useState, useTransition, useRef } from "react";
@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   AlertCircleIcon,
+  Loader2Icon,
 } from "lucide-react";
 import {
   importAccountsAction,
@@ -288,7 +289,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
 
             <Button onClick={handleImport} disabled={isPending} className="mt-4 w-full gap-2">
               <UploadIcon className="h-4 w-4" />
-              {isPending ? "Importando..." : `Importar ${preview.length} cuentas`}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Importando..." : `Importar ${preview.length} cuentas`}
             </Button>
           </div>
         )}

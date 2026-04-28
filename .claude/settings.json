@@ -191,7 +191,9 @@
       "Bash(node -e \"process.stdin.resume\\(\\);let b='';process.stdin.on\\('data',c=>b+=c\\);process.stdin.on\\('end',\\(\\)=>{const d=JSON.parse\\(b\\);d[0].messages.filter\\(m=>m.severity===2\\).forEach\\(m=>console.log\\(m.line,JSON.stringify\\(m.ruleId\\),m.message.slice\\(0,60\\)\\)\\)}\\)\")",
       "Bash(sed -n '202,212p' src/modules/invoices/services/InvoiceService.ts)",
       "Bash(sed -n '444,455p' src/modules/invoices/services/InvoiceService.ts)",
-      "Bash(sed -n '563,575p' src/modules/invoices/services/InvoiceService.ts)"
+      "Bash(sed -n '563,575p' src/modules/invoices/services/InvoiceService.ts)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\); console.log\\('xlsx:', p.dependencies.xlsx\\); console.log\\('prisma:', p.dependencies['@prisma/client']\\)\")",
+      "Bash(npm uninstall *)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",

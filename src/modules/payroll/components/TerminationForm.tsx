@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 // src/modules/payroll/components/TerminationForm.tsx
 // Fase NOM-D: Formulario para crear liquidación final (DRAFT)
 // idempotencyKey generado client-side (UUID v4) para prevenir doble-submit
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createTerminationAction } from "../actions/nom-d.actions";
@@ -128,7 +129,7 @@ export default function TerminationForm({ companyId, employees }: Props) {
           disabled={isPending}
           className="rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Calculando…" : "Calcular liquidación"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando…" : "Calcular liquidación"}
         </button>
         <button
           type="button"

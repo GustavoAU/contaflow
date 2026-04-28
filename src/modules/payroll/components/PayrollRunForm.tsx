@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 // src/modules/payroll/components/PayrollRunForm.tsx
 // Fase NOM-C: formulario para crear un nuevo proceso de nómina
 
 import { useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createPayrollRunAction } from "../actions/payroll-run.actions";
@@ -122,7 +123,7 @@ export function PayrollRunForm({ companyId }: Props) {
           disabled={isPending}
           className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Calculando…" : "Calcular Nómina"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando…" : "Calcular Nómina"}
         </button>
         <button
           type="button"

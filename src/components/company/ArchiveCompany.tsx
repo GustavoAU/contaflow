@@ -1,10 +1,10 @@
-// src/components/company/ArchiveCompany.tsx
+﻿// src/components/company/ArchiveCompany.tsx
 "use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,7 +78,7 @@ export function ArchiveCompany({ companyId, companyName, userId }: Props) {
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleArchive} disabled={isPending}>
-              {isPending ? "Archivando..." : "Archivar Empresa"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Archivando..." : "Archivar Empresa"}
             </Button>
           </DialogFooter>
         </DialogContent>

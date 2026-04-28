@@ -1,9 +1,9 @@
-// src/components/accounting/PeriodManager.tsx
+﻿// src/components/accounting/PeriodManager.tsx
 "use client";
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CalendarIcon, LockIcon, UnlockIcon, PlusIcon } from "lucide-react";
+import { CalendarIcon, LockIcon, UnlockIcon, PlusIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -238,7 +238,7 @@ export function PeriodManager({ companyId, userId, periods, activePeriod }: Prop
               Cancelar
             </Button>
             <Button onClick={handleOpen} disabled={isPending}>
-              {isPending ? "Abriendo..." : "Confirmar"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Abriendo..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -267,7 +267,7 @@ export function PeriodManager({ companyId, userId, periods, activePeriod }: Prop
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleClose} disabled={isPending}>
-              {isPending ? "Cerrando..." : "Cerrar Período"}
+              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Cerrando..." : "Cerrar Período"}
             </Button>
           </DialogFooter>
         </DialogContent>

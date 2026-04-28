@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 // src/modules/audit/components/AuditLogTable.tsx
 // Tabla paginada de auditoría con filtros y diff oldValue↔newValue
 
 import { useState, useTransition, useCallback } from "react";
+import { Loader2Icon } from "lucide-react";
 import { listAuditLogsAction } from "../actions/audit.actions";
 import type { AuditLogRow, AuditLogPage } from "../services/AuditLogService";
 
@@ -173,7 +174,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           disabled={isPending}
           className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending ? "Cargando..." : "Filtrar"}
+          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Cargando..." : "Filtrar"}
         </button>
 
         <button

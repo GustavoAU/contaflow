@@ -1,9 +1,9 @@
-// src/modules/bank-reconciliation/components/BankAccountList.tsx
+﻿// src/modules/bank-reconciliation/components/BankAccountList.tsx
 "use client";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { PlusIcon, BuildingIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import { PlusIcon, BuildingIcon, ChevronRightIcon, XIcon, Loader2Icon } from "lucide-react";
 import { createBankAccountAction } from "../actions/banking.actions";
 
 type BankAccountListItem = {
@@ -206,7 +206,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                 disabled={isPending}
                 className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                {isPending ? "Guardando..." : "Guardar cuenta"}
+                {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar cuenta"}
               </button>
               <button
                 type="button"
