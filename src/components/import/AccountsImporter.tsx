@@ -13,11 +13,11 @@ import {
   XCircleIcon,
   AlertCircleIcon,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import {
   importAccountsAction,
   downloadTemplateAction,
 } from "@/modules/import/actions/import.actions";
+import type ExcelJS from "exceljs";
 import {
   ImportAccountsSchema,
   type ImportAccountRow,
@@ -74,10 +74,10 @@ export function AccountsImporter({ companyId, userId }: Props) {
     setResult(null);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const buffer = Buffer.from(event.target?.result as ArrayBuffer);
-        const parsed = parseFile(buffer);
+        const buffer = event.target?.result as ArrayBuffer;
+        const parsed = await parseFile(buffer);
 
         if (parsed.success) {
           setPreview(parsed.rows);
@@ -91,23 +91,38 @@ export function AccountsImporter({ companyId, userId }: Props) {
     reader.readAsArrayBuffer(file);
   }
 
-  function parseFile(buffer: Buffer): ParseResult {
+  async function parseFile(buffer: ArrayBuffer): Promise<ParseResult> {
     try {
-      const workbook = XLSX.read(buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, unknown>[];
+      const { default: ExcelJS } = await import("exceljs");
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+      const ws = wb.worksheets[0];
 
-      const normalized = rows.map((row) => ({
-        codigo: String(row["codigo"] ?? row["Codigo"] ?? row["CODIGO"] ?? "").trim(),
-        nombre: String(row["nombre"] ?? row["Nombre"] ?? row["NOMBRE"] ?? "").trim(),
-        tipo: String(row["tipo"] ?? row["Tipo"] ?? row["TIPO"] ?? "")
-          .trim()
-          .toUpperCase(),
-        descripcion:
-          String(row["descripcion"] ?? row["Descripcion"] ?? row["DESCRIPCION"] ?? "").trim() ||
-          undefined,
-      }));
+      const allRows: unknown[][] = [];
+      ws.eachRow((row: ExcelJS.Row) => {
+        allRows.push((row.values as unknown[]).slice(1));
+      });
+
+      if (allRows.length < 2) return { success: false, error: "El archivo está vacío" };
+
+      const headers = (allRows[0] as (string | null)[]).map((h) =>
+        String(h ?? "").toLowerCase().trim()
+      );
+      const dataRows = allRows.slice(1);
+
+      const normalized = dataRows.map((arr) => {
+        const values = arr as unknown[];
+        const get = (key: string) => {
+          const idx = headers.indexOf(key);
+          return idx >= 0 ? values[idx] : undefined;
+        };
+        return {
+          codigo: String(get("codigo") ?? "").trim(),
+          nombre: String(get("nombre") ?? "").trim(),
+          tipo: String(get("tipo") ?? "").trim().toUpperCase(),
+          descripcion: String(get("descripcion") ?? "").trim() || undefined,
+        };
+      });
 
       const validated = ImportAccountsSchema.parse(normalized);
       return { success: true, rows: validated };

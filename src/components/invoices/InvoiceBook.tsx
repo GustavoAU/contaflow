@@ -13,7 +13,6 @@ import {
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
-import * as XLSX from "xlsx";
 import { formatAmount } from "@/lib/format";
 
 type Props = {
@@ -105,15 +104,21 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
     });
   }
 
-  function handleExportExcel() {
+  async function handleExportExcel() {
     if (!result) return;
 
     const bookName = type === "SALE" ? "Libro de Ventas" : "Libro de Compras";
     const period = `${MONTHS[month - 1]} ${year}`;
 
-    const headerRows = [[companyName], [bookName], [period], []];
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(bookName.substring(0, 31));
 
-    const colHeaders = [
+    ws.addRow([companyName]);
+    ws.addRow([bookName]);
+    ws.addRow([period]);
+    ws.addRow([]);
+    ws.addRow([
       "Fecha",
       type === "PURCHASE" ? "Proveedor" : "Cliente",
       "RIF",
@@ -131,13 +136,11 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       "Comprobante IVA",
       ...(type === "PURCHASE" ? ["ISLR Retenido"] : []),
       ...(type === "SALE" ? ["Base IGTF", "Monto IGTF"] : []),
-    ];
+    ]);
 
-    // Expandir cada factura por sus taxLines
-    const dataRows: (string | number)[][] = [];
     result.rows.forEach((row: InvoiceBookRow) => {
       if (row.taxLines.length === 0) {
-        dataRows.push([
+        ws.addRow([
           new Date(row.date).toLocaleDateString("es-VE"),
           row.counterpartName,
           row.counterpartRif,
@@ -147,10 +150,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
           row.taxCategory,
           row.relatedDocNumber ?? "",
           ...(type === "PURCHASE" ? [row.importFormNumber ?? ""] : []),
-          "—",
-          "",
-          "",
-          "",
+          "—", "", "", "",
           row.ivaRetentionAmount,
           row.ivaRetentionVoucher ?? "",
           ...(type === "PURCHASE" ? [row.islrRetentionAmount] : []),
@@ -158,7 +158,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
         ]);
       } else {
         row.taxLines.forEach((line, idx) => {
-          dataRows.push([
+          ws.addRow([
             idx === 0 ? new Date(row.date).toLocaleDateString("es-VE") : "",
             idx === 0 ? row.counterpartName : "",
             idx === 0 ? row.counterpartRif : "",
@@ -184,31 +184,28 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
     });
 
     const s = result.summary;
-    const totalRow = [
-      "TOTALES",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
+    ws.addRow([]);
+    ws.addRow([
+      "TOTALES", "", "", "", "", "", "", "",
       ...(type === "PURCHASE" ? [""] : []),
       "",
-      s.totalBaseGeneral,
-      "",
+      s.totalBaseGeneral, "",
       s.totalIvaGeneral,
-      s.totalIvaRetention,
-      "",
+      s.totalIvaRetention, "",
       ...(type === "PURCHASE" ? [s.totalIslrRetention] : []),
       ...(type === "SALE" ? ["", s.totalIgtf] : []),
-    ];
+    ]);
 
-    const wsData = [...headerRows, colHeaders, ...dataRows, [], totalRow];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, bookName.substring(0, 31));
-    XLSX.writeFile(wb, `${bookName} - ${period}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${bookName} - ${period}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const bookTitle = type === "SALE" ? "Libro de Ventas" : "Libro de Compras";
