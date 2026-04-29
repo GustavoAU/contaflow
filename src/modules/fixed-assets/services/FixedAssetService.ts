@@ -202,7 +202,7 @@ export class FixedAssetService {
       where: { id: assetId, companyId },
     });
 
-    if (asset.status === "DISPOSED" || asset.status === "FULLY_DEPRECATED" as never) {
+    if (asset.status === "DISPOSED" || asset.status === "FULLY_DEPRECIATED") {
       throw new Error("El activo ya fue dado de baja o está totalmente depreciado");
     }
 
