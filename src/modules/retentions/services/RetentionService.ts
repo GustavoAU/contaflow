@@ -166,6 +166,8 @@ export async function linkRetentionToInvoice(
         entityName: "Retencion",
         action: "LINK_RETENTION_INVOICE",
         userId: retention.createdBy,
+        ipAddress: null,
+        userAgent: null,
         newValue: { invoiceId, companyId },
       },
     }),

@@ -70,6 +70,8 @@ export class PeriodService {
           entityName: "AccountingPeriod",
           action: "OPEN",
           userId,
+          ipAddress: null,
+          userAgent: null,
           newValue: created as object,
         },
       });
@@ -114,6 +116,8 @@ export class PeriodService {
           entityName: "AccountingPeriod",
           action: "CLOSE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: activePeriod as object,
           newValue: updated as object,
         },

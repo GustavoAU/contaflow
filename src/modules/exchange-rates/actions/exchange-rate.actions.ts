@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { Currency } from "@prisma/client";
@@ -20,6 +21,10 @@ export async function upsertExchangeRateAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const parsed = UpsertExchangeRateSchema.safeParse(input);
     if (!parsed.success) {
@@ -56,6 +61,8 @@ export async function upsertExchangeRateAction(
           entityName: "ExchangeRate",
           action: "UPSERT",
           userId,
+          ipAddress,
+          userAgent,
           newValue: { companyId, currency, rate, date, source },
         },
       });
@@ -94,6 +101,10 @@ export async function fetchBcvRateAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
@@ -127,6 +138,8 @@ export async function fetchBcvRateAction(
           entityName: "ExchangeRate",
           action: "UPSERT",
           userId,
+          ipAddress,
+          userAgent,
           newValue: {
             companyId,
             currency: "USD",
@@ -154,6 +167,10 @@ export async function fetchBcvEurRateAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
@@ -185,6 +202,8 @@ export async function fetchBcvEurRateAction(
           entityName: "ExchangeRate",
           action: "UPSERT",
           userId,
+          ipAddress,
+          userAgent,
           newValue: { companyId, currency: "EUR", rate: rate.toString(), date: date.toISOString().split("T")[0], source: "BCV-AUTO" },
         },
       });

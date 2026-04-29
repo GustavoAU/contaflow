@@ -1,6 +1,10 @@
 // src/modules/payments/__tests__/payment.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
+
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 const mockAuth = vi.hoisted(() => vi.fn());
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());

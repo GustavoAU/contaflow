@@ -6,6 +6,8 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/monitoring(.*)",
   "/api/webhook/(.*)",
+  // QStash callbacks — no tienen sesión Clerk (ADR-019 D-1)
+  "/api/webhooks/seniat-report",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

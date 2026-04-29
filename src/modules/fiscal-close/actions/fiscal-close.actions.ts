@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -151,6 +152,10 @@ export async function updateFiscalConfigAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
@@ -217,6 +222,8 @@ export async function updateFiscalConfigAction(
           entityName: "Company",
           action: "UPDATE_FISCAL_CONFIG",
           userId,
+          ipAddress,
+          userAgent,
           oldValue: previous as object,
           newValue: {
             resultAccountId: parsed.data.resultAccountId,

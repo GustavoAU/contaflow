@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
@@ -41,6 +42,10 @@ export async function createInvoiceAction(input: unknown) {
     });
     if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
+
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const key = parsed.data.idempotencyKey ?? crypto.randomUUID();
 
@@ -106,6 +111,8 @@ export async function createInvoiceAction(input: unknown) {
             entityName: "Invoice",
             action: "CREATE",
             userId,
+            ipAddress,
+            userAgent,
             newValue: {
               invoiceNumber: parsed.data.invoiceNumber,
               type: parsed.data.type,

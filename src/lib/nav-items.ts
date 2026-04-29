@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type UserRole = "OWNER" | "ADMIN" | "ACCOUNTANT" | "ADMINISTRATIVE" | "VIEWER";
+export type UserRole = "OWNER" | "ADMIN" | "ACCOUNTANT" | "ADMINISTRATIVE" | "VIEWER" | "SENIAT";
 
 export type NavItem = {
   label: string;
@@ -205,6 +205,27 @@ function buildAdministrativeNav(companyId: string): NavConfig {
   };
 }
 
+// ─── Nav auditor SENIAT (ADR-019 D-3) ────────────────────────────────────────
+
+function buildSeniatAuditNav(companyId: string): NavConfig {
+  const p = (path: string) => `/company/${companyId}${path}`;
+  return {
+    primary: [
+      item("Libro de Ventas", p("/audit/invoices"), ShieldCheckIcon),
+      item("Registro de Caja", p("/audit/cash"), ReceiptIcon),
+    ],
+    sections: [
+      {
+        group: "Informes SENIAT",
+        items: [
+          item("Libro de Ventas", p("/audit/invoices"), FileText),
+          item("Registro de Caja", p("/audit/cash"), ReceiptIcon),
+        ],
+      },
+    ],
+  };
+}
+
 // ─── Función pública ──────────────────────────────────────────────────────────
 
 /**
@@ -224,6 +245,9 @@ export function getNavItems(role: UserRole, companyId: string): NavConfig {
     case "VIEWER":
       // VIEWER ve lo mismo que ACCOUNTANT; guards en 28C bloquean escritura
       return buildAccountantNav(companyId);
+    case "SENIAT":
+      // Auditor fiscal externo — solo informes de auditoría (ADR-019 D-3)
+      return buildSeniatAuditNav(companyId);
     default:
       return buildAccountantNav(companyId);
   }

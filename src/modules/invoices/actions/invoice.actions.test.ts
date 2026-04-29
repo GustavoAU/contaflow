@@ -20,6 +20,10 @@ const TEST_IDEMPOTENCY_KEY_2 = "660e8400-e29b-41d4-a716-446655440001";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
+
 vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn(),
 }));
