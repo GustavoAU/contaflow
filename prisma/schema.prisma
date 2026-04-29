@@ -35,6 +35,7 @@ enum UserRole {
   ACCOUNTANT // Contador — módulos contables
   ADMINISTRATIVE // Administrativo — módulos operativos (Fase 28+)
   VIEWER // Observador — solo lectura en su área
+  SENIAT // Auditor fiscal SENIAT — solo lectura, acceso a informes de auditoría (ADR-019)
 }
 
 enum TransactionStatus {
@@ -186,6 +187,8 @@ model Company {
   // Fase 35A: Vendor / Customer
   vendors                   Vendor[]
   customers                 Customer[]
+  // Fase 35H: PA-121 Outbox
+  seniatSubmissions         SeniatSubmission[]
 }
 
 model CompanyMember {
@@ -336,6 +339,8 @@ model AuditLog {
   userId     String
   oldValue   Json?
   newValue   Json
+  ipAddress  String?  // PA-121 trazabilidad de red (ADR-019 D-2)
+  userAgent  String?  // PA-121 trazabilidad de red (ADR-019 D-2)
   createdAt  DateTime @default(now())
 
   @@index([companyId, createdAt(sort: Desc)])
@@ -450,6 +455,8 @@ model Invoice {
   vendor              Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   customerId          String?
   customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  // Fase 35H: PA-121 Outbox
+  seniatSubmission    SeniatSubmission?
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -1717,4 +1724,31 @@ model Customer {
 
   @@unique([companyId, rif])
   @@index([companyId, deletedAt])
+}
+
+// ─── PA-121 Outbox (ADR-019 D-1) ─────────────────────────────────────────────
+
+enum SubmissionStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model SeniatSubmission {
+  id           String           @id @default(cuid())
+  companyId    String
+  invoiceId    String           @unique
+  status       SubmissionStatus @default(PENDING)
+  attempts     Int              @default(0)
+  payload      Json
+  lastResponse Json?
+  sentAt       DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, status])
+  @@index([status, createdAt])
 }

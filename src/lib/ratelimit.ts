@@ -45,6 +45,14 @@ export const limiters = {
         prefix: "rl:export",
       })
     : null,
+  // QStash callbacks — ventana fija 60/min para prevenir flood por reintento descontrolado
+  qstash: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.fixedWindow(60, "1 m"),
+        prefix: "rl:qstash",
+      })
+    : null,
 };
 
 export async function checkRateLimit(

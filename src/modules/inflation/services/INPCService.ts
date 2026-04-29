@@ -137,6 +137,8 @@ export class INPCService {
         entityName: "INPCRate",
         action: "UPSERT",
         userId,
+        ipAddress: null,
+        userAgent: null,
         newValue: {
           companyId: input.companyId,
           year: input.year,
@@ -197,6 +199,8 @@ export class INPCService {
         entityName: "Company",
         action: "SET_INFLATION_BASE",
         userId,
+        ipAddress: null,
+        userAgent: null,
         newValue: {
           inflationBaseYear: input.inflationBaseYear,
           inflationBaseMonth: input.inflationBaseMonth,
@@ -439,6 +443,8 @@ export class INPCService {
         entityName: "InflationAdjustment",
         action: "RUN_ADJUSTMENT",
         userId,
+        ipAddress: null,
+        userAgent: null,
         newValue: {
           companyId,
           periodYear,

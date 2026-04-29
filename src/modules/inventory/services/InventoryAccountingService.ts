@@ -135,6 +135,8 @@ export async function postMovement(input: PostMovementInput, userId: string) {
             entityName: "InventoryMovement",
             action: "POST",
             userId,
+            ipAddress: null,
+            userAgent: null,
             oldValue: {
               status: "DRAFT",
               stockBefore: currentStock.toString(),
@@ -253,6 +255,8 @@ export async function voidPostedMovement(input: VoidMovementInput, userId: strin
             entityName: "InventoryMovement",
             action: "VOID_POSTED",
             userId,
+            ipAddress: null,
+            userAgent: null,
             oldValue: { status: "POSTED", stock: currentStock.toString() },
             newValue: {
               status: "VOIDED",

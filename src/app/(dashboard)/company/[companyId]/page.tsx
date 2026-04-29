@@ -46,6 +46,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   ACCOUNTANT:     "bg-green-100 text-green-700",
   ADMINISTRATIVE: "bg-amber-100 text-amber-700",
   VIEWER:         "bg-zinc-100 text-zinc-600",
+  SENIAT:         "bg-red-100 text-red-700",
 };
 
 function RoleBadge({ role }: { role: UserRole }) {

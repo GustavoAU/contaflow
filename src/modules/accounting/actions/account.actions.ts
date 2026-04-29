@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -76,6 +77,10 @@ export async function createAccountAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const validated = CreateAccountSchema.parse(input);
 
     const memberCheck = await prisma.companyMember.findUnique({
@@ -147,6 +152,8 @@ export async function createAccountAction(
             entityName: "Account",
             action: "CREATE",
             userId,
+            ipAddress,
+            userAgent,
             newValue: { code: validated.code, name: validated.name, type: validated.type },
           },
         });
@@ -193,6 +200,10 @@ export async function updateAccountAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const before = await prisma.account.findUnique({
       where: { id },
       select: { code: true, name: true, type: true, companyId: true },
@@ -237,6 +248,8 @@ export async function updateAccountAction(
             entityName: "Account",
             action: "UPDATE",
             userId,
+            ipAddress,
+            userAgent,
             oldValue: before as object,
             newValue: data as object,
           },

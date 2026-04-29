@@ -513,6 +513,8 @@ export class ReceivableService {
           entityName: "InvoicePayment",
           action: "CREATE",
           userId: input.createdBy,
+          ipAddress: null,
+          userAgent: null,
           newValue: {
             invoiceId: input.invoiceId,
             amount: paymentAmount.toFixed(4),
@@ -601,6 +603,8 @@ export class ReceivableService {
             entityName: "InvoicePayment",
             action: "CANCEL",
             userId: cancelledBy,
+            ipAddress: null,
+            userAgent: null,
             oldValue: {
               amount: paymentAmount.toFixed(4),
               method: payment.method,

@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -58,6 +59,10 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 
     const data = parsed.data;
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const rl = await checkRateLimit(userId, limiters.fiscal); // rate limit by authenticated userId
     if (!rl.allowed) return { success: false, error: rl.error };
 
@@ -91,6 +96,8 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
             entityName: "IGTFTransaction",
             action: "CREATE",
             userId, // always use authenticated userId
+            ipAddress,
+            userAgent,
             newValue: { amount: data.amount, currency: data.currency, igtfAmount: calc.igtfAmount },
           },
         });

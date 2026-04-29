@@ -171,6 +171,8 @@ export class TransactionService {
           entityName: "Transaction",
           action: "CREATE",
           userId: validated.userId,
+          ipAddress: null,
+          userAgent: null,
           newValue: created as object,
         },
       });
@@ -294,6 +296,8 @@ export class TransactionService {
           entityName: "Transaction",
           action: "VOID",
           userId: validated.userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: original as object,
           newValue: voidTx as object,
         },

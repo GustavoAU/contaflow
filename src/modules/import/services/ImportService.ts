@@ -81,6 +81,8 @@ export class ImportService {
         entityName: "Account",
         action: "IMPORT",
         userId,
+        ipAddress: null,
+        userAgent: null,
         newValue: { created, skipped, errors },
       },
     });

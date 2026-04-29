@@ -22,12 +22,14 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   ACCOUNTANT: 3,
   ADMINISTRATIVE: 2,
   VIEWER: 1,
+  // SENIAT: auditor fiscal externo — no forma parte de la jerarquía operativa
+  SENIAT: 0,
 };
 
 // ─── Grupos predefinidos — DRY ────────────────────────────────────────────────
 
 export const ROLES = {
-  /** Todos los roles */
+  /** Todos los roles operativos (excluye SENIAT — auditor externo sin acceso operativo) */
   ALL: ["OWNER", "ADMIN", "ACCOUNTANT", "ADMINISTRATIVE", "VIEWER"] as UserRole[],
 
   /** Solo propietario + administrador */
@@ -41,6 +43,12 @@ export const ROLES = {
 
   /** Todos excepto VIEWER (puede escribir en su área) */
   WRITERS: ["OWNER", "ADMIN", "ACCOUNTANT", "ADMINISTRATIVE"] as UserRole[],
+
+  /** Auditor fiscal SENIAT — solo informes de auditoría, sin acceso operativo */
+  SENIAT_READ: ["SENIAT"] as UserRole[],
+
+  /** Asignación del rol SENIAT — solo OWNER puede hacerlo (ADR-019 D-3) */
+  SENIAT_ASSIGNERS: ["OWNER"] as UserRole[],
 } as const;
 
 // ─── Función principal de autorización ───────────────────────────────────────
@@ -69,4 +77,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   ACCOUNTANT: "Contador",
   ADMINISTRATIVE: "Administrativo",
   VIEWER: "Observador",
+  SENIAT: "Auditor SENIAT",
 };

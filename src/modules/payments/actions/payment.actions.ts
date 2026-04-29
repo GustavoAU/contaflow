@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { Currency, PaymentMethod } from "@prisma/client";
@@ -20,6 +21,10 @@ export async function createPaymentAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
@@ -70,6 +75,8 @@ export async function createPaymentAction(
               entityName: "PaymentRecord",
               action: "CREATE",
               userId,
+              ipAddress,
+              userAgent,
               newValue: {
                 method: d.method,
                 amountVes: d.amountVes,
