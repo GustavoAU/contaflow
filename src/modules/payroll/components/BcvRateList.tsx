@@ -40,7 +40,7 @@ export default function BcvRateList({ rates }: Props) {
               <td className="px-4 py-3 font-mono">{r.year}</td>
               <td className="px-4 py-3">{MONTHS[r.month]}</td>
               <td className="px-4 py-3 text-right font-mono">
-                {Number(r.annualRate).toFixed(2)}%
+                {Number(r.annualRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
               </td>
               <td className="px-4 py-3">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${

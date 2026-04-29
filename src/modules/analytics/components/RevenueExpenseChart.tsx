@@ -42,9 +42,9 @@ export function RevenueExpenseChart({ data }: Props) {
           tick={{ fontSize: 11 }}
           tickFormatter={(v: number) =>
             v >= 1_000_000
-              ? `${(v / 1_000_000).toFixed(1)}M`
+              ? `${(v / 1_000_000).toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`
               : v >= 1_000
-                ? `${(v / 1_000).toFixed(0)}K`
+                ? `${(v / 1_000).toLocaleString("es-VE", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}K`
                 : String(v)
           }
         />

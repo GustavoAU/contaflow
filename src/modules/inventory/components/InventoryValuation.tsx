@@ -141,7 +141,7 @@ export function InventoryValuation({ items, totalValue }: Props) {
                           />
                         </div>
                         <span className="text-xs text-gray-500 w-10 text-right">
-                          {item.pct.toFixed(1)}%
+                          {item.pct.toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                         </span>
                       </div>
                     </td>
