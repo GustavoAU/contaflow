@@ -2,6 +2,7 @@
 import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
 import React from "react"
 import { Decimal } from "decimal.js"
+import { fmtDate } from "@/lib/format"
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
 export type InvoiceVoucherPDFParams = {
@@ -52,10 +53,6 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   RESUMEN_VENTAS: "Resumen de Ventas",
   PLANILLA_IMPORTACION: "Planilla de Importación",
   OTRO: "Documento",
-}
-
-function fmtDate(d: Date): string {
-  return new Date(d).toLocaleDateString("es-VE")
 }
 
 function isPositive(val?: string): boolean {

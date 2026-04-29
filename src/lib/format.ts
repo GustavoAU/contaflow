@@ -14,6 +14,11 @@ export function formatAmount(value: string | number, currency?: "VES" | "USD" | 
   return currency === "USD" ? USD_FORMAT.format(num) : VE_FORMAT.format(num);
 }
 
+export function fmtDate(d: Date | string): string {
+  const dt = d instanceof Date ? d : new Date(d as string);
+  return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()).toLocaleDateString("es-VE");
+}
+
 /**
  * Normaliza un string numérico en cualquier formato regional a un número JS.
  *
@@ -29,11 +34,6 @@ export function formatAmount(value: string | number, currency?: "VES" | "USD" | 
  *
  * Usar SIEMPRE esta función en OCR/importaciones; nunca parseFloat directo sobre texto del usuario.
  */
-export function fmtDate(d: Date | string): string {
-  const dt = d instanceof Date ? d : new Date(d as string);
-  return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()).toLocaleDateString("es-VE");
-}
-
 export function parseLocalNumber(value: string): number {
   const s = value.trim().replace(/\s/g, "");
   if (!s) return NaN;
