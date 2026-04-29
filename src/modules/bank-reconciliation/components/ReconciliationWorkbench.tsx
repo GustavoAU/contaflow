@@ -20,6 +20,7 @@ import {
   searchJournalEntriesAction,
   searchPaymentRecordsAction,
 } from "../actions/banking.actions";
+import { fmtDate } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,14 +109,6 @@ function fmtAmount(value: string | unknown) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
-}
-
-function fmtDate(value: Date | string | unknown) {
-  try {
-    return new Date(value as string).toLocaleDateString("es-VE");
-  } catch {
-    return "—";
-  }
 }
 
 function getMatchLabel(tx: BankTransaction): string {

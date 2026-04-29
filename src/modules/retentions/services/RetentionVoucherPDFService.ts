@@ -2,6 +2,7 @@
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
 import React from "react"
 import type { Decimal } from "decimal.js"
+import { fmtDate } from "@/lib/format"
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
 export type RetentionVoucherParams = {
@@ -105,10 +106,6 @@ const styles = StyleSheet.create({
 })
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function fmtDate(d: Date): string {
-  return new Date(d).toLocaleDateString("es-VE")
-}
-
 function fmtAmount(val: Decimal | string): string {
   return Number(val).toFixed(2)
 }
