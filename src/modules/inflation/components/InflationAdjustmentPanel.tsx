@@ -11,6 +11,13 @@ const MONTHS = [
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
 
+function fmt(v: string | number, decimals = 2): string {
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(typeof v === "string" ? parseFloat(v) : v);
+}
+
 type Props = {
   companyId: string;
   equityAccounts: Pick<Account, "id" | "code" | "name">[];
@@ -87,7 +94,7 @@ export function InflationAdjustmentPanel({
           ? `, REPOMO: Bs. ${r.data.repomo}`
           : "";
         setRunResult(
-          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${r.data.totalAdjustment}, factor ${parseFloat(r.data.factor).toFixed(4)}${repomoMsg}.`,
+          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${fmt(r.data.totalAdjustment)}, factor ${fmt(r.data.factor, 4)}${repomoMsg}.`,
         );
         setPreviewRows(null);
         setPreviewRepomo(null);
@@ -196,7 +203,7 @@ export function InflationAdjustmentPanel({
             </h3>
             {hasRows && totalAdjustment !== null && (
               <span className="text-xs text-gray-500">
-                Total reexpresión: <span className="font-mono font-semibold">{totalAdjustment.toFixed(2)}</span>
+                Total reexpresión: <span className="font-mono font-semibold">{fmt(totalAdjustment)}</span>
               </span>
             )}
           </div>
@@ -226,7 +233,7 @@ export function InflationAdjustmentPanel({
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {previewRows.map((row) => {
-                      const reexpressed = (parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount)).toFixed(2);
+                      const reexpressed = parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount);
                       return (
                         <tr key={row.accountId} className="hover:bg-gray-50">
                           <td className="px-4 py-2">
@@ -235,19 +242,19 @@ export function InflationAdjustmentPanel({
                           </td>
                           <td className="px-4 py-2 text-xs text-gray-500">{row.accountType}</td>
                           <td className="px-4 py-2 text-right font-mono text-gray-700">
-                            {row.originalBalance}
+                            {fmt(row.originalBalance)}
                           </td>
                           <td
                             className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
                             title={`INPC período / INPC base = ${parseFloat(row.cumulativeIndex).toFixed(6)}`}
                           >
-                            {parseFloat(row.cumulativeIndex).toFixed(4)}
+                            {fmt(row.cumulativeIndex, 4)}
                           </td>
                           <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(row.adjustmentAmount) > 0 ? "text-green-700" : "text-red-700"}`}>
-                            {row.adjustmentAmount}
+                            {fmt(row.adjustmentAmount)}
                           </td>
                           <td className="px-4 py-2 text-right font-mono font-semibold text-indigo-700">
-                            {reexpressed}
+                            {fmt(reexpressed)}
                           </td>
                         </tr>
                       );
@@ -259,20 +266,20 @@ export function InflationAdjustmentPanel({
                         <td className="px-4 py-2" colSpan={2}>
                           <span className="font-medium text-amber-800">REPOMO</span>{" "}
                           <span className="text-xs text-amber-600">
-                            (PMN: {previewRepomo.netMonetaryPosition}) × (factor − 1)
+                            (PMN: {fmt(previewRepomo.netMonetaryPosition)}) × (factor − 1)
                           </span>
                         </td>
                         <td className="px-4 py-2 text-right font-mono text-amber-700">
-                          {previewRepomo.netMonetaryPosition}
+                          {fmt(previewRepomo.netMonetaryPosition)}
                         </td>
                         <td
                           className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
                           title={`Factor = ${parseFloat(previewRepomo.factor).toFixed(6)}`}
                         >
-                          {parseFloat(previewRepomo.factor).toFixed(4)}
+                          {fmt(previewRepomo.factor, 4)}
                         </td>
                         <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(previewRepomo.repomoAmount) > 0 ? "text-red-700" : "text-green-700"}`}>
-                          {previewRepomo.repomoAmount}
+                          {fmt(previewRepomo.repomoAmount)}
                           <span className="ml-1 text-xs font-normal">
                             {parseFloat(previewRepomo.repomoAmount) > 0 ? "(pérdida)" : "(ganancia)"}
                           </span>
