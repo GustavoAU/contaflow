@@ -341,8 +341,8 @@ model AuditLog {
   userId     String
   oldValue   Json?
   newValue   Json
-  ipAddress  String?  // PA-121 trazabilidad de red (ADR-019 D-2)
-  userAgent  String?  // PA-121 trazabilidad de red (ADR-019 D-2)
+  ipAddress  String? // PA-121 trazabilidad de red (ADR-019 D-2)
+  userAgent  String? // PA-121 trazabilidad de red (ADR-019 D-2)
   createdAt  DateTime @default(now())
 
   @@index([companyId, createdAt(sort: Desc)])
@@ -1763,13 +1763,13 @@ model CompanyCertificate {
   company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   commonName   String
   serialNumber String
-  encryptedP12 Bytes                    // AES-256-GCM — NUNCA exponer al cliente
-  thumbprint   String                   // SHA-256 del cert — identificador público
+  encryptedP12 Bytes // AES-256-GCM — NUNCA exponer al cliente
+  thumbprint   String // SHA-256 del cert — identificador público
   issuedBy     String
   expiresAt    DateTime
   isSelfSigned Boolean  @default(true)
   createdAt    DateTime @default(now())
-  createdBy    String                   // userId de Clerk
+  createdBy    String // userId de Clerk
   updatedAt    DateTime @updatedAt
 
   @@index([companyId])
