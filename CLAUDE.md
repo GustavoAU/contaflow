@@ -49,6 +49,28 @@ const ivaAmount = baseAmount.multipliedBy(new Decimal('0.16'));
 ```
 Si lo olvidas, el sistema descuadra centavos. El SENIAT multa.
 
+### R-6: Trazabilidad de Red (PA 121 — CRÍTICO)
+**Toda mutación financiera o fiscal DEBE capturar datos de red del solicitante.**
+- `ipAddress String?` y `userAgent String?` son obligatorios en `AuditLog` para operaciones fiscales
+- Toda factura/NC/ND emitida DEBE crear un registro `SeniatSubmission` en el mismo `$transaction`
+- Sin `SeniatSubmission` en el mismo `$transaction` → el documento fiscal no está completo normativamente
+- Capturar IP desde headers de Next.js: `request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')`
+
+### R-7: Versión Certificada SENIAT
+**NUNCA modificar `CERTIFIED_VERSION` en `src/lib/version.ts` sin:**
+1. Nueva solicitud de homologación ante el SENIAT (PA 121, Art. 9)
+2. Autorización recibida del SENIAT
+3. Expediente actualizado
+
+Cambiar este valor sin el proceso es una infracción a la PA 121.
+
+### R-8: Certificados Digitales (Fase 35I — CRÍTICO)
+**`encryptedP12` NUNCA en ningún SELECT al cliente — usar `select` explícito siempre.**
+- `buf.fill(0)` obligatorio post-descifrado en `DocumentSigningService`
+- `CERT_ENCRYPTION_SECRET` nunca en logs ni respuestas
+- Solo `ADMIN` puede gestionar certificados (`ROLES.ADMIN_ONLY`)
+- Rotar `CERT_ENCRYPTION_SECRET` requiere re-cifrar todos los `CompanyCertificate`
+
 ### Conflictos Comunes
 
 | Conflicto | Regla |
@@ -57,6 +79,8 @@ Si lo olvidas, el sistema descuadra centavos. El SENIAT multa.
 | ¿Dónde va el IGTF? | `PaymentRecord` en `recordPaymentAction` (Sección 32) |
 | ¿Cuándo es Serializable? | Correlativos (ADR-001) SÍ; si dudas → Read Committed + `@@unique` |
 | ¿Cómo ajusto período cerrado? | ADR-015 → asiento en mes actual con FK al período original |
+| ¿Dónde van IP/UserAgent? | `AuditLog.ipAddress` + `AuditLog.userAgent` (R-6) |
+| ¿Qué pasa si el SENIAT está caído? | `SeniatSubmission` queda en PENDING — QStash reintenta con backoff |
 
 ### Checklist Pre-Merge
 
@@ -69,6 +93,11 @@ Si lo olvidas, el sistema descuadra centavos. El SENIAT multa.
 [ ] npx vitest run = 0 fallos
 [ ] AuditLog creado en mismo $transaction
 [ ] ADR nuevo si hay decisión no documentada
+[ ] ¿ipAddress/userAgent capturado en AuditLog de operación fiscal? (R-6)
+[ ] ¿SeniatSubmission creado en mismo $transaction para facturas/NC/ND? (R-6)
+[ ] ¿CERTIFIED_VERSION en src/lib/version.ts sin modificar (o proceso SENIAT cumplido)? (R-7)
+[ ] ¿encryptedP12 excluido de todos los SELECTs al cliente? (R-8 / Z-5)
+[ ] ¿buf.fill(0) ejecutado post-descifrado en DocumentSigningService? (R-8 / Z-5)
 ```
 
 ## Stack
@@ -184,8 +213,14 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Mejora #22 ✅ merged (Forma 30: crédito fiscal período anterior — SeccionE extendida + guard negativo + UI input E1 + 7 tests — 1443 total)
 - Fase 35E ✅ merged (Glosa analítica JournalEntry — `description String?` + 10 servicios + Libro Mayor fallback — ADR-016 — 1443 total)
 - Security hardening pre-lanzamiento ✅ merged (middleware.ts Clerk + IDOR listPaymentsAction + security headers + audit-level HIGH — 1466 tests)
+- Bloque A refactor ✅ merged (fmtDate consolidado en src/lib/format.ts — eliminadas 3 implementaciones locales — aeb24c2)
+- **Fase 35H** ✅ merged (PA-121: ipAddress/userAgent AuditLog + rol SENIAT + SeniatSubmission + QStash + ADR-019 — 1531 tests)
+- **Fase 35I** ✅ merged (Firma Digital Híbrida — CertificateService RSA-2048 + DocumentSigningService + CompanyCertificate + UI Settings + ADR-020)
+- **Fase 35F** ⏳ pendiente (UoM múltiples unidades de medida por ítem — ADR-018 — spec en `.claude/design/fase35f-uom-spec.md`)
+- **Fase 35G** ⏳ pendiente (Lot/Serial Tracking — trazabilidad por lote y número de serie — construye sobre 35F)
+- **Fase 36C** ⏳ pendiente (Distribución de Pagos / Liquidación por Beneficiario — batch multi-destinatario con retención automática por cada uno)
 
-**1466 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-28)
+**~1556 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-30)
 
 ### middleware.ts — rutas protegidas y públicas
 

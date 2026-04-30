@@ -300,6 +300,8 @@ export const TerminationService = {
           entityId: termination.id,
           action: "CREATE_TERMINATION_DRAFT",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: Prisma.JsonNull,
           newValue: {
             employeeId,
@@ -381,6 +383,8 @@ export const TerminationService = {
         entityId: terminationId,
         action: "UPDATE_TERMINATION_DRAFT",
         userId,
+        ipAddress: null,
+        userAgent: null,
         oldValue: {
           pendingConceptsAmount: existing.pendingConceptsAmount.toString(),
           deductionsAmount: existing.deductionsAmount.toString(),
@@ -575,6 +579,8 @@ export const TerminationService = {
           entityId: terminationId,
           action: "FINALIZE_TERMINATION",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: { status: "DRAFT", totalNetAmount: termination.totalNetAmount.toString() },
           newValue: {
             status: "FINALIZED",

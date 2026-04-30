@@ -341,6 +341,8 @@ export const OrderService = {
           entityId: orderId,
           action: "CONVERTED_TO_INVOICE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           newValue: { invoiceId: invoice.id, invoiceNumber: invoiceData.invoiceNumber },
         },
       });
