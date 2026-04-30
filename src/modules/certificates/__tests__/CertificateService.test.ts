@@ -347,8 +347,8 @@ describe("decryptCertificate", () => {
     expect(decrypted.toString()).toBe("test-p12-content");
   });
 
-  it("falla con CERT_ENCRYPTION_SECRET diferente (datos corruptos)", () => {
-    const crypto = require("node:crypto");
+  it("falla con CERT_ENCRYPTION_SECRET diferente (datos corruptos)", async () => {
+    const crypto = await import("node:crypto");
     // Cifrar con una key
     const key = crypto.randomBytes(32);
     const iv = crypto.randomBytes(12);
