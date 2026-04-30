@@ -313,6 +313,8 @@ export const BenefitAccrualService = {
               entityId: balance!.id,
               action: "ACCRUE_QUARTERLY_BENEFITS",
               userId,
+              ipAddress: null,
+              userAgent: null,
               oldValue: { balance: balance!.currentBalance.toString() },
               newValue: {
                 employeeId: emp.id,
@@ -470,6 +472,8 @@ export const BenefitAccrualService = {
             entityId: balance.id,
             action: "POST_BENEFIT_INTEREST",
             userId,
+            ipAddress: null,
+            userAgent: null,
             oldValue: { interestBalance: balance.interestBalance.toString() },
             newValue: {
               year,

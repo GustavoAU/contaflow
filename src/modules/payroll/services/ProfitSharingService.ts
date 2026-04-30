@@ -227,6 +227,8 @@ export const ProfitSharingService = {
             entityId: record.id,
             action: "CREATE_PROFIT_SHARING_RECORD",
             userId,
+            ipAddress: null,
+            userAgent: null,
             oldValue: Prisma.JsonNull,
             newValue: {
               employeeId,

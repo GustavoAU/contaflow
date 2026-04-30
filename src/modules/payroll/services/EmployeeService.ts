@@ -253,6 +253,8 @@ export const EmployeeService = {
           entityId: employee.id,
           action: "CREATE_EMPLOYEE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: Prisma.JsonNull,
           newValue: {
             firstName: input.firstName,
@@ -311,6 +313,8 @@ export const EmployeeService = {
           entityId: employeeId,
           action: "UPDATE_EMPLOYEE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: {
             firstName: previous.firstName,
             lastName: previous.lastName,
@@ -367,6 +371,8 @@ export const EmployeeService = {
           entityId: employeeId,
           action: "TERMINATE_EMPLOYEE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: { status: previous.status },
           newValue: { status: "TERMINATED", terminationDate: input.terminationDate },
         },
@@ -412,6 +418,8 @@ export const EmployeeService = {
           entityId: entry.id,
           action: "ADD_SALARY",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: Prisma.JsonNull,
           newValue: {
             employeeId,

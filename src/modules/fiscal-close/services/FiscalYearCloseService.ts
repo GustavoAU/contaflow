@@ -242,6 +242,8 @@ export class FiscalYearCloseService {
             entityName: "FiscalYearClose",
             action: "CLOSE",
             userId: closedBy,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               fiscalYearCloseId: fiscalClose.id,
               companyId,
@@ -378,6 +380,8 @@ export class FiscalYearCloseService {
             entityName: "FiscalYearClose",
             action: "APPROPRIATE",
             userId: approvedBy,
+            ipAddress: null,
+            userAgent: null,
             oldValue: { appropriationTransactionId: null },
             newValue: { appropriationTransactionId: appTx.id },
           },

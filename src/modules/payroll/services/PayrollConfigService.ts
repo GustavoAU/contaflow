@@ -163,6 +163,8 @@ export const PayrollConfigService = {
           entityId: cfg.id,
           action: previous ? "UPDATE_PAYROLL_CONFIG" : "CREATE_PAYROLL_CONFIG",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: previous
             ? {
                 sizeRange: previous.sizeRange,

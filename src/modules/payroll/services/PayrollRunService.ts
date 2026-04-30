@@ -318,6 +318,8 @@ export const PayrollRunService = {
           entityId: run.id,
           action: "CREATE_PAYROLL_RUN",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: Prisma.JsonNull,
           newValue: {
             periodStart: input.periodStart,
@@ -493,6 +495,8 @@ export const PayrollRunService = {
           entityId: runId,
           action: "APPROVE_PAYROLL_RUN",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: { status: "DRAFT" },
           newValue: {
             status: "APPROVED",
@@ -545,6 +549,8 @@ export const PayrollRunService = {
           entityId: runId,
           action: "CANCEL_PAYROLL_RUN",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: { status: "DRAFT" },
           newValue: { status: "CANCELLED", reason, cancelledAt: new Date().toISOString() },
         },

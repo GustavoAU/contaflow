@@ -494,6 +494,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "CREATE_NC",
             userId: createdBy,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               invoiceNumber: nc.invoiceNumber,
               relatedInvoiceId: data.relatedInvoiceId,
@@ -512,6 +514,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",
             userId: createdBy,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               pendingAmount: newPending.toFixed(2),
               paymentStatus: newStatus,
@@ -651,6 +655,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "CREATE_ND",
             userId: createdBy,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               invoiceNumber: nd.invoiceNumber,
               relatedInvoiceId: data.relatedInvoiceId,
@@ -669,6 +675,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",
             userId: createdBy,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               pendingAmount: newPending.toFixed(2),
               paymentStatus: newStatus,

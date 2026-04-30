@@ -61,9 +61,14 @@ Based on the data above, determine:
 - Migrations in Neon not yet applied
 - UI without corresponding service implementation
 
-**Priority 3 — Next phase**
-- If no blocking issues: check roadmap (contaflow-context-v3.md)
-- Propose concrete plan with agent assignments
+**Priority 3 — Bloques planificados en sesión activa**
+- Si hay un plan de bloques acordado con el usuario (ej. bloques A–F), revisar cuáles están pendientes
+- Proponer el siguiente bloque no completado con su scope exacto (archivos, cambios, commit esperado)
+- No proponer una fase nueva si quedan bloques pendientes del plan activo
+
+**Priority 4 — Next phase**
+- Si no hay bloqueos ni bloques pendientes: revisar roadmap (contaflow-context-v3.md)
+- Proponer plan concreto con asignación de agentes
 
 ---
 
