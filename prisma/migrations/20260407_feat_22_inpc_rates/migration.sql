@@ -11,7 +11,7 @@ CREATE TABLE "INPCRate" (
     "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "INPCRate_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "INPCRate_company_fk" FOREIGN KEY ("companyId")
+    CONSTRAINT "INPCRate_companyId_fkey" FOREIGN KEY ("companyId")
         REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -36,15 +36,15 @@ CREATE TABLE "InflationAdjustment" (
     "createdAt"        TIMESTAMP(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "InflationAdjustment_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "InflationAdjustment_company_fk" FOREIGN KEY ("companyId")
+    CONSTRAINT "InflationAdjustment_companyId_fkey" FOREIGN KEY ("companyId")
         REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "InflationAdjustment_account_fk" FOREIGN KEY ("accountId")
+    CONSTRAINT "InflationAdjustment_accountId_fkey" FOREIGN KEY ("accountId")
         REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "InflationAdjustment_transaction_fk" FOREIGN KEY ("transactionId")
+    CONSTRAINT "InflationAdjustment_transactionId_fkey" FOREIGN KEY ("transactionId")
         REFERENCES "Transaction"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
-CREATE UNIQUE INDEX "InflationAdjustment_companyId_periodYear_periodMonth_accountId_key"
+CREATE UNIQUE INDEX "InflationAdjustment_companyId_periodYear_periodMonth_accoun_key"
     ON "InflationAdjustment"("companyId", "periodYear", "periodMonth", "accountId");
 
 CREATE INDEX "InflationAdjustment_companyId_periodYear_periodMonth_idx"
