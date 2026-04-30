@@ -189,6 +189,8 @@ model Company {
   customers                 Customer[]
   // Fase 35H: PA-121 Outbox
   seniatSubmissions         SeniatSubmission[]
+  // Fase 35I: Firma Digital
+  certificate               CompanyCertificate?
 }
 
 model CompanyMember {
@@ -1751,4 +1753,24 @@ model SeniatSubmission {
 
   @@index([companyId, status])
   @@index([status, createdAt])
+}
+
+// ─── Fase 35I: Firma Digital Híbrida (ADR-020) ───────────────────────────────
+
+model CompanyCertificate {
+  id           String   @id @default(cuid())
+  companyId    String   @unique
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  commonName   String
+  serialNumber String
+  encryptedP12 Bytes                    // AES-256-GCM — NUNCA exponer al cliente
+  thumbprint   String                   // SHA-256 del cert — identificador público
+  issuedBy     String
+  expiresAt    DateTime
+  isSelfSigned Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  createdBy    String                   // userId de Clerk
+  updatedAt    DateTime @updatedAt
+
+  @@index([companyId])
 }

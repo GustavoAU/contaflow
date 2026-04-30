@@ -257,6 +257,8 @@ export const QuotationService = {
             entityName: "Quotation",
             action: "UPDATE",
             userId,
+            ipAddress: null,
+            userAgent: null,
             newValue: {
               updatedFields: Object.keys(updates).filter((k) => k !== "items"),
               itemsReplaced: itemsComputed !== null,

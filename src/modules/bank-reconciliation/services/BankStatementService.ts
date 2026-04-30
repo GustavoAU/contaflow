@@ -142,6 +142,8 @@ export const BankStatementService = {
         entityId: bankTransactionId,
         action: "UNRECONCILE",
         userId,
+        ipAddress: null,
+        userAgent: null,
         oldValue: { isReconciled: true, matchedPaymentId: existing.matchedPaymentId },
         newValue: { isReconciled: false, matchedPaymentId: null },
       },

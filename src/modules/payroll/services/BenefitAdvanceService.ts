@@ -173,6 +173,8 @@ export const BenefitAdvanceService = {
           entityId: advance.id,
           action: "REGISTER_BENEFIT_ADVANCE",
           userId,
+          ipAddress: null,
+          userAgent: null,
           oldValue: { currentBalance: balance.currentBalance.toString() },
           newValue: {
             employeeId: input.employeeId,
