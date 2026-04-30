@@ -198,6 +198,8 @@ export const VacationService = {
             entityId: record.id,
             action: "CREATE_VACATION_RECORD",
             userId,
+            ipAddress: null,
+            userAgent: null,
             oldValue: Prisma.JsonNull,
             newValue: {
               employeeId,

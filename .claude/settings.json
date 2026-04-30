@@ -201,7 +201,20 @@
       "Bash(grep -A5 '$queryRaw' /d/Documents/Projects/React/modern-cg1/src/modules/dashboard/services/PendingTasksService.ts)",
       "Bash(grep -A3 '$executeRaw' /d/Documents/Projects/React/modern-cg1/src/lib/prisma-rls.ts)",
       "Bash(grep -n 'QuotationService.update\\\\|quotation.*update\\\\|$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/actions/quotation.actions.ts)",
-      "Bash(grep -n '$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/services/QuotationService.ts)"
+      "Bash(grep -n '$transaction' /d/Documents/Projects/React/modern-cg1/src/modules/orders/services/QuotationService.ts)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"PRISMA_EXIT: $?\")",
+      "Bash(grep -E '\\\\.\\(ts|tsx\\)$')",
+      "Bash(grep -rn \"\\\\\\\\\\\\\"FULLY_DEPRECATED\\\\\\\\\\\\\"\\\\\\\\|'FULLY_DEPRECATED'\" src/ --include=\"*.ts\" --include=\"*.tsx\")",
+      "Bash(grep -rn \"PENDING_APPROVAL\\\\\\\\|APPROVED\\\\\\\\|REJECTED\\\\\\\\|CANCELLED\\\\\\\\|CONVERTED\" src/modules/orders --include=\"*.ts\")",
+      "Bash(DATABASE_URL_DIRECT=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require\" npx prisma db execute --file prisma/migrations/20260429_fase35h_auditlog_network_trace/migration.sql)",
+      "Bash(DATABASE_URL_DIRECT=\"postgresql://neondb_owner:npg_Ueoly06bBMFh@ep-summer-fog-ai2n0tde-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require\" npx prisma db execute --file prisma/migrations/20260429_fase35h_seniat_submission/migration.sql)",
+      "Bash(node -e \"require\\('@upstash/qstash'\\); console.log\\('ok'\\)\")",
+      "Bash(ls -la .env*)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('DATABASE_URL set:', !!process.env.DATABASE_URL\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx prisma generate', {stdio:'inherit', env: process.env}\\);\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx tsc --noEmit', {stdio:'inherit', env: process.env}\\);\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx vitest run', {stdio:'inherit', env: process.env}\\);\")"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
@@ -216,6 +229,19 @@
       "D:\\Documents\\Projects\\React\\modern-cg1\\.claude",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\reports",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\payroll"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsc --noEmit; case \"$CLAUDE_FILE_PATH\" in *.ts|*.tsx) npx eslint --fix \"$CLAUDE_FILE_PATH\";; esac"
+          }
+        ]
+      }
     ]
   }
 }

@@ -14,6 +14,8 @@ import { LanguageSelector } from "@/modules/settings/LanguageSelector";
 import { ArchiveCompany } from "@/components/company/ArchiveCompany";
 import { FiscalConfigForm } from "@/modules/fiscal-close/components/FiscalConfigForm";
 import { PaymentTermsForm } from "@/modules/receivables/components/PaymentTermsForm";
+import { CertificatePanel } from "@/modules/certificates/components/CertificatePanel";
+import { getCertificateStatusAction } from "@/modules/certificates/actions/certificate.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -25,7 +27,7 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult] =
+  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult] =
     await Promise.all([
       getPeriodsAction(companyId),
       getActivePeriodAction(companyId),
@@ -33,6 +35,7 @@ export default async function SettingsPage({ params }: Props) {
       getUserCompaniesAction(),
       getFiscalConfigAction(companyId),
       getAccountsAction(companyId),
+      getCertificateStatusAction({ companyId }),
     ]);
 
   const periods = periodsResult.success ? periodsResult.data : [];
@@ -41,6 +44,7 @@ export default async function SettingsPage({ params }: Props) {
   if (!company) redirect("/dashboard");
 
   const fiscalConfig = fiscalConfigResult.success ? fiscalConfigResult.data : null;
+  const certStatus = certStatusResult.success ? certStatusResult.data : { exists: false as const };
   const equityAccounts = accountsResult.success
     ? accountsResult.data
         .filter((a) => a.type === "EQUITY")
@@ -96,6 +100,17 @@ export default async function SettingsPage({ params }: Props) {
             currentPaymentTermDays={company.paymentTermDays}
           />
         </div>
+      </div>
+
+      {/* ── Firma Digital — Fase 35I ──────────────────────────────────────── */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Firma Digital</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Certificado X.509 para firma electrónica de documentos fiscales (PA 121 · ADR-020).
+          </p>
+        </div>
+        <CertificatePanel companyId={companyId} initialStatus={certStatus} />
       </div>
 
       <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
