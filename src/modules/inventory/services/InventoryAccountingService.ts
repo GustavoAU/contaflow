@@ -292,7 +292,7 @@ export async function getInventoryValuation(companyId: string) {
       id: true,
       sku: true,
       name: true,
-      unit: true,
+      baseUnitName: true,
       stockQuantity: true,
       averageCost: true,
     },

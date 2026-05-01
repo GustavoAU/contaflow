@@ -191,6 +191,8 @@ model Company {
   seniatSubmissions         SeniatSubmission[]
   // Fase 35I: Firma Digital
   certificate               CompanyCertificate?
+  // Fase 35F: Unidades de Medida Múltiples
+  inventoryItemUnits        InventoryItemUnit[]
 }
 
 model CompanyMember {
@@ -856,9 +858,14 @@ model InventoryItem {
   sku           String
   name          String
   description   String?
-  unit          String // "unidad", "kg", "litro", etc.
-  averageCost   Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente
-  stockQuantity Decimal             @default(0) @db.Decimal(19, 4) // unidades en existencia
+  unit          String?             // DEPRECADO — reemplazado por InventoryItemUnit (Fase 35F)
+  // Denorm de la unidad base — sincronizado por InventoryUomService al crear/actualizar unidad base
+  baseUnitName  String              // sincronizado con InventoryItemUnit.name donde isBase = true
+  baseUnitAbbr  String              // sincronizado con InventoryItemUnit.abbreviation
+  baseUnitId    String?
+  baseUnit      InventoryItemUnit?  @relation("ItemBaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
+  averageCost   Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
+  stockQuantity Decimal             @default(0) @db.Decimal(19, 4) // existencia en unidad base
   minimumStock  Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
   accountId     String?
   account       Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
@@ -869,6 +876,7 @@ model InventoryItem {
   updatedAt     DateTime            @updatedAt
   createdBy     String
   movements     InventoryMovement[]
+  units         InventoryItemUnit[] @relation("ItemUnits")
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -876,34 +884,74 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id             String         @id @default(cuid())
-  companyId      String
-  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  itemId         String
-  item           InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  type           MovementType
-  status         MovementStatus @default(DRAFT)
-  quantity       Decimal        @db.Decimal(19, 4) // siempre positivo
-  unitCost       Decimal        @db.Decimal(19, 4) // CPP snapshot al momento del movimiento
-  totalCost      Decimal        @db.Decimal(19, 4) // quantity × unitCost — almacenado, no calculado en consulta
-  invoiceId      String?
-  invoice        Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  transactionId  String?        @unique
-  transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  reference      String?
-  notes          String?
-  date           DateTime
-  idempotencyKey String         @unique
-  createdAt      DateTime       @default(now())
-  createdBy      String
-  postedAt       DateTime?
-  postedBy       String?
+  id                 String             @id @default(cuid())
+  companyId          String
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId             String
+  item               InventoryItem      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  type               MovementType
+  status             MovementStatus     @default(DRAFT)
+  quantity           Decimal            @db.Decimal(19, 4) // cantidad en UNIDAD BASE — siempre positivo
+  unitCost           Decimal            @db.Decimal(19, 4) // costo por UNIDAD BASE (snapshot CPP)
+  totalCost          Decimal            @db.Decimal(19, 4) // quantity × unitCost — almacenado
+  // Fase 35F: Unidades de Medida — ADR-018
+  unitId             String?
+  unit               InventoryItemUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  quantityInUnit     Decimal            @db.Decimal(19, 4)  // cantidad en la unidad del movimiento
+  conversionSnapshot Decimal            @db.Decimal(19, 10) // factor inmutable al momento del movimiento — ADR-018 D-3
+  invoiceId          String?
+  invoice            Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  transactionId      String?            @unique
+  transaction        Transaction?       @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  reference          String?
+  notes              String?
+  date               DateTime
+  idempotencyKey     String             @unique
+  createdAt          DateTime           @default(now())
+  createdBy          String
+  postedAt           DateTime?
+  postedBy           String?
 
   @@index([companyId])
   @@index([companyId, itemId])
   @@index([companyId, status])
   @@index([companyId, date])
   @@index([invoiceId])
+}
+
+// ─── Fase 35F: Unidades de Medida Múltiples (UoM) — ADR-018 ─────────────────
+// Una unidad base por ítem (isBase = true). Stock y CPP SIEMPRE en unidad base.
+// Conversión ocurre en InventoryOperationsService.resolveQuantity() antes de
+// modificar stockQuantity/averageCost — InventoryAccountingService no requiere cambios.
+
+model InventoryItemUnit {
+  id               String              @id @default(cuid())
+  companyId        String
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId           String
+  item             InventoryItem       @relation("ItemUnits", fields: [itemId], references: [id], onDelete: Restrict)
+  name             String
+  abbreviation     String
+  // Factor: cuántas unidades BASE equivale 1 de ESTA unidad.
+  // Unidad base: conversionFactor = 1.0000000000. NUNCA Float — R-5 / ADR-002.
+  // Ejemplo: 1 Caja = 12 Unidades → conversionFactor = 12.0000000000
+  conversionFactor Decimal             @db.Decimal(19, 10)
+  isBase           Boolean             @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdBy        String
+
+  movements        InventoryMovement[]
+  itemsAsBase      InventoryItem[]     @relation("ItemBaseUnit")
+
+  // @@unique([itemId, isBase]) ELIMINADO — crearía constraint incorrecto sobre isBase=false.
+  // Constraint de una sola unidad base por ítem gestionado vía partial index SQL:
+  //   CREATE UNIQUE INDEX "uq_inventory_item_unit_base" ON "InventoryItemUnit"("itemId") WHERE "isBase" = true
+  // Ver migración: 20260430100000_fase35f_uom_a — ADR-018 D-4 / security-agent CRITICAL-1
+  @@unique([itemId, name])
+  @@index([companyId])
+  @@index([itemId])
 }
 
 // ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────
