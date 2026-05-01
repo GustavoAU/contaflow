@@ -13,7 +13,6 @@ type ExistingItem = {
   sku: string;
   name: string;
   description: string | null;
-  unit: string;
   accountId: string | null;
   cogsAccountId: string | null;
 };
@@ -51,7 +50,6 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           sku: fd.get("sku") as string,
           name: fd.get("name") as string,
           description: (fd.get("description") as string) || null,
-          unit: fd.get("unit") as string,
           accountId: (fd.get("accountId") as string) || null,
           cogsAccountId: (fd.get("cogsAccountId") as string) || null,
         });
@@ -61,7 +59,6 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           sku: fd.get("sku") as string,
           name: fd.get("name") as string,
           description: (fd.get("description") as string) || null,
-          unit: fd.get("unit") as string,
           accountId: (fd.get("accountId") as string) || null,
           cogsAccountId: (fd.get("cogsAccountId") as string) || null,
         });
@@ -93,18 +90,6 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
             className={fieldClass}
             placeholder="Ej: PROD-001"
             maxLength={50}
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Unidad de medida *</label>
-          <input
-            name="unit"
-            required
-            defaultValue={item?.unit}
-            className={fieldClass}
-            placeholder="Ej: unidad, kg, litro"
-            maxLength={30}
           />
         </div>
 

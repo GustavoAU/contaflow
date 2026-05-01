@@ -203,6 +203,7 @@ export default async function InventoryPage({ params }: Props) {
           accounts={accountOptions}
           canEdit={isOperations}
           canDelete={isAdminOnly}
+          canManageUom={isAccounting}
         />
       </section>
 

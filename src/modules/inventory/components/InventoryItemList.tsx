@@ -8,13 +8,14 @@ import { toast } from "sonner";
 import { softDeleteInventoryItemAction, getItemMovementsAction } from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
+import { UomManager } from "./UomManager";
 
 export type InventoryItemRow = {
   id: string;
   sku: string;
   name: string;
   description: string | null;
-  unit: string;
+  unit: string;           // baseUnitName — solo lectura, gestionado vía UomManager
   stockQuantity: string;
   averageCost: string;
   accountId: string | null;
@@ -29,13 +30,15 @@ type Props = {
   items: InventoryItemRow[];
   companyId: string;
   accounts: AccountOption[];
-  canEdit: boolean;    // OPERATIONS roles
-  canDelete: boolean;  // ADMIN_ONLY roles
-  canViewHistory?: boolean; // WRITERS y superior — default true
+  canEdit: boolean;           // OPERATIONS roles
+  canDelete: boolean;         // ADMIN_ONLY roles
+  canManageUom?: boolean;     // ACCOUNTING roles — gestionar unidades de medida
+  canViewHistory?: boolean;   // WRITERS y superior — default true
 };
 
-export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete, canViewHistory = true }: Props) {
+export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete, canManageUom = false, canViewHistory = true }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uomItemId, setUomItemId] = useState<string | null>(null);
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<Record<string, MovementRow[]>>({});
   const [historyError, setHistoryError] = useState<Record<string, string>>({});
@@ -72,7 +75,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
   }
 
   // columnas totales según props
-  const totalCols = 7 + (canViewHistory ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
+  const totalCols = 7 + (canViewHistory ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <div className="space-y-3">
@@ -92,6 +95,9 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 <th className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
                 <th className="px-4 py-3 text-right">Valor en libros</th>
                 <th className="px-4 py-3 text-left">Cta. Inventario</th>
+                {canManageUom && (
+                  <th className="px-4 py-3 text-center">Unidades</th>
+                )}
                 {canViewHistory && (
                   <th className="px-4 py-3 text-center">Historial</th>
                 )}
@@ -149,6 +155,16 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                           ? `${item.accountCode} — ${item.accountName}`
                           : <span className="text-yellow-600">Sin cuenta</span>}
                       </td>
+                      {canManageUom && (
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => setUomItemId(uomItemId === item.id ? null : item.id)}
+                            className="text-xs text-emerald-600 hover:underline"
+                          >
+                            {uomItemId === item.id ? "Ocultar" : "Unidades"}
+                          </button>
+                        </td>
+                      )}
                       {canViewHistory && (
                         <td className="px-4 py-3 text-center">
                           <button
@@ -185,6 +201,21 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                       )}
                     </tr>
 
+                    {/* Panel de unidades de medida */}
+                    {uomItemId === item.id && (
+                      <tr key={`uom-${item.id}`}>
+                        <td colSpan={totalCols} className="bg-emerald-50 px-6 py-4">
+                          <UomManager
+                            companyId={companyId}
+                            itemId={item.id}
+                            itemName={item.name}
+                            canManage={canManageUom}
+                            canDelete={canDelete}
+                          />
+                        </td>
+                      </tr>
+                    )}
+
                     {/* Panel de historial — fila de ancho completo */}
                     {isHistoryOpen && (
                       <tr key={`history-${item.id}`}>
@@ -212,7 +243,14 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                           <InventoryItemForm
                             companyId={companyId}
                             accounts={accounts}
-                            item={item}
+                            item={{
+                              id: item.id,
+                              sku: item.sku,
+                              name: item.name,
+                              description: item.description,
+                              accountId: item.accountId,
+                              cogsAccountId: item.cogsAccountId,
+                            }}
                             onSuccess={() => setEditingId(null)}
                             onCancel={() => setEditingId(null)}
                           />

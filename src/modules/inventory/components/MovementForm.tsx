@@ -3,16 +3,25 @@
 // src/modules/inventory/components/MovementForm.tsx
 // Registro de movimientos físicos (ENTRADA / SALIDA / AJUSTE) — dominio ADMINISTRATIVE
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
+import { listUomsAction } from "../actions/inventory-uom.actions";
 
 type ItemOption = {
   id: string;
   sku: string;
   name: string;
-  unit: string;
+  unit: string;           // baseUnitName — para mostrar stock
   stockQuantity: string;
   averageCost: string;
+};
+
+type UnitOption = {
+  id: string;
+  name: string;
+  abbreviation: string;
+  conversionFactor: string;
+  isBase: boolean;
 };
 
 type Props = {
@@ -35,18 +44,51 @@ const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
 export function MovementForm({ companyId, items, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [isLoadingUnits, startLoadUnits] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [movType, setMovType] = useState<MovementType>("ENTRADA");
   const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [units, setUnits] = useState<UnitOption[]>([]);
+  const [selectedUnitId, setSelectedUnitId] = useState<string>("");
 
   const selectedItem = items.find((i) => i.id === selectedItemId);
+  const selectedUnit = units.find((u) => u.id === selectedUnitId);
+
+  // Cargar unidades cuando cambia el ítem seleccionado
+  useEffect(() => {
+    setUnits([]);
+    setSelectedUnitId("");
+    if (!selectedItemId) return;
+
+    startLoadUnits(async () => {
+      const r = await listUomsAction({ companyId, itemId: selectedItemId });
+      if (r.success) {
+        const mapped: UnitOption[] = r.data.map((u) => ({
+          id: u.id,
+          name: u.name,
+          abbreviation: u.abbreviation,
+          conversionFactor: u.conversionFactor.toString(),
+          isBase: u.isBase,
+        }));
+        setUnits(mapped);
+        // Auto-seleccionar la unidad base
+        const base = mapped.find((u) => u.isBase);
+        setSelectedUnitId(base?.id ?? "");
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItemId]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     const fd = new FormData(e.currentTarget);
+
+    // unitId: null si es la unidad base o si no hay unidades configuradas
+    const unitIsBase = units.find((u) => u.id === selectedUnitId)?.isBase ?? true;
+    const unitId = selectedUnitId && !unitIsBase ? selectedUnitId : null;
 
     const input = {
       companyId,
@@ -59,6 +101,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
       notes: (fd.get("notes") as string) || null,
       date: new Date(fd.get("date") as string).toISOString(),
       idempotencyKey: crypto.randomUUID(),
+      unitId: unitId ?? undefined,
     };
 
     startTransition(async () => {
@@ -68,6 +111,8 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
         (e.target as HTMLFormElement).reset();
         setSelectedItemId("");
         setMovType("ENTRADA");
+        setUnits([]);
+        setSelectedUnitId("");
         onSuccess?.();
       } else {
         setError(r.error);
@@ -76,6 +121,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
   }
 
   const today = new Date().toISOString().split("T")[0];
+  const hasAltUnits = units.length > 1;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -158,6 +204,35 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
           )}
         </div>
 
+        {/* Selector de unidad — solo si el ítem tiene unidades alternativas */}
+        {selectedItemId && hasAltUnits && (
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Unidad de registro</label>
+            {isLoadingUnits ? (
+              <p className="text-xs text-gray-400 py-2">Cargando unidades...</p>
+            ) : (
+              <>
+                <select
+                  className={fieldClass}
+                  value={selectedUnitId}
+                  onChange={(e) => setSelectedUnitId(e.target.value)}
+                >
+                  {units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.abbreviation}){u.isBase ? " — Base" : ` — 1 ${u.abbreviation} = ${u.conversionFactor} ${selectedItem?.unit ?? ""}`}
+                    </option>
+                  ))}
+                </select>
+                {selectedUnit && !selectedUnit.isBase && (
+                  <p className="mt-1 text-xs text-blue-700">
+                    La cantidad se convertirá: 1 {selectedUnit.abbreviation} = {selectedUnit.conversionFactor} {selectedItem?.unit}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* Cantidad */}
         <div>
           <label className={labelClass}>Cantidad *</label>
@@ -172,7 +247,10 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
             placeholder="0.00"
           />
           {selectedItem && (
-            <p className="mt-1 text-xs text-gray-500">Unidad: {selectedItem.unit}</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Unidad:{" "}
+              {selectedUnit ? `${selectedUnit.name} (${selectedUnit.abbreviation})` : selectedItem.unit}
+            </p>
           )}
         </div>
 
