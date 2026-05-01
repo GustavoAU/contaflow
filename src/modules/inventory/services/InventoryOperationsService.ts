@@ -40,10 +40,12 @@ export async function createInventoryItem(
         accountId: accountId ?? null,
         cogsAccountId: cogsAccountId ?? null,
         createdBy: userId,
-        // Fase 35F: baseUnit denorm — se actualizará en Sub-fase B via InventoryUomService
-        baseUnitName: rest.unit ?? "unidad",
-        baseUnitAbbr: (rest.unit ?? "UN").substring(0, 10).toUpperCase(),
-        ...rest,
+        // baseUnit denorm — se establece al crear la unidad base via UomManager → InventoryUomService
+        baseUnitName: "unidad",
+        baseUnitAbbr: "UN",
+        sku: rest.sku,
+        name: rest.name,
+        description: rest.description ?? null,
       },
     });
 
@@ -98,7 +100,6 @@ export async function updateInventoryItem(
         ...(rest.sku !== undefined && { sku: rest.sku }),
         ...(rest.name !== undefined && { name: rest.name }),
         ...(rest.description !== undefined && { description: rest.description }),
-        ...(rest.unit !== undefined && { unit: rest.unit }),
         ...(accountId !== undefined && { accountId: accountId ?? null }),
         ...(cogsAccountId !== undefined && { cogsAccountId: cogsAccountId ?? null }),
       },

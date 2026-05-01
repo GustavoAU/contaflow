@@ -42,7 +42,6 @@ const makeItem = (overrides = {}) => ({
   companyId: COMPANY_ID,
   sku: "PROD-001",
   name: "Producto Test",
-  unit: "unidad",
   averageCost: new Decimal("100.00"),
   stockQuantity: new Decimal("10.00"),
   deletedAt: null,
@@ -103,7 +102,7 @@ beforeEach(() => {
 describe("createInventoryItem", () => {
   it("crea un ítem con los datos correctos", async () => {
     const result = await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test", unit: "unidad" },
+      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test" },
       USER_ID
     );
     expect(result).toBeDefined();
@@ -121,7 +120,6 @@ describe("createInventoryItem", () => {
           companyId: COMPANY_ID,
           sku: "X",
           name: "Test",
-          unit: "unidad",
           accountId: "acc-other-company",
         },
         USER_ID
@@ -139,7 +137,6 @@ describe("createInventoryItem", () => {
           companyId: COMPANY_ID,
           sku: "X",
           name: "Test",
-          unit: "unidad",
           accountId: "acc-inv",
           cogsAccountId: "acc-other-company-cogs",
         },
@@ -150,7 +147,7 @@ describe("createInventoryItem", () => {
 
   it("no verifica accounts si no se proporcionan", async () => {
     await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas", unit: "kg" },
+      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas" },
       USER_ID
     );
     expect(vi.mocked(prisma.account.findFirstOrThrow)).not.toHaveBeenCalled();

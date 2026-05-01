@@ -6,7 +6,6 @@ export const CreateInventoryItemSchema = z.object({
   sku: z.string().min(1).max(50).trim(),
   name: z.string().min(1).max(120).trim(),
   description: z.string().max(500).trim().optional().nullable(),
-  unit: z.string().min(1).max(30).trim(),
   accountId: z.string().min(1).optional().nullable(),
   cogsAccountId: z.string().min(1).optional().nullable(),
 });
@@ -17,7 +16,6 @@ export const UpdateInventoryItemSchema = z.object({
   sku: z.string().min(1).max(50).trim().optional(),
   name: z.string().min(1).max(120).trim().optional(),
   description: z.string().max(500).trim().optional().nullable(),
-  unit: z.string().min(1).max(30).trim().optional(),
   accountId: z.string().min(1).optional().nullable(),
   cogsAccountId: z.string().min(1).optional().nullable(),
 });
