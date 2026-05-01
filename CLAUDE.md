@@ -1,13 +1,11 @@
 # ContaFlow — Agent Guide
+## 🚀 INICIO DE SESIÓN — Leer primero
 
-## Lectura obligatoria por contexto
+1. `.claude/memory/decision-tree.md` → identifica tu árbol antes de escribir código
+2. `contaflow-context-v3.md` → solo el bloque **Estado Activo** (primeras ~60 líneas)
+3. Según el árbol → leer skills relevantes en `.claude/memory/skills-discovered.md`
 
-| Si vas a tocar… | Lee antes de escribir código |
-|---|---|
-| Cuenta contable, asiento, módulo fiscal, nómina, cálculo de impuestos | R-1 a R-7 (abajo) + `.claude/ontologia/quick-reference.md` |
-| Schema Prisma con impacto contable | R-1 a R-7 + ADR relevante |
-| Server Action nueva/modificada, endpoint, campo Zod → DB | Activar `security-agent` (ver Phase gate) |
-| Bug UI, exportación, tipado TS, tests, docs | Nada extra requerido |
+No leer nada más hasta que el árbol lo indique.
 
 **Knowledge base adicional:**
 - `.claude/ontologia/ontologia-v8-indice.md` — catálogo de cuentas, matrices, reglas VEN-NIF
