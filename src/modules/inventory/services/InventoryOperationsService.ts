@@ -39,6 +39,9 @@ export async function createInventoryItem(
         accountId: accountId ?? null,
         cogsAccountId: cogsAccountId ?? null,
         createdBy: userId,
+        // Fase 35F: baseUnit denorm — se actualizará en Sub-fase B via InventoryUomService
+        baseUnitName: rest.unit ?? "unidad",
+        baseUnitAbbr: (rest.unit ?? "UN").substring(0, 10).toUpperCase(),
         ...rest,
       },
     });
@@ -204,6 +207,9 @@ export async function createDraftMovement(
         quantity: new Decimal(quantity),
         unitCost: resolvedUnitCost,
         totalCost: resolvedUnitCost.mul(quantity),
+        // Fase 35F: unitId null = unidad base implícita. Sub-fase B añade resolveQuantity().
+        quantityInUnit: new Decimal(quantity),
+        conversionSnapshot: new Decimal(1),
         invoiceId: invoiceId ?? null,
         date: new Date(rest.date),
         idempotencyKey: rest.idempotencyKey,
