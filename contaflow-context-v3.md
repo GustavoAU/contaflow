@@ -1,3 +1,68 @@
+# ContaFlow — Contexto: Instrucciones de Lectura
+
+> Este archivo tiene ~2700 líneas. **No lo leas completo en cada sesión.**
+> Protocolo: Lee el bloque "Estado Activo" → sigue el decision-tree → leer solo lo necesario.
+
+---
+
+## ——— ESTADO ACTIVO ———
+_Solo esto se carga por defecto en cada sesión._
+
+### Fase en vuelo
+**Fase 35F** ⏳ — UoM (Unidades de Medida múltiples) — ADR-018
+- Sub-fase A (schema + migración) en progreso en `feat/fase-35f-uom`
+- Fase 35G (Lot/Serial Tracking) depende de esta
+
+**Fase 36C** ⏳ — Distribución de Pagos / batch multi-destinatario
+- Independiente de 35F
+
+### Tests / CI
+**1562 tests GREEN | 0 TS errors | CI passing** (2026-04-30)
+
+### Próximas fases (backlog inmediato)
+1. 35F → 35G → 36C
+2. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+
+---
+
+<!-- HANDOFF — completar al cerrar cada sesión -->
+<!--
+HANDOFF YYYY-MM-DD Fase XX
+Próxima sesión: leer árbol [N] en decision-tree.md
+Decisión pendiente: [descripción breve]
+Skills sugeridas: [B1, C2, ...]
+-->
+
+---
+
+## ——— DECISIONES RECIENTES (últimas 3 fases) ———
+_Suficiente para entender dependencias. Leer si la tarea toca alguna de estas fases._
+
+### Fase 35I — Firma Digital Híbrida (merged 2026-04-30)
+- `CertificateService` + `DocumentSigningService` — ADR-020
+- Modelo híbrido: certificado autofirmado (onboarding gratis) + upgrade a PSC oficial
+- `encryptedP12` nunca expuesto en SELECT — `select` explícito siempre
+- `buf.fill(0)` post-descifrado obligatorio — ver Z-5 en CLAUDE.md
+
+### Fase 35H — PA-121 AuditLog IP/UA + SENIAT + QStash (merged)
+- `AuditLog.ipAddress` + `AuditLog.userAgent` en toda mutación financiera — ADR-019
+- `SeniatSubmission` en mismo `$transaction` que factura/NC/ND
+- QStash con firma verificada + idempotencia comentada explícitamente
+
+### Fase 35E / Security Hardening / Bloque A Refactor (merged)
+- `xlsx` reemplazado por `exceljs` — CVE resuelto — ver DECISIONS.md
+- `next` 16.1.6 → 16.2.4 — 5 CVEs HIGH resueltos
+- 1562 tests GREEN post-refactor
+
+---
+
+## ——— HISTORIAL ARCHIVADO ———
+_No leer por defecto. Solo si necesitas contexto de una fase específica completada._
+_Fases ✅: 12A/B/C, 13C/D, 14/B/C/D, 15, 16, 17/B, 18, 19/A/B/C, 20, 21, 22, 23B/C,_
+_26/B, 28A-H, 31, 32, 33, NOM-A/B/C/D/E, 35A, OCR-v2_
+
+---
+
 # ContaFlow — Contexto Completo del Proyecto
 
 _Versión actualizada — Sesión 2026-04-27. Última sincronización: 2026-04-27_
