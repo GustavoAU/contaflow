@@ -9,6 +9,7 @@ import type {
 } from "../schemas/inventory-item.schema";
 import type { CreateMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
 import Decimal from "decimal.js";
+import { resolveQuantity } from "./InventoryUomService";
 
 // ─── Items ────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export async function createDraftMovement(
   input: CreateMovementInput,
   userId: string
 ) {
-  const { companyId, itemId, type, quantity, unitCost, invoiceId, ...rest } = input;
+  const { companyId, itemId, type, quantity, unitCost, unitId, invoiceId, ...rest } = input;
 
   // CRITICAL-1: verificar ownership del ítem
   const item = await prisma.inventoryItem.findFirstOrThrow({
@@ -173,18 +174,36 @@ export async function createDraftMovement(
     return existing; // idempotente — devuelve el movimiento existente sin error
   }
 
+  // Fase 35F Sub-fase B: si se especifica unitId, convertir a unidad base
+  // HIGH-1: resolveQuantity verifica internamente que unitId pertenece a companyId
+  const quantityDecimal = new Decimal(quantity);
+  let quantityInBase: Decimal;
+  let conversionSnapshot: Decimal;
+  let resolvedUnitId: string | null;
+
+  if (unitId) {
+    const resolved = await resolveQuantity(companyId, unitId, quantityDecimal);
+    quantityInBase = resolved.quantityInBase;
+    conversionSnapshot = resolved.conversionFactor;
+    resolvedUnitId = unitId;
+  } else {
+    // Sin unitId: unidad base implícita, factor = 1
+    quantityInBase = quantityDecimal;
+    conversionSnapshot = new Decimal(1);
+    resolvedUnitId = null;
+  }
+
   // Para SALIDA/AJUSTE: unitCost se toma del CPP vigente del ítem
   const resolvedUnitCost =
     type === "ENTRADA"
       ? new Decimal(unitCost ?? 0)
       : new Decimal(item.averageCost);
 
-  // Validar stock suficiente para SALIDA
+  // Validar stock suficiente para SALIDA (usando cantidad en unidad base)
   if (type === "SALIDA") {
-    const qtyDecimal = new Decimal(quantity);
-    if (new Decimal(item.stockQuantity).lt(qtyDecimal)) {
+    if (new Decimal(item.stockQuantity).lt(quantityInBase)) {
       throw new Error(
-        `Stock insuficiente: disponible ${item.stockQuantity}, solicitado ${quantity}`
+        `Stock insuficiente: disponible ${item.stockQuantity}, solicitado ${quantityInBase}`
       );
     }
   }
@@ -204,12 +223,12 @@ export async function createDraftMovement(
         itemId,
         type,
         status: "DRAFT",
-        quantity: new Decimal(quantity),
+        quantity: quantityInBase,                      // siempre en unidad base
         unitCost: resolvedUnitCost,
-        totalCost: resolvedUnitCost.mul(quantity),
-        // Fase 35F: unitId null = unidad base implícita. Sub-fase B añade resolveQuantity().
-        quantityInUnit: new Decimal(quantity),
-        conversionSnapshot: new Decimal(1),
+        totalCost: resolvedUnitCost.mul(quantityInBase),
+        unitId: resolvedUnitId,
+        quantityInUnit: quantityDecimal,               // cantidad tal como la ingresó el usuario
+        conversionSnapshot,                            // snapshot inmutable del factor (ADR-018 D-3)
         invoiceId: invoiceId ?? null,
         date: new Date(rest.date),
         idempotencyKey: rest.idempotencyKey,
@@ -231,7 +250,10 @@ export async function createDraftMovement(
         newValue: {
           itemId,
           type,
-          quantity: quantity.toString(),
+          quantityInBase: quantityInBase.toString(),
+          quantityInUnit: quantityDecimal.toString(),
+          conversionSnapshot: conversionSnapshot.toString(),
+          unitId: resolvedUnitId,
           unitCost: resolvedUnitCost.toString(),
         },
       },

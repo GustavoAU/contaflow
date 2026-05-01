@@ -8,6 +8,8 @@ export const CreateMovementSchema = z.object({
   quantity: z.number().positive().max(1_000_000),
   // Para ENTRADA: el servicio usa este valor. Para SALIDA/AJUSTE: se ignora — se usa CPP vigente.
   unitCost: z.number().nonnegative().max(9_999_999_999).optional(),
+  // Fase 35F Sub-fase B: si se especifica, quantity está en esta unidad y se convierte a base
+  unitId: z.string().min(1).optional().nullable(),
   invoiceId: z.string().min(1).optional().nullable(),
   reference: z.string().max(100).trim().optional().nullable(),
   notes: z.string().max(500).trim().optional().nullable(),
