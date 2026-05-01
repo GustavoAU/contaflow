@@ -214,7 +214,15 @@
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('DATABASE_URL set:', !!process.env.DATABASE_URL\\)\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx prisma generate', {stdio:'inherit', env: process.env}\\);\")",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx tsc --noEmit', {stdio:'inherit', env: process.env}\\);\")",
-      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx vitest run', {stdio:'inherit', env: process.env}\\);\")"
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const {execSync}=require\\('child_process'\\); execSync\\('npx vitest run', {stdio:'inherit', env: process.env}\\);\")",
+      "Bash(git rm *)",
+      "Bash(node --require dotenv/config -e ' *)",
+      "Read(//temp/readonly/**)",
+      "Read(//c/temp/**)",
+      "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(32\\).toString\\('hex'\\)\\);\")",
+      "Bash(cat)",
+      "Bash(cat /tmp/header_35f.md contaflow-context-v3.md)",
+      "Bash(mv /tmp/context_merged.md contaflow-context-v3.md)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
