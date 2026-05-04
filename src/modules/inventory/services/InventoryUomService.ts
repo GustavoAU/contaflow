@@ -4,7 +4,12 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
-import type { CreateUomInput, UpdateUomInput, SoftDeleteUomInput, ListUomsInput } from "../schemas/inventory-item-unit.schema";
+import type {
+  CreateUomInput,
+  UpdateUomInput,
+  SoftDeleteUomInput,
+  ListUomsInput,
+} from "../schemas/inventory-item-unit.schema";
 
 // ─── createUnit ──────────────────────────────────────────────────────────────
 
@@ -62,7 +67,7 @@ export async function createUnit(
           entityName: "InventoryItemUnit",
           action: "CREATE",
           userId,
-          ipAddress: ipAddress ?? null,   // MEDIUM-2: trazabilidad de red
+          ipAddress: ipAddress ?? null, // MEDIUM-2: trazabilidad de red
           userAgent: userAgent ?? null,
           newValue: { itemId, name, abbreviation, conversionFactor, isBase },
         },
@@ -72,11 +77,7 @@ export async function createUnit(
     });
   } catch (err: unknown) {
     // MEDIUM-3: capturar P2002 del partial index (una sola unidad base por ítem)
-    if (
-      err instanceof Error &&
-      "code" in err &&
-      (err as { code: string }).code === "P2002"
-    ) {
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
       const meta = (err as { meta?: { target?: string[] } }).meta;
       if (meta?.target?.includes("itemId") && isBase) {
         throw new Error(
@@ -84,9 +85,7 @@ export async function createUnit(
         );
       }
       if (meta?.target?.includes("name")) {
-        throw new Error(
-          `Ya existe una unidad con el nombre "${name}" para este producto.`
-        );
+        throw new Error(`Ya existe una unidad con el nombre "${name}" para este producto.`);
       }
     }
     throw err;
@@ -131,8 +130,7 @@ export async function updateUnit(
   const updateData: Record<string, unknown> = {};
   if (name !== undefined) updateData.name = name;
   if (abbreviation !== undefined) updateData.abbreviation = abbreviation;
-  if (conversionFactor !== undefined)
-    updateData.conversionFactor = new Decimal(conversionFactor);
+  if (conversionFactor !== undefined) updateData.conversionFactor = new Decimal(conversionFactor);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.inventoryItemUnit.update({
@@ -278,9 +276,7 @@ export async function resolveQuantity(
 
   // MEDIUM-4: doble guardia — factor nunca puede ser <= 0 (Zod + createUnit ya lo validan)
   if (factor.lte(0)) {
-    throw new Error(
-      "Factor de conversión inválido en base de datos — contacte soporte."
-    );
+    throw new Error("Factor de conversión inválido en base de datos — contacte soporte.");
   }
 
   const quantityInBase = quantityInUnit.mul(factor);
