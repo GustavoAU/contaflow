@@ -1,0 +1,59 @@
+# .github/workflows/version-and-release.yml
+# Crea un GitHub Release automáticamente cuando se hace push de un tag v*
+# Uso: git tag -a v1.0.0 -m "Release v1.0.0" && git push origin v1.0.0
+
+name: Version & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Crear GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (con historial completo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extraer versión del tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Versión: $VERSION"
+
+      - name: Extraer notas de CHANGELOG.md
+        id: changelog
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          # Eliminar la 'v' del tag para buscar en CHANGELOG (v1.0.0 → 1.0.0)
+          VERSION_NUM=${VERSION#v}
+
+          # Extraer la sección correspondiente del CHANGELOG
+          NOTES=$(awk "/^## \[$VERSION_NUM\]/{flag=1; next} /^## \[/{if(flag) exit} flag" CHANGELOG.md)
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Ver [CHANGELOG.md](./CHANGELOG.md) para detalles de cambios."
+          fi
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Crear GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "ContaFlow ${{ steps.version.outputs.version }}"
+          body: ${{ steps.changelog.outputs.notes }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-rc') || contains(steps.version.outputs.version, '-beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

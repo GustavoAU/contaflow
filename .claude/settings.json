@@ -222,7 +222,10 @@
       "Bash(node -e \"const crypto = require\\('crypto'\\); console.log\\(crypto.randomBytes\\(32\\).toString\\('hex'\\)\\);\")",
       "Bash(cat)",
       "Bash(cat /tmp/header_35f.md contaflow-context-v3.md)",
-      "Bash(mv /tmp/context_merged.md contaflow-context-v3.md)"
+      "Bash(mv /tmp/context_merged.md contaflow-context-v3.md)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version','MISSING'\\)\\); print\\('name:', d.get\\('name','MISSING'\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.version, p.name\\)\")",
+      "Bash(git cherry-pick *)"
     ],
     "additionalDirectories": [
       "d:\\Documents\\Projects\\React\\countableapp\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]",
@@ -236,7 +239,8 @@
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\payroll\\config",
       "D:\\Documents\\Projects\\React\\modern-cg1\\.claude",
       "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\reports",
-      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\payroll"
+      "d:\\Documents\\Projects\\React\\modern-cg1\\src\\app\\(dashboard)\\company\\[companyId]\\payroll",
+      "d:\\Documents\\Projects\\React\\modern-cg1\\public"
     ]
   },
   "hooks": {

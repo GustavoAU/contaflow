@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContaFlow — Wiki de Producto</title>
+    <meta name="description" content="Fuente de verdad sobre procesos, decisiones y uso de ContaFlow. Guías operacionales, FAQs y glosario fiscal VEN-NIF.">
+    <style>
+        :root {
+            --color-primary: #0C447C;
+            --color-secondary: #185FA5;
+            --color-accent: #378ADD;
+            --color-background: #FFFFFF;
+            --color-surface: #F8F7F5;
+            --color-text: #2C2C2A;
+            --color-text-muted: #5F5E5A;
+            --color-text-light: #888780;
+            --color-border: #E1DFD8;
+            --color-divider: #D3D1C7;
+            --color-success: #097F4F;
+            --color-warning: #BA7517;
+            --color-error: #A32D2D;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 12px;
+            --spacing-lg: 16px;
+            --spacing-xl: 24px;
+            --spacing-2xl: 32px;
+            --spacing-3xl: 48px;
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        /* Navigation */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid var(--color-divider);
+            padding: var(--spacing-lg) 0;
+            backdrop-filter: blur(12px);
+        }
+
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-xl);
+        }
+
+        nav .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--color-primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        nav .menu {
+            display: flex;
+            gap: var(--spacing-xl);
+            list-style: none;
+        }
+
+        nav a, nav button {
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.2s;
+            padding: 0;
+        }
+
+        nav a:hover, nav button:hover { color: var(--color-primary); }
+
+        nav button.active {
+            color: var(--color-primary);
+            border-bottom: 2px solid var(--color-primary);
+            padding-bottom: 2px;
+        }
+
+        /* Layout */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 var(--spacing-xl); }
+        main { display: none; }
+        main.active { display: block; }
+
+        /* Hero */
+        .hero {
+            padding: var(--spacing-3xl) var(--spacing-xl);
+            text-align: center;
+            background: linear-gradient(135deg, var(--color-surface) 0%, rgba(55, 138, 221, 0.03) 100%);
+            border-bottom: 1px solid var(--color-divider);
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: var(--spacing-md);
+            letter-spacing: -1.5px;
+            color: var(--color-primary);
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: var(--color-text-muted);
+            max-width: 620px;
+            margin: 0 auto var(--spacing-2xl);
+            line-height: 1.5;
+        }
+
+        .hero-cta { display: inline-flex; gap: var(--spacing-md); }
+
+        .btn {
+            padding: var(--spacing-md) var(--spacing-xl);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background-color: var(--color-primary); color: white; }
+        .btn-primary:hover { background-color: var(--color-secondary); transform: translateY(-2px); }
+        .btn-secondary { background-color: transparent; color: var(--color-primary); border: 1px solid var(--color-primary); }
+        .btn-secondary:hover { background-color: var(--color-surface); }
+
+        /* Sections */
+        section {
+            padding: var(--spacing-3xl) var(--spacing-xl);
+            border-bottom: 1px solid var(--color-divider);
+        }
+
+        section h2 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xl);
+            color: var(--color-primary);
+        }
+
+        section h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: var(--spacing-2xl) 0 var(--spacing-md);
+            color: var(--color-text);
+        }
+
+        section p {
+            color: var(--color-text-muted);
+            margin-bottom: var(--spacing-md);
+            line-height: 1.8;
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-xl);
+            margin-top: var(--spacing-xl);
+        }
+
+        .card {
+            background: var(--color-background);
+            border: 1px solid var(--color-divider);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--color-accent);
+            box-shadow: 0 4px 12px rgba(55, 138, 221, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .card h4 { font-size: 16px; font-weight: 600; margin-bottom: var(--spacing-md); color: var(--color-text); }
+        .card p { font-size: 14px; color: var(--color-text-muted); line-height: 1.7; }
+        .card-icon { font-size: 28px; margin-bottom: var(--spacing-md); }
+
+        /* Process Flow */
+        .process {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-xl);
+            margin-top: var(--spacing-xl);
+        }
+
+        .step {
+            background: var(--color-surface);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-lg);
+            border-left: 4px solid var(--color-primary);
+        }
+
+        .step-number {
+            background: var(--color-primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .step h4 { font-size: 16px; font-weight: 600; margin-bottom: var(--spacing-sm); color: var(--color-text); }
+        .step p { font-size: 14px; color: var(--color-text-muted); line-height: 1.6; }
+
+        /* Feature List */
+        .feature-list { list-style: none; margin-top: var(--spacing-lg); }
+
+        .feature-list li {
+            padding: var(--spacing-md) 0;
+            color: var(--color-text-muted);
+            border-bottom: 1px solid var(--color-divider);
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: flex-start;
+        }
+
+        .feature-list li:last-child { border-bottom: none; }
+
+        .feature-list li::before {
+            content: "✓";
+            color: var(--color-success);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Table */
+        .table-wrapper { overflow-x: auto; margin-top: var(--spacing-lg); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+        th {
+            background: var(--color-surface);
+            padding: var(--spacing-md);
+            text-align: left;
+            font-weight: 600;
+            color: var(--color-text);
+            border-bottom: 2px solid var(--color-divider);
+        }
+
+        td {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--color-divider);
+            color: var(--color-text-muted);
+        }
+
+        tr:hover { background-color: rgba(55, 138, 221, 0.02); }
+
+        /* FAQ */
+        .faq-item {
+            margin-bottom: var(--spacing-lg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-divider);
+            overflow: hidden;
+        }
+
+        .faq-question {
+            background: var(--color-surface);
+            padding: var(--spacing-md);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .faq-question:hover { background-color: rgba(55, 138, 221, 0.05); }
+        .faq-toggle { color: var(--color-primary); font-weight: bold; margin-left: 12px; flex-shrink: 0; }
+
+        .faq-answer {
+            padding: var(--spacing-md);
+            color: var(--color-text-muted);
+            display: none;
+            line-height: 1.8;
+        }
+
+        .faq-item.active .faq-answer { display: block; }
+        .faq-item.active .faq-question { background-color: rgba(55, 138, 221, 0.08); color: var(--color-primary); }
+
+        /* Glossary */
+        .glossary-term {
+            margin-bottom: var(--spacing-2xl);
+            padding-bottom: var(--spacing-xl);
+            border-bottom: 1px solid var(--color-divider);
+        }
+
+        .glossary-term:last-child { border-bottom: none; }
+        .glossary-term dt { font-weight: 600; color: var(--color-primary); font-size: 16px; margin-bottom: var(--spacing-sm); }
+        .glossary-term dd { color: var(--color-text-muted); line-height: 1.8; }
+
+        /* Footer */
+        footer {
+            background: var(--color-surface);
+            padding: var(--spacing-2xl) var(--spacing-xl);
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: 13px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 32px; }
+            .hero p { font-size: 16px; }
+            section h2 { font-size: 24px; }
+            nav .menu { gap: var(--spacing-md); }
+            nav button { font-size: 13px; }
+            .card-grid, .process { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+    <div class="container">
+        <a href="#" class="logo" onclick="showSection('inicio'); return false;">ContaFlow</a>
+        <ul class="menu">
+            <li><button onclick="showSection('inicio')" class="nav-btn active" data-section="inicio">Inicio</button></li>
+            <li><button onclick="showSection('producto')" class="nav-btn" data-section="producto">Producto</button></li>
+            <li><button onclick="showSection('procesos')" class="nav-btn" data-section="procesos">Procesos</button></li>
+            <li><button onclick="showSection('decisiones')" class="nav-btn" data-section="decisiones">Decisiones</button></li>
+            <li><button onclick="showSection('faqs')" class="nav-btn" data-section="faqs">FAQs</button></li>
+            <li><button onclick="showSection('glosario')" class="nav-btn" data-section="glosario">Glosario</button></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════ INICIO -->
+<main id="inicio" class="active">
+    <div class="hero">
+        <div class="container">
+            <h1>ContaFlow</h1>
+            <p>Software contable de categoría empresarial para Venezuela y Latinoamérica. Cumplimiento fiscal automático, auditoría en tiempo real, nómina LOTTT e inteligencia de negocio.</p>
+            <div class="hero-cta">
+                <button class="btn btn-primary" onclick="showSection('producto')">Explorar módulos</button>
+                <button class="btn btn-secondary" onclick="showSection('procesos')">Cómo funciona</button>
+            </div>
+        </div>
+    </div>
+
+    <section>
+        <div class="container">
+            <h2>¿Por qué ContaFlow?</h2>
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <h4>Cumplimiento fiscal automático</h4>
+                    <p>IVA, ISLR, IGTF, retenciones: todas las operaciones se validan contra normas VEN-NIF antes de ser registradas. Sin sorpresas al cierre fiscal.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔒</div>
+                    <h4>Auditoría integrada</h4>
+                    <p>Cada cambio en un asiento contable es registrado con quién, cuándo y qué cambió. Trazabilidad inmutable de cada operación.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">👥</div>
+                    <h4>Nómina LOTTT</h4>
+                    <p>Cálculo automático de prestaciones, vacaciones, utilidades, retenciones ISLR. Generación de reportes legales (Forma 14-02, INCES, Banavih).</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h4>Reportes ejecutivos</h4>
+                    <p>Balance general, estado de resultados, KPIs de flujo de caja, análisis de rentabilidad. Datos actualizados en tiempo real.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🛡️</div>
+                    <h4>Seguridad de nivel enterprise</h4>
+                    <p>Autenticación con Clerk, cifrado de datos sensibles, logs de auditoría inmutables con IP y agente, protección contra IDOR. Cumple estándares internacionales.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📦</div>
+                    <h4>Inventario integrado</h4>
+                    <p>Control de stock con múltiples unidades de medida, costo promedio ponderado (CPP), movimientos auditados y valoración en tiempo real.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ PRODUCTO -->
+<main id="producto">
+    <section>
+        <div class="container">
+            <h2>Producto — Módulos y Capacidades</h2>
+            <p>ContaFlow está construido en módulos independientes, cada uno con responsabilidad clara. Todos los módulos se comunican a través de contratos firmados, garantizando separación de datos por empresa.</p>
+
+            <h3>Módulo 1: Gestión de Empresas</h3>
+            <p>Soporte multi-empresa. Cada usuario puede crear y administrar varias empresas contables, con separación total de datos y control de roles.</p>
+            <ul class="feature-list">
+                <li>Crear empresa con RIF, nombre, plan (FREE/PRO)</li>
+                <li>Invitar miembros con roles (ADMIN, CONTADOR, OPERATIVO, AUDITOR)</li>
+                <li>Archivo de empresa y cambio de plan</li>
+                <li>Configuración de períodos contables (mes, trimestre, año)</li>
+            </ul>
+
+            <h3>Módulo 2: Plan de Cuentas</h3>
+            <p>Estructura jerárquica: categoría (1.x Activos) → subcategoría (1.1 Activos Circulantes) → cuenta (1.1.01 Caja).</p>
+            <ul class="feature-list">
+                <li>Crear, editar, archivar cuentas propias</li>
+                <li>Plantillas pre-cargadas según estándar SENIAT</li>
+                <li>Validación de partida doble: DEBE = HABER según tipo de cuenta</li>
+                <li>Saldos iniciales con auditoría</li>
+            </ul>
+
+            <h3>Módulo 3: Facturas (Compras y Ventas)</h3>
+            <p>Núcleo de la gestión contable. Factura = comprobante legal + transacción contable.</p>
+            <ul class="feature-list">
+                <li>Crear factura (SALE/PURCHASE) con detalle de líneas</li>
+                <li>Asignación automática de número de control (00-XXXXXXXX, Providencia 0071)</li>
+                <li>Cálculo automático de IVA (16% general, 8% reducido, 31% lujo, 0% exento)</li>
+                <li>Causación automática → transacción contable con partida doble</li>
+                <li>Firma digital de documentos fiscales (certificado PKCS#12)</li>
+                <li>Vincular con comprobantes de retención (IVA/ISLR)</li>
+                <li>Anulación inmutable: VOID status, nunca DELETE</li>
+                <li>Exportación a Libro de Compras/Ventas (Excel, PDF)</li>
+            </ul>
+
+            <h3>Módulo 4: Retenciones (IVA e ISLR)</h3>
+            <p>Gestión de comprobantes de retención. Solo para contribuyentes especiales o bajo decreto.</p>
+            <ul class="feature-list">
+                <li>Crear retención IVA (75% o 100%, según decreto)</li>
+                <li>Crear retención ISLR (tabla de alícuotas por concepto: honorarios, arrendamiento, servicios, etc.)</li>
+                <li>Asignación automática de número de comprobante (CR-XXXXXXXX)</li>
+                <li>Vincular a factura original</li>
+                <li>Generación de cuota de pago al mes siguiente (SENIAT)</li>
+                <li>Reportes de retenciones pendientes y vencidas</li>
+            </ul>
+
+            <h3>Módulo 5: IGTF (Impuesto a Grandes Transacciones)</h3>
+            <p>3% sobre pagos en divisas, Zelle, Cashea, o si contribuyente especial paga en VES.</p>
+            <ul class="feature-list">
+                <li>Registro de transacción IGTF con monto base y alícuota</li>
+                <li>Vinculación automática a tipo de cambio BCV del día</li>
+                <li>Cálculo de pérdida/ganancia por diferencial cambiario</li>
+                <li>Reportes de IGTF pagado vs retenciones por recuperar</li>
+            </ul>
+
+            <h3>Módulo 6: Nómina (LOTTT)</h3>
+            <p>Motor de cálculo de nómina conforme a Ley Orgánica del Trabajo, Trabajadores y Trabajadoras.</p>
+            <ul class="feature-list">
+                <li>Configuración de empresa: tipo de nómina (quincenal/mensual), banco, concepto</li>
+                <li>Registro de empleados: nombre, cédula, salario integral, banco, cuenta</li>
+                <li>Causación de nómina: cálculo automático de salario, aportes IVSS/INCES/Banavih</li>
+                <li>Prestaciones sociales: garantía trimestral + intereses BCV</li>
+                <li>Vacaciones: cálculo 15 días + 1 día/año + intereses BCV</li>
+                <li>Utilidades: mínimo 15 días + reparto de ganancias</li>
+                <li>Liquidación final: cálculo de prestaciones, vacaciones, utilidades adeudadas</li>
+                <li>Generación de recibo de nómina (PDF)</li>
+                <li>Reportes legales: Forma 14-02 IVSS, INCES, Banavih, ARC/ISLR empleados</li>
+                <li>Asiento contable automático: débito a gastos de nómina, crédito a cuentas por pagar</li>
+            </ul>
+
+            <h3>Módulo 7: Asiento Contable Manual</h3>
+            <p>Flexibilidad para ajustes contables que no genera una factura (deprecación, provisiones, ajuste INPC).</p>
+            <ul class="feature-list">
+                <li>Crear asiento con múltiples líneas de débito/crédito</li>
+                <li>Validación de partida doble en el mismo asiento</li>
+                <li>Glosa analítica (descripción del asiento)</li>
+                <li>Soporte para asientos de cierre, apertura, ajuste</li>
+            </ul>
+
+            <h3>Módulo 8: Conciliación Bancaria</h3>
+            <p>Reconciliación de estado de cuenta bancario con transacciones registradas.</p>
+            <ul class="feature-list">
+                <li>Importar extracto bancario (CSV)</li>
+                <li>Mapeo automático con transacciones causadas</li>
+                <li>Identificación de diferencias: depósitos en tránsito, cheques sin cobrar</li>
+                <li>Cierre de reconciliación por período</li>
+            </ul>
+
+            <h3>Módulo 9: Reportes Fiscales</h3>
+            <p>Informes de cumplimiento legal, exportables a SENIAT.</p>
+            <ul class="feature-list">
+                <li>Declaración de IVA (Formulario 9, con anexos por alícuota)</li>
+                <li>Declaración de ISLR (Forma 30)</li>
+                <li>Libro de Compras y Ventas (Providencia 0071)</li>
+                <li>Estado de cuentas por cobrar/pagar</li>
+                <li>Balance general y estado de resultados</li>
+            </ul>
+
+            <h3>Módulo 10: Inventario</h3>
+            <p>Control de inventario físico con valoración CPP (Costo Promedio Ponderado) y múltiples unidades de medida.</p>
+            <ul class="feature-list">
+                <li>Catálogo de productos con SKU, cuenta contable y cuenta COGS</li>
+                <li>Movimientos de inventario: ENTRADA, SALIDA, AJUSTE</li>
+                <li>Múltiples unidades de medida por ítem con factor de conversión</li>
+                <li>Cálculo automático de CPP en cada movimiento</li>
+                <li>Valoración del inventario en tiempo real</li>
+                <li>Flujo DRAFT → contabilización: el Contador genera el asiento automático</li>
+                <li>Auditoría de movimientos con trazabilidad completa</li>
+                <li>Reportes: stock por ítem, valoración total, kardex</li>
+            </ul>
+
+            <h3>Módulo 11: Asistente Contable IA</h3>
+            <p>Preguntas en lenguaje natural sobre la contabilidad de la empresa. Integración con Gemini Vision.</p>
+            <ul class="feature-list">
+                <li>Chat con contexto de la empresa: KPIs, plan de cuentas, estado fiscal, tareas pendientes</li>
+                <li>Análisis de imágenes: cargar comprobante o extracto bancario para validación</li>
+                <li>Sugerencia de asiento: "Pagué Bs. 500 de luz en efectivo" → propuesta de DEBE/HABER</li>
+                <li>Auditoría automática: detecta asientos descuadrados, retenciones sin factura, CxC vencidas</li>
+                <li>Disponible para roles CONTADOR+ (no AUDITOR)</li>
+            </ul>
+        </div>
+    </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ PROCESOS -->
+<main id="procesos">
+    <section>
+        <div class="container">
+            <h2>Procesos Contables Paso a Paso</h2>
+            <p>Guías operacionales para las tareas más comunes. Enfocadas en "qué hace el usuario" y "por qué", no en tecnología.</p>
+
+            <h3>Proceso 1: Crear una Factura de Venta</h3>
+            <div class="process">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Datos del cliente</h4>
+                    <p>Ingresa nombre, RIF, dirección. ContaFlow guarda el cliente para futuras facturas.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Detalle de líneas</h4>
+                    <p>Agrega productos/servicios, cantidad, precio unitario. Puedes aplicar descuento por línea.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Categoría de IVA</h4>
+                    <p>Elige por línea: Gravada, Exenta, Exonerada, No Sujeta. ContaFlow aplica la alícuota correcta.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Revisión de totales</h4>
+                    <p>Verifica base imponible, IVA desglosado, total. Si hay descuento global, se aplica al final.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <h4>Causar factura</h4>
+                    <p>Al hacer "Causar", ContaFlow genera número de control (00-XXXXXXXX), crea asiento contable (DEBE Caja/CxC, HABER Ingresos) y registra el movimiento de IVA.</p>
+                </div>
+            </div>
+
+            <h3>Proceso 2: Registrar Retención recibida</h3>
+            <p>Tu cliente te retiene IVA. ¿Cómo registrarlo?</p>
+            <div class="process">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Factura original</h4>
+                    <p>Busca la factura de venta que fue retenida.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Crear retención</h4>
+                    <p>En la factura, botón "Vincular Retención". Ingresa monto retenido, tipo (75% o 100%), número de comprobante del cliente.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Asiento contable</h4>
+                    <p>ContaFlow registra: DEBE IVA x Cobrar (crédito fiscal), HABER CxC/Ingresos.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Declaración de IVA</h4>
+                    <p>En el mes siguiente, el reporte de IVA ya incluye el crédito por retención. Puedes recuperar o compensar.</p>
+                </div>
+            </div>
+
+            <h3>Proceso 3: Cierre de Período Contable</h3>
+            <p>Pasos para cerrar un mes y abrir el siguiente.</p>
+            <div class="process">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Verificar tareas pendientes</h4>
+                    <p>Dashboard muestra: facturas sin causar, retenciones sin vincular, banco sin conciliar. Resuélvelas antes de cerrar.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Ajustes contables</h4>
+                    <p>Registra depreciación, provisiones, ajuste INPC si corresponde (VEN-NIF 3).</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Balance de comprobación</h4>
+                    <p>Genera reporte: suma de todos los DEBE = suma de todos los HABER. Si no cuadran, hay un error contable.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Cierre de período</h4>
+                    <p>Botón "Cerrar Período". ContaFlow bloquea todas las transacciones del mes anterior (no se puede editar ni crear).</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <h4>Abrir mes siguiente</h4>
+                    <p>Sistema automáticamente copia saldos finales como saldos iniciales del mes nuevo. Listo para continuar.</p>
+                </div>
+            </div>
+
+            <h3>Proceso 4: Procesar Nómina Mensual (LOTTT)</h3>
+            <div class="process">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Verificar empleados activos</h4>
+                    <p>Lista de empleados con salario integral, datos de banco y cuenta.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Ingresar conceptos adicionales</h4>
+                    <p>Horas extra, bonificación, descuentos por ausencia. ContaFlow conoce automáticamente IVSS, INCES, Banavih.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Causar nómina</h4>
+                    <p>Sistema calcula: salario + extras, descuentos, aportes patronales. Genera recibo PDF por empleado.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Asiento contable</h4>
+                    <p>ContaFlow: DEBE Gastos de Nómina, HABER Cuentas por Pagar a Empleados (+ aportes retenidos al IVSS/INCES).</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <h4>Transferencias bancarias</h4>
+                    <p>Genera archivo de nómina para banco (ACH). Ejecutas transferencias masivas.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">6</div>
+                    <h4>Reportes legales</h4>
+                    <p>Exporta Forma 14-02 para IVSS, INCES, Banavih, ARC/ISLR. Listo para envío a entes fiscales.</p>
+                </div>
+            </div>
+
+            <h3>Proceso 5: Registrar Movimiento de Inventario</h3>
+            <div class="process">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Seleccionar producto</h4>
+                    <p>Elige del catálogo. ContaFlow muestra stock actual y costo promedio vigente.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Tipo y cantidad</h4>
+                    <p>ENTRADA (compra), SALIDA (venta/consumo). Selecciona unidad de medida si el ítem tiene alternativas.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Guardar como borrador</h4>
+                    <p>El movimiento queda en DRAFT. El stock no se afecta aún — está pendiente de revisión contable.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Contabilización</h4>
+                    <p>El Contador revisa y contabiliza el movimiento. ContaFlow genera el asiento automático (DEBE Inventario / HABER Caja o CPP) y actualiza el stock.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ DECISIONES -->
+<main id="decisiones">
+    <section>
+        <div class="container">
+            <h2>Decisiones de Producto</h2>
+            <p>El "por qué" detrás de cada feature. No es sobre tecnología — es sobre decisiones de negocio y compliance.</p>
+
+            <h3>D1: ¿Por qué número de control automático?</h3>
+            <p><strong>Contexto:</strong> Art. 14 de la Providencia SENIAT 0071 exige que cada comprobante fiscal tenga un número correlativo único en formato definido.</p>
+            <p><strong>Decisión:</strong> ContaFlow genera automáticamente el número de control al causar factura, en formato <code>00-XXXXXXXX</code> (prefijo fijo 00 + 8 dígitos secuenciales).</p>
+            <p><strong>Por qué:</strong> Elimina errores de numeración (colisiones, gaps), garantiza compliance automático, y ordena lexicográficamente.</p>
+
+            <h3>D2: ¿Por qué "causar" factura = crear asiento contable?</h3>
+            <p><strong>Contexto:</strong> Ley de Compre Nacional exige que toda factura emitida sea registrada contablemente de inmediato.</p>
+            <p><strong>Decisión:</strong> En ContaFlow, el acto de "causar" (hacer oficial) una factura automáticamente genera el asiento contable con partida doble.</p>
+            <p><strong>Por qué:</strong> Previene discrepancias entre facturas emitidas y registros contables. Garantiza que el Libro Diario siempre refleja todas las facturas causadas.</p>
+
+            <h3>D3: ¿Cómo se vinculan facturas y retenciones?</h3>
+            <p><strong>Contexto:</strong> Una retención es siempre relativa a una factura original. El SENIAT exige que se declare el vínculo.</p>
+            <p><strong>Decisión:</strong> Cada retención tiene FK a una factura. El número de comprobante de retención se genera automáticamente (CR-XXXXXXXX) al crear la retención.</p>
+            <p><strong>Por qué:</strong> Trazabilidad clara, prevención de retenciones huérfanas (sin factura), y reportes consistentes.</p>
+
+            <h3>D4: ¿Por qué nómina integrada?</h3>
+            <p><strong>Contexto:</strong> LOTTT de Venezuela es específico: prestaciones, vacaciones, utilidades tienen fórmulas y límites estatutarios. Auditoría fiscal constante.</p>
+            <p><strong>Decisión:</strong> ContaFlow calcula nómina internamente (no terceriza). Soporta IVSS, INCES, Banavih, IGTF sobre nómina en divisas.</p>
+            <p><strong>Por qué:</strong> Garantiza compliance automático, reduce riesgo de multas por retenciones incorrectas, y permite análisis de nómina como KPI de flujo de caja.</p>
+
+            <h3>D5: ¿Por qué auditoría inmutable?</h3>
+            <p><strong>Contexto:</strong> SENIAT exige trazabilidad: quién creó/editó cada transacción, cuándo, qué cambió. La PA 121 añade la captura de IP y agente de red.</p>
+            <p><strong>Decisión:</strong> Cada operación fiscal genera automáticamente un registro en AuditLog con quién, cuándo, qué cambió, IP y user-agent. El registro es append-only: nunca se modifica ni elimina.</p>
+            <p><strong>Por qué:</strong> Compliance inmediato, prevención de fraude interno, y facilita auditorías externas.</p>
+
+            <h3>D6: ¿Por qué multi-empresa de inicio?</h3>
+            <p><strong>Contexto:</strong> Muchos emprendedores tienen varias empresas (sociedad anónima + asociación civil, matriz + sucursal, etc.).</p>
+            <p><strong>Decisión:</strong> Un usuario puede crear y administrar N empresas. Datos completamente separados por empresa.</p>
+            <p><strong>Por qué:</strong> Escalabilidad desde el inicio, UX simplificada, y preparación para expansión a nuevos mercados (Colombia, Perú).</p>
+
+            <h3>D7: ¿Por qué asistente IA?</h3>
+            <p><strong>Contexto:</strong> Contadores gastan tiempo en preguntas repetitivas y validaciones de comprobantes.</p>
+            <p><strong>Decisión:</strong> Chat con Gemini que tiene acceso a datos fiscales de la empresa. Puede responder en lenguaje natural y analizar imágenes (OCR).</p>
+            <p><strong>Por qué:</strong> Reduce carga operacional, acelera diagnóstico de errores, y mejora experiencia del usuario.</p>
+
+            <h3>D8: ¿Por qué soft-delete en tablas fiscales?</h3>
+            <p><strong>Contexto:</strong> No se puede eliminar un comprobante fiscal (SENIAT lo exige). Pero a veces hay que "anularlo".</p>
+            <p><strong>Decisión:</strong> Facturas, retenciones, transacciones tienen status <code>VOIDED</code> y fecha de anulación. Jamás DELETE.</p>
+            <p><strong>Por qué:</strong> Cumple Providencia 0071, previene pérdida accidental de auditoría, y permite recuperación.</p>
+
+            <h3>D9: ¿Por qué período contable cerrado = read-only?</h3>
+            <p><strong>Contexto:</strong> Ley exige que períodos cerrados no se puedan modificar. Si hay un error retroactivo, debe documentarse como ajuste en el período actual.</p>
+            <p><strong>Decisión:</strong> Al cerrar un período, ContaFlow bloquea TODA edición o creación de transacciones en ese mes. Solo lectura.</p>
+            <p><strong>Por qué:</strong> Compliance automático, prevención de manipulación de registros históricos.</p>
+
+            <h3>D10: ¿Por qué tipos de cambio BCV?</h3>
+            <p><strong>Contexto:</strong> VEN-NIF exige usar tipo de cambio BCV del día de la operación para transacciones en divisas.</p>
+            <p><strong>Decisión:</strong> ContaFlow importa automáticamente tasa BCV diaria. Cada transacción en divisas queda ligada al tipo de cambio registrado.</p>
+            <p><strong>Por qué:</strong> Evita discrepancias con SENIAT, documenta automáticamente el tipo de cambio usado, y facilita cálculo de diferencial cambiario.</p>
+
+            <h3>D11: ¿Por qué inventario con flujo DRAFT → contabilización?</h3>
+            <p><strong>Contexto:</strong> El operativo que registra entradas/salidas físicas no necesariamente es el contador que genera asientos.</p>
+            <p><strong>Decisión:</strong> Los movimientos de inventario los crea el rol OPERATIVO en estado DRAFT (borrador). El CONTADOR los revisa y contabiliza, generando el asiento automático.</p>
+            <p><strong>Por qué:</strong> Separación de responsabilidades, control de calidad contable, y flujo de aprobación natural sin complejidad adicional.</p>
+        </div>
+    </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ FAQs -->
+<main id="faqs">
+    <section>
+        <div class="container">
+            <h2>Preguntas Frecuentes</h2>
+
+            <h3>Para Administradores</h3>
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo cambio el plan de la empresa (FREE → PRO)?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">En Configuración → Plan. ContaFlow bloqueará ciertas funciones en el plan FREE (p. ej. IGTF, retenciones automáticas). Cambiar a PRO las desbloquea. El cambio es inmediato.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Puedo cambiar el año fiscal de la empresa?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Sí, en Configuración → Período Contable. Pero solo si no hay períodos cerrados. Una vez que cierres un período, cambiarlo requiere contactar soporte (auditoría de datos).</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Qué sucede si dos usuarios editan la misma factura simultáneamente?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">ContaFlow usa transacciones ACID. El segundo cambio fallará con "Conflicto de edición". El usuario debe recargar y reintentar. Los datos nunca se corrompen.</div>
+            </div>
+
+            <h3>Para Contadores</h3>
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo sé si una factura está causada o es borrador?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Estado de factura: "DRAFT" = no causada, no genera asiento contable. "POSTED" = causada, aparece en reportes. El estado se muestra en la cabecera de la factura.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Qué debo hacer si emito una factura con error?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Si está en DRAFT: edítala o bórrala. Si está POSTED (causada): botón "Anular". ContaFlow revierte el asiento contable, marca la factura con status VOIDED, y permite emitir una "Nota de Crédito" para compensar. La factura original sigue en el registro (soft-delete) para auditoría.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo calculo el IVA si tengo líneas con alícuotas diferentes?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Por línea, asignas categoría de IVA. ContaFlow suma automáticamente por alícuota. Ej: Línea 1 = 16%, Línea 2 = 8%, Línea 3 = 0% exento. El desglose aparece en el total y en la Declaración de IVA por separado.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Puedo crear un asiento sin factura?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Sí. Asiento Manual es para ajustes contables (depreciación, provisiones, ajuste INPC). No requiere factura. Pero DEBE estar documentado en glosa analítica y debe validar partida doble.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Qué es la Forma 30 y cuándo la declaro?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Formulario de Impuesto Sobre la Renta (ISLR). Se declara en marzo del año siguiente por el año fiscal anterior. ContaFlow genera la Forma 30 automática basada en asientos de ISLR retenido y gasto deductible.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo contabilizo un movimiento de inventario?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Los movimientos en DRAFT aparecen en la sección "Movimientos pendientes de contabilización". Haz clic en "Contabilizar": ContaFlow genera el asiento automático (DEBE Inventario / HABER Caja o COGS según tipo) y actualiza el stock definitivamente.</div>
+            </div>
+
+            <h3>Para Auditores</h3>
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo verifico que un asiento fue creado correctamente?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Ver Auditoría de Transacción. Haz clic en el asiento, tab "Historial". Ve: quién lo creó (nombre + usuario), cuándo, qué cambió (oldValue → newValue), IP y navegador. Si hubo edición posterior, aparece cada cambio con timestamp.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Puedo generar un reporte de auditoría para todo un período?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Sí. Reportes → Auditoría. Exporta CSV: todas las transacciones del período, quién las creó/editó, timestamp, cambios. Puedes filtrar por usuario, tipo de transacción, o rango de fecha.</div>
+            </div>
+
+            <div class="faq-item" onclick="toggleFaq(this)">
+                <div class="faq-question">¿Cómo sé si el período está bien cerrado?<span class="faq-toggle">+</span></div>
+                <div class="faq-answer">Ver Configuración → Períodos. Estado "CLOSED" = cerrado. Verifica: todas las facturas causadas, balance de comprobación cuadrado (DEBE = HABER), nómina procesada, conciliación bancaria completa. El sistema no permite cerrar si hay facturas en DRAFT.</div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ═══════════════════════════════════════════════════════ GLOSARIO -->
+<main id="glosario">
+    <section>
+        <div class="container">
+            <h2>Glosario Fiscal VEN-NIF</h2>
+            <p>Términos técnicos explicados en lenguaje de negocio. Basados en normas VEN-NIF y Providencias SENIAT.</p>
+
+            <dl>
+                <div class="glossary-term">
+                    <dt>Partida Doble</dt>
+                    <dd>Principio fundamental: toda operación tiene dos lados. DEBE (débito) siempre = HABER (crédito). Ej: "Compré Bs. 100 en caja" → DEBE Gastos (100), HABER Caja (100). Sin partida doble, el balance no cierra.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Causación</dt>
+                    <dd>Acto de registrar una factura como oficial. Al causar, ContaFlow genera número de control, crea asiento contable, y afecta KPIs. Una factura en DRAFT no está causada; una en POSTED, sí.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Período Contable</dt>
+                    <dd>Intervalo de tiempo (mes, trimestre, año) en el que registras operaciones. Cada período tiene estado: OPEN (acepta cambios) o CLOSED (read-only). Venezuela exige período fiscal de enero a diciembre.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>IVA (Impuesto al Valor Agregado)</dt>
+                    <dd>Impuesto indirecto. Alícuotas en Venezuela: 16% general, 8% reducido, 31% lujo, 0% exento. Lo cobra el vendedor al comprador y lo declara mensualmente al SENIAT. ContaFlow calcula automáticamente.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Retención de IVA</dt>
+                    <dd>Cuando un cliente (contribuyente especial) retiene el IVA al pagarte. Alícuotas: 75% o 100% según decreto. Genera comprobante de retención (CR-XXXXXXXX). Usas como crédito en tu siguiente declaración de IVA.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>ISLR (Impuesto Sobre la Renta)</dt>
+                    <dd>Impuesto directo sobre ganancias. Se declara anualmente (Forma 30). Decreto 1808 define alícuotas por concepto: honorarios, arrendamiento, servicios, etc. Si te retienen ISLR, es crédito contra tu impuesto anual.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Retención de ISLR</dt>
+                    <dd>Cuando el comprador retiene ISLR del pago. Cantidad = monto × alícuota según tipo de gasto. ContaFlow sugiere la alícuota basada en el concepto seleccionado.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>IGTF (Impuesto a Grandes Transacciones Financieras)</dt>
+                    <dd>3% sobre pagos en divisas (USD, EUR), Zelle, Cashea, o si contribuyente especial paga en VES. Se declara mensualmente junto con IVA. ContaFlow calcula automáticamente cuando vinculas tipo de cambio BCV.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>VEN-NIF</dt>
+                    <dd>Normas de Información Financiera de Venezuela. Conformidad con SENIAT. Key rules: NIF 1 (presentación de EEFF), NIF 3 (ajuste por inflación INPC), NIF 16 (activos fijos). ContaFlow está diseñado para cumplir VEN-NIF.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Plan de Cuentas</dt>
+                    <dd>Catálogo de cuentas de la empresa. Estructura jerárquica: 1.x Activos, 2.x Pasivos, 3.x Patrimonio, 4.x Ingresos, 5.x Gastos, 6.x Costos. Cada factura/asiento utiliza cuentas del plan.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Balance de Comprobación</dt>
+                    <dd>Reporte que suma todos los DEBE y todos los HABER de un período. Si no son iguales, hay un error contable. ContaFlow valida automáticamente.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>CxC / CxP</dt>
+                    <dd>CxC = Cuentas por Cobrar (lo que te deben clientes). CxP = Cuentas por Pagar (lo que debes a proveedores). ContaFlow rastrea automáticamente según tipo de factura (SALE → CxC, PURCHASE → CxP).</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Soft Delete / Anulación</dt>
+                    <dd>Nunca borrar una factura fiscal. ContaFlow: status VOIDED, campo deletedAt = fecha. La factura sigue en auditoría pero no afecta reportes activos.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Tipo de Cambio BCV</dt>
+                    <dd>Tasa oficial publicada por Banco Central de Venezuela. VEN-NIF exige usarla en operaciones con divisas. ContaFlow importa automáticamente diariamente.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>INPC (Índice de Precios al Consumidor)</dt>
+                    <dd>Ajuste por inflación (VEN-NIF 3). Aplica en activos fijos, inventarios. ContaFlow calcula automáticamente mensualmente basado en índice oficial.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>LOTTT (Ley Orgánica del Trabajo)</dt>
+                    <dd>Ley laboral de Venezuela. Define: prestaciones sociales (garantía trimestral + intereses BCV), vacaciones (15 días + 1 día/año), utilidades (mínimo 15 días). ContaFlow implementa cálculos conformes a LOTTT.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Contribuyente Especial</dt>
+                    <dd>Categoría fiscal con obligaciones adicionales: retención de IVA, reportes específicos, IGTF en pagos VES. ContaFlow aplica reglas automáticas según este status.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>Providencia SENIAT 0071</dt>
+                    <dd>Norma que define Libro de Compras y Libro de Ventas. Exige números correlativos, formato de control, desglose de IVA. ContaFlow genera automáticamente en cumplimiento.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>CPP (Costo Promedio Ponderado)</dt>
+                    <dd>Método de valoración de inventario aceptado por VEN-NIF. El costo de cada unidad en stock = promedio ponderado de todas las entradas. ContaFlow recalcula automáticamente en cada movimiento de ENTRADA.</dd>
+                </div>
+                <div class="glossary-term">
+                    <dt>PA 121 (Providencia Administrativa 121)</dt>
+                    <dd>Normativa que regula los sistemas de facturación electrónica y control fiscal. Exige captura de IP y agente de red en cada transacción fiscal. ContaFlow cumple PA 121 en todas las mutaciones financieras.</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+</main>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <p><strong>ContaFlow Wiki</strong> &bull; Fuente de verdad de producto y procesos &bull; Última actualización: Mayo 2026</p>
+        <p style="margin-top: 8px; font-size: 12px;">Para actualizaciones técnicas, consulta la documentación interna en GitHub. Para preguntas sobre compliance, contacta a Compliance Officer.</p>
+    </div>
+</footer>
+
+<script>
+    function showSection(sectionId) {
+        document.querySelectorAll('main').forEach(s => s.classList.remove('active'));
+        document.getElementById(sectionId).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.section === sectionId);
+        });
+        window.scrollTo(0, 0);
+    }
+
+    function toggleFaq(el) {
+        el.classList.toggle('active');
+        el.querySelector('.faq-toggle').textContent = el.classList.contains('active') ? '−' : '+';
+    }
+</script>
+</body>
+</html>
