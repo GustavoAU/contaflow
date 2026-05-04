@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # Dependencias npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Caracas"
+    open-pull-requests-limit: 5
+    # Solo seguridad + prod deps (evitar noise de devDeps menores)
+    groups:
+      prod-minor:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-patch:
+        dependency-type: "development"
+        update-types: ["patch"]
+    ignore:
+      # xlsx tiene vulnerabilidad sin fix upstream — migración a exceljs planificada
+      - dependency-name: "xlsx"
+        update-types: ["version-update:semver-patch"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
