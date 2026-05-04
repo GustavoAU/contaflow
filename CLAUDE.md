@@ -263,7 +263,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Security hardening ✅ | Bloque A refactor ✅
 - **Fase 35H** ✅ merged (PA-121: AuditLog IP/UA + rol SENIAT + SeniatSubmission + QStash + ADR-019 — 1531 tests)
 - **Fase 35I** ✅ merged (Firma Digital Híbrida — CertificateService + DocumentSigningService + ADR-020 — 1562 tests)
-- **Fase 35F** ⏳ pendiente (UoM múltiples unidades de medida — ADR-018)
+- **Fase 35F** ✅ merged (UoM múltiples — ADR-018 — 1628 tests)
 - **Fase 35G** ⏳ pendiente (Lot/Serial Tracking — construye sobre 35F)
 - **Fase 36C** ⏳ pendiente (Distribución de Pagos / batch multi-destinatario)
 
