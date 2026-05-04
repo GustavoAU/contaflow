@@ -21,6 +21,9 @@ updates:
       # xlsx tiene vulnerabilidad sin fix upstream — migración a exceljs planificada
       - dependency-name: "xlsx"
         update-types: ["version-update:semver-patch"]
+      # eslint-plugin-react no es compatible con ESLint 10 todavía
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -28,3 +31,12 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    ignore:
+      # v6 no existe para estas actions — latest es v4
+      - dependency-name: "actions/checkout"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "actions/setup-node"
+        update-types: ["version-update:semver-major"]
+      # v3 no existe para softprops/action-gh-release — latest es v2
+      - dependency-name: "softprops/action-gh-release"
+        update-types: ["version-update:semver-major"]
