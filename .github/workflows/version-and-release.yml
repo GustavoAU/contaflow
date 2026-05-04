@@ -49,7 +49,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Crear GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "ContaFlow ${{ steps.version.outputs.version }}"
           body: ${{ steps.changelog.outputs.notes }}
