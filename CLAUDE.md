@@ -264,10 +264,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 35H** ✅ merged (PA-121: AuditLog IP/UA + rol SENIAT + SeniatSubmission + QStash + ADR-019 — 1531 tests)
 - **Fase 35I** ✅ merged (Firma Digital Híbrida — CertificateService + DocumentSigningService + ADR-020 — 1562 tests)
 - **Fase 35F** ✅ merged (UoM múltiples — ADR-018 — 1628 tests)
-- **Fase 35G** ⏳ pendiente (Lot/Serial Tracking — construye sobre 35F)
+- **Fase 35G** ✅ merged (Lot/Serial Tracking — InventoryLot/Serial/LotAllocation + UI modal ACCOUNTING + ADR-021 — 1673 tests)
 - **Fase 36C** ⏳ pendiente (Distribución de Pagos / batch multi-destinatario)
 
-**1562 tests GREEN** | **0 TS errors** | **CI passing** (2026-04-30)
+**1673 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-05)
 
 ### middleware.ts
 

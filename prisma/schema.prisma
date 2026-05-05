@@ -193,6 +193,9 @@ model Company {
   certificate               CompanyCertificate?
   // Fase 35F: Unidades de Medida Múltiples
   inventoryItemUnits        InventoryItemUnit[]
+  // Fase 35G: Lot/Serial Tracking
+  inventoryLots             InventoryLot[]
+  inventorySerials          InventorySerial[]
 }
 
 model CompanyMember {
@@ -875,8 +878,12 @@ model InventoryItem {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   createdBy     String
+  // Fase 35G: Lot/Serial Tracking — ADR-021 D-1
+  trackingType  TrackingType        @default(NONE)
   movements     InventoryMovement[]
   units         InventoryItemUnit[] @relation("ItemUnits")
+  lots          InventoryLot[]
+  serials       InventorySerial[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -911,6 +918,9 @@ model InventoryMovement {
   createdBy          String
   postedAt           DateTime?
   postedBy           String?
+  // Fase 35G: Lot/Serial Tracking — ADR-021 D-4
+  lotLines           InventoryMovementLot[]
+  serialLines        InventoryMovementSerial[]
 
   @@index([companyId])
   @@index([companyId, itemId])
@@ -952,6 +962,105 @@ model InventoryItemUnit {
   @@unique([itemId, name])
   @@index([companyId])
   @@index([itemId])
+}
+
+// ─── Fase 35G: Lot/Serial Tracking — ADR-021 ─────────────────────────────────
+
+enum TrackingType {
+  NONE   // sin tracking — comportamiento pre-35G
+  LOT    // seguimiento por lote (número de lote + fecha de vencimiento)
+  SERIAL // seguimiento por número de serie (1 serial = 1 unidad física)
+}
+
+enum SerialStatus {
+  AVAILABLE  // en stock, disponible para venta/uso
+  IN_TRANSIT // reservado por un movimiento DRAFT (no POSTED aún)
+  SOLD       // salida POSTED — ya no está en inventario físico
+  VOIDED     // el movimiento de creación fue VOIDED — registro histórico inmutable
+}
+
+// Representa un lote recibido de un ítem con trackingType = LOT.
+// quantityOnHand: saldo actual en unidad base — actualizado dentro del $transaction
+// Serializable de postMovement (ADR-021 D-5).
+// Un lote no se elimina aunque su saldo llegue a cero — es registro histórico.
+model InventoryLot {
+  id             String        @id @default(cuid())
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId         String
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  lotNumber      String        // número de lote del proveedor — scoped por ítem
+  expiresAt      DateTime?     // null = sin fecha de vencimiento
+  quantityOnHand Decimal       @db.Decimal(19, 4) // en unidad base — nunca negativo (CHECK en DB)
+  notes          String?
+  receivedAt     DateTime      @default(now()) // fecha de recepción física
+  createdAt      DateTime      @default(now())
+  createdBy      String        // Clerk userId
+
+  movementLines InventoryMovementLot[]
+
+  // companyId en el unique: simétrico con InventorySerial — P2002 no debe revelar lotes de otra empresa (ADR-021 CRITICAL-2)
+  @@unique([companyId, itemId, lotNumber])
+  @@index([companyId])
+  @@index([companyId, itemId])
+  @@index([companyId, itemId, expiresAt]) // queries FEFO: ORDER BY expiresAt ASC NULLS LAST
+}
+
+// Tabla intermedia: un movimiento puede consumir/producir stock de múltiples lotes.
+// Invariante: SUM(quantity) por movementId == InventoryMovement.quantity para movimientos POSTED.
+model InventoryMovementLot {
+  id         String            @id @default(cuid())
+  movementId String
+  movement   InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Restrict)
+  lotId      String
+  lot        InventoryLot      @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  quantity   Decimal           @db.Decimal(19, 4) // en unidad base — siempre positivo
+
+  @@unique([movementId, lotId])
+  @@index([movementId])
+  @@index([lotId])
+}
+
+// Representa una unidad física identificada por número de serie.
+// trackingType = SERIAL: 1 movimiento ENTRADA quantity=N → N registros InventorySerial.
+// NUNCA eliminar un serial — VOIDED es el estado terminal para anulaciones.
+model InventorySerial {
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId       String
+  item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  serialNumber String        // número de serie — scoped por companyId+itemId (ADR-021 D-3)
+  status       SerialStatus  @default(AVAILABLE)
+  notes        String?
+  createdAt    DateTime      @default(now())
+  createdBy    String        // Clerk userId
+  soldAt       DateTime?     // poblado cuando status → SOLD (postMovement SALIDA)
+  voidedAt     DateTime?     // poblado cuando status → VOIDED (voidMovement)
+
+  movementLines InventoryMovementSerial[]
+
+  // companyId explícito: dos empresas distintas pueden tener el mismo serialNumber sin conflicto
+  // (sensibilidad fiscal Venezuela: series ligadas a importaciones/SENIAT — ADR-021 D-3)
+  @@unique([companyId, itemId, serialNumber])
+  @@index([companyId])
+  @@index([companyId, itemId])
+  @@index([companyId, itemId, status]) // queries de disponibilidad en formulario SALIDA
+}
+
+// Tabla intermedia: un movimiento referencia exactamente los seriales operados.
+// ENTRADA: crea los seriales + esta línea en el mismo $transaction.
+// SALIDA: el input provee los serialIds; se valida status = AVAILABLE antes de postear.
+model InventoryMovementSerial {
+  id         String            @id @default(cuid())
+  movementId String
+  movement   InventoryMovement @relation(fields: [movementId], references: [id], onDelete: Restrict)
+  serialId   String
+  serial     InventorySerial   @relation(fields: [serialId], references: [id], onDelete: Restrict)
+
+  @@unique([movementId, serialId])
+  @@index([movementId])
+  @@index([serialId])
 }
 
 // ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────

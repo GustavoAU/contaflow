@@ -5,6 +5,18 @@
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
 import type { PostMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
+import {
+  resolveLotAllocations,
+  validateLotAllocation,
+  applyLotMovement,
+  voidLotMovement,
+} from "./LotTrackingService";
+import {
+  createSerials,
+  validateSerialAvailability,
+  applySerialMovement,
+  voidSerialMovement,
+} from "./SerialTrackingService";
 
 // ─── postMovement: DRAFT → POSTED  (Serializable SSI obligatorio) ─────────────
 // Actualiza averageCost + stockQuantity + genera Transaction + JournalEntry atómicamente.
@@ -114,6 +126,93 @@ export async function postMovement(input: PostMovementInput, userId: string) {
           },
         });
 
+        // ── Fase 35G: Lot/Serial Tracking — ADR-021 D-5 ──────────────────────
+        // companyId proviene de la DB (movement.companyId), nunca del input del cliente.
+        let fefoOverridden: boolean | null = null;
+
+        if (item.trackingType === "LOT") {
+          const movType = movement.type as "ENTRADA" | "SALIDA" | "AJUSTE";
+          if (movType === "ENTRADA") {
+            if (!input.lotData) {
+              throw new Error(
+                "Se requiere lotData para movimientos de ENTRADA con seguimiento por lote"
+              );
+            }
+            await applyLotMovement(
+              tx,
+              movement.companyId,
+              item.id,
+              movementId,
+              movType,
+              qty,
+              [],
+              userId,
+              {
+                lotNumber: input.lotData.lotNumber,
+                expiresAt: input.lotData.expiresAt ? new Date(input.lotData.expiresAt) : null,
+                notes: input.lotData.notes ?? null,
+                receivedAt: input.lotData.receivedAt ? new Date(input.lotData.receivedAt) : undefined,
+              }
+            );
+            fefoOverridden = false;
+          } else {
+            // SALIDA o AJUSTE: resolver allocations (manual o FEFO)
+            const { allocations, fefoOverridden: overridden } = await resolveLotAllocations(
+              tx,
+              movement.companyId,
+              item.id,
+              qty,
+              input.lotAllocations
+            );
+            await validateLotAllocation(tx, movement.companyId, item.id, qty, allocations);
+            await applyLotMovement(tx, movement.companyId, item.id, movementId, movType, qty, allocations, userId);
+            fefoOverridden = overridden;
+          }
+        } else if (item.trackingType === "SERIAL") {
+          const movType = movement.type as "ENTRADA" | "SALIDA" | "AJUSTE";
+          if (movType === "ENTRADA") {
+            if (!input.serialNumbers || input.serialNumbers.length === 0) {
+              throw new Error(
+                "Se requiere serialNumbers para movimientos de ENTRADA con seguimiento por número de serie"
+              );
+            }
+            if (!new Decimal(input.serialNumbers.length).equals(qty)) {
+              throw new Error(
+                `La cantidad de números de serie (${input.serialNumbers.length}) debe coincidir con la cantidad del movimiento (${qty})`
+              );
+            }
+            await createSerials(
+              tx,
+              movement.companyId,
+              item.id,
+              movementId,
+              input.serialNumbers,
+              userId
+            );
+          } else {
+            // SALIDA o AJUSTE: validar y marcar seriales
+            if (!input.serialIds || input.serialIds.length === 0) {
+              throw new Error(
+                "Se requiere serialIds para movimientos de SALIDA con seguimiento por número de serie"
+              );
+            }
+            await validateSerialAvailability(
+              tx,
+              movement.companyId,
+              item.id,
+              input.serialIds,
+              qty
+            );
+            await applySerialMovement(
+              tx,
+              movement.companyId,
+              item.id,
+              movementId,
+              input.serialIds
+            );
+          }
+        }
+
         // ── Marcar movimiento como POSTED ─────────────────────────────────────
         const posted = await tx.inventoryMovement.update({
           where: { id: movementId },
@@ -147,6 +246,8 @@ export async function postMovement(input: PostMovementInput, userId: string) {
               stockAfter: newStock.toString(),
               avgCostAfter: newAvgCost.toString(),
               transactionId: journalTx.id,
+              // fefoOverridden: trazabilidad de bypass FEFO para ítems LOT (ADR-021 MEDIUM-1)
+              ...(fefoOverridden !== null && { fefoOverridden }),
             },
           },
         });
@@ -241,6 +342,23 @@ export async function voidPostedMovement(input: VoidMovementInput, userId: strin
             entries: { create: counterEntries },
           },
         });
+
+        // ── Fase 35G: revertir lotes/seriales antes de marcar VOIDED (ADR-021 HIGH-1) ─
+        if (item.trackingType === "LOT") {
+          await voidLotMovement(
+            tx,
+            movement.companyId,
+            movementId,
+            movement.type as "ENTRADA" | "SALIDA" | "AJUSTE"
+          );
+        } else if (item.trackingType === "SERIAL") {
+          await voidSerialMovement(
+            tx,
+            movement.companyId,
+            movementId,
+            movement.type as "ENTRADA" | "SALIDA" | "AJUSTE"
+          );
+        }
 
         // Marcar movimiento como VOIDED
         const voided = await tx.inventoryMovement.update({

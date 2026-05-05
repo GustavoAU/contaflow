@@ -96,6 +96,7 @@ export default async function InventoryPage({ params }: Props) {
       averageCost: mov.item.averageCost.toString(),
       accountId: mov.item.accountId,
       cogsAccountId: mov.item.cogsAccountId,
+      trackingType: mov.item.trackingType as "NONE" | "LOT" | "SERIAL",
     },
   }));
 

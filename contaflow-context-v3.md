@@ -9,18 +9,20 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Fase 35F** ⏳ — UoM (Unidades de Medida múltiples) — ADR-018
-- Sub-fase A (schema + migración) en progreso en `feat/fase-35f-uom`
-- Fase 35G (Lot/Serial Tracking) depende de esta
-
 **Fase 36C** ⏳ — Distribución de Pagos / batch multi-destinatario
-- Independiente de 35F
+
+### Completadas recientes
+- **Fase 35F** ✅ merged — UoM múltiples (ADR-018)
+- **Fase 35G** ✅ merged — Lot/Serial Tracking (ADR-021)
+  - Sub-fase A: schema + migración (`InventoryLot`, `InventorySerial`, `InventoryLotAllocation`)
+  - Sub-fase B: servicios + actions (`postMovement` con tracking, query actions FEFO/serials)
+  - Sub-fase C: UI modal en `PendingMovementsList` para ACCOUNTING (4 vistas: LOT/SERIAL × ENTRADA/SALIDA)
 
 ### Tests / CI
-**1562 tests GREEN | 0 TS errors | CI passing** (2026-04-30)
+**1673 tests GREEN | 0 TS errors | CI passing** (2026-05-05)
 
 ### Próximas fases (backlog inmediato)
-1. 35F → 35G → 36C
+1. 36C — Distribución de Pagos / batch multi-destinatario
 2. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
@@ -37,6 +39,12 @@ Skills sugeridas: [B1, C2, ...]
 
 ## ——— DECISIONES RECIENTES (últimas 3 fases) ———
 _Suficiente para entender dependencias. Leer si la tarea toca alguna de estas fases._
+
+### Fase 35G — Lot/Serial Tracking (merged 2026-05-05)
+- Schema: `InventoryLot`, `InventorySerial`, `InventoryLotAllocation` — ADR-021
+- `postMovement` extendido con lotes/seriales (FEFO server-side con Decimal.js)
+- Modal UI en `PendingMovementsList`: 4 vistas (LOT/SERIAL × ENTRADA/SALIDA)
+- `getAvailableLotsAction` + `getAvailableSerialsAction` con guard ACCOUNTING + companyId isolation
 
 ### Fase 35I — Firma Digital Híbrida (merged 2026-04-30)
 - `CertificateService` + `DocumentSigningService` — ADR-020
