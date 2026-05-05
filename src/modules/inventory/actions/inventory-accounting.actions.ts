@@ -140,3 +140,63 @@ export async function getPendingMovementsAction(
     return { success: false, error: "Error inesperado" };
   }
 }
+
+// ─── Lotes disponibles para SALIDA (FEFO order) ───────────────────────────────
+
+export async function getAvailableLotsAction(
+  companyId: string,
+  itemId: string
+): Promise<ActionResult<Array<{ id: string; lotNumber: string; quantityOnHand: string; expiresAt: string | null }>>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Se requiere rol Contador o superior" };
+
+  const lots = await prisma.inventoryLot.findMany({
+    where: { companyId, itemId, quantityOnHand: { gt: 0 } },
+    orderBy: [{ expiresAt: "asc" }, { createdAt: "asc" }],
+    select: { id: true, lotNumber: true, quantityOnHand: true, expiresAt: true },
+  });
+
+  return {
+    success: true,
+    data: lots.map((l) => ({
+      id: l.id,
+      lotNumber: l.lotNumber,
+      quantityOnHand: l.quantityOnHand.toString(),
+      expiresAt: l.expiresAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+// ─── Seriales disponibles para SALIDA ────────────────────────────────────────
+
+export async function getAvailableSerialsAction(
+  companyId: string,
+  itemId: string
+): Promise<ActionResult<Array<{ id: string; serialNumber: string }>>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Se requiere rol Contador o superior" };
+
+  const serials = await prisma.inventorySerial.findMany({
+    where: { companyId, itemId, status: "AVAILABLE" },
+    orderBy: { serialNumber: "asc" },
+    select: { id: true, serialNumber: true },
+  });
+
+  return { success: true, data: serials };
+}
