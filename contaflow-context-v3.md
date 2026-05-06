@@ -9,21 +9,23 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Fase 36C** ⏳ — Distribución de Pagos / batch multi-destinatario
+Ninguna — Fase 36C completada y mergeada ✅
 
 ### Completadas recientes
-- **Fase 35F** ✅ merged — UoM múltiples (ADR-018)
+- **Fase 36C** ✅ merged — Distribución de Pagos A/P (PaymentBatch + ADR-022, 1727 tests)
+  - Schema: `PaymentBatch`, `PaymentBatchLine`, `PaymentBatchAudit` — ADR-022
+  - `PaymentBatchService`: `createBatch` / `applyBatch` / `voidBatch` — Serializable + idempotencyKey
+  - Server Actions + Zod schemas + rate limiting + IP/UA tracking (R-6)
+  - UI: `PaymentBatchForm` + `PaymentBatchList` + void modal + ruta `/payments/batches`
+  - Security (Bloque E): 9 findings resueltos (IP extraction, P2002 idempotency, R-5 Decimal.js, rate limits)
 - **Fase 35G** ✅ merged — Lot/Serial Tracking (ADR-021)
-  - Sub-fase A: schema + migración (`InventoryLot`, `InventorySerial`, `InventoryLotAllocation`)
-  - Sub-fase B: servicios + actions (`postMovement` con tracking, query actions FEFO/serials)
-  - Sub-fase C: UI modal en `PendingMovementsList` para ACCOUNTING (4 vistas: LOT/SERIAL × ENTRADA/SALIDA)
+- **Fase 35F** ✅ merged — UoM múltiples (ADR-018)
 
 ### Tests / CI
-**1673 tests GREEN | 0 TS errors | CI passing** (2026-05-05)
+**1727 tests GREEN | 0 TS errors | CI passing** (2026-05-06)
 
 ### Próximas fases (backlog inmediato)
-1. 36C — Distribución de Pagos / batch multi-destinatario
-2. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+1. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 
@@ -39,6 +41,15 @@ Skills sugeridas: [B1, C2, ...]
 
 ## ——— DECISIONES RECIENTES (últimas 3 fases) ———
 _Suficiente para entender dependencias. Leer si la tarea toca alguna de estas fases._
+
+### Fase 36C — Distribución de Pagos A/P (merged 2026-05-06)
+- `PaymentBatch` + `PaymentBatchLine` + `PaymentBatchAudit` — ADR-022
+- Estados: DRAFT → APPLIED → VOID (soft-delete, no hard delete)
+- `applyBatch` / `voidBatch` con Serializable + P2034 retry (3 intentos)
+- Idempotency key en `createBatch` — P2002 capturado con mensaje de negocio
+- Guard A/P: solo facturas `type === PURCHASE` aceptadas en líneas
+- Sum invariant: `sum(lines.amountVes) === batch.totalAmountVes` validado en applyBatch
+- IP/UA capturado en AuditLog (R-6); rate limit `limiters.fiscal` en todas las actions
 
 ### Fase 35G — Lot/Serial Tracking (merged 2026-05-05)
 - Schema: `InventoryLot`, `InventorySerial`, `InventoryLotAllocation` — ADR-021
