@@ -265,9 +265,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 35I** ✅ merged (Firma Digital Híbrida — CertificateService + DocumentSigningService + ADR-020 — 1562 tests)
 - **Fase 35F** ✅ merged (UoM múltiples — ADR-018 — 1628 tests)
 - **Fase 35G** ✅ merged (Lot/Serial Tracking — InventoryLot/Serial/LotAllocation + UI modal ACCOUNTING + ADR-021 — 1673 tests)
-- **Fase 36C** ⏳ pendiente (Distribución de Pagos / batch multi-destinatario)
+- **Fase 36C** ✅ merged (Distribución de Pagos A/P — PaymentBatch + ADR-022 — 1727 tests)
 
-**1673 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-05)
+**1727 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-06)
 
 ### middleware.ts
 
