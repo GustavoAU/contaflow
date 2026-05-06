@@ -20,6 +20,15 @@ function isNonNegativeDecimal(v: string) {
   }
 }
 
+function isValidPct(v: string) {
+  try {
+    const d = new Decimal(v);
+    return d.gte(0) && d.lte(new Decimal("100"));
+  } catch {
+    return false;
+  }
+}
+
 export const BatchLineInputSchema = z.object({
   invoiceId: z.string().min(1),
   amountVes: z
@@ -54,7 +63,7 @@ export const CreateBatchSchema = z
     destBank: z.string().max(100).optional(),
     commissionPct: z
       .string()
-      .refine(isNonNegativeDecimal, { error: "commissionPct debe ser un número no negativo" })
+      .refine(isValidPct, { error: "commissionPct debe estar entre 0 y 100" })
       .optional(),
     commissionAmount: z
       .string()

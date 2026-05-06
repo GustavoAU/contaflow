@@ -73,7 +73,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
         // Auto-fill amount with pending balance when invoice is selected
         if (field === "invoiceId" && value) {
           const inv = invoiceMap.get(value);
-          if (inv) updated.amountVes = parseFloat(inv.pendingAmount).toFixed(2);
+          if (inv) updated.amountVes = new Decimal(inv.pendingAmount).toFixed(2);
         }
         return updated;
       })
@@ -84,7 +84,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
     const inv = invoiceMap.get(invoiceId);
     if (!inv) return;
     setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, amountVes: parseFloat(inv.pendingAmount).toFixed(2) } : l))
+      prev.map((l) => (l.key === key ? { ...l, amountVes: new Decimal(inv.pendingAmount).toFixed(2) } : l))
     );
   }
 
@@ -100,7 +100,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
   const canSubmit =
     !isPending &&
     lines.length > 0 &&
-    lines.every((l) => l.invoiceId && parseFloat(l.amountVes) > 0) &&
+    lines.every((l) => { try { return l.invoiceId && new Decimal(l.amountVes || "0").gt(0); } catch { return false; } }) &&
     totalVes.gt(0);
 
   function handleSubmit(e: React.FormEvent) {

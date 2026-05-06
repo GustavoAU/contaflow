@@ -65,6 +65,8 @@ export type CreateBatchInput = {
   createdBy: string;
   idempotencyKey: string;
   lines: CreateBatchLineInput[];
+  ipAddress?: string | null;
+  userAgent?: string | null;
 };
 
 export type ApplyBatchInput = {
@@ -186,51 +188,64 @@ export class PaymentBatchService {
             type: "PURCHASE",
             deletedAt: null,
           },
-          select: { id: true, paymentStatus: true },
+          select: { id: true, invoiceNumber: true, paymentStatus: true },
         });
         if (!invoice) {
-          throw new Error(
-            `Factura ${line.invoiceId} no encontrada, no es A/P o no pertenece a esta empresa`
-          );
+          throw new Error("Una de las facturas seleccionadas no es válida para esta empresa");
         }
         if (invoice.paymentStatus === "VOIDED") {
-          throw new Error(`Factura ${line.invoiceId} está anulada`);
+          throw new Error(`Factura ${invoice.invoiceNumber ?? "seleccionada"} está anulada`);
         }
         if (invoice.paymentStatus === "PAID") {
-          throw new Error(`Factura ${line.invoiceId} ya está completamente pagada`);
+          throw new Error(`Factura ${invoice.invoiceNumber ?? "seleccionada"} ya está completamente pagada`);
         }
       }
 
-      const batch = await tx.paymentBatch.create({
-        data: {
-          companyId: input.companyId,
-          method: input.method,
-          totalAmountVes: input.totalAmountVes,
-          currency: input.currency ?? "VES",
-          totalAmountOriginal: input.totalAmountOriginal ?? null,
-          exchangeRateId: input.exchangeRateId ?? null,
-          referenceNumber: input.referenceNumber ?? null,
-          originBank: input.originBank ?? null,
-          destBank: input.destBank ?? null,
-          commissionPct: input.commissionPct ?? null,
-          commissionAmount: input.commissionAmount ?? null,
-          totalIgtfAmount: input.totalIgtfAmount ?? null,
-          date: input.date,
-          notes: input.notes ?? null,
-          createdBy: input.createdBy,
-          idempotencyKey: input.idempotencyKey,
-          lines: {
-            create: input.lines.map((l) => ({
-              invoiceId: l.invoiceId,
-              amountVes: l.amountVes,
-              amountOriginal: l.amountOriginal ?? null,
-              igtfAmount: l.igtfAmount ?? null,
-              notes: l.notes ?? null,
-            })),
+      let batch;
+      try {
+        batch = await tx.paymentBatch.create({
+          data: {
+            companyId: input.companyId,
+            method: input.method,
+            totalAmountVes: input.totalAmountVes,
+            currency: input.currency ?? "VES",
+            totalAmountOriginal: input.totalAmountOriginal ?? null,
+            exchangeRateId: input.exchangeRateId ?? null,
+            referenceNumber: input.referenceNumber ?? null,
+            originBank: input.originBank ?? null,
+            destBank: input.destBank ?? null,
+            commissionPct: input.commissionPct ?? null,
+            commissionAmount: input.commissionAmount ?? null,
+            totalIgtfAmount: input.totalIgtfAmount ?? null,
+            date: input.date,
+            notes: input.notes ?? null,
+            createdBy: input.createdBy,
+            idempotencyKey: input.idempotencyKey,
+            lines: {
+              create: input.lines.map((l) => ({
+                invoiceId: l.invoiceId,
+                amountVes: l.amountVes,
+                amountOriginal: l.amountOriginal ?? null,
+                igtfAmount: l.igtfAmount ?? null,
+                notes: l.notes ?? null,
+              })),
+            },
           },
-        },
-        include: { lines: true },
-      });
+          include: { lines: true },
+        });
+      } catch (err) {
+        // FINDING-3: P2002 en idempotencyKey → mensaje de negocio (ADR-022 D-10)
+        if (
+          typeof err === "object" && err !== null &&
+          "code" in err && (err as { code: string }).code === "P2002"
+        ) {
+          const meta = (err as { meta?: { target?: string[] } }).meta;
+          if (meta?.target?.includes("idempotencyKey")) {
+            throw new Error("El lote ya fue creado — refresque la página.");
+          }
+        }
+        throw err;
+      }
 
       await tx.auditLog.create({
         data: {
@@ -239,8 +254,8 @@ export class PaymentBatchService {
           entityName: "PaymentBatch",
           action: "CREATE",
           userId: input.createdBy,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
           newValue: {
             status: "DRAFT",
             totalAmountVes: input.totalAmountVes.toFixed(4),
@@ -292,15 +307,13 @@ export class PaymentBatchService {
                   type: "PURCHASE",
                   deletedAt: null,
                 },
-                select: { id: true, paymentStatus: true, pendingAmount: true, totalAmountVes: true },
+                select: { id: true, invoiceNumber: true, paymentStatus: true, pendingAmount: true, totalAmountVes: true },
               });
               if (!invoice) {
-                throw new Error(
-                  `Factura ${line.invoiceId} no encontrada, no es A/P o no pertenece a esta empresa`
-                );
+                throw new Error("Una de las facturas del lote no es válida para esta empresa");
               }
               if (invoice.paymentStatus === "VOIDED") {
-                throw new Error(`Factura ${line.invoiceId} está anulada`);
+                throw new Error(`Factura ${invoice.invoiceNumber ?? "seleccionada"} está anulada`);
               }
 
               const amountVes = new Decimal(line.amountVes.toString());
@@ -312,7 +325,7 @@ export class PaymentBatchService {
 
               if (amountVes.greaterThan(currentPending)) {
                 throw new Error(
-                  `El monto de la línea (${amountVes.toFixed(2)}) excede el saldo pendiente de la factura ${line.invoiceId} (${currentPending.toFixed(2)})`
+                  `El monto de la línea (${amountVes.toFixed(2)} Bs.D) excede el saldo pendiente de la factura ${invoice.invoiceNumber ?? "seleccionada"} (${currentPending.toFixed(2)} Bs.D)`
                 );
               }
 

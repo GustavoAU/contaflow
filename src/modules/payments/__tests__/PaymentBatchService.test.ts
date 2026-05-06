@@ -199,7 +199,7 @@ describe("PaymentBatchService.createBatch", () => {
         idempotencyKey: "idem-key-2",
         lines: [{ invoiceId: "inv-x", amountVes: new Decimal("150000") }],
       })
-    ).rejects.toThrow(/no encontrada|no es A\/P|no pertenece/);
+    ).rejects.toThrow(/no es válida|no encontrada|no es A\/P|no pertenece/);
   });
 
   it("lanza error si factura está VOIDED", async () => {
@@ -327,7 +327,7 @@ describe("PaymentBatchService.applyBatch", () => {
 
     await expect(
       PaymentBatchService.applyBatch({ batchId: BATCH_ID, companyId: COMPANY_ID, userId: USER_ID })
-    ).rejects.toThrow(/no encontrada|no es A\/P|no pertenece/);
+    ).rejects.toThrow(/no es válida|no encontrada|no es A\/P|no pertenece/);
   });
 
   it("lanza error si monto supera pendingAmount de la factura", async () => {

@@ -32,7 +32,7 @@ async function getAuthContext() {
 
   const h = await headers();
   const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   return { userId, ipAddress, userAgent };
@@ -83,6 +83,8 @@ export async function createPaymentBatchAction(
       notes: d.notes,
       createdBy: ctx.userId,
       idempotencyKey: d.idempotencyKey,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
       lines: d.lines.map((l) => ({
         invoiceId: l.invoiceId,
         amountVes: new Decimal(l.amountVes),
@@ -235,6 +237,9 @@ export async function listPaymentBatchesAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
@@ -256,6 +261,9 @@ export async function listUnpaidPurchaseInvoicesAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
