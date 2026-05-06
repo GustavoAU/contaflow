@@ -16,6 +16,8 @@ import { FiscalConfigForm } from "@/modules/fiscal-close/components/FiscalConfig
 import { PaymentTermsForm } from "@/modules/receivables/components/PaymentTermsForm";
 import { CertificatePanel } from "@/modules/certificates/components/CertificatePanel";
 import { getCertificateStatusAction } from "@/modules/certificates/actions/certificate.actions";
+import { MembersPanel } from "@/modules/company/components/MembersPanel";
+import { getMembersAction } from "@/modules/company/actions/member.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -27,7 +29,7 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult] =
+  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult] =
     await Promise.all([
       getPeriodsAction(companyId),
       getActivePeriodAction(companyId),
@@ -36,6 +38,7 @@ export default async function SettingsPage({ params }: Props) {
       getFiscalConfigAction(companyId),
       getAccountsAction(companyId),
       getCertificateStatusAction({ companyId }),
+      getMembersAction(companyId),
     ]);
 
   const periods = periodsResult.success ? periodsResult.data : [];
@@ -43,6 +46,7 @@ export default async function SettingsPage({ params }: Props) {
   const company = companies.find((c) => c.id === companyId);
   if (!company) redirect("/dashboard");
 
+  const members = membersResult.success ? membersResult.data : [];
   const fiscalConfig = fiscalConfigResult.success ? fiscalConfigResult.data : null;
   const certStatus = certStatusResult.success ? certStatusResult.data : { exists: false as const };
   const equityAccounts = accountsResult.success
@@ -112,6 +116,14 @@ export default async function SettingsPage({ params }: Props) {
         </div>
         <CertificatePanel companyId={companyId} initialStatus={certStatus} />
       </div>
+
+      {/* ── Equipo — Sprint 2 ─────────────────────────────────────────────── */}
+      <MembersPanel
+        companyId={companyId}
+        currentUserId={user.id}
+        currentUserRole={company.role}
+        initialMembers={members}
+      />
 
       <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
 
