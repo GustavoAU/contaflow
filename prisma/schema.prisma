@@ -891,30 +891,30 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id                 String             @id @default(cuid())
+  id                 String                    @id @default(cuid())
   companyId          String
-  company            Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company            Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   itemId             String
-  item               InventoryItem      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  item               InventoryItem             @relation(fields: [itemId], references: [id], onDelete: Restrict)
   type               MovementType
-  status             MovementStatus     @default(DRAFT)
-  quantity           Decimal            @db.Decimal(19, 4) // cantidad en UNIDAD BASE — siempre positivo
-  unitCost           Decimal            @db.Decimal(19, 4) // costo por UNIDAD BASE (snapshot CPP)
-  totalCost          Decimal            @db.Decimal(19, 4) // quantity × unitCost — almacenado
+  status             MovementStatus            @default(DRAFT)
+  quantity           Decimal                   @db.Decimal(19, 4) // cantidad en UNIDAD BASE — siempre positivo
+  unitCost           Decimal                   @db.Decimal(19, 4) // costo por UNIDAD BASE (snapshot CPP)
+  totalCost          Decimal                   @db.Decimal(19, 4) // quantity × unitCost — almacenado
   // Fase 35F: Unidades de Medida — ADR-018
   unitId             String?
-  unit               InventoryItemUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
-  quantityInUnit     Decimal            @db.Decimal(19, 4) // cantidad en la unidad del movimiento
-  conversionSnapshot Decimal            @db.Decimal(19, 10) // factor inmutable al momento del movimiento — ADR-018 D-3
+  unit               InventoryItemUnit?        @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  quantityInUnit     Decimal                   @db.Decimal(19, 4) // cantidad en la unidad del movimiento
+  conversionSnapshot Decimal                   @db.Decimal(19, 10) // factor inmutable al momento del movimiento — ADR-018 D-3
   invoiceId          String?
-  invoice            Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  transactionId      String?            @unique
-  transaction        Transaction?       @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  invoice            Invoice?                  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  transactionId      String?                   @unique
+  transaction        Transaction?              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   reference          String?
   notes              String?
   date               DateTime
-  idempotencyKey     String             @unique
-  createdAt          DateTime           @default(now())
+  idempotencyKey     String                    @unique
+  createdAt          DateTime                  @default(now())
   createdBy          String
   postedAt           DateTime?
   postedBy           String?
@@ -967,16 +967,16 @@ model InventoryItemUnit {
 // ─── Fase 35G: Lot/Serial Tracking — ADR-021 ─────────────────────────────────
 
 enum TrackingType {
-  NONE   // sin tracking — comportamiento pre-35G
-  LOT    // seguimiento por lote (número de lote + fecha de vencimiento)
+  NONE // sin tracking — comportamiento pre-35G
+  LOT // seguimiento por lote (número de lote + fecha de vencimiento)
   SERIAL // seguimiento por número de serie (1 serial = 1 unidad física)
 }
 
 enum SerialStatus {
-  AVAILABLE  // en stock, disponible para venta/uso
+  AVAILABLE // en stock, disponible para venta/uso
   IN_TRANSIT // reservado por un movimiento DRAFT (no POSTED aún)
-  SOLD       // salida POSTED — ya no está en inventario físico
-  VOIDED     // el movimiento de creación fue VOIDED — registro histórico inmutable
+  SOLD // salida POSTED — ya no está en inventario físico
+  VOIDED // el movimiento de creación fue VOIDED — registro histórico inmutable
 }
 
 // Representa un lote recibido de un ítem con trackingType = LOT.
@@ -989,13 +989,13 @@ model InventoryLot {
   company        Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   itemId         String
   item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  lotNumber      String        // número de lote del proveedor — scoped por ítem
-  expiresAt      DateTime?     // null = sin fecha de vencimiento
+  lotNumber      String // número de lote del proveedor — scoped por ítem
+  expiresAt      DateTime? // null = sin fecha de vencimiento
   quantityOnHand Decimal       @db.Decimal(19, 4) // en unidad base — nunca negativo (CHECK en DB)
   notes          String?
   receivedAt     DateTime      @default(now()) // fecha de recepción física
   createdAt      DateTime      @default(now())
-  createdBy      String        // Clerk userId
+  createdBy      String // Clerk userId
 
   movementLines InventoryMovementLot[]
 
@@ -1030,13 +1030,13 @@ model InventorySerial {
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   itemId       String
   item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  serialNumber String        // número de serie — scoped por companyId+itemId (ADR-021 D-3)
+  serialNumber String // número de serie — scoped por companyId+itemId (ADR-021 D-3)
   status       SerialStatus  @default(AVAILABLE)
   notes        String?
   createdAt    DateTime      @default(now())
-  createdBy    String        // Clerk userId
-  soldAt       DateTime?     // poblado cuando status → SOLD (postMovement SALIDA)
-  voidedAt     DateTime?     // poblado cuando status → VOIDED (voidMovement)
+  createdBy    String // Clerk userId
+  soldAt       DateTime? // poblado cuando status → SOLD (postMovement SALIDA)
+  voidedAt     DateTime? // poblado cuando status → VOIDED (voidMovement)
 
   movementLines InventoryMovementSerial[]
 
