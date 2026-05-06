@@ -24,6 +24,13 @@ Ninguna — Fase 36C completada y mergeada ✅
 ### Tests / CI
 **1727 tests GREEN | 0 TS errors | CI passing** (2026-05-06)
 
+### Deuda técnica
+Sin deuda técnica abierta — saldada en 2026-05-06:
+- Sentry `disableLogger` → `bundleSizeOptimizations.excludeDebugStatements`
+- DROP COLUMN `InventoryItem.unit` (legacy Fase 35F)
+- R-6 IP/UA en AuditLog de inventario (Operations + Accounting)
+- FINDING-4: IGTF calculado server-side en `createBatch` (ADR-022 D-6)
+
 ### Próximas fases (backlog inmediato)
 1. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 

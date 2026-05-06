@@ -267,7 +267,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 35G** ✅ merged (Lot/Serial Tracking — InventoryLot/Serial/LotAllocation + UI modal ACCOUNTING + ADR-021 — 1673 tests)
 - **Fase 36C** ✅ merged (Distribución de Pagos A/P — PaymentBatch + ADR-022 — 1727 tests)
 
-**1727 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-06)
+**1727 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-06) | deuda técnica post-36C saldada ✅
 
 ### middleware.ts
 
