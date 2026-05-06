@@ -196,6 +196,8 @@ model Company {
   // Fase 35G: Lot/Serial Tracking
   inventoryLots             InventoryLot[]
   inventorySerials          InventorySerial[]
+  // Fase 36C: Distribución de Pagos A/P
+  paymentBatches            PaymentBatch[]
 }
 
 model CompanyMember {
@@ -464,6 +466,8 @@ model Invoice {
   customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
   // Fase 35H: PA-121 Outbox
   seniatSubmission    SeniatSubmission?
+  // Fase 36C: Distribución de Pagos A/P
+  paymentBatchLines   PaymentBatchLine[]
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -520,6 +524,7 @@ model ExchangeRate {
 
   paymentRecords  PaymentRecord[]
   invoicePayments InvoicePayment[]
+  paymentBatches  PaymentBatch[]
 
   @@unique([companyId, currency, date])
   @@index([companyId, currency, date])
@@ -703,6 +708,10 @@ model BankTransaction {
   deletedAt              DateTime?
 
   createdAt DateTime @default(now())
+
+  // Fase 36C: Match tipo 4 — PaymentBatch (distribución A/P)
+  matchedPaymentBatchId String?       @unique
+  matchedPaymentBatch   PaymentBatch? @relation(fields: [matchedPaymentBatchId], references: [id], onDelete: Restrict)
 
   @@index([companyId])
   @@index([statementId])
@@ -1061,6 +1070,66 @@ model InventoryMovementSerial {
   @@unique([movementId, serialId])
   @@index([movementId])
   @@index([serialId])
+}
+
+// ─── Fase 36C: PaymentBatch — Distribución de Pagos A/P (ADR-022) ────────────
+
+enum PaymentBatchStatus {
+  DRAFT
+  APPLIED
+  VOID
+}
+
+model PaymentBatch {
+  id                  String             @id @default(cuid())
+  companyId           String
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status              PaymentBatchStatus @default(DRAFT)
+  method              PaymentMethod
+  totalAmountVes      Decimal            @db.Decimal(19, 4)
+  currency            String             @default("VES")
+  totalAmountOriginal Decimal?           @db.Decimal(19, 4)
+  exchangeRateId      String?
+  exchangeRate        ExchangeRate?      @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  referenceNumber     String?
+  originBank          String?
+  destBank            String?
+  commissionPct       Decimal?           @db.Decimal(5, 2)
+  commissionAmount    Decimal?           @db.Decimal(19, 4)
+  totalIgtfAmount     Decimal?           @db.Decimal(19, 4)
+  date                DateTime           @db.Date
+  notes               String?
+  voidReason          String?
+  voidedAt            DateTime?
+  voidedBy            String?
+  bankTransaction     BankTransaction?
+  deletedAt           DateTime?
+  createdAt           DateTime           @default(now())
+  createdBy           String
+  idempotencyKey      String             @unique
+
+  lines PaymentBatchLine[]
+
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+}
+
+model PaymentBatchLine {
+  id             String       @id @default(cuid())
+  paymentBatchId String
+  paymentBatch   PaymentBatch @relation(fields: [paymentBatchId], references: [id], onDelete: Restrict)
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amountVes      Decimal      @db.Decimal(19, 4)
+  amountOriginal Decimal?     @db.Decimal(19, 4)
+  igtfAmount     Decimal?     @db.Decimal(19, 4)
+  notes          String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([paymentBatchId, invoiceId])
+  @@index([paymentBatchId])
+  @@index([invoiceId])
 }
 
 // ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────
