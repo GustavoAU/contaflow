@@ -14,6 +14,13 @@ type Props = {
 
 const IGTF_RATE = 0.03;
 
+function fmtNum(v: string | number) {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  return isNaN(n)
+    ? "0,00"
+    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +38,13 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [originBank, setOriginBank] = useState("");
   const [destBank, setDestBank] = useState("");
 
-  // Zelle
+  // Zelle / Efectivo USD
   const [amountUsd, setAmountUsd] = useState("");
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
+
+  // Efectivo — moneda
+  const [efectivoCurrency, setEfectivoCurrency] = useState<"VES" | "USD">("USD");
 
   // Cashea
   const [commissionPct, setCommissionPct] = useState("3.50");
@@ -44,12 +54,15 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const commPct = parseFloat(commissionPct) || 0;
 
   const igtfZelle = vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
+  const igtfEfectivo = efectivoCurrency === "USD" && vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
   const igtfCashea = casheaIgtf && vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
   const commAmount = vesNum > 0 ? ((vesNum * commPct) / 100).toFixed(2) : "0.00";
 
-  // ─── Cargar tasa BCV cuando el método es Zelle ───────────────────────────
+  const needsBcv = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
+
+  // ─── Cargar tasa BCV cuando el método requiere USD ───────────────────────
   useEffect(() => {
-    if (method !== "ZELLE") return;
+    if (!needsBcv) return;
     void (async () => {
       setBcvRate(null);
       setBcvLoading(true);
@@ -62,18 +75,16 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         setBcvLoading(false);
       }
     })();
-  }, [method, companyId]);
+  }, [needsBcv, companyId]);
 
   // ─── Auto-calcular VES = USD × tasa BCV ──────────────────────────────────
   useEffect(() => {
-    if (method !== "ZELLE" || !bcvRate || !amountUsd) return;
-    void (async () => {
-      const usdNum = parseFloat(amountUsd);
-      if (!isNaN(usdNum) && usdNum > 0) {
-        setAmountVes((usdNum * bcvRate).toFixed(2));
-      }
-    })();
-  }, [amountUsd, bcvRate, method]);
+    if (!needsBcv || !bcvRate || !amountUsd) return;
+    const usdNum = parseFloat(amountUsd);
+    if (!isNaN(usdNum) && usdNum > 0) {
+      setAmountVes((usdNum * bcvRate).toFixed(2));
+    }
+  }, [amountUsd, bcvRate, needsBcv]);
 
   function resetForm() {
     setDate(today);
@@ -85,6 +96,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setDestBank("");
     setAmountUsd("");
     setBcvRate(null);
+    setEfectivoCurrency("USD");
     setCommissionPct("3.50");
     setCasheaIgtf(false);
   }
@@ -95,11 +107,13 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setSuccess(false);
 
     startTransition(async () => {
+      const isUsdMethod = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
+
       const payload: Record<string, string | undefined> = {
         companyId,
         method,
         amountVes,
-        currency: method === "ZELLE" ? "USD" : "VES",
+        currency: isUsdMethod ? "USD" : "VES",
         date,
         notes: notes || undefined,
         createdBy: userId,
@@ -114,6 +128,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       if (method === "ZELLE") {
         payload.amountOriginal = amountUsd;
         payload.igtfAmount = igtfZelle;
+      }
+
+      if (method === "EFECTIVO" && efectivoCurrency === "USD") {
+        payload.amountOriginal = amountUsd;
+        payload.igtfAmount = igtfEfectivo;
       }
 
       if (method === "CASHEA") {
@@ -194,7 +213,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               )}
               {!bcvLoading && bcvRate && (
                 <span className="ml-2 text-xs font-normal text-zinc-400">
-                  Tasa BCV: {bcvRate.toFixed(2)} Bs.D/USD
+                  Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD
                 </span>
               )}
               {!bcvLoading && !bcvRate && (
@@ -213,19 +232,104 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               required
               className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             />
+            {amountVes && vesNum > 0 && (
+              <p className="mt-1 text-xs text-zinc-400">= Bs.D {fmtNum(amountVes)}</p>
+            )}
           </div>
 
           {vesNum > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3% (aplica automáticamente por ser pago en USD):
-              <span className="ml-1 font-mono font-semibold">Bs.D {igtfZelle}</span>
+              <span className="ml-1 font-mono font-semibold">Bs.D {fmtNum(igtfZelle)}</span>
             </div>
           )}
         </div>
       )}
 
-      {/* Monto VES (para métodos no-Zelle) */}
-      {method !== "ZELLE" && (
+      {/* ─── Efectivo ─── */}
+      {method === "EFECTIVO" && (
+        <div className="space-y-3 rounded-md border border-orange-100 bg-orange-50 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-orange-700">Moneda del efectivo</p>
+            <div className="flex overflow-hidden rounded-md border border-orange-200 text-xs">
+              <button
+                type="button"
+                onClick={() => { setEfectivoCurrency("USD"); setAmountVes(""); setAmountUsd(""); }}
+                className={`px-3 py-1 transition-colors ${efectivoCurrency === "USD" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}
+              >
+                USD
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEfectivoCurrency("VES"); setAmountVes(""); setAmountUsd(""); }}
+                className={`px-3 py-1 transition-colors ${efectivoCurrency === "VES" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}
+              >
+                Bs.D
+              </button>
+            </div>
+          </div>
+
+          {efectivoCurrency === "USD" && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Monto en USD <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amountUsd}
+                  onChange={(e) => setAmountUsd(e.target.value)}
+                  placeholder="0.00"
+                  required
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Equivalente en Bs.D (VES)
+                  {bcvLoading && (
+                    <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>
+                  )}
+                  {!bcvLoading && bcvRate && (
+                    <span className="ml-2 text-xs font-normal text-zinc-400">
+                      Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD
+                    </span>
+                  )}
+                  {!bcvLoading && !bcvRate && (
+                    <span className="ml-2 text-xs font-normal text-amber-600">
+                      Sin tasa BCV registrada — ingrese manualmente
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amountVes}
+                  onChange={(e) => setAmountVes(e.target.value)}
+                  placeholder="0.00"
+                  required
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+                {amountVes && vesNum > 0 && (
+                  <p className="mt-1 text-xs text-zinc-400">= Bs.D {fmtNum(amountVes)}</p>
+                )}
+              </div>
+              {vesNum > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  IGTF 3% (aplica automáticamente por ser pago en USD):
+                  <span className="ml-1 font-mono font-semibold">Bs.D {fmtNum(igtfEfectivo)}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Monto VES (para Efectivo Bs.D y otros métodos no-USD) */}
+      {(method !== "ZELLE" && !(method === "EFECTIVO")) && (
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
             Monto{" "}
@@ -241,6 +345,32 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             required
             className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
+          {amountVes && vesNum > 0 && (
+            <p className="mt-1 text-xs text-zinc-400">= Bs.D {fmtNum(amountVes)}</p>
+          )}
+        </div>
+      )}
+
+      {/* VES input para Efectivo en Bs.D */}
+      {method === "EFECTIVO" && efectivoCurrency === "VES" && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">
+            Monto{" "}
+            <span className="font-mono text-xs text-zinc-500">Bs.D (VES)</span>
+          </label>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={amountVes}
+            onChange={(e) => setAmountVes(e.target.value)}
+            placeholder="0.00"
+            required
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          />
+          {amountVes && vesNum > 0 && (
+            <p className="mt-1 text-xs text-zinc-400">= Bs.D {fmtNum(amountVes)}</p>
+          )}
         </div>
       )}
 
@@ -305,7 +435,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               />
               {vesNum > 0 && (
                 <span className="text-sm text-zinc-600">
-                  = <span className="font-mono font-semibold">Bs.D {commAmount}</span>
+                  = <span className="font-mono font-semibold">Bs.D {fmtNum(commAmount)}</span>
                 </span>
               )}
             </div>
@@ -321,7 +451,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
           </label>
           {casheaIgtf && vesNum > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              IGTF 3%: <span className="font-mono font-semibold">Bs.D {igtfCashea}</span>
+              IGTF 3%: <span className="font-mono font-semibold">Bs.D {fmtNum(igtfCashea)}</span>
             </div>
           )}
         </div>
@@ -354,6 +484,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       <button
         type="submit"
         disabled={isPending}
+        aria-busy={isPending}
         className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
       >
         {isPending && <Loader2Icon className="size-4 animate-spin" />}

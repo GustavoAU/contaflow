@@ -23,11 +23,11 @@ const securityHeaders = [
       "default-src 'self'",
       // unsafe-eval removido — no requerido por Clerk v7 ni Next.js App Router en producción
       // unsafe-inline requerido por Next.js RSC sin nonces — eliminar post-lanzamiento con nonce strategy
-      "script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.dev",
+      `script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self'",
-      "connect-src 'self' https://*.clerk.com https://*.clerk.dev https://*.sentry.io https://*.ingest.sentry.io https://*.upstash.io https://generativelanguage.googleapis.com",
+      "connect-src 'self' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://*.sentry.io https://*.ingest.sentry.io https://*.upstash.io https://generativelanguage.googleapis.com",
       "frame-src 'none'",
       "frame-ancestors 'none'",
       "object-src 'none'",
