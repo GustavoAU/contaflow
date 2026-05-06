@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -87,10 +88,16 @@ export async function voidTransactionAction(
     if (!member) return { success: false, error: "Empresa no encontrada" };
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
-    const transaction = await TransactionService.voidTransaction({
-      ...input,
-      userId, // override client-provided userId with authenticated userId
-    });
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    const transaction = await TransactionService.voidTransaction(
+      { ...input, userId },
+      existing.companyId,
+      ipAddress,
+      userAgent
+    );
 
     revalidatePath(`/company`);
 
