@@ -31,8 +31,14 @@ Sin deuda técnica abierta — saldada en 2026-05-06:
 - R-6 IP/UA en AuditLog de inventario (Operations + Accounting)
 - FINDING-4: IGTF calculado server-side en `createBatch` (ADR-022 D-6)
 
-### Próximas fases (backlog inmediato)
-1. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+### Próximas fases (backlog inmediato — acordado 2026-05-06)
+1. **Items críticos UX/legal** (un sprint): ítem 60 VOID guard server-side + ítems 54/55/56 nómina (RPE, topes IVSS/FAOV, affectsSalaryIntegral)
+2. **Permisos UI para terceros** — gestión de usuarios multi-rol (actualmente solo vía Clerk dashboard)
+3. **Landing page + Binance Pay** — necesarios para cobrar
+4. **Caja chica** — nuevo módulo (petty cash)
+5. **Fase 36D** — IncomeDistribution (distribución de ingresos multidestinatario, ADR-023) — diseño completo listo
+6. **PWA** — Fase 27 diferida, importante para Venezuela
+7. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 
