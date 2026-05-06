@@ -198,6 +198,9 @@ model Company {
   inventorySerials          InventorySerial[]
   // Fase 36C: Distribución de Pagos A/P
   paymentBatches            PaymentBatch[]
+  // Sprint 3: Suscripciones y Facturación
+  subscription              Subscription?
+  referredSubscriptions     Subscription[]          @relation("SubscriptionReferral")
 }
 
 model CompanyMember {
@@ -1998,4 +2001,71 @@ model CompanyCertificate {
   updatedAt    DateTime @updatedAt
 
   @@index([companyId])
+}
+
+// ─── Sprint 3: Suscripciones y Facturación ────────────────────────────────────
+
+enum SubscriptionPlan {
+  TRIAL
+  MONTHLY
+  ANNUAL
+  EARLY_ADOPTER
+}
+
+enum SubscriptionStatus {
+  TRIALING // En período de prueba (14 días)
+  ACTIVE // Suscripción activa y al día
+  PAST_DUE // Pago vencido — acceso suspendido
+  CANCELLED // Cancelada por el usuario
+  EXPIRED // Venció sin renovación
+}
+
+enum BillingPaymentStatus {
+  PENDING // Esperando pago
+  CONFIRMING // En confirmación en blockchain
+  CONFIRMED // Pagado y confirmado
+  FAILED // Falló el pago
+  EXPIRED // Caducó sin pago
+  REFUNDED // Reembolsado
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  companyId           String             @unique
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  plan                SubscriptionPlan
+  status              SubscriptionStatus
+  trialEndsAt         DateTime? // Solo para status TRIALING
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  cancelAtPeriodEnd   Boolean            @default(false)
+  priceUsdCents       Int // Precio en centavos USD (ej. 4900 = $49.00)
+  earlyAdopterSlot    Int? // 1–10, solo para EARLY_ADOPTER
+  referredByCompanyId String?
+  referredBy          Company?           @relation("SubscriptionReferral", fields: [referredByCompanyId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  payments SubscriptionPayment[]
+
+  @@index([status, currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id                   String               @id @default(cuid())
+  subscriptionId       String
+  subscription         Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  nowpaymentsOrderId   String?              @unique
+  nowpaymentsPaymentId String?              @unique
+  amountUsdCents       Int
+  currency             String // "USDT", "BTC", etc.
+  status               BillingPaymentStatus @default(PENDING)
+  paidAt               DateTime?
+  metadata             Json? // Raw webhook payload NOWPayments
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([subscriptionId])
+  @@map("subscription_payments")
 }
