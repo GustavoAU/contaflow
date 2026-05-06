@@ -152,8 +152,8 @@ export async function createCheckout(
     ipnCallbackUrl: `${appUrl}/api/webhooks/nowpayments`,
     orderId: subscriptionPayment.id,
     orderDescription: `ContaFlow — Plan ${plan}`,
-    successUrl: `${appUrl}/dashboard?payment=success`,
-    cancelUrl: `${appUrl}/#precios`,
+    successUrl: `${appUrl}/company/${companyId}?payment=success`,
+    cancelUrl: `${appUrl}/company/${companyId}/upgrade?payment=cancelled`,
   });
 
   // Persistir el ID del invoice de NOWPayments para idempotencia

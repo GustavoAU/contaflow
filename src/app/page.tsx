@@ -313,8 +313,8 @@ export default async function LandingPage() {
                   variant={plan.highlighted ? "default" : "outline"}
                   className="w-full"
                 >
-                  <Link href={isAuthenticated ? "/dashboard" : plan.ctaHref}>
-                    {isAuthenticated ? "Ir al panel" : plan.cta}
+                  <Link href={plan.ctaHref}>
+                    {plan.cta}
                   </Link>
                 </Button>
               </div>
