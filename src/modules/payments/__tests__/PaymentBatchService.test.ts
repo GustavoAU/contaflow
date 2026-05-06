@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({
     paymentBatchLine: {},
     invoice: { findFirst: vi.fn(), update: vi.fn() },
     invoicePayment: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    company: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -79,6 +80,7 @@ function mockTx() {
         paymentBatch: prisma.paymentBatch,
         invoice: prisma.invoice,
         invoicePayment: prisma.invoicePayment,
+        company: prisma.company,
         auditLog: prisma.auditLog,
       })) as never
   );
@@ -149,6 +151,7 @@ describe("PaymentBatchService.createBatch", () => {
     vi.mocked(prisma.invoice.findFirst)
       .mockResolvedValueOnce({ id: INV_A, paymentStatus: "UNPAID" } as never)
       .mockResolvedValueOnce({ id: INV_B, paymentStatus: "PARTIAL" } as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.paymentBatch.create).mockResolvedValue(BASE_BATCH as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 

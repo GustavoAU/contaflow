@@ -870,7 +870,6 @@ model InventoryItem {
   sku           String
   name          String
   description   String?
-  unit          String? // DEPRECADO — reemplazado por InventoryItemUnit (Fase 35F)
   // Denorm de la unidad base — sincronizado por InventoryUomService al crear/actualizar unidad base
   baseUnitName  String // sincronizado con InventoryItemUnit.name donde isBase = true
   baseUnitAbbr  String // sincronizado con InventoryItemUnit.abbreviation
