@@ -41,6 +41,7 @@ const BASE_BANK_TX = {
   matchedPaymentId: null,
   matchedTransactionId: null,
   matchedPaymentRecordId: null,
+  matchedPaymentBatchId: null,
   matchedAt: null,
   matchedBy: null,
   deletedAt: null,
