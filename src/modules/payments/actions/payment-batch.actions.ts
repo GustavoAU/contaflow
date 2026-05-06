@@ -17,6 +17,15 @@ import { PaymentBatchService, PaymentBatchSummary } from "../services/PaymentBat
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
+export type UnpaidPurchaseInvoice = {
+  id: string;
+  invoiceNumber: string;
+  counterpartName: string;
+  pendingAmount: string;
+  totalAmountVes: string;
+  date: string;
+};
+
 async function getAuthContext() {
   const { userId } = await auth();
   if (!userId) return null;
@@ -237,5 +246,55 @@ export async function listPaymentBatchesAction(
     return { success: true, data };
   } catch {
     return { success: false, error: "Error al obtener lotes" };
+  }
+}
+
+// ─── Listar facturas PURCHASE pendientes para selector de lote ────────────────
+export async function listUnpaidPurchaseInvoicesAction(
+  companyId: string
+): Promise<ActionResult<UnpaidPurchaseInvoice[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: "PURCHASE",
+        deletedAt: null,
+        paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        counterpartName: true,
+        pendingAmount: true,
+        totalAmountVes: true,
+        date: true,
+      },
+      orderBy: { date: "desc" },
+      take: 100,
+    });
+
+    return {
+      success: true,
+      data: invoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber ?? "",
+        counterpartName: inv.counterpartName ?? "",
+        pendingAmount: inv.pendingAmount ? inv.pendingAmount.toString() : (inv.totalAmountVes?.toString() ?? "0"),
+        totalAmountVes: inv.totalAmountVes?.toString() ?? "0",
+        date: inv.date.toISOString().slice(0, 10),
+      })),
+    };
+  } catch {
+    return { success: false, error: "Error al obtener facturas pendientes" };
   }
 }

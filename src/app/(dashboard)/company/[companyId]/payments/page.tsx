@@ -44,10 +44,20 @@ export default async function PaymentsPage({ params }: Props) {
           <ChevronLeftIcon className="h-4 w-4" />
           Dashboard
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Medios de Pago</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          PagoMóvil, Zelle, Cashea y otros medios digitales
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Medios de Pago</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              PagoMóvil, Zelle, Cashea y otros medios digitales
+            </p>
+          </div>
+          <Link
+            href={`/company/${companyId}/payments/batches`}
+            className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Distribución A/P (Lotes)
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
