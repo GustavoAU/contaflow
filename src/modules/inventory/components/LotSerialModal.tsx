@@ -91,7 +91,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
   // ── LOT SALIDA state ──
   const [availableLots, setAvailableLots] = useState<AvailableLot[]>([]);
   const [allocations, setAllocations] = useState<LotAllocation[]>([]);
-  const [lotsLoading, setLotsLoading] = useState(false);
+  const [lotsLoading, setLotsLoading] = useState(trackingType === "LOT" && movType !== "ENTRADA");
   const [lotsError, setLotsError] = useState<string | null>(null);
 
   // ── SERIAL ENTRADA state ──
@@ -100,14 +100,13 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
   // ── SERIAL SALIDA state ──
   const [availableSerials, setAvailableSerials] = useState<AvailableSerial[]>([]);
   const [selectedSerialIds, setSelectedSerialIds] = useState<string[]>([]);
-  const [serialsLoading, setSerialsLoading] = useState(false);
+  const [serialsLoading, setSerialsLoading] = useState(trackingType === "SERIAL" && movType !== "ENTRADA");
   const [serialsError, setSerialsError] = useState<string | null>(null);
   const [serialSearch, setSerialSearch] = useState("");
 
   // ── Fetch data on mount ──
   useEffect(() => {
     if (trackingType === "LOT" && movType !== "ENTRADA") {
-      setLotsLoading(true);
       getAvailableLotsAction(companyId, movement.item.id).then((r) => {
         setLotsLoading(false);
         if (r.success) {
@@ -118,7 +117,6 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
         }
       });
     } else if (trackingType === "SERIAL" && movType !== "ENTRADA") {
-      setSerialsLoading(true);
       getAvailableSerialsAction(companyId, movement.item.id).then((r) => {
         setSerialsLoading(false);
         if (r.success) {
