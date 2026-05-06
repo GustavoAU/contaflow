@@ -201,6 +201,38 @@ export class PaymentBatchService {
         }
       }
 
+      // FINDING-4: Calcular IGTF server-side — ignorar valor provisto por el cliente (ADR-022 D-6)
+      const company = await tx.company.findFirst({
+        where: { id: input.companyId },
+        select: { isSpecialContributor: true },
+      });
+      const currency = input.currency ?? "VES";
+      const igtfApplies =
+        currency !== "VES" || (company?.isSpecialContributor === true && currency === "VES");
+      const IGTF_RATE = new Decimal("0.03");
+      const computedTotalIgtf = igtfApplies
+        ? input.totalAmountVes.mul(IGTF_RATE).toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
+        : null;
+
+      // Distribuir IGTF proporcionalmente a las líneas (con ajuste en la última para cuadrar)
+      const linesWithIgtf = input.lines.map((l) => ({ ...l, computedIgtf: null as Decimal | null }));
+      if (computedTotalIgtf) {
+        let accumulated = new Decimal(0);
+        for (let i = 0; i < linesWithIgtf.length; i++) {
+          const isLast = i === linesWithIgtf.length - 1;
+          if (isLast) {
+            linesWithIgtf[i].computedIgtf = computedTotalIgtf.minus(accumulated);
+          } else {
+            const proportional = linesWithIgtf[i].amountVes
+              .div(input.totalAmountVes)
+              .mul(computedTotalIgtf)
+              .toDecimalPlaces(4, Decimal.ROUND_DOWN);
+            linesWithIgtf[i].computedIgtf = proportional;
+            accumulated = accumulated.plus(proportional);
+          }
+        }
+      }
+
       let batch;
       try {
         batch = await tx.paymentBatch.create({
@@ -208,7 +240,7 @@ export class PaymentBatchService {
             companyId: input.companyId,
             method: input.method,
             totalAmountVes: input.totalAmountVes,
-            currency: input.currency ?? "VES",
+            currency,
             totalAmountOriginal: input.totalAmountOriginal ?? null,
             exchangeRateId: input.exchangeRateId ?? null,
             referenceNumber: input.referenceNumber ?? null,
@@ -216,17 +248,17 @@ export class PaymentBatchService {
             destBank: input.destBank ?? null,
             commissionPct: input.commissionPct ?? null,
             commissionAmount: input.commissionAmount ?? null,
-            totalIgtfAmount: input.totalIgtfAmount ?? null,
+            totalIgtfAmount: computedTotalIgtf,
             date: input.date,
             notes: input.notes ?? null,
             createdBy: input.createdBy,
             idempotencyKey: input.idempotencyKey,
             lines: {
-              create: input.lines.map((l) => ({
+              create: linesWithIgtf.map((l) => ({
                 invoiceId: l.invoiceId,
                 amountVes: l.amountVes,
                 amountOriginal: l.amountOriginal ?? null,
-                igtfAmount: l.igtfAmount ?? null,
+                igtfAmount: l.computedIgtf,
                 notes: l.notes ?? null,
               })),
             },

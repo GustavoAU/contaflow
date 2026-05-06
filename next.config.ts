@@ -71,8 +71,10 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   // No mostrar logs de Sentry en builds locales
   silent: process.env.NODE_ENV !== "production",
-  // No inyectar release en dev para evitar warnings
-  disableLogger: true,
+  // Tree-shake el logger de Sentry del bundle (reemplaza disableLogger deprecado)
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+  },
   // Incluir source maps de chunks más anchos para mejor stack trace resolution en Seer
   widenClientFileUpload: true,
   // Tunnel: proxea eventos de Sentry a través de /monitoring para evitar ad-blockers.

@@ -22,7 +22,12 @@ import {
 // Actualiza averageCost + stockQuantity + genera Transaction + JournalEntry atómicamente.
 // Si P2034 (write-write conflict): caller retorna error descriptivo — sin retry automático.
 
-export async function postMovement(input: PostMovementInput, userId: string) {
+export async function postMovement(
+  input: PostMovementInput,
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
+) {
   const { movementId, companyId } = input;
 
   try {
@@ -234,8 +239,8 @@ export async function postMovement(input: PostMovementInput, userId: string) {
             entityName: "InventoryMovement",
             action: "POST",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: {
               status: "DRAFT",
               stockBefore: currentStock.toString(),
@@ -277,7 +282,12 @@ export async function postMovement(input: PostMovementInput, userId: string) {
 // ─── voidPostedMovement: POSTED → VOIDED (Serializable) ──────────────────────
 // Revierte el stock y genera un contra-asiento en la misma transacción atómica.
 
-export async function voidPostedMovement(input: VoidMovementInput, userId: string) {
+export async function voidPostedMovement(
+  input: VoidMovementInput,
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
+) {
   const { movementId, companyId, notes } = input;
 
   try {
@@ -373,8 +383,8 @@ export async function voidPostedMovement(input: VoidMovementInput, userId: strin
             entityName: "InventoryMovement",
             action: "VOID_POSTED",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: { status: "POSTED", stock: currentStock.toString() },
             newValue: {
               status: "VOIDED",

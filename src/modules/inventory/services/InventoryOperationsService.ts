@@ -15,7 +15,9 @@ import { resolveQuantity } from "./InventoryUomService";
 
 export async function createInventoryItem(
   input: CreateInventoryItemInput,
-  userId: string
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
 ) {
   const { companyId, accountId, cogsAccountId, ...rest } = input;
 
@@ -56,8 +58,8 @@ export async function createInventoryItem(
         entityName: "InventoryItem",
         action: "CREATE",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: { sku: created.sku, name: created.name, companyId },
       },
     });
@@ -70,7 +72,9 @@ export async function createInventoryItem(
 
 export async function updateInventoryItem(
   input: UpdateInventoryItemInput,
-  userId: string
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
 ) {
   const { itemId, companyId, accountId, cogsAccountId, ...rest } = input;
 
@@ -112,8 +116,8 @@ export async function updateInventoryItem(
         entityName: "InventoryItem",
         action: "UPDATE",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         oldValue: { sku: existing.sku, name: existing.name },
         newValue: { sku: updated.sku, name: updated.name },
       },
@@ -125,7 +129,13 @@ export async function updateInventoryItem(
   return item;
 }
 
-export async function softDeleteInventoryItem(itemId: string, companyId: string, userId: string) {
+export async function softDeleteInventoryItem(
+  itemId: string,
+  companyId: string,
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
+) {
   // CRITICAL-1: verificar ownership
   await prisma.inventoryItem.findFirstOrThrow({
     where: { id: itemId, companyId, deletedAt: null },
@@ -144,8 +154,8 @@ export async function softDeleteInventoryItem(itemId: string, companyId: string,
         entityName: "InventoryItem",
         action: "SOFT_DELETE",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: { deletedAt: deleted.deletedAt },
       },
     });
@@ -158,7 +168,9 @@ export async function softDeleteInventoryItem(itemId: string, companyId: string,
 
 export async function createDraftMovement(
   input: CreateMovementInput,
-  userId: string
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
 ) {
   const { companyId, itemId, type, quantity, unitCost, unitId, invoiceId, ...rest } = input;
 
@@ -246,8 +258,8 @@ export async function createDraftMovement(
         entityName: "InventoryMovement",
         action: "CREATE_DRAFT",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: {
           itemId,
           type,
@@ -266,7 +278,12 @@ export async function createDraftMovement(
   return movement;
 }
 
-export async function voidDraftMovement(input: VoidMovementInput, userId: string) {
+export async function voidDraftMovement(
+  input: VoidMovementInput,
+  userId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
+) {
   const { movementId, companyId, notes } = input;
 
   // CRITICAL-1: verificar ownership y estado
@@ -293,8 +310,8 @@ export async function voidDraftMovement(input: VoidMovementInput, userId: string
         entityName: "InventoryMovement",
         action: "VOID_DRAFT",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         oldValue: { status: "DRAFT" },
         newValue: { status: "VOIDED", notes: notes ?? null },
       },
