@@ -167,30 +167,43 @@ export async function createCheckout(
 
 // ─── handleIPN ────────────────────────────────────────────────────────────────
 
-export async function handleIPN(ipn: NowPaymentsIPN): Promise<void> {
+// 1 centavo de tolerancia para redondeo en crypto
+const IPN_AMOUNT_TOLERANCE_CENTS = 1;
+
+export async function handleIPN(ipn: NowPaymentsIPN, ipnSourceIp?: string | null): Promise<void> {
   const paymentIdStr = String(ipn.payment_id);
-
-  // Buscar por order_id (= nuestro subscriptionPayment.id) o por nowpaymentsPaymentId
-  const payment = await prisma.subscriptionPayment.findFirst({
-    where: {
-      OR: [
-        { id: String(ipn.order_id) },
-        { nowpaymentsPaymentId: paymentIdStr },
-      ],
-    },
-    include: { subscription: true },
-  });
-
-  if (!payment) throw new Error(`Pago no encontrado: order_id=${ipn.order_id}`);
-
-  // Idempotencia: ignorar si ya está en estado terminal
-  if (payment.status === "CONFIRMED" || payment.status === "REFUNDED") return;
-
-  const newStatus = nowPaymentsStatusToBilling(ipn.payment_status);
   const isFinished = ipn.payment_status === "finished";
+  const newStatus = nowPaymentsStatusToBilling(ipn.payment_status);
   const now = new Date();
 
+  // HIGH-2: idempotencia y activación dentro de una sola tx con RepeatableRead
+  // evita race condition entre IPNs concurrentes del mismo pago
   await prisma.$transaction(async (tx) => {
+    const payment = await tx.subscriptionPayment.findFirst({
+      where: {
+        OR: [
+          { id: String(ipn.order_id) },
+          { nowpaymentsPaymentId: paymentIdStr },
+        ],
+      },
+      include: { subscription: true },
+    });
+
+    if (!payment) throw new Error("Pago no encontrado");
+
+    // Idempotencia: ignorar si ya está en estado terminal (dentro de la tx)
+    if (payment.status === "CONFIRMED" || payment.status === "REFUNDED") return;
+
+    // HIGH-1: validar monto recibido vs monto esperado antes de activar
+    if (isFinished) {
+      const paidCents = Math.round((ipn.actually_paid ?? 0) * 100);
+      if (paidCents < payment.amountUsdCents - IPN_AMOUNT_TOLERANCE_CENTS) {
+        throw new Error(
+          `Pago insuficiente: recibido ${paidCents}¢, esperado ${payment.amountUsdCents}¢`
+        );
+      }
+    }
+
     await tx.subscriptionPayment.update({
       where: { id: payment.id },
       data: {
@@ -227,15 +240,16 @@ export async function handleIPN(ipn: NowPaymentsIPN): Promise<void> {
           entityName: "Subscription",
           action: "BILLING_SUBSCRIPTION_ACTIVATED",
           userId: "system",
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: ipnSourceIp ?? null,
+          userAgent: "NOWPayments-IPN",
           newValue: {
             plan,
             paymentId: payment.id,
             amountUsdCents: payment.amountUsdCents,
+            actuallyPaidCents: Math.round((ipn.actually_paid ?? 0) * 100),
           } as object,
         },
       });
     }
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

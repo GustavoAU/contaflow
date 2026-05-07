@@ -26,23 +26,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ignored: true });
   }
 
+  const ipnSourceIp =
+    request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip");
+
   try {
-    await BillingService.handleIPN(ipn);
+    await BillingService.handleIPN(ipn, ipnSourceIp);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[nowpayments-webhook] Error procesando IPN:", message, {
-      order_id: ipn.order_id,
+    // Loguear detalle server-side; nunca exponer IDs internos en la respuesta HTTP
+    console.error("[nowpayments-webhook] Error procesando IPN:", {
+      message,
       payment_id: ipn.payment_id,
       status: ipn.payment_status,
     });
 
     // Pago no encontrado → 200 (evita reintentos infinitos de NOWPayments)
-    if (message.includes("no encontrado")) {
+    if (message === "Pago no encontrado") {
       return NextResponse.json({ ignored: true });
     }
 
     // Error transitorio → 500 para que NOWPayments reintente
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Error interno procesando pago" }, { status: 500 });
   }
 }

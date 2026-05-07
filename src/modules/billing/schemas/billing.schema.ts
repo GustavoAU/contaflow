@@ -6,7 +6,7 @@ export const CreateCheckoutSchema = z.object({
   plan: z.enum(["MONTHLY", "ANNUAL", "EARLY_ADOPTER"], {
     error: "Plan inválido",
   }),
-  payCurrency: z.string().default("usdterc20"),
+  payCurrency: z.enum(["usdterc20", "usdtbsc", "usdtpoly"]).default("usdterc20"),
 });
 
 export type CreateCheckoutInput = z.infer<typeof CreateCheckoutSchema>;
