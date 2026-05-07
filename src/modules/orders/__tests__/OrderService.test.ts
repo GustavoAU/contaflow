@@ -17,11 +17,20 @@ vi.mock("@/lib/prisma", () => ({
     },
     invoice: { create: vi.fn() },
     invoiceTaxLine: { create: vi.fn() },
+    invoiceLine: { create: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
 
+// Fase 37C: mock InvoiceLineService para aislar OrderService de sus dependencias
+vi.mock("@/modules/invoices/services/InvoiceLineService", () => ({
+  computeLineTotals: vi.fn().mockReturnValue([]),
+  deriveInvoiceTaxLines: vi.fn().mockReturnValue([]),
+  createInvoiceLinesInTx: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { OrderService } from "../services/OrderService";
+import { computeLineTotals, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
 
 const COMPANY_ID = "company-test";
 const USER_ID = "user-test";
@@ -173,6 +182,7 @@ describe("OrderService.convertOrderToInvoice", () => {
         order: prisma.order,
         invoice: prisma.invoice,
         invoiceTaxLine: prisma.invoiceTaxLine,
+        invoiceLine: prisma.invoiceLine,
         auditLog: prisma.auditLog,
       })) as never
     );
@@ -247,6 +257,76 @@ describe("OrderService.convertOrderToInvoice", () => {
       expect.objectContaining({
         data: expect.objectContaining({ type: "PURCHASE" }),
       })
+    );
+  });
+
+  it("Fase 37C: llama createInvoiceLinesInTx con los parámetros correctos", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
+    vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-1" } as never);
+    vi.mocked(prisma.order.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA);
+
+    expect(createInvoiceLinesInTx).toHaveBeenCalledWith(
+      "inv-1",
+      COMPANY_ID,
+      expect.any(Array),
+      INVOICE_DATA.date,
+      USER_ID,
+      "WARN",
+      expect.any(Object)
+    );
+  });
+
+  it("Fase 37C: mapea taxRate de OrderItem a IvaLineRate correctamente", async () => {
+    const orderWithItems = makeOrderDb({
+      status: "APPROVED",
+      items: [
+        {
+          id: "oi-1",
+          description: "Producto GENERAL",
+          unit: "und",
+          quantity: { toString: () => "10" },
+          unitPrice: { toString: () => "100" },
+          taxRate: { toString: () => "16" },
+          totalPrice: { toString: () => "1160" },
+        },
+        {
+          id: "oi-2",
+          description: "Producto EXENTO",
+          unit: "und",
+          quantity: { toString: () => "5" },
+          unitPrice: { toString: () => "50" },
+          taxRate: { toString: () => "0" },
+          totalPrice: { toString: () => "250" },
+        },
+        {
+          id: "oi-3",
+          description: "Producto REDUCIDO",
+          unit: "kg",
+          quantity: { toString: () => "2" },
+          unitPrice: { toString: () => "200" },
+          taxRate: { toString: () => "8" },
+          totalPrice: { toString: () => "432" },
+        },
+      ],
+    });
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(orderWithItems as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-2" } as never);
+    vi.mocked(prisma.order.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA);
+
+    expect(computeLineTotals).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ivaRate: "GENERAL_16", nameSnapshot: "Producto GENERAL", lineNumber: 1 }),
+        expect.objectContaining({ ivaRate: "EXENTO",     nameSnapshot: "Producto EXENTO",  lineNumber: 2 }),
+        expect.objectContaining({ ivaRate: "REDUCIDO_8", nameSnapshot: "Producto REDUCIDO", lineNumber: 3 }),
+      ])
     );
   });
 

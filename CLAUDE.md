@@ -266,10 +266,11 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 35F** ✅ merged (UoM múltiples — ADR-018 — 1628 tests)
 - **Fase 35G** ✅ merged (Lot/Serial Tracking — InventoryLot/Serial/LotAllocation + UI modal ACCOUNTING + ADR-021 — 1673 tests)
 - **Fase 36C** ✅ merged (Distribución de Pagos A/P — PaymentBatch + ADR-022 — 1727 tests)
-- **Fase 37A** ✅ en rama (InvoiceLine + IvaLineRate + CompanySettings + StockControlLevel + InvoiceLineService — ADR-024 D-1/D-2)
-- **Fase 37B** ✅ en rama (Expense + ExpenseCategory + ExpenseService + ExpenseActions + seed onboarding — ADR-024 D-3)
+- **Fase 37A** ✅ merged (InvoiceLine + IvaLineRate + CompanySettings + StockControlLevel + InvoiceLineService — ADR-024 D-1/D-2)
+- **Fase 37B** ✅ merged (Expense + ExpenseCategory + ExpenseService + ExpenseActions + seed onboarding — ADR-024 D-3)
+- **Fase 37C** ✅ en rama (convertOrderToInvoice propaga OrderItems → InvoiceLines — ADR-024 D-1/D-2)
 
-**1804 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-07) | Fase 37C pendiente (Order→Invoice con líneas)
+**1806 tests GREEN** | **0 TS errors** | **CI pending** (2026-05-07)
 
 ### middleware.ts
 
