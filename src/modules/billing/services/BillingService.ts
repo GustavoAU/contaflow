@@ -87,6 +87,7 @@ export async function createCheckout(
       if (count >= EARLY_ADOPTER_MAX_SLOTS) {
         throw new Error("No quedan slots de Early Adopter disponibles.");
       }
+      // ADR-004-EXCEPTION: slot check global — busca números ocupados en TODAS las empresas para asignar un slot único
       const taken = await tx.subscription.findMany({
         where: { plan: "EARLY_ADOPTER" },
         select: { earlyAdopterSlot: true },
@@ -179,6 +180,7 @@ export async function handleIPN(ipn: NowPaymentsIPN, ipnSourceIp?: string | null
   // HIGH-2: idempotencia y activación dentro de una sola tx con RepeatableRead
   // evita race condition entre IPNs concurrentes del mismo pago
   await prisma.$transaction(async (tx) => {
+    // ADR-004-EXCEPTION: lookup por IDs de NOWPayments — companyId desconocido hasta encontrar el pago
     const payment = await tx.subscriptionPayment.findFirst({
       where: {
         OR: [

@@ -172,7 +172,7 @@ export class InvoiceService {
 
     // ─── Path con líneas: validar stock PRE-$transaction ────────────────────
     // La validación ocurre fuera de la $transaction (ADR-024 D-2.3 paso 1)
-    let computed = hasLines ? computeLineTotals(inputWithLines.lines!) : [];
+    const computed = hasLines ? computeLineTotals(inputWithLines.lines!) : [];
     if (hasLines) {
       const settings = await prisma.companySettings.findUnique({
         where: { companyId: input.companyId },
