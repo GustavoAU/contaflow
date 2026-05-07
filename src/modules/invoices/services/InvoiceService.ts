@@ -2,9 +2,15 @@
 import { Decimal } from "decimal.js";
 import prismaDefault, { prisma } from "@/lib/prisma";
 import type { Prisma, TaxLineType } from "@prisma/client";
-import type { CreateInvoiceInput, InvoiceBookFilter } from "../schemas/invoice.schema";
+import type { CreateInvoiceInput, CreateInvoiceWithLinesInput, InvoiceBookFilter } from "../schemas/invoice.schema";
 import * as Sentry from "@sentry/nextjs";
 import { redis } from "@/lib/ratelimit";
+import {
+  computeLineTotals,
+  deriveInvoiceTaxLines,
+  validateStockForLines,
+  createInvoiceLinesInTx,
+} from "./InvoiceLineService";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -154,8 +160,36 @@ export class InvoiceService {
   }
 
   // ─── Crear factura ───────────────────────────────────────────────────────────
-  static async create(input: CreateInvoiceInput, tx?: Prisma.TransactionClient) {
+  // Acepta tanto CreateInvoiceInput (legacy sin líneas) como CreateInvoiceWithLinesInput (con líneas)
+  // ADR-024 D-1.3: dos caminos según input.lines presente o no
+  static async create(
+    input: CreateInvoiceInput | CreateInvoiceWithLinesInput,
+    tx?: Prisma.TransactionClient
+  ) {
     const db = tx ?? prisma;
+    const inputWithLines = input as CreateInvoiceWithLinesInput;
+    const hasLines = !!(inputWithLines.lines && inputWithLines.lines.length > 0);
+
+    // ─── Path con líneas: validar stock PRE-$transaction ────────────────────
+    // La validación ocurre fuera de la $transaction (ADR-024 D-2.3 paso 1)
+    const computed = hasLines ? computeLineTotals(inputWithLines.lines!) : [];
+    if (hasLines) {
+      const settings = await prisma.companySettings.findUnique({
+        where: { companyId: input.companyId },
+        select: { stockControlLevel: true },
+      });
+      const stockLevel = settings?.stockControlLevel ?? "WARN";
+      // Pre-validación usa Read Committed — no requiere $transaction
+      await prisma.$transaction(async (checkTx) => {
+        await validateStockForLines(
+          inputWithLines.lines!,
+          input.companyId,
+          stockLevel,
+          inputWithLines.stockConfirmed ?? false,
+          checkTx
+        );
+      });
+    }
 
     // Fase 16: obtener paymentTermDays para calcular dueDate
     const company = await db.company.findUnique({
@@ -166,11 +200,38 @@ export class InvoiceService {
     const dueDate = new Date(input.date);
     dueDate.setDate(dueDate.getDate() + paymentTermDays);
 
-    // Fase 16: calcular totalAmountVes = suma bases + suma IVA de taxLines
-    const totalAmountVes = input.taxLines.reduce(
-      (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
-      new Decimal(0)
-    );
+    // ─── Calcular totalAmountVes ─────────────────────────────────────────────
+    // Path con líneas: derivar taxLines desde las líneas (D-1.3)
+    // Path legacy: usar input.taxLines directamente
+    let taxLinesToCreate: Array<{
+      taxType: string; base: Decimal; rate: Decimal; amount: Decimal; description?: string | null;
+    }>;
+    let totalAmountVes: Decimal;
+
+    if (hasLines) {
+      const derivedTaxLines = deriveInvoiceTaxLines(computed);
+      taxLinesToCreate = derivedTaxLines.map((tl) => ({
+        taxType: tl.taxType,
+        base: tl.base,
+        rate: tl.rate,
+        amount: tl.amount,
+        description: null,
+      }));
+      // totalAmountVes = SUM(InvoiceLine.total) — R-5: todo Decimal.js
+      totalAmountVes = computed.reduce((acc, c) => acc.plus(c.total), new Decimal(0));
+    } else {
+      taxLinesToCreate = input.taxLines.map((line) => ({
+        taxType: line.taxType,
+        base: new Decimal(line.base),
+        rate: new Decimal(line.rate),
+        amount: new Decimal(line.amount),
+        description: line.description ?? null,
+      }));
+      totalAmountVes = input.taxLines.reduce(
+        (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
+        new Decimal(0)
+      );
+    }
 
     const pendingAmount = InvoiceService.computeInitialPendingAmount(
       totalAmountVes,
@@ -211,17 +272,36 @@ export class InvoiceService {
         pendingAmount,
         paymentStatus: "UNPAID",
         taxLines: {
-          create: input.taxLines.map((line) => ({
-            taxType: line.taxType,
-            base: new Decimal(line.base),
-            rate: new Decimal(line.rate),
-            amount: new Decimal(line.amount),
-            description: line.description ?? null,
+          create: taxLinesToCreate.map((tl) => ({
+            taxType: tl.taxType as TaxLineType,
+            base: tl.base,
+            rate: tl.rate,
+            amount: tl.amount,
+            description: tl.description ?? null,
           })),
         },
       },
       include: { taxLines: true },
     });
+
+    // ─── Path con líneas: crear InvoiceLines + InventoryMovements DRAFT ──────
+    if (hasLines && computed.length > 0) {
+      const settings = await db.companySettings.findUnique({
+        where: { companyId: input.companyId },
+        select: { stockControlLevel: true },
+      });
+      const stockLevel = settings?.stockControlLevel ?? "WARN";
+      await createInvoiceLinesInTx(
+        invoice.id,
+        input.companyId,
+        computed,
+        new Date(input.date),
+        input.createdBy ?? "",
+        stockLevel,
+        db
+      );
+    }
+
     return invoice;
   }
 

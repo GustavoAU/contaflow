@@ -8,6 +8,9 @@ const { mockMemberAccountant } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Map()),
+}));
 vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn().mockResolvedValue({ userId: "user-test" }),
 }));

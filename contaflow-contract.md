@@ -1417,3 +1417,384 @@ invoice.actions.test.ts (NC/ND additions):
 - [ ] createCreditNoteAction implementado en invoice.actions.ts
 - [ ] createDebitNoteAction implementado en invoice.actions.ts
 - [ ] Tests: todos en verde antes de continuar
+
+---
+
+## 36C — PaymentBatch: Distribución de Pagos A/P (ARCH 2026-05-05)
+
+- Estado: DECIDIDO ✅
+- ADR: ADR-022 (`d:\Documents\Projects\React\modern-cg1\.claude\adr\ADR-022-payment-batch.md`)
+
+### Decisiones clave
+
+- `PaymentBatch` (cabecera) + `PaymentBatchLine` (líneas) — modelo maestro-detalle separado del `InvoicePayment` existente
+- Solo A/P: `PaymentBatchLine.invoiceId → Invoice` donde `Invoice.type = PURCHASE`. No existe `PurchaseInvoice` en el schema — el guard `type === 'PURCHASE'` vive exclusivamente en el service layer
+- `applyBatch()` y `voidBatch()` usan `$transaction({ isolationLevel: 'Serializable' })` — previene sobrepago concurrente en `Invoice.pendingAmount`
+- VOID no borra líneas ni `InvoicePayment`; usa `InvoicePayment.deletedAt` (soft-delete ya existente)
+- `idempotencyKey String @unique` en `PaymentBatch` — previene doble-submit. `InvoicePayment.idempotencyKey = "batch:{batchId}:line:{lineId}"` — previene doble-apply en reintentos
+- IGTF en cabecera (`totalIgtfAmount`) + prorrateado en líneas (`PaymentBatchLine.igtfAmount`) — simétrico con `InvoicePayment.igtfAmount`
+
+---
+
+### Schema Prisma — nuevos modelos (listo para pegar en `prisma/schema.prisma`)
+
+```prisma
+// ─── Fase 36C: PaymentBatch — Distribución de Pagos A/P (ADR-022) ────────────
+
+enum PaymentBatchStatus {
+  DRAFT   // editable — sin InvoicePayments generados aún
+  APPLIED // inmutable — InvoicePayments creados en $transaction Serializable
+  VOID    // anulado — InvoicePayments marcados con deletedAt, facturas revertidas
+}
+
+// Cabecera del lote de pago. Representa una transferencia bancaria única que
+// cancela múltiples facturas de proveedor (A/P) simultáneamente.
+// Solo A/P — guard invoice.type === 'PURCHASE' en PaymentBatchService (ADR-022 D-3).
+// onDelete: Restrict en todas las FKs contables (ADR-003).
+// Serializable obligatorio en applyBatch() y voidBatch() (ADR-022 D-4).
+model PaymentBatch {
+  id                  String             @id @default(cuid())
+  companyId           String
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status              PaymentBatchStatus @default(DRAFT)
+  method              PaymentMethod
+  totalAmountVes      Decimal            @db.Decimal(19, 4) // suma de lines.amountVes — validada en service
+  currency            String             @default("VES")
+  totalAmountOriginal Decimal?           @db.Decimal(19, 4) // monto total en moneda original si currency != VES
+  exchangeRateId      String?
+  exchangeRate        ExchangeRate?      @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  referenceNumber     String?            // referencia bancaria de la transferencia
+  originBank          String?
+  destBank            String?
+  commissionPct       Decimal?           @db.Decimal(5, 2)
+  commissionAmount    Decimal?           @db.Decimal(19, 4)
+  totalIgtfAmount     Decimal?           @db.Decimal(19, 4) // IGTF total del batch — prorrateado en líneas
+  date                DateTime           @db.Date
+  notes               String?
+  // Auditoría de void
+  voidReason          String?            // obligatorio en voidBatchAction cuando status → VOID
+  voidedAt            DateTime?
+  voidedBy            String?            // Clerk userId
+  // Conciliación bancaria — enlace opcional con BankTransaction (Fase 17)
+  bankTransactionId   String?
+  bankTransaction     BankTransaction?   @relation(fields: [bankTransactionId], references: [id], onDelete: Restrict)
+  // Soft delete
+  deletedAt           DateTime?
+  // Auditoría de creación
+  createdAt           DateTime           @default(now())
+  createdBy           String             // Clerk userId
+  // Idempotencia — previene doble-submit desde UI (ADR-022 D-10)
+  idempotencyKey      String             @unique
+
+  lines PaymentBatchLine[]
+
+  // En Company: agregar `paymentBatches PaymentBatch[]`
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+  @@index([bankTransactionId])
+}
+
+// Línea del lote — una factura de proveedor por línea.
+// @@unique([paymentBatchId, invoiceId]): una factura solo puede aparecer una vez por batch (ADR-022 D-8).
+// El service valida: invoice.type === 'PURCHASE' y invoice.companyId === batch.companyId (ADR-022 D-3).
+// Al aplicar el batch, se crea un InvoicePayment por línea con
+// idempotencyKey = "batch:{batchId}:line:{id}" (ADR-022 D-2).
+model PaymentBatchLine {
+  id             String       @id @default(cuid())
+  paymentBatchId String
+  paymentBatch   PaymentBatch @relation(fields: [paymentBatchId], references: [id], onDelete: Restrict)
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amountVes      Decimal      @db.Decimal(19, 4) // monto aplicado a esta factura en VES
+  amountOriginal Decimal?     @db.Decimal(19, 4) // monto en moneda original si currency != VES
+  igtfAmount     Decimal?     @db.Decimal(19, 4) // porción de IGTF asignada a esta línea
+  notes          String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([paymentBatchId, invoiceId])
+  @@index([paymentBatchId])
+  @@index([invoiceId])
+}
+```
+
+**Campos a agregar en modelos existentes:**
+
+```prisma
+// En model Company — agregar en el bloque Fase 36C:
+paymentBatches PaymentBatch[]
+
+// En model BankTransaction — agregar relación inversa:
+paymentBatch PaymentBatch?
+
+// En model Invoice — agregar relación inversa:
+paymentBatchLines PaymentBatchLine[]
+```
+
+**Nombre de migración sugerido:** `20260505_fase36c_payment_batch`
+
+**Análisis de riesgo de migración:**
+
+| Factor | Evaluación |
+|---|---|
+| Filas afectadas | 0 — tablas nuevas, sin backfill |
+| Rollback | `DROP TABLE "PaymentBatchLine"; DROP TABLE "PaymentBatch"; DROP TYPE "PaymentBatchStatus"` — seguro si no hay datos |
+| Bloqueo | `CREATE TABLE` no bloquea tablas existentes |
+| FKs nuevas en tablas existentes | Solo relaciones inversas en `Company`, `Invoice`, `BankTransaction` — no requieren `ALTER TABLE` en las tablas existentes, Prisma las maneja como relaciones virtuales |
+
+---
+
+### Contratos de función
+
+```typescript
+// Archivo owner: src/modules/payables/services/PaymentBatchService.ts
+
+/**
+ * Crea un PaymentBatch en estado DRAFT con sus líneas iniciales.
+ *
+ * Precondiciones:
+ *   - companyId pertenece al usuario autenticado (companyMember.role !== VIEWER)
+ *   - lines.length >= 1
+ *   - SUM(lines.amountVes) == totalAmountVes (Decimal, tolerancia 0) — validateSumInvariant()
+ *   - SUM(lines.igtfAmount) == totalIgtfAmount si totalIgtfAmount != null — validateSumInvariant()
+ *   - idempotencyKey único (P2002 → "El lote ya fue creado — refresque la página")
+ *
+ * Proceso (Read Committed — DRAFT no tiene invariante contable):
+ *   1. Validar sum invariant
+ *   2. Crear PaymentBatch + PaymentBatchLine[] en la misma $transaction
+ *   3. AuditLog
+ *
+ * Postcondiciones:
+ *   - PaymentBatch creado con status = DRAFT
+ *   - PaymentBatchLine[] creadas
+ */
+async function createBatch(
+  companyId: string,
+  data: CreatePaymentBatchData,
+  createdBy: string
+): Promise<PaymentBatch>
+
+/**
+ * Aplica un PaymentBatch: genera un InvoicePayment por línea y actualiza facturas.
+ *
+ * Precondiciones:
+ *   - batch.companyId === companyId (ADR-004)
+ *   - batch.status === DRAFT
+ *   - Para cada línea: invoice.type === 'PURCHASE', invoice.companyId === companyId,
+ *     invoice.deletedAt IS NULL, invoice.paymentStatus !== VOIDED,
+ *     line.amountVes <= invoice.pendingAmount (Decimal, tolerancia 0)
+ *   - FiscalYearClose guard: el año de batch.date no está cerrado
+ *   - companyMember.role !== VIEWER (ADR-006 D-1)
+ *
+ * Proceso (dentro de $transaction({ isolationLevel: 'Serializable' })):
+ *   1. Re-leer batch y líneas dentro de la tx
+ *   2. Para cada línea: validar factura (type, companyId, deletedAt, paymentStatus, pendingAmount)
+ *   3. Crear InvoicePayment con idempotencyKey = "batch:{batchId}:line:{lineId}"
+ *      copiando: method, currency, exchangeRateId, referenceNumber, originBank, destBank, date
+ *   4. Actualizar Invoice.pendingAmount -= line.amountVes para cada factura
+ *   5. Recalcular Invoice.paymentStatus (PARTIAL o PAID) para cada factura
+ *   6. Actualizar PaymentBatch.status = APPLIED
+ *   7. AuditLog con ipAddress + userAgent (R-6)
+ *
+ * Errores de negocio:
+ *   - "El lote ya fue aplicado"
+ *   - "La factura {invoiceNumber} no es una factura de proveedor"
+ *   - "La factura {invoiceNumber} está anulada"
+ *   - "El monto de la línea supera el saldo pendiente de la factura {invoiceNumber}"
+ *   - "El ejercicio económico {year} está cerrado"
+ *
+ * Concurrencia:
+ *   - P2034 expuesto al frontend como mensaje de reintento (patrón ADR-011/ADR-021)
+ */
+async function applyBatch(
+  companyId: string,
+  batchId: string,
+  appliedBy: string,
+  ipAddress: string,
+  userAgent: string
+): Promise<PaymentBatch>
+
+/**
+ * Anula un PaymentBatch APPLIED: soft-deletes InvoicePayments y revierte facturas.
+ *
+ * Precondiciones:
+ *   - batch.companyId === companyId (ADR-004)
+ *   - batch.status === APPLIED
+ *   - voidReason.length >= 5 (mínimo descriptivo)
+ *   - FiscalYearClose guard: el año de batch.date no está cerrado
+ *   - companyMember.role IN [OWNER, ADMIN, ACCOUNTANT] (ADR-006 D-1)
+ *
+ * Proceso (dentro de $transaction({ isolationLevel: 'Serializable' })):
+ *   1. Re-leer batch y líneas dentro de la tx
+ *   2. Para cada línea: soft-delete del InvoicePayment (deletedAt = now, deletedBy)
+ *   3. Revertir Invoice.pendingAmount += line.amountVes para cada factura
+ *   4. Recalcular Invoice.paymentStatus para cada factura
+ *   5. Actualizar PaymentBatch: status = VOID, voidReason, voidedAt, voidedBy
+ *   6. AuditLog con ipAddress + userAgent (R-6)
+ *
+ * Errores de negocio:
+ *   - "Solo se pueden anular lotes aplicados"
+ *   - "El ejercicio económico {year} está cerrado"
+ *
+ * Concurrencia:
+ *   - P2034 → reintento (patrón establecido)
+ */
+async function voidBatch(
+  companyId: string,
+  batchId: string,
+  voidReason: string,
+  voidedBy: string,
+  ipAddress: string,
+  userAgent: string
+): Promise<PaymentBatch>
+
+/**
+ * Retorna los PaymentBatch de una empresa con paginación.
+ * Solo incluye batches con deletedAt IS NULL.
+ * companyId guard obligatorio (ADR-004).
+ */
+async function listBatches(
+  companyId: string,
+  filters?: { status?: PaymentBatchStatus; dateFrom?: Date; dateTo?: Date }
+): Promise<PaymentBatch[]>
+
+/**
+ * Valida que SUM(lines.amountVes) == totalAmountVes y
+ * SUM(lines.igtfAmount) == totalIgtfAmount (si aplica).
+ * Pure function — no accede a DB.
+ */
+function validateSumInvariant(
+  lines: { amountVes: Decimal; igtfAmount?: Decimal | null }[],
+  totalAmountVes: Decimal,
+  totalIgtfAmount?: Decimal | null
+): void // lanza BusinessError si el invariante falla
+```
+
+---
+
+### Zod input schema (contratos para actions)
+
+```typescript
+// Archivo owner: src/modules/payables/schemas/paymentBatch.schema.ts
+
+export const PaymentBatchLineSchema = z.object({
+  invoiceId:     z.string().cuid(),
+  amountVes:     z.string().regex(/^\d+(\.\d{1,4})?$/)
+                   .refine(v => new Decimal(v).greaterThan(0), { error: "Monto debe ser positivo" })
+                   .refine(v => new Decimal(v).lessThanOrEqualTo(new Decimal('999999999999999')), { error: "Monto excede el máximo permitido" }), // ADR-006 D-2
+  amountOriginal: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  igtfAmount:    z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  notes:         z.string().max(500).optional(),
+});
+
+export const CreatePaymentBatchSchema = z.object({
+  method:              z.nativeEnum(PaymentMethod),
+  totalAmountVes:      z.string().regex(/^\d+(\.\d{1,4})?$/)
+                         .refine(v => new Decimal(v).greaterThan(0))
+                         .refine(v => new Decimal(v).lessThanOrEqualTo(new Decimal('999999999999999'))), // ADR-006 D-2
+  currency:            z.string().default('VES'),
+  totalAmountOriginal: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  exchangeRateId:      z.string().cuid().optional(),
+  referenceNumber:     z.string().max(100).optional(),
+  originBank:          z.string().max(100).optional(),
+  destBank:            z.string().max(100).optional(),
+  commissionPct:       z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  commissionAmount:    z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  totalIgtfAmount:     z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  date:                z.string().date(),
+  notes:               z.string().max(1000).optional(),
+  idempotencyKey:      z.string().uuid(),
+  lines:               z.array(PaymentBatchLineSchema).min(1).max(100), // max 100 líneas por batch
+});
+
+export const VoidPaymentBatchSchema = z.object({
+  batchId:    z.string().cuid(),
+  voidReason: z.string().min(5, { error: "El motivo de anulación debe tener al menos 5 caracteres" }).max(500),
+});
+```
+
+**`lines.max(100)`**: cada línea genera 1 `SELECT FOR UPDATE` + 1 `UPDATE` en `Invoice` + 1 `CREATE` en `InvoicePayment` dentro del mismo `$transaction` Serializable. Con timeout de 30s de Neon y ~1000 ops/s, 100 líneas es el techo práctico seguro para un batch A/P.
+
+---
+
+### Tests requeridos
+
+```
+PaymentBatchService.test.ts:
+  createBatch — crea batch DRAFT con líneas, idempotencyKey único
+  createBatch — rechaza si sum invariant falla
+  createBatch — rechaza si lines.length === 0
+  applyBatch — aplica batch, crea InvoicePayments, actualiza pendingAmount en cada factura
+  applyBatch — actualiza paymentStatus a PAID cuando pendingAmount === 0
+  applyBatch — actualiza paymentStatus a PARTIAL cuando pendingAmount > 0
+  applyBatch — rechaza si batch ya está APPLIED
+  applyBatch — rechaza si invoice.type !== PURCHASE (guard A/P)
+  applyBatch — rechaza si invoice.companyId !== batch.companyId (ADR-004)
+  applyBatch — rechaza si line.amountVes > invoice.pendingAmount
+  applyBatch — rechaza si invoice está anulada
+  applyBatch — rechaza si año cerrado (FiscalYearClose guard)
+  applyBatch — InvoicePayment.idempotencyKey = "batch:{batchId}:line:{lineId}"
+  applyBatch — dos apply concurrentes: P2034 en el segundo (Serializable)
+  voidBatch — void marca InvoicePayments con deletedAt, revierte pendingAmount
+  voidBatch — recalcula paymentStatus post-reversa
+  voidBatch — rechaza si batch no está APPLIED
+  voidBatch — rechaza si año cerrado
+  voidBatch — requiere voidReason.length >= 5
+  validateSumInvariant — lanza error si SUM(lines) != total
+  validateSumInvariant — pasa si tolerancia exacta
+
+paymentBatch.actions.test.ts:
+  createBatchAction — auth, companyMember.role !== VIEWER, rate limit (limiters.fiscal)
+  applyBatchAction — auth, role guard (ACCOUNTANT+), rate limit, AuditLog con ipAddress/userAgent
+  voidBatchAction — auth, role guard (ACCOUNTANT+), rate limit, AuditLog con ipAddress/userAgent
+  listBatchesAction — auth, companyId guard, solo deletedAt IS NULL
+```
+
+---
+
+### Rutas nuevas
+
+```
+/company/[companyId]/payables/batches          → lista de batches + botón "Nuevo Lote de Pago"
+/company/[companyId]/payables/batches/new      → formulario crear batch (seleccionar facturas pendientes)
+/company/[companyId]/payables/batches/[id]     → detalle del batch + botón Aplicar / Anular
+```
+
+---
+
+### Checklist arch-agent (Fase 36C)
+
+- [x] ADR-022 creado y referenciado
+- [x] Hallazgo crítico documentado: no existe `PurchaseInvoice` — FK a `Invoice` con guard en service layer
+- [x] `onDelete: Restrict` en todas las relaciones contables (ADR-003)
+- [x] `onDelete: Cascade` AUSENTE
+- [x] `totalAmountVes`, `amountVes`, `igtfAmount`, `commissionAmount`, `totalAmountOriginal` usan `Decimal @db.Decimal(19,4)` (ADR-002)
+- [x] `commissionPct` usa `Decimal @db.Decimal(5,2)` (ADR-002)
+- [x] `deletedAt DateTime?` en `PaymentBatch` — soft delete para entidad fiscal
+- [x] `idempotencyKey String @unique` en `PaymentBatch` — previene doble-submit (ADR-022 D-10)
+- [x] `@@unique([paymentBatchId, invoiceId])` en `PaymentBatchLine` — una factura por batch (ADR-022 D-8)
+- [x] `@@index([companyId])`, `@@index([companyId, date])`, `@@index([companyId, status])` en `PaymentBatch`
+- [x] `@@index([paymentBatchId])`, `@@index([invoiceId])` en `PaymentBatchLine`
+- [x] `@@index([bankTransactionId])` en `PaymentBatch` — para conciliación bancaria
+- [x] Serializable en `applyBatch()` y `voidBatch()` (ADR-022 D-4)
+- [x] Read Committed suficiente para `createBatch()` y `listBatches()`
+- [x] `AuditLog` dentro del mismo `$transaction` — con `ipAddress` + `userAgent` (R-6)
+- [x] `AuditLog` es append-only — no `update/delete` (ADR-006 D-4)
+- [x] `applyBatchAction` y `voidBatchAction` verifican `companyMember.role` — OWNER|ADMIN|ACCOUNTANT (ADR-006 D-1)
+- [x] `.max()` ceiling en campos de monto en Zod schema (ADR-006 D-2): `Decimal('999999999999999')`
+- [x] No se acepta tasa impositiva del cliente (ADR-006 D-3) — no aplica en este módulo
+- [x] Rate limiting `limiters.fiscal` en `applyBatchAction` y `voidBatchAction` (ADR-006 D-5)
+- [x] `companyId` en todo `findMany`/`findFirst` de `PaymentBatch` y `PaymentBatchLine` (ADR-004)
+- [x] Guard `invoice.type === 'PURCHASE'` y `invoice.companyId === batch.companyId` en service
+- [x] Guard `FiscalYearClose` en `applyBatch()` y `voidBatch()`
+- [x] P2034 capturado y expuesto como "operación en conflicto — reintente" (patrón ADR-011/ADR-021)
+- [x] `lines.max(100)` en Zod — límite de seguridad para timeout Neon 30s
+- [x] InvoicePayment idempotencia: `idempotencyKey = "batch:{batchId}:line:{lineId}"`
+- [x] Análisis de riesgo de migración documentado
+- [ ] Migración `20260505_fase36c_payment_batch` ejecutada y verificada
+- [ ] `PaymentBatch` y `PaymentBatchLine` agregados a `prisma/schema.prisma`
+- [ ] Relaciones inversas agregadas en `Company`, `Invoice`, `BankTransaction`
+- [ ] `PaymentBatchService` implementado con todos los métodos del contrato
+- [ ] `paymentBatch.schema.ts` implementado
+- [ ] Actions `createBatchAction`, `applyBatchAction`, `voidBatchAction`, `listBatchesAction` implementadas
+- [ ] Tests: todos en verde antes de continuar

@@ -9,21 +9,37 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Fase 36C** ⏳ — Distribución de Pagos / batch multi-destinatario
+Ninguna — Fase 37B completada en rama, pendiente merge ✅
 
 ### Completadas recientes
-- **Fase 35F** ✅ merged — UoM múltiples (ADR-018)
-- **Fase 35G** ✅ merged — Lot/Serial Tracking (ADR-021)
-  - Sub-fase A: schema + migración (`InventoryLot`, `InventorySerial`, `InventoryLotAllocation`)
-  - Sub-fase B: servicios + actions (`postMovement` con tracking, query actions FEFO/serials)
-  - Sub-fase C: UI modal en `PendingMovementsList` para ACCOUNTING (4 vistas: LOT/SERIAL × ENTRADA/SALIDA)
+- **Fase 37A** ✅ en rama `feat/fase-37a-b-invoice-lines-expenses` — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2, 1804 tests)
+  - Schema: `InvoiceLine`, `CompanySettings` + enums `IvaLineRate`, `StockControlLevel` — 3 migraciones aplicadas
+  - `InvoiceLineService`: `computeLineTotals` / `deriveInvoiceTaxLines` / `validateStockForLines` / `createInvoiceLinesInTx`
+  - `InvoiceService.create()` dual-path: con líneas (deriva taxLines) o legacy (taxLines directos) — backward compatible
+  - SelectForUpdate obligatorio en path CONFIRM; InventoryMovement DRAFT atómico en misma tx
+- **Fase 37B** ✅ en rama — Módulo Gastos (Expense + ExpenseCategory + seed onboarding — ADR-024 D-3)
+  - Schema: `Expense`, `ExpenseCategory` + enum `ExpenseStatus`
+  - `ExpenseService`: `createExpense` / `confirmExpense` / `voidExpense` / `listExpenses` / `seedExpenseCategories`
+  - 9 categorías semilla por empresa (seed en `CompanyService.createCompany`)
+  - Server Actions con auth + companyMember guard + rate limiting (limiters.fiscal)
+- **Sprint-3** ✅ en rama — NOWPayments + Landing Page + UI checkout (Bloque A/B/C/D)
+- **Fase 36C** ✅ merged — Distribución de Pagos A/P (PaymentBatch + ADR-022)
 
 ### Tests / CI
-**1673 tests GREEN | 0 TS errors | CI passing** (2026-05-05)
+**1804 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
+
+### Deuda técnica
+- Security audit Sprint-3 (NOWPayments webhook IPN) — en revisión (security-agent, 2026-05-07)
+- **Fase 37C** desbloqueada: `convertOrderToInvoice()` debe propagar OrderItems → InvoiceLines (prerequisito 37A ✅)
 
 ### Próximas fases (backlog inmediato)
-1. 36C — Distribución de Pagos / batch multi-destinatario
-2. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+1. **Merge rama 37A/37B/Sprint-3** → main (previa security audit)
+2. **Fase 37C** — Order→Invoice con InvoiceLines (convertOrderToInvoice propagación)
+3. **Items críticos UX/legal**: ítem 60 VOID guard server-side + ítems 54/55/56 nómina (RPE, topes IVSS/FAOV, affectsSalaryIntegral)
+4. **Permisos UI para terceros** — gestión de usuarios multi-rol
+5. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
+6. **PWA** — Fase 27 diferida, importante para Venezuela
+7. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 
@@ -39,6 +55,30 @@ Skills sugeridas: [B1, C2, ...]
 
 ## ——— DECISIONES RECIENTES (últimas 3 fases) ———
 _Suficiente para entender dependencias. Leer si la tarea toca alguna de estas fases._
+
+### Fase 37A/37B — InvoiceLine + Módulo Gastos (en rama 2026-05-07)
+- `InvoiceLine`: capa comercial coexistiendo con `InvoiceTaxLine` (contrato fiscal SENIAT intacto)
+- `IvaLineRate`: EXENTO/REDUCIDO_8/GENERAL_16/ADICIONAL_31 — ADICIONAL_31 genera 2 InvoiceTaxLine (IVA_GENERAL 16% + IVA_ADICIONAL 15%) con `luxuryGroupId` compartido
+- `StockControlLevel`: WARN (default) / CONFIRM (flag cliente requerido) / BLOCK (rechaza si insuficiente)
+- `CompanySettings @unique(companyId)` — tabla separada de Company para settings operativos
+- `Expense` + `ExpenseCategory` (9 categorías seed por empresa, extensible por usuario)
+- Idempotency: `idempotencyKey @unique` en Expense; SHA256(invoiceId|lineNumber|itemId) en InvoiceLine
+- `seedExpenseCategories` llamado en `CompanyService.createCompany` dentro de la misma `$transaction`
+
+### Sprint-3 — NOWPayments + Landing Page (en rama 2026-05-07)
+- Schema: `Subscription`, `SubscriptionPayment` + enums NOWPayments
+- `BillingService` + webhook IPN handler + 18 tests
+- Landing page pública + VideoModal + SubscribeButton + upgrade page + PaymentSuccessToast
+- Security audit pendiente (NOWPayments IPN signature validation)
+
+### Fase 36C — Distribución de Pagos A/P (merged 2026-05-06)
+- `PaymentBatch` + `PaymentBatchLine` + `PaymentBatchAudit` — ADR-022
+- Estados: DRAFT → APPLIED → VOID (soft-delete, no hard delete)
+- `applyBatch` / `voidBatch` con Serializable + P2034 retry (3 intentos)
+- Idempotency key en `createBatch` — P2002 capturado con mensaje de negocio
+- Guard A/P: solo facturas `type === PURCHASE` aceptadas en líneas
+- Sum invariant: `sum(lines.amountVes) === batch.totalAmountVes` validado en applyBatch
+- IP/UA capturado en AuditLog (R-6); rate limit `limiters.fiscal` en todas las actions
 
 ### Fase 35G — Lot/Serial Tracking (merged 2026-05-05)
 - Schema: `InventoryLot`, `InventorySerial`, `InventoryLotAllocation` — ADR-021

@@ -186,14 +186,20 @@ export class TransactionService {
   /**
    * Anula un asiento contabilizado creando un asiento espejo con montos invertidos.
    * El asiento original queda con status VOIDED — nunca se borra.
+   * companyId es obligatorio para garantizar aislamiento multi-tenant (ADR-004).
    */
-  static async voidTransaction(input: VoidTransactionInput) {
+  static async voidTransaction(
+    input: VoidTransactionInput,
+    companyId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ) {
     // 1. Validar con Zod
     const validated = VoidTransactionSchema.parse(input);
 
-    // 2. Buscar la transaccion original
-    const original = await prisma.transaction.findUnique({
-      where: { id: validated.transactionId },
+    // 2. Buscar la transaccion original — companyId obligatorio para evitar cross-tenant (ADR-004)
+    const original = await prisma.transaction.findFirst({
+      where: { id: validated.transactionId, companyId },
       include: { entries: true },
     });
 
@@ -288,16 +294,16 @@ export class TransactionService {
         },
       });
 
-      // 6. AuditLog dentro del mismo $transaction
+      // 6. AuditLog dentro del mismo $transaction (R-6: IP/UA obligatorio)
       await tx.auditLog.create({
         data: {
-          companyId: original.companyId,
+          companyId,
           entityId: original.id,
           entityName: "Transaction",
           action: "VOID",
           userId: validated.userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: original as object,
           newValue: voidTx as object,
         },

@@ -28,9 +28,11 @@ import { PendingTasksWidget } from "@/modules/dashboard/components/PendingTasksW
 import { getVacationAlertsAction } from "@/modules/payroll/actions/nom-d.actions";
 import { getP2034CountersAction } from "@/modules/analytics/actions/p2034-counters.actions";
 import { P2034Widget } from "@/modules/analytics/components/P2034Widget";
+import { PaymentSuccessToast } from "@/components/billing/PaymentSuccessToast";
 
 type Props = {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ payment?: string }>;
 };
 
 const MONTH_NAMES = [
@@ -180,8 +182,9 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-export default async function CompanyDashboardPage({ params }: Props) {
+export default async function CompanyDashboardPage({ params, searchParams }: Props) {
   const { companyId } = await params;
+  const { payment } = await searchParams;
 
   const companies = await getUserCompaniesAction();
   const company = companies.find((c) => c.id === companyId);
@@ -213,6 +216,8 @@ export default async function CompanyDashboardPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
+      <PaymentSuccessToast payment={payment} />
+
       {/* ─── Encabezado ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

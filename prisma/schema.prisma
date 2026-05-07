@@ -92,6 +92,15 @@ enum TaxLineType {
   EXENTO
 }
 
+// Alícuota aplicable a una línea de factura (InvoiceLine) — distinta de TaxLineType
+// que es el agregado fiscal SENIAT. Ver ADR-024 D-1.3 para la tabla de mapeo.
+enum IvaLineRate {
+  EXENTO // 0% — sin IVA
+  REDUCIDO_8 // 8% — alícuota reducida (Providencia 0057)
+  GENERAL_16 // 16% — alícuota general estándar
+  ADICIONAL_31 // 31% — 16% general + 15% adicional lujo (Art. 61 LIVA)
+}
+
 enum Currency {
   VES
   USD
@@ -196,6 +205,18 @@ model Company {
   // Fase 35G: Lot/Serial Tracking
   inventoryLots             InventoryLot[]
   inventorySerials          InventorySerial[]
+  // Fase 36C: Distribución de Pagos A/P
+  paymentBatches            PaymentBatch[]
+  // Sprint 3: Suscripciones y Facturación
+  subscription              Subscription?
+  referredSubscriptions     Subscription[]          @relation("SubscriptionReferral")
+  // Fase 37A: configuración operacional de empresa
+  settings                  CompanySettings?
+  // Fase 37A: líneas de factura (para multi-tenant IDOR check)
+  invoiceLines              InvoiceLine[]
+  // Fase 37B: Módulo Gastos
+  expenses                  Expense[]
+  expenseCategories         ExpenseCategory[]
 }
 
 model CompanyMember {
@@ -251,6 +272,9 @@ model Account {
   payrollConfigsAsBenefitsPayable PayrollConfig[]       @relation("PayrollBenefitsPayable")
   payrollConfigsAsVacationPayable PayrollConfig[]       @relation("PayrollVacationPayable")
   payrollConfigsAsProfitPayable   PayrollConfig[]       @relation("PayrollProfitPayable")
+  // Fase 37B: Módulo Gastos
+  expensesAsAccount               Expense[]             @relation("ExpenseAccount")
+  expenseCategoryDefaults         ExpenseCategory[]     @relation("ExpenseCategoryAccount")
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -312,6 +336,8 @@ model Transaction {
   vacationRecord                 VacationRecord?
   profitSharingRecord            ProfitSharingRecord?
   termination                    Termination?
+  // Fase 37B: Módulo Gastos
+  expense                        Expense?
 
   @@unique([companyId, number])
 }
@@ -464,6 +490,10 @@ model Invoice {
   customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
   // Fase 35H: PA-121 Outbox
   seniatSubmission    SeniatSubmission?
+  // Fase 36C: Distribución de Pagos A/P
+  paymentBatchLines   PaymentBatchLine[]
+  // Fase 37A: Líneas de detalle de factura
+  lines               InvoiceLine[]
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -520,6 +550,7 @@ model ExchangeRate {
 
   paymentRecords  PaymentRecord[]
   invoicePayments InvoicePayment[]
+  paymentBatches  PaymentBatch[]
 
   @@unique([companyId, currency, date])
   @@index([companyId, currency, date])
@@ -704,6 +735,10 @@ model BankTransaction {
 
   createdAt DateTime @default(now())
 
+  // Fase 36C: Match tipo 4 — PaymentBatch (distribución A/P)
+  matchedPaymentBatchId String?       @unique
+  matchedPaymentBatch   PaymentBatch? @relation(fields: [matchedPaymentBatchId], references: [id], onDelete: Restrict)
+
   @@index([companyId])
   @@index([statementId])
   @@index([matchedPaymentId])
@@ -854,6 +889,14 @@ enum MovementStatus {
   VOIDED // anulado con contrapartida — NUNCA DELETE
 }
 
+// Nivel de control de stock al facturar — configurado por empresa en CompanySettings
+// ADR-024 D-2.1
+enum StockControlLevel {
+  WARN // permite facturar con stock negativo — muestra advertencia en UI
+  CONFIRM // requiere confirmación explícita si stock < cantidad solicitada
+  BLOCK // bloquea emisión si stock < cantidad en alguna línea
+}
+
 model InventoryItem {
   id            String              @id @default(cuid())
   companyId     String
@@ -861,7 +904,6 @@ model InventoryItem {
   sku           String
   name          String
   description   String?
-  unit          String? // DEPRECADO — reemplazado por InventoryItemUnit (Fase 35F)
   // Denorm de la unidad base — sincronizado por InventoryUomService al crear/actualizar unidad base
   baseUnitName  String // sincronizado con InventoryItemUnit.name donde isBase = true
   baseUnitAbbr  String // sincronizado con InventoryItemUnit.abbreviation
@@ -884,6 +926,8 @@ model InventoryItem {
   units         InventoryItemUnit[] @relation("ItemUnits")
   lots          InventoryLot[]
   serials       InventorySerial[]
+  // Fase 37A: líneas de factura que referenciaron este ítem
+  invoiceLines  InvoiceLine[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -921,6 +965,8 @@ model InventoryMovement {
   // Fase 35G: Lot/Serial Tracking — ADR-021 D-4
   lotLines           InventoryMovementLot[]
   serialLines        InventoryMovementSerial[]
+  // Fase 37A: línea de factura que originó este movimiento
+  invoiceLine        InvoiceLine?
 
   @@index([companyId])
   @@index([companyId, itemId])
@@ -952,8 +998,10 @@ model InventoryItemUnit {
   updatedAt        DateTime      @updatedAt
   createdBy        String
 
-  movements   InventoryMovement[]
-  itemsAsBase InventoryItem[]     @relation("ItemBaseUnit")
+  movements    InventoryMovement[]
+  itemsAsBase  InventoryItem[]     @relation("ItemBaseUnit")
+  // Fase 37A: líneas de factura que usan esta unidad de venta
+  invoiceLines InvoiceLine[]
 
   // @@unique([itemId, isBase]) ELIMINADO — crearía constraint incorrecto sobre isBase=false.
   // Constraint de una sola unidad base por ítem gestionado vía partial index SQL:
@@ -1061,6 +1109,66 @@ model InventoryMovementSerial {
   @@unique([movementId, serialId])
   @@index([movementId])
   @@index([serialId])
+}
+
+// ─── Fase 36C: PaymentBatch — Distribución de Pagos A/P (ADR-022) ────────────
+
+enum PaymentBatchStatus {
+  DRAFT
+  APPLIED
+  VOID
+}
+
+model PaymentBatch {
+  id                  String             @id @default(cuid())
+  companyId           String
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status              PaymentBatchStatus @default(DRAFT)
+  method              PaymentMethod
+  totalAmountVes      Decimal            @db.Decimal(19, 4)
+  currency            String             @default("VES")
+  totalAmountOriginal Decimal?           @db.Decimal(19, 4)
+  exchangeRateId      String?
+  exchangeRate        ExchangeRate?      @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  referenceNumber     String?
+  originBank          String?
+  destBank            String?
+  commissionPct       Decimal?           @db.Decimal(5, 2)
+  commissionAmount    Decimal?           @db.Decimal(19, 4)
+  totalIgtfAmount     Decimal?           @db.Decimal(19, 4)
+  date                DateTime           @db.Date
+  notes               String?
+  voidReason          String?
+  voidedAt            DateTime?
+  voidedBy            String?
+  bankTransaction     BankTransaction?
+  deletedAt           DateTime?
+  createdAt           DateTime           @default(now())
+  createdBy           String
+  idempotencyKey      String             @unique
+
+  lines PaymentBatchLine[]
+
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, status])
+}
+
+model PaymentBatchLine {
+  id             String       @id @default(cuid())
+  paymentBatchId String
+  paymentBatch   PaymentBatch @relation(fields: [paymentBatchId], references: [id], onDelete: Restrict)
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amountVes      Decimal      @db.Decimal(19, 4)
+  amountOriginal Decimal?     @db.Decimal(19, 4)
+  igtfAmount     Decimal?     @db.Decimal(19, 4)
+  notes          String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([paymentBatchId, invoiceId])
+  @@index([paymentBatchId])
+  @@index([invoiceId])
 }
 
 // ─── Fase 30: Exportación Masiva / Backup ────────────────────────────────────
@@ -1861,6 +1969,8 @@ model Vendor {
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   invoices Invoice[]
+  // Fase 37B: Módulo Gastos
+  expenses Expense[]
 
   @@unique([companyId, rif])
   @@index([companyId, deletedAt])
@@ -1930,4 +2040,231 @@ model CompanyCertificate {
   updatedAt    DateTime @updatedAt
 
   @@index([companyId])
+}
+
+// ─── Fase 37A: InvoiceLine + CompanySettings — ADR-024 D-1 / D-2 ─────────────
+
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  // Producto o servicio — nullable para servicios sin ítem registrado
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  // Snapshot inmutable al momento de facturar
+  skuSnapshot  String? // null para servicios sin ítem registrado
+  nameSnapshot String // obligatorio siempre
+
+  // Descripción libre — anula nameSnapshot visualmente si está presente
+  description String?
+
+  // Cantidades y precios
+  quantity Decimal            @db.Decimal(19, 4)
+  unitId   String? // FK a InventoryItemUnit (unidad de venta)
+  unit     InventoryItemUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  // Precios snapshot — inmutables al momento de emisión
+  unitPriceUsd Decimal? @db.Decimal(19, 4)
+  unitPriceVes Decimal  @db.Decimal(19, 4)
+
+  // Alícuota de esta línea
+  ivaRate IvaLineRate @default(GENERAL_16)
+
+  // Totales calculados por el servicio — nunca por el cliente
+  subtotal  Decimal @db.Decimal(19, 4) // quantity × unitPriceVes
+  ivaAmount Decimal @db.Decimal(19, 4) // subtotal × tasaDecimal(ivaRate)
+  total     Decimal @db.Decimal(19, 4) // subtotal + ivaAmount
+
+  // Para líneas ADICIONAL_31: vincula IVA_ADICIONAL con IVA_GENERAL — misma semántica que InvoiceTaxLine
+  luxuryGroupId String?
+
+  // Movimiento de inventario generado en el mismo $transaction
+  inventoryMovementId String?            @unique
+  inventoryMovement   InventoryMovement? @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+
+  lineNumber Int // orden de aparición en la factura (1-based)
+
+  // Soft delete — necesario para correcciones pre-confirmación sin romper inventoryMovementId
+  deletedAt DateTime?
+  deletedBy String?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([companyId, inventoryItemId])
+  @@index([inventoryMovementId])
+  @@index([invoiceId, deletedAt])
+}
+
+model CompanySettings {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  stockControlLevel StockControlLevel @default(WARN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Fase 37B: Módulo Gastos — ADR-024 D-3 ───────────────────────────────────
+
+enum ExpenseStatus {
+  DRAFT // registrado pero no confirmado — editable
+  CONFIRMED // confirmado — genera asiento contable si accountId configurado
+  VOIDED // anulado — nunca DELETE
+}
+
+model ExpenseCategory {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  // Cuenta contable por defecto para esta categoría (override posible a nivel Expense)
+  accountId   String?
+  account     Account?  @relation("ExpenseCategoryAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  isDefault   Boolean   @default(false) // categorías semilla — el usuario puede agregar más
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expenses Expense[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, deletedAt])
+}
+
+model Expense {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  // Proveedor — vendorId O supplierName obligatorio (validación Zod)
+  vendorId     String?
+  vendor       Vendor? @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  supplierName String? // texto libre si el proveedor no está registrado
+
+  // Detalle del gasto
+  concept    String
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // Montos — siempre Decimal (ADR-002 / R-5)
+  amount       Decimal  @db.Decimal(19, 4)
+  currency     Currency @default(VES)
+  // exchangeRate obligatorio si currency != VES, null si VES
+  exchangeRate Decimal? @db.Decimal(19, 6)
+  // amountVes = amount × exchangeRate (o amount si VES)
+  amountVes    Decimal  @db.Decimal(19, 4)
+
+  // IVA
+  hasIva    Boolean  @default(false)
+  ivaAmount Decimal? @db.Decimal(19, 4)
+
+  // Deducibilidad ISLR (Decreto 1808)
+  isDeductible Boolean @default(true)
+
+  // Factura del proveedor (opcional)
+  invoiceNumber String?
+  invoiceDate   DateTime? @db.Date
+
+  // Comprobante digital — URL a Object Storage (R-2: nunca en BD)
+  attachmentUrl String?
+
+  // Contabilidad — nullable hasta que el ACCOUNTANT lo configura
+  transactionId    String?      @unique
+  transaction      Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  // Cuenta de gastos — puede diferir de la cuenta de la categoría
+  expenseAccountId String?
+  expenseAccount   Account?     @relation("ExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+
+  status         ExpenseStatus @default(DRAFT)
+  idempotencyKey String        @unique
+
+  // Soft delete
+  deletedAt DateTime?
+  deletedBy String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, categoryId])
+  @@index([companyId, status])
+  @@index([companyId, invoiceDate])
+  @@index([companyId, deletedAt])
+}
+
+// ─── Sprint 3: Suscripciones y Facturación ────────────────────────────────────
+
+enum SubscriptionPlan {
+  TRIAL
+  MONTHLY
+  ANNUAL
+  EARLY_ADOPTER
+}
+
+enum SubscriptionStatus {
+  TRIALING // En período de prueba (14 días)
+  ACTIVE // Suscripción activa y al día
+  PAST_DUE // Pago vencido — acceso suspendido
+  CANCELLED // Cancelada por el usuario
+  EXPIRED // Venció sin renovación
+}
+
+enum BillingPaymentStatus {
+  PENDING // Esperando pago
+  CONFIRMING // En confirmación en blockchain
+  CONFIRMED // Pagado y confirmado
+  FAILED // Falló el pago
+  EXPIRED // Caducó sin pago
+  REFUNDED // Reembolsado
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  companyId           String             @unique
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  plan                SubscriptionPlan
+  status              SubscriptionStatus
+  trialEndsAt         DateTime? // Solo para status TRIALING
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  cancelAtPeriodEnd   Boolean            @default(false)
+  priceUsdCents       Int // Precio en centavos USD (ej. 4900 = $49.00)
+  earlyAdopterSlot    Int? // 1–10, solo para EARLY_ADOPTER
+  referredByCompanyId String?
+  referredBy          Company?           @relation("SubscriptionReferral", fields: [referredByCompanyId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  payments SubscriptionPayment[]
+
+  @@index([status, currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id                   String               @id @default(cuid())
+  subscriptionId       String
+  subscription         Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  nowpaymentsOrderId   String?              @unique
+  nowpaymentsPaymentId String?              @unique
+  amountUsdCents       Int
+  currency             String // "USDT", "BTC", etc.
+  status               BillingPaymentStatus @default(PENDING)
+  paidAt               DateTime?
+  metadata             Json? // Raw webhook payload NOWPayments
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([subscriptionId])
+  @@map("subscription_payments")
 }
