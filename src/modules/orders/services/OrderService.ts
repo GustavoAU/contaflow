@@ -11,8 +11,10 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
-import { type OrderStatus, type QuotationType } from "@prisma/client";
+import { type OrderStatus, type QuotationType, type IvaLineRate } from "@prisma/client";
 import { type QuotationItemInput } from "./QuotationService";
+import type { InvoiceLineInput } from "@/modules/invoices/schemas/invoice.schema";
+import { computeLineTotals, deriveInvoiceTaxLines, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -159,6 +161,15 @@ async function getNextOrderNumber(
   );
 }
 
+// Fase 37C: mapea taxRate numérico de OrderItem al enum IvaLineRate
+function orderItemToIvaRate(taxRate: Decimal): IvaLineRate {
+  const r = taxRate.toNumber();
+  if (r === 0) return "EXENTO";
+  if (r === 8) return "REDUCIDO_8";
+  if (r === 31) return "ADICIONAL_31";
+  return "GENERAL_16";
+}
+
 // ─── OrderService ─────────────────────────────────────────────────────────────
 
 export const OrderService = {
@@ -268,6 +279,20 @@ export const OrderService = {
       // Determine invoice type
       const invoiceType = order.type === "PURCHASE" ? "PURCHASE" : "SALE";
 
+      // Fase 37C: mapear OrderItems → InvoiceLineInput (ADR-024 D-1 / D-2)
+      // OrderItem.unit es un string (no FK a InventoryItemUnit) → unitId omitido
+      // OrderItem no tiene inventoryItemId → stock check se omite en createInvoiceLinesInTx
+      const lineInputs: InvoiceLineInput[] = order.items.map((item, idx) => ({
+        nameSnapshot: item.description,
+        quantity: new Decimal(item.quantity.toString()).toString(),
+        unitPriceVes: new Decimal(item.unitPrice.toString()).toString(),
+        ivaRate: orderItemToIvaRate(new Decimal(item.taxRate.toString())),
+        lineNumber: idx + 1,
+      }));
+
+      const computed = computeLineTotals(lineInputs);
+      const derivedTaxLines = deriveInvoiceTaxLines(computed);
+
       // Create invoice (no journal entry — that is handled by InvoiceAccountingService)
       // Invoice total is tracked via taxLines; totalAmountVes holds the VES equivalent.
       const invoice = await tx.invoice.create({
@@ -293,39 +318,30 @@ export const OrderService = {
         },
       });
 
-      // Build InvoiceTaxLine records grouped by taxRate
-      const rateToType = (rate: Decimal) => {
-        const r = rate.toNumber();
-        if (r === 8)  return "IVA_REDUCIDO"  as const;
-        if (r === 31) return "IVA_ADICIONAL" as const;
-        if (r === 0)  return "EXENTO"        as const;
-        return "IVA_GENERAL" as const;
-      };
-
-      const taxGroups = new Map<string, { base: Decimal; rate: Decimal }>();
-      for (const item of order.items) {
-        const key = item.taxRate.toString();
-        const itemBase = new Decimal(item.unitPrice.toString()).mul(new Decimal(item.quantity.toString()));
-        const existing = taxGroups.get(key);
-        if (existing) {
-          existing.base = existing.base.add(itemBase);
-        } else {
-          taxGroups.set(key, { base: itemBase, rate: new Decimal(item.taxRate.toString()) });
-        }
-      }
-
-      for (const { base, rate } of taxGroups.values()) {
-        const amount = base.mul(rate).div(100);
+      // Fase 37C: crear InvoiceTaxLine desde líneas derivadas (fix: ADICIONAL_31 genera 2 registros)
+      for (const tl of derivedTaxLines) {
         await tx.invoiceTaxLine.create({
           data: {
             invoiceId: invoice.id,
-            taxType: rateToType(rate),
-            base,
-            rate,
-            amount,
+            taxType: tl.taxType,
+            base: tl.base,
+            rate: tl.rate,
+            amount: tl.amount,
+            description: null,
           },
         });
       }
+
+      // Fase 37C: crear InvoiceLines desde OrderItems
+      await createInvoiceLinesInTx(
+        invoice.id,
+        companyId,
+        computed,
+        invoiceData.date,
+        userId,
+        "WARN",
+        tx
+      );
 
       // Mark order as CONVERTED
       await tx.order.update({
