@@ -16,9 +16,11 @@ type NavbarProps = {
   plan?: string;
   userRole?: UserRole;
   notificationSlot?: React.ReactNode;
+  /** Grants activos para el rol: array de strings "ROLE:module" */
+  grantedModules?: string[];
 };
 
-export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notificationSlot }: NavbarProps) {
+export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notificationSlot, grantedModules }: NavbarProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -34,8 +36,9 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const grants = new Set(grantedModules ?? []);
   const { primary, sections } = companyId
-    ? getNavItems(userRole, companyId)
+    ? getNavItems(userRole, companyId, grants)
     : { primary: [], sections: [] };
 
   const allSecondaryItems = sections.flatMap((s) => s.items);

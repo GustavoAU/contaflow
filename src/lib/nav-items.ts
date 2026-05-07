@@ -1,5 +1,5 @@
 /**
- * nav-items.ts — Fase 28B
+ * nav-items.ts — Fase 28B + Permisos Granulares
  *
  * Fuente de verdad de la navegación por rol.
  * No importa de Prisma — el rol llega como string desde el server component.
@@ -7,8 +7,11 @@
  * Roles → secciones:
  *   OWNER / ADMIN    → todo
  *   ACCOUNTANT       → módulos contables + reportes
- *   ADMINISTRATIVE   → módulos operativos (Fase 28+)
+ *   ADMINISTRATIVE   → módulos operativos (Fase 28+); amplíable con grants
  *   VIEWER           → igual que su área, acceso restringido por guards (Fase 28C)
+ *
+ * getNavItems acepta un Set de grants ("ROLE:module") para añadir ítems extra
+ * a ADMINISTRATIVE cuando el ADMIN le otorgó módulos adicionales.
  */
 
 import {
@@ -175,33 +178,63 @@ function buildAccountantNav(companyId: string): NavConfig {
   };
 }
 
-function buildAdministrativeNav(companyId: string): NavConfig {
+function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConfig {
   const p = (path: string) => `/company/${companyId}${path}`;
+  const hasGrant = (module: string) => grants.has(`ADMINISTRATIVE:${module}`);
+
+  const sections: NavSection[] = [
+    {
+      group: "Operaciones",
+      items: [
+        item("Escanear", p("/invoices/upload"), ScanIcon),
+        item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
+      ],
+    },
+    {
+      group: "Inventario y Compras",
+      items: [
+        item("Inventario", p("/inventory"), PackageIcon),
+        item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
+        item("Nómina", p("/payroll"), UsersIcon),
+        item("Proveedores", p("/vendors"), Truck),
+        item("Clientes", p("/customers"), UserCheck),
+      ],
+    },
+  ];
+
+  // Grant: accounting → accede a Contabilidad
+  if (hasGrant("accounting")) {
+    sections.push({
+      group: "Contabilidad",
+      items: [
+        item("Asientos", p("/transactions"), FileText),
+        item("Plan de Cuentas", p("/accounts"), BookOpen),
+        item("Activos Fijos", p("/fixed-assets"), Building2),
+        item("Inflación INPC", p("/inflation"), TrendingUpIcon),
+        item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
+      ],
+    });
+  }
+
+  // Grant: reports → accede a Reportes
+  if (hasGrant("reports")) {
+    sections.push({
+      group: "Reportes",
+      items: [
+        item("Declaración IVA", p("/iva-declaration"), ScrollText),
+        item("Reportes", p("/reports"), BarChart3),
+        item("Exportar Datos", p("/export"), ArchiveIcon),
+      ],
+    });
+  }
+
   return {
     primary: [
       item("Dashboard", p(""), LayoutDashboard),
       item("Facturas", p("/invoices"), ReceiptText),
       item("Pagos", p("/payments"), WalletIcon),
     ],
-    sections: [
-      {
-        group: "Operaciones",
-        items: [
-          item("Escanear", p("/invoices/upload"), ScanIcon),
-          item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
-        ],
-      },
-      {
-        group: "Inventario y Compras",
-        items: [
-          item("Inventario", p("/inventory"), PackageIcon, true),
-          item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
-          item("Nómina", p("/payroll"), UsersIcon),
-          item("Proveedores", p("/vendors"), Truck),
-          item("Clientes", p("/customers"), UserCheck),
-        ],
-      },
-    ],
+    sections,
   };
 }
 
@@ -232,8 +265,11 @@ function buildSeniatAuditNav(companyId: string): NavConfig {
  * Devuelve la configuración de navegación para un rol y empresa dados.
  * VIEWER recibe la misma nav que ACCOUNTANT — las restricciones de escritura
  * se aplican en los Server Actions (Fase 28C).
+ *
+ * @param grants - Set de strings "ROLE:module" proveniente de RolePermission.
+ *                 Solo afecta a ADMINISTRATIVE (los demás ya tienen su nav completa).
  */
-export function getNavItems(role: UserRole, companyId: string): NavConfig {
+export function getNavItems(role: UserRole, companyId: string, grants: Set<string> = new Set()): NavConfig {
   switch (role) {
     case "OWNER":
     case "ADMIN":
@@ -241,7 +277,7 @@ export function getNavItems(role: UserRole, companyId: string): NavConfig {
     case "ACCOUNTANT":
       return buildAccountantNav(companyId);
     case "ADMINISTRATIVE":
-      return buildAdministrativeNav(companyId);
+      return buildAdministrativeNav(companyId, grants);
     case "VIEWER":
       // VIEWER ve lo mismo que ACCOUNTANT; guards en 28C bloquean escritura
       return buildAccountantNav(companyId);
