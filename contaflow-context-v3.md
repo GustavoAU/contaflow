@@ -9,33 +9,33 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Fase 37C** ✅ en rama `feat/fase-37c-order-invoice-lines` — `convertOrderToInvoice` propaga OrderItems → InvoiceLines (1806 tests)
+Ninguna — main limpio.
 
 ### Completadas recientes
-- **Fase 37C** ✅ en rama — `OrderService.convertOrderToInvoice` ahora crea InvoiceLine por cada OrderItem (ADR-024 D-1/D-2)
+- **Fase 37C** ✅ merged — `OrderService.convertOrderToInvoice` propaga OrderItems → InvoiceLines (ADR-024 D-1/D-2, 1806 tests)
   - Reemplaza loop manual `taxGroups` con `computeLineTotals` + `deriveInvoiceTaxLines` (fix: ADICIONAL_31 ahora genera 2 InvoiceTaxLine)
   - Llama `createInvoiceLinesInTx` dentro del mismo `$transaction` — atomicidad garantizada
   - `OrderItem.unit` es string (no FK) → `unitId` omitido; `OrderItem` sin `inventoryItemId` → stock check skipped (WARN)
-  - 2 tests nuevos: propagación de líneas + mapeo `taxRate → IvaLineRate`
-- **Fase 37A** ✅ merged — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2, 1804 tests)
+- **Ítems 54/55/56** ✅ merged — RPE 0.5%, topes IVSS/FAOV con `LegalThreshold`, `affectsSalaryIntegral` en motor de nómina
+- **Ítem 60** ✅ merged — hard-lock VOID en períodos cerrados: guard en `TransactionService.voidTransaction()` + 4 tests
+- **Ítem 72** ✅ implementado (código en main) — UI histórico de topes legales (`LegalThreshold` + panel `/payroll/legal-thresholds`). **Pendiente: aplicar migración `20260507_item72_legal_thresholds` en Neon** (BD no accesible durante implementación)
+- **Fase 37A** ✅ merged — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2)
 - **Fase 37B** ✅ merged — Módulo Gastos (Expense + ExpenseCategory + seed onboarding — ADR-024 D-3)
-- **Sprint-3** ✅ merged — NOWPayments + Landing Page + UI checkout (Bloque A/B/C/D)
-- **Fase 36C** ✅ merged — Distribución de Pagos A/P (PaymentBatch + ADR-022)
 
 ### Tests / CI
 **1806 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
 
 ### Deuda técnica
+- **BLOQUEANTE próxima sesión**: aplicar migración `20260507_item72_legal_thresholds` en Neon (workflow manual: `db execute` → `migrate resolve --applied` → `generate`)
 - Security findings Sprint-3 pendientes: MEDIUM-2 (Sentry tunnel size cap), MEDIUM-3 (CSP connect-src NOWPayments), LOW-1 (double checkout PAST_DUE), LOW-2 (captureException en webhook)
 - Rotar `UPSTASH_REDIS_REST_TOKEN` en Upstash dashboard (pendiente acción del usuario)
 
 ### Próximas fases (backlog inmediato)
-1. **Merge Fase 37C** → main (PR pendiente)
-2. **Items críticos UX/legal**: ítem 60 VOID guard server-side + ítems 54/55/56 nómina (RPE, topes IVSS/FAOV, affectsSalaryIntegral)
-3. **Permisos UI para terceros** — gestión de usuarios multi-rol
-4. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
-5. **PWA** — Fase 27 diferida, importante para Venezuela
-6. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+1. **Migración ítem 72** — aplicar `20260507_item72_legal_thresholds` en Neon (primer paso de sesión)
+2. **Permisos UI para terceros** — gestión de usuarios multi-rol
+3. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
+4. **PWA** — Fase 27 diferida, importante para Venezuela
+5. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 
