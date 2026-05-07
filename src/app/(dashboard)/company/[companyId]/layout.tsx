@@ -7,6 +7,7 @@ import { NotificationBell } from "@/modules/notifications/components/Notificatio
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
+import { getCompanyGrants } from "@/lib/get-company-grants";
 
 type Props = {
   children: React.ReactNode;
@@ -29,6 +30,12 @@ export default async function CompanyLayout({ children, params }: Props) {
 
   const showNotifications = canAccess(company.role, ROLES.ACCOUNTING);
 
+  // Cargar grants para la navegación grant-aware (solo afecta a ADMINISTRATIVE).
+  // Solo se pasan los grants del rol actual para no exponer la matriz completa al cliente.
+  const grantsSet = await getCompanyGrants(companyId);
+  const rolePrefix = `${company.role}:`;
+  const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <Navbar
@@ -36,6 +43,7 @@ export default async function CompanyLayout({ children, params }: Props) {
         companyName={company.name}
         plan={company.plan}
         userRole={company.role}
+        grantedModules={grantedModules}
         notificationSlot={showNotifications ? <NotificationBell companyId={companyId} /> : null}
       />
       <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>

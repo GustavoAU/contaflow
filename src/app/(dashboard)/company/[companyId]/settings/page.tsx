@@ -18,6 +18,8 @@ import { CertificatePanel } from "@/modules/certificates/components/CertificateP
 import { getCertificateStatusAction } from "@/modules/certificates/actions/certificate.actions";
 import { MembersPanel } from "@/modules/company/components/MembersPanel";
 import { getMembersAction } from "@/modules/company/actions/member.actions";
+import { PermissionsMatrix } from "@/modules/company/components/PermissionsMatrix";
+import { getGrantsAction } from "@/modules/company/actions/permission.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -29,7 +31,7 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult] =
+  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult] =
     await Promise.all([
       getPeriodsAction(companyId),
       getActivePeriodAction(companyId),
@@ -39,6 +41,7 @@ export default async function SettingsPage({ params }: Props) {
       getAccountsAction(companyId),
       getCertificateStatusAction({ companyId }),
       getMembersAction(companyId),
+      getGrantsAction(companyId),
     ]);
 
   const periods = periodsResult.success ? periodsResult.data : [];
@@ -47,6 +50,7 @@ export default async function SettingsPage({ params }: Props) {
   if (!company) redirect("/dashboard");
 
   const members = membersResult.success ? membersResult.data : [];
+  const grants = grantsResult.success ? grantsResult.data : [];
   const fiscalConfig = fiscalConfigResult.success ? fiscalConfigResult.data : null;
   const certStatus = certStatusResult.success ? certStatusResult.data : { exists: false as const };
   const equityAccounts = accountsResult.success
@@ -124,6 +128,22 @@ export default async function SettingsPage({ params }: Props) {
         currentUserRole={company.role}
         initialMembers={members}
       />
+
+      {/* ── Permisos por Rol ──────────────────────────────────────────────── */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Permisos por Rol</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Define qué módulos puede ver y usar cada rol en esta empresa.
+            Los permisos base son fijos; los checkboxes editables amplían el acceso.
+          </p>
+        </div>
+        <PermissionsMatrix
+          companyId={companyId}
+          currentUserRole={company.role}
+          initialGrants={grants}
+        />
+      </div>
 
       <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
 

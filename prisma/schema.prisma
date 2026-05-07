@@ -217,6 +217,8 @@ model Company {
   // Fase 37B: Módulo Gastos
   expenses                  Expense[]
   expenseCategories         ExpenseCategory[]
+  // Permisos granulares por rol (grants adicionales al rol base)
+  rolePermissions           RolePermission[]
 }
 
 model CompanyMember {
@@ -228,6 +230,19 @@ model CompanyMember {
   company   Company  @relation(fields: [companyId], references: [id])
 
   @@unique([userId, companyId])
+}
+
+model RolePermission {
+  id        String   @id @default(cuid())
+  companyId String
+  role      UserRole
+  module    String
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, role, module])
+  @@index([companyId])
 }
 
 model Account {
