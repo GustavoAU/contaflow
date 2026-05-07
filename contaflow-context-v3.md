@@ -9,37 +9,33 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — Fase 37B completada en rama, pendiente merge ✅
+**Fase 37C** ✅ en rama `feat/fase-37c-order-invoice-lines` — `convertOrderToInvoice` propaga OrderItems → InvoiceLines (1806 tests)
 
 ### Completadas recientes
-- **Fase 37A** ✅ en rama `feat/fase-37a-b-invoice-lines-expenses` — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2, 1804 tests)
-  - Schema: `InvoiceLine`, `CompanySettings` + enums `IvaLineRate`, `StockControlLevel` — 3 migraciones aplicadas
-  - `InvoiceLineService`: `computeLineTotals` / `deriveInvoiceTaxLines` / `validateStockForLines` / `createInvoiceLinesInTx`
-  - `InvoiceService.create()` dual-path: con líneas (deriva taxLines) o legacy (taxLines directos) — backward compatible
-  - SelectForUpdate obligatorio en path CONFIRM; InventoryMovement DRAFT atómico en misma tx
-- **Fase 37B** ✅ en rama — Módulo Gastos (Expense + ExpenseCategory + seed onboarding — ADR-024 D-3)
-  - Schema: `Expense`, `ExpenseCategory` + enum `ExpenseStatus`
-  - `ExpenseService`: `createExpense` / `confirmExpense` / `voidExpense` / `listExpenses` / `seedExpenseCategories`
-  - 9 categorías semilla por empresa (seed en `CompanyService.createCompany`)
-  - Server Actions con auth + companyMember guard + rate limiting (limiters.fiscal)
-- **Sprint-3** ✅ en rama — NOWPayments + Landing Page + UI checkout (Bloque A/B/C/D)
+- **Fase 37C** ✅ en rama — `OrderService.convertOrderToInvoice` ahora crea InvoiceLine por cada OrderItem (ADR-024 D-1/D-2)
+  - Reemplaza loop manual `taxGroups` con `computeLineTotals` + `deriveInvoiceTaxLines` (fix: ADICIONAL_31 ahora genera 2 InvoiceTaxLine)
+  - Llama `createInvoiceLinesInTx` dentro del mismo `$transaction` — atomicidad garantizada
+  - `OrderItem.unit` es string (no FK) → `unitId` omitido; `OrderItem` sin `inventoryItemId` → stock check skipped (WARN)
+  - 2 tests nuevos: propagación de líneas + mapeo `taxRate → IvaLineRate`
+- **Fase 37A** ✅ merged — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2, 1804 tests)
+- **Fase 37B** ✅ merged — Módulo Gastos (Expense + ExpenseCategory + seed onboarding — ADR-024 D-3)
+- **Sprint-3** ✅ merged — NOWPayments + Landing Page + UI checkout (Bloque A/B/C/D)
 - **Fase 36C** ✅ merged — Distribución de Pagos A/P (PaymentBatch + ADR-022)
 
 ### Tests / CI
-**1804 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
+**1806 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
 
 ### Deuda técnica
-- Security audit Sprint-3 (NOWPayments webhook IPN) — en revisión (security-agent, 2026-05-07)
-- **Fase 37C** desbloqueada: `convertOrderToInvoice()` debe propagar OrderItems → InvoiceLines (prerequisito 37A ✅)
+- Security findings Sprint-3 pendientes: MEDIUM-2 (Sentry tunnel size cap), MEDIUM-3 (CSP connect-src NOWPayments), LOW-1 (double checkout PAST_DUE), LOW-2 (captureException en webhook)
+- Rotar `UPSTASH_REDIS_REST_TOKEN` en Upstash dashboard (pendiente acción del usuario)
 
 ### Próximas fases (backlog inmediato)
-1. **Merge rama 37A/37B/Sprint-3** → main (previa security audit)
-2. **Fase 37C** — Order→Invoice con InvoiceLines (convertOrderToInvoice propagación)
-3. **Items críticos UX/legal**: ítem 60 VOID guard server-side + ítems 54/55/56 nómina (RPE, topes IVSS/FAOV, affectsSalaryIntegral)
-4. **Permisos UI para terceros** — gestión de usuarios multi-rol
-5. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
-6. **PWA** — Fase 27 diferida, importante para Venezuela
-7. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+1. **Merge Fase 37C** → main (PR pendiente)
+2. **Items críticos UX/legal**: ítem 60 VOID guard server-side + ítems 54/55/56 nómina (RPE, topes IVSS/FAOV, affectsSalaryIntegral)
+3. **Permisos UI para terceros** — gestión de usuarios multi-rol
+4. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
+5. **PWA** — Fase 27 diferida, importante para Venezuela
+6. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 
