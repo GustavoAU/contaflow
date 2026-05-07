@@ -12,30 +12,32 @@ _Solo esto se carga por defecto en cada sesión._
 Ninguna — main limpio.
 
 ### Completadas recientes
+- **Fase permisos-granulares** ✅ merged — RolePermission grants aditivos + PermissionsMatrix UI + nav grant-aware (ADR-025, 1819 tests)
+  - `RolePermission` tabla: grants por empresa × rol × módulo (ACCOUNTANT/ADMINISTRATIVE/VIEWER únicos grantables)
+  - `APP_MODULES` — 7 módulos con `baseRoles`, funciones puras `hasBaseAccess/canAccessModule/toGrantSet`
+  - `PermissionsMatrix` UI en Settings — checkboxes grises (base) + verdes (editable, solo OWNER/ADMIN)
+  - Nav grant-aware: ADMINISTRATIVE recibe secciones Contabilidad/Reportes cuando se le otorgan grants
+  - Data minimization: layout filtra `grantedModules` al rol del usuario antes de pasar al cliente
+  - AuditLog + IP/UA en `$transaction`, rate limiting `limiters.fiscal`, guard definitivo Zod enum
 - **Fase 37C** ✅ merged — `OrderService.convertOrderToInvoice` propaga OrderItems → InvoiceLines (ADR-024 D-1/D-2, 1806 tests)
-  - Reemplaza loop manual `taxGroups` con `computeLineTotals` + `deriveInvoiceTaxLines` (fix: ADICIONAL_31 ahora genera 2 InvoiceTaxLine)
-  - Llama `createInvoiceLinesInTx` dentro del mismo `$transaction` — atomicidad garantizada
-  - `OrderItem.unit` es string (no FK) → `unitId` omitido; `OrderItem` sin `inventoryItemId` → stock check skipped (WARN)
 - **Ítems 54/55/56** ✅ merged — RPE 0.5%, topes IVSS/FAOV con `LegalThreshold`, `affectsSalaryIntegral` en motor de nómina
-- **Ítem 60** ✅ merged — hard-lock VOID en períodos cerrados: guard en `TransactionService.voidTransaction()` + 4 tests
-- **Ítem 72** ✅ implementado (código en main) — UI histórico de topes legales (`LegalThreshold` + panel `/payroll/legal-thresholds`). **Pendiente: aplicar migración `20260507_item72_legal_thresholds` en Neon** (BD no accesible durante implementación)
-- **Fase 37A** ✅ merged — InvoiceLine + StockControl + CompanySettings (ADR-024 D-1/D-2)
-- **Fase 37B** ✅ merged — Módulo Gastos (Expense + ExpenseCategory + seed onboarding — ADR-024 D-3)
+- **Ítem 60** ✅ merged — hard-lock VOID en períodos cerrados
+- **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1806 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
+**1819 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
 
 ### Deuda técnica
-- **BLOQUEANTE próxima sesión**: aplicar migración `20260507_item72_legal_thresholds` en Neon (workflow manual: `db execute` → `migrate resolve --applied` → `generate`)
+- **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
+- `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
+- Action-level grant enforcement — grants actuales afectan solo nav/UI; action guards usan `canAccess()` puro (documentado en ADR-025 como post-lanzamiento)
 - Security findings Sprint-3 pendientes: MEDIUM-2 (Sentry tunnel size cap), MEDIUM-3 (CSP connect-src NOWPayments), LOW-1 (double checkout PAST_DUE), LOW-2 (captureException en webhook)
 - Rotar `UPSTASH_REDIS_REST_TOKEN` en Upstash dashboard (pendiente acción del usuario)
 
 ### Próximas fases (backlog inmediato)
-1. **Migración ítem 72** — aplicar `20260507_item72_legal_thresholds` en Neon (primer paso de sesión)
-2. **Permisos UI para terceros** — gestión de usuarios multi-rol
-3. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
-4. **PWA** — Fase 27 diferida, importante para Venezuela
-5. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+1. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
+2. **PWA** — Fase 27 diferida, importante para Venezuela
+3. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
 
 ---
 

@@ -269,8 +269,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 37A** ✅ merged (InvoiceLine + IvaLineRate + CompanySettings + StockControlLevel + InvoiceLineService — ADR-024 D-1/D-2)
 - **Fase 37B** ✅ merged (Expense + ExpenseCategory + ExpenseService + ExpenseActions + seed onboarding — ADR-024 D-3)
 - **Fase 37C** ✅ merged (convertOrderToInvoice propaga OrderItems → InvoiceLines — ADR-024 D-1/D-2 — 1806 tests)
+- **Fase permisos-granulares** ✅ merged (RolePermission + APP_MODULES + PermissionsMatrix UI + nav grant-aware + ADR-025 — 1819 tests)
 
-**1806 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-07)
+**1819 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-07)
 
 ### middleware.ts
 
