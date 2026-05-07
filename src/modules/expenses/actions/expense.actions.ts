@@ -1,0 +1,195 @@
+"use server";
+
+// src/modules/expenses/actions/expense.actions.ts
+import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import prisma from "@/lib/prisma";
+import {
+  CreateExpenseSchema,
+  CreateExpenseCategorySchema,
+  ConfirmExpenseSchema,
+  VoidExpenseSchema,
+  ListExpensesSchema,
+} from "../schemas/expense.schema";
+import {
+  createExpense,
+  confirmExpense,
+  voidExpense,
+  listExpenses,
+  createExpenseCategory,
+  listExpenseCategories,
+  type ExpenseSummary,
+  type ExpensePage,
+  type ExpenseCategorySummary,
+} from "../services/ExpenseService";
+
+type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+async function getAuthContext() {
+  const { userId } = await auth();
+  if (!userId) return null;
+  const h = await headers();
+  const ipAddress =
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { userId, ipAddress, userAgent };
+}
+
+async function assertMember(companyId: string, userId: string) {
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) throw new Error("No perteneces a esta empresa");
+  return member;
+}
+
+// ─── Crear gasto ──────────────────────────────────────────────────────────────
+export async function createExpenseAction(
+  input: unknown
+): Promise<ActionResult<ExpenseSummary>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const parsed = CreateExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    await assertMember(parsed.data.companyId, ctx.userId);
+
+    const data = await createExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}
+
+// ─── Confirmar gasto ──────────────────────────────────────────────────────────
+export async function confirmExpenseAction(
+  input: unknown
+): Promise<ActionResult<ExpenseSummary>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const parsed = ConfirmExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    await assertMember(parsed.data.companyId, ctx.userId);
+
+    const data = await confirmExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}
+
+// ─── Anular gasto ─────────────────────────────────────────────────────────────
+export async function voidExpenseAction(
+  input: unknown
+): Promise<ActionResult<ExpenseSummary>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const parsed = VoidExpenseSchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    await assertMember(parsed.data.companyId, ctx.userId);
+
+    const data = await voidExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}
+
+// ─── Listar gastos ────────────────────────────────────────────────────────────
+export async function listExpensesAction(
+  input: unknown
+): Promise<ActionResult<ExpensePage>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const parsed = ListExpensesSchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    await assertMember(parsed.data.companyId, ctx.userId);
+
+    const data = await listExpenses(parsed.data);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}
+
+// ─── Crear categoría ──────────────────────────────────────────────────────────
+export async function createExpenseCategoryAction(
+  input: unknown
+): Promise<ActionResult<ExpenseCategorySummary>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const parsed = CreateExpenseCategorySchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    await assertMember(parsed.data.companyId, ctx.userId);
+
+    const data = await createExpenseCategory(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}
+
+// ─── Listar categorías ────────────────────────────────────────────────────────
+export async function listExpenseCategoriesAction(
+  companyId: string
+): Promise<ActionResult<ExpenseCategorySummary[]>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    await assertMember(companyId, ctx.userId);
+
+    const data = await listExpenseCategories(companyId);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+  }
+}

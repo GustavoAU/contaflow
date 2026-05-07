@@ -35,7 +35,12 @@ describe("CompanyService.createCompany", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
+      ((fn: (tx: unknown) => unknown) =>
+        fn({
+          company: prisma.company,
+          auditLog: prisma.auditLog,
+          expenseCategory: { createMany: vi.fn().mockResolvedValue({ count: 9 }) },
+        })) as never
     );
   });
 

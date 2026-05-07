@@ -1,5 +1,6 @@
 // src/modules/company/services/CompanyService.ts
 import prisma from "@/lib/prisma";
+import { seedExpenseCategories } from "@/modules/expenses/services/ExpenseService";
 
 export class CompanyService {
   /**
@@ -27,6 +28,9 @@ export class CompanyService {
           },
         },
       });
+
+      // Fase 37B: seed de categorías de gastos para la empresa nueva
+      await seedExpenseCategories(created.id, tx);
 
       await tx.auditLog.create({
         data: {

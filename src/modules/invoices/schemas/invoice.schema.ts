@@ -200,8 +200,58 @@ export const CreateCreditDebitNoteSchema = CreateInvoiceSchema
     return rest;
   });
 
+// ─── InvoiceLine (Fase 37A) ───────────────────────────────────────────────────
+export const IvaLineRateSchema = z.enum(["EXENTO", "REDUCIDO_8", "GENERAL_16", "ADICIONAL_31"]);
+
+export const InvoiceLineInputSchema = z.object({
+  inventoryItemId: z.string().optional(),
+  nameSnapshot: z.string().min(1, { error: "El nombre del ítem es requerido" }),
+  skuSnapshot: z.string().optional(),
+  description: z.string().optional(),
+  quantity: z
+    .string()
+    .min(1, { error: "La cantidad es requerida" })
+    .refine(
+      (v) => {
+        try {
+          return new Decimal(v).gt(0);
+        } catch {
+          return false;
+        }
+      },
+      { error: "La cantidad debe ser mayor a cero" }
+    ),
+  unitId: z.string().optional(),
+  unitPriceVes: z
+    .string()
+    .min(1, { error: "El precio en VES es requerido" })
+    .refine(
+      (v) => {
+        try {
+          return new Decimal(v).gte(0);
+        } catch {
+          return false;
+        }
+      },
+      { error: "El precio debe ser mayor o igual a cero" }
+    ),
+  unitPriceUsd: z.string().optional(),
+  ivaRate: IvaLineRateSchema.default("GENERAL_16"),
+  lineNumber: z.number().int().min(1),
+});
+
+// Extensión de CreateInvoiceSchema con soporte de líneas — Fase 37A
+export const CreateInvoiceWithLinesSchema = CreateInvoiceSchema.extend({
+  lines: z.array(InvoiceLineInputSchema).optional(),
+  // Flag de confirmación para StockControlLevel.CONFIRM — el cliente lo envía
+  // cuando ya le mostramos el diálogo y el usuario aceptó stock negativo
+  stockConfirmed: z.boolean().default(false),
+});
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>;
+export type CreateInvoiceWithLinesInput = z.infer<typeof CreateInvoiceWithLinesSchema>;
+export type InvoiceLineInput = z.infer<typeof InvoiceLineInputSchema>;
 export type InvoiceBookFilter = z.infer<typeof InvoiceBookFilterSchema>;
 export type TaxLineInput = z.infer<typeof TaxLineSchema>;
 export type CreateCreditDebitNoteInput = z.output<typeof CreateCreditDebitNoteSchema>;
