@@ -78,13 +78,13 @@ async function main() {
     { code: "1305", name: "Cuentas por Cobrar Clientes", type: "ASSET" },
     { code: "1310", name: "Anticipo a Proveedores", type: "ASSET" },
     { code: "1505", name: "Equipos de Computación", type: "ASSET" },
-    { code: "1510", name: "Dep. Acum. Equipos de Computación", type: "ASSET" },
+    { code: "1510", name: "Dep. Acum. Equipos de Computación", type: "CONTRA_ASSET" },
     { code: "1520", name: "Vehículos", type: "ASSET" },
-    { code: "1521", name: "Dep. Acum. Vehículos", type: "ASSET" },
+    { code: "1521", name: "Dep. Acum. Vehículos", type: "CONTRA_ASSET" },
     { code: "1530", name: "Mobiliario y Equipo de Oficina", type: "ASSET" },
-    { code: "1531", name: "Dep. Acum. Mobiliario y Equipo", type: "ASSET" },
+    { code: "1531", name: "Dep. Acum. Mobiliario y Equipo", type: "CONTRA_ASSET" },
     { code: "1540", name: "Maquinaria y Equipos", type: "ASSET" },
-    { code: "1541", name: "Dep. Acum. Maquinaria y Equipos", type: "ASSET" },
+    { code: "1541", name: "Dep. Acum. Maquinaria y Equipos", type: "CONTRA_ASSET" },
     // PASIVOS
     { code: "2105", name: "IVA Débito Fiscal", type: "LIABILITY" },
     { code: "2110", name: "Retenciones IVA por Pagar", type: "LIABILITY" },
@@ -110,7 +110,7 @@ async function main() {
   for (const acc of accountDefs) {
     const a = await prisma.account.upsert({
       where: { companyId_code: { companyId: cId, code: acc.code } },
-      update: { name: acc.name },
+      update: { name: acc.name, type: acc.type },
       create: { companyId: cId, code: acc.code, name: acc.name, type: acc.type },
     });
     accounts[acc.code] = a.id;

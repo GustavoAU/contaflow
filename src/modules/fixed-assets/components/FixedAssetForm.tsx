@@ -24,6 +24,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
   const [method, setMethod] = useState<"LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION">("LINEA_RECTA");
 
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
+  const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -146,17 +147,17 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
             </select>
           </div>
           <div>
-            <label className={labelClass}>Dep. acumulada (ASSET) *</label>
+            <label className={labelClass}>Dep. acumulada (CONTRA_ASSET) *</label>
             <select name="accDepreciationAccountId" required className={fieldClass}>
               <option value="">Seleccionar...</option>
-              {assetAccounts.map((a) => (
+              {contraAssetAccounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
               ))}
             </select>
           </div>
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          La cuenta de depreciación acumulada debe ser una cuenta ASSET (saldo acreedor — contrapartida del activo).
+          La cuenta de depreciación acumulada debe ser tipo CONTRA_ASSET (ej: "Dep. Acum. Equipos").
         </p>
       </fieldset>
 

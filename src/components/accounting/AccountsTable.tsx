@@ -43,7 +43,7 @@ import {
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type AccountType = "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
+type AccountType = "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
 
 type Account = {
   id: string;
@@ -60,7 +60,7 @@ type Account = {
 const AccountFormSchema = z.object({
   name: z.string().min(2, "Minimo 2 caracteres"),
   code: z.string().min(1, "El codigo es requerido"),
-  type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
+  type: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
   description: z.string().optional(),
   isMonetary: z.boolean(),
 });
@@ -69,6 +69,7 @@ type AccountFormValues = z.infer<typeof AccountFormSchema>;
 
 const TYPE_LABELS: Record<AccountType, string> = {
   ASSET: "Activo",
+  CONTRA_ASSET: "Contra-activo",
   LIABILITY: "Pasivo",
   EQUITY: "Patrimonio",
   REVENUE: "Ingreso",
@@ -77,6 +78,7 @@ const TYPE_LABELS: Record<AccountType, string> = {
 
 const TYPE_COLORS: Record<AccountType, "default" | "secondary" | "destructive" | "outline"> = {
   ASSET: "default",
+  CONTRA_ASSET: "outline",
   LIABILITY: "destructive",
   EQUITY: "secondary",
   REVENUE: "default",
@@ -279,6 +281,7 @@ export function AccountsTable({
                         onChange={(e) => handleTypeChange(e.target.value)}
                       >
                         <option value="ASSET">Activo</option>
+                        <option value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</option>
                         <option value="LIABILITY">Pasivo</option>
                         <option value="EQUITY">Patrimonio</option>
                         <option value="REVENUE">Ingreso</option>

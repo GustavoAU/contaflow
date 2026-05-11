@@ -20,7 +20,7 @@ const CreateAccountSchema = z.object({
     .min(1, "El codigo es requerido")
     .max(20)
     .regex(/^\d+([.\-]\d+)*$/, "El codigo debe ser numérico o jerárquico (ej: 1105, 1-1-05, 1.1.05)"),
-  type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
+  type: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
     error: "Tipo de cuenta invalido",
   }),
   description: z.string().max(255).optional(),
@@ -38,6 +38,7 @@ const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
 
 const RANGES: Record<string, { start: number; end: number }> = {
   ASSET: { start: 1000, end: 1999 },
+  CONTRA_ASSET: { start: 1000, end: 1999 },
   LIABILITY: { start: 2000, end: 2999 },
   EQUITY: { start: 3000, end: 3999 },
   REVENUE: { start: 4000, end: 4999 },
@@ -280,7 +281,7 @@ export async function updateAccountAction(
 // ─── Generar codigo automatico ────────────────────────────────────────────────
 
 export async function getNextAccountCodeAction(
-  type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
+  type: "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
   companyId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {

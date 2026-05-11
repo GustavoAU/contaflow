@@ -10,6 +10,7 @@ type Props = {
 
 const TYPE_LABELS: Record<string, string> = {
   ASSET: "Activo",
+  CONTRA_ASSET: "Contra-activo",
   LIABILITY: "Pasivo",
   EQUITY: "Patrimonio",
   REVENUE: "Ingreso",
@@ -18,6 +19,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_COLORS: Record<string, string> = {
   ASSET: "text-blue-600",
+  CONTRA_ASSET: "text-blue-400",
   LIABILITY: "text-red-600",
   EQUITY: "text-purple-600",
   REVENUE: "text-green-600",

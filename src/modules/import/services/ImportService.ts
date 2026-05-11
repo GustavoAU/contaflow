@@ -62,7 +62,7 @@ export class ImportService {
           data: {
             code: row.codigo,
             name: row.nombre,
-            type: row.tipo as "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
+            type: row.tipo as "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
             description: row.descripcion,
             companyId,
           },

@@ -447,7 +447,7 @@ export async function getBalanceSheetAction(
   try {
     const [accounts, incomeAccounts] = await Promise.all([
       prisma.account.findMany({
-        where: { companyId, type: { in: ["ASSET", "LIABILITY", "EQUITY"] } },
+        where: { companyId, type: { in: ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY"] } },
         orderBy: { code: "asc" },
         include: {
           journalEntries: {
@@ -483,6 +483,10 @@ export async function getBalanceSheetAction(
 
       if (account.type === "ASSET") {
         assets.push({ id: account.id, code: account.code, name: account.name, balance: balance.toFixed(2) });
+        totalAssets = totalAssets.plus(balance);
+      } else if (account.type === "CONTRA_ASSET") {
+        // Credit balance (negative) — shown as deduction from assets with (-) prefix
+        assets.push({ id: account.id, code: account.code, name: `(-) ${account.name}`, balance: balance.toFixed(2) });
         totalAssets = totalAssets.plus(balance);
       } else if (account.type === "LIABILITY") {
         const display = balance.negated();
