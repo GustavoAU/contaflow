@@ -40,6 +40,7 @@ import {
   UserCheck,
   SparklesIcon,
   Share2,
+  PiggyBank,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -103,6 +104,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
         group: "Operaciones",
         items: [
           item("Pagos", p("/payments"), WalletIcon),
+          item("Caja Chica", p("/cajachica"), PiggyBank),
           item("Distribución Ingresos", p("/income-distribution"), Share2),
           item("Escanear", p("/invoices/upload"), ScanIcon),
           item("Importar", p("/import"), FileSpreadsheetIcon),
@@ -156,6 +158,7 @@ function buildAccountantNav(companyId: string): NavConfig {
         group: "Inventario y Compras",
         items: [
           item("Distribución Ingresos", p("/income-distribution"), Share2),
+          item("Caja Chica", p("/cajachica"), PiggyBank),
           item("Inventario", p("/inventory"), PackageIcon),
           item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
           item("Nómina", p("/payroll"), UsersIcon),

@@ -226,6 +226,8 @@ model Company {
   // Fase 36D: Distribución de Ingresos Multidestinatario (ADR-023)
   incomeDistributions       IncomeDistribution[]     @relation("IncomeDistributions")
   incomeDistributionLines   IncomeDistributionLine[] @relation("IncomeDistributionRecipients")
+  // Fase 35D: Caja Chica (Fondo Fijo)
+  cajaCajas                 CajaCaja[]
   // Permisos granulares por rol (grants adicionales al rol base)
   rolePermissions           RolePermission[]
 }
@@ -309,6 +311,9 @@ model Account {
   // Fase 36D: Distribución de Ingresos
   incomeDistributionOrigins        IncomeDistribution[]     @relation("IncomeDistributionOrigin")
   incomeDistributionLineAccounts   IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
+  // Fase 35D: Caja Chica
+  cajaCajas                        CajaCaja[]               @relation("CajaCajaAccount")
+  cajaCajaMovements                CajaCajaMovement[]       @relation("CajaCajaExpenseAccount")
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -330,32 +335,32 @@ model IGTFTransaction {
 }
 
 model Transaction {
-  id                             String                @id @default(cuid())
+  id                             String                 @id @default(cuid())
   number                         String
-  date                           DateTime              @default(now())
+  date                           DateTime               @default(now())
   description                    String
   reference                      String?
   companyId                      String
-  company                        Company               @relation(fields: [companyId], references: [id])
+  company                        Company                @relation(fields: [companyId], references: [id])
   userId                         String
   entries                        JournalEntry[]
-  createdAt                      DateTime              @default(now())
-  status                         TransactionStatus     @default(POSTED)
-  type                           TransactionType       @default(DIARIO)
+  createdAt                      DateTime               @default(now())
+  status                         TransactionStatus      @default(POSTED)
+  type                           TransactionType        @default(DIARIO)
   notes                          String?
   voidedById                     String?
-  voidedBy                       Transaction?          @relation("VoidRelation", fields: [voidedById], references: [id])
-  voids                          Transaction[]         @relation("VoidRelation")
+  voidedBy                       Transaction?           @relation("VoidRelation", fields: [voidedById], references: [id])
+  voids                          Transaction[]          @relation("VoidRelation")
   periodId                       String?
-  period                         AccountingPeriod?     @relation(fields: [periodId], references: [id])
+  period                         AccountingPeriod?      @relation(fields: [periodId], references: [id])
   retenciones                    Retencion[]
   igtfTransactions               IGTFTransaction[]
   invoices                       Invoice[]
   // Fase 15: relaciones inversas para asientos de cierre
-  fiscalYearCloseAsClosing       FiscalYearClose?      @relation("ClosingTransaction")
-  fiscalYearCloseAsAppropriation FiscalYearClose?      @relation("AppropriationTransaction")
+  fiscalYearCloseAsClosing       FiscalYearClose?       @relation("ClosingTransaction")
+  fiscalYearCloseAsAppropriation FiscalYearClose?       @relation("AppropriationTransaction")
   // Fase 17B: conciliación bancaria
-  bankTransactionMatches         BankTransaction[]     @relation("BankTransactionMatch")
+  bankTransactionMatches         BankTransaction[]      @relation("BankTransactionMatch")
   // Fase 21: Activos Fijos — asiento de depreciación generado
   depreciationEntry              DepreciationEntry?
   // Fase 22: Ajuste por Inflación
@@ -374,6 +379,9 @@ model Transaction {
   expense                        Expense?
   // Fase 36D: Distribución de Ingresos
   incomeDistribution             IncomeDistribution?
+  // Fase 35D: Caja Chica
+  cajaCajaDeposit                CajaCajaDeposit?
+  cajaCajaReimbursement          CajaCajaReimbursement?
 
   @@unique([companyId, number])
 }
@@ -2407,4 +2415,133 @@ model IncomeDistributionAudit {
 
   @@index([distributionId])
   @@map("income_distribution_audits")
+}
+
+// ─── Fase 35D: Caja Chica (Fondo Fijo) ────────────────────────────────────────
+
+enum CajaCajaStatus {
+  ACTIVE
+  INACTIVE
+  CLOSED
+}
+
+enum CajaCajaDepositStatus {
+  PENDING
+  POSTED
+  VOIDED
+}
+
+enum CajaCajaMovementStatus {
+  PENDING
+  APPROVED
+  REIMBURSED
+  VOIDED
+}
+
+enum CajaCajaReimbursementStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+model CajaCaja {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name       String         @db.VarChar(255)
+  accountId  String
+  account    Account        @relation("CajaCajaAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  currency   Currency       @default(VES)
+  maxBalance Decimal        @db.Decimal(19, 4)
+  status     CajaCajaStatus @default(ACTIVE)
+  createdAt  DateTime       @default(now())
+  createdBy  String         @db.VarChar(255)
+  closedAt   DateTime?
+  closedBy   String?        @db.VarChar(255)
+
+  deposits       CajaCajaDeposit[]
+  movements      CajaCajaMovement[]
+  reimbursements CajaCajaReimbursement[]
+
+  @@unique([companyId, accountId])
+  @@index([companyId, status])
+  @@map("caja_cajas")
+}
+
+model CajaCajaDeposit {
+  id                   String                @id @default(cuid())
+  companyId            String
+  cajaCajaId           String
+  cajaCaja             CajaCaja              @relation(fields: [cajaCajaId], references: [id], onDelete: Restrict)
+  date                 DateTime              @db.Date
+  amount               Decimal               @db.Decimal(19, 4)
+  description          String                @db.VarChar(500)
+  supportingDocumentId String?               @db.VarChar(255)
+  transactionId        String?               @unique
+  transaction          Transaction?          @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  status               CajaCajaDepositStatus @default(PENDING)
+  voidedAt             DateTime?
+  voidReason           String?               @db.Text
+  createdAt            DateTime              @default(now())
+  createdBy            String                @db.VarChar(255)
+
+  @@index([companyId, cajaCajaId])
+  @@map("caja_caja_deposits")
+}
+
+model CajaCajaMovement {
+  id                   String                 @id @default(cuid())
+  companyId            String
+  cajaCajaId           String
+  cajaCaja             CajaCaja               @relation(fields: [cajaCajaId], references: [id], onDelete: Restrict)
+  date                 DateTime               @db.Date
+  voucherNumber        String                 @db.VarChar(50)
+  concept              String                 @db.VarChar(255)
+  description          String?                @db.Text
+  expenseAccountId     String
+  expenseAccount       Account                @relation("CajaCajaExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  amount               Decimal                @db.Decimal(19, 4)
+  currency             Currency               @default(VES)
+  supportingDocumentId String?                @db.VarChar(255)
+  notes                String?                @db.Text
+  status               CajaCajaMovementStatus @default(PENDING)
+  approvedAt           DateTime?
+  approvedBy           String?                @db.VarChar(255)
+  reimbursementId      String?
+  reimbursement        CajaCajaReimbursement? @relation(fields: [reimbursementId], references: [id], onDelete: Restrict)
+  voidedAt             DateTime?
+  voidReason           String?                @db.Text
+  createdAt            DateTime               @default(now())
+  createdBy            String                 @db.VarChar(255)
+
+  @@unique([companyId, voucherNumber])
+  @@index([companyId, cajaCajaId])
+  @@index([status, date])
+  @@map("caja_caja_movements")
+}
+
+model CajaCajaReimbursement {
+  id                  String                      @id @default(cuid())
+  companyId           String
+  cajaCajaId          String
+  cajaCaja            CajaCaja                    @relation(fields: [cajaCajaId], references: [id], onDelete: Restrict)
+  monthYear           String                      @db.VarChar(7)
+  reimbursementNumber String                      @db.VarChar(50)
+  totalExpensesVes    Decimal                     @db.Decimal(19, 4)
+  transactionId       String?                     @unique
+  transaction         Transaction?                @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  status              CajaCajaReimbursementStatus @default(DRAFT)
+  postedAt            DateTime?
+  postedBy            String?                     @db.VarChar(255)
+  voidedAt            DateTime?
+  voidReason          String?                     @db.Text
+  createdAt           DateTime                    @default(now())
+  createdBy           String                      @db.VarChar(255)
+
+  movements CajaCajaMovement[]
+
+  @@unique([companyId, reimbursementNumber])
+  @@unique([companyId, cajaCajaId, monthYear])
+  @@index([companyId, cajaCajaId])
+  @@map("caja_caja_reimbursements")
 }
