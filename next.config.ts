@@ -28,6 +28,7 @@ const securityHeaders = [
       "img-src 'self' data: https:",
       "font-src 'self'",
       "connect-src 'self' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://*.sentry.io https://*.ingest.sentry.io https://*.upstash.io https://generativelanguage.googleapis.com",
+      "worker-src 'self'",
       "frame-src 'none'",
       "frame-ancestors 'none'",
       "object-src 'none'",
