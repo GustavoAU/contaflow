@@ -5,19 +5,11 @@ import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { getRetentionsAction } from "@/modules/retentions/actions/retention.actions";
 import { RetentionForm } from "@/components/retentions/RetentionForm";
+import { RetentionList } from "@/components/retentions/RetentionList";
 
 type Props = {
   params: Promise<{ companyId: string }>;
 };
-
-function formatAmount(value: string): string {
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-}
 
 export default async function RetentionsPage({ params }: Props) {
   const { companyId } = await params;
@@ -37,7 +29,9 @@ export default async function RetentionsPage({ params }: Props) {
           Dashboard
         </Link>
         <h1 className="text-2xl font-bold tracking-tight">Retenciones</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Comprobantes de retención IVA e ISLR</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Comprobantes de retención IVA, ISLR, INCES y FAT
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -51,50 +45,8 @@ export default async function RetentionsPage({ params }: Props) {
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {result.error}
             </div>
-          ) : result.data.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-white p-8 text-center">
-              <p className="text-sm text-zinc-400">No hay retenciones registradas</p>
-            </div>
           ) : (
-            <div className="space-y-3">
-              {result.data.map((r) => (
-                <div key={r.id} className="rounded-lg border bg-white p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{r.providerName}</p>
-                      <p className="text-xs text-zinc-400">
-                        {r.providerRif} — {r.invoiceNumber}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-sm font-bold">
-                        {formatAmount(r.totalRetention)}
-                      </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          r.status === "PENDING"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : r.status === "ISSUED"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {r.status === "PENDING"
-                          ? "Pendiente"
-                          : r.status === "ISSUED"
-                            ? "Emitida"
-                            : "Anulada"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex gap-4 text-xs text-zinc-500">
-                    <span>IVA retenido: {formatAmount(r.ivaRetention)}</span>
-                    {r.islrAmount && <span>ISLR: {formatAmount(r.islrAmount)}</span>}
-                    <span>Tipo: {r.type}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <RetentionList companyId={companyId} retentions={result.data} />
           )}
         </div>
       </div>

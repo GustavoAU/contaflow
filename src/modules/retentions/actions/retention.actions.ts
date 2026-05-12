@@ -1,4 +1,3 @@
-// src/modules/retentions/actions/retention.actions.ts
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -11,8 +10,18 @@ import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import type { Retencion } from "@prisma/client";
-import { CreateRetentionSchema, type CreateRetentionInput } from "../schemas/retention.schema";
-import { RetentionService, linkRetentionToInvoice, getNextVoucherNumber } from "../services/RetentionService";
+import {
+  CreateRetentionSchema,
+  EnterRetentionSchema,
+  type CreateRetentionInput,
+  type EnterRetentionInput,
+} from "../schemas/retention.schema";
+import {
+  RetentionService,
+  linkRetentionToInvoice,
+  getNextVoucherNumber,
+  enterRetention,
+} from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 
@@ -27,12 +36,25 @@ export type RetentionSummary = {
   invoiceAmount: string;
   ivaRetention: string;
   islrAmount: string | null;
+  incesAmount: string | null;
+  fatAmount: string | null;
   totalRetention: string;
   voucherNumber: string | null;
   type: string;
   status: string;
+  enteradoAt: Date | null;
   createdAt: Date;
 };
+
+async function getIpAndUa() {
+  const h = await headers();
+  const ipAddress =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    h.get("x-real-ip") ??
+    null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { ipAddress, userAgent };
+}
 
 // ─── Crear retención ──────────────────────────────────────────────────────────
 export async function createRetentionAction(
@@ -50,20 +72,18 @@ export async function createRetentionAction(
 
     const data = parsed.data;
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await getIpAndUa();
 
-    const rl = await checkRateLimit(userId, limiters.fiscal); // rate limit by authenticated userId
+    const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId: data.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
-    // Fase 15: Guard — no permitir retenciones en ejercicios cerrados
     const retYear = data.invoiceDate.getFullYear();
     const retYearClosed = await FiscalYearCloseService.isFiscalYearClosed(data.companyId, retYear);
     if (retYearClosed) {
@@ -73,19 +93,18 @@ export async function createRetentionAction(
       };
     }
 
-    // Calcular retenciones
     const calc = RetentionService.calculate(
       data.taxBase,
       data.ivaRetentionPct as 75 | 100,
       data.islrCode,
       16,
-      data.type
+      data.type,
+      data.applyInces ?? false,
+      data.applyFat ?? false
     );
 
-    // Idempotencia: clave provista por cliente o generada aquí (constante para este request)
     const idempotencyKey = data.idempotencyKey ?? crypto.randomUUID();
 
-    // Fast path: si ya existe una retención con esta clave, retornar la existente
     if (data.idempotencyKey) {
       const existing = await prisma.retencion.findFirst({
         where: { idempotencyKey, companyId: data.companyId },
@@ -93,27 +112,11 @@ export async function createRetentionAction(
       if (existing) {
         return {
           success: true,
-          data: {
-            id: existing.id,
-            providerName: existing.providerName,
-            providerRif: existing.providerRif,
-            invoiceNumber: existing.invoiceNumber,
-            invoiceDate: existing.invoiceDate,
-            invoiceAmount: existing.invoiceAmount.toString(),
-            ivaRetention: existing.ivaRetention.toString(),
-            islrAmount: existing.islrAmount?.toString() ?? null,
-            totalRetention: existing.totalRetention.toString(),
-            voucherNumber: existing.voucherNumber ?? null,
-            type: existing.type,
-            status: existing.status,
-            createdAt: existing.createdAt,
-          },
+          data: serializeRetention(existing),
         };
       }
     }
 
-    // $transaction Serializable — getNextVoucherNumber requiere SSI
-    // Retry loop: hasta 3 intentos con backoff 50ms/100ms ante P2034
     const P2034_DELAYS = [0, 50, 100] as const;
     const MAX_ATTEMPTS = 3;
     let retention!: Retencion;
@@ -122,60 +125,83 @@ export async function createRetentionAction(
       if (attempt > 1) await new Promise((r) => setTimeout(r, P2034_DELAYS[attempt - 1]));
       txStart = Date.now();
       try {
-        retention = await prisma.$transaction(async (tx) =>
-          withCompanyContext(data.companyId, tx, async (tx) => {
-        const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
+        retention = await prisma.$transaction(
+          async (tx) =>
+            withCompanyContext(data.companyId, tx, async (tx) => {
+              const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
 
-        const ret = await tx.retencion.create({
-          data: {
-            companyId: data.companyId,
-            providerName: data.providerName,
-            providerRif: data.providerRif,
-            invoiceNumber: data.invoiceNumber,
-            invoiceDate: data.invoiceDate,
-            invoiceAmount: new Decimal(data.invoiceAmount),
-            taxBase: new Decimal(data.taxBase),
-            ivaAmount: new Decimal(calc.ivaAmount),
-            ivaRetention: new Decimal(calc.ivaRetention),
-            ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
-            islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
-            islrRetentionPct: calc.islrRetentionPct ? new Decimal(calc.islrRetentionPct) : null,
-            totalRetention: new Decimal(calc.totalRetention),
-            voucherNumber,
-            type: data.type,
-            status: "PENDING",
-            createdBy: userId, // always use authenticated userId
-            idempotencyKey,
-          },
-        });
+              const ret = await tx.retencion.create({
+                data: {
+                  companyId: data.companyId,
+                  providerName: data.providerName,
+                  providerRif: data.providerRif,
+                  invoiceNumber: data.invoiceNumber,
+                  invoiceDate: data.invoiceDate,
+                  invoiceAmount: new Decimal(data.invoiceAmount),
+                  taxBase: new Decimal(data.taxBase),
+                  ivaAmount: new Decimal(calc.ivaAmount),
+                  ivaRetention: new Decimal(calc.ivaRetention),
+                  ivaRetentionPct: new Decimal(calc.ivaRetentionPct),
+                  islrAmount: calc.islrAmount ? new Decimal(calc.islrAmount) : null,
+                  islrRetentionPct: calc.islrRetentionPct
+                    ? new Decimal(calc.islrRetentionPct)
+                    : null,
+                  incesAmount: calc.incesAmount ? new Decimal(calc.incesAmount) : null,
+                  incesRetentionPct: calc.incesRetentionPct
+                    ? new Decimal(calc.incesRetentionPct)
+                    : null,
+                  fatAmount: calc.fatAmount ? new Decimal(calc.fatAmount) : null,
+                  fatRetentionPct: calc.fatRetentionPct
+                    ? new Decimal(calc.fatRetentionPct)
+                    : null,
+                  totalRetention: new Decimal(calc.totalRetention),
+                  voucherNumber,
+                  type: data.type,
+                  status: "PENDING",
+                  createdBy: userId,
+                  idempotencyKey,
+                },
+              });
 
-        await tx.auditLog.create({
-          data: {
-            companyId: data.companyId,
-            entityId: ret.id,
-            entityName: "Retencion",
-            action: "CREATE",
-            userId, // always use authenticated userId
-            ipAddress,
-            userAgent,
-            newValue: {
-              providerRif: data.providerRif,
-              invoiceNumber: data.invoiceNumber,
-              totalRetention: calc.totalRetention,
-              voucherNumber,
-            },
-          },
-        });
+              await tx.auditLog.create({
+                data: {
+                  companyId: data.companyId,
+                  entityId: ret.id,
+                  entityName: "Retencion",
+                  action: "CREATE",
+                  userId,
+                  ipAddress,
+                  userAgent,
+                  newValue: {
+                    providerRif: data.providerRif,
+                    invoiceNumber: data.invoiceNumber,
+                    totalRetention: calc.totalRetention,
+                    voucherNumber,
+                    applyInces: data.applyInces ?? false,
+                    applyFat: data.applyFat ?? false,
+                  },
+                },
+              });
 
-        return ret;
-      })
-        , { isolationLevel: "Serializable" });
-        break; // success — exit retry loop
+              return ret;
+            }),
+          { isolationLevel: "Serializable" }
+        );
+        break;
       } catch (innerErr: unknown) {
-        if (innerErr instanceof Error && "code" in innerErr && (innerErr as { code: string }).code === "P2034") {
+        if (
+          innerErr instanceof Error &&
+          "code" in innerErr &&
+          (innerErr as { code: string }).code === "P2034"
+        ) {
           if (redis) {
             const key = `p2034:${data.companyId}:${new Date().toISOString().slice(0, 10)}`;
-            await redis.pipeline().incr(key).expire(key, 604800).exec().catch(() => {});
+            await redis
+              .pipeline()
+              .incr(key)
+              .expire(key, 604800)
+              .exec()
+              .catch(() => {});
           }
           if (attempt === MAX_ATTEMPTS) {
             Sentry.withScope((scope) => {
@@ -188,61 +214,64 @@ export async function createRetentionAction(
           }
           continue;
         }
-        throw innerErr; // P2002, other errors — let outer catch handle
+        throw innerErr;
       }
     }
 
     revalidatePath(`/company/${data.companyId}/retentions`);
 
-    return {
-      success: true,
-      data: {
-        id: retention.id,
-        providerName: retention.providerName,
-        providerRif: retention.providerRif,
-        invoiceNumber: retention.invoiceNumber,
-        invoiceDate: retention.invoiceDate,
-        invoiceAmount: retention.invoiceAmount.toString(),
-        ivaRetention: retention.ivaRetention.toString(),
-        islrAmount: retention.islrAmount?.toString() ?? null,
-        totalRetention: retention.totalRetention.toString(),
-        voucherNumber: retention.voucherNumber ?? null,
-        type: retention.type,
-        status: retention.status,
-        createdAt: retention.createdAt,
-      },
-    };
+    return { success: true, data: serializeRetention(retention) };
   } catch (error) {
     if (error instanceof Error) {
-      // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
       if (error.message.includes("P2002") && input.idempotencyKey) {
         const existing = await prisma.retencion.findFirst({
           where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
         });
         if (existing) {
-          return {
-            success: true,
-            data: {
-              id: existing.id,
-              providerName: existing.providerName,
-              providerRif: existing.providerRif,
-              invoiceNumber: existing.invoiceNumber,
-              invoiceDate: existing.invoiceDate,
-              invoiceAmount: existing.invoiceAmount.toString(),
-              ivaRetention: existing.ivaRetention.toString(),
-              islrAmount: existing.islrAmount?.toString() ?? null,
-              totalRetention: existing.totalRetention.toString(),
-              voucherNumber: existing.voucherNumber ?? null,
-              type: existing.type,
-              status: existing.status,
-              createdAt: existing.createdAt,
-            },
-          };
+          return { success: true, data: serializeRetention(existing) };
         }
       }
       return { success: false, error: error.message };
     }
     return { success: false, error: "Error al crear la retención" };
+  }
+}
+
+// ─── Enterar retención ────────────────────────────────────────────────────────
+export async function enterRetentionAction(
+  input: EnterRetentionInput
+): Promise<ActionResult<{ retentionId: string }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const parsed = EnterRetentionSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+
+    const data = parsed.data;
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: data.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
+    const { ipAddress, userAgent } = await getIpAndUa();
+
+    await enterRetention(data, userId, ipAddress, userAgent);
+
+    revalidatePath(`/company/${data.companyId}/retentions`);
+
+    return { success: true, data: { retentionId: data.retentionId } };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al enterar la retención" };
   }
 }
 
@@ -271,9 +300,10 @@ export async function exportRetentionVoucherPDFAction(
     const monthLabel = issueDate.toLocaleString("es-VE", { month: "long", year: "numeric" });
 
     const retentionType: "IVA" | "ISLR" = retention.islrAmount ? "ISLR" : "IVA";
-    const retentionRate = retentionType === "ISLR"
-      ? Number(retention.islrRetentionPct ?? 0)
-      : Number(retention.ivaRetentionPct);
+    const retentionRate =
+      retentionType === "ISLR"
+        ? Number(retention.islrRetentionPct ?? 0)
+        : Number(retention.ivaRetentionPct);
 
     const pdfBuffer = await generateRetentionVoucherPDF({
       companyName: retention.company.name,
@@ -313,7 +343,8 @@ export async function linkRetentionToInvoiceAction(
       select: { role: true },
     });
     if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!canAccess(membership.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     await linkRetentionToInvoice(retentionId, invoiceId, companyId);
 
@@ -401,24 +432,68 @@ export async function getRetentionsAction(
 
     return {
       success: true,
-      data: retentions.map((r) => ({
-        id: r.id,
-        providerName: r.providerName,
-        providerRif: r.providerRif,
-        invoiceNumber: r.invoiceNumber,
-        invoiceDate: r.invoiceDate,
-        invoiceAmount: r.invoiceAmount.toString(),
-        ivaRetention: r.ivaRetention.toString(),
-        islrAmount: r.islrAmount?.toString() ?? null,
-        totalRetention: r.totalRetention.toString(),
-        voucherNumber: r.voucherNumber ?? null,
-        type: r.type,
-        status: r.status,
-        createdAt: r.createdAt,
-      })),
+      data: retentions.map(serializeRetention),
     };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al obtener las retenciones" };
   }
+}
+
+// ─── Listar cuentas para selector de enteramiento ─────────────────────────────
+export type AccountOption = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+};
+
+export async function getAccountsForEnteramientoAction(
+  companyId: string
+): Promise<ActionResult<AccountOption[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+
+    const accounts = await prisma.account.findMany({
+      where: {
+        companyId,
+        type: { in: ["ASSET", "LIABILITY"] },
+      },
+      select: { id: true, code: true, name: true, type: true },
+      orderBy: { code: "asc" },
+    });
+
+    return { success: true, data: accounts };
+  } catch {
+    return { success: false, error: "Error al obtener cuentas" };
+  }
+}
+
+// ─── Serializar Retencion → RetentionSummary ──────────────────────────────────
+function serializeRetention(r: Retencion): RetentionSummary {
+  return {
+    id: r.id,
+    providerName: r.providerName,
+    providerRif: r.providerRif,
+    invoiceNumber: r.invoiceNumber,
+    invoiceDate: r.invoiceDate,
+    invoiceAmount: r.invoiceAmount.toString(),
+    ivaRetention: r.ivaRetention.toString(),
+    islrAmount: r.islrAmount?.toString() ?? null,
+    incesAmount: r.incesAmount?.toString() ?? null,
+    fatAmount: r.fatAmount?.toString() ?? null,
+    totalRetention: r.totalRetention.toString(),
+    voucherNumber: r.voucherNumber ?? null,
+    type: r.type,
+    status: r.status,
+    enteradoAt: r.enteradoAt ?? null,
+    createdAt: r.createdAt,
+  };
 }

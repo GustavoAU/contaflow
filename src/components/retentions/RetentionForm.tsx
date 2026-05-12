@@ -38,6 +38,8 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [islrCode, setIslrCode] = useState("SERVICIOS_PJ");
   const [islrConcept, setIslrConcept] = useState("");
   const [islrSuggestion, setIslrSuggestion] = useState<IslrSuggestion | null>(null);
+  const [applyInces, setApplyInces] = useState(false);
+  const [applyFat, setApplyFat] = useState(false);
 
   // Debounce 400ms para sugerencia ISLR al escribir el concepto
   useEffect(() => {
@@ -104,7 +106,9 @@ export function RetentionForm({ companyId, userId }: Props) {
           ivaRetentionPct,
           retentionType !== "IVA" ? islrCode : undefined,
           16,
-          retentionType
+          retentionType,
+          applyInces,
+          applyFat
         )
       : null;
 
@@ -125,6 +129,8 @@ export function RetentionForm({ companyId, userId }: Props) {
         ivaAmount: preview?.ivaAmount ?? "0",
         ivaRetentionPct,
         islrCode: retentionType !== "IVA" ? islrCode : undefined,
+        applyInces,
+        applyFat,
         type: retentionType,
         createdBy: userId,
       });
@@ -316,6 +322,29 @@ export function RetentionForm({ companyId, userId }: Props) {
             </div>
           )}
 
+          {/* Retenciones parafiscales opcionales */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-zinc-600">Retenciones parafiscales (opcional)</p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={applyInces}
+                onChange={(e) => setApplyInces(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300"
+              />
+              <span className="text-sm">INCES 2% — Ley INCES Art. 14</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={applyFat}
+                onChange={(e) => setApplyFat(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300"
+              />
+              <span className="text-sm">FAT 0.75% — Fondo de Ahorro para Trabajadores</span>
+            </label>
+          </div>
+
           {/* Preview de cálculo */}
           {preview && (
             <div className="space-y-1 rounded-lg bg-blue-50 p-4 text-sm">
@@ -338,6 +367,22 @@ export function RetentionForm({ companyId, userId }: Props) {
                     Retención ISLR ({preview.islrRetentionPct}%):
                   </span>
                   <span className="font-mono">{preview.islrAmount}</span>
+                </div>
+              )}
+              {preview.incesAmount && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">
+                    INCES ({preview.incesRetentionPct}%):
+                  </span>
+                  <span className="font-mono">{preview.incesAmount}</span>
+                </div>
+              )}
+              {preview.fatAmount && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-600">
+                    FAT ({preview.fatRetentionPct}%):
+                  </span>
+                  <span className="font-mono">{preview.fatAmount}</span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t pt-1">

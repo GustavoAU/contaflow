@@ -28,15 +28,51 @@ export const ISLR_RATES: Record<string, { pct: number; subtrahend: number; descr
     COMISIONES_PN: { pct: 3, subtrahend: 0, description: "Comisiones y Corretaje — PN" },
     // ── Construcción ─────────────────────────────────────────────────────────
     CONSTRUCCION_PJ: { pct: 2, subtrahend: 0, description: "Construcción y Obras — PJ" },
+    CONSTRUCCION_PN: { pct: 3, subtrahend: 0, description: "Construcción y Obras — PN" },
     // ── Intereses ────────────────────────────────────────────────────────────
     INTERESES_PJ: { pct: 3, subtrahend: 0, description: "Intereses — Persona Jurídica" },
     // ── Seguros ──────────────────────────────────────────────────────────────
     SEGUROS_PJ: { pct: 1, subtrahend: 0, description: "Primas de Seguros — PJ" },
+    // ── Tasas 3% adicionales (Decreto 1808, Art. 9) ──────────────────────────
+    ACTIVIDAD_BURSATIL_PJ: {
+      pct: 3,
+      subtrahend: 0,
+      description: "Actividades Bursátiles y Financieras — PJ",
+    },
+    CORRETAJE_PN: {
+      pct: 3,
+      subtrahend: 0,
+      description: "Corretaje de Bienes Inmuebles — PN",
+    },
+    // ── Tasa 8% — suministro y transferencia de tecnología ───────────────────
+    SUMINISTRO_TECNOLOGIA_PJ: {
+      pct: 8,
+      subtrahend: 0,
+      description: "Suministro y Transferencia de Tecnología — PJ",
+    },
+    ACTIVIDADES_EXTRACTIVAS_PJ: {
+      pct: 8,
+      subtrahend: 0,
+      description: "Explotación Minas y Canteras — PJ",
+    },
   };
 
+// ─── Tasas IVA ────────────────────────────────────────────────────────────────
 export const IVA_RETENTION_RATES = {
   STANDARD: { pct: 75, description: "Retención estándar 75%" },
   FULL: { pct: 100, description: "Retención total 100% (servicios sin insumos)" },
+} as const;
+
+// ─── Tasa INCES (Ley INCES, Art. 14) ─────────────────────────────────────────
+export const INCES_RATE = {
+  pct: 2,
+  description: "INCES 2% — Ley INCES Art. 14 (retención a contratistas)",
+} as const;
+
+// ─── Tasa FAT ─────────────────────────────────────────────────────────────────
+export const FAT_RATE = {
+  pct: 0.75,
+  description: "FAT 0.75% — Fondo de Ahorro para Trabajadores",
 } as const;
 
 // Helper: validate positive amount with ceiling (ADR-006 D-2)
@@ -80,9 +116,22 @@ export const CreateRetentionSchema = z.object({
     .number()
     .refine((v) => v === 75 || v === 100, { error: "Porcentaje IVA debe ser 75 o 100" }),
   islrCode: z.string().optional(),
+  applyInces: z.boolean().optional(),
+  applyFat: z.boolean().optional(),
   type: z.enum(["IVA", "ISLR", "AMBAS"]),
   createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }).optional(),
 });
 
 export type CreateRetentionInput = z.infer<typeof CreateRetentionSchema>;
+
+// ─── Schema de enteramiento ───────────────────────────────────────────────────
+export const EnterRetentionSchema = z.object({
+  retentionId: z.string().min(1, { error: "ID de retención requerido" }),
+  companyId: z.string().min(1, { error: "Empresa requerida" }),
+  liabilityAccountId: z.string().min(1, { error: "Cuenta pasivo (Retenciones por Pagar) requerida" }),
+  bankAccountId: z.string().min(1, { error: "Cuenta banco/caja requerida" }),
+  enterDate: z.coerce.date(),
+});
+
+export type EnterRetentionInput = z.infer<typeof EnterRetentionSchema>;
