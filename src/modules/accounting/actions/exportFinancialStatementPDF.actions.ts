@@ -42,6 +42,14 @@ export async function exportBalanceSheetPDFAction(companyId: string): Promise<PD
   const reportResult = await getBalanceSheetAction(companyId);
   if (!reportResult.success) return { success: false, error: reportResult.error };
 
+  if (!reportResult.data.isBalanced) {
+    return {
+      success: false,
+      error:
+        "El Balance General no está cuadrado (Activos ≠ Pasivos + Patrimonio). Revise los asientos contables antes de exportar.",
+    };
+  }
+
   const today = new Date().toISOString().slice(0, 10);
 
   try {
