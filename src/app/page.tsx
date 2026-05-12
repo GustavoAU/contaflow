@@ -11,6 +11,7 @@ import {
   ShieldCheckIcon,
   StarIcon,
   ZapIcon,
+  MailIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,13 @@ const FEATURES = [
   },
 ];
 
+const TRUST_ITEMS = [
+  "Conforme a PA 121 — SENIAT",
+  "Retenciones IVA / ISLR / INCES",
+  "Nómina LOTTT Venezuela",
+  "Libro Mayor y Diario VEN-NIF",
+];
+
 const PLANS = [
   {
     key: "trial",
@@ -72,7 +80,7 @@ const PLANS = [
       "Hasta 3 usuarios",
       "Soporte por email",
     ],
-    cta: "Empezar gratis",
+    cta: "Crear cuenta gratis",
     ctaHref: "/sign-up",
     highlighted: false,
     badge: null,
@@ -88,7 +96,7 @@ const PLANS = [
       "Usuarios ilimitados",
       "Soporte por email",
     ],
-    cta: "Empezar ahora",
+    cta: "Activar plan mensual",
     ctaHref: "/sign-up",
     highlighted: false,
     badge: null,
@@ -136,7 +144,7 @@ export default async function LandingPage() {
   const isAuthenticated = !!userId;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen scroll-smooth bg-background text-foreground">
       {/* ── Navbar ────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
@@ -145,11 +153,11 @@ export default async function LandingPage() {
             <span className="text-lg font-semibold tracking-tight">ContaFlow</span>
           </Link>
 
-          <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-            <Link href="#funcionalidades" className="hover:text-foreground transition-colors">
+          <nav className="hidden items-center gap-6 text-sm text-zinc-600 dark:text-zinc-400 md:flex">
+            <Link href="#funcionalidades" className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
               Funcionalidades
             </Link>
-            <Link href="#precios" className="hover:text-foreground transition-colors">
+            <Link href="#precios" className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
               Precios
             </Link>
           </nav>
@@ -167,7 +175,7 @@ export default async function LandingPage() {
                   <Link href="/sign-in">Iniciar sesión</Link>
                 </Button>
                 <Button asChild size="sm">
-                  <Link href="/sign-up">Empezar gratis</Link>
+                  <Link href="/sign-up">Crear cuenta gratis</Link>
                 </Button>
               </>
             )}
@@ -190,7 +198,7 @@ export default async function LandingPage() {
               <span className="text-primary">sin complicaciones.</span>
             </h1>
 
-            <p className="text-lg text-muted-foreground leading-relaxed">
+            <p className="text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
               ContaFlow es el sistema contable diseñado para Venezuela. Facturación
               fiscal, nómina, inventario y conciliación bancaria en una sola plataforma,
               a una fracción del costo de los sistemas tradicionales.
@@ -207,7 +215,7 @@ export default async function LandingPage() {
                 <>
                   <Button asChild size="lg">
                     <Link href="/sign-up">
-                      Empezar gratis — 14 días <ArrowRightIcon className="ml-2 h-4 w-4" />
+                      Crear cuenta gratis — 14 días <ArrowRightIcon className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
@@ -227,14 +235,28 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ── Trust bar ─────────────────────────────────────────────────────── */}
+      <div className="border-y border-border/40 bg-muted/20 py-4">
+        <div className="mx-auto max-w-6xl px-4">
+          <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+            {TRUST_ITEMS.map((item) => (
+              <li key={item} className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                <CheckIcon className="h-4 w-4 shrink-0 text-primary" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       {/* ── Funcionalidades ───────────────────────────────────────────────── */}
-      <section id="funcionalidades" className="border-t border-border/40 bg-muted/30 py-20">
+      <section id="funcionalidades" className="border-b border-border/40 bg-muted/30 py-20">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold tracking-tight">
               Todo lo que necesita tu empresa
             </h2>
-            <p className="mt-3 text-muted-foreground">
+            <p className="mt-3 text-zinc-600 dark:text-zinc-400">
               Un solo sistema. Sin módulos separados ni costos ocultos.
             </p>
           </div>
@@ -243,13 +265,13 @@ export default async function LandingPage() {
             {FEATURES.map(({ icon: Icon, title, description }) => (
               <div
                 key={title}
-                className="rounded-xl border border-border bg-background p-6 shadow-sm"
+                className="rounded-xl border border-border bg-background p-6 shadow-sm transition-shadow hover:shadow-md"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                   <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <h3 className="mb-2 font-semibold">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+                <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{description}</p>
               </div>
             ))}
           </div>
@@ -261,7 +283,7 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold tracking-tight">Precios transparentes</h2>
-            <p className="mt-3 text-muted-foreground">
+            <p className="mt-3 text-zinc-600 dark:text-zinc-400">
               Sin sorpresas. Cancela cuando quieras. Pago en USDT (crypto).
             </p>
           </div>
@@ -288,15 +310,15 @@ export default async function LandingPage() {
                 )}
 
                 <div className="mb-4">
-                  <p className="text-sm font-medium text-muted-foreground">{plan.name}</p>
+                  <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">{plan.name}</p>
                   <div className="mt-1 flex items-baseline gap-1">
                     <span className="text-3xl font-bold">{plan.price}</span>
-                    <span className="text-sm text-muted-foreground">{plan.period}</span>
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400">{plan.period}</span>
                   </div>
                   {plan.priceMonthly && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">{plan.priceMonthly}</p>
+                    <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">{plan.priceMonthly}</p>
                   )}
-                  <p className="mt-2 text-sm text-muted-foreground">{plan.description}</p>
+                  <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{plan.description}</p>
                 </div>
 
                 <ul className="mb-6 flex-1 space-y-2">
@@ -334,7 +356,7 @@ export default async function LandingPage() {
           <h2 className="text-3xl font-bold tracking-tight">
             Empieza hoy sin riesgos
           </h2>
-          <p className="mt-4 text-muted-foreground">
+          <p className="mt-4 text-zinc-600 dark:text-zinc-400">
             14 días con acceso completo. Sin tarjeta de crédito. Si no es para ti,
             simplemente no continúas — sin cargos, sin complicaciones.
           </p>
@@ -357,24 +379,68 @@ export default async function LandingPage() {
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-border/40 py-8">
+      <footer className="border-t border-border/40 bg-muted/20 py-12">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <ZapIcon className="h-4 w-4 text-primary" />
-              ContaFlow
+          <div className="grid gap-8 sm:grid-cols-3">
+            {/* Marca */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 font-semibold">
+                <ZapIcon className="h-4 w-4 text-primary" />
+                ContaFlow
+              </div>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Sistema contable profesional venezolano. Conforme a PA 121 — SENIAT.
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} ContaFlow. Sistema contable conforme a PA 121 — Venezuela.
-            </p>
-            <div className="flex gap-4 text-sm text-muted-foreground">
-              <Link href="/sign-in" className="hover:text-foreground transition-colors">
-                Iniciar sesión
-              </Link>
-              <Link href="/sign-up" className="hover:text-foreground transition-colors">
-                Registro
-              </Link>
+
+            {/* Links */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Plataforma</p>
+              <ul className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                {[
+                  { href: "#funcionalidades", label: "Funcionalidades" },
+                  { href: "#precios", label: "Precios" },
+                  { href: "/sign-in", label: "Iniciar sesión" },
+                  { href: "/sign-up", label: "Crear cuenta" },
+                ].map(({ href, label }) => (
+                  <li key={href}>
+                    <Link href={href} className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
+
+            {/* Contacto / Legal */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Soporte</p>
+              <ul className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                <li className="flex items-center gap-2">
+                  <MailIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <a
+                    href="mailto:soporte@contaflow.app"
+                    className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  >
+                    soporte@contaflow.app
+                  </a>
+                </li>
+                <li>
+                  <Link href="/terms" className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    Términos de servicio
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/privacy" className="rounded transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    Política de privacidad
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-border/40 pt-6 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} ContaFlow. Todos los derechos reservados. Sistema contable conforme a PA 121 — Venezuela.
           </div>
         </div>
       </footer>
