@@ -299,15 +299,15 @@ export async function exportRetentionVoucherPDFAction(
     const issueDate = retention.createdAt;
     const monthLabel = issueDate.toLocaleString("es-VE", { month: "long", year: "numeric" });
 
-    const retentionType: "IVA" | "ISLR" = retention.islrAmount ? "ISLR" : "IVA";
-    const retentionRate =
-      retentionType === "ISLR"
-        ? Number(retention.islrRetentionPct ?? 0)
-        : Number(retention.ivaRetentionPct);
+    const retentionType = retention.type as "IVA" | "ISLR" | "AMBAS";
+    let retentionRate: number | undefined
+    if (retentionType === "ISLR") retentionRate = Number(retention.islrRetentionPct ?? 0)
+    else if (retentionType === "IVA") retentionRate = Number(retention.ivaRetentionPct)
 
     const pdfBuffer = await generateRetentionVoucherPDF({
       companyName: retention.company.name,
       companyRif: retention.company.rif ?? "",
+      companyAddress: retention.company.address ?? undefined,
       voucherNumber: retention.voucherNumber ?? retention.id,
       issueDate,
       providerName: retention.providerName,
@@ -320,6 +320,14 @@ export async function exportRetentionVoucherPDFAction(
       invoiceAmount: retention.invoiceAmount,
       taxableBase: retention.taxBase,
       retainedAmount: retention.totalRetention,
+      ivaRetention: retention.ivaRetention,
+      ivaRetentionPct: Number(retention.ivaRetentionPct),
+      islrAmount: retention.islrAmount ?? undefined,
+      islrRetentionPct: retention.islrRetentionPct ? Number(retention.islrRetentionPct) : undefined,
+      incesAmount: retention.incesAmount ?? undefined,
+      incesRetentionPct: retention.incesRetentionPct ? Number(retention.incesRetentionPct) : undefined,
+      fatAmount: retention.fatAmount ?? undefined,
+      fatRetentionPct: retention.fatRetentionPct ? Number(retention.fatRetentionPct) : undefined,
     });
 
     return { success: true, buffer: Array.from(pdfBuffer) };
