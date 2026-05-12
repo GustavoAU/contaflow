@@ -28,6 +28,7 @@ export async function exportForma30PDFAction(
   companyId: string,
   year: number,
   month: number,
+  creditoFiscalPeriodoAnterior?: number,
 ): Promise<ActionResult<string>> {
   // 1. Autenticación
   const { userId } = await auth();
@@ -38,7 +39,7 @@ export async function exportForma30PDFAction(
   if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
 
   // 3. Validar input
-  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month });
+  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -58,11 +59,15 @@ export async function exportForma30PDFAction(
     });
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
-    // 5. Calcular Forma 30
+    // 5. Calcular Forma 30 (con crédito anterior si aplica)
+    const { Decimal } = await import("decimal.js");
+    const creditoDecimal = new Decimal(parsed.data.creditoFiscalPeriodoAnterior ?? 0);
     const result = await DeclaracionIVAService.calculate(
       parsed.data.companyId,
       parsed.data.year,
       parsed.data.month,
+      undefined,
+      creditoDecimal,
     );
 
     // 6. Generar PDF

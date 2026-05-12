@@ -74,7 +74,7 @@ const mockForma30Result = {
     totalRetenciones: ZERO,
   },
   seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-  seccionE: { cuotaPeriodo: new Decimal("320"), esSaldoAFavor: false },
+  seccionE: { cuotaPeriodo: new Decimal("320"), esSaldoAFavor: false, creditoFiscalPeriodoAnterior: new Decimal("0") },
   calculatedAt: new Date(),
 };
 
@@ -148,7 +148,16 @@ describe("exportForma30PDFAction", () => {
 
   it("llama a DeclaracionIVAService.calculate con los parámetros correctos", async () => {
     await exportForma30PDFAction("cmp_test", 2026, 3);
-    expect(vi.mocked(DeclaracionIVAService.calculate)).toHaveBeenCalledWith("cmp_test", 2026, 3);
+    expect(vi.mocked(DeclaracionIVAService.calculate)).toHaveBeenCalledWith(
+      "cmp_test", 2026, 3, undefined, expect.any(Object),
+    );
+  });
+
+  it("pasa creditoFiscalPeriodoAnterior al servicio de cálculo", async () => {
+    await exportForma30PDFAction("cmp_test", 2026, 3, 500);
+    expect(vi.mocked(DeclaracionIVAService.calculate)).toHaveBeenCalledWith(
+      "cmp_test", 2026, 3, undefined, expect.any(Object),
+    );
   });
 
   it("llama a generateForma30PDF con companyName y rif de la empresa", async () => {

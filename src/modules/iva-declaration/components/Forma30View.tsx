@@ -130,7 +130,8 @@ export function Forma30View({ companyId }: Props) {
   function handleExportarPDF() {
     if (!result) return;
     startExportTransition(async () => {
-      const res = await exportForma30PDFAction(companyId, result.year, result.month);
+      const credito = parseFloat(creditoAnterior) || 0;
+      const res = await exportForma30PDFAction(companyId, result.year, result.month, credito);
       if (res.success) {
         const bytes = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: "application/pdf" });

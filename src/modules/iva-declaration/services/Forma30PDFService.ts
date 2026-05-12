@@ -108,6 +108,15 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: "#9ca3af",
   },
+  // Bloque certificación / firma
+  certBlock: { marginTop: 20, borderTop: "1pt solid #374151", paddingTop: 10 },
+  certTitle: { fontSize: 8, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#374151" },
+  certRow: { flexDirection: "row", gap: 20 },
+  certCol: { flex: 1, borderTop: "0.5pt solid #374151", paddingTop: 4 },
+  certLabel: { fontSize: 7, color: "#6b7280" },
+  certValue: { fontSize: 8, fontWeight: "bold", marginTop: 2 },
+  certLine: { height: 24, borderBottom: "0.5pt solid #9ca3af", marginBottom: 2 },
+  certDisclaimer: { fontSize: 7, textAlign: "center", color: "#9ca3af", marginTop: 10 },
 });
 
 // ─── Helper de formato ────────────────────────────────────────────────────────
@@ -350,21 +359,80 @@ function SeccionEView({ e }: { e: SeccionE }) {
       ? (e.cuotaPeriodo as { abs: () => unknown }).abs() as number
       : Math.abs(Number(e.cuotaPeriodo))
   );
+  const hasCredito = Number(e.creditoFiscalPeriodoAnterior) > 0;
+  const subtitleText = hasCredito
+    ? "Débitos Fiscales − Créditos Fiscales − Retenciones IVA − Crédito Período Anterior"
+    : "Débitos Fiscales − Créditos Fiscales − Retenciones IVA";
 
   return React.createElement(
     View,
-    { style: boxStyle },
+    null,
+    hasCredito
+      ? React.createElement(
+          View,
+          { style: styles.simpleRow },
+          React.createElement(Text, { style: styles.simpleLabel }, "E1. Crédito fiscal período anterior"),
+          React.createElement(Text, { style: styles.simpleValue }, fmtAmt(e.creditoFiscalPeriodoAnterior)),
+        )
+      : null,
     React.createElement(
       View,
-      null,
-      React.createElement(Text, { style: styles.cuotaLabel }, labelText),
+      { style: boxStyle },
       React.createElement(
-        Text,
-        { style: styles.cuotaSubtitle },
-        "Débitos Fiscales − Créditos Fiscales − Retenciones IVA",
+        View,
+        null,
+        React.createElement(Text, { style: styles.cuotaLabel }, labelText),
+        React.createElement(Text, { style: styles.cuotaSubtitle }, subtitleText),
+      ),
+      React.createElement(Text, { style: styles.cuotaAmount }, amountText),
+    ),
+  );
+}
+
+function CertificationBlock({ companyName }: { companyName: string }) {
+  return React.createElement(
+    View,
+    { style: styles.certBlock },
+    React.createElement(Text, { style: styles.certTitle }, "CERTIFICACIÓN DEL DECLARANTE"),
+    React.createElement(
+      View,
+      { style: styles.certRow },
+      // Columna representante legal
+      React.createElement(
+        View,
+        { style: styles.certCol },
+        React.createElement(Text, { style: styles.certLabel }, "Representante Legal / Declarante"),
+        React.createElement(View, { style: styles.certLine }),
+        React.createElement(Text, { style: styles.certLabel }, "Nombre y Apellido"),
+        React.createElement(
+          View,
+          { style: { ...styles.certLine, height: 14 } },
+          React.createElement(Text, { style: styles.certValue }, companyName),
+        ),
+        React.createElement(Text, { style: styles.certLabel }, "Cédula de Identidad"),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
+        React.createElement(Text, { style: styles.certLabel }, "Cargo"),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
+      ),
+      // Columna contador
+      React.createElement(
+        View,
+        { style: styles.certCol },
+        React.createElement(Text, { style: styles.certLabel }, "Asesor Tributario / Contador"),
+        React.createElement(View, { style: styles.certLine }),
+        React.createElement(Text, { style: styles.certLabel }, "Nombre y Apellido"),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
+        React.createElement(Text, { style: styles.certLabel }, "N° CPC / Colegio de Contadores"),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
+        React.createElement(Text, { style: styles.certLabel }, "Cédula de Identidad"),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
       ),
     ),
-    React.createElement(Text, { style: styles.cuotaAmount }, amountText),
+    React.createElement(
+      Text,
+      { style: styles.certDisclaimer },
+      "Declaro bajo fe de juramento que los datos suministrados son ciertos y verídicos (Art. 93 LISLR / Art. 52 LIVA)",
+    ),
   );
 }
 
@@ -384,6 +452,7 @@ function Forma30Document({ params }: { params: Forma30PDFParams }) {
       React.createElement(SeccionCView, { c: params.seccionC }),
       React.createElement(SeccionDView, { d: params.seccionD }),
       React.createElement(SeccionEView, { e: params.seccionE }),
+      React.createElement(CertificationBlock, { companyName: params.companyName }),
       // Footer
       React.createElement(
         View,
