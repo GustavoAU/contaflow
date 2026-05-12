@@ -124,19 +124,19 @@ enum InvoicePaymentStatus {
 }
 
 model Company {
-  id                        String                  @id @default(cuid())
+  id                        String                   @id @default(cuid())
   name                      String
   transactions              Transaction[]
   periods                   AccountingPeriod[]
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
-  rif                       String?                 @unique // RIF para Venezuela
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  rif                       String?                  @unique // RIF para Venezuela
   address                   String?
   members                   CompanyMember[]
   accounts                  Account[]
-  status                    CompanyStatus           @default(ACTIVE)
-  plan                      CompanyPlan             @default(FREE)
-  isSpecialContributor      Boolean                 @default(false)
+  status                    CompanyStatus            @default(ACTIVE)
+  plan                      CompanyPlan              @default(FREE)
+  isSpecialContributor      Boolean                  @default(false)
   // Datos SENIAT — PA-121 (Forma 30, Libro Mayor, reportes fiscales)
   telefono                  String?
   email                     String?
@@ -150,17 +150,17 @@ model Company {
   exchangeRates             ExchangeRate[]
   paymentRecords            PaymentRecord[]
   // Fase 16: Cartera CxC/CxP
-  paymentTermDays           Int                     @default(30)
+  paymentTermDays           Int                      @default(30)
   invoicePayments           InvoicePayment[]
   // Fase 17: Conciliación Bancaria
   bankAccounts              BankAccount[]
   // Fase 13D: companyId desnormalizado en BankTransaction para RLS
-  bankTransactions          BankTransaction[]       @relation("BankTransactionCompany")
+  bankTransactions          BankTransaction[]        @relation("BankTransactionCompany")
   // Fase 15: Cierre de ejercicio económico
   resultAccountId           String?
-  resultAccount             Account?                @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
+  resultAccount             Account?                 @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
   retainedEarningsAccountId String?
-  retainedEarningsAccount   Account?                @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
+  retainedEarningsAccount   Account?                 @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
   fiscalYearCloses          FiscalYearClose[]
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots           PeriodSnapshot[]
@@ -215,7 +215,7 @@ model Company {
   paymentBatches            PaymentBatch[]
   // Sprint 3: Suscripciones y Facturación
   subscription              Subscription?
-  referredSubscriptions     Subscription[]          @relation("SubscriptionReferral")
+  referredSubscriptions     Subscription[]           @relation("SubscriptionReferral")
   // Fase 37A: configuración operacional de empresa
   settings                  CompanySettings?
   // Fase 37A: líneas de factura (para multi-tenant IDOR check)
@@ -223,6 +223,9 @@ model Company {
   // Fase 37B: Módulo Gastos
   expenses                  Expense[]
   expenseCategories         ExpenseCategory[]
+  // Fase 36D: Distribución de Ingresos Multidestinatario (ADR-023)
+  incomeDistributions       IncomeDistribution[]     @relation("IncomeDistributions")
+  incomeDistributionLines   IncomeDistributionLine[] @relation("IncomeDistributionRecipients")
   // Permisos granulares por rol (grants adicionales al rol base)
   rolePermissions           RolePermission[]
 }
@@ -252,57 +255,60 @@ model RolePermission {
 }
 
 model Account {
-  id                               String                @id @default(cuid())
+  id                               String                   @id @default(cuid())
   name                             String
   code                             String
   type                             AccountType
   description                      String?
   // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — no se reexpresa por INPC; genera REPOMO
-  isMonetary                       Boolean               @default(false)
+  isMonetary                       Boolean                  @default(false)
   companyId                        String
-  company                          Company               @relation(fields: [companyId], references: [id])
+  company                          Company                  @relation(fields: [companyId], references: [id])
   journalEntries                   JournalEntry[]
   deletedAt                        DateTime?
-  createdAt                        DateTime              @default(now())
-  updatedAt                        DateTime              @updatedAt
+  createdAt                        DateTime                 @default(now())
+  updatedAt                        DateTime                 @updatedAt
   // Fase 15: relaciones inversas para cuentas de cierre
-  companiesAsResult                Company[]             @relation("ResultAccount")
-  companiesAsRetainedEarnings      Company[]             @relation("RetainedEarningsAccount")
+  companiesAsResult                Company[]                @relation("ResultAccount")
+  companiesAsRetainedEarnings      Company[]                @relation("RetainedEarningsAccount")
   // Fase 17: Conciliación Bancaria
   bankAccount                      BankAccount?
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots                  PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssetsAsAsset               FixedAsset[]          @relation("FixedAssetAccount")
-  fixedAssetsAsDepreciation        FixedAsset[]          @relation("DepreciationExpenseAccount")
-  fixedAssetsAsAccDepreciation     FixedAsset[]          @relation("AccumulatedDepreciationAccount")
+  fixedAssetsAsAsset               FixedAsset[]             @relation("FixedAssetAccount")
+  fixedAssetsAsDepreciation        FixedAsset[]             @relation("DepreciationExpenseAccount")
+  fixedAssetsAsAccDepreciation     FixedAsset[]             @relation("AccumulatedDepreciationAccount")
   // Fase 22: Ajuste por Inflación
   inflationAdjustments             InflationAdjustment[]
   // Fase 28D: Inventario
-  inventoryItems                   InventoryItem[]       @relation("InventoryItemAccount")
-  inventoryItemsAsCogs             InventoryItem[]       @relation("CogsAccount")
+  inventoryItems                   InventoryItem[]          @relation("InventoryItemAccount")
+  inventoryItemsAsCogs             InventoryItem[]          @relation("CogsAccount")
   // Fase NOM-C: Cuentas contables de nómina
-  payrollConfigsAsExpense          PayrollConfig[]       @relation("PayrollExpenseAccount")
-  payrollConfigsAsPayable          PayrollConfig[]       @relation("PayrollPayableAccount")
-  payrollConfigsAsIvss             PayrollConfig[]       @relation("PayrollIvssPayable")
-  payrollConfigsAsFaov             PayrollConfig[]       @relation("PayrollFaovPayable")
-  payrollConfigsAsInces            PayrollConfig[]       @relation("PayrollIncesPayable")
-  payrollConfigsAsRpe              PayrollConfig[]       @relation("PayrollRpePayable")
+  payrollConfigsAsExpense          PayrollConfig[]          @relation("PayrollExpenseAccount")
+  payrollConfigsAsPayable          PayrollConfig[]          @relation("PayrollPayableAccount")
+  payrollConfigsAsIvss             PayrollConfig[]          @relation("PayrollIvssPayable")
+  payrollConfigsAsFaov             PayrollConfig[]          @relation("PayrollFaovPayable")
+  payrollConfigsAsInces            PayrollConfig[]          @relation("PayrollIncesPayable")
+  payrollConfigsAsRpe              PayrollConfig[]          @relation("PayrollRpePayable")
   // Fase NOM-D: cuentas de prestaciones
-  payrollConfigsAsBenefitsExpense  PayrollConfig[]       @relation("PayrollBenefitsExpense")
-  payrollConfigsAsBenefitsPayable  PayrollConfig[]       @relation("PayrollBenefitsPayable")
-  payrollConfigsAsVacationPayable  PayrollConfig[]       @relation("PayrollVacationPayable")
-  payrollConfigsAsProfitPayable    PayrollConfig[]       @relation("PayrollProfitPayable")
+  payrollConfigsAsBenefitsExpense  PayrollConfig[]          @relation("PayrollBenefitsExpense")
+  payrollConfigsAsBenefitsPayable  PayrollConfig[]          @relation("PayrollBenefitsPayable")
+  payrollConfigsAsVacationPayable  PayrollConfig[]          @relation("PayrollVacationPayable")
+  payrollConfigsAsProfitPayable    PayrollConfig[]          @relation("PayrollProfitPayable")
   // Fase 37B: Módulo Gastos
-  expensesAsAccount                Expense[]             @relation("ExpenseAccount")
-  expenseCategoryDefaults          ExpenseCategory[]     @relation("ExpenseCategoryAccount")
+  expensesAsAccount                Expense[]                @relation("ExpenseAccount")
+  expenseCategoryDefaults          ExpenseCategory[]        @relation("ExpenseCategoryAccount")
   // ADR-026: Configuración GL para causación automática de facturas
-  companySettingsAsAR              CompanySettings[]     @relation("SettingsARAccount")
-  companySettingsAsAP              CompanySettings[]     @relation("SettingsAPAccount")
-  companySettingsAsSales           CompanySettings[]     @relation("SettingsSalesAccount")
-  companySettingsAsPurchaseExpense CompanySettings[]     @relation("SettingsPurchaseExpenseAccount")
-  companySettingsAsIVADF           CompanySettings[]     @relation("SettingsIVADFAccount")
-  companySettingsAsIVACF           CompanySettings[]     @relation("SettingsIVACFAccount")
+  companySettingsAsAR              CompanySettings[]        @relation("SettingsARAccount")
+  companySettingsAsAP              CompanySettings[]        @relation("SettingsAPAccount")
+  companySettingsAsSales           CompanySettings[]        @relation("SettingsSalesAccount")
+  companySettingsAsPurchaseExpense CompanySettings[]        @relation("SettingsPurchaseExpenseAccount")
+  companySettingsAsIVADF           CompanySettings[]        @relation("SettingsIVADFAccount")
+  companySettingsAsIVACF           CompanySettings[]        @relation("SettingsIVACFAccount")
+  // Fase 36D: Distribución de Ingresos
+  incomeDistributionOrigins        IncomeDistribution[]     @relation("IncomeDistributionOrigin")
+  incomeDistributionLineAccounts   IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -366,6 +372,8 @@ model Transaction {
   termination                    Termination?
   // Fase 37B: Módulo Gastos
   expense                        Expense?
+  // Fase 36D: Distribución de Ingresos
+  incomeDistribution             IncomeDistribution?
 
   @@unique([companyId, number])
 }
@@ -2310,4 +2318,93 @@ model SubscriptionPayment {
 
   @@index([subscriptionId])
   @@map("subscription_payments")
+}
+
+// ─── Fase 36D: IncomeDistribution — Distribución de Ingresos (ADR-023) ────────
+
+enum IncomeDistributionStatus {
+  DRAFT
+  APPLIED
+  VOID
+}
+
+model IncomeDistribution {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation("IncomeDistributions", fields: [companyId], references: [id], onDelete: Restrict)
+
+  referenceNumber String?                  @unique @db.VarChar(50)
+  description     String?                  @db.Text
+  date            DateTime                 @db.Date
+  status          IncomeDistributionStatus @default(DRAFT)
+
+  currencyCode        String  @default("VES") @db.VarChar(3)
+  totalAmountOriginal Decimal @db.Decimal(18, 2)
+  totalAmountVes      Decimal @db.Decimal(18, 2)
+  exchangeRate        Decimal @default(1) @db.Decimal(8, 6)
+
+  originAccountId String
+  originAccount   Account @relation("IncomeDistributionOrigin", fields: [originAccountId], references: [id], onDelete: Restrict)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  idempotencyKey String? @unique @db.VarChar(255)
+
+  voidReason String?   @db.Text
+  voidedAt   DateTime?
+  voidedBy   String?   @db.VarChar(255)
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String    @db.VarChar(255)
+
+  lines  IncomeDistributionLine[]
+  audits IncomeDistributionAudit[]
+
+  @@index([companyId, status])
+  @@index([companyId, date])
+  @@map("income_distributions")
+}
+
+model IncomeDistributionLine {
+  id             String             @id @default(cuid())
+  distributionId String
+  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Restrict)
+
+  recipientCompanyId String
+  recipientCompany   Company @relation("IncomeDistributionRecipients", fields: [recipientCompanyId], references: [id], onDelete: Restrict)
+
+  accountId String
+  account   Account @relation("IncomeDistributionLineAccounts", fields: [accountId], references: [id], onDelete: Restrict)
+
+  percentageShare Decimal @db.Decimal(5, 2)
+  amountVes       Decimal @db.Decimal(18, 2)
+  lineDescription String? @db.Text
+  lineNumber      Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([distributionId, recipientCompanyId])
+  @@index([distributionId])
+  @@map("income_distribution_lines")
+}
+
+model IncomeDistributionAudit {
+  id             String             @id @default(cuid())
+  distributionId String
+  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  action         String @db.VarChar(50)
+  changesSummary Json?
+
+  userId    String  @db.VarChar(255)
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([distributionId])
+  @@map("income_distribution_audits")
 }
