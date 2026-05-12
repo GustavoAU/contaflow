@@ -146,18 +146,18 @@ describe("OrderService.approveOrder", () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.order.update).mockResolvedValue({} as never);
 
-    await OrderService.approveOrder(COMPANY_ID, "order-1");
+    await OrderService.approveOrder(COMPANY_ID, "order-1", "user-1");
 
     expect(prisma.order.update).toHaveBeenCalledWith({
       where: { id: "order-1" },
-      data: { status: "APPROVED" },
+      data: { status: "APPROVED", approvedBy: "user-1", approvedAt: expect.any(Date) },
     });
   });
 
   it("CRITICAL-1: lanza error si orden no pertenece a companyId", async () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
 
-    await expect(OrderService.approveOrder(COMPANY_ID, "foreign-order")).rejects.toThrow(
+    await expect(OrderService.approveOrder(COMPANY_ID, "foreign-order", "user-1")).rejects.toThrow(
       "Orden no encontrada"
     );
   });
@@ -167,7 +167,7 @@ describe("OrderService.approveOrder", () => {
       makeOrderDb({ status: "CONVERTED" }) as never
     );
 
-    await expect(OrderService.approveOrder(COMPANY_ID, "order-1")).rejects.toThrow(
+    await expect(OrderService.approveOrder(COMPANY_ID, "order-1", "user-1")).rejects.toThrow(
       "Solo se puede aprobar"
     );
   });

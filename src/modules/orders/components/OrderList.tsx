@@ -194,6 +194,11 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                           Vencida
                         </span>
                       )}
+                      {o.approvedAt && (
+                        <span className="text-xs text-zinc-400" title={`Aprobado por ${o.approvedBy ?? "—"}`}>
+                          Aprobado {new Date(o.approvedAt).toLocaleDateString("es-VE")}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">

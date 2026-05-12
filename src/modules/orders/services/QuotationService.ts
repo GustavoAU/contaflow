@@ -40,6 +40,8 @@ export interface QuotationRow {
   total: string;
   currency: string;
   createdBy: string;
+  approvedBy: string | null;
+  approvedAt: string | null;  // ISO datetime
   createdAt: string;
   items: {
     id: string;
@@ -93,6 +95,8 @@ function serializeQuotation(q: {
   total: { toString(): string };
   currency: string;
   createdBy: string;
+  approvedBy: string | null;
+  approvedAt: Date | null;
   createdAt: Date;
   items: {
     id: string;
@@ -118,6 +122,8 @@ function serializeQuotation(q: {
     total: new Decimal(q.total.toString()).toFixed(2),
     currency: q.currency,
     createdBy: q.createdBy,
+    approvedBy: q.approvedBy ?? null,
+    approvedAt: q.approvedAt ? q.approvedAt.toISOString() : null,
     createdAt: q.createdAt.toISOString(),
     items: q.items.map((i) => ({
       id: i.id,
@@ -290,7 +296,7 @@ export const QuotationService = {
   },
 
   // ── approve → APPROVED ────────────────────────────────────────────────────
-  async approveQuotation(companyId: string, quotationId: string): Promise<void> {
+  async approveQuotation(companyId: string, quotationId: string, userId: string): Promise<void> {
     const q = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
     });
@@ -300,7 +306,7 @@ export const QuotationService = {
 
     await prisma.quotation.update({
       where: { id: quotationId },
-      data: { status: "APPROVED" },
+      data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
     });
   },
 

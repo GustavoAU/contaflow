@@ -73,7 +73,7 @@ export async function approveOrderAction(
 
   try {
     // CRITICAL-1: companyId guard enforced inside OrderService.approveOrder
-    await OrderService.approveOrder(companyId, orderId);
+    await OrderService.approveOrder(companyId, orderId, userId);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {

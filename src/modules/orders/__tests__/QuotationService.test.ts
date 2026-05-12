@@ -151,11 +151,11 @@ describe("QuotationService — status transitions", () => {
     );
     vi.mocked(prisma.quotation.update).mockResolvedValue({} as never);
 
-    await QuotationService.approveQuotation(COMPANY_ID, "quot-1");
+    await QuotationService.approveQuotation(COMPANY_ID, "quot-1", "user-1");
 
     expect(prisma.quotation.update).toHaveBeenCalledWith({
       where: { id: "quot-1" },
-      data: { status: "APPROVED" },
+      data: { status: "APPROVED", approvedBy: "user-1", approvedAt: expect.any(Date) },
     });
   });
 
@@ -165,7 +165,7 @@ describe("QuotationService — status transitions", () => {
     );
 
     await expect(
-      QuotationService.approveQuotation(COMPANY_ID, "quot-1")
+      QuotationService.approveQuotation(COMPANY_ID, "quot-1", "user-1")
     ).rejects.toThrow("Solo se puede aprobar");
   });
 

@@ -92,7 +92,7 @@ export async function approveQuotationAction(
     return { success: false, error: "Acceso denegado" };
 
   try {
-    await QuotationService.approveQuotation(companyId, quotationId);
+    await QuotationService.approveQuotation(companyId, quotationId, userId);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {

@@ -1309,6 +1309,8 @@ model Quotation {
   total           Decimal         @db.Decimal(19, 4)
   currency        Currency        @default(VES)
   createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
@@ -1353,6 +1355,8 @@ model Order {
   total           Decimal       @db.Decimal(19, 4)
   currency        Currency      @default(VES)
   createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?

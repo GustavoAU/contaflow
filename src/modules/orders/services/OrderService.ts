@@ -44,6 +44,8 @@ export interface OrderRow {
   total: string;
   currency: string;
   createdBy: string;
+  approvedBy: string | null;
+  approvedAt: string | null;  // ISO datetime
   createdAt: string;
   items: {
     id: string;
@@ -98,6 +100,8 @@ function serializeOrder(o: {
   total: { toString(): string };
   currency: string;
   createdBy: string;
+  approvedBy: string | null;
+  approvedAt: Date | null;
   createdAt: Date;
   items: {
     id: string;
@@ -126,6 +130,8 @@ function serializeOrder(o: {
     total: new Decimal(o.total.toString()).toFixed(2),
     currency: o.currency,
     createdBy: o.createdBy,
+    approvedBy: o.approvedBy ?? null,
+    approvedAt: o.approvedAt ? o.approvedAt.toISOString() : null,
     createdAt: o.createdAt.toISOString(),
     items: o.items.map((i) => ({
       id: i.id,
@@ -233,7 +239,7 @@ export const OrderService = {
   },
 
   // ── approve — DRAFT → APPROVED ────────────────────────────────────────────
-  async approveOrder(companyId: string, orderId: string): Promise<void> {
+  async approveOrder(companyId: string, orderId: string, userId: string): Promise<void> {
     // CRITICAL-1: companyId guard — no findUnique by PK alone
     const order = await prisma.order.findFirst({
       where: { id: orderId, companyId, deletedAt: null },
@@ -244,7 +250,7 @@ export const OrderService = {
 
     await prisma.order.update({
       where: { id: orderId },
-      data: { status: "APPROVED" },
+      data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
     });
   },
 

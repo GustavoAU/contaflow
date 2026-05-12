@@ -115,6 +115,11 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                         Vencida
                       </span>
                     )}
+                    {q.approvedAt && (
+                      <span className="text-xs text-zinc-400" title={`Aprobado por ${q.approvedBy ?? "—"}`}>
+                        Aprobado {new Date(q.approvedAt).toLocaleDateString("es-VE")}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3">
