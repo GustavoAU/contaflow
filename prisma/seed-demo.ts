@@ -640,6 +640,30 @@ async function main() {
     console.log(`  ✅ ${emp.firstName} ${emp.lastName} — ${emp.position} (${salaryCurrency} ${salary})`);
   }
 
+  // ── 11b. CompanySettings — cuentas GL para causación automática (ADR-026) ──
+  console.log("\n⚙️  CompanySettings GL...");
+  await prisma.companySettings.upsert({
+    where: { companyId: cId },
+    update: {
+      arAccountId: accounts["1305"],              // Cuentas por Cobrar Clientes
+      apAccountId: accounts["2205"],              // Proveedores
+      salesAccountId: accounts["4135"],           // Ventas de Mercancías
+      purchaseExpenseAccountId: accounts["5130"], // Compras de Mercancías
+      ivaDFAccountId: accounts["2105"],           // IVA Débito Fiscal
+      ivaCFAccountId: accounts["1120"],           // IVA Crédito Fiscal
+    },
+    create: {
+      companyId: cId,
+      arAccountId: accounts["1305"],
+      apAccountId: accounts["2205"],
+      salesAccountId: accounts["4135"],
+      purchaseExpenseAccountId: accounts["5130"],
+      ivaDFAccountId: accounts["2105"],
+      ivaCFAccountId: accounts["1120"],
+    },
+  });
+  console.log(`  ✅ CompanySettings GL configurado`);
+
   // ── 12. PayrollConfig ─────────────────────────────────────────────────────
   console.log("\n⚙️  Configuración de nómina...");
   const existingConfig = await prisma.payrollConfig.findUnique({ where: { companyId: cId } });

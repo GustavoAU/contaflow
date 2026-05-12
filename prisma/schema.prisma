@@ -247,50 +247,57 @@ model RolePermission {
 }
 
 model Account {
-  id                              String                @id @default(cuid())
-  name                            String
-  code                            String
-  type                            AccountType
-  description                     String?
+  id                               String                @id @default(cuid())
+  name                             String
+  code                             String
+  type                             AccountType
+  description                      String?
   // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — no se reexpresa por INPC; genera REPOMO
-  isMonetary                      Boolean               @default(false)
-  companyId                       String
-  company                         Company               @relation(fields: [companyId], references: [id])
-  journalEntries                  JournalEntry[]
-  deletedAt                       DateTime?
-  createdAt                       DateTime              @default(now())
-  updatedAt                       DateTime              @updatedAt
+  isMonetary                       Boolean               @default(false)
+  companyId                        String
+  company                          Company               @relation(fields: [companyId], references: [id])
+  journalEntries                   JournalEntry[]
+  deletedAt                        DateTime?
+  createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime              @updatedAt
   // Fase 15: relaciones inversas para cuentas de cierre
-  companiesAsResult               Company[]             @relation("ResultAccount")
-  companiesAsRetainedEarnings     Company[]             @relation("RetainedEarningsAccount")
+  companiesAsResult                Company[]             @relation("ResultAccount")
+  companiesAsRetainedEarnings      Company[]             @relation("RetainedEarningsAccount")
   // Fase 17: Conciliación Bancaria
-  bankAccount                     BankAccount?
+  bankAccount                      BankAccount?
   // Fase 13C Bloque 3: Snapshots de saldos por período
-  periodSnapshots                 PeriodSnapshot[]
+  periodSnapshots                  PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssetsAsAsset              FixedAsset[]          @relation("FixedAssetAccount")
-  fixedAssetsAsDepreciation       FixedAsset[]          @relation("DepreciationExpenseAccount")
-  fixedAssetsAsAccDepreciation    FixedAsset[]          @relation("AccumulatedDepreciationAccount")
+  fixedAssetsAsAsset               FixedAsset[]          @relation("FixedAssetAccount")
+  fixedAssetsAsDepreciation        FixedAsset[]          @relation("DepreciationExpenseAccount")
+  fixedAssetsAsAccDepreciation     FixedAsset[]          @relation("AccumulatedDepreciationAccount")
   // Fase 22: Ajuste por Inflación
-  inflationAdjustments            InflationAdjustment[]
+  inflationAdjustments             InflationAdjustment[]
   // Fase 28D: Inventario
-  inventoryItems                  InventoryItem[]       @relation("InventoryItemAccount")
-  inventoryItemsAsCogs            InventoryItem[]       @relation("CogsAccount")
+  inventoryItems                   InventoryItem[]       @relation("InventoryItemAccount")
+  inventoryItemsAsCogs             InventoryItem[]       @relation("CogsAccount")
   // Fase NOM-C: Cuentas contables de nómina
-  payrollConfigsAsExpense         PayrollConfig[]       @relation("PayrollExpenseAccount")
-  payrollConfigsAsPayable         PayrollConfig[]       @relation("PayrollPayableAccount")
-  payrollConfigsAsIvss            PayrollConfig[]       @relation("PayrollIvssPayable")
-  payrollConfigsAsFaov            PayrollConfig[]       @relation("PayrollFaovPayable")
-  payrollConfigsAsInces           PayrollConfig[]       @relation("PayrollIncesPayable")
-  payrollConfigsAsRpe             PayrollConfig[]       @relation("PayrollRpePayable")
+  payrollConfigsAsExpense          PayrollConfig[]       @relation("PayrollExpenseAccount")
+  payrollConfigsAsPayable          PayrollConfig[]       @relation("PayrollPayableAccount")
+  payrollConfigsAsIvss             PayrollConfig[]       @relation("PayrollIvssPayable")
+  payrollConfigsAsFaov             PayrollConfig[]       @relation("PayrollFaovPayable")
+  payrollConfigsAsInces            PayrollConfig[]       @relation("PayrollIncesPayable")
+  payrollConfigsAsRpe              PayrollConfig[]       @relation("PayrollRpePayable")
   // Fase NOM-D: cuentas de prestaciones
-  payrollConfigsAsBenefitsExpense PayrollConfig[]       @relation("PayrollBenefitsExpense")
-  payrollConfigsAsBenefitsPayable PayrollConfig[]       @relation("PayrollBenefitsPayable")
-  payrollConfigsAsVacationPayable PayrollConfig[]       @relation("PayrollVacationPayable")
-  payrollConfigsAsProfitPayable   PayrollConfig[]       @relation("PayrollProfitPayable")
+  payrollConfigsAsBenefitsExpense  PayrollConfig[]       @relation("PayrollBenefitsExpense")
+  payrollConfigsAsBenefitsPayable  PayrollConfig[]       @relation("PayrollBenefitsPayable")
+  payrollConfigsAsVacationPayable  PayrollConfig[]       @relation("PayrollVacationPayable")
+  payrollConfigsAsProfitPayable    PayrollConfig[]       @relation("PayrollProfitPayable")
   // Fase 37B: Módulo Gastos
-  expensesAsAccount               Expense[]             @relation("ExpenseAccount")
-  expenseCategoryDefaults         ExpenseCategory[]     @relation("ExpenseCategoryAccount")
+  expensesAsAccount                Expense[]             @relation("ExpenseAccount")
+  expenseCategoryDefaults          ExpenseCategory[]     @relation("ExpenseCategoryAccount")
+  // ADR-026: Configuración GL para causación automática de facturas
+  companySettingsAsAR              CompanySettings[]     @relation("SettingsARAccount")
+  companySettingsAsAP              CompanySettings[]     @relation("SettingsAPAccount")
+  companySettingsAsSales           CompanySettings[]     @relation("SettingsSalesAccount")
+  companySettingsAsPurchaseExpense CompanySettings[]     @relation("SettingsPurchaseExpenseAccount")
+  companySettingsAsIVADF           CompanySettings[]     @relation("SettingsIVADFAccount")
+  companySettingsAsIVACF           CompanySettings[]     @relation("SettingsIVACFAccount")
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -2122,6 +2129,21 @@ model CompanySettings {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   stockControlLevel StockControlLevel @default(WARN)
+
+  // ADR-026: Cuentas contables para causación automática de facturas
+  arAccountId              String? // ASSET — Cuentas por Cobrar (facturas venta)
+  apAccountId              String? // LIABILITY — Proveedores (facturas compra)
+  salesAccountId           String? // REVENUE — ingreso por defecto (facturas venta)
+  purchaseExpenseAccountId String? // EXPENSE — gasto por defecto (facturas compra)
+  ivaDFAccountId           String? // LIABILITY — IVA Débito Fiscal (facturas venta)
+  ivaCFAccountId           String? // ASSET — IVA Crédito Fiscal (facturas compra)
+
+  arAccount              Account? @relation("SettingsARAccount", fields: [arAccountId], references: [id], onDelete: Restrict)
+  apAccount              Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
+  salesAccount           Account? @relation("SettingsSalesAccount", fields: [salesAccountId], references: [id], onDelete: Restrict)
+  purchaseExpenseAccount Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
+  ivaDFAccount           Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
+  ivaCFAccount           Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

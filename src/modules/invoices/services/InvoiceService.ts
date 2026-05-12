@@ -11,6 +11,7 @@ import {
   validateStockForLines,
   createInvoiceLinesInTx,
 } from "./InvoiceLineService";
+import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -162,11 +163,11 @@ export class InvoiceService {
   // ─── Crear factura ───────────────────────────────────────────────────────────
   // Acepta tanto CreateInvoiceInput (legacy sin líneas) como CreateInvoiceWithLinesInput (con líneas)
   // ADR-024 D-1.3: dos caminos según input.lines presente o no
+  // ADR-026: GL auto-posting envuelve las escrituras en $transaction para atomicidad
   static async create(
     input: CreateInvoiceInput | CreateInvoiceWithLinesInput,
-    tx?: Prisma.TransactionClient
+    outerTx?: Prisma.TransactionClient
   ) {
-    const db = tx ?? prisma;
     const inputWithLines = input as CreateInvoiceWithLinesInput;
     const hasLines = !!(inputWithLines.lines && inputWithLines.lines.length > 0);
 
@@ -191,18 +192,7 @@ export class InvoiceService {
       });
     }
 
-    // Fase 16: obtener paymentTermDays para calcular dueDate
-    const company = await db.company.findUnique({
-      where: { id: input.companyId },
-      select: { paymentTermDays: true },
-    });
-    const paymentTermDays = company?.paymentTermDays ?? 30;
-    const dueDate = new Date(input.date);
-    dueDate.setDate(dueDate.getDate() + paymentTermDays);
-
-    // ─── Calcular totalAmountVes ─────────────────────────────────────────────
-    // Path con líneas: derivar taxLines desde las líneas (D-1.3)
-    // Path legacy: usar input.taxLines directamente
+    // ─── Pre-computar taxLines (puro — sin DB) ───────────────────────────────
     let taxLinesToCreate: Array<{
       taxType: string; base: Decimal; rate: Decimal; amount: Decimal; description?: string | null;
     }>;
@@ -239,70 +229,118 @@ export class InvoiceService {
       input.islrRetentionAmount
     );
 
-    const invoice = await db.invoice.create({
-      data: {
-        companyId: input.companyId,
-        type: input.type,
-        docType: input.docType,
-        taxCategory: input.taxCategory,
-        invoiceNumber: input.invoiceNumber,
-        controlNumber: input.controlNumber,
-        relatedDocNumber: input.relatedDocNumber,
-        importFormNumber: input.importFormNumber,
-        reportZStart: input.reportZStart,
-        reportZEnd: input.reportZEnd,
-        date: input.date,
-        counterpartName: input.counterpartName,
-        counterpartRif: input.counterpartRif,
-        ivaRetentionAmount: new Decimal(input.ivaRetentionAmount),
-        ivaRetentionVoucher: input.ivaRetentionVoucher,
-        ivaRetentionDate: input.ivaRetentionDate,
-        islrRetentionAmount: new Decimal(input.islrRetentionAmount),
-        igtfBase: new Decimal(input.igtfBase),
-        igtfAmount: new Decimal(input.igtfAmount),
-        currency: input.currency ?? "VES",
-        exchangeRateId: input.exchangeRateId,
-        transactionId: input.transactionId,
-        periodId: input.periodId,
-        createdBy: input.createdBy ?? "",
-        idempotencyKey: input.idempotencyKey,
-        // Fase 16: campos de cartera
-        dueDate,
-        totalAmountVes,
-        pendingAmount,
-        paymentStatus: "UNPAID",
-        taxLines: {
-          create: taxLinesToCreate.map((tl) => ({
-            taxType: tl.taxType as TaxLineType,
-            base: tl.base,
-            rate: tl.rate,
-            amount: tl.amount,
-            description: tl.description ?? null,
-          })),
-        },
-      },
-      include: { taxLines: true },
-    });
+    // ─── Escrituras DB atomizadas + GL posting (ADR-026) ─────────────────────
+    const doCreate = async (db: Prisma.TransactionClient) => {
+      // Fase 16: obtener paymentTermDays para calcular dueDate
+      const company = await db.company.findUnique({
+        where: { id: input.companyId },
+        select: { paymentTermDays: true },
+      });
+      const paymentTermDays = company?.paymentTermDays ?? 30;
+      const dueDate = new Date(input.date);
+      dueDate.setDate(dueDate.getDate() + paymentTermDays);
 
-    // ─── Path con líneas: crear InvoiceLines + InventoryMovements DRAFT ──────
-    if (hasLines && computed.length > 0) {
+      // Leer config en una sola query (stockControlLevel + GL accounts)
       const settings = await db.companySettings.findUnique({
         where: { companyId: input.companyId },
-        select: { stockControlLevel: true },
+        select: {
+          stockControlLevel: true,
+          arAccountId: true,
+          apAccountId: true,
+          salesAccountId: true,
+          purchaseExpenseAccountId: true,
+          ivaDFAccountId: true,
+          ivaCFAccountId: true,
+        },
       });
-      const stockLevel = settings?.stockControlLevel ?? "WARN";
-      await createInvoiceLinesInTx(
-        invoice.id,
-        input.companyId,
-        computed,
-        new Date(input.date),
-        input.createdBy ?? "",
-        stockLevel,
-        db
-      );
-    }
 
-    return invoice;
+      const invoice = await db.invoice.create({
+        data: {
+          companyId: input.companyId,
+          type: input.type,
+          docType: input.docType,
+          taxCategory: input.taxCategory,
+          invoiceNumber: input.invoiceNumber,
+          controlNumber: input.controlNumber,
+          relatedDocNumber: input.relatedDocNumber,
+          importFormNumber: input.importFormNumber,
+          reportZStart: input.reportZStart,
+          reportZEnd: input.reportZEnd,
+          date: input.date,
+          counterpartName: input.counterpartName,
+          counterpartRif: input.counterpartRif,
+          ivaRetentionAmount: new Decimal(input.ivaRetentionAmount),
+          ivaRetentionVoucher: input.ivaRetentionVoucher,
+          ivaRetentionDate: input.ivaRetentionDate,
+          islrRetentionAmount: new Decimal(input.islrRetentionAmount),
+          igtfBase: new Decimal(input.igtfBase),
+          igtfAmount: new Decimal(input.igtfAmount),
+          currency: input.currency ?? "VES",
+          exchangeRateId: input.exchangeRateId,
+          transactionId: input.transactionId,
+          periodId: input.periodId,
+          createdBy: input.createdBy ?? "",
+          idempotencyKey: input.idempotencyKey,
+          // Fase 16: campos de cartera
+          dueDate,
+          totalAmountVes,
+          pendingAmount,
+          paymentStatus: "UNPAID",
+          taxLines: {
+            create: taxLinesToCreate.map((tl) => ({
+              taxType: tl.taxType as TaxLineType,
+              base: tl.base,
+              rate: tl.rate,
+              amount: tl.amount,
+              description: tl.description ?? null,
+            })),
+          },
+        },
+        include: { taxLines: true },
+      });
+
+      // ─── Path con líneas: crear InvoiceLines + InventoryMovements DRAFT ────
+      if (hasLines && computed.length > 0) {
+        const stockLevel = settings?.stockControlLevel ?? "WARN";
+        await createInvoiceLinesInTx(
+          invoice.id,
+          input.companyId,
+          computed,
+          new Date(input.date),
+          input.createdBy ?? "",
+          stockLevel,
+          db
+        );
+      }
+
+      // ─── GL auto-posting (ADR-026) ──────────────────────────────────────────
+      // Solo si no se pasó transactionId explícito y la config GL está completa
+      if (!input.transactionId && settings && InvoiceGLPostingService.canPost(input.type as "SALE" | "PURCHASE", settings)) {
+        await InvoiceGLPostingService.postInvoice(
+          {
+            id: invoice.id,
+            type: input.type as "SALE" | "PURCHASE",
+            invoiceNumber: input.invoiceNumber,
+            counterpartName: input.counterpartName,
+            date: input.date,
+            periodId: input.periodId ?? null,
+            totalAmountVes,
+            taxLines: invoice.taxLines,
+          },
+          settings,
+          input.companyId,
+          input.createdBy ?? "",
+          db
+        );
+        // Re-fetch para incluir transactionId actualizado
+        return db.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { taxLines: true } });
+      }
+
+      return invoice;
+    };
+
+    if (outerTx) return doCreate(outerTx);
+    return prisma.$transaction(doCreate, { timeout: 10000 });
   }
 
   // ─── Obtener factura por ID ──────────────────────────────────────────────────

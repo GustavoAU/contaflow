@@ -4,19 +4,27 @@ import { Decimal } from "decimal.js";
 import { InvoiceService } from "./InvoiceService";
 import { prisma } from "@/lib/prisma";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const mockPrisma = {
     invoice: {
       create: vi.fn(),
       findMany: vi.fn(),
       findFirst: vi.fn(),
       count: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
     },
     company: {
       findUnique: vi.fn(),
     },
-  },
-}));
+    companySettings: {
+      findUnique: vi.fn().mockResolvedValue(null), // sin GL config → no auto-posting
+    },
+    $transaction: vi.fn().mockImplementation(
+      (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)
+    ),
+  };
+  return { prisma: mockPrisma };
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const makeTaxLine = (taxType: string, base: string, rate: string, amount: string) => ({
