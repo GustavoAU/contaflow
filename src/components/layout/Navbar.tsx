@@ -9,6 +9,36 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
 import { BcvRateWidget } from "@/components/layout/BcvRateWidget";
+import { usePageTransition } from "@/components/layout/PageTransitionProvider";
+
+function TransitionLink({
+  href,
+  className,
+  children,
+  onNavigate,
+}: {
+  href: string;
+  className: string;
+  children: React.ReactNode;
+  onNavigate?: () => void;
+}) {
+  const { navigate } = usePageTransition();
+  return (
+    <Link
+      href={href}
+      className={className}
+      onClick={(e) => {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          e.preventDefault();
+          onNavigate?.();
+          navigate(href);
+        }
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
 
 type NavbarProps = {
   companyId?: string;
@@ -69,7 +99,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
           {primary.map((item) => {
             const Icon = item.icon;
             return (
-              <Link
+              <TransitionLink
                 key={item.href}
                 href={item.href}
                 className={cn(
@@ -81,7 +111,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
-              </Link>
+              </TransitionLink>
             );
           })}
 
@@ -131,10 +161,10 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                           );
                         }
                         return (
-                          <Link
+                          <TransitionLink
                             key={navItem.href}
                             href={navItem.href}
-                            onClick={() => setMoreOpen(false)}
+                            onNavigate={() => setMoreOpen(false)}
                             className={cn(
                               "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
                               isActive(navItem.href)
@@ -144,7 +174,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                           >
                             <Icon className="h-4 w-4" />
                             {navItem.label}
-                          </Link>
+                          </TransitionLink>
                         );
                       })}
                     </div>
@@ -180,10 +210,10 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
             {primary.map((navItem) => {
               const Icon = navItem.icon;
               return (
-                <Link
+                <TransitionLink
                   key={navItem.href}
                   href={navItem.href}
-                  onClick={() => setMobileOpen(false)}
+                  onNavigate={() => setMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive(navItem.href)
@@ -193,7 +223,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                 >
                   <Icon className="h-4 w-4" />
                   {navItem.label}
-                </Link>
+                </TransitionLink>
               );
             })}
             {/* Secciones */}
@@ -224,10 +254,10 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                     );
                   }
                   return (
-                    <Link
+                    <TransitionLink
                       key={navItem.href}
                       href={navItem.href}
-                      onClick={() => setMobileOpen(false)}
+                      onNavigate={() => setMobileOpen(false)}
                       className={cn(
                         "flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                         isActive(navItem.href)
@@ -237,7 +267,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                     >
                       <Icon className="h-4 w-4" />
                       {navItem.label}
-                    </Link>
+                    </TransitionLink>
                   );
                 })}
               </div>

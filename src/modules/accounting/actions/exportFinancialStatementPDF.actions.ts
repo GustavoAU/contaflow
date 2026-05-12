@@ -6,10 +6,11 @@ import { auth } from "@clerk/nextjs/server";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
-import { getBalanceSheetAction, getIncomeStatementAction } from "./report.actions";
+import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction } from "./report.actions";
 import {
   generateBalanceSheetPDF,
   generateIncomeStatementPDF,
+  generateLedgerPDF,
 } from "../services/FinancialStatementsPDFService";
 
 type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
@@ -104,5 +105,46 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al generar el PDF" };
+  }
+}
+
+// ─── Libro Mayor ──────────────────────────────────────────────────────────────
+
+export async function exportLedgerPDFAction(
+  companyId: string,
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<PDFResult> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
+  const reportResult = await getLedgerAction(
+    companyId,
+    dateFrom ? new Date(dateFrom) : undefined,
+    dateTo ? new Date(dateTo + "T23:59:59") : undefined,
+  );
+  if (!reportResult.success) return { success: false, error: reportResult.error };
+
+  const filename = `Libro-Mayor-${dateFrom ?? "todos"}-${dateTo ?? "hoy"}.pdf`;
+
+  try {
+    const buffer = await generateLedgerPDF({
+      companyName: guard.companyName,
+      companyRif: guard.companyRif,
+      dateFrom,
+      dateTo,
+      accounts: reportResult.data,
+    });
+
+    return {
+      success: true,
+      data: {
+        pdf: buffer.toString("base64"),
+        filename,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el PDF del Libro Mayor" };
   }
 }

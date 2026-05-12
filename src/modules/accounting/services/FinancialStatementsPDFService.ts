@@ -1,9 +1,9 @@
 // src/modules/accounting/services/FinancialStatementsPDFService.ts
-// PDFs legales: Balance General y Estado de Resultados con espacio para firma CPC
+// PDFs legales: Balance General, Estado de Resultados y Libro Mayor con espacio para firma CPC
 
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import type { BalanceSheet, IncomeStatement } from "../actions/report.actions";
+import type { BalanceSheet, IncomeStatement, LedgerAccount } from "../actions/report.actions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,6 +74,66 @@ const S = StyleSheet.create({
   signatureRole:    { fontSize: 8, fontWeight: "bold", color: "#374151" },
   signatureDetail:  { fontSize: 7, color: "#6b7280", marginTop: 2 },
   signatureNote:    { fontSize: 7, color: "#9ca3af", textAlign: "center", marginTop: 12 },
+  // ─── Libro Mayor ────────────────────────────────────────────────────────────
+  ledgerAccountHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    borderLeft: "3pt solid #2563eb",
+    padding: "5pt 6pt",
+    marginTop: 14,
+    marginBottom: 0,
+  },
+  ledgerAccountCode: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#2563eb",
+    fontFamily: "Helvetica",
+    width: 50,
+  },
+  ledgerAccountName: { fontSize: 9, fontWeight: "bold", color: "#1f2937", flex: 1 },
+  ledgerAccountType: {
+    fontSize: 7,
+    color: "#6b7280",
+    backgroundColor: "#e5e7eb",
+    padding: "1pt 4pt",
+    borderRadius: 3,
+  },
+  // Cabecera de columnas de la tabla
+  ledgerColHeader: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    borderBottom: "1pt solid #d1d5db",
+    padding: "3pt 4pt",
+  },
+  ledgerColText: { fontSize: 7, fontWeight: "bold", color: "#374151" },
+  // Celdas
+  colDate:        { width: 60, fontSize: 7, fontFamily: "Helvetica" },
+  colNumber:      { width: 55, fontSize: 7, fontFamily: "Helvetica" },
+  colDescription: { flex: 1, fontSize: 7 },
+  colDebit:       { width: 60, fontSize: 7, textAlign: "right", fontFamily: "Helvetica" },
+  colCredit:      { width: 60, fontSize: 7, textAlign: "right", fontFamily: "Helvetica" },
+  colBalance:     { width: 65, fontSize: 7, textAlign: "right", fontFamily: "Helvetica" },
+  // Filas de la tabla del ledger
+  ledgerRow:    { flexDirection: "row", borderBottom: "0.5pt solid #f3f4f6", padding: "2pt 4pt" },
+  ledgerRowAlt: { flexDirection: "row", backgroundColor: "#f9fafb", borderBottom: "0.5pt solid #f3f4f6", padding: "2pt 4pt" },
+  // Fila especial: saldo anterior
+  ledgerOpeningRow: {
+    flexDirection: "row",
+    backgroundColor: "#fefce8",
+    borderBottom: "0.5pt solid #fde68a",
+    padding: "2pt 4pt",
+  },
+  ledgerOpeningText: { fontSize: 7, color: "#92400e", fontWeight: "bold" },
+  // Fila de totales de cuenta
+  ledgerTotalRow: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    borderTop: "1pt solid #374151",
+    padding: "3pt 4pt",
+  },
+  ledgerTotalLabel: { fontSize: 7, fontWeight: "bold", color: "#374151", flex: 1 },
+  ledgerTotalAmt:   { fontSize: 7, fontWeight: "bold", textAlign: "right", fontFamily: "Helvetica" },
 });
 
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
@@ -250,6 +310,181 @@ export async function generateIncomeStatementPDF(params: IncomeStatementPDFParam
         ),
       ),
 
+      SignatureBlock(),
+    ),
+  );
+
+  return renderToBuffer(doc) as Promise<Buffer>;
+}
+
+// ─── Libro Mayor PDF ──────────────────────────────────────────────────────────
+
+const TYPE_LABELS: Record<string, string> = {
+  ASSET: "Activo",
+  LIABILITY: "Pasivo",
+  EQUITY: "Patrimonio",
+  REVENUE: "Ingreso",
+  EXPENSE: "Gasto",
+};
+
+export interface LedgerPDFParams {
+  companyName: string;
+  companyRif: string | null;
+  dateFrom?: string;  // "YYYY-MM-DD" o undefined
+  dateTo?: string;
+  accounts: LedgerAccount[];
+}
+
+function LedgerColHeader() {
+  return React.createElement(
+    View,
+    { style: S.ledgerColHeader },
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colDate } }, "Fecha"),
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colNumber } }, "Número"),
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colDescription } }, "Descripción"),
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colDebit } }, "Débito"),
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colCredit } }, "Crédito"),
+    React.createElement(Text, { style: { ...S.ledgerColText, ...S.colBalance } }, "Saldo"),
+  );
+}
+
+function LedgerAccountBlock(account: LedgerAccount) {
+  const typeLabel = TYPE_LABELS[account.type] ?? account.type;
+  const hasOpening = account.openingBalance !== "0.00";
+  const balanceNum = parseFloat(account.balance);
+  const balanceColor = balanceNum < 0 ? "#dc2626" : "#1f2937";
+
+  const entryRows = account.entries.map((entry, i) => {
+    const rowStyle = i % 2 === 0 ? S.ledgerRow : S.ledgerRowAlt;
+    const entryDate = new Date(entry.date).toLocaleDateString("es-VE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+    return React.createElement(
+      View,
+      { key: entry.transactionId + String(i), style: rowStyle },
+      React.createElement(Text, { style: S.colDate }, entryDate),
+      React.createElement(Text, { style: S.colNumber }, entry.number),
+      React.createElement(Text, { style: S.colDescription }, entry.description),
+      React.createElement(
+        Text,
+        { style: S.colDebit },
+        entry.debit ? fmt(entry.debit) : "",
+      ),
+      React.createElement(
+        Text,
+        { style: S.colCredit },
+        entry.credit ? fmt(entry.credit) : "",
+      ),
+      React.createElement(
+        Text,
+        { style: { ...S.colBalance, color: parseFloat(entry.balance) < 0 ? "#dc2626" : "#1f2937" } },
+        fmt(entry.balance),
+      ),
+    );
+  });
+
+  return React.createElement(
+    View,
+    { key: account.id },
+    // Header de la cuenta
+    React.createElement(
+      View,
+      { style: S.ledgerAccountHeader },
+      React.createElement(Text, { style: S.ledgerAccountCode }, account.code),
+      React.createElement(Text, { style: S.ledgerAccountName }, account.name),
+      React.createElement(Text, { style: S.ledgerAccountType }, typeLabel),
+    ),
+    // Cabecera de columnas
+    LedgerColHeader(),
+    // Fila saldo anterior (si aplica)
+    ...(hasOpening
+      ? [
+          React.createElement(
+            View,
+            { key: "opening", style: S.ledgerOpeningRow },
+            React.createElement(Text, { style: { ...S.colDate, ...S.ledgerOpeningText } }, ""),
+            React.createElement(Text, { style: { ...S.colNumber, ...S.ledgerOpeningText } }, ""),
+            React.createElement(Text, { style: { ...S.colDescription, ...S.ledgerOpeningText } }, "SALDO ANTERIOR"),
+            React.createElement(Text, { style: { ...S.colDebit, ...S.ledgerOpeningText } }, ""),
+            React.createElement(Text, { style: { ...S.colCredit, ...S.ledgerOpeningText } }, ""),
+            React.createElement(
+              Text,
+              { style: { ...S.colBalance, ...S.ledgerOpeningText } },
+              fmt(account.openingBalance),
+            ),
+          ),
+        ]
+      : []),
+    // Filas de movimientos
+    ...entryRows,
+    // Fila de totales
+    React.createElement(
+      View,
+      { style: S.ledgerTotalRow },
+      React.createElement(Text, { style: { ...S.ledgerTotalLabel, flex: 1 } }, "Total débitos"),
+      React.createElement(
+        Text,
+        { style: { ...S.ledgerTotalAmt, width: 60 } },
+        `${fmt(account.totalDebit)} Bs.`,
+      ),
+      React.createElement(
+        Text,
+        { style: { ...S.ledgerTotalAmt, width: 60, marginLeft: 60 + 65 } },
+        "",
+      ),
+    ),
+    React.createElement(
+      View,
+      { style: { ...S.ledgerTotalRow, backgroundColor: "#f9fafb" } },
+      React.createElement(Text, { style: { ...S.ledgerTotalLabel, flex: 1 } }, "Total créditos"),
+      React.createElement(
+        Text,
+        { style: { ...S.ledgerTotalAmt, width: 60, marginLeft: 60 } },
+        `${fmt(account.totalCredit)} Bs.`,
+      ),
+    ),
+    React.createElement(
+      View,
+      { style: { ...S.ledgerTotalRow, backgroundColor: "#eff6ff" } },
+      React.createElement(Text, { style: { ...S.ledgerTotalLabel, flex: 1 } }, "Saldo final"),
+      React.createElement(
+        Text,
+        { style: { ...S.ledgerTotalAmt, width: 65, color: balanceColor } },
+        `${fmt(account.balance)} Bs.`,
+      ),
+    ),
+  );
+}
+
+export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer> {
+  const { companyName, companyRif, dateFrom, dateTo, accounts } = params;
+
+  const dateLabel =
+    dateFrom && dateTo
+      ? `Del ${dateFrom} al ${dateTo}`
+      : dateFrom
+        ? `Desde ${dateFrom}`
+        : dateTo
+          ? `Hasta ${dateTo}`
+          : "Todos los períodos";
+
+  const doc = React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: "LETTER", style: S.page },
+      DocHeader({
+        companyName,
+        companyRif,
+        title: "LIBRO MAYOR",
+        subtitle: "Mayor General de Cuentas",
+        dateLabel,
+      }),
+      ...accounts.map((account) => LedgerAccountBlock(account)),
       SignatureBlock(),
     ),
   );

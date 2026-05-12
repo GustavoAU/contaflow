@@ -1,7 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx
-import { getLedgerAction } from "@/modules/accounting/actions/report.actions";
+import { getLedgerAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { LedgerExportButton } from "@/components/reports/LedgerExportButton";
+import { LedgerPDFExportButton } from "@/components/reports/LedgerPDFExportButton";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { LedgerAccount } from "@/modules/accounting/actions/report.actions";
@@ -26,7 +27,13 @@ function fmt(v: string): string {
   }).format(parseFloat(v));
 }
 
-function AccountBlock({ account, companyId }: { account: LedgerAccount; companyId: string }) {
+function AccountBlock({ account, companyId, hasDateFilter }: {
+  account: LedgerAccount;
+  companyId: string;
+  hasDateFilter: boolean;
+}) {
+  const showOpening = hasDateFilter && account.openingBalance !== "0.00";
+
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
       {/* Header de la cuenta */}
@@ -71,6 +78,19 @@ function AccountBlock({ account, companyId }: { account: LedgerAccount; companyI
           </tr>
         </thead>
         <tbody className="divide-y">
+          {/* Fila saldo anterior — solo cuando hay filtro de fechas */}
+          {showOpening && (
+            <tr className="bg-amber-50">
+              <td className="px-4 py-2 text-zinc-400 italic text-xs" colSpan={3}>
+                Saldo anterior al período
+              </td>
+              <td className="px-4 py-2" />
+              <td className="px-4 py-2" />
+              <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold text-amber-700">
+                {fmt(account.openingBalance)}
+              </td>
+            </tr>
+          )}
           {account.entries.map((entry, i) => (
             <tr key={i} className={`${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
               <td className="px-4 py-2 text-zinc-600">
@@ -109,9 +129,15 @@ export default async function LedgerPage({ params, searchParams }: Props) {
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
-  const result = await getLedgerAction(companyId, dateFrom, dateTo);
+  const [ledgerResult, companyResult] = await Promise.all([
+    getLedgerAction(companyId, dateFrom, dateTo),
+    getCompanyHeaderAction(companyId),
+  ]);
 
-  const accounts = result.success ? result.data : [];
+  const accounts = ledgerResult.success ? ledgerResult.data : [];
+  const company = companyResult.success ? companyResult.data : null;
+  const periodLabel = from || to ? `${from ?? "inicio"} al ${to ?? "hoy"}` : "todos los períodos";
+  const hasDateFilter = !!(from || to);
 
   return (
     <div className="space-y-6">
@@ -126,18 +152,27 @@ export default async function LedgerPage({ params, searchParams }: Props) {
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Libro Mayor</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Movimientos por cuenta
-            {from || to
-              ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}`
-              : " — todos los períodos"}
+          {company && (
+            <p className="text-sm font-medium text-zinc-700">
+              {company.name}
+              {company.rif && (
+                <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>
+              )}
+            </p>
+          )}
+          <p className="text-muted-foreground mt-0.5 text-sm">
+            Movimientos por cuenta — {periodLabel}
           </p>
         </div>
         {accounts.length > 0 && (
-          <LedgerExportButton
-            accounts={accounts}
-            period={from || to ? `${from ?? "inicio"} al ${to ?? "hoy"}` : "todos los períodos"}
-          />
+          <div className="flex items-center gap-2">
+            <LedgerExportButton accounts={accounts} period={periodLabel} />
+            <LedgerPDFExportButton
+              companyId={companyId}
+              dateFrom={from}
+              dateTo={to}
+            />
+          </div>
         )}
       </div>
 
@@ -145,9 +180,9 @@ export default async function LedgerPage({ params, searchParams }: Props) {
         <DateRangeFilter defaultFrom={from} defaultTo={to} />
       </div>
 
-      {!result.success && (
+      {!ledgerResult.success && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {result.error}
+          {ledgerResult.error}
         </div>
       )}
 
@@ -159,8 +194,37 @@ export default async function LedgerPage({ params, searchParams }: Props) {
       ) : (
         <div className="space-y-8">
           {accounts.map((account) => (
-            <AccountBlock key={account.id} account={account} companyId={companyId} />
+            <AccountBlock
+              key={account.id}
+              account={account}
+              companyId={companyId}
+              hasDateFilter={hasDateFilter}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Certificación — visible en pantalla al pie */}
+      {accounts.length > 0 && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600">
+          <p className="mb-6 text-center text-xs text-zinc-400">
+            Certifico que la presente información es fiel reflejo de los libros contables de la empresa,
+            de conformidad con los Principios de Contabilidad de Aceptación General en Venezuela (VEN-NIF).
+          </p>
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <div className="mb-6 border-b border-zinc-400" />
+              <p className="font-semibold text-zinc-700">Representante Legal</p>
+              <p className="text-zinc-400">Nombre: _________________________________</p>
+              <p className="text-zinc-400">C.I.: ____________________________________</p>
+            </div>
+            <div>
+              <div className="mb-6 border-b border-zinc-400" />
+              <p className="font-semibold text-zinc-700">Contador Público Colegiado (C.P.C.)</p>
+              <p className="text-zinc-400">Nombre: _________________________________</p>
+              <p className="text-zinc-400">C.P.C. No.: ________ RIF: ________________</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

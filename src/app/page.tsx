@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { VideoModal } from "@/components/landing/VideoModal";
+import { LandingMobileNav } from "@/components/landing/LandingMobileNav";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -137,6 +138,17 @@ const PLANS = [
   },
 ];
 
+// Orden de columnas: trial | monthly | annual | early_adopter
+type ComparisonValue = boolean | string;
+const COMPARISON_ROWS: { label: string; values: ComparisonValue[] }[] = [
+  { label: "Todos los módulos incluidos",    values: [true,       true,          true,            true] },
+  { label: "Usuarios",                       values: ["3",        "Ilimitados",  "Ilimitados",    "Ilimitados"] },
+  { label: "Período",                        values: ["14 días",  "Mensual",     "Anual",         "Año 1"] },
+  { label: "Soporte",                        values: ["Email",    "Email",       "Prioritario",   "Prioritario"] },
+  { label: "Onboarding videollamada 1.5 h",  values: [false,      false,         false,           true] },
+  { label: "Precio especial bloqueado",      values: [false,      false,         false,           true] },
+];
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default async function LandingPage() {
@@ -164,21 +176,22 @@ export default async function LandingPage() {
 
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="hidden md:inline-flex">
                 <Link href="/dashboard">
                   Ir al panel <ArrowRightIcon className="ml-1.5 h-3.5 w-3.5" />
                 </Link>
               </Button>
             ) : (
               <>
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
                   <Link href="/sign-in">Iniciar sesión</Link>
                 </Button>
-                <Button asChild size="sm">
+                <Button asChild size="sm" className="hidden md:inline-flex">
                   <Link href="/sign-up">Crear cuenta gratis</Link>
                 </Button>
               </>
             )}
+            <LandingMobileNav isAuthenticated={isAuthenticated} />
           </div>
         </div>
       </header>
@@ -341,6 +354,78 @@ export default async function LandingPage() {
                 </Button>
               </div>
             ))}
+          </div>
+
+          {/* ── Tabla comparativa ─────────────────────────────────── */}
+          <div className="mt-16">
+            <h3 className="mb-6 text-center text-lg font-semibold tracking-tight">
+              ¿Qué incluye cada plan?
+            </h3>
+
+            {/* Desktop: tabla */}
+            <div className="hidden overflow-hidden rounded-xl border border-border md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="py-3 pl-6 pr-4 text-left font-medium text-zinc-600 dark:text-zinc-400 w-2/5">
+                      Característica
+                    </th>
+                    {PLANS.map((p) => (
+                      <th
+                        key={p.key}
+                        className={`px-4 py-3 text-center font-semibold ${p.highlighted ? "text-primary" : ""}`}
+                      >
+                        {p.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARISON_ROWS.map((row, i) => (
+                    <tr
+                      key={row.label}
+                      className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}
+                    >
+                      <td className="py-3 pl-6 pr-4 font-medium">{row.label}</td>
+                      {row.values.map((val, j) => (
+                        <td key={j} className="px-4 py-3 text-center">
+                          {val === true ? (
+                            <CheckIcon className="mx-auto h-4 w-4 text-primary" />
+                          ) : val === false ? (
+                            <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                          ) : (
+                            <span className="text-zinc-700 dark:text-zinc-300">{val}</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile: cards apiladas por módulo */}
+            <div className="space-y-3 md:hidden">
+              {COMPARISON_ROWS.map((row) => (
+                <div key={row.label} className="rounded-lg border border-border bg-background p-4">
+                  <p className="mb-3 font-medium">{row.label}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PLANS.map((plan, j) => (
+                      <div key={plan.key} className="flex items-center gap-2 text-sm">
+                        <span className="text-zinc-500 dark:text-zinc-400 shrink-0">{plan.name}:</span>
+                        {row.values[j] === true ? (
+                          <CheckIcon className="h-3.5 w-3.5 text-primary" />
+                        ) : row.values[j] === false ? (
+                          <span className="text-zinc-300">—</span>
+                        ) : (
+                          <span className="font-medium">{row.values[j]}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">

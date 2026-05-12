@@ -28,6 +28,7 @@ export type LedgerAccount = {
   totalDebit: string;
   totalCredit: string;
   balance: string;
+  openingBalance: string; // saldo acumulado antes de dateFrom; "0.00" si no hay filtro
 };
 
 export type TrialBalanceRow = {
@@ -208,6 +209,25 @@ export async function getLedgerAction(
   if ("error" in guard) return guard;
 
   try {
+    // Saldos anteriores a dateFrom (un aggregate por cuenta en una sola query)
+    const openingBalanceMap = new Map<string, Decimal>();
+    if (dateFrom) {
+      const priorEntries = await prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: {
+          account: { companyId },
+          transaction: { status: "POSTED", date: { lt: dateFrom } },
+        },
+        _sum: { amount: true },
+      });
+      for (const row of priorEntries) {
+        openingBalanceMap.set(
+          row.accountId,
+          new Decimal(row._sum.amount?.toString() ?? "0"),
+        );
+      }
+    }
+
     const accounts = await prisma.account.findMany({
       where: { companyId },
       orderBy: { code: "asc" },
@@ -239,7 +259,8 @@ export async function getLedgerAction(
     const result: LedgerAccount[] = accounts
       .filter((a) => a.journalEntries.length > 0)
       .map((account) => {
-        let runningBalance = new Decimal(0);
+        const opening = openingBalanceMap.get(account.id) ?? new Decimal(0);
+        let runningBalance = opening;
         let totalDebit = new Decimal(0);
         let totalCredit = new Decimal(0);
 
@@ -274,6 +295,7 @@ export async function getLedgerAction(
           totalDebit: totalDebit.toFixed(2),
           totalCredit: totalCredit.toFixed(2),
           balance: runningBalance.toFixed(2),
+          openingBalance: opening.toFixed(2),
         };
       });
 
@@ -538,5 +560,26 @@ export async function getBalanceSheetAction(
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al generar el Balance General" };
+  }
+}
+
+// ─── Info básica de empresa para encabezados de reporte ───────────────────────
+
+export async function getCompanyHeaderAction(
+  companyId: string,
+): Promise<ActionResult<{ name: string; rif: string | null }>> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, rif: true },
+    });
+    if (!company) return { success: false, error: "Empresa no encontrada" };
+    return { success: true, data: { name: company.name, rif: company.rif } };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al obtener datos de empresa" };
   }
 }

@@ -4,6 +4,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { PWARegistration } from "@/components/pwa/PWARegistration";
+import { PageTransitionProvider } from "@/components/layout/PageTransitionProvider";
+import { PageTransitionBar } from "@/components/layout/PageTransitionBar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,7 +47,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <ClerkProvider afterSignOutUrl="/sign-in">
       <html lang={locale}>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-          <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+          <PageTransitionProvider>
+            <PageTransitionBar />
+            <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+          </PageTransitionProvider>
           <PWARegistration />
         </body>
       </html>
