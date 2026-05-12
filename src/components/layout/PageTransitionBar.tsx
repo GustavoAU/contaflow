@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { usePageTransition } from "./PageTransitionProvider";
 
@@ -12,8 +12,10 @@ export function PageTransitionBar() {
 
   useEffect(() => {
     if (!isPending) {
-      setShowBar(false);
-      setShowOverlay(false);
+      startTransition(() => {
+        setShowBar(false);
+        setShowOverlay(false);
+      });
       return;
     }
     const barTimer = setTimeout(() => setShowBar(true), 300);

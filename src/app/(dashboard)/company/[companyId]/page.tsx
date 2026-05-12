@@ -214,6 +214,12 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
   const p2034Data = p2034Result?.success ? p2034Result.data : [];
 
+  // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
+  const openDays = m.activePeriod
+    ? Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000)
+    : 0;
+  const isStale = openDays > 30;
+
   return (
     <div className="space-y-6">
       <PaymentSuccessToast payment={payment} />
@@ -254,10 +260,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       )}
 
       {/* ─── Período activo ──────────────────────────────────────────────── */}
-      {showAccountingMetrics && m.activePeriod && (() => {
-        const openDays = Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000);
-        const isStale = openDays > 30;
-        return isStale ? (
+      {showAccountingMetrics && m.activePeriod && (isStale ? (
           <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
             <AlertCircleIcon className="h-5 w-5 shrink-0 text-amber-600" />
             <div className="flex-1">
@@ -286,8 +289,8 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
               Período activo: {MONTH_NAMES[m.activePeriod.month]} {m.activePeriod.year}
             </p>
           </div>
-        );
-      })()}
+        )
+      )}
 
       {/* ─── Alerta: vacaciones por agotar ──────────────────────────────── */}
       {vacationAlerts.length > 0 && (

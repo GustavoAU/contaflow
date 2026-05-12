@@ -157,7 +157,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
           </div>
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          La cuenta de depreciación acumulada debe ser tipo CONTRA_ASSET (ej: "Dep. Acum. Equipos").
+          La cuenta de depreciación acumulada debe ser tipo CONTRA_ASSET (ej: &quot;Dep. Acum. Equipos&quot;).
         </p>
       </fieldset>
 
