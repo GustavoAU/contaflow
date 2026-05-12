@@ -439,10 +439,27 @@ export const PayrollRunService = {
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
       // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
       // DÉBITO: Gastos de Personal (totalEarnings)
-      // CRÉDITO: Sueldos por Pagar (totalNet), IVSS, FAOV, INCES por Pagar
+      // CRÉDITO: Sueldos por Pagar + cuentas separadas de retenciones configuradas
+      //
+      // Invariante de cuadre: el crédito a "Sueldos por Pagar" cubre el bruto
+      // MENOS SOLO las deducciones que tienen cuenta separada configurada.
+      // Las deducciones sin cuenta separada quedan consolidadas en "Sueldos por Pagar".
+      // Esto garantiza Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
       const expenseAccountId = config.expenseAccountId!;
       const payableAccountId = config.payableAccountId!;
       const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
+
+      // Suma de deducciones que SÍ tienen cuenta separada configurada
+      const configuredDeductions = [
+        config.ivssPayableAccountId ? ivssTotal : new Decimal(0),
+        config.faovPayableAccountId ? faovTotal : new Decimal(0),
+        config.incesPayableAccountId ? incesTotal : new Decimal(0),
+        config.rpePayableAccountId ? rpeTotal : new Decimal(0),
+      ].reduce((s, v) => s.plus(v), new Decimal(0));
+
+      // Crédito consolidado = bruto − retenciones con cuenta propia
+      // (incluye retenciones sin cuenta + neto empleados)
+      const payableCredit = run.totalEarnings.minus(configuredDeductions).negated();
 
       const asiento = await tx.transaction.create({
         data: {
@@ -458,8 +475,8 @@ export const PayrollRunService = {
             create: [
               // DÉBITO — Gastos de Personal (positivo)
               { accountId: expenseAccountId, amount: run.totalEarnings, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados` },
-              // CRÉDITO — Sueldos y Salarios por Pagar (negativo)
-              { accountId: payableAccountId, amount: run.totalNet.negated(), description: `Nómina ${nomPeriod} — neto a pagar empleados` },
+              // CRÉDITO — Sueldos y Retenciones por Pagar (negativo)
+              { accountId: payableAccountId, amount: payableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada` },
               // CRÉDITO — IVSS Obrero por Pagar (si aplica)
               ...(config.ivssPayableAccountId && ivssTotal.greaterThan(0)
                 ? [{ accountId: config.ivssPayableAccountId, amount: ivssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero` }]
