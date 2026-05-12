@@ -137,6 +137,11 @@ model Company {
   status                    CompanyStatus           @default(ACTIVE)
   plan                      CompanyPlan             @default(FREE)
   isSpecialContributor      Boolean                 @default(false)
+  // Datos SENIAT — PA-121 (Forma 30, Libro Mayor, reportes fiscales)
+  telefono                  String?
+  email                     String?
+  ciiu                      String?
+  actividad                 String?
   retenciones               Retencion[]
   igtfTransactions          IGTFTransaction[]
   invoices                  Invoice[]

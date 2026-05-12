@@ -52,6 +52,59 @@ export class CompanyService {
   }
 
   /**
+   * Actualiza los datos fiscales SENIAT de la empresa (PA-121).
+   */
+  static async updateSeniatData(
+    companyId: string,
+    userId: string,
+    data: {
+      name: string;
+      rif: string | null;
+      address: string | null;
+      telefono: string | null;
+      email: string | null;
+      ciiu: string | null;
+      actividad: string | null;
+      isSpecialContributor: boolean;
+    }
+  ) {
+    if (data.rif) {
+      const existing = await prisma.company.findUnique({
+        where: { rif: data.rif },
+        select: { id: true },
+      });
+      if (existing && existing.id !== companyId) {
+        throw new Error(`Ya existe otra empresa con el RIF ${data.rif}.`);
+      }
+    }
+
+    const old = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.company.update({
+        where: { id: companyId },
+        data,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: companyId,
+          entityName: "Company",
+          action: "UPDATE",
+          userId,
+          ipAddress: null,
+          userAgent: null,
+          oldValue: old as object,
+          newValue: updated as object,
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  /**
    * Archiva una empresa — no la elimina físicamente.
    * Regla: no se puede archivar si tiene un período abierto.
    */

@@ -20,6 +20,7 @@ import { MembersPanel } from "@/modules/company/components/MembersPanel";
 import { getMembersAction } from "@/modules/company/actions/member.actions";
 import { PermissionsMatrix } from "@/modules/company/components/PermissionsMatrix";
 import { getGrantsAction } from "@/modules/company/actions/permission.actions";
+import { CompanySeniatDataForm } from "@/modules/company/components/CompanySeniatDataForm";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -69,6 +70,29 @@ export default async function SettingsPage({ params }: Props) {
       </div>
 
       <LanguageSelector currentLocale={locale} />
+
+      {/* ── Datos Fiscales SENIAT — PA-121 ───────────────────────────────── */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Datos Fiscales (SENIAT)</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Información requerida en los encabezados de la Forma 30, Libro Mayor y reportes PA-121 del SENIAT.
+          </p>
+        </div>
+        <CompanySeniatDataForm
+          companyId={companyId}
+          initialData={{
+            name: company.name,
+            rif: company.rif ?? null,
+            address: company.address ?? null,
+            telefono: company.telefono ?? null,
+            email: company.email ?? null,
+            ciiu: company.ciiu ?? null,
+            actividad: company.actividad ?? null,
+            isSpecialContributor: company.isSpecialContributor,
+          }}
+        />
+      </div>
 
       <PeriodManager
         companyId={companyId}

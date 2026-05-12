@@ -10,6 +10,22 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
+const UpdateCompanySeniatSchema = z.object({
+  companyId: z.string().min(1),
+  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
+  rif: z
+    .string()
+    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, "RIF inválido (ej: J-12345678-9)")
+    .optional()
+    .or(z.literal("")),
+  address: z.string().max(300).optional(),
+  telefono: z.string().max(30).optional(),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  ciiu: z.string().max(10).optional(),
+  actividad: z.string().max(200).optional(),
+  isSpecialContributor: z.boolean(),
+});
+
 const CreateCompanySchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
@@ -20,6 +36,43 @@ const CreateCompanySchema = z.object({
 // ─── Tipo de respuesta ────────────────────────────────────────────────────────
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+// ─── Actualizar datos SENIAT ──────────────────────────────────────────────────
+
+export async function updateCompanySeniatDataAction(
+  input: z.infer<typeof UpdateCompanySeniatSchema>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const validated = UpdateCompanySeniatSchema.parse(input);
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+
+    const company = await CompanyService.updateSeniatData(validated.companyId, userId, {
+      name: validated.name,
+      rif: validated.rif || null,
+      address: validated.address || null,
+      telefono: validated.telefono || null,
+      email: validated.email || null,
+      ciiu: validated.ciiu || null,
+      actividad: validated.actividad || null,
+      isSpecialContributor: validated.isSpecialContributor,
+    });
+
+    revalidatePath(`/company/${validated.companyId}/settings`);
+    return { success: true, data: { id: company.id } };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al actualizar los datos de la empresa" };
+  }
+}
 
 // ─── Crear empresa ────────────────────────────────────────────────────────────
 
