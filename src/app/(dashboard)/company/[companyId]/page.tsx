@@ -214,8 +214,8 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
   const p2034Data = p2034Result?.success ? p2034Result.data : [];
 
-  // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
   const openDays = m.activePeriod
+    // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
     ? Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000)
     : 0;
   const isStale = openDays > 30;

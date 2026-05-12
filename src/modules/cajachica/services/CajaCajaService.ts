@@ -58,6 +58,7 @@ function computeBalance(caja: {
 }
 
 function serializeCaja(
+  // ADR-004-EXCEPTION: findFirst en tipo ReturnType<typeof>, no es una query de runtime
   caja: Awaited<ReturnType<typeof prisma.cajaCaja.findFirst>> & {
     account: { id: string; code: string; name: string };
     deposits: { amount: Decimal }[];
