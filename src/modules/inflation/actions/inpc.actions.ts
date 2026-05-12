@@ -26,6 +26,8 @@ export type SerializedPreviewRow = {
   originalBalance: string;
   cumulativeIndex: string;
   adjustmentAmount: string;
+  periodInpc: string;
+  baseInpc: string;
 };
 
 export type SerializedRepomo = {
@@ -56,6 +58,8 @@ function serializePreviewRow(r: AdjustmentPreviewRow): SerializedPreviewRow {
     originalBalance: r.originalBalance.toFixed(2),
     cumulativeIndex: r.cumulativeIndex.toFixed(6),
     adjustmentAmount: r.adjustmentAmount.toFixed(2),
+    periodInpc: r.periodInpc.toFixed(2),
+    baseInpc: r.baseInpc.toFixed(2),
   };
 }
 

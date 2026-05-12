@@ -5,6 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import { createPaymentAction } from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
+import { formatAmount } from "@/lib/format";
 
 type Props = {
   companyId: string;
@@ -14,12 +15,7 @@ type Props = {
 
 const IGTF_RATE = 0.03;
 
-function fmtNum(v: string | number) {
-  const n = typeof v === "string" ? parseFloat(v) : v;
-  return isNaN(n)
-    ? "0,00"
-    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
+const fmtNum = formatAmount;
 
 export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();

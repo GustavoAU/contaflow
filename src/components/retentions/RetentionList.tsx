@@ -12,6 +12,7 @@ import {
   type RetentionSummary,
   type AccountOption,
 } from "@/modules/retentions/actions/retention.actions";
+import { formatAmount } from "@/lib/format";
 
 type Props = {
   companyId: string;
@@ -24,15 +25,6 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   ENTERADO: { label: "Enterada", className: "bg-indigo-100 text-indigo-700" },
   VOIDED: { label: "Anulada", className: "bg-red-100 text-red-700" },
 };
-
-function formatAmount(value: string): string {
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-}
 
 function EnterRetentionModal({
   companyId,

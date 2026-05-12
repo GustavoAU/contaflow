@@ -246,7 +246,7 @@ export function InflationAdjustmentPanel({
                           </td>
                           <td
                             className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
-                            title={`INPC período / INPC base = ${parseFloat(row.cumulativeIndex).toFixed(6)}`}
+                            title={`${row.periodInpc} ÷ ${row.baseInpc} = ${parseFloat(row.cumulativeIndex).toFixed(6)}`}
                           >
                             {fmt(row.cumulativeIndex, 4)}
                           </td>

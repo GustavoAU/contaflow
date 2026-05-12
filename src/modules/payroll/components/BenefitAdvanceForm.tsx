@@ -8,6 +8,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { registerBenefitAdvanceAction } from "../actions/nom-d.actions";
 import type { BenefitAdvanceRow } from "../services/BenefitAdvanceService";
+import { formatAmount } from "@/lib/format";
 
 const REASON_LABELS = {
   HOUSING: "Vivienda (adquisición / construcción / remodelación)",
@@ -37,7 +38,7 @@ export default function BenefitAdvanceForm({
 
   const limit75Raw = maxAmount * 0.75;
   const limit75 = limit75Raw.toFixed(2);
-  const limit75Fmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(limit75Raw);
+  const limit75Fmt = formatAmount(limit75Raw);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

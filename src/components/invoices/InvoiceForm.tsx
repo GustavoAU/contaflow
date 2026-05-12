@@ -505,6 +505,14 @@ export function InvoiceForm({
     }, new Decimal(0))
     .toFixed(2);
 
+  // ─── Auto-actualizar Base IGTF cuando cambian las líneas de impuesto ─────────
+  useEffect(() => {
+    if (!paidInForeign) return;
+    try {
+      setIgtfBase(new Decimal(subtotal).plus(new Decimal(totalIva)).toFixed(2));
+    } catch { /* taxLines vacíos — ignorar */ }
+  }, [paidInForeign, subtotal, totalIva]);
+
   const totalAmount = new Decimal(subtotal)
     .plus(new Decimal(totalIva))
     .plus(new Decimal(igtfCalculation?.igtfAmount ?? "0"))
@@ -1020,15 +1028,7 @@ export function InvoiceForm({
                 <input
                   type="checkbox"
                   checked={paidInForeign}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setPaidInForeign(checked);
-                    if (checked) {
-                      try {
-                        setIgtfBase(new Decimal(subtotal).plus(new Decimal(totalIva)).toFixed(2));
-                      } catch { /* taxLines vacíos — dejar igtfBase como está */ }
-                    }
-                  }}
+                  onChange={(e) => setPaidInForeign(e.target.checked)}
                   className="rounded"
                 />
                 Pago recibido en divisas

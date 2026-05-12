@@ -29,6 +29,8 @@ export type AdjustmentPreviewRow = {
   originalBalance: Decimal;   // saldo actual de la cuenta
   cumulativeIndex: Decimal;   // factor = currentIndex / baseIndex
   adjustmentAmount: Decimal;  // originalBalance × (factor − 1)
+  periodInpc: Decimal;        // índice INPC del período ajustado
+  baseInpc: Decimal;          // índice INPC del período base
 };
 
 // VEN-NIF 3 §36.4: resultado por posición monetaria neta
@@ -318,6 +320,8 @@ export class INPCService {
         originalBalance: b.balance,
         cumulativeIndex: factor,
         adjustmentAmount,
+        periodInpc: currentIndex,
+        baseInpc: baseIndex,
       });
     }
 
