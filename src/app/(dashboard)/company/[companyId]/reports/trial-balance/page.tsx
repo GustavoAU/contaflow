@@ -41,6 +41,12 @@ export default async function TrialBalancePage({ params }: Props) {
 
   const rows = result.data;
 
+  // Agrupar por tipo en orden contable
+  const TYPE_ORDER = ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
+  const groups = TYPE_ORDER
+    .map((type) => ({ type, rows: rows.filter((r) => r.type === type) }))
+    .filter((g) => g.rows.length > 0);
+
   // Totales generales
   const grandTotalDebit = rows.reduce((acc, r) => acc + Number(r.totalDebit), 0);
   const grandTotalCredit = rows.reduce((acc, r) => acc + Number(r.totalCredit), 0);
@@ -80,20 +86,46 @@ export default async function TrialBalancePage({ params }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {rows.map((row, i) => (
-                <tr key={row.id} className={`${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
-                  <td className="px-4 py-3 font-mono font-medium text-blue-600">{row.code}</td>
-                  <td className="px-4 py-3 font-medium">{row.name}</td>
-                  <td className={`px-4 py-3 text-xs font-semibold ${TYPE_COLORS[row.type]}`}>
-                    {TYPE_LABELS[row.type]}
-                  </td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalDebit)}</td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalCredit)}</td>
-                  <td className="tabular-nums px-4 py-3 text-right font-mono font-semibold">{fmt(row.balance)}</td>
-                </tr>
-              ))}
+              {groups.map(({ type, rows: groupRows }) => {
+                const groupDebit = groupRows.reduce((a, r) => a + Number(r.totalDebit), 0);
+                const groupCredit = groupRows.reduce((a, r) => a + Number(r.totalCredit), 0);
+                const groupBalance = groupDebit - groupCredit;
+                const color = TYPE_COLORS[type];
+                return (
+                  <>
+                    {/* Filas del grupo */}
+                    {groupRows.map((row, i) => (
+                      <tr key={row.id} className={`${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
+                        <td className="px-4 py-3 font-mono font-medium text-blue-600">{row.code}</td>
+                        <td className="px-4 py-3 font-medium">{row.name}</td>
+                        <td className={`px-4 py-3 text-xs font-semibold ${color}`}>
+                          {TYPE_LABELS[row.type]}
+                        </td>
+                        <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalDebit)}</td>
+                        <td className="tabular-nums px-4 py-3 text-right font-mono">{fmt(row.totalCredit)}</td>
+                        <td className="tabular-nums px-4 py-3 text-right font-mono font-semibold">{fmt(row.balance)}</td>
+                      </tr>
+                    ))}
+                    {/* Subtotal del grupo */}
+                    <tr className={`border-t bg-zinc-100/80`}>
+                      <td colSpan={3} className={`px-4 py-2 text-xs font-bold ${color}`}>
+                        Subtotal {TYPE_LABELS[type]}
+                      </td>
+                      <td className="tabular-nums px-4 py-2 text-right font-mono text-xs font-bold text-zinc-700">
+                        {fmt(groupDebit)}
+                      </td>
+                      <td className="tabular-nums px-4 py-2 text-right font-mono text-xs font-bold text-zinc-700">
+                        {fmt(groupCredit)}
+                      </td>
+                      <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs font-bold ${color}`}>
+                        {fmt(groupBalance)}
+                      </td>
+                    </tr>
+                  </>
+                );
+              })}
             </tbody>
-            {/* Totales */}
+            {/* Totales generales */}
             <tfoot className="border-t-2 bg-zinc-50">
               <tr>
                 <td colSpan={3} className="px-4 py-3 font-bold">
@@ -116,10 +148,10 @@ export default async function TrialBalancePage({ params }: Props) {
               <tr>
                 <td colSpan={6} className={`px-4 py-2 text-right text-xs ${isBalanced ? "bg-green-50" : "bg-red-50"}`}>
                   {isBalanced ? (
-                    <span className="font-semibold text-green-600">✓ Balanceado — Débitos = Créditos</span>
+                    <span className="font-semibold text-green-600">&#10003; Balanceado — Débitos = Créditos</span>
                   ) : (
                     <span className="font-semibold text-red-600">
-                      ⚠ Desbalanceado — diferencia: {fmt(Math.abs(grandBalance))} Bs.
+                      &#9888; Desbalanceado — diferencia: {fmt(Math.abs(grandBalance))} Bs.
                     </span>
                   )}
                 </td>
