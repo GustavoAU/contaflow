@@ -13,6 +13,10 @@ const MESES = [
 export interface Forma30PDFParams {
   companyName: string;
   companyRif: string | null;
+  companyAddress: string | null;
+  companyTelefono: string | null;
+  companyCiiu: string | null;
+  companyActividad: string | null;
   year: number;
   month: number;
   isSpecialContributor: boolean;
@@ -132,6 +136,38 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
       React.createElement(Text, { style: styles.headerLabel }, "RIF:"),
       React.createElement(Text, { style: styles.headerValue }, params.companyRif ?? "—"),
     ),
+    params.companyAddress
+      ? React.createElement(
+          View,
+          { style: styles.headerRow },
+          React.createElement(Text, { style: styles.headerLabel }, "Dirección Fiscal:"),
+          React.createElement(Text, { style: styles.headerValue }, params.companyAddress),
+        )
+      : null,
+    params.companyTelefono
+      ? React.createElement(
+          View,
+          { style: styles.headerRow },
+          React.createElement(Text, { style: styles.headerLabel }, "Teléfono:"),
+          React.createElement(Text, { style: styles.headerValue }, params.companyTelefono),
+        )
+      : null,
+    params.companyCiiu
+      ? React.createElement(
+          View,
+          { style: styles.headerRow },
+          React.createElement(Text, { style: styles.headerLabel }, "Código CIIU:"),
+          React.createElement(Text, { style: styles.headerValue }, params.companyCiiu),
+        )
+      : null,
+    params.companyActividad
+      ? React.createElement(
+          View,
+          { style: styles.headerRow },
+          React.createElement(Text, { style: styles.headerLabel }, "Actividad Económica:"),
+          React.createElement(Text, { style: styles.headerValue }, params.companyActividad),
+        )
+      : null,
     params.isSpecialContributor
       ? React.createElement(
           View,

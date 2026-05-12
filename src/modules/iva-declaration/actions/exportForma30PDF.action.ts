@@ -51,10 +51,10 @@ export async function exportForma30PDFAction(
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
-    // Obtener nombre y RIF de la empresa para el encabezado del PDF
+    // Obtener datos de la empresa para el encabezado PA-121 del PDF
     const company = await prisma.company.findUnique({
       where: { id: parsed.data.companyId },
-      select: { name: true, rif: true, isSpecialContributor: true },
+      select: { name: true, rif: true, isSpecialContributor: true, address: true, telefono: true, ciiu: true, actividad: true },
     });
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
@@ -69,6 +69,10 @@ export async function exportForma30PDFAction(
     const pdfBuffer = await generateForma30PDF({
       companyName: company.name,
       companyRif: company.rif ?? null,
+      companyAddress: company.address ?? null,
+      companyTelefono: company.telefono ?? null,
+      companyCiiu: company.ciiu ?? null,
+      companyActividad: company.actividad ?? null,
       year: parsed.data.year,
       month: parsed.data.month,
       isSpecialContributor: company.isSpecialContributor,

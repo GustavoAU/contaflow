@@ -28,6 +28,10 @@ function makeZeroRow() {
 const validParams: Forma30PDFParams = {
   companyName: "Empresa Test C.A.",
   companyRif: "J-12345678-9",
+  companyAddress: "Av. Principal, Edificio X, Piso 3, Caracas",
+  companyTelefono: "0212-555-0000",
+  companyCiiu: "G4711",
+  companyActividad: "Comercialización de equipos de computación",
   year: 2026,
   month: 3,
   isSpecialContributor: false,
@@ -85,6 +89,10 @@ describe("generateForma30PDF", () => {
     const zeroParams: Forma30PDFParams = {
       companyName: "Test S.A.",
       companyRif: null,
+      companyAddress: null,
+      companyTelefono: null,
+      companyCiiu: null,
+      companyActividad: null,
       year: 2026,
       month: 1,
       isSpecialContributor: false,
