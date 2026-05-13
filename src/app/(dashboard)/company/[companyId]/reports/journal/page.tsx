@@ -1,5 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
 import { getJournalAction } from "@/modules/accounting/actions/report.actions";
+import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { JournalExportButton } from "@/components/reports/JournalExportButton";
 import Link from "next/link";
@@ -93,8 +94,14 @@ export default async function JournalPage({ params, searchParams }: Props) {
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
-  const result = await getJournalAction(companyId, dateFrom, dateTo);
+  const [result, periodsResult] = await Promise.all([
+    getJournalAction(companyId, dateFrom, dateTo),
+    getPeriodsAction(companyId),
+  ]);
   const transactions = result.success ? result.data : [];
+  const periods = periodsResult.success
+    ? periodsResult.data.map((p) => ({ year: p.year, month: p.month, status: p.status }))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -122,7 +129,7 @@ export default async function JournalPage({ params, searchParams }: Props) {
       </div>
 
       <div className="rounded-lg border bg-white p-4">
-        <DateRangeFilter defaultFrom={from} defaultTo={to} />
+        <DateRangeFilter defaultFrom={from} defaultTo={to} periods={periods} />
       </div>
 
       {!result.success && (

@@ -3,13 +3,34 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 
+export interface PeriodOption {
+  year: number;
+  month: number;
+  status: string;
+}
+
 interface Props {
   defaultFrom?: string;
   defaultTo?: string;
+  periods?: PeriodOption[];
 }
+
+const MONTHS_ES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+function periodToRange(year: number, month: number) {
+  const mm = String(month).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    from: `${year}-${mm}-01`,
+    to: `${year}-${mm}-${String(lastDay).padStart(2, "0")}`,
+  };
 }
 
 const PRESETS = [
@@ -60,7 +81,7 @@ const PRESETS = [
   },
 ];
 
-export function DateRangeFilter({ defaultFrom = "", defaultTo = "" }: Props) {
+export function DateRangeFilter({ defaultFrom = "", defaultTo = "", periods = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [from, setFrom] = useState(defaultFrom);
@@ -96,10 +117,49 @@ export function DateRangeFilter({ defaultFrom = "", defaultTo = "" }: Props) {
     return defaultFrom === f && defaultTo === t;
   }
 
+  function applyPeriod(value: string) {
+    if (!value) {
+      clear();
+      return;
+    }
+    const [y, m] = value.split("-").map(Number);
+    const { from: f, to: t } = periodToRange(y, m);
+    setFrom(f);
+    setTo(t);
+    navigate(f, t);
+  }
+
+  const activePeriodValue =
+    periods
+      .map((p) => ({ value: `${p.year}-${p.month}`, ...periodToRange(p.year, p.month) }))
+      .find((p) => p.from === defaultFrom && p.to === defaultTo)?.value ?? "";
+
   const hasFilter = Boolean(defaultFrom || defaultTo);
 
   return (
     <div className="space-y-3">
+      {/* Selector de período contable */}
+      {periods.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 border-b pb-3">
+          <label className="whitespace-nowrap text-xs font-medium text-zinc-500">
+            Período contable
+          </label>
+          <select
+            value={activePeriodValue}
+            onChange={(e) => applyPeriod(e.target.value)}
+            className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+          >
+            <option value="">— Todos los períodos —</option>
+            {periods.map((p) => (
+              <option key={`${p.year}-${p.month}`} value={`${p.year}-${p.month}`}>
+                {MONTHS_ES[p.month - 1]} {p.year}{" "}
+                ({p.status === "OPEN" ? "Abierto" : "Cerrado"})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Accesos rápidos */}
       <div className="flex flex-wrap gap-2">
         {PRESETS.map((preset) => (

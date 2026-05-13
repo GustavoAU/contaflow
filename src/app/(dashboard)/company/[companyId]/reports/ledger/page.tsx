@@ -1,5 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx
 import { getLedgerAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
+import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { LedgerExportButton } from "@/components/reports/LedgerExportButton";
 import { LedgerPDFExportButton } from "@/components/reports/LedgerPDFExportButton";
@@ -19,10 +20,15 @@ export default async function LedgerPage({ params, searchParams }: Props) {
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
-  const [ledgerResult, companyResult] = await Promise.all([
+  const [ledgerResult, companyResult, periodsResult] = await Promise.all([
     getLedgerAction(companyId, dateFrom, dateTo),
     getCompanyHeaderAction(companyId),
+    getPeriodsAction(companyId),
   ]);
+
+  const periods = periodsResult.success
+    ? periodsResult.data.map((p) => ({ year: p.year, month: p.month, status: p.status }))
+    : [];
 
   const accounts = ledgerResult.success ? ledgerResult.data : [];
   const company = companyResult.success ? companyResult.data : null;
@@ -67,7 +73,7 @@ export default async function LedgerPage({ params, searchParams }: Props) {
       </div>
 
       <div className="rounded-lg border bg-white p-4">
-        <DateRangeFilter defaultFrom={from} defaultTo={to} />
+        <DateRangeFilter defaultFrom={from} defaultTo={to} periods={periods} />
       </div>
 
       {!ledgerResult.success && (
