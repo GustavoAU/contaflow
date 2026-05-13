@@ -12,6 +12,12 @@ _Solo esto se carga por defecto en cada sesión._
 Ninguna — main limpio.
 
 ### Completadas recientes
+- **PRE-LANZAMIENTO 2026-05-13 (c)** ✅ merged — 5 ítems: ítem 22 (excedenteCreditoFiscal en Forma 30), ítem 26 (filtro período contable Libro Mayor/Diario), ítem 57 (buscador Libro Diario), ítem 55 (búsqueda por RIF en picker NC/ND), ítem 65 (mapPrismaError util + 6 actions). 1919 tests GREEN.
+  - `excedenteCreditoFiscal` en `SeccionE` — campo derivado `|cuotaPeriodo|` cuando saldo a favor; botón "Usar como crédito anterior" en Forma30View; fila E2 en PDF
+  - `DateRangeFilter` acepta `periods?: PeriodOption[]` — selector desplegable por período contable (año+mes)
+  - `getJournalAction` acepta `search?` — OR en description/number/reference (Prisma `contains insensitive`)
+  - `searchInvoicesForPickerAction` incluye `counterpartRif` en búsqueda y en resultados del picker
+  - `src/lib/prisma-errors.ts` — `mapPrismaError(error)` centralizado; aplicado en account/transaction/company/member/inventory-uom/fixed-asset actions
 - **PRE-LANZAMIENTO 2026-05-13 (b)** ✅ merged — ítem 59: `zMoneyAmount` + `zMoneyPositive` en `src/lib/zod-helpers.ts` (z.coerce.string + Decimal.js); aplicado a `unitCost` en inventory schema. 1912 tests GREEN.
 - **PRE-LANZAMIENTO batch 2026-05-13** ✅ merged — 3 ítems: ítem 32 (Estado Resultados período comparativo), ítem 36 (PDF Balance Comprobación con firma), ítem 53 (TXT banco nómina ya estaba completo). 1912 tests GREEN.
   - `getIncomeStatementAction` refactorizado: acepta `compareDateFrom/To`, retorna `{ current, compare? }`
@@ -31,7 +37,7 @@ Ninguna — main limpio.
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1912 tests GREEN | 0 TS errors** (2026-05-13)
+**1919 tests GREEN | 0 TS errors** (2026-05-13)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
