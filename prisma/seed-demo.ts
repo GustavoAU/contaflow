@@ -986,6 +986,140 @@ async function main() {
   });
   console.log("  ✅ OV-0001 (SALE / APPROVED) — Clínica El Ávila (standalone)");
 
+  // ── 18. Factura de venta con IVA Adicional Lujo ──────────────────────────
+  console.log("\n🧾 Factura Lujo (IVA Adicional 31%)...");
+  const luxuryExisting = await prisma.invoice.findUnique({
+    where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "0007", type: "SALE" } },
+  });
+  if (!luxuryExisting) {
+    await prisma.invoice.create({
+      data: {
+        companyId: cId,
+        type: "SALE" as InvoiceType,
+        docType: "FACTURA" as InvoiceDocType,
+        taxCategory: "GRAVADA" as TaxCategory,
+        invoiceNumber: "0007",
+        controlNumber: "00-00000007",
+        date: d(16),
+        dueDate: d(31),
+        counterpartName: "Boutique Glamour Internacional C.A.",
+        counterpartRif: "J-50123456-7",
+        periodId: period.id,
+        totalAmountVes: "262000.00",
+        pendingAmount: "0.00",
+        paymentStatus: "PAID" as InvoicePaymentStatus,
+        createdBy: USER_ID,
+        taxLines: {
+          create: [
+            { taxType: "IVA_GENERAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory, base: "200000.00", rate: 16, amount: "32000.00" },
+            { taxType: "IVA_ADICIONAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory, base: "200000.00", rate: 15, amount: "30000.00" },
+          ],
+        },
+      },
+    });
+    console.log("  ✅ SALE 0007 — Boutique Glamour — Bs. 262,000 [IVA Adicional Lujo 31%]");
+  } else {
+    console.log("  ⏭️  SALE 0007 ya existe");
+  }
+
+  // ── 19. Retención ISLR (Decreto 1808 — Honorarios Profesionales 5%) ──────
+  console.log("\n📋 Retención ISLR...");
+  await prisma.retencion.upsert({
+    where: { idempotencyKey: "demo-ret-islr-001" },
+    update: {},
+    create: {
+      companyId: cId,
+      providerName: "Servicios Informáticos Andinos C.A.",
+      providerRif: "J-40234567-8",
+      invoiceNumber: "C-0003",
+      invoiceDate: d(9),
+      invoiceAmount: "263320.00",
+      taxBase: "227000.00",
+      ivaAmount: "36320.00",
+      ivaRetention: "0.00",
+      ivaRetentionPct: "0.00",
+      islrAmount: "11350.00",   // 5% × Bs. 227,000
+      islrRetentionPct: "5.00",
+      totalRetention: "11350.00",
+      type: "ISLR" as RetentionType,
+      status: "ISSUED" as RetentionStatus,
+      invoiceId: purchaseInvoiceIds[2],
+      voucherNumber: "RIS-2026-001",
+      idempotencyKey: "demo-ret-islr-001",
+      createdBy: USER_ID,
+    },
+  });
+  console.log("  ✅ RIS-2026-001 — Servicios Informáticos Andinos — ISLR 5% — Bs. 11,350");
+
+  // ── 20. Asientos Contables Manuales (Libro Diario) ────────────────────────
+  console.log("\n📒 Asientos contables...");
+
+  const asientoDefs = [
+    {
+      number: "A-2026-001",
+      date: d(1),
+      description: "Apertura: inversión inicial de capital",
+      entries: [
+        { accountCode: "1110", amount: "1500000.00" },   // Bancos +1,500,000 (Débito)
+        { accountCode: "3105", amount: "-1500000.00" },  // Capital Social -1,500,000 (Crédito)
+      ],
+    },
+    {
+      number: "A-2026-002",
+      date: d(5),
+      description: "Pago de alquiler de oficina — Abril 2026",
+      entries: [
+        { accountCode: "5120", amount: "180000.00" },    // Alquileres +180,000 (Débito)
+        { accountCode: "1110", amount: "-180000.00" },   // Bancos -180,000 (Crédito)
+      ],
+    },
+    {
+      number: "A-2026-003",
+      date: d(20),
+      description: "Pago de servicios públicos — internet y electricidad",
+      entries: [
+        { accountCode: "5125", amount: "24000.00" },     // Servicios Públicos +24,000 (Débito)
+        { accountCode: "1110", amount: "-24000.00" },    // Bancos -24,000 (Crédito)
+      ],
+    },
+    {
+      number: "A-2026-004",
+      date: d(30),
+      description: "Depreciación mensual — Computadora Dell Inspiron 15",
+      entries: [
+        { accountCode: "5115", amount: "9722.22" },      // Depreciación +9,722.22 (Débito)
+        { accountCode: "1510", amount: "-9722.22" },     // Dep. Acum. Equipos -9,722.22 (Crédito)
+      ],
+    },
+  ];
+
+  for (const asiento of asientoDefs) {
+    const existing = await prisma.transaction.findUnique({
+      where: { companyId_number: { companyId: cId, number: asiento.number } },
+    });
+    if (!existing) {
+      await prisma.transaction.create({
+        data: {
+          companyId: cId,
+          number: asiento.number,
+          date: asiento.date,
+          description: asiento.description,
+          periodId: period.id,
+          userId: USER_ID,
+          entries: {
+            create: asiento.entries.map((e) => ({
+              accountId: accounts[e.accountCode]!,
+              amount: e.amount,
+            })),
+          },
+        },
+      });
+      console.log(`  ✅ ${asiento.number} — ${asiento.description}`);
+    } else {
+      console.log(`  ⏭️  ${asiento.number} ya existe`);
+    }
+  }
+
   // ─── Resumen ────────────────────────────────────────────────────────────────
   console.log(`
 ╔════════════════════════════════════════════════════╗
@@ -996,9 +1130,10 @@ async function main() {
 ║  💱 5 tasas BCV (USD/VES)                          ║
 ║  🏭 ${vendorDefs.length} proveedores                                   ║
 ║  👥 ${customerDefs.length} clientes                                    ║
-║  🧾 ${saleDefs.length} facturas de venta                               ║
+║  🧾 ${saleDefs.length + 1} facturas de venta (incl. lujo 31%)          ║
 ║  🛒 ${purchaseDefs.length} facturas de compra                          ║
-║  📋 3 retenciones IVA 75%                          ║
+║  📋 3 retenciones IVA 75% + 1 ISLR 5%             ║
+║  📒 4 asientos contables manuales                  ║
 ║  🏦 1 cuenta bancaria + estado de cuenta           ║
 ║  👤 3 empleados con historial salarial             ║
 ║  🖥️  1 activo fijo (PC 36 meses)                  ║
