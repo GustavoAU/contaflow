@@ -31,6 +31,7 @@ export const CreateEmployeeSchema = z.object({
   phone: z.string().max(20).optional(),
   bankName: z.string().max(100).optional(),
   bankAccount: z.string().max(30).optional(),
+  costCenter: z.string().max(100).optional(),
   // Salario inicial (opcional al crear)
   initialSalaryAmount: z
     .string()
@@ -58,6 +59,7 @@ export const UpdateEmployeeSchema = z.object({
   phone: z.string().max(20).optional(),
   bankName: z.string().max(100).optional(),
   bankAccount: z.string().max(30).optional(),
+  costCenter: z.string().max(100).optional(),
 });
 
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;

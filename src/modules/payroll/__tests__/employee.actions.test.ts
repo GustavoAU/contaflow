@@ -71,6 +71,7 @@ const BASE_EMP_ROW = {
   phone: null,
   bankName: null,
   bankAccount: null,
+  costCenter: null,
   currentSalary: null,
   currentSalaryAmount: null,
   currentSalaryCurrency: null,

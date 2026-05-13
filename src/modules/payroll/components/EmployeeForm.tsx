@@ -49,6 +49,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
     phone: initial?.phone ?? "",
     bankName: initial?.bankName ?? "",
     bankAccount: initial?.bankAccount ?? "",
+    costCenter: initial?.costCenter ?? "",
     // Solo en creación
     initialSalaryAmount: "",
     initialSalaryCurrency: "VES" as "VES" | "USD" | "MIXED",
@@ -181,7 +182,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
       )}
 
       {/* Cargo */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Cargo *</label>
           <input
@@ -200,6 +201,17 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
             onChange={(e) => set("department", e.target.value)}
             className="w-full rounded border px-3 py-2 text-sm"
             placeholder="ej. Administración"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Centro de Costo</label>
+          <input
+            type="text"
+            value={form.costCenter}
+            onChange={(e) => set("costCenter", e.target.value)}
+            className="w-full rounded border px-3 py-2 text-sm"
+            placeholder="ej. CC-ADM-01"
+            maxLength={100}
           />
         </div>
       </div>

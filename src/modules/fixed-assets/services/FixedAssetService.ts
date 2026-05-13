@@ -153,6 +153,8 @@ export class FixedAssetService {
         usefulLifeMonths: input.usefulLifeMonths,
         depreciationMethod: input.depreciationMethod,
         totalUnits: input.totalUnits,
+        location: input.location ?? null,
+        responsible: input.responsible ?? null,
         createdBy: userId,
       },
     });

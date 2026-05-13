@@ -47,6 +47,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
       totalUnits: method === "UNIDADES_PRODUCCION"
         ? parseInt(fd.get("totalUnits") as string)
         : null,
+      location:    (fd.get("location") as string) || null,
+      responsible: (fd.get("responsible") as string) || null,
     };
 
     startTransition(async () => {
@@ -80,6 +82,16 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
         <div className="sm:col-span-2">
           <label className={labelClass}>Descripción</label>
           <input name="description" className={fieldClass} placeholder="Descripción opcional" />
+        </div>
+
+        <div>
+          <label className={labelClass}>Ubicación</label>
+          <input name="location" className={fieldClass} placeholder="Ej: Sede Caracas, Piso 3" maxLength={200} />
+        </div>
+
+        <div>
+          <label className={labelClass}>Responsable / Custodio</label>
+          <input name="responsible" className={fieldClass} placeholder="Nombre del custodio" maxLength={150} />
         </div>
 
         <div>

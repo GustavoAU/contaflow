@@ -858,6 +858,9 @@ model FixedAsset {
   // Solo para UNIDADES_PRODUCCION
   totalUnits               Int?
   unitsUsed                Int                 @default(0)
+  // Localización y responsable (Ítem 40)
+  location                 String?
+  responsible              String?
   // Soft delete (tabla con relevancia contable — ADR-005)
   deletedAt                DateTime?
   createdAt                DateTime            @default(now())
@@ -1554,6 +1557,7 @@ model Employee {
   // Cargo
   position        String
   department      String?
+  costCenter      String? // centro de costo (Ítem 52)
   // Contacto
   email           String?
   phone           String?

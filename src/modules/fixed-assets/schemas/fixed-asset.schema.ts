@@ -21,6 +21,9 @@ export const CreateFixedAssetSchema = z.object({
   depreciationMethod: z.enum(["LINEA_RECTA", "SUMA_DIGITOS", "UNIDADES_PRODUCCION"]).default("LINEA_RECTA"),
   // Solo para UNIDADES_PRODUCCION
   totalUnits: z.number().int().positive().optional().nullable(),
+  // Ítem 40
+  location:    z.string().max(200).optional().nullable(),
+  responsible: z.string().max(150).optional().nullable(),
 });
 
 export type CreateFixedAssetInput = z.infer<typeof CreateFixedAssetSchema>;

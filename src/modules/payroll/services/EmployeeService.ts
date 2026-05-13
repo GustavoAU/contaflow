@@ -57,6 +57,7 @@ export interface EmployeeRow {
   phone: string | null;
   bankName: string | null;
   bankAccount: string | null;
+  costCenter: string | null;
   currentSalary: SalaryHistoryRow | null;
   updatedAt: string;
 }
@@ -110,6 +111,7 @@ type PrismaEmployee = {
   phone: string | null;
   bankName: string | null;
   bankAccount: string | null;
+  costCenter: string | null;
   updatedAt: Date;
   salaryHistory: Array<{
     id: string;
@@ -142,6 +144,7 @@ function serializeEmployee(e: PrismaEmployee): EmployeeRow {
     phone: e.phone,
     bankName: e.bankName,
     bankAccount: e.bankAccount,
+    costCenter: e.costCenter,
     currentSalary: currentSalary ? serializeSalary(currentSalary) : null,
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -224,6 +227,7 @@ export const EmployeeService = {
           phone: input.phone ?? null,
           bankName: input.bankName ?? null,
           bankAccount: input.bankAccount ?? null,
+          costCenter: input.costCenter ?? null,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -302,6 +306,7 @@ export const EmployeeService = {
           phone: input.phone ?? null,
           bankName: input.bankName ?? null,
           bankAccount: input.bankAccount ?? null,
+          costCenter: input.costCenter ?? null,
         },
         include: WITH_CURRENT_SALARY,
       });
