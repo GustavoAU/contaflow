@@ -1,5 +1,6 @@
 // src/modules/bank-reconciliation/services/CsvParserService.ts
 import { Decimal } from "decimal.js";
+import { parseLocalNumber } from "@/lib/format";
 
 export type CsvRow = {
   date: Date;
@@ -10,30 +11,20 @@ export type CsvRow = {
 };
 
 /**
- * Normaliza un string de monto en formato venezolano o estándar a Decimal.
- * Formato venezolano: "1.000,50" (miles=punto, decimal=coma)
- * Formato estándar:   "1000.50"
+ * Normaliza un string de monto en cualquier formato regional a Decimal.
+ * Delega en parseLocalNumber (format.ts) que maneja VE, americano y estándar.
  * Retorna null si la cadena está vacía.
  */
 export function parseAmount(raw: string): Decimal | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
 
-  let normalized: string;
-
-  // Detectar formato venezolano: contiene coma como separador decimal
-  if (trimmed.includes(",")) {
-    // Eliminar puntos (miles) y reemplazar coma por punto (decimal)
-    normalized = trimmed.replace(/\./g, "").replace(",", ".");
-  } else {
-    normalized = trimmed;
-  }
-
-  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+  const num = parseLocalNumber(trimmed);
+  if (!isFinite(num) || isNaN(num)) {
     throw new Error(`Monto inválido: "${raw}"`);
   }
 
-  return new Decimal(normalized);
+  return new Decimal(num);
 }
 
 /**

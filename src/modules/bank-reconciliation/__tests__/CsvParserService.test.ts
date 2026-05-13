@@ -1,7 +1,7 @@
 // src/modules/bank-reconciliation/__tests__/CsvParserService.test.ts
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
-import { parseBankCsv, validateCsvBalance } from "../services/CsvParserService";
+import { parseBankCsv, validateCsvBalance, parseAmount } from "../services/CsvParserService";
 
 // Helper: construye un CSV completo con header
 function buildCsv(rows: string[]): string {
@@ -167,6 +167,35 @@ describe("CsvParserService", () => {
     const rows = parseBankCsv(csv);
     expect(rows[0].debit).not.toBeNull();
     expect(rows[0].debit!.toNumber()).toBe(1000.5);
+  });
+});
+
+// ─── parseAmount — casos de formato regional ──────────────────────────────────
+
+describe("parseAmount — normalización de formato regional", () => {
+  it("formato estándar '1234.56' → Decimal correcto", () => {
+    expect(parseAmount("1234.56")?.toFixed(2)).toBe("1234.56");
+  });
+
+  it("formato VE con coma decimal '1.000,50' → 1000.50", () => {
+    expect(parseAmount("1.000,50")?.toFixed(2)).toBe("1000.50");
+  });
+
+  it("miles VE sin decimal '1.234.567' → 1234567", () => {
+    expect(parseAmount("1.234.567")?.toFixed(0)).toBe("1234567");
+  });
+
+  it("valor negativo '-500,00' → -500", () => {
+    expect(parseAmount("-500,00")?.toFixed(2)).toBe("-500.00");
+  });
+
+  it("string vacío → null", () => {
+    expect(parseAmount("")).toBeNull();
+    expect(parseAmount("   ")).toBeNull();
+  });
+
+  it("string inválido → lanza error", () => {
+    expect(() => parseAmount("abc")).toThrow("Monto inválido");
   });
 });
 

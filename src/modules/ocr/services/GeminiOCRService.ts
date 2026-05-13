@@ -9,6 +9,20 @@
 // Rate limit gratuito: 15 RPM / 1 000 RPD  (src/lib/ratelimit.ts → ocr: 12/min con margen)
 
 import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
+import { parseLocalNumber } from "@/lib/format";
+
+// Normaliza un string de monto en formato regional (VE o americano) a formato estándar.
+// Solo actúa si detecta coma o múltiples puntos; preserva strings ya en formato estándar.
+function normalizeMoneyStr(v: unknown): unknown {
+  if (typeof v !== "string" || !v.trim()) return v;
+  const s = v.trim();
+  const hasComma = s.includes(",");
+  const hasMultipleDots = (s.match(/\./g) ?? []).length > 1;
+  if (!hasComma && !hasMultipleDots) return v;
+  const num = parseLocalNumber(s);
+  if (!isFinite(num) || isNaN(num)) return v;
+  return String(num);
+}
 
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -151,6 +165,27 @@ Reglas:
       throw new Error(
         `Gemini retornó JSON inválido. Respuesta cruda: ${cleaned.slice(0, 200)}`
       );
+    }
+
+    // Normalizar montos si Gemini ignoró la instrucción de formato estándar
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      for (const field of [
+        "baseImponibleGeneral", "ivaGeneral",
+        "baseImponibleReducida", "ivaReducido",
+        "baseImponibleAdicional", "ivaAdicional",
+        "montoTotal",
+      ]) {
+        if (obj[field] != null) obj[field] = normalizeMoneyStr(obj[field]);
+      }
+      if (Array.isArray(obj.items)) {
+        obj.items = (obj.items as Record<string, unknown>[]).map((item) => ({
+          ...item,
+          quantity:   normalizeMoneyStr(item.quantity),
+          unitPrice:  normalizeMoneyStr(item.unitPrice),
+          totalPrice: normalizeMoneyStr(item.totalPrice),
+        }));
+      }
     }
 
     // Validar y tipar con el schema Zod existente

@@ -165,6 +165,36 @@ describe("GeminiOCRService.extractFromImage", () => {
     expect(result.montoTotal).toBe("100.00");
   });
 
+  it("normaliza montos en formato VE si Gemini ignora la instrucción de formato", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          razonSocial: "Empresa Test",
+          rif: "J-11111111-1",
+          baseImponibleGeneral: "1.000,00",  // VE: coma decimal
+          ivaGeneral: "160,00",              // VE: coma decimal
+          montoTotal: "1.160,00",            // VE: miles + coma
+          currency: "VES",
+          items: [
+            {
+              description: "Producto A",
+              quantity: "2",
+              unitPrice: "500,00",
+              totalPrice: "1.000,00",
+            },
+          ],
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+    expect(result.baseImponibleGeneral).toBe("1000");
+    expect(result.ivaGeneral).toBe("160");
+    expect(result.montoTotal).toBe("1160");
+    expect(result.items?.[0].unitPrice).toBe("500");
+    expect(result.items?.[0].totalPrice).toBe("1000");
+  });
+
   it("extrae campos de IVA reducido y adicional cuando están presentes", async () => {
     vi.spyOn(global, "fetch").mockResolvedValueOnce(
       mockGeminiResponse(
