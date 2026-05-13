@@ -15,6 +15,7 @@ export interface Forma30PDFParams {
   companyRif: string | null;
   companyAddress: string | null;
   companyTelefono: string | null;
+  companyEmail: string | null;
   companyCiiu: string | null;
   companyActividad: string | null;
   year: number;
@@ -159,6 +160,14 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Teléfono:"),
           React.createElement(Text, { style: styles.headerValue }, params.companyTelefono),
+        )
+      : null,
+    params.companyEmail
+      ? React.createElement(
+          View,
+          { style: styles.headerRow },
+          React.createElement(Text, { style: styles.headerLabel }, "Correo:"),
+          React.createElement(Text, { style: styles.headerValue }, params.companyEmail),
         )
       : null,
     params.companyCiiu
@@ -407,6 +416,37 @@ function SeccionEView({ e }: { e: SeccionE }) {
   );
 }
 
+function PaymentDataBlock() {
+  const blankLine = React.createElement(View, { style: { height: 16, borderBottom: "0.5pt solid #9ca3af", marginBottom: 8 } });
+  const field = (label: string) =>
+    React.createElement(
+      View,
+      { style: { flex: 1 } },
+      React.createElement(Text, { style: { fontSize: 7, color: "#6b7280", marginBottom: 2 } }, label),
+      blankLine,
+    );
+
+  return React.createElement(
+    View,
+    { style: { marginTop: 16, borderTop: "1pt solid #374151", paddingTop: 8 } },
+    React.createElement(Text, { style: { fontSize: 8, fontWeight: "bold", color: "#374151", marginBottom: 8 } }, "DATOS DE PAGO (llenar después de cancelar en el banco)"),
+    React.createElement(
+      View,
+      { style: { flexDirection: "row", gap: 12, marginBottom: 4 } },
+      field("N° Comprobante Bancario"),
+      field("Banco"),
+      field("N° de Cuenta del Contribuyente"),
+    ),
+    React.createElement(
+      View,
+      { style: { flexDirection: "row", gap: 12 } },
+      field("Fecha de Pago (DD/MM/AAAA)"),
+      field("Monto Pagado (Bs.)"),
+      React.createElement(View, { style: { flex: 1 } }),
+    ),
+  );
+}
+
 function CertificationBlock({ companyName }: { companyName: string }) {
   return React.createElement(
     View,
@@ -456,7 +496,14 @@ function CertificationBlock({ companyName }: { companyName: string }) {
 
 function Forma30Document({ params }: { params: Forma30PDFParams }) {
   const periodLabel = `${MESES[params.month - 1]} ${params.year}`;
-  const now = new Date().toLocaleDateString("es-VE");
+  const now = new Date().toLocaleString("es-VE", {
+    timeZone: "America/Caracas",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return React.createElement(
     Document,
@@ -470,6 +517,7 @@ function Forma30Document({ params }: { params: Forma30PDFParams }) {
       React.createElement(SeccionCView, { c: params.seccionC }),
       React.createElement(SeccionDView, { d: params.seccionD }),
       React.createElement(SeccionEView, { e: params.seccionE }),
+      React.createElement(PaymentDataBlock, null),
       React.createElement(CertificationBlock, { companyName: params.companyName }),
       // Footer
       React.createElement(

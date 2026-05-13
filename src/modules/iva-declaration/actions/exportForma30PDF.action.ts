@@ -55,7 +55,7 @@ export async function exportForma30PDFAction(
     // Obtener datos de la empresa para el encabezado PA-121 del PDF
     const company = await prisma.company.findUnique({
       where: { id: parsed.data.companyId },
-      select: { name: true, rif: true, isSpecialContributor: true, address: true, telefono: true, ciiu: true, actividad: true },
+      select: { name: true, rif: true, isSpecialContributor: true, address: true, telefono: true, email: true, ciiu: true, actividad: true },
     });
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
@@ -76,6 +76,7 @@ export async function exportForma30PDFAction(
       companyRif: company.rif ?? null,
       companyAddress: company.address ?? null,
       companyTelefono: company.telefono ?? null,
+      companyEmail: company.email ?? null,
       companyCiiu: company.ciiu ?? null,
       companyActividad: company.actividad ?? null,
       year: parsed.data.year,
