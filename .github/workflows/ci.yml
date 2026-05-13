@@ -29,20 +29,25 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Instalar dependencias
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Generar cliente Prisma
-        run: npx prisma generate
+        run: pnpm prisma generate
 
       - name: Lint (ESLint)
-        run: npm run lint
+        run: pnpm lint
 
       # Format check (Prettier) — pendiente: ejecutar npx prettier --write en toda la base
       # y habilitar este check. Por ahora se omite para no romper CI con 237 archivos existentes.
@@ -50,10 +55,10 @@ jobs:
       #   run: npx prettier --check "src/**/*.{ts,tsx,json}"
 
       - name: TypeScript type check
-        run: npx tsc --noEmit
+        run: pnpm tsc --noEmit
 
       - name: Tests + Coverage
-        run: npx vitest run --coverage
+        run: pnpm vitest run --coverage
 
       # Coverage thresholds en sync con vitest.config.ts
       # Subir gradualmente: branches 50→65→80, functions 70→80→90
@@ -94,14 +99,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Instalar dependencias
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # ========================================================================
       # GAP 1: Migraciones en sync con schema.prisma (ADR-001)
@@ -276,21 +286,25 @@ jobs:
   # SECURITY AUDIT (npm audit)
   # ============================================================================
   security:
-    name: Security audit (npm)
+    name: Security audit (pnpm)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # xlsx migrado a exceljs — podemos subir el umbral a HIGH
-      - name: npm audit (HIGH or above)
-        run: npm audit --audit-level=high
+      - name: pnpm audit (HIGH or above)
+        run: pnpm audit --audit-level=high
 
   # ============================================================================
   # RESULT CHECK

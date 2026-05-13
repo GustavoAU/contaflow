@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Dependencias npm
+  # Dependencias pnpm
   - package-ecosystem: "npm"
     directory: "/"
     schedule:

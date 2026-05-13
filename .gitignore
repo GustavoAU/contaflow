@@ -8,6 +8,7 @@
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
+package-lock.json
 !.yarn/versions
 
 # testing
