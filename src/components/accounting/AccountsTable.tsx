@@ -76,13 +76,13 @@ const TYPE_LABELS: Record<AccountType, string> = {
   EXPENSE: "Gasto",
 };
 
-const TYPE_COLORS: Record<AccountType, "default" | "secondary" | "destructive" | "outline"> = {
-  ASSET: "default",
-  CONTRA_ASSET: "outline",
-  LIABILITY: "destructive",
-  EQUITY: "secondary",
-  REVENUE: "default",
-  EXPENSE: "outline",
+const TYPE_BADGE_CLASS: Record<AccountType, string> = {
+  ASSET: "bg-blue-100 text-blue-800 border-transparent",
+  CONTRA_ASSET: "bg-gray-100 text-gray-600 border-transparent",
+  LIABILITY: "bg-red-100 text-red-800 border-transparent",
+  EQUITY: "bg-purple-100 text-purple-800 border-transparent",
+  REVENUE: "bg-green-100 text-green-800 border-transparent",
+  EXPENSE: "bg-orange-100 text-orange-800 border-transparent",
 };
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ export function AccountsTable({
                 <TableCell className="font-mono font-medium">{account.code}</TableCell>
                 <TableCell>{account.name}</TableCell>
                 <TableCell>
-                  <Badge variant={TYPE_COLORS[account.type]}>{TYPE_LABELS[account.type]}</Badge>
+                  <Badge className={TYPE_BADGE_CLASS[account.type]}>{TYPE_LABELS[account.type]}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground max-w-xs truncate">
                   {account.description ?? "—"}
@@ -244,6 +244,30 @@ export function AccountsTable({
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Cuenta</FormLabel>
+                    <FormControl>
+                      <select
+                        className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+                        {...field}
+                        onChange={(e) => handleTypeChange(e.target.value)}
+                      >
+                        <option value="ASSET">Activo</option>
+                        <option value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</option>
+                        <option value="LIABILITY">Pasivo</option>
+                        <option value="EQUITY">Patrimonio</option>
+                        <option value="REVENUE">Ingreso</option>
+                        <option value="EXPENSE">Gasto</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="code"
                 render={({ field }) => (
                   <FormItem>
@@ -263,30 +287,6 @@ export function AccountsTable({
                     <FormLabel>Nombre</FormLabel>
                     <FormControl>
                       <Input placeholder="Ej: Caja General" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Cuenta</FormLabel>
-                    <FormControl>
-                      <select
-                        className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
-                        {...field}
-                        onChange={(e) => handleTypeChange(e.target.value)}
-                      >
-                        <option value="ASSET">Activo</option>
-                        <option value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</option>
-                        <option value="LIABILITY">Pasivo</option>
-                        <option value="EQUITY">Patrimonio</option>
-                        <option value="REVENUE">Ingreso</option>
-                        <option value="EXPENSE">Gasto</option>
-                      </select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
