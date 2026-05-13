@@ -85,6 +85,12 @@ export interface SeccionE {
   cuotaPeriodo: Decimal;
   /** true si cuotaPeriodo < 0 */
   esSaldoAFavor: boolean;
+  /**
+   * E2: Excedente de crédito fiscal a trasladar al próximo período.
+   * = |cuotaPeriodo| cuando esSaldoAFavor = true; 0 en caso contrario.
+   * Este es el valor que el contador debe ingresar como creditoFiscalPeriodoAnterior el mes siguiente.
+   */
+  excedenteCreditoFiscal: Decimal;
 }
 
 /** Resultado completo de la Forma 30 SENIAT */

@@ -74,7 +74,7 @@ const mockForma30Result = {
     totalRetenciones: ZERO,
   },
   seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-  seccionE: { cuotaPeriodo: new Decimal("320"), esSaldoAFavor: false, creditoFiscalPeriodoAnterior: new Decimal("0") },
+  seccionE: { cuotaPeriodo: new Decimal("320"), esSaldoAFavor: false, creditoFiscalPeriodoAnterior: new Decimal("0"), excedenteCreditoFiscal: new Decimal("0") },
   calculatedAt: new Date(),
 };
 

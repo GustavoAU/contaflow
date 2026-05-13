@@ -64,6 +64,7 @@ const validParams: Forma30PDFParams = {
     creditoFiscalPeriodoAnterior: ZERO,
     cuotaPeriodo: new Decimal("320.00"),
     esSaldoAFavor: false,
+    excedenteCreditoFiscal: ZERO,
   },
 };
 
@@ -118,7 +119,7 @@ describe("generateForma30PDF", () => {
         totalRetenciones: ZERO,
       },
       seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-      seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false },
+      seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false, excedenteCreditoFiscal: ZERO },
     };
     await expect(generateForma30PDF(zeroParams)).resolves.toBeInstanceOf(Buffer);
   });
@@ -130,6 +131,7 @@ describe("generateForma30PDF", () => {
         creditoFiscalPeriodoAnterior: ZERO,
         cuotaPeriodo: new Decimal("-160.00"),
         esSaldoAFavor: true,
+        excedenteCreditoFiscal: new Decimal("160.00"),
       },
     };
     await expect(generateForma30PDF(params)).resolves.toBeInstanceOf(Buffer);
@@ -148,6 +150,7 @@ describe("generateForma30PDF", () => {
         creditoFiscalPeriodoAnterior: ZERO,
         cuotaPeriodo: new Decimal("440.00"),
         esSaldoAFavor: false,
+        excedenteCreditoFiscal: ZERO,
       },
     };
     await expect(generateForma30PDF(params)).resolves.toBeInstanceOf(Buffer);

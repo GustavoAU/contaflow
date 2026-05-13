@@ -279,6 +279,7 @@ export class DeclaracionIVAService {
       creditoFiscalPeriodoAnterior: credito,
       cuotaPeriodo: cuota,
       esSaldoAFavor: cuota.lt(ZERO),
+      excedenteCreditoFiscal: cuota.lt(ZERO) ? cuota.abs() : ZERO,
     };
 
     return {

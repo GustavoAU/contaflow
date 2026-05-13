@@ -65,7 +65,7 @@ const MOCK_FORMA30 = {
     totalRetenciones: ZERO,
   },
   seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-  seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false },
+  seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false, excedenteCreditoFiscal: ZERO },
   calculatedAt: new Date(),
 };
 

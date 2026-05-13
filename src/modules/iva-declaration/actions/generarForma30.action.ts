@@ -46,7 +46,7 @@ export type SerializedForma30Result = {
     totalRetenciones: string;
   };
   seccionD: { igtfBase: string; igtfTotal: string };
-  seccionE: { creditoFiscalPeriodoAnterior: string; cuotaPeriodo: string; esSaldoAFavor: boolean };
+  seccionE: { creditoFiscalPeriodoAnterior: string; cuotaPeriodo: string; esSaldoAFavor: boolean; excedenteCreditoFiscal: string };
 };
 
 function stl(tl: TaxLineRow): SerializedTaxLine {
@@ -91,6 +91,7 @@ function serializeForma30(r: Forma30Result, fiscalYearClosed: boolean): Serializ
       creditoFiscalPeriodoAnterior: r.seccionE.creditoFiscalPeriodoAnterior.toFixed(2),
       cuotaPeriodo: r.seccionE.cuotaPeriodo.abs().toFixed(2),
       esSaldoAFavor: r.seccionE.esSaldoAFavor,
+      excedenteCreditoFiscal: r.seccionE.excedenteCreditoFiscal.toFixed(2),
     },
   };
 }

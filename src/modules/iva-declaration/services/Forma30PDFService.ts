@@ -364,6 +364,8 @@ function SeccionEView({ e }: { e: SeccionE }) {
     ? "Débitos Fiscales − Créditos Fiscales − Retenciones IVA − Crédito Período Anterior"
     : "Débitos Fiscales − Créditos Fiscales − Retenciones IVA";
 
+  const hasExcedente = e.esSaldoAFavor && Number(e.excedenteCreditoFiscal) > 0;
+
   return React.createElement(
     View,
     null,
@@ -386,6 +388,22 @@ function SeccionEView({ e }: { e: SeccionE }) {
       ),
       React.createElement(Text, { style: styles.cuotaAmount }, amountText),
     ),
+    hasExcedente
+      ? React.createElement(
+          View,
+          { style: { ...styles.simpleTotal, marginTop: 4, backgroundColor: "#eff6ff" } },
+          React.createElement(
+            Text,
+            { style: { ...styles.simpleLabelBold, color: "#1d4ed8" } },
+            "E2. Excedente de crédito fiscal a trasladar al próximo período",
+          ),
+          React.createElement(
+            Text,
+            { style: { ...styles.simpleValueBold, color: "#1d4ed8" } },
+            fmtAmt(e.excedenteCreditoFiscal),
+          ),
+        )
+      : null,
   );
 }
 

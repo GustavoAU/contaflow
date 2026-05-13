@@ -326,6 +326,30 @@ export function Forma30View({ companyId }: Props) {
                   {result.seccionE.esSaldoAFavor ? "−" : ""}Bs. {fmt(result.seccionE.cuotaPeriodo)}
                 </p>
               </div>
+              {result.seccionE.esSaldoAFavor && !isZero(result.seccionE.excedenteCreditoFiscal) && (
+                <div className="flex items-center justify-between border-t border-blue-200 pt-3">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">
+                      E2. Excedente de Crédito Fiscal a Trasladar
+                    </p>
+                    <p className="mt-0.5 text-xs text-blue-500">
+                      Ingresa este valor como &quot;Crédito fiscal período anterior&quot; en el mes siguiente
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-lg font-bold text-blue-800 tabular-nums [font-variant-numeric:tabular-nums]">
+                      Bs. {fmt(result.seccionE.excedenteCreditoFiscal)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCreditoAnterior(result.seccionE.excedenteCreditoFiscal)}
+                      className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-800"
+                    >
+                      Usar como crédito anterior
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
