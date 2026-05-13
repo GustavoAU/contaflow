@@ -96,7 +96,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
       type: movType,
       quantity: parseFloat(fd.get("quantity") as string),
       unitCost:
-        movType === "ENTRADA" ? parseFloat(fd.get("unitCost") as string) : undefined,
+        movType === "ENTRADA" ? (fd.get("unitCost") as string) || undefined : undefined,
       reference: (fd.get("reference") as string) || null,
       notes: (fd.get("notes") as string) || null,
       date: new Date(fd.get("date") as string).toISOString(),

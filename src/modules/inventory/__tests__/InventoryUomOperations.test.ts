@@ -72,7 +72,7 @@ const BASE = {
   itemId: ITEM_ID,
   type: "ENTRADA" as const,
   quantity: 5,
-  unitCost: 100,
+  unitCost: "100",
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440001",
 };
@@ -107,7 +107,7 @@ describe("createDraftMovement — sin unitId (unidad base implícita)", () => {
   });
 
   it("totalCost = unitCost × quantity (sin conversión)", async () => {
-    await createDraftMovement({ ...BASE, quantity: 3, unitCost: 200 }, USER_ID);
+    await createDraftMovement({ ...BASE, quantity: 3, unitCost: "200" }, USER_ID);
     const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
     expect(data.totalCost.toString()).toBe("600");
   });
@@ -129,7 +129,7 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
 
   it("totalCost usa cantidad en unidad base", async () => {
     // 60 unidades × 100 = 6000
-    await createDraftMovement({ ...BASE_WITH_UNIT, unitCost: 100 }, USER_ID);
+    await createDraftMovement({ ...BASE_WITH_UNIT, unitCost: "100" }, USER_ID);
     const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
     expect(data.totalCost.toString()).toBe("6000");
   });

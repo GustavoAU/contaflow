@@ -1,6 +1,7 @@
 // src/modules/inventory/schemas/inventory-movement.schema.ts
 import { z } from "zod";
 import Decimal from "decimal.js";
+import { zMoneyAmount } from "@/lib/zod-helpers";
 
 export const CreateMovementSchema = z.object({
   companyId: z.string().min(1),
@@ -8,7 +9,7 @@ export const CreateMovementSchema = z.object({
   type: z.enum(["ENTRADA", "SALIDA", "AJUSTE"]),
   quantity: z.number().positive().max(1_000_000),
   // Para ENTRADA: el servicio usa este valor. Para SALIDA/AJUSTE: se ignora — se usa CPP vigente.
-  unitCost: z.number().nonnegative().max(9_999_999_999).optional(),
+  unitCost: zMoneyAmount.optional(),
   // Fase 35F Sub-fase B: si se especifica, quantity está en esta unidad y se convierte a base
   unitId: z.string().min(1).optional().nullable(),
   invoiceId: z.string().min(1).optional().nullable(),

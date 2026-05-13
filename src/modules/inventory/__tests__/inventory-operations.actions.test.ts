@@ -87,7 +87,7 @@ const BASE_MOVEMENT_INPUT = {
   itemId: "item-001",
   type: "ENTRADA" as const,
   quantity: 5,
-  unitCost: 100,
+  unitCost: "100",
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 };

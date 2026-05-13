@@ -191,7 +191,7 @@ describe("createDraftMovement", () => {
     itemId: "item-001",
     type: "ENTRADA" as const,
     quantity: 5,
-    unitCost: 120,
+    unitCost: "120",
     date: new Date().toISOString(),
     idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
   };
@@ -204,7 +204,7 @@ describe("createDraftMovement", () => {
   });
 
   it("MEDIUM-2: para SALIDA usa CPP del ítem — ignora unitCost del cliente", async () => {
-    await createDraftMovement({ ...BASE, type: "SALIDA", unitCost: 999 }, USER_ID);
+    await createDraftMovement({ ...BASE, type: "SALIDA", unitCost: "999" }, USER_ID);
     const createCall = currentTx.inventoryMovement.create.mock.calls[0]![0];
     // unitCost debe ser 100 (averageCost del ítem), no 999
     expect(createCall.data.unitCost.toString()).toBe("100");
