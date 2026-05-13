@@ -3,6 +3,18 @@ lockfileVersion: '9.0'
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
+  onlyBuiltDependencies:
+    - '@clerk/shared'
+    - '@parcel/watcher'
+    - '@prisma/engines'
+    - '@sentry/cli'
+    - '@swc/core'
+    - esbuild
+    - msw
+    - prisma
+    - sharp
+    - tesseract.js
+    - unrs-resolver
 
 importers:
 
