@@ -30,6 +30,7 @@ import {
   LineChart,
   ScrollText,
   CalendarCheck,
+  Calendar,
   Building2,
   ArchiveIcon,
   PackageIcon,
@@ -97,6 +98,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
           item("Inflación INPC", p("/inflation"), TrendingUpIcon),
           item("Declaración IVA", p("/iva-declaration"), ScrollText),
           item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
+          item("Períodos", p("/periods"), Calendar),
           item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
         ],
       },
@@ -152,6 +154,7 @@ function buildAccountantNav(companyId: string): NavConfig {
           item("Inflación INPC", p("/inflation"), TrendingUpIcon),
           item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
           item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
+          item("Períodos", p("/periods"), Calendar),
         ],
       },
       {
@@ -218,6 +221,7 @@ function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConf
         item("Activos Fijos", p("/fixed-assets"), Building2),
         item("Inflación INPC", p("/inflation"), TrendingUpIcon),
         item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
+        item("Períodos", p("/periods"), Calendar),
       ],
     });
   }

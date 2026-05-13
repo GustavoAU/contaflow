@@ -1,15 +1,10 @@
 // src/app/(dashboard)/company/[companyId]/settings/page.tsx
-import {
-  getPeriodsAction,
-  getActivePeriodAction,
-} from "@/modules/accounting/actions/period.actions";
 import { getLocaleAction } from "@/modules/settings/actions/locale.actions";
 import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
 import { getAccountsAction } from "@/modules/accounting/actions/account.actions";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { PeriodManager } from "@/components/accounting/PeriodManager";
 import { LanguageSelector } from "@/modules/settings/LanguageSelector";
 import { ArchiveCompany } from "@/components/company/ArchiveCompany";
 import { FiscalConfigForm } from "@/modules/fiscal-close/components/FiscalConfigForm";
@@ -32,10 +27,8 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [periodsResult, activePeriodResult, locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult] =
+  const [locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult] =
     await Promise.all([
-      getPeriodsAction(companyId),
-      getActivePeriodAction(companyId),
       getLocaleAction(),
       getUserCompaniesAction(),
       getFiscalConfigAction(companyId),
@@ -45,8 +38,6 @@ export default async function SettingsPage({ params }: Props) {
       getGrantsAction(companyId),
     ]);
 
-  const periods = periodsResult.success ? periodsResult.data : [];
-  const activePeriod = activePeriodResult.success ? activePeriodResult.data : null;
   const company = companies.find((c) => c.id === companyId);
   if (!company) redirect("/dashboard");
 
@@ -65,7 +56,7 @@ export default async function SettingsPage({ params }: Props) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Administra los períodos contables y preferencias de tu empresa
+          Administra las preferencias, equipo y configuración fiscal de tu empresa
         </p>
       </div>
 
@@ -93,13 +84,6 @@ export default async function SettingsPage({ params }: Props) {
           }}
         />
       </div>
-
-      <PeriodManager
-        companyId={companyId}
-        userId={user.id}
-        periods={periods}
-        activePeriod={activePeriod}
-      />
 
       {/* ── Configuración Contable — Fase 15 ─────────────────────────────── */}
       <div className="rounded-lg border p-6 space-y-4">
