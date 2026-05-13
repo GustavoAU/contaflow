@@ -1,5 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/trial-balance/page.tsx
 import { getTrialBalanceAction } from "@/modules/accounting/actions/report.actions";
+import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
@@ -56,16 +57,19 @@ export default async function TrialBalancePage({ params }: Props) {
   return (
     <div className="space-y-6">
       {/* Encabezado */}
-      <div>
-        <Link
-          href={`/company/${companyId}/reports`}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Reportes
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Balance de Comprobación</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Sumas y saldos de todas las cuentas</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <Link
+            href={`/company/${companyId}/reports`}
+            className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+            Reportes
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Balance de Comprobación</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Sumas y saldos de todas las cuentas</p>
+        </div>
+        <ExportFinancialPDFButton companyId={companyId} report="trial-balance" />
       </div>
 
       {rows.length === 0 ? (

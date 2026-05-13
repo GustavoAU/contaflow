@@ -67,7 +67,7 @@ function setupHappyPath() {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
   vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "Empresa Test C.A.", rif: "J-12345678-9" } as never);
   mockGetBalanceSheetAction.mockResolvedValue({ success: true, data: BALANCED_SHEET });
-  mockGetIncomeStatementAction.mockResolvedValue({ success: true, data: INCOME_STMT });
+  mockGetIncomeStatementAction.mockResolvedValue({ success: true, data: { current: INCOME_STMT } });
   mockGenerateBalanceSheetPDF.mockResolvedValue(Buffer.from("pdf-content"));
   mockGenerateIncomeStatementPDF.mockResolvedValue(Buffer.from("pdf-content"));
 }

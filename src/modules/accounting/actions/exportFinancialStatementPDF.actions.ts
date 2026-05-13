@@ -6,11 +6,12 @@ import { auth } from "@clerk/nextjs/server";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
-import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction } from "./report.actions";
+import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction, getTrialBalanceAction } from "./report.actions";
 import {
   generateBalanceSheetPDF,
   generateIncomeStatementPDF,
   generateLedgerPDF,
+  generateTrialBalancePDF,
 } from "../services/FinancialStatementsPDFService";
 
 type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
@@ -92,7 +93,7 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
       companyRif: guard.companyRif,
       dateFrom: yearStart,
       dateTo: today,
-      data: reportResult.data,
+      data: reportResult.data.current,
     });
 
     return {
@@ -100,6 +101,38 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
       data: {
         pdf: buffer.toString("base64"),
         filename: `Estado-Resultados-${today}.pdf`,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el PDF" };
+  }
+}
+
+// ─── Balance de Comprobación ──────────────────────────────────────────────────
+
+export async function exportTrialBalancePDFAction(companyId: string): Promise<PDFResult> {
+  const guard = await guardAccounting(companyId);
+  if ("error" in guard) return guard;
+
+  const reportResult = await getTrialBalanceAction(companyId);
+  if (!reportResult.success) return { success: false, error: reportResult.error };
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const buffer = await generateTrialBalancePDF({
+      companyName: guard.companyName,
+      companyRif: guard.companyRif,
+      dateTo: today,
+      data: reportResult.data,
+    });
+
+    return {
+      success: true,
+      data: {
+        pdf: buffer.toString("base64"),
+        filename: `Balance-Comprobacion-${today}.pdf`,
       },
     };
   } catch (error) {

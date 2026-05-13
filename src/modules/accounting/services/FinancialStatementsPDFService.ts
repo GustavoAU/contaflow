@@ -3,7 +3,7 @@
 
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import type { BalanceSheet, IncomeStatement, LedgerAccount } from "../actions/report.actions";
+import type { BalanceSheet, IncomeStatement, LedgerAccount, TrialBalanceRow } from "../actions/report.actions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -485,6 +485,146 @@ export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer
         dateLabel,
       }),
       ...accounts.map((account) => LedgerAccountBlock(account)),
+      SignatureBlock(),
+    ),
+  );
+
+  return renderToBuffer(doc) as Promise<Buffer>;
+}
+
+// ─── Balance de Comprobación PDF ──────────────────────────────────────────────
+
+const TYPE_LABELS_TB: Record<string, string> = {
+  ASSET: "Activo",
+  CONTRA_ASSET: "Contra-activo",
+  LIABILITY: "Pasivo",
+  EQUITY: "Patrimonio",
+  REVENUE: "Ingreso",
+  EXPENSE: "Gasto",
+};
+
+const TB = StyleSheet.create({
+  colCode: { width: 44, fontSize: 7, fontFamily: "Helvetica", color: "#2563eb" },
+  colName: { flex: 1, fontSize: 7, color: "#374151" },
+  colType: { width: 56, fontSize: 7, color: "#6b7280" },
+  colAmt:  { width: 64, fontSize: 7, textAlign: "right", fontFamily: "Helvetica" },
+  tbHeader: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    borderBottom: "1pt solid #d1d5db",
+    padding: "3pt 4pt",
+  },
+  tbHeaderText: { fontSize: 7, fontWeight: "bold", color: "#374151" },
+  tbRow:    { flexDirection: "row", borderBottom: "0.5pt solid #f3f4f6", padding: "2.5pt 4pt" },
+  tbRowAlt: { flexDirection: "row", backgroundColor: "#f9fafb", borderBottom: "0.5pt solid #f3f4f6", padding: "2.5pt 4pt" },
+  tbSubtotal: {
+    flexDirection: "row",
+    backgroundColor: "#e5e7eb",
+    borderTop: "0.5pt solid #9ca3af",
+    padding: "2.5pt 4pt",
+  },
+  tbSubtotalText: { fontSize: 7, fontWeight: "bold", color: "#374151" },
+  tbTotal: {
+    flexDirection: "row",
+    backgroundColor: "#1f2937",
+    padding: "4pt 4pt",
+    marginTop: 4,
+  },
+  tbTotalText: { fontSize: 8, fontWeight: "bold", color: "#ffffff" },
+});
+
+export interface TrialBalancePDFParams {
+  companyName: string;
+  companyRif: string | null;
+  dateTo: string;
+  data: TrialBalanceRow[];
+}
+
+export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Promise<Buffer> {
+  const { companyName, companyRif, dateTo, data } = params;
+
+  const TYPE_ORDER = ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
+
+  const grandDebit = data.reduce((acc, r) => acc + parseFloat(r.totalDebit), 0);
+  const grandCredit = data.reduce((acc, r) => acc + parseFloat(r.totalCredit), 0);
+  const grandBalance = grandDebit - grandCredit;
+  const isBalanced = Math.abs(grandBalance) < 0.01;
+
+  const groups = TYPE_ORDER
+    .map((type) => ({ type, rows: data.filter((r) => r.type === type) }))
+    .filter((g) => g.rows.length > 0);
+
+  const tableHeader = React.createElement(
+    View,
+    { style: TB.tbHeader },
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colCode } }, "Código"),
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colName } }, "Cuenta"),
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colType } }, "Tipo"),
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colAmt } }, "Débito Bs."),
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colAmt } }, "Crédito Bs."),
+    React.createElement(Text, { style: { ...TB.tbHeaderText, ...TB.colAmt } }, "Saldo Bs."),
+  );
+
+  const groupRows = groups.flatMap(({ type, rows }) => {
+    const gDebit = rows.reduce((a, r) => a + parseFloat(r.totalDebit), 0);
+    const gCredit = rows.reduce((a, r) => a + parseFloat(r.totalCredit), 0);
+    const gBal = gDebit - gCredit;
+    const rowEls = rows.map((row, i) =>
+      React.createElement(
+        View,
+        { key: row.id, style: i % 2 === 0 ? TB.tbRow : TB.tbRowAlt },
+        React.createElement(Text, { style: TB.colCode }, row.code),
+        React.createElement(Text, { style: TB.colName }, row.name),
+        React.createElement(Text, { style: TB.colType }, TYPE_LABELS_TB[row.type] ?? row.type),
+        React.createElement(Text, { style: TB.colAmt }, fmt(row.totalDebit)),
+        React.createElement(Text, { style: TB.colAmt }, fmt(row.totalCredit)),
+        React.createElement(Text, { style: { ...TB.colAmt, color: parseFloat(row.balance) < 0 ? "#dc2626" : "#1f2937" } }, fmt(row.balance)),
+      ),
+    );
+    const subtotalEl = React.createElement(
+      View,
+      { key: `sub-${type}`, style: TB.tbSubtotal },
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colCode } }, ""),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colName } }, `Subtotal ${TYPE_LABELS_TB[type] ?? type}`),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colType } }, ""),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colAmt } }, fmt(gDebit.toFixed(2))),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colAmt } }, fmt(gCredit.toFixed(2))),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colAmt } }, fmt(gBal.toFixed(2))),
+    );
+    return [...rowEls, subtotalEl];
+  });
+
+  const totalRow = React.createElement(
+    View,
+    { style: TB.tbTotal },
+    React.createElement(Text, { style: { ...TB.tbTotalText, ...TB.colCode } }, ""),
+    React.createElement(Text, { style: { ...TB.tbTotalText, ...TB.colName } }, "TOTALES"),
+    React.createElement(Text, { style: { ...TB.tbTotalText, ...TB.colType } }, ""),
+    React.createElement(Text, { style: { ...TB.tbTotalText, ...TB.colAmt } }, fmt(grandDebit.toFixed(2))),
+    React.createElement(Text, { style: { ...TB.tbTotalText, ...TB.colAmt } }, fmt(grandCredit.toFixed(2))),
+    React.createElement(
+      Text,
+      { style: { ...TB.tbTotalText, ...TB.colAmt, color: isBalanced ? "#86efac" : "#fca5a5" } },
+      `${fmt(grandBalance.toFixed(2))} ${isBalanced ? "✓" : "⚠"}`,
+    ),
+  );
+
+  const doc = React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: "LETTER", style: S.page },
+      DocHeader({
+        companyName,
+        companyRif,
+        title: "BALANCE DE COMPROBACIÓN",
+        subtitle: "Sumas y Saldos de Todas las Cuentas",
+        dateLabel: `Al ${dateTo}`,
+      }),
+      tableHeader,
+      ...groupRows,
+      totalRow,
       SignatureBlock(),
     ),
   );

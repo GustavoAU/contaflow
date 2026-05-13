@@ -58,6 +58,11 @@ export type IncomeStatement = {
   netIncome: string; // positivo = utilidad, negativo = pérdida
 };
 
+export type IncomeStatementResult = {
+  current: IncomeStatement;
+  compare?: IncomeStatement;
+};
+
 export type BalanceSheetRow = {
   id: string;
   code: string;
@@ -376,81 +381,81 @@ export async function getTrialBalanceAction(
 
 // ─── Estado de Resultados ─────────────────────────────────────────────────────
 
+async function computeIncomeStatement(
+  companyId: string,
+  dateFrom?: Date,
+  dateTo?: Date,
+): Promise<IncomeStatement> {
+  const accounts = await prisma.account.findMany({
+    where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+    orderBy: { code: "asc" },
+    include: {
+      journalEntries: {
+        where: {
+          transaction: {
+            status: "POSTED",
+            ...(dateFrom || dateTo
+              ? { date: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lte: dateTo } : {}) } }
+              : {}),
+          },
+        },
+      },
+    },
+  });
+
+  let totalRevenues = new Decimal(0);
+  let totalExpenses = new Decimal(0);
+  const revenues: IncomeStatementRow[] = [];
+  const expenses: IncomeStatementRow[] = [];
+
+  for (const account of accounts) {
+    if (account.journalEntries.length === 0) continue;
+    const balance = account.journalEntries.reduce(
+      (acc, entry) => acc.plus(new Decimal(entry.amount.toString())),
+      new Decimal(0),
+    );
+    const row: IncomeStatementRow = {
+      id: account.id,
+      code: account.code,
+      name: account.name,
+      balance: balance.abs().toFixed(2),
+    };
+    if (account.type === "REVENUE") {
+      revenues.push(row);
+      totalRevenues = totalRevenues.plus(balance.abs());
+    } else {
+      expenses.push(row);
+      totalExpenses = totalExpenses.plus(balance.abs());
+    }
+  }
+
+  return {
+    revenues,
+    expenses,
+    totalRevenues: totalRevenues.toFixed(2),
+    totalExpenses: totalExpenses.toFixed(2),
+    netIncome: totalRevenues.minus(totalExpenses).toFixed(2),
+  };
+}
+
 export async function getIncomeStatementAction(
   companyId: string,
   dateFrom?: Date,
   dateTo?: Date,
-): Promise<ActionResult<IncomeStatement>> {
+  compareDateFrom?: Date,
+  compareDateTo?: Date,
+): Promise<ActionResult<IncomeStatementResult>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
 
   try {
-    const accounts = await prisma.account.findMany({
-      where: {
-        companyId,
-        type: { in: ["REVENUE", "EXPENSE"] },
-      },
-      orderBy: { code: "asc" },
-      include: {
-        journalEntries: {
-          where: {
-            transaction: {
-              status: "POSTED",
-              ...(dateFrom || dateTo
-                ? {
-                    date: {
-                      ...(dateFrom ? { gte: dateFrom } : {}),
-                      ...(dateTo ? { lte: dateTo } : {}),
-                    },
-                  }
-                : {}),
-            },
-          },
-        },
-      },
-    });
+    const hasCompare = !!(compareDateFrom || compareDateTo);
+    const [current, compare] = await Promise.all([
+      computeIncomeStatement(companyId, dateFrom, dateTo),
+      hasCompare ? computeIncomeStatement(companyId, compareDateFrom, compareDateTo) : Promise.resolve(undefined),
+    ]);
 
-    let totalRevenues = new Decimal(0);
-    let totalExpenses = new Decimal(0);
-
-    const revenues: IncomeStatementRow[] = [];
-    const expenses: IncomeStatementRow[] = [];
-
-    for (const account of accounts) {
-      if (account.journalEntries.length === 0) continue;
-
-      const balance = account.journalEntries.reduce((acc, entry) => {
-        return acc.plus(new Decimal(entry.amount.toString()));
-      }, new Decimal(0));
-
-      const row: IncomeStatementRow = {
-        id: account.id,
-        code: account.code,
-        name: account.name,
-        balance: balance.abs().toFixed(2),
-      };
-
-      if (account.type === "REVENUE") {
-        revenues.push(row);
-        totalRevenues = totalRevenues.plus(balance.abs());
-      } else {
-        expenses.push(row);
-        totalExpenses = totalExpenses.plus(balance.abs());
-      }
-    }
-
-    const netIncome = totalRevenues.minus(totalExpenses);
-
-    return {
-      success: true,
-      data: {
-        revenues,
-        expenses,
-        totalRevenues: totalRevenues.toFixed(2),
-        totalExpenses: totalExpenses.toFixed(2),
-        netIncome: netIncome.toFixed(2),
-      },
-    };
+    return { success: true, data: { current, compare } };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al generar el Estado de Resultados" };

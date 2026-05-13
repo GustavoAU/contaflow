@@ -1,6 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/income-statement/page.tsx
 import { getIncomeStatementAction } from "@/modules/accounting/actions/report.actions";
+import type { IncomeStatement } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
+import { IncomeStatementFilter } from "@/components/reports/IncomeStatementFilter";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +10,7 @@ import { ChevronLeftIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ from?: string; to?: string; cmpFrom?: string; cmpTo?: string }>;
 };
 
 function fmt(value: string | number): string {
@@ -23,32 +26,159 @@ function pct(amount: string, total: string): string | null {
   return ((a / t) * 100).toFixed(1) + "%";
 }
 
-export default async function IncomeStatementPage({ params }: Props) {
+function varPct(current: string, compare: string): { text: string; positive: boolean } | null {
+  const c = parseFloat(current);
+  const p = parseFloat(compare);
+  if (isNaN(c) || isNaN(p) || p === 0) return null;
+  const delta = ((c - p) / p) * 100;
+  return { text: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%", positive: delta >= 0 };
+}
+
+function periodLabel(from?: string, to?: string): string {
+  if (from && to) return `${from} – ${to}`;
+  if (from) return `Desde ${from}`;
+  if (to) return `Hasta ${to}`;
+  return "Todo el período";
+}
+
+function SectionTable({
+  title,
+  colorClass,
+  rows,
+  total,
+  compareRows,
+  compareTotal,
+  showCompare,
+  showPct,
+}: {
+  title: string;
+  colorClass: string;
+  rows: IncomeStatement["revenues"];
+  total: string;
+  compareRows?: IncomeStatement["revenues"];
+  compareTotal?: string;
+  showCompare: boolean;
+  showPct: boolean;
+}) {
+  const colSpan = showCompare ? (showPct ? 5 : 4) : showPct ? 3 : 2;
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-white">
+      <div className={`border-b px-4 py-3 ${colorClass}`}>
+        <h2 className={`font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>{title}</h2>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="border-b">
+          <tr>
+            <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
+            <th className="px-4 py-2 text-right font-medium text-zinc-500">Período actual</th>
+            {showPct && <th className="px-4 py-2 text-right text-xs font-medium text-zinc-400">% Ing.</th>}
+            {showCompare && (
+              <>
+                <th className="px-4 py-2 text-right font-medium text-zinc-400">Período anterior</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-zinc-400">Var. %</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={colSpan} className="px-4 py-3 text-center text-zinc-400">Sin movimientos</td>
+            </tr>
+          ) : (
+            rows.map((row, i) => {
+              const cmpRow = compareRows?.find((r) => r.id === row.id);
+              const v = showCompare && cmpRow ? varPct(row.balance, cmpRow.balance) : null;
+              return (
+                <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
+                  <td className="px-4 py-2 text-zinc-600">
+                    <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
+                    {row.name}
+                  </td>
+                  <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(row.balance)}</td>
+                  {showPct && (
+                    <td className="tabular-nums px-4 py-2 text-right font-mono text-xs text-zinc-400">
+                      {pct(row.balance, total) ?? "—"}
+                    </td>
+                  )}
+                  {showCompare && (
+                    <>
+                      <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-400">
+                        {cmpRow ? fmt(cmpRow.balance) : "—"}
+                      </td>
+                      <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs ${v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400"}`}>
+                        {v ? v.text : "—"}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+        <tfoot>
+          <tr className={`border-t ${colorClass}`}>
+            <td className={`px-4 py-2 font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>
+              Total {title}
+            </td>
+            <td className={`tabular-nums px-4 py-2 text-right font-mono font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>
+              {fmt(total)}
+            </td>
+            {showPct && (
+              <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs font-semibold ${colorClass.includes("green") ? "text-green-700" : "text-red-700"}`}>
+                100%
+              </td>
+            )}
+            {showCompare && (
+              <>
+                <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-500">
+                  {compareTotal ? fmt(compareTotal) : "—"}
+                </td>
+                <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs ${(() => { const v = compareTotal ? varPct(total, compareTotal) : null; return v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400"; })()}`}>
+                  {(() => { const v = compareTotal ? varPct(total, compareTotal) : null; return v ? v.text : "—"; })()}
+                </td>
+              </>
+            )}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+export default async function IncomeStatementPage({ params, searchParams }: Props) {
   const { companyId } = await params;
+  const { from, to, cmpFrom, cmpTo } = await searchParams;
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const result = await getIncomeStatementAction(companyId);
+  const dateFrom = from ? new Date(from) : undefined;
+  const dateTo = to ? new Date(to + "T23:59:59") : undefined;
+  const compareDateFrom = cmpFrom ? new Date(cmpFrom) : undefined;
+  const compareDateTo = cmpTo ? new Date(cmpTo + "T23:59:59") : undefined;
+
+  const result = await getIncomeStatementAction(companyId, dateFrom, dateTo, compareDateFrom, compareDateTo);
 
   if (!result.success) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Estado de Resultados</h1>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {result.error}
-        </div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{result.error}</div>
       </div>
     );
   }
 
-  const { revenues, expenses, totalRevenues, totalExpenses, netIncome } = result.data;
-  const net = parseFloat(netIncome);
-  const revTotal = parseFloat(totalRevenues);
+  const { current, compare } = result.data;
+  const showCompare = !!compare;
+  const net = parseFloat(current.netIncome);
+  const revTotal = parseFloat(current.totalRevenues);
   const isProfit = net >= 0;
   const margin = revTotal > 0 ? ((net / revTotal) * 100).toFixed(1) : null;
   const showPct = revTotal > 0;
-  // ISLR proyectado: tarifa corporativa Venezuela ~34% sobre la utilidad
   const islrProyectado = isProfit && net > 0 ? net * 0.34 : null;
+
+  const netVariation = compare ? varPct(current.netIncome, compare.netIncome) : null;
 
   return (
     <div className="space-y-6">
@@ -62,113 +192,47 @@ export default async function IncomeStatementPage({ params }: Props) {
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Estado de Resultados</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Ingresos y gastos del período</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {showCompare
+              ? `${periodLabel(from, to)} vs. ${periodLabel(cmpFrom, cmpTo)}`
+              : "Ingresos y gastos del período"}
+          </p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="income-statement" />
       </div>
 
-      <div className="mx-auto max-w-2xl space-y-6">
+      {/* Filtro */}
+      <IncomeStatementFilter
+        defaultFrom={from}
+        defaultTo={to}
+        defaultCmpFrom={cmpFrom}
+        defaultCmpTo={cmpTo}
+      />
+
+      <div className="mx-auto max-w-4xl space-y-6">
         {/* Ingresos */}
-        <div className="overflow-hidden rounded-lg border bg-white">
-          <div className="border-b bg-green-50 px-4 py-3">
-            <h2 className="font-semibold text-green-800">Ingresos</h2>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="border-b">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
-                <th className="px-4 py-2 text-right font-medium text-zinc-500">Monto (Bs.)</th>
-                {showPct && <th className="px-4 py-2 text-right font-medium text-zinc-400 text-xs">% Ingresos</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {revenues.length === 0 ? (
-                <tr>
-                  <td colSpan={showPct ? 3 : 2} className="px-4 py-3 text-center text-zinc-400">
-                    Sin movimientos
-                  </td>
-                </tr>
-              ) : (
-                revenues.map((row, i) => (
-                  <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
-                    <td className="px-4 py-2 text-zinc-600">
-                      <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
-                      {row.name}
-                    </td>
-                    <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(row.balance)}</td>
-                    {showPct && (
-                      <td className="tabular-nums px-4 py-2 text-right font-mono text-xs text-zinc-400">
-                        {pct(row.balance, totalRevenues) ?? "—"}
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-green-50">
-                <td className="px-4 py-2 font-semibold text-green-800">Total Ingresos</td>
-                <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold text-green-800">
-                  {fmt(totalRevenues)}
-                </td>
-                {showPct && <td className="tabular-nums px-4 py-2 text-right font-mono text-xs font-semibold text-green-700">100%</td>}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <SectionTable
+          title="Ingresos"
+          colorClass="bg-green-50"
+          rows={current.revenues}
+          total={current.totalRevenues}
+          compareRows={compare?.revenues}
+          compareTotal={compare?.totalRevenues}
+          showCompare={showCompare}
+          showPct={showPct}
+        />
 
         {/* Gastos */}
-        <div className="overflow-hidden rounded-lg border bg-white">
-          <div className="border-b bg-red-50 px-4 py-3">
-            <h2 className="font-semibold text-red-800">Gastos</h2>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="border-b">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
-                <th className="px-4 py-2 text-right font-medium text-zinc-500">Monto (Bs.)</th>
-                {showPct && <th className="px-4 py-2 text-right font-medium text-zinc-400 text-xs">% Ingresos</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.length === 0 ? (
-                <tr>
-                  <td colSpan={showPct ? 3 : 2} className="px-4 py-3 text-center text-zinc-400">
-                    Sin movimientos
-                  </td>
-                </tr>
-              ) : (
-                expenses.map((row, i) => (
-                  <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
-                    <td className="px-4 py-2 text-zinc-600">
-                      <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
-                      {row.name}
-                    </td>
-                    <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(row.balance)}</td>
-                    {showPct && (
-                      <td className="tabular-nums px-4 py-2 text-right font-mono text-xs text-zinc-400">
-                        {pct(row.balance, totalRevenues) ?? "—"}
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-red-50">
-                <td className="px-4 py-2 font-semibold text-red-800">Total Gastos</td>
-                <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold text-red-800">
-                  {fmt(totalExpenses)}
-                </td>
-                {showPct && (
-                  <td className="tabular-nums px-4 py-2 text-right font-mono text-xs font-semibold text-red-700">
-                    {pct(totalExpenses, totalRevenues) ?? "—"}
-                  </td>
-                )}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <SectionTable
+          title="Gastos"
+          colorClass="bg-red-50"
+          rows={current.expenses}
+          total={current.totalExpenses}
+          compareRows={compare?.expenses}
+          compareTotal={compare?.totalExpenses}
+          showCompare={showCompare}
+          showPct={showPct}
+        />
 
         {/* Resultado neto */}
         <div className={`rounded-lg border-2 p-4 ${isProfit ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}>
@@ -183,25 +247,31 @@ export default async function IncomeStatementPage({ params }: Props) {
                 </p>
               )}
             </div>
-            <span className={`tabular-nums font-mono text-xl font-bold ${isProfit ? "text-green-700" : "text-red-700"}`}>
-              {fmt(netIncome)} Bs.
-            </span>
+            <div className="text-right">
+              <span className={`tabular-nums font-mono text-xl font-bold ${isProfit ? "text-green-700" : "text-red-700"}`}>
+                {fmt(current.netIncome)} Bs.
+              </span>
+              {showCompare && compare && (
+                <div className="mt-1 space-x-2 text-xs">
+                  <span className="text-zinc-500">vs. {fmt(compare.netIncome)} Bs.</span>
+                  {netVariation && (
+                    <span className={netVariation.positive ? "font-semibold text-green-600" : "font-semibold text-red-600"}>
+                      {netVariation.text}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* ISLR proyectado — informativo, no contable (ítem 33) */}
+        {/* ISLR proyectado */}
         {islrProyectado !== null && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              ISLR Proyectado (informativo)
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">ISLR Proyectado (informativo)</p>
             <div className="mt-2 flex items-center justify-between">
-              <p className="text-sm text-zinc-600">
-                Estimado a tasa corporativa ~34% (Ley ISLR Venezuela)
-              </p>
-              <span className="tabular-nums font-mono font-semibold text-zinc-800">
-                {fmt(islrProyectado)} Bs.
-              </span>
+              <p className="text-sm text-zinc-600">Estimado a tasa corporativa ~34% (Ley ISLR Venezuela)</p>
+              <span className="tabular-nums font-mono font-semibold text-zinc-800">{fmt(islrProyectado)} Bs.</span>
             </div>
             <p className="mt-2 text-xs text-zinc-400">
               Valor indicativo. El cálculo definitivo depende de la renta neta fiscal ajustada por ISLR.

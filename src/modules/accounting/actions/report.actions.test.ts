@@ -191,9 +191,10 @@ describe("getIncomeStatementAction", () => {
     const result = await getIncomeStatementAction("company-1");
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.totalRevenues).toBe("1000.00");
-    expect(result.data.totalExpenses).toBe("400.00");
-    expect(result.data.netIncome).toBe("600.00");
+    expect(result.data.current.totalRevenues).toBe("1000.00");
+    expect(result.data.current.totalExpenses).toBe("400.00");
+    expect(result.data.current.netIncome).toBe("600.00");
+    expect(result.data.compare).toBeUndefined();
   });
 
   it("retorna pérdida cuando gastos > ingresos", async () => {
@@ -217,7 +218,7 @@ describe("getIncomeStatementAction", () => {
     const result = await getIncomeStatementAction("company-1");
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.netIncome).toBe("-500.00");
+    expect(result.data.current.netIncome).toBe("-500.00");
   });
 
   it("filtra por fecha correctamente", async () => {
@@ -243,9 +244,37 @@ describe("getIncomeStatementAction", () => {
     const result = await getIncomeStatementAction("company-1");
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.revenues).toHaveLength(0);
-    expect(result.data.expenses).toHaveLength(0);
-    expect(result.data.netIncome).toBe("0.00");
+    expect(result.data.current.revenues).toHaveLength(0);
+    expect(result.data.current.expenses).toHaveLength(0);
+    expect(result.data.current.netIncome).toBe("0.00");
+  });
+
+  it("retorna período comparativo cuando se pasan fechas cmp", async () => {
+    vi.mocked(prisma.account.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE",
+          journalEntries: [{ amount: { toString: () => "-1000" } }],
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE",
+          journalEntries: [{ amount: { toString: () => "-800" } }],
+        },
+      ] as never);
+
+    const result = await getIncomeStatementAction(
+      "company-1",
+      new Date("2026-04-01"),
+      new Date("2026-04-30"),
+      new Date("2026-03-01"),
+      new Date("2026-03-31"),
+    );
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.current.totalRevenues).toBe("1000.00");
+    expect(result.data.compare?.totalRevenues).toBe("800.00");
   });
 });
 

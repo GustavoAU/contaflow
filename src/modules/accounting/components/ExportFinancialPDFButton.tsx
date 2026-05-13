@@ -4,11 +4,11 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { exportBalanceSheetPDFAction, exportIncomeStatementPDFAction } from "../actions/exportFinancialStatementPDF.actions";
+import { exportBalanceSheetPDFAction, exportIncomeStatementPDFAction, exportTrialBalancePDFAction } from "../actions/exportFinancialStatementPDF.actions";
 
 interface Props {
   companyId: string;
-  report: "balance-sheet" | "income-statement";
+  report: "balance-sheet" | "income-statement" | "trial-balance";
 }
 
 export function ExportFinancialPDFButton({ companyId, report }: Props) {
@@ -20,7 +20,9 @@ export function ExportFinancialPDFButton({ companyId, report }: Props) {
       const result =
         report === "balance-sheet"
           ? await exportBalanceSheetPDFAction(companyId)
-          : await exportIncomeStatementPDFAction(companyId);
+          : report === "trial-balance"
+            ? await exportTrialBalancePDFAction(companyId)
+            : await exportIncomeStatementPDFAction(companyId);
 
       if (!result.success) {
         toast.error(result.error);
