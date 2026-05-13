@@ -1,4 +1,5 @@
 // src/modules/payroll/schemas/nom-d.schema.ts
+import { zMoneyAmount, zMoneyPositive } from "@/lib/zod-helpers";
 // Fase NOM-D: Schemas Zod para prestaciones, vacaciones, utilidades, liquidación
 //
 // Security guards (ADR-014 + ADR-006 D-3 extendido):
@@ -107,22 +108,12 @@ export const CreateTerminationSchema = z.object({
   terminationDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de egreso inválida (YYYY-MM-DD)" }),
-  pendingConceptsAmount: z
-    .string()
-    .optional()
-    .refine((v) => !v || (Number(v) >= 0 && Number(v) <= 999_999_999), {
-      message: "El monto de conceptos pendientes excede el límite",
-    }),
+  pendingConceptsAmount: zMoneyAmount.optional(),
   pendingConceptsNotes: z
     .string()
     .max(500, { message: "Las notas no pueden exceder 500 caracteres" })
     .optional(),
-  deductionsAmount: z
-    .string()
-    .optional()
-    .refine((v) => !v || (Number(v) >= 0 && Number(v) <= 999_999_999), {
-      message: "El monto de deducciones excede el límite",
-    }),
+  deductionsAmount: zMoneyAmount.optional(),
   idempotencyKey: z
     .string()
     .regex(uuidV4Pattern, { message: "Clave de idempotencia inválida (debe ser UUID v4)" }),
@@ -132,22 +123,12 @@ export const CreateTerminationSchema = z.object({
 export type CreateTerminationInput = z.infer<typeof CreateTerminationSchema>;
 
 export const UpdateTerminationSchema = z.object({
-  pendingConceptsAmount: z
-    .string()
-    .optional()
-    .refine((v) => !v || (Number(v) >= 0 && Number(v) <= 999_999_999), {
-      message: "El monto de conceptos pendientes excede el límite",
-    }),
+  pendingConceptsAmount: zMoneyAmount.optional(),
   pendingConceptsNotes: z
     .string()
     .max(500, { message: "Las notas no pueden exceder 500 caracteres" })
     .optional(),
-  deductionsAmount: z
-    .string()
-    .optional()
-    .refine((v) => !v || (Number(v) >= 0 && Number(v) <= 999_999_999), {
-      message: "El monto de deducciones excede el límite",
-    }),
+  deductionsAmount: zMoneyAmount.optional(),
 });
 
 export type UpdateTerminationInput = z.infer<typeof UpdateTerminationSchema>;
@@ -157,15 +138,7 @@ export type UpdateTerminationInput = z.infer<typeof UpdateTerminationSchema>;
 export const RegisterBenefitAdvanceSchema = z.object({
   employeeId: z.string().min(1, { message: "Selecciona un empleado" }),
   // amount como string → Decimal en el service (patrón del stack)
-  amount: z
-    .string()
-    .min(1, { message: "El monto es requerido" })
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, {
-      message: "El monto debe ser un número positivo",
-    })
-    .refine((v) => Number(v) <= 999_999_999, {
-      message: "El monto excede el límite permitido",
-    }),
+  amount: zMoneyPositive,
   reason: z.enum(["HOUSING", "HEALTH", "EDUCATION"], {
     error: "Selecciona un motivo válido (Vivienda, Salud o Educación)",
   }),

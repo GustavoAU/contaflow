@@ -1,4 +1,5 @@
 // src/modules/payroll/schemas/payroll-run.schema.ts
+import { zMoneyPositive } from "@/lib/zod-helpers";
 // Fase NOM-C: validación Zod para procesos de nómina
 //
 // Reglas de seguridad (ADR-013):
@@ -26,11 +27,7 @@ function maxFutureDate(days: number): Date {
 export const ManualConceptSchema = z.object({
   conceptId: z.string().min(1, { message: "Concepto requerido" }),
   employeeId: z.string().min(1, { message: "Empleado requerido" }),
-  amount: z
-    .string()
-    .min(1, { message: "Monto requerido" })
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { message: "Monto inválido" })
-    .refine((v) => Number(v) <= 999_999_999, { message: "El monto excede el límite permitido" }),
+  amount: zMoneyPositive,
   notes: z.string().max(200).optional(),
 });
 

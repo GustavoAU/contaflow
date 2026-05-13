@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const MAX_AMOUNT = 10_000_000_000; // ADR-006 D-2
+import { zMoneyPositive } from "@/lib/zod-helpers";
 
 // ─── CajaCaja ────────────────────────────────────────────────────────────────
 
@@ -9,11 +8,7 @@ export const CreateCajaCajaSchema = z.object({
   name: z.string().min(1).max(255),
   accountId: z.string().min(1),
   currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
-  maxBalance: z
-    .string()
-    .min(1)
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { error: "maxBalance debe ser mayor a 0" })
-    .refine((v) => Number(v) <= MAX_AMOUNT, { error: "maxBalance excede el límite permitido" }),
+  maxBalance: zMoneyPositive,
 });
 
 export const CloseCajaCajaSchema = z.object({
@@ -27,11 +22,7 @@ export const CreateDepositSchema = z.object({
   companyId: z.string().min(1),
   cajaCajaId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
-  amount: z
-    .string()
-    .min(1)
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { error: "El monto debe ser mayor a 0" })
-    .refine((v) => Number(v) <= MAX_AMOUNT, { error: "Monto excede el límite permitido" }),
+  amount: zMoneyPositive,
   description: z.string().min(1).max(500),
   supportingDocumentId: z.string().optional(),
 });
@@ -52,11 +43,7 @@ export const CreateMovementSchema = z
     concept: z.string().min(1).max(255),
     description: z.string().max(2000).optional(),
     expenseAccountId: z.string().min(1),
-    amount: z
-      .string()
-      .min(1)
-      .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { error: "El monto debe ser mayor a 0" })
-      .refine((v) => Number(v) <= MAX_AMOUNT, { error: "Monto excede el límite permitido" }),
+    amount: zMoneyPositive,
     currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
     supportingDocumentId: z.string().optional(),
     notes: z.string().max(2000).optional(),

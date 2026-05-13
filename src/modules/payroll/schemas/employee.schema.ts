@@ -2,6 +2,7 @@
 // Fase NOM-B: validación Zod para creación y edición de empleados
 
 import { z } from "zod";
+import { zMoneyPositive } from "@/lib/zod-helpers";
 
 // Cédula venezolana: "V" | "E" (venezolano / extranjero)
 const cedulaTypeEnum = z.enum(["V", "E"], {
@@ -32,13 +33,7 @@ export const CreateEmployeeSchema = z.object({
   bankName: z.string().max(100).optional(),
   bankAccount: z.string().max(30).optional(),
   costCenter: z.string().max(100).optional(),
-  // Salario inicial (opcional al crear)
-  initialSalaryAmount: z
-    .string()
-    .optional()
-    .refine((v) => !v || (Number(v) > 0 && Number(v) <= 999_999_999), {
-      message: "El monto excede el límite permitido",
-    }),
+  initialSalaryAmount: zMoneyPositive.optional(),
   initialSalaryCurrency: z.enum(["VES", "USD", "MIXED"]).optional(),
 });
 
@@ -76,11 +71,7 @@ export const AddSalarySchema = z.object({
   effectiveFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de vigencia inválida" }),
-  amount: z
-    .string()
-    .min(1, { message: "El monto es requerido" })
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, { message: "Monto inválido" })
-    .refine((v) => Number(v) <= 999_999_999, { message: "El monto excede el límite permitido" }),
+  amount: zMoneyPositive,
   currency: z.enum(["VES", "USD", "MIXED"], {
     error: "Selecciona la moneda",
   }),

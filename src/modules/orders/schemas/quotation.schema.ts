@@ -1,8 +1,6 @@
 // src/modules/orders/schemas/quotation.schema.ts
-// HIGH-3: unitPrice y quantity con límites máximos/mínimos.
-// MEDIUM-2: campos de texto con .trim().max().
-
 import { z } from "zod";
+import { zMoneyPositive } from "@/lib/zod-helpers";
 
 export const QuotationItemSchema = z.object({
   description: z.string().trim().min(1, "Descripción requerida").max(200),
@@ -15,14 +13,7 @@ export const QuotationItemSchema = z.object({
     .refine((v) => Number(v) <= 999_999, {
       error: "Cantidad excede el límite permitido",
     }),
-  unitPrice: z
-    .string()
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, {
-      error: "Precio debe ser mayor a 0",
-    })
-    .refine((v) => Number(v) <= 99_999_999_99, {
-      error: "Precio excede el límite permitido",
-    }),
+  unitPrice: zMoneyPositive,
   taxRate: z.enum(["0", "8", "16"], { error: "Alícuota IVA inválida" }),
 });
 

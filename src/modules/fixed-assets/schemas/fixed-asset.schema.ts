@@ -1,5 +1,6 @@
 // src/modules/fixed-assets/schemas/fixed-asset.schema.ts
 import { z } from "zod";
+import { zMoneyAmount, zMoneyPositive } from "@/lib/zod-helpers";
 
 export const CreateFixedAssetSchema = z.object({
   companyId: z.string().min(1, "Empresa requerida"),
@@ -9,11 +10,8 @@ export const CreateFixedAssetSchema = z.object({
   depreciationAccountId: z.string().min(1, "Cuenta de gasto de depreciación requerida"),
   accDepreciationAccountId: z.string().min(1, "Cuenta de depreciación acumulada requerida"),
   acquisitionDate: z.coerce.date({ error: "Fecha de adquisición requerida" }),
-  acquisitionCost: z
-    .string()
-    .min(1, "Costo de adquisición requerido")
-    .refine((v) => parseFloat(v) > 0, { error: "El costo debe ser mayor a cero" }),
-  residualValue: z.string().default("0"),
+  acquisitionCost: zMoneyPositive,
+  residualValue: zMoneyAmount.default("0"),
   usefulLifeMonths: z
     .number({ error: "Vida útil requerida" })
     .int()
@@ -53,7 +51,7 @@ export const DisposeFixedAssetSchema = z.object({
   assetId: z.string().min(1),
   companyId: z.string().min(1),
   disposalDate: z.coerce.date({ error: "Fecha de baja requerida" }),
-  saleProceeds: z.string().default("0"),  // monto recibido por la venta (0 si se desecha)
+  saleProceeds: zMoneyAmount.default("0"),
   notes: z.string().max(500).optional().nullable(),
 });
 
