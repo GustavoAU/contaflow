@@ -6,7 +6,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import {
@@ -64,8 +66,7 @@ export async function createUomAction(input: unknown): Promise<ActionResult<stri
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: unit.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -98,8 +99,7 @@ export async function updateUomAction(input: unknown): Promise<ActionResult<stri
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: unit.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -132,8 +132,7 @@ export async function softDeleteUomAction(input: unknown): Promise<ActionResult<
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: true };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -160,7 +159,6 @@ export async function listUomsAction(
     const units = await listUnits(parsed.data);
     return { success: true, data: units };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

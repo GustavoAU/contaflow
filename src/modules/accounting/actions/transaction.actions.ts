@@ -5,7 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
@@ -58,8 +60,7 @@ export async function createTransactionAction(
       }
       return { success: false, error: "Datos invalidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al crear el asiento" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -115,8 +116,7 @@ export async function voidTransactionAction(
       }
       return { success: false, error: "Datos invalidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al anular el asiento" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -142,8 +142,7 @@ export async function getTransactionsByCompanyAction(
 
     return { success: true, data: transactions };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los asientos" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -170,8 +169,7 @@ export async function getTransactionsPaginatedAction(
     const page = await TransactionService.getTransactionsPaginated(companyId, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los asientos" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -223,8 +221,7 @@ export async function getTransactionsByPeriodAction(
 
     return { success: true, data: page };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los asientos del período" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -299,7 +296,6 @@ export async function getTransactionByIdAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener el asiento" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

@@ -3,7 +3,9 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -59,8 +61,7 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: asset.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al registrar el activo" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -113,8 +114,7 @@ export async function postMonthlyDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: result };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al calcular la depreciación" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -144,8 +144,7 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: undefined };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al dar de baja el activo" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -166,8 +165,7 @@ export async function getFixedAssetsAction(
     const assets = await FixedAssetService.getSummary(companyId);
     return { success: true, data: assets };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los activos" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -213,8 +211,7 @@ export async function getDepreciationScheduleAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la tabla de depreciación" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -309,8 +306,7 @@ export async function catchUpAssetDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: { processed, skipped, errors } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al poner al día el activo" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -379,8 +375,7 @@ export async function catchUpAllAssetsDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: { totalProcessed, totalSkipped, assetErrors } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al poner al día los activos" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -409,7 +404,6 @@ export async function previewDepreciationScheduleAction(input: {
 
     return { success: true, data: schedule };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al calcular la tabla" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

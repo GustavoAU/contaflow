@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { mapPrismaError } from "@/lib/prisma-errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -63,8 +64,7 @@ export async function getAccountsAction(
     });
     return { success: true, data: accounts };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener las cuentas" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -184,8 +184,7 @@ export async function createAccountAction(
       }
       return { success: false, error: "Datos invalidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al crear la cuenta" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -273,8 +272,7 @@ export async function updateAccountAction(
       }
       return { success: false, error: "Datos invalidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al actualizar la cuenta" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -312,7 +310,6 @@ export async function getNextAccountCodeAction(
 
     return { success: true, data: { code: String(nextCode) } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el codigo" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

@@ -4,7 +4,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { CompanyService } from "../services/CompanyService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 
@@ -69,8 +71,7 @@ export async function updateCompanySeniatDataAction(
     return { success: true, data: { id: company.id } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al actualizar los datos de la empresa" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -95,8 +96,7 @@ export async function createCompanyAction(
     return { success: true, data: { id: company.id, name: company.name } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al crear la empresa" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -120,8 +120,7 @@ export async function archiveCompanyAction(
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al archivar la empresa" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -145,7 +144,6 @@ export async function reactivateCompanyAction(
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al reactivar la empresa" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

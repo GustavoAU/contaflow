@@ -5,7 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import * as MemberService from "../services/MemberService";
@@ -42,8 +44,7 @@ export async function getMembersAction(
     const members = await MemberService.listMembers(companyId);
     return { success: true, data: members };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los miembros" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -95,8 +96,7 @@ export async function addMemberAction(
       }
       return { success: false, error: "Datos inválidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al agregar el miembro" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -141,8 +141,7 @@ export async function updateMemberRoleAction(
       }
       return { success: false, error: "Datos inválidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al actualizar el rol" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -193,7 +192,6 @@ export async function removeMemberAction(
       }
       return { success: false, error: "Datos inválidos", fieldErrors };
     }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al eliminar el miembro" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
