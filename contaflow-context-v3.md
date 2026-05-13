@@ -12,6 +12,11 @@ _Solo esto se carga por defecto en cada sesión._
 Ninguna — main limpio.
 
 ### Completadas recientes
+- **PRE-LANZAMIENTO batch 2026-05-13** ✅ merged — 3 ítems: ítem 32 (Estado Resultados período comparativo), ítem 36 (PDF Balance Comprobación con firma), ítem 53 (TXT banco nómina ya estaba completo). 1912 tests GREEN.
+  - `getIncomeStatementAction` refactorizado: acepta `compareDateFrom/To`, retorna `{ current, compare? }`
+  - `IncomeStatementFilter`: cliente con 4 fechas + presets de comparación
+  - `generateTrialBalancePDF` + `exportTrialBalancePDFAction` + botón en trial-balance page
+- **PRE-LANZAMIENTO batch 2026-05-12** ✅ merged — 7 ítems UX: ítem 2 (IGTF reactivo), ítem 29 (LedgerAccountBlock collapse/expand), ítem 30 (Balance Comprobación subtotales), ítem 31 (Estado Resultados % ingresos), ítem 33 (ISLR proyectado), ítem 43 (INPC tooltip valores reales), ítem 45 (Order/Quotation approvedBy+approvedAt), ítem 46 (formatAmount unificado). Migración 20260512_order_quotation_approved_by en Neon.
 - **Fase permisos-granulares** ✅ merged — RolePermission grants aditivos + PermissionsMatrix UI + nav grant-aware (ADR-025, 1819 tests)
   - `RolePermission` tabla: grants por empresa × rol × módulo (ACCOUNTANT/ADMINISTRATIVE/VIEWER únicos grantables)
   - `APP_MODULES` — 7 módulos con `baseRoles`, funciones puras `hasBaseAccess/canAccessModule/toGrantSet`
@@ -25,7 +30,7 @@ Ninguna — main limpio.
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1819 tests GREEN | 0 TS errors | CI passing** (2026-05-07)
+**1912 tests GREEN | 0 TS errors | CI passing** (2026-05-13)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
