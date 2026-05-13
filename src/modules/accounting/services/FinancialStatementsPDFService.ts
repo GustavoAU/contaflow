@@ -16,8 +16,14 @@ function fmt(value: string): string {
   }).format(num);
 }
 
-function fmtAbs(value: string): string {
-  return fmt(String(Math.abs(parseFloat(value))));
+function fmtAccounting(value: string): string {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  const abs = new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(num));
+  return num < 0 ? `(${abs})` : abs;
 }
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
@@ -167,14 +173,14 @@ function SectionBlock(sectionTitle: string, rows: { id: string; code: string; na
         { key: row.id, style: i % 2 === 0 ? S.accountRow : S.accountRowAlt },
         React.createElement(Text, { style: S.accountCode }, row.code === "—" ? "" : row.code),
         React.createElement(Text, { style: S.accountName }, row.name),
-        React.createElement(Text, { style: S.accountAmt }, fmtAbs(row.balance)),
+        React.createElement(Text, { style: S.accountAmt }, fmtAccounting(row.balance)),
       ),
     ),
     React.createElement(
       View,
       { style: S.subtotalRow },
       React.createElement(Text, { style: S.subtotalLabel }, totalLabel),
-      React.createElement(Text, { style: S.subtotalAmt }, `${fmt(total)} Bs.`),
+      React.createElement(Text, { style: S.subtotalAmt }, `${fmtAccounting(total)} Bs.`),
     ),
   );
 }

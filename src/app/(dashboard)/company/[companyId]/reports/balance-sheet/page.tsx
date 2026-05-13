@@ -19,6 +19,17 @@ function formatAmount(value: string): string {
   }).format(num);
 }
 
+function fmtAccounting(value: string): { display: string; negative: boolean } {
+  const num = parseFloat(value);
+  if (isNaN(num)) return { display: value, negative: false };
+  const abs = new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(num));
+  if (num < 0) return { display: `(${abs})`, negative: true };
+  return { display: abs, negative: false };
+}
+
 function Section({
   title,
   rows,
@@ -45,15 +56,15 @@ function Section({
             </tr>
           ) : (
             rows.map((row, i) => {
-              const isNegative = parseFloat(row.balance) < 0;
+              const { display, negative } = fmtAccounting(row.balance);
               return (
                 <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
                   <td className="px-4 py-2 text-zinc-600">
                     <span className="mr-2 font-mono text-xs text-zinc-400">{row.code === "—" ? "" : row.code}</span>
                     {row.name}
                   </td>
-                  <td className={`tabular-nums px-4 py-2 text-right font-mono ${isNegative ? "text-red-600" : ""}`}>
-                    {isNegative ? `(${formatAmount(String(Math.abs(parseFloat(row.balance))))})` : formatAmount(row.balance)}
+                  <td className={`tabular-nums px-4 py-2 text-right font-mono ${negative ? "text-red-600" : ""}`}>
+                    {display}
                   </td>
                 </tr>
               );
@@ -61,10 +72,17 @@ function Section({
           )}
         </tbody>
         <tfoot>
-          <tr className={`border-t ${colorClass}`}>
-            <td className="px-4 py-2 font-semibold">Total {title}</td>
-            <td className="tabular-nums px-4 py-2 text-right font-mono font-semibold">{formatAmount(total)} Bs.</td>
-          </tr>
+          {(() => {
+            const { display, negative } = fmtAccounting(total);
+            return (
+              <tr className={`border-t ${colorClass}`}>
+                <td className="px-4 py-2 font-semibold">Total {title}</td>
+                <td className={`tabular-nums px-4 py-2 text-right font-mono font-semibold ${negative ? "text-red-600" : ""}`}>
+                  {display} Bs.
+                </td>
+              </tr>
+            );
+          })()}
         </tfoot>
       </table>
     </div>
@@ -135,15 +153,15 @@ export default async function BalanceSheetPage({ params }: Props) {
             <div className="mt-2 flex items-center gap-3 text-sm">
               <div className="text-center">
                 <p className="text-xs text-zinc-500">Activos</p>
-                <p className="tabular-nums font-mono font-bold">
-                  {formatAmount(result.data.totalAssets)} Bs.
+                <p className={`tabular-nums font-mono font-bold ${fmtAccounting(result.data.totalAssets).negative ? "text-red-600" : ""}`}>
+                  {fmtAccounting(result.data.totalAssets).display} Bs.
                 </p>
               </div>
               <span className="text-zinc-400 font-bold">=</span>
               <div className="text-center">
                 <p className="text-xs text-zinc-500">Pasivos + Patrimonio</p>
-                <p className="tabular-nums font-mono font-bold">
-                  {formatAmount(result.data.totalLiabilitiesAndEquity)} Bs.
+                <p className={`tabular-nums font-mono font-bold ${fmtAccounting(result.data.totalLiabilitiesAndEquity).negative ? "text-red-600" : ""}`}>
+                  {fmtAccounting(result.data.totalLiabilitiesAndEquity).display} Bs.
                 </p>
               </div>
             </div>
