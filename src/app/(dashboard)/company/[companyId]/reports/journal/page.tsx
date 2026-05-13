@@ -9,7 +9,7 @@ import type { JournalTransaction } from "@/modules/accounting/actions/report.act
 
 type Props = {
   params: Promise<{ companyId: string }>;
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; q?: string }>;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -89,13 +89,13 @@ function TransactionBlock({ tx, companyId }: { tx: JournalTransaction; companyId
 
 export default async function JournalPage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const { from, to } = await searchParams;
+  const { from, to, q } = await searchParams;
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
   const [result, periodsResult] = await Promise.all([
-    getJournalAction(companyId, dateFrom, dateTo),
+    getJournalAction(companyId, dateFrom, dateTo, q),
     getPeriodsAction(companyId),
   ]);
   const transactions = result.success ? result.data : [];
@@ -118,6 +118,7 @@ export default async function JournalPage({ params, searchParams }: Props) {
           <p className="text-muted-foreground mt-1 text-sm">
             Registro cronológico de todos los asientos contabilizados
             {from || to ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}` : ""}
+            {q ? ` · Búsqueda: "${q}"` : ""}
           </p>
         </div>
         {transactions.length > 0 && (
@@ -132,6 +133,33 @@ export default async function JournalPage({ params, searchParams }: Props) {
         <DateRangeFilter defaultFrom={from} defaultTo={to} periods={periods} />
       </div>
 
+      {/* Búsqueda por texto */}
+      <form className="flex flex-wrap items-center gap-2">
+        {from && <input type="hidden" name="from" value={from} />}
+        {to && <input type="hidden" name="to" value={to} />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="Buscar por descripción, número o referencia…"
+          className="w-72 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+        />
+        <button
+          type="submit"
+          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+        >
+          Buscar
+        </button>
+        {q && (
+          <a
+            href={`?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString()}`}
+            className="text-sm text-zinc-500 underline hover:text-zinc-800"
+          >
+            Limpiar búsqueda
+          </a>
+        )}
+      </form>
+
       {!result.success && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {result.error}
@@ -141,7 +169,7 @@ export default async function JournalPage({ params, searchParams }: Props) {
       {transactions.length === 0 ? (
         <div className="py-12 text-center text-sm text-zinc-400">
           No hay asientos contabilizados
-          {from || to ? " en el período seleccionado" : ""}.
+          {q ? ` que coincidan con "${q}"` : from || to ? " en el período seleccionado" : ""}.
         </div>
       ) : (
         <div className="space-y-4">

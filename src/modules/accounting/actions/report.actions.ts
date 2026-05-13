@@ -129,9 +129,12 @@ export async function getJournalAction(
   companyId: string,
   dateFrom?: Date,
   dateTo?: Date,
+  search?: string,
 ): Promise<ActionResult<JournalTransaction[]>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
+
+  const q = search?.trim();
 
   try {
     const transactions = await prisma.transaction.findMany({
@@ -144,6 +147,15 @@ export async function getJournalAction(
                 ...(dateFrom ? { gte: dateFrom } : {}),
                 ...(dateTo ? { lte: dateTo } : {}),
               },
+            }
+          : {}),
+        ...(q
+          ? {
+              OR: [
+                { description: { contains: q, mode: "insensitive" } },
+                { number: { contains: q, mode: "insensitive" } },
+                { reference: { contains: q, mode: "insensitive" } },
+              ],
             }
           : {}),
       },
