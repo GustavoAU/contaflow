@@ -80,6 +80,15 @@ const S = StyleSheet.create({
   signatureRole:    { fontSize: 8, fontWeight: "bold", color: "#374151" },
   signatureDetail:  { fontSize: 7, color: "#6b7280", marginTop: 2 },
   signatureNote:    { fontSize: 7, color: "#9ca3af", textAlign: "center", marginTop: 12 },
+  // ─── Audit trail ────────────────────────────────────────────────────────────
+  auditTrail: {
+    marginTop: 20,
+    borderTop: "0.5pt solid #e5e7eb",
+    paddingTop: 6,
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+  },
+  auditTrailText: { fontSize: 6, color: "#9ca3af" },
   // ─── Libro Mayor ────────────────────────────────────────────────────────────
   ledgerAccountHeader: {
     flexDirection: "row",
@@ -339,6 +348,7 @@ export interface LedgerPDFParams {
   dateFrom?: string;  // "YYYY-MM-DD" o undefined
   dateTo?: string;
   accounts: LedgerAccount[];
+  generatedAt: string; // "DD/MM/YYYY HH:MM" — audit trail PA-121
 }
 
 function LedgerColHeader() {
@@ -466,7 +476,7 @@ function LedgerAccountBlock(account: LedgerAccount) {
 }
 
 export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer> {
-  const { companyName, companyRif, dateFrom, dateTo, accounts } = params;
+  const { companyName, companyRif, dateFrom, dateTo, accounts, generatedAt } = params;
 
   const dateLabel =
     dateFrom && dateTo
@@ -476,6 +486,21 @@ export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer
         : dateTo
           ? `Hasta ${dateTo}`
           : "Todos los períodos";
+
+  const auditTrail = React.createElement(
+    View,
+    { style: S.auditTrail },
+    React.createElement(
+      Text,
+      { style: S.auditTrailText },
+      `Generado por: ContaFlow — Sistema de Gestión Contable`,
+    ),
+    React.createElement(
+      Text,
+      { style: S.auditTrailText },
+      `Fecha de generación: ${generatedAt}`,
+    ),
+  );
 
   const doc = React.createElement(
     Document,
@@ -492,6 +517,7 @@ export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer
       }),
       ...accounts.map((account) => LedgerAccountBlock(account)),
       SignatureBlock(),
+      auditTrail,
     ),
   );
 

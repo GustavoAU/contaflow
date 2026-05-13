@@ -160,6 +160,15 @@ export async function exportLedgerPDFAction(
 
   const filename = `Libro-Mayor-${dateFrom ?? "todos"}-${dateTo ?? "hoy"}.pdf`;
 
+  const generatedAt = new Date().toLocaleString("es-VE", {
+    timeZone: "America/Caracas",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   try {
     const buffer = await generateLedgerPDF({
       companyName: guard.companyName,
@@ -167,6 +176,7 @@ export async function exportLedgerPDFAction(
       dateFrom,
       dateTo,
       accounts: reportResult.data,
+      generatedAt,
     });
 
     return {
