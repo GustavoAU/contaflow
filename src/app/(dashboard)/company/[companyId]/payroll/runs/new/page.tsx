@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunForm } from "@/modules/payroll/components/PayrollRunForm";
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
+import { PrerequisiteGuide } from "@/components/guides/PrerequisiteGuide";
 
 interface Props {
   params: Promise<{ companyId: string }>;
@@ -34,6 +35,14 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
   }
 
   const activeEmployeeCount = await EmployeeService.countActive(companyId);
+
+  if (activeEmployeeCount === 0) {
+    return (
+      <div className="p-6 max-w-lg">
+        <PrerequisiteGuide type="employees" companyId={companyId} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-2xl">
