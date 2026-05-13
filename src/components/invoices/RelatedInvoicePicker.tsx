@@ -122,7 +122,7 @@ export function RelatedInvoicePicker({ companyId, type, value, onChange }: Props
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={handleFocus}
-            placeholder="Buscar por número o nombre del cliente/proveedor..."
+            placeholder="Buscar por RIF, número o nombre del cliente/proveedor..."
             className="w-full rounded-md border py-2 pl-9 pr-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
           <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -151,6 +151,9 @@ export function RelatedInvoicePicker({ companyId, type, value, onChange }: Props
                 <p className="text-sm font-medium text-zinc-900">{item.invoiceNumber}</p>
                 <p className="truncate text-xs text-zinc-500">
                   {item.counterpartName}
+                  {item.counterpartRif && (
+                    <span className="ml-1 font-mono text-zinc-400">{item.counterpartRif}</span>
+                  )}
                   <span className="mx-1 text-zinc-300">·</span>
                   {item.date}
                   {item.totalAmountVes && (

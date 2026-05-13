@@ -443,6 +443,7 @@ export type InvoicePickerItem = {
   id: string;
   invoiceNumber: string;
   counterpartName: string;
+  counterpartRif: string | null;
   totalAmountVes: string | null;
   date: string; // ISO
 };
@@ -478,11 +479,12 @@ export async function searchInvoicesForPickerAction(
               OR: [
                 { invoiceNumber: { contains: query, mode: "insensitive" } },
                 { counterpartName: { contains: query, mode: "insensitive" } },
+                { counterpartRif: { contains: query, mode: "insensitive" } },
               ],
             }
           : {}),
       },
-      select: { id: true, invoiceNumber: true, counterpartName: true, totalAmountVes: true, date: true },
+      select: { id: true, invoiceNumber: true, counterpartName: true, counterpartRif: true, totalAmountVes: true, date: true },
       orderBy: { date: "desc" },
       take: 10,
     });
@@ -493,6 +495,7 @@ export async function searchInvoicesForPickerAction(
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         counterpartName: inv.counterpartName,
+        counterpartRif: inv.counterpartRif ?? null,
         totalAmountVes: inv.totalAmountVes ? inv.totalAmountVes.toString() : null,
         date: inv.date.toISOString().slice(0, 10),
       })),
