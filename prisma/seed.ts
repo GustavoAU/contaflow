@@ -60,6 +60,9 @@ async function main() {
     { name: "Bancos", code: "1110", type: AccountType.ASSET },
     { name: "Cuentas por Cobrar", code: "1305", type: AccountType.ASSET },
     { name: "Proveedores", code: "2205", type: AccountType.LIABILITY },
+    { name: "Capital Social", code: "3105", type: AccountType.EQUITY },
+    { name: "Utilidades Retenidas", code: "3205", type: AccountType.EQUITY },
+    { name: "Resultado del Ejercicio", code: "3210", type: AccountType.EQUITY },
     { name: "Ventas", code: "4135", type: AccountType.REVENUE },
     { name: "Gastos de Personal", code: "5105", type: AccountType.EXPENSE },
   ];
@@ -83,6 +86,19 @@ async function main() {
       },
     });
     console.log(`  ✅ ${account.code} - ${account.name}`);
+  }
+
+  // ─── 5. Pre-configurar cuentas de cierre fiscal ───────────────────────────
+  const [resultAccount, retainedAccount] = await Promise.all([
+    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3210" } } }),
+    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3205" } } }),
+  ]);
+  if (resultAccount && retainedAccount) {
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { resultAccountId: resultAccount.id, retainedEarningsAccountId: retainedAccount.id },
+    });
+    console.log("✅ Cierre fiscal: Resultado del Ejercicio (3210) + Utilidades Retenidas (3205)");
   }
 
   console.log("✅ Seeding finished!");

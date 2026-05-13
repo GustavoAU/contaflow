@@ -94,6 +94,7 @@ async function main() {
     // PATRIMONIO
     { code: "3105", name: "Capital Social", type: "EQUITY" },
     { code: "3205", name: "Utilidades Retenidas", type: "EQUITY" },
+    { code: "3210", name: "Resultado del Ejercicio", type: "EQUITY" },
     // INGRESOS
     { code: "4110", name: "Prestación de Servicios", type: "REVENUE" },
     { code: "4135", name: "Ventas de Mercancías", type: "REVENUE" },
@@ -116,6 +117,13 @@ async function main() {
     accounts[acc.code] = a.id;
     process.stdout.write(`  ✅ ${acc.code} — ${acc.name}\n`);
   }
+
+  // Pre-configurar cuentas de cierre fiscal
+  await prisma.company.update({
+    where: { id: cId },
+    data: { resultAccountId: accounts["3210"], retainedEarningsAccountId: accounts["3205"] },
+  });
+  console.log("  ✅ Cierre fiscal configurado: 3210 + 3205");
 
   // ── 2. Período contable Abril 2026 ───────────────────────────────────────
   console.log("\n📅 Período contable...");
