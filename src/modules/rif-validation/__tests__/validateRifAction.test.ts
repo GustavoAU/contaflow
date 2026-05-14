@@ -105,10 +105,10 @@ describe("validateRifAction", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("RIF sin dígito verificador sigue siendo válido", async () => {
+  it("RIF sin dígito verificador retorna formatValid=false (dígito verificador obligatorio)", async () => {
     const result = await validateRifAction("cmp_test", "J-12345678");
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.formatValid).toBe(true);
+    if (result.success) expect(result.data.formatValid).toBe(false);
   });
 
   it("RIF lowercase es normalizado y validado", async () => {

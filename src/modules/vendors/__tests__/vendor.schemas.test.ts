@@ -9,8 +9,11 @@ describe("CreateVendorSchema — RIF validation (HIGH-3)", () => {
   it("acepta RIF J-12345678-9", () => {
     expect(CreateVendorSchema.safeParse({ name: "Acme", rif: "J-12345678-9" }).success).toBe(true);
   });
-  it("acepta RIF V-12345678", () => {
-    expect(CreateVendorSchema.safeParse({ name: "Acme", rif: "V-12345678" }).success).toBe(true);
+  it("rechaza RIF V-12345678 (sin dígito verificador)", () => {
+    expect(CreateVendorSchema.safeParse({ name: "Acme", rif: "V-12345678" }).success).toBe(false);
+  });
+  it("acepta RIF V-12345678-0 (con dígito verificador)", () => {
+    expect(CreateVendorSchema.safeParse({ name: "Acme", rif: "V-12345678-0" }).success).toBe(true);
   });
   it("rechaza RIF inválido", () => {
     expect(CreateVendorSchema.safeParse({ name: "Acme", rif: "INVALID" }).success).toBe(false);
