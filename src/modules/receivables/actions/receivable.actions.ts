@@ -15,6 +15,7 @@ import {
   AgingReportFilterSchema,
   UpdatePaymentTermsSchema,
 } from "../schemas/receivable.schema";
+import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -147,9 +148,20 @@ export async function recordPaymentAction(
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
+    // IGTF: computar server-side con Decimal.js — nunca confiar en el valor del cliente
+    const company = await prisma.company.findFirst({
+      where: { id: parsed.data.companyId },
+      select: { isSpecialContributor: true },
+    });
+    const igtfApplies = IGTFService.applies(parsed.data.currency, company?.isSpecialContributor ?? false);
+    const computedIgtf = igtfApplies
+      ? IGTFService.calculate(parsed.data.amount, IGTF_RATE).igtfAmount
+      : undefined;
+
     const payment = await ReceivableService.recordPayment({
       ...parsed.data,
       createdBy: userId,
+      igtfAmount: computedIgtf, // computed server-side, overwrites any client value
     });
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);

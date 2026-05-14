@@ -2,6 +2,7 @@
 
 import { useTransition, useState, useEffect } from "react";
 import { Loader2Icon } from "lucide-react";
+import { Decimal } from "decimal.js";
 import { createPaymentAction } from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
@@ -13,9 +14,16 @@ type Props = {
   onSuccess?: () => void;
 };
 
-const IGTF_RATE = 0.03;
-
 const fmtNum = formatAmount;
+
+function calcIgtf(amountVes: string): string {
+  try {
+    const d = new Decimal(amountVes);
+    return d.gt(0) ? d.mul("0.03").toDecimalPlaces(2).toString() : "0.00";
+  } catch {
+    return "0.00";
+  }
+}
 
 export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -49,10 +57,13 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const vesNum = parseFloat(amountVes) || 0;
   const commPct = parseFloat(commissionPct) || 0;
 
-  const igtfZelle = vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
-  const igtfEfectivo = efectivoCurrency === "USD" && vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
-  const igtfCashea = casheaIgtf && vesNum > 0 ? (vesNum * IGTF_RATE).toFixed(2) : "0.00";
-  const commAmount = vesNum > 0 ? ((vesNum * commPct) / 100).toFixed(2) : "0.00";
+  // Cálculo display con Decimal.js (R-5: nunca float para dinero)
+  const igtfZelle = method === "ZELLE" && amountVes ? calcIgtf(amountVes) : "0.00";
+  const igtfEfectivo = efectivoCurrency === "USD" && amountVes ? calcIgtf(amountVes) : "0.00";
+  const igtfCashea = casheaIgtf && amountVes ? calcIgtf(amountVes) : "0.00";
+  const commAmount = vesNum > 0
+    ? new Decimal(vesNum).mul(commPct).div(100).toDecimalPlaces(2).toString()
+    : "0.00";
 
   const needsBcv = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
 
@@ -123,18 +134,18 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
 
       if (method === "ZELLE") {
         payload.amountOriginal = amountUsd;
-        payload.igtfAmount = igtfZelle;
+        // igtfAmount calculado server-side en createPaymentAction
       }
 
       if (method === "EFECTIVO" && efectivoCurrency === "USD") {
         payload.amountOriginal = amountUsd;
-        payload.igtfAmount = igtfEfectivo;
+        // igtfAmount calculado server-side en createPaymentAction
       }
 
       if (method === "CASHEA") {
         payload.commissionPct = commissionPct;
         payload.commissionAmount = commAmount;
-        if (casheaIgtf) payload.igtfAmount = igtfCashea;
+        // igtfAmount calculado server-side según isSpecialContributor de la empresa
       }
 
       const result = await createPaymentAction(payload);
