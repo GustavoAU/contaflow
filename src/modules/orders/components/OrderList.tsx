@@ -189,7 +189,10 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                   <td className={`px-4 py-3 ${isExpired ? "text-red-600 font-medium" : "text-gray-600"}`}>
                     {o.expectedDate ?? "—"}
                   </td>
-                  <td className="px-4 py-3 font-mono text-right">
+                  <td
+                    className="px-4 py-3 font-mono text-right cursor-help"
+                    title={`Base: ${formatAmount(o.subtotal)} + IVA: ${formatAmount(o.taxAmount)} = Total: ${formatAmount(o.total)}`}
+                  >
                     {o.currency} {formatAmount(o.total)}
                   </td>
                   <td className="px-4 py-3">

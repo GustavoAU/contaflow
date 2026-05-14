@@ -111,7 +111,10 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                 <td className={`px-4 py-3 ${isExpired ? "text-red-600 font-medium" : "text-gray-600"}`}>
                   {q.validUntil}
                 </td>
-                <td className="px-4 py-3 font-mono text-right">
+                <td
+                  className="px-4 py-3 font-mono text-right cursor-help"
+                  title={`Base: ${formatAmount(q.subtotal)} + IVA: ${formatAmount(q.taxAmount)} = Total: ${formatAmount(q.total)}`}
+                >
                   {q.currency} {formatAmount(q.total)}
                 </td>
                 <td className="px-4 py-3">
