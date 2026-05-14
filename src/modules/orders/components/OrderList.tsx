@@ -3,7 +3,7 @@
 
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
-import { approveOrderAction, convertOrderToInvoiceAction } from "../actions/order.actions";
+import { approveOrderAction, convertOrderToInvoiceAction, cloneOrderAction } from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
 import { formatAmount } from "@/lib/format";
 
@@ -131,6 +131,14 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
     });
   }
 
+  function handleClone(orderId: string) {
+    startTransition(async () => {
+      const r = await cloneOrderAction(companyId, orderId);
+      if (r.success) toast.success(`Orden clonada: ${r.data.number}`);
+      else toast.error(r.error);
+    });
+  }
+
   if (orders.length === 0) {
     return <p className="text-sm text-gray-500 py-4">No hay órdenes registradas.</p>;
   }
@@ -202,7 +210,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       {canApprove && o.status === "DRAFT" && (
                         <button
                           onClick={() => handleApprove(o.id)}
@@ -218,6 +226,16 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                           className="rounded border border-blue-500 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
                         >
                           → Factura
+                        </button>
+                      )}
+                      {canOperate && (
+                        <button
+                          onClick={() => handleClone(o.id)}
+                          disabled={isPending}
+                          title="Crea una copia en Borrador con los mismos datos y un nuevo número"
+                          className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Clonar
                         </button>
                       )}
                     </div>

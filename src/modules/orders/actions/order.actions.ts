@@ -173,3 +173,43 @@ export async function getOrderAction(
     return { success: false, error: e instanceof Error ? e.message : "Error" };
   }
 }
+
+// ── cloneOrderAction — ROLES.OPERATIONS — crea copia DRAFT con nuevo número ────
+export async function cloneOrderAction(
+  companyId: string,
+  orderId: string
+): Promise<Result<{ id: string; number: string }>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+  });
+  if (!member) return { success: false, error: "Acceso denegado" };
+  if (!canAccess(member.role, ROLES.OPERATIONS))
+    return { success: false, error: "Acceso denegado" };
+
+  try {
+    const original = await OrderService.getOrder(companyId, orderId);
+    if (!original) return { success: false, error: "Orden no encontrada" };
+
+    const cloned = await OrderService.createOrder(companyId, userId, {
+      type: original.type,
+      counterpartName: original.counterpartName,
+      counterpartRif: original.counterpartRif ?? undefined,
+      notes: original.notes ?? undefined,
+      currency: original.currency,
+      items: original.items.map((i) => ({
+        description: i.description,
+        unit: i.unit,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        taxRate: i.taxRate,
+      })),
+    });
+    revalidatePath(`/company/${companyId}/orders`);
+    return { success: true, data: { id: cloned.id, number: cloned.number } };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error al clonar orden" };
+  }
+}

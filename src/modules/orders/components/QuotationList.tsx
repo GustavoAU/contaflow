@@ -7,6 +7,7 @@ import {
   submitForApprovalAction,
   approveQuotationAction,
   rejectQuotationAction,
+  cloneQuotationAction,
 } from "../actions/quotation.actions";
 import type { QuotationRow } from "../services/QuotationService";
 import { formatAmount } from "@/lib/format";
@@ -55,6 +56,14 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
     startTransition(async () => {
       const r = await rejectQuotationAction(companyId, quotationId);
       if (r.success) toast.success("Cotización rechazada");
+      else toast.error(r.error);
+    });
+  }
+
+  function handleClone(quotationId: string) {
+    startTransition(async () => {
+      const r = await cloneQuotationAction(companyId, quotationId);
+      if (r.success) toast.success(`Cotización clonada: ${r.data.number}`);
       else toast.error(r.error);
     });
   }
@@ -123,7 +132,7 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {canOperate && q.status === "DRAFT" && (
                       <button
                         onClick={() => handleSubmit(q.id)}
@@ -150,6 +159,16 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                           Rechazar
                         </button>
                       </>
+                    )}
+                    {canOperate && (
+                      <button
+                        onClick={() => handleClone(q.id)}
+                        disabled={isPending}
+                        title="Crea una copia en Borrador con los mismos datos y un nuevo número"
+                        className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Clonar
+                      </button>
                     )}
                   </div>
                 </td>
