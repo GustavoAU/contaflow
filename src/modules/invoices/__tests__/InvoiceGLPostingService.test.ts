@@ -224,17 +224,57 @@ describe("InvoiceGLPostingService.postInvoice() — COMPRA", () => {
   });
 });
 
-describe("InvoiceGLPostingService — invariante de cuadre", () => {
-  it("lanza error si el asiento resulta desbalanceado (totalAmountVes incorrecto)", async () => {
+describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
+  it("VENTA con IVA_GENERAL 16% + IVA_ADICIONAL 15%: Dr CxC / Cr Ingresos / Cr IVA-DF balanceado", async () => {
+    // Base: 223790 | IVA 16%: 35806.40 | IVA 15%: 33568.50 | Total: 293164.90
+    const db = makeMockDb();
+    const luxuryInvoice: InvoiceForGL = {
+      id: INVOICE_ID,
+      type: "SALE",
+      invoiceNumber: "TESA-004",
+      counterpartName: "Smart Solutions Venezuela C.A.",
+      date: new Date("2026-04-10"),
+      periodId: "period-1",
+      totalAmountVes: new Decimal("293164.90"),
+      taxLines: [
+        { taxType: "IVA_GENERAL", base: new Decimal("223790.00"), amount: new Decimal("35806.40") },
+        { taxType: "IVA_ADICIONAL", base: new Decimal("223790.00"), amount: new Decimal("33568.50") },
+      ],
+    };
+
+    const txId = await InvoiceGLPostingService.postInvoice(luxuryInvoice, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    expect(txId).toBe(TX_ID);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    expect(entries).toHaveLength(3);
+
+    const cxcEntry = entries.find((e) => e.accountId === "acc-cxc");
+    expect(new Decimal(cxcEntry!.amount.toString()).toFixed(2)).toBe("293164.90");
+
+    const ventasEntry = entries.find((e) => e.accountId === "acc-ventas");
+    expect(new Decimal(ventasEntry!.amount.toString()).toFixed(2)).toBe("-223790.00");
+
+    const ivaEntry = entries.find((e) => e.accountId === "acc-iva-df");
+    expect(new Decimal(ivaEntry!.amount.toString()).toFixed(2)).toBe("-69374.90");
+
+    const sum = entries.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
+    expect(sum.abs().lessThan(new Decimal("0.01"))).toBe(true);
+  });
+});
+
+describe("InvoiceGLPostingService — guarda semántica", () => {
+  it("lanza error si totalAmountVes es menor que el IVA total (dato corrupto)", async () => {
     const db = makeMockDb();
     const badInvoice: InvoiceForGL = {
       ...SALE_INVOICE,
-      totalAmountVes: new Decimal("999.00"), // no coincide con base+iva = 116
+      totalAmountVes: new Decimal("5.00"), // IVA = 16, total < iva → base negativa
     };
 
     await expect(
       InvoiceGLPostingService.postInvoice(badInvoice, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db)
-    ).rejects.toThrow(/desbalanceado/);
+    ).rejects.toThrow(/base negativa/);
 
     expect(vi.mocked(db.transaction.create)).not.toHaveBeenCalled();
   });

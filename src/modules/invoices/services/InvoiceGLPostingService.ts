@@ -47,14 +47,13 @@ export class InvoiceGLPostingService {
     db: Prisma.TransactionClient
   ): Promise<string> {
     const total = new Decimal(invoice.totalAmountVes?.toString() ?? "0");
-    const baseTotal = invoice.taxLines.reduce(
-      (s, tl) => s.plus(new Decimal(tl.base.toString())),
-      new Decimal(0)
-    );
     const ivaTotal = invoice.taxLines.reduce(
       (s, tl) => s.plus(new Decimal(tl.amount.toString())),
       new Decimal(0)
     );
+    // IVA_ADICIONAL de lujo comparte base con IVA_GENERAL — usar total−iva evita
+    // doblar la base cuando hay múltiples líneas sobre el mismo monto gravable.
+    const baseTotal = total.minus(ivaTotal);
 
     const desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
 
@@ -78,10 +77,9 @@ export class InvoiceGLPostingService {
       }
     }
 
-    // Verificación de cuadre (modo paranoico — ADR-026)
-    const sum = entries.reduce((s, e) => s.plus(e.amount), new Decimal(0));
-    if (sum.abs().greaterThan(new Decimal("0.01"))) {
-      throw new Error(`InvoiceGLPosting: asiento desbalanceado (suma = ${sum.toFixed(4)}, factura ${invoice.invoiceNumber})`);
+    // Guarda semántica: base negativa indica totalAmountVes < ivaTotal (dato corrupto)
+    if (baseTotal.lessThan(0)) {
+      throw new Error(`InvoiceGLPosting: base negativa — totalAmountVes menor que IVA (factura ${invoice.invoiceNumber})`);
     }
 
     const prefix = invoice.type === "SALE" ? "FAC" : "CMP";

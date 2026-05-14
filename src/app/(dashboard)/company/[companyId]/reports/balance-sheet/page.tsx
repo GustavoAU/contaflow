@@ -1,6 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/reports/balance-sheet/page.tsx
 import { getBalanceSheetAction } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
+import { BalanceSheetFilter } from "@/components/reports/BalanceSheetFilter";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { ChevronLeftIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ to?: string }>;
 };
 
 function formatAmount(value: string): string {
@@ -89,12 +91,14 @@ function Section({
   );
 }
 
-export default async function BalanceSheetPage({ params }: Props) {
+export default async function BalanceSheetPage({ params, searchParams }: Props) {
   const { companyId } = await params;
+  const { to } = await searchParams;
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const result = await getBalanceSheetAction(companyId);
+  const dateTo = to ? new Date(to + "T23:59:59") : undefined;
+  const result = await getBalanceSheetAction(companyId, dateTo);
 
   return (
     <div className="space-y-6">
@@ -108,10 +112,14 @@ export default async function BalanceSheetPage({ params }: Props) {
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Balance General</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Estado de Situación Financiera</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {to ? `Corte al ${to}` : "Estado de Situación Financiera (acumulado)"}
+          </p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="balance-sheet" />
       </div>
+
+      <BalanceSheetFilter defaultTo={to} />
 
       {!result.success ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
