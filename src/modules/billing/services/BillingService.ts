@@ -65,6 +65,10 @@ export async function createCheckout(
   if (existing?.status === "ACTIVE") {
     throw new Error("La empresa ya tiene una suscripción activa.");
   }
+  // LOW-1: bloquear doble checkout cuando hay pago pendiente
+  if (existing?.status === "PAST_DUE") {
+    throw new Error("Ya tienes un pago en curso. Complétalo o espera a que expire antes de iniciar uno nuevo.");
+  }
 
   const priceUsdCents = PLAN_PRICES_CENTS[plan];
   const periodDays = PLAN_PERIOD_DAYS[plan];
