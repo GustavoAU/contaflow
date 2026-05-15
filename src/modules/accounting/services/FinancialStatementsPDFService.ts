@@ -5,6 +5,14 @@ import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-p
 import React from "react";
 import type { BalanceSheet, IncomeStatement, LedgerAccount, TrialBalanceRow } from "../actions/report.actions";
 
+// ─── Tipos compartidos ────────────────────────────────────────────────────────
+
+export interface AccountantInfo {
+  accountantName?: string | null;
+  accountantTitle?: string | null;
+  accountantCpcNumber?: string | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(value: string): string {
@@ -194,7 +202,12 @@ function SectionBlock(sectionTitle: string, rows: { id: string; code: string; na
   );
 }
 
-function SignatureBlock() {
+function SignatureBlock(accountant?: AccountantInfo) {
+  const cpcName = accountant?.accountantName ?? "__________________________________";
+  const cpcTitle = accountant?.accountantTitle ?? "Contador Público Colegiado";
+  const cpcNumber = accountant?.accountantCpcNumber
+    ? `C.P.C. No.: ${accountant.accountantCpcNumber}`
+    : "C.P.C. No.: ______";
   return React.createElement(
     View,
     { style: S.signatureSection },
@@ -215,9 +228,9 @@ function SignatureBlock() {
         View,
         { style: S.signatureBlock },
         React.createElement(View, { style: S.signatureLine }),
-        React.createElement(Text, { style: S.signatureRole }, "Contador Público Colegiado (C.P.C.)"),
-        React.createElement(Text, { style: S.signatureDetail }, "Nombre: __________________________________"),
-        React.createElement(Text, { style: S.signatureDetail }, "C.P.C. No.: ______  RIF: __________________"),
+        React.createElement(Text, { style: S.signatureRole }, cpcTitle),
+        React.createElement(Text, { style: S.signatureDetail }, `Nombre: ${cpcName}`),
+        React.createElement(Text, { style: S.signatureDetail }, cpcNumber),
       ),
     ),
     React.createElement(
@@ -236,10 +249,11 @@ export interface BalanceSheetPDFParams {
   companyRif: string | null;
   dateTo: string;
   data: BalanceSheet;
+  accountant?: AccountantInfo;
 }
 
 export async function generateBalanceSheetPDF(params: BalanceSheetPDFParams): Promise<Buffer> {
-  const { companyName, companyRif, dateTo, data } = params;
+  const { companyName, companyRif, dateTo, data, accountant } = params;
 
   const doc = React.createElement(
     Document,
@@ -270,7 +284,7 @@ export async function generateBalanceSheetPDF(params: BalanceSheetPDFParams): Pr
         ),
       ),
 
-      SignatureBlock(),
+      SignatureBlock(accountant),
     ),
   );
 
@@ -285,10 +299,11 @@ export interface IncomeStatementPDFParams {
   dateFrom: string;
   dateTo: string;
   data: IncomeStatement;
+  accountant?: AccountantInfo;
 }
 
 export async function generateIncomeStatementPDF(params: IncomeStatementPDFParams): Promise<Buffer> {
-  const { companyName, companyRif, dateFrom, dateTo, data } = params;
+  const { companyName, companyRif, dateFrom, dateTo, data, accountant } = params;
 
   const net = parseFloat(data.netIncome);
   const isProfit = net >= 0;
@@ -325,7 +340,7 @@ export async function generateIncomeStatementPDF(params: IncomeStatementPDFParam
         ),
       ),
 
-      SignatureBlock(),
+      SignatureBlock(accountant),
     ),
   );
 
@@ -349,6 +364,7 @@ export interface LedgerPDFParams {
   dateTo?: string;
   accounts: LedgerAccount[];
   generatedAt: string; // "DD/MM/YYYY HH:MM" — audit trail PA-121
+  accountant?: AccountantInfo;
 }
 
 function LedgerColHeader() {
@@ -476,7 +492,7 @@ function LedgerAccountBlock(account: LedgerAccount) {
 }
 
 export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer> {
-  const { companyName, companyRif, dateFrom, dateTo, accounts, generatedAt } = params;
+  const { companyName, companyRif, dateFrom, dateTo, accounts, generatedAt, accountant } = params;
 
   const dateLabel =
     dateFrom && dateTo
@@ -516,7 +532,7 @@ export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer
         dateLabel,
       }),
       ...accounts.map((account) => LedgerAccountBlock(account)),
-      SignatureBlock(),
+      SignatureBlock(accountant),
       auditTrail,
     ),
   );
@@ -570,10 +586,11 @@ export interface TrialBalancePDFParams {
   companyRif: string | null;
   dateTo: string;
   data: TrialBalanceRow[];
+  accountant?: AccountantInfo;
 }
 
 export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Promise<Buffer> {
-  const { companyName, companyRif, dateTo, data } = params;
+  const { companyName, companyRif, dateTo, data, accountant } = params;
 
   const TYPE_ORDER = ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
@@ -657,7 +674,7 @@ export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Pr
       tableHeader,
       ...groupRows,
       totalRow,
-      SignatureBlock(),
+      SignatureBlock(accountant),
     ),
   );
 

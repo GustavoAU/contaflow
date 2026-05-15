@@ -28,11 +28,13 @@ export function JournalExportButton({ transactions, period, companyName }: Props
     ws.addRow(["LIBRO DIARIO"]);
     ws.addRow([`Período: ${period}`]);
     ws.addRow([]);
-    ws.addRow(["Número", "Fecha", "Tipo", "Descripción", "Referencia", "Código", "Cuenta", "Débito (Bs.)", "Crédito (Bs.)"]);
+    ws.addRow(["Folio", "Número", "Fecha", "Tipo", "Descripción", "Referencia", "Código", "Cuenta", "Débito (Bs.)", "Crédito (Bs.)"]);
 
-    for (const tx of transactions) {
+    transactions.forEach((tx, idx) => {
+      const folio = idx + 1;
       for (const line of tx.lines) {
         ws.addRow([
+          folio,
           tx.number,
           new Date(tx.date).toLocaleDateString("es-VE"),
           TYPE_LABELS[tx.type] ?? tx.type,
@@ -45,12 +47,12 @@ export function JournalExportButton({ transactions, period, companyName }: Props
         ]);
       }
       ws.addRow([
-        "", "", "", "Sumas iguales", "", "", "",
+        "", "", "", "", "Sumas iguales", "", "", "",
         parseFloat(tx.totalDebit),
         parseFloat(tx.totalCredit),
       ]);
       ws.addRow([]);
-    }
+    });
 
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], {

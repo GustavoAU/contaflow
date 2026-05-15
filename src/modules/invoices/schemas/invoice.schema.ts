@@ -1,7 +1,7 @@
 // src/modules/invoices/schemas/invoice.schema.ts
 import { z } from "zod";
 import { Decimal } from "decimal.js";
-import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const InvoiceTypeSchema = z.enum(["SALE", "PURCHASE"]);
@@ -178,6 +178,22 @@ export const CreateInvoiceSchema = z.object({
 
   createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }).optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === "PURCHASE") {
+    if (!data.controlNumber) {
+      ctx.addIssue({
+        code: "custom",
+        message: "El Nº Control es obligatorio en compras. Formato: 00-00000001",
+        path: ["controlNumber"],
+      });
+    } else if (!CONTROL_NUMBER_REGEX.test(data.controlNumber)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Nº Control inválido. Formato: 00-00000001",
+        path: ["controlNumber"],
+      });
+    }
+  }
 });
 
 // ─── Filtros para el libro ─────────────────────────────────────────────────────

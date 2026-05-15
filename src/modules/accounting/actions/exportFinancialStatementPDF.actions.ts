@@ -12,27 +12,45 @@ import {
   generateIncomeStatementPDF,
   generateLedgerPDF,
   generateTrialBalancePDF,
+  type AccountantInfo,
 } from "../services/FinancialStatementsPDFService";
 
 type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
 
-async function guardAccounting(companyId: string): Promise<{ userId: string; companyName: string; companyRif: string | null } | { success: false; error: string }> {
+type GuardResult =
+  | { userId: string; companyName: string; companyRif: string | null; accountant: AccountantInfo }
+  | { success: false; error: string };
+
+async function guardAccounting(companyId: string): Promise<GuardResult> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
   if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-  const [member, company] = await Promise.all([
+  const [member, company, settings] = await Promise.all([
     prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } }),
     prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
+    prisma.companySettings.findUnique({
+      where: { companyId },
+      select: { accountantName: true, accountantTitle: true, accountantCpcNumber: true },
+    }),
   ]);
 
   if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
     return { success: false, error: "Acceso denegado" };
   if (!company) return { success: false, error: "Empresa no encontrada" };
 
-  return { userId, companyName: company.name, companyRif: company.rif };
+  return {
+    userId,
+    companyName: company.name,
+    companyRif: company.rif,
+    accountant: {
+      accountantName: settings?.accountantName,
+      accountantTitle: settings?.accountantTitle,
+      accountantCpcNumber: settings?.accountantCpcNumber,
+    },
+  };
 }
 
 // ─── Balance General ──────────────────────────────────────────────────────────
@@ -60,6 +78,7 @@ export async function exportBalanceSheetPDFAction(companyId: string): Promise<PD
       companyRif: guard.companyRif,
       dateTo: today,
       data: reportResult.data,
+      accountant: guard.accountant,
     });
 
     return {
@@ -94,6 +113,7 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
       dateFrom: yearStart,
       dateTo: today,
       data: reportResult.data.current,
+      accountant: guard.accountant,
     });
 
     return {
@@ -126,6 +146,7 @@ export async function exportTrialBalancePDFAction(companyId: string): Promise<PD
       companyRif: guard.companyRif,
       dateTo: today,
       data: reportResult.data,
+      accountant: guard.accountant,
     });
 
     return {
@@ -177,6 +198,7 @@ export async function exportLedgerPDFAction(
       dateTo,
       accounts: reportResult.data,
       generatedAt,
+      accountant: guard.accountant,
     });
 
     return {

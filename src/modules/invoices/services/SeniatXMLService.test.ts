@@ -11,7 +11,7 @@ const BASE_PARAMS: SeniatXMLParams = {
   invoiceType: "SALE",
   docType: "FACTURA",
   invoiceNumber: "0001234",
-  controlNumber: "00-0001234",
+  controlNumber: "00-00001234",
   date: new Date("2026-04-07T00:00:00.000Z"),
   currency: "VES",
   counterpartName: "Cliente ABC S.A.",
@@ -35,7 +35,7 @@ describe("SeniatXMLService.generate", () => {
     expect(xml).toContain("<TipoDocumento>FACTURA</TipoDocumento>");
     expect(xml).toContain("<TipoOperacion>VENTA</TipoOperacion>");
     expect(xml).toContain("<NumeroFactura>0001234</NumeroFactura>");
-    expect(xml).toContain("<NumeroControl>00-0001234</NumeroControl>");
+    expect(xml).toContain("<NumeroControl>00-00001234</NumeroControl>");
     expect(xml).toContain("<FechaEmision>2026-04-07</FechaEmision>");
     expect(xml).toContain("<Moneda>VES</Moneda>");
   });
@@ -197,13 +197,13 @@ describe("SeniatXMLService.qrContent", () => {
     const content = SeniatXMLService.qrContent({
       companyRif: "J-12345678-9",
       invoiceNumber: "0001234",
-      controlNumber: "00-0001234",
+      controlNumber: "00-00001234",
       date: new Date("2026-04-07T00:00:00.000Z"),
       currency: "VES",
       montoTotal: "1160.00",
     });
     expect(content).toBe(
-      "CONTAFLOW:RIF=J-12345678-9;FACTURA=0001234;CONTROL=00-0001234;TOTAL=1160.00;FECHA=2026-04-07;MONEDA=VES"
+      "CONTAFLOW:RIF=J-12345678-9;FACTURA=0001234;CONTROL=00-00001234;TOTAL=1160.00;FECHA=2026-04-07;MONEDA=VES"
     );
   });
 

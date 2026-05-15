@@ -26,11 +26,16 @@ function fmt(v: string): string {
   }).format(parseFloat(v));
 }
 
-function TransactionBlock({ tx, companyId }: { tx: JournalTransaction; companyId: string }) {
+function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; companyId: string; folio?: number }) {
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
       {/* Encabezado del asiento */}
       <div className="flex flex-wrap items-center gap-3 border-b bg-zinc-50 px-4 py-2">
+        {folio !== undefined && (
+          <span className="font-mono text-xs text-zinc-400 w-12" title="Número de folio">
+            f.{String(folio).padStart(3, "0")}
+          </span>
+        )}
         <span className="w-24 text-sm text-zinc-500">
           {new Date(tx.date).toLocaleDateString("es-VE")}
         </span>
@@ -173,8 +178,8 @@ export default async function JournalPage({ params, searchParams }: Props) {
         </div>
       ) : (
         <div className="space-y-4">
-          {transactions.map((tx) => (
-            <TransactionBlock key={tx.id} tx={tx} companyId={companyId} />
+          {transactions.map((tx, idx) => (
+            <TransactionBlock key={tx.id} tx={tx} companyId={companyId} folio={idx + 1} />
           ))}
         </div>
       )}
