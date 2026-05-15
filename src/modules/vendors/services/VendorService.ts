@@ -10,6 +10,7 @@ export type VendorRow = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  isSpecialContributor: boolean;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

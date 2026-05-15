@@ -2015,16 +2015,17 @@ model Termination {
 
 // Fase 35A: Vendor / Customer
 model Vendor {
-  id        String    @id @default(cuid())
-  companyId String
-  name      String
-  rif       String?
-  email     String?
-  phone     String?
-  address   String?
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  companyId            String
+  name                 String
+  rif                  String?
+  email                String?
+  phone                String?
+  address              String?
+  isSpecialContributor Boolean   @default(false) // Contribuyente Especial — determina si aplican retenciones IVA/ISLR
+  deletedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   invoices Invoice[]

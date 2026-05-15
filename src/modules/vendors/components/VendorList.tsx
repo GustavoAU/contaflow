@@ -24,18 +24,31 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
   const [createRif, setCreateRif] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPhone, setCreatePhone] = useState("");
+  const [createIsCE, setCreateIsCE] = useState(false);
 
   function handleCreate() {
     setError(null);
     startTransition(async () => {
       const r = await createVendorAction(companyId, {
-        name: createName, rif: createRif || undefined,
-        email: createEmail || undefined, phone: createPhone || undefined,
+        name: createName,
+        rif: createRif || undefined,
+        email: createEmail || undefined,
+        phone: createPhone || undefined,
+        isSpecialContributor: createIsCE,
       });
       if (!r.success) { setError(r.error); return; }
       setVendors(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
       setShowCreate(false);
-      setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone("");
+      setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone(""); setCreateIsCE(false);
+    });
+  }
+
+  function handleToggleCE(vendorId: string, current: boolean) {
+    if (!canWrite) return;
+    startTransition(async () => {
+      const r = await updateVendorAction(companyId, vendorId, { isSpecialContributor: !current });
+      if (!r.success) { setError(r.error); return; }
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, isSpecialContributor: !current } : v));
     });
   }
 
@@ -91,6 +104,15 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
               onChange={e => setCreatePhone(e.target.value)}
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-indigo-900 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={createIsCE}
+              onChange={e => setCreateIsCE(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Contribuyente Especial (aplican retenciones IVA/ISLR)
+          </label>
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
@@ -100,7 +122,7 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
               {isPending ? "Guardando…" : "Guardar"}
             </button>
             <button
-              onClick={() => { setShowCreate(false); setCreateName(""); setCreateRif(""); }}
+              onClick={() => { setShowCreate(false); setCreateName(""); setCreateRif(""); setCreateIsCE(false); }}
               className="rounded border px-3 py-1 text-sm text-gray-600"
             >
               Cancelar
@@ -126,6 +148,7 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
                 <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
+                <th className="px-4 py-3 text-center font-medium text-gray-600">C.E.</th>
                 {canDelete && <th className="px-4 py-3" />}
               </tr>
             </thead>
@@ -136,6 +159,25 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
                   <td className="px-4 py-3 text-gray-600">{v.rif ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{v.phone ?? "—"}</td>
+                  <td className="px-4 py-3 text-center">
+                    {canWrite ? (
+                      <input
+                        type="checkbox"
+                        checked={v.isSpecialContributor}
+                        onChange={() => handleToggleCE(v.id, v.isSpecialContributor)}
+                        disabled={isPending}
+                        aria-label="Contribuyente Especial"
+                        className="rounded border-gray-300 disabled:opacity-50 cursor-pointer"
+                        title="Contribuyente Especial — aplican retenciones IVA/ISLR"
+                      />
+                    ) : (
+                      v.isSpecialContributor ? (
+                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">C.E.</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )
+                    )}
+                  </td>
                   {canDelete && (
                     <td className="px-4 py-3 text-right">
                       <button
