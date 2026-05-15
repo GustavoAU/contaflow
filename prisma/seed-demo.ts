@@ -1051,7 +1051,47 @@ async function main() {
   });
   console.log("  ✅ RIS-2026-001 — Servicios Informáticos Andinos — ISLR 5% — Bs. 11,350");
 
-  // ── 20. Asientos Contables Manuales (Libro Diario) ────────────────────────
+  // ── 20. Factura venta en USD con IGTF 3% (ítem 8 seed) ──────────────────
+  console.log("\n💵 Factura venta USD + IGTF...");
+  const igtfSaleExisting = await prisma.invoice.findUnique({
+    where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "0008", type: "SALE" } },
+  });
+  if (!igtfSaleExisting) {
+    // USD 500 × 481.22 Bs — IVA 16% — IGTF 3% — pagada en dólares
+    // Base: 240,610 | IVA: 38,497.60 | Total fact: 279,107.60 | IGTF: 8,373.23
+    await prisma.invoice.create({
+      data: {
+        companyId: cId,
+        type: "SALE" as InvoiceType,
+        docType: "FACTURA" as InvoiceDocType,
+        invoiceNumber: "0008",
+        controlNumber: "00-00000008",
+        counterpartName: "Inversiones Carabobo 2025 C.A.",
+        counterpartRif: "J-41567890-1",
+        currency: "USD",
+        exchangeRateId: rateIds["2026-04-21"],
+        igtfBase: "279107.60",
+        igtfAmount: "8373.23",
+        totalAmountVes: "279107.60",
+        pendingAmount: "0.00",
+        paymentStatus: "PAID" as InvoicePaymentStatus,
+        issueDate: d(21),
+        dueDate: d(21),
+        periodId: period.id,
+        createdBy: USER_ID,
+        taxLines: {
+          create: [
+            { taxType: "IVA_GENERAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory, base: "240610.00", rate: 16, amount: "38497.60" },
+          ],
+        },
+      },
+    });
+    console.log("  ✅ SALE 0008 — Inversiones Carabobo (USD + IGTF 3%) — Bs. 279,108 + IGTF 8,373");
+  } else {
+    console.log("  ⏭️  SALE 0008 ya existe");
+  }
+
+  // ── 21. Asientos Contables Manuales (Libro Diario) ────────────────────────
   console.log("\n📒 Asientos contables...");
 
   const asientoDefs = [
