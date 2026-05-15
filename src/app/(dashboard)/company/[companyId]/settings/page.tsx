@@ -155,6 +155,8 @@ export default async function SettingsPage({ params }: Props) {
               purchaseExpenseAccountId: glConfig?.purchaseExpenseAccountId ?? null,
               ivaDFAccountId: glConfig?.ivaDFAccountId ?? null,
               ivaCFAccountId: glConfig?.ivaCFAccountId ?? null,
+              fxGainAccountId: glConfig?.fxGainAccountId ?? null,
+              fxLossAccountId: glConfig?.fxLossAccountId ?? null,
             }}
             initialUnbookedCount={glConfig?.unbookedCount ?? 0}
           />

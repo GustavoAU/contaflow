@@ -309,6 +309,9 @@ model Account {
   companySettingsAsPurchaseExpense CompanySettings[]        @relation("SettingsPurchaseExpenseAccount")
   companySettingsAsIVADF           CompanySettings[]        @relation("SettingsIVADFAccount")
   companySettingsAsIVACF           CompanySettings[]        @relation("SettingsIVACFAccount")
+  // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
+  companySettingsAsFxGain          CompanySettings[]        @relation("SettingsFxGainAccount")
+  companySettingsAsFxLoss          CompanySettings[]        @relation("SettingsFxLossAccount")
   // Fase 36D: Distribución de Ingresos
   incomeDistributionOrigins        IncomeDistribution[]     @relation("IncomeDistributionOrigin")
   incomeDistributionLineAccounts   IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
@@ -2174,6 +2177,9 @@ model CompanySettings {
   purchaseExpenseAccountId String? // EXPENSE — gasto por defecto (facturas compra)
   ivaDFAccountId           String? // LIABILITY — IVA Débito Fiscal (facturas venta)
   ivaCFAccountId           String? // ASSET — IVA Crédito Fiscal (facturas compra)
+  // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
+  fxGainAccountId          String? // REVENUE — Ganancia por diferencial cambiario
+  fxLossAccountId          String? // EXPENSE — Pérdida por diferencial cambiario
 
   arAccount              Account? @relation("SettingsARAccount", fields: [arAccountId], references: [id], onDelete: Restrict)
   apAccount              Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
@@ -2181,6 +2187,8 @@ model CompanySettings {
   purchaseExpenseAccount Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
   ivaDFAccount           Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
   ivaCFAccount           Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
+  fxGainAccount          Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)
+  fxLossAccount          Account? @relation("SettingsFxLossAccount", fields: [fxLossAccountId], references: [id], onDelete: Restrict)
 
   // Bloque B Item 2: Firma del Contador Público Colegiado (CPC) para reportes
   accountantName      String? // Nombre completo del CPC

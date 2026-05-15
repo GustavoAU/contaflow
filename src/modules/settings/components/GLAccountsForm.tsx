@@ -30,6 +30,8 @@ type Props = {
     purchaseExpenseAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
+    fxGainAccountId: string | null;
+    fxLossAccountId: string | null;
   };
   initialUnbookedCount: number;
 };
@@ -88,6 +90,8 @@ export function GLAccountsForm({
   );
   const [ivaDFAccountId, setIvaDFAccountId] = useState(initialConfig.ivaDFAccountId ?? NONE);
   const [ivaCFAccountId, setIvaCFAccountId] = useState(initialConfig.ivaCFAccountId ?? NONE);
+  const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
+  const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
 
   const [isSaving, startSave] = useTransition();
@@ -117,6 +121,8 @@ export function GLAccountsForm({
         purchaseExpenseAccountId: toNull(purchaseExpenseAccountId),
         ivaDFAccountId: toNull(ivaDFAccountId),
         ivaCFAccountId: toNull(ivaCFAccountId),
+        fxGainAccountId: toNull(fxGainAccountId),
+        fxLossAccountId: toNull(fxLossAccountId),
       });
       if (result.success) {
         toast.success("Configuración del Libro Mayor guardada.");
@@ -227,6 +233,41 @@ export function GLAccountsForm({
             value={ivaCFAccountId}
             onChange={setIvaCFAccountId}
             accounts={assetAccounts}
+          />
+        </div>
+      </div>
+
+      {/* ── Diferencial Cambiario (NIC 21 / VEN-NIF BA-5) ─────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">Diferencial Cambiario</h3>
+          <span className="text-xs text-zinc-400">(NIC 21 / VEN-NIF BA-5)</span>
+          {fxGainAccountId !== NONE && fxLossAccountId !== NONE ? (
+            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+              Activo
+            </span>
+          ) : (
+            <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 rounded px-2 py-0.5">
+              Opcional
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <AccountSelect
+            id="fxGainAccountId"
+            label="Ganancia Cambiaria"
+            hint="INGRESO — Cr cuando la tasa sube en CxC (devaluación)"
+            value={fxGainAccountId}
+            onChange={setFxGainAccountId}
+            accounts={revenueAccounts}
+          />
+          <AccountSelect
+            id="fxLossAccountId"
+            label="Pérdida Cambiaria"
+            hint="GASTO — Dr cuando la tasa sube en CxP (devaluación)"
+            value={fxLossAccountId}
+            onChange={setFxLossAccountId}
+            accounts={expenseAccounts}
           />
         </div>
       </div>

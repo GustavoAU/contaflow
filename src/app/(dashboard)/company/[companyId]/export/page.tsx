@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { ExportForm } from "@/modules/export/components/ExportForm";
 import { ExportJobList } from "@/modules/export/components/ExportJobList";
+import { SIVITExportForm } from "@/modules/export/components/SIVITExportForm";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -47,7 +48,10 @@ export default async function ExportPage({ params }: Props) {
       </div>
 
       {canExport ? (
-        <ExportForm companyId={companyId} />
+        <>
+          <ExportForm companyId={companyId} />
+          <SIVITExportForm companyId={companyId} />
+        </>
       ) : (
         <div className="rounded-md border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
           Tu rol de Visualizador no permite exportar datos. Contacta al administrador de la empresa.

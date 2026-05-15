@@ -20,6 +20,8 @@ const SaveGLConfigSchema = z.object({
   purchaseExpenseAccountId: z.string().nullable(),
   ivaDFAccountId: z.string().nullable(),
   ivaCFAccountId: z.string().nullable(),
+  fxGainAccountId: z.string().nullable(),
+  fxLossAccountId: z.string().nullable(),
 });
 
 // ─── Leer config GL actual ─────────────────────────────────────────────────────
@@ -31,6 +33,8 @@ export async function getGLConfigAction(companyId: string): Promise<
     purchaseExpenseAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
+    fxGainAccountId: string | null;
+    fxLossAccountId: string | null;
     unbookedCount: number;
   }>
 > {
@@ -54,6 +58,8 @@ export async function getGLConfigAction(companyId: string): Promise<
           purchaseExpenseAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
+          fxGainAccountId: true,
+          fxLossAccountId: true,
         },
       }),
       prisma.invoice.count({
@@ -75,6 +81,8 @@ export async function getGLConfigAction(companyId: string): Promise<
         purchaseExpenseAccountId: settings?.purchaseExpenseAccountId ?? null,
         ivaDFAccountId: settings?.ivaDFAccountId ?? null,
         ivaCFAccountId: settings?.ivaCFAccountId ?? null,
+        fxGainAccountId: settings?.fxGainAccountId ?? null,
+        fxLossAccountId: settings?.fxLossAccountId ?? null,
         unbookedCount,
       },
     };

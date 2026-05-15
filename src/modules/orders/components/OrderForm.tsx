@@ -7,6 +7,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { createOrderAction } from "../actions/order.actions";
 import type { QuotationRow } from "../services/QuotationService";
+import { ProductCombobox } from "./ProductCombobox";
 
 interface Props {
   companyId: string;
@@ -62,6 +63,13 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   }
   function updateItem(idx: number, field: string, value: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
+  }
+  function updateItemDescription(idx: number, description: string, unit?: string) {
+    setItems((prev) =>
+      prev.map((item, i) =>
+        i === idx ? { ...item, description, ...(unit !== undefined ? { unit } : {}) } : item
+      )
+    );
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -187,8 +195,19 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
           {items.map((item, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-4">
-                {idx === 0 && <label className={labelCls}>Descripción</label>}
-                <input className={inputCls} value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} placeholder="Ítem" required />
+                {idx === 0 && <label className={labelCls}>Descripción{type === "SALE" ? " (buscar producto…)" : ""}</label>}
+                {type === "SALE" ? (
+                  <ProductCombobox
+                    companyId={companyId}
+                    value={item.description}
+                    onChange={(desc, unit) => updateItemDescription(idx, desc, unit)}
+                    inputCls={inputCls}
+                    placeholder="Nombre o SKU…"
+                    required
+                  />
+                ) : (
+                  <input className={inputCls} value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} placeholder="Ítem" required />
+                )}
               </div>
               <div className="col-span-1">
                 {idx === 0 && <label className={labelCls}>Unidad</label>}

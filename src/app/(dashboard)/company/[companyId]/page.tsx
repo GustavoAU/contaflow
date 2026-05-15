@@ -29,6 +29,7 @@ import { getVacationAlertsAction } from "@/modules/payroll/actions/nom-d.actions
 import { getP2034CountersAction } from "@/modules/analytics/actions/p2034-counters.actions";
 import { P2034Widget } from "@/modules/analytics/components/P2034Widget";
 import { PaymentSuccessToast } from "@/components/billing/PaymentSuccessToast";
+import { FiscalDeadlineWidget } from "@/modules/dashboard/components/FiscalDeadlineWidget";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -125,6 +126,7 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
     { label: "Retenciones", href: `/company/${companyId}/retentions`, icon: FileTextIcon, color: "text-orange-500" },
     { label: "Conciliación", href: `/company/${companyId}/bank-reconciliation`, icon: LandmarkIcon, color: "text-indigo-500" },
     { label: "Declaración IVA", href: `/company/${companyId}/iva-declaration`, icon: ScaleIcon, color: "text-red-500" },
+    { label: "Cal. Fiscal", href: `/company/${companyId}/fiscal-calendar`, icon: CalendarIcon, color: "text-cyan-500" },
   ];
 
   const operationsLinks: QuickLink[] = [
@@ -148,7 +150,7 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
       <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase tracking-wider">
         Accesos rápidos
       </h2>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
         {links.map((link) => {
           const Icon = link.icon;
           const isDisabled = link.href === "#";
@@ -321,6 +323,15 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
             Ver vacaciones →
           </a>
         </div>
+      )}
+
+      {/* ─── Calendario fiscal SENIAT ────────────────────────────────────── */}
+      {showKpis && company.rif && (
+        <FiscalDeadlineWidget
+          companyId={companyId}
+          rif={company.rif}
+          isSpecialContributor={company.isSpecialContributor ?? false}
+        />
       )}
 
       {/* ─── Accesos rápidos ─────────────────────────────────────────────── */}

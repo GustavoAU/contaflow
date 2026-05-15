@@ -2,7 +2,7 @@
 // Estrategia: CacheFirst para estáticos, NetworkFirst para navegación,
 // skip total para API/Server Actions (no cachear datos financieros).
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `contaflow-static-${CACHE_VERSION}`;
 const SHELL_CACHE = `contaflow-shell-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -15,6 +15,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(SHELL_CACHE)
       .then((cache) => cache.add(OFFLINE_URL))
+      .catch(() => {}) // /offline page may not exist yet — don't block install
       .then(() => self.skipWaiting())
   );
 });
@@ -52,7 +53,11 @@ self.addEventListener("fetch", (event) => {
     return;
 
   // ── Estáticos de Next.js → Cache First (inmutables por hash en nombre) ──
+  // En dev los nombres no tienen hash → network-first para no bloquear HMR
   if (url.pathname.startsWith("/_next/static/")) {
+    if (url.pathname.includes("/_next/static/chunks/") && !url.pathname.match(/[a-f0-9]{8,}\./)) {
+      return; // dev chunks sin hash → no interceptar
+    }
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
