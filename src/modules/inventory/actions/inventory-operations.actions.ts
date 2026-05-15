@@ -269,3 +269,45 @@ export async function getDraftMovementsAction(
     return { success: false, error: "Error inesperado" };
   }
 }
+
+// ── searchInventoryItemsAction — ROLES.OPERATIONS — lookup para product picker ─
+export async function searchInventoryItemsAction(
+  companyId: string,
+  query: string
+): Promise<ActionResult<{ id: string; name: string; sku: string; stockQuantity: string; baseUnitAbbr: string }[]>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Acceso denegado" };
+  if (!canAccess(member.role, ROLES.OPERATIONS))
+    return { success: false, error: "Acceso denegado" };
+
+  const q = query.trim();
+  if (q.length < 2) return { success: true, data: [] };
+
+  try {
+    const items = await prisma.inventoryItem.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { sku: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, name: true, sku: true, stockQuantity: true, baseUnitAbbr: true },
+      orderBy: { name: "asc" },
+      take: 10,
+    });
+    return {
+      success: true,
+      data: items.map((i) => ({ ...i, stockQuantity: i.stockQuantity.toString() })),
+    };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error" };
+  }
+}
