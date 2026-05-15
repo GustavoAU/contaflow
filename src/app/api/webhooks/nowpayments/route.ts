@@ -1,5 +1,6 @@
 // src/app/api/webhooks/nowpayments/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { verifyNowPaymentsSignature, type NowPaymentsIPN } from "@/lib/nowpayments";
 import * as BillingService from "@/modules/billing/services/BillingService";
 
@@ -34,11 +35,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    // Loguear detalle server-side; nunca exponer IDs internos en la respuesta HTTP
-    console.error("[nowpayments-webhook] Error procesando IPN:", {
-      message,
-      payment_id: ipn.payment_id,
-      status: ipn.payment_status,
+    // LOW-2: capturar en Sentry para observabilidad; nunca exponer IDs internos en la respuesta HTTP
+    Sentry.captureException(error, {
+      tags: { webhook: "nowpayments" },
+      extra: { payment_id: ipn.payment_id, payment_status: ipn.payment_status },
     });
 
     // Pago no encontrado → 200 (evita reintentos infinitos de NOWPayments)
