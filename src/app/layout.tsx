@@ -35,8 +35,6 @@ export const viewport: Viewport = {
   themeColor: "#18181b",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <ClerkProvider afterSignOutUrl="/sign-in">
       <html lang={locale}>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
           <PageTransitionProvider>
             <PageTransitionBar />
             <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
