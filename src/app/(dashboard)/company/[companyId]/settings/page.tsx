@@ -18,6 +18,8 @@ import { PermissionsMatrix } from "@/modules/company/components/PermissionsMatri
 import { getGrantsAction } from "@/modules/company/actions/permission.actions";
 import { CompanySeniatDataForm } from "@/modules/company/components/CompanySeniatDataForm";
 import { GLAccountsForm } from "@/modules/settings/components/GLAccountsForm";
+import { AccountantSignatureForm } from "@/modules/settings/components/AccountantSignatureForm";
+import { getAccountantConfigAction } from "@/modules/settings/actions/accountant-config.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -29,7 +31,7 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult, glConfigResult] =
+  const [locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult, glConfigResult, accountantConfigResult] =
     await Promise.all([
       getLocaleAction(),
       getUserCompaniesAction(),
@@ -39,6 +41,7 @@ export default async function SettingsPage({ params }: Props) {
       getMembersAction(companyId),
       getGrantsAction(companyId),
       getGLConfigAction(companyId),
+      getAccountantConfigAction(companyId),
     ]);
 
   const company = companies.find((c) => c.id === companyId);
@@ -57,6 +60,9 @@ export default async function SettingsPage({ params }: Props) {
     ? accountsResult.data.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))
     : [];
   const glConfig = glConfigResult.success ? glConfigResult.data : null;
+  const accountantConfig = accountantConfigResult.success
+    ? accountantConfigResult.data
+    : { accountantName: null, accountantTitle: null, accountantCpcNumber: null };
 
   return (
     <div className="space-y-6">
@@ -153,6 +159,21 @@ export default async function SettingsPage({ params }: Props) {
             initialUnbookedCount={glConfig?.unbookedCount ?? 0}
           />
         )}
+      </div>
+
+      {/* ── Firma del Contador (CPC) — Bloque B ──────────────────────────── */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Firma del Contador Público (CPC)</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Datos del Contador Público Colegiado que aparecerán en el bloque de firma
+            de los reportes financieros (VEN-NIF — requerido por SENIAT).
+          </p>
+        </div>
+        <AccountantSignatureForm
+          companyId={companyId}
+          initialConfig={accountantConfig}
+        />
       </div>
 
       {/* ── Firma Digital — Fase 35I ──────────────────────────────────────── */}

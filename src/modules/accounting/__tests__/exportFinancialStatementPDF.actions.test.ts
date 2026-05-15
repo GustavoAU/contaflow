@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
     company: { findFirst: vi.fn() },
+    companySettings: { findUnique: vi.fn() },
   },
 }));
 vi.mock("../actions/report.actions", () => ({
@@ -66,6 +67,7 @@ function setupHappyPath() {
   mockCheckRateLimit.mockResolvedValue({ allowed: true });
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
   vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "Empresa Test C.A.", rif: "J-12345678-9" } as never);
+  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
   mockGetBalanceSheetAction.mockResolvedValue({ success: true, data: BALANCED_SHEET });
   mockGetIncomeStatementAction.mockResolvedValue({ success: true, data: { current: INCOME_STMT } });
   mockGenerateBalanceSheetPDF.mockResolvedValue(Buffer.from("pdf-content"));
