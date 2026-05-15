@@ -625,14 +625,16 @@ export function InvoiceForm({
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Número de Control <span className="text-red-500">*</span>
+                Número de Control{" "}
+                {type === "PURCHASE" && <span className="text-red-500">*</span>}
               </label>
               <input
                 ref={controlNumberRef}
                 name="controlNumber"
-                required
+                required={type === "PURCHASE"}
+                pattern={type === "PURCHASE" ? "\\d{2}-\\d{8}" : undefined}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="00-0000001"
+                placeholder="00-00000001"
               />
             </div>
           </div>

@@ -159,8 +159,8 @@ describe("InvoiceForm — validación pre-submit", () => {
     render(<InvoiceForm {...BASE_PROPS} />);
 
     fireEvent.change(screen.getByPlaceholderText("0000001"), { target: { value: "F002" } });
-    fireEvent.change(screen.getByPlaceholderText("00-0000001"), {
-      target: { value: "00-0000001" },
+    fireEvent.change(screen.getByPlaceholderText("00-00000001"), {
+      target: { value: "00-00000001" },
     });
     fireEvent.change(screen.getByPlaceholderText("Razón Social"), {
       target: { value: "Proveedor" },
@@ -189,8 +189,8 @@ describe("InvoiceForm — submit exitoso", () => {
     render(<InvoiceForm {...BASE_PROPS} />);
 
     fireEvent.change(screen.getByPlaceholderText("0000001"), { target: { value: "F003" } });
-    fireEvent.change(screen.getByPlaceholderText("00-0000001"), {
-      target: { value: "00-0000001" },
+    fireEvent.change(screen.getByPlaceholderText("00-00000001"), {
+      target: { value: "00-00000001" },
     });
     fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "1000" } });
     fireEvent.change(screen.getByPlaceholderText("Razón Social"), {

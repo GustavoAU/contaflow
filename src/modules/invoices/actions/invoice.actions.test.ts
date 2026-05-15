@@ -94,7 +94,7 @@ const BASE_INPUT = {
   docType: "FACTURA",
   taxCategory: "GRAVADA",
   invoiceNumber: "0000001",
-  controlNumber: "00-0000001",
+  controlNumber: "00-00000001",
   date: "2026-03-01",
   counterpartName: "Cliente Demo C.A.",
   counterpartRif: "J-12345678-9",
@@ -410,7 +410,7 @@ describe("exportInvoiceBookPDFAction", () => {
 const mockInvoice = {
   id: "inv-1",
   invoiceNumber: "0000001",
-  controlNumber: "00-0000001",
+  controlNumber: "00-00000001",
   type: "SALE",
   docType: "FACTURA",
   date: new Date("2026-03-01"),
