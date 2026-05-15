@@ -855,41 +855,55 @@ export class InvoiceService {
         date: { gte: startDate, lt: endDate },
         deletedAt: null,
       },
-      include: { taxLines: true },
+      include: { taxLines: true, retenciones: { where: { deletedAt: null } } },
       orderBy: { date: "asc" },
     });
 
     // ─── Serializar ──────────────────────────────────────────────────────────
-    const rows: InvoiceBookRow[] = invoices.map((inv) => ({
-      id: inv.id,
-      date: inv.date,
-      invoiceNumber: inv.invoiceNumber,
-      controlNumber: inv.controlNumber,
-      relatedDocNumber: inv.relatedDocNumber,
-      importFormNumber: inv.importFormNumber,
-      reportZStart: inv.reportZStart,
-      reportZEnd: inv.reportZEnd,
-      docType: inv.docType,
-      taxCategory: inv.taxCategory,
-      counterpartName: inv.counterpartName,
-      counterpartRif: inv.counterpartRif,
-      ivaRetentionAmount: inv.ivaRetentionAmount.toFixed(2),
-      ivaRetentionVoucher: inv.ivaRetentionVoucher,
-      ivaRetentionDate: inv.ivaRetentionDate,
-      islrRetentionAmount: inv.islrRetentionAmount.toFixed(2),
-      igtfBase: inv.igtfBase.toFixed(2),
-      igtfAmount: inv.igtfAmount.toFixed(2),
-      currency: inv.currency,
-      exchangeRateId: inv.exchangeRateId,
-      taxLines: inv.taxLines.map((line) => ({
-        id: line.id,
-        taxType: line.taxType,
-        base: line.base.toFixed(2),
-        rate: line.rate.toFixed(2),
-        amount: line.amount.toFixed(2),
-        description: line.description ?? null,
-      })),
-    }));
+    const rows: InvoiceBookRow[] = invoices.map((inv) => {
+      // Derivar montos de retención desde Retenciones vinculadas (fuente de verdad)
+      // Fallback: campos denormalizados de Invoice si no hay retenciones vinculadas
+      const ivaFromRet = inv.retenciones
+        .filter((r) => r.type === "IVA" || r.type === "AMBAS")
+        .reduce((sum, r) => sum.plus(r.ivaRetention), new Decimal(0));
+      const islrFromRet = inv.retenciones
+        .filter((r) => r.type === "ISLR" || r.type === "AMBAS")
+        .reduce((sum, r) => sum.plus(r.islrAmount ?? new Decimal(0)), new Decimal(0));
+      const hasLinked = inv.retenciones.length > 0;
+      const ivaRetentionAmount = hasLinked ? ivaFromRet.toFixed(2) : inv.ivaRetentionAmount.toFixed(2);
+      const islrRetentionAmount = hasLinked ? islrFromRet.toFixed(2) : inv.islrRetentionAmount.toFixed(2);
+
+      return {
+        id: inv.id,
+        date: inv.date,
+        invoiceNumber: inv.invoiceNumber,
+        controlNumber: inv.controlNumber,
+        relatedDocNumber: inv.relatedDocNumber,
+        importFormNumber: inv.importFormNumber,
+        reportZStart: inv.reportZStart,
+        reportZEnd: inv.reportZEnd,
+        docType: inv.docType,
+        taxCategory: inv.taxCategory,
+        counterpartName: inv.counterpartName,
+        counterpartRif: inv.counterpartRif,
+        ivaRetentionAmount,
+        ivaRetentionVoucher: inv.ivaRetentionVoucher,
+        ivaRetentionDate: inv.ivaRetentionDate,
+        islrRetentionAmount,
+        igtfBase: inv.igtfBase.toFixed(2),
+        igtfAmount: inv.igtfAmount.toFixed(2),
+        currency: inv.currency,
+        exchangeRateId: inv.exchangeRateId,
+        taxLines: inv.taxLines.map((line) => ({
+          id: line.id,
+          taxType: line.taxType,
+          base: line.base.toFixed(2),
+          rate: line.rate.toFixed(2),
+          amount: line.amount.toFixed(2),
+          description: line.description ?? null,
+        })),
+      };
+    });
 
     // ─── Sumar taxLines por tipo ─────────────────────────────────────────────
     const sumTaxLines = (type: string) =>
@@ -906,9 +920,6 @@ export class InvoiceService {
         .reduce((acc, line) => acc.plus(line.base), new Decimal(0))
         .toFixed(2);
 
-    const sumField = (field: "ivaRetentionAmount" | "islrRetentionAmount" | "igtfAmount") =>
-      invoices.reduce((acc, inv) => acc.plus(inv[field] as Decimal), new Decimal(0)).toFixed(2);
-
     const summary: InvoiceBookSummary = {
       totalBaseGeneral: sumTaxBases("IVA_GENERAL"),
       totalIvaGeneral: sumTaxLines("IVA_GENERAL"),
@@ -917,9 +928,10 @@ export class InvoiceService {
       totalBaseAdditional: sumTaxBases("IVA_ADICIONAL"),
       totalIvaAdditional: sumTaxLines("IVA_ADICIONAL"),
       totalExempt: sumTaxBases("EXENTO"),
-      totalIvaRetention: sumField("ivaRetentionAmount"),
-      totalIslrRetention: sumField("islrRetentionAmount"),
-      totalIgtf: sumField("igtfAmount"),
+      // Sumar desde rows — ya incorporan montos derivados de Retenciones vinculadas
+      totalIvaRetention: rows.reduce((acc, r) => acc.plus(new Decimal(r.ivaRetentionAmount)), new Decimal(0)).toFixed(2),
+      totalIslrRetention: rows.reduce((acc, r) => acc.plus(new Decimal(r.islrRetentionAmount)), new Decimal(0)).toFixed(2),
+      totalIgtf: invoices.reduce((acc, inv) => acc.plus(inv.igtfAmount), new Decimal(0)).toFixed(2),
     };
 
     return { rows, summary };
