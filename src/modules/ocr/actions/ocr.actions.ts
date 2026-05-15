@@ -11,7 +11,8 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { GeminiOCRService } from "../services/GeminiOCRService";
-import type { ExtractedInvoice } from "../schemas/invoice.schema";
+import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
+import { generateOcrDraftPDF } from "../services/OcrDraftPDFService";
 import prisma from "@/lib/prisma";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
@@ -78,5 +79,61 @@ export async function extractInvoiceAction(
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
     return { success: false, error: "Error al procesar la factura" };
+  }
+}
+
+// ─── Exportar PDF borrador OCR ────────────────────────────────────────────────
+
+const ExportPDFSchema = z.object({
+  companyId: z.string().min(1, { error: "companyId requerido" }),
+  extracted: ExtractedInvoiceSchema,
+});
+
+/**
+ * Genera un comprobante PDF "BORRADOR" con los datos extraídos por OCR.
+ * No persiste nada en base de datos — solo genera el PDF para descarga.
+ */
+export async function exportOcrDraftPDFAction(
+  companyId: string,
+  extracted: ExtractedInvoice,
+): Promise<ActionResult<{ pdf: string; filename: string }>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const parsed = ExportPDFSchema.safeParse({ companyId, extracted });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId: parsed.data.companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: parsed.data.companyId },
+      select: { name: true, rif: true, address: true },
+    });
+
+    const buffer = await generateOcrDraftPDF({
+      extracted: parsed.data.extracted,
+      companyName: company?.name ?? "Empresa",
+      companyRif: company?.rif ?? "",
+      companyAddress: company?.address ?? null,
+      extractedAt: new Date(),
+    });
+
+    const invoiceNum = parsed.data.extracted.numeroFactura
+    const filename = `OCR-Borrador${invoiceNum ? `-${invoiceNum}` : ""}.pdf`
+
+    return {
+      success: true,
+      data: { pdf: buffer.toString("base64"), filename },
+    }
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error: error.message };
+    return { success: false, error: "Error al generar el PDF" };
   }
 }

@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon, ArrowRightIcon, Loader2Icon } from "lucide-react";
-import { extractInvoiceAction } from "@/modules/ocr/actions/ocr.actions";
+import { UploadIcon, ScanIcon, CheckIcon, FileTextIcon, XIcon, ArrowRightIcon, Loader2Icon, DownloadIcon } from "lucide-react";
+import { extractInvoiceAction, exportOcrDraftPDFAction } from "@/modules/ocr/actions/ocr.actions";
 import type { ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
 
 type Props = {
@@ -37,6 +37,7 @@ export function InvoiceUploader({ companyId }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [isDownloading, startDownload] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<"image/jpeg" | "image/png" | "image/webp">("image/jpeg");
   const [base64, setBase64] = useState<string>("");
@@ -99,6 +100,25 @@ export function InvoiceUploader({ companyId }: Props) {
     setFileName("");
     setExtracted(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleDownloadPDF() {
+    if (!extracted) return;
+    startDownload(async () => {
+      const result = await exportOcrDraftPDFAction(companyId, extracted);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      const bytes = Uint8Array.from(atob(result.data.pdf), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   function handleUseInForm() {
@@ -300,14 +320,29 @@ export function InvoiceUploader({ companyId }: Props) {
                 )}
               </div>
 
-              {/* Acción: usar en formulario */}
-              <div className="border-t bg-zinc-50 px-4 py-3">
+              {/* Acciones */}
+              <div className="border-t bg-zinc-50 px-4 py-3 flex flex-col gap-2">
                 <Button
                   onClick={handleUseInForm}
                   className="w-full gap-2"
+                  disabled={isPending || isDownloading}
                 >
                   <ArrowRightIcon className="h-4 w-4" />
                   Usar datos en formulario de factura
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadPDF}
+                  disabled={isPending || isDownloading}
+                  aria-busy={isDownloading}
+                  className="w-full gap-2"
+                >
+                  {isDownloading ? (
+                    <Loader2Icon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DownloadIcon className="h-4 w-4" />
+                  )}
+                  {isDownloading ? "Generando PDF..." : "Descargar PDF"}
                 </Button>
               </div>
             </div>
