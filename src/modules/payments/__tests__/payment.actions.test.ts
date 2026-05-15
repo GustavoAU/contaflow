@@ -23,6 +23,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    company: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -65,6 +66,7 @@ describe("createPaymentAction — security", () => {
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
         fn({ auditLog: prisma.auditLog })) as never,

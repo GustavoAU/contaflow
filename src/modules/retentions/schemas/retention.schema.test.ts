@@ -29,12 +29,12 @@ describe("CreateRetentionSchema — validación RIF (18.6)", () => {
       expect(result.success).toBe(true);
     });
 
-    it("acepta V-87654321 (venezolano sin dígito verificador)", () => {
+    it("rechaza V-87654321 (sin dígito verificador — ahora obligatorio)", () => {
       const result = CreateRetentionSchema.safeParse({
         ...BASE_RETENTION,
         providerRif: "V-87654321",
       });
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
 
     it("acepta j-12345678-9 (lowercase — case insensitive)", () => {

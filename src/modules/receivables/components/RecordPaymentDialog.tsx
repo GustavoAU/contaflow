@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { recordPaymentAction } from "../actions/receivable.actions";
 import type { ReceivableRow } from "../services/ReceivableService";
+import { Decimal } from "decimal.js";
 
 type Props = {
   companyId: string;
@@ -95,6 +96,12 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
   const maxAmount = parseFloat(row.pendingAmountVes);
   const enteredAmount = parseFloat(amount) || 0;
   const isAmountValid = enteredAmount > 0 && enteredAmount <= maxAmount;
+
+  // IGTF preview — calculado con Decimal.js para display (servidor recalcula al guardar)
+  const igtfAppliesLocally = selectedCurrency !== "VES";
+  const igtfPreview = igtfAppliesLocally && enteredAmount > 0
+    ? new Decimal(amount).mul("0.03").toDecimalPlaces(2).toString()
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -200,6 +207,13 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
+
+          {igtfPreview && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              IGTF 3% (pago en {selectedCurrency}) — se aplicará automáticamente:
+              <span className="ml-1 font-mono font-semibold">Bs.D {Number(igtfPreview).toLocaleString("es-VE", { minimumFractionDigits: 2 })}</span>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

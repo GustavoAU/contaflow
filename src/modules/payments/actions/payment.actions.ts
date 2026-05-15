@@ -11,6 +11,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CreatePaymentSchema } from "../schemas/payment.schema";
 import { PaymentService, PaymentRecordSummary } from "../services/PaymentService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -44,6 +45,16 @@ export async function createPaymentAction(
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
+    // IGTF: computar server-side con Decimal.js — nunca confiar en el valor del cliente
+    const company = await prisma.company.findFirst({
+      where: { id: d.companyId },
+      select: { isSpecialContributor: true },
+    });
+    const igtfApplies = IGTFService.applies(d.currency, company?.isSpecialContributor ?? false);
+    const computedIgtf = igtfApplies
+      ? new Decimal(IGTFService.calculate(d.amountVes, IGTF_RATE).igtfAmount)
+      : undefined;
+
     const dateObj = new Date(d.date + "T00:00:00.000Z");
 
     const result = await prisma.$transaction(
@@ -62,7 +73,7 @@ export async function createPaymentAction(
             destBank: d.destBank,
             commissionPct: d.commissionPct ? new Decimal(d.commissionPct) : undefined,
             commissionAmount: d.commissionAmount ? new Decimal(d.commissionAmount) : undefined,
-            igtfAmount: d.igtfAmount ? new Decimal(d.igtfAmount) : undefined,
+            igtfAmount: computedIgtf,
             date: dateObj,
             notes: d.notes,
             createdBy: userId, // always use authenticated userId

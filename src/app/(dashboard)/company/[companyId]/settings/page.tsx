@@ -3,6 +3,7 @@ import { getLocaleAction } from "@/modules/settings/actions/locale.actions";
 import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
 import { getAccountsAction } from "@/modules/accounting/actions/account.actions";
+import { getGLConfigAction } from "@/modules/settings/actions/gl-config.actions";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { LanguageSelector } from "@/modules/settings/LanguageSelector";
@@ -16,6 +17,7 @@ import { getMembersAction } from "@/modules/company/actions/member.actions";
 import { PermissionsMatrix } from "@/modules/company/components/PermissionsMatrix";
 import { getGrantsAction } from "@/modules/company/actions/permission.actions";
 import { CompanySeniatDataForm } from "@/modules/company/components/CompanySeniatDataForm";
+import { GLAccountsForm } from "@/modules/settings/components/GLAccountsForm";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -27,7 +29,7 @@ export default async function SettingsPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult] =
+  const [locale, companies, fiscalConfigResult, accountsResult, certStatusResult, membersResult, grantsResult, glConfigResult] =
     await Promise.all([
       getLocaleAction(),
       getUserCompaniesAction(),
@@ -36,6 +38,7 @@ export default async function SettingsPage({ params }: Props) {
       getCertificateStatusAction({ companyId }),
       getMembersAction(companyId),
       getGrantsAction(companyId),
+      getGLConfigAction(companyId),
     ]);
 
   const company = companies.find((c) => c.id === companyId);
@@ -50,6 +53,10 @@ export default async function SettingsPage({ params }: Props) {
         .filter((a) => a.type === "EQUITY")
         .map((a) => ({ id: a.id, code: a.code, name: a.name }))
     : [];
+  const allAccounts = accountsResult.success
+    ? accountsResult.data.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))
+    : [];
+  const glConfig = glConfigResult.success ? glConfigResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -116,6 +123,36 @@ export default async function SettingsPage({ params }: Props) {
             currentPaymentTermDays={company.paymentTermDays}
           />
         </div>
+      </div>
+
+      {/* ── Integración Libro Mayor (GL) — ADR-026 ───────────────────────── */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Integración con Libro Mayor</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Define las cuentas contables para la causación automática de facturas.
+            Al guardar esta configuración, cada nueva factura generará su asiento en el Libro Diario.
+          </p>
+        </div>
+        {allAccounts.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No hay cuentas en el plan de cuentas. Crea cuentas contables antes de configurar la integración.
+          </p>
+        ) : (
+          <GLAccountsForm
+            companyId={companyId}
+            allAccounts={allAccounts}
+            initialConfig={{
+              arAccountId: glConfig?.arAccountId ?? null,
+              apAccountId: glConfig?.apAccountId ?? null,
+              salesAccountId: glConfig?.salesAccountId ?? null,
+              purchaseExpenseAccountId: glConfig?.purchaseExpenseAccountId ?? null,
+              ivaDFAccountId: glConfig?.ivaDFAccountId ?? null,
+              ivaCFAccountId: glConfig?.ivaCFAccountId ?? null,
+            }}
+            initialUnbookedCount={glConfig?.unbookedCount ?? 0}
+          />
+        )}
       </div>
 
       {/* ── Firma Digital — Fase 35I ──────────────────────────────────────── */}

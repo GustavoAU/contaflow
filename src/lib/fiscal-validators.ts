@@ -4,10 +4,10 @@
 /**
  * Regex canónica para RIF venezolano.
  * Prefijos: J=Jurídica, V=Natural, E=Extranjero, G=Gobierno, C=Comunal, P=Pasaporte
- * Dígito verificador opcional (campo Prisma lo almacena completo).
+ * Dígito verificador obligatorio — formato: J-12345678-9 o J-123456789
  * Case-insensitive para tolerancia de entrada.
  */
-export const VEN_RIF_REGEX = /^[JVEGCP]-\d{8}-?\d?$/i;
+export const VEN_RIF_REGEX = /^[JVEGCP]-\d{8}-?\d$/i;
 
 export function validateVenezuelanRif(rif: string): boolean {
   return VEN_RIF_REGEX.test(rif);

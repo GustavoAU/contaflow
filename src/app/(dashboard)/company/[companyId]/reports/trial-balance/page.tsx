@@ -1,12 +1,14 @@
 // src/app/(dashboard)/company/[companyId]/reports/trial-balance/page.tsx
 import { getTrialBalanceAction } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
+import { TrialBalanceFilter } from "@/components/reports/TrialBalanceFilter";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -34,13 +36,24 @@ function fmt(v: string | number): string {
   }).format(typeof v === "string" ? parseFloat(v) : v);
 }
 
-export default async function TrialBalancePage({ params }: Props) {
+export default async function TrialBalancePage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const result = await getTrialBalanceAction(companyId);
+  const { from, to } = await searchParams;
+
+  const dateFrom = from ? new Date(from) : undefined;
+  const dateTo = to ? new Date(to + "T23:59:59") : undefined;
+  const result = await getTrialBalanceAction(companyId, dateFrom, dateTo);
 
   if (!result.success) redirect("/dashboard");
 
   const rows = result.data;
+
+  function periodLabel(): string {
+    if (from && to) return `${from} – ${to}`;
+    if (from) return `Desde ${from}`;
+    if (to) return `Hasta ${to}`;
+    return "Acumulado (todo el período)";
+  }
 
   // Agrupar por tipo en orden contable
   const TYPE_ORDER = ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -67,10 +80,12 @@ export default async function TrialBalancePage({ params }: Props) {
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Balance de Comprobación</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Sumas y saldos de todas las cuentas</p>
+          <p className="text-muted-foreground mt-1 text-sm">{periodLabel()}</p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="trial-balance" />
       </div>
+
+      <TrialBalanceFilter defaultFrom={from} defaultTo={to} />
 
       {rows.length === 0 ? (
         <div className="text-muted-foreground py-12 text-center text-sm">

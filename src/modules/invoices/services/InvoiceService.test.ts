@@ -57,6 +57,7 @@ const makeInvoiceRow = (overrides = {}) => ({
   currency: "VES",
   exchangeRateId: null,
   taxLines: [makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00")],
+  retenciones: [],
   createdAt: new Date("2026-03-01"),
   ...overrides,
 });
@@ -210,6 +211,22 @@ describe("InvoiceService.getBook", () => {
     const result = await InvoiceService.getBook(FILTER);
 
     expect(result.summary.totalIgtf).toBe("30.00");
+  });
+
+  it("deriva ivaRetentionAmount desde Retencion vinculada (no Invoice.ivaRetentionAmount)", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      makeInvoiceRow({
+        ivaRetentionAmount: new Decimal("0"), // campo Invoice en 0
+        retenciones: [
+          { type: "IVA", ivaRetention: new Decimal("120.00"), islrAmount: null },
+        ],
+      }),
+    ] as never);
+
+    const result = await InvoiceService.getBook(FILTER);
+
+    expect(result.rows[0].ivaRetentionAmount).toBe("120.00");
+    expect(result.summary.totalIvaRetention).toBe("120.00");
   });
 
   it("filtra por tipo PURCHASE correctamente", async () => {
