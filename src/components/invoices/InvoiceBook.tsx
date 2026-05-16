@@ -137,10 +137,12 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       "Comprobante IVA",
       ...(type === "PURCHASE" ? ["ISLR Retenido"] : []),
       ...(type === "SALE" ? ["Base IGTF", "Monto IGTF"] : []),
+      "Total",
     ]);
 
     result.rows.forEach((row: InvoiceBookRow) => {
       if (row.taxLines.length === 0) {
+        const rowTotalExcel = parseFloat(row.igtfAmount);
         ws.addRow([
           fmtDate(row.date),
           row.counterpartName,
@@ -156,8 +158,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
           row.ivaRetentionVoucher ?? "",
           ...(type === "PURCHASE" ? [row.islrRetentionAmount] : []),
           ...(type === "SALE" ? [row.igtfBase, row.igtfAmount] : []),
+          rowTotalExcel > 0 ? rowTotalExcel : "—",
         ]);
       } else {
+        const rowTotalExcel = row.taxLines.reduce(
+          (acc, l) => acc + parseFloat(l.base) + parseFloat(l.amount),
+          0
+        ) + parseFloat(row.igtfAmount);
         row.taxLines.forEach((line, idx) => {
           ws.addRow([
             idx === 0 ? fmtDate(row.date) : "",
@@ -179,6 +186,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
             ...(type === "SALE"
               ? [idx === 0 ? row.igtfBase : "", idx === 0 ? row.igtfAmount : ""]
               : []),
+            idx === 0 ? rowTotalExcel : "",
           ]);
         });
       }
@@ -195,6 +203,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
       s.totalIvaRetention, "",
       ...(type === "PURCHASE" ? [s.totalIslrRetention] : []),
       ...(type === "SALE" ? ["", s.totalIgtf] : []),
+      result.rows.reduce((acc, row) => {
+        return acc + row.taxLines.reduce((a, l) => a + parseFloat(l.base) + parseFloat(l.amount), 0) + parseFloat(row.igtfAmount);
+      }, 0),
     ]);
 
     const buffer = await wb.xlsx.writeBuffer();
@@ -353,7 +364,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
 
                       const expansionRow = ncNdOpen ? (
                         <tr key={`ncnd-${row.id}`} className="bg-zinc-50">
-                          <td colSpan={12} className="border-t p-0">
+                          <td colSpan={13} className="border-t p-0">
                             <CreditDebitNotesPanel companyId={companyId} invoiceId={row.id} />
                           </td>
                         </tr>
@@ -414,7 +425,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   {row.igtfAmount}
                                 </td>
                               )}
-                              <td className="px-4 py-3 text-right font-mono text-zinc-400">—</td>
+                              <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                                {rowTotal > 0 ? formatAmount(rowTotal) : "—"}
+                              </td>
                             </tr>
                           ) : (
                             row.taxLines.map((line, idx) => (
