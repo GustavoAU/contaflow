@@ -345,10 +345,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                     {result.rows.map((row) => {
                       const isFactura = row.docType === "FACTURA";
                       const ncNdOpen = expandedNcNdId === row.id;
-                      const rowTotal = row.taxLines.reduce(
-                        (acc, line) => acc + parseFloat(line.base) + parseFloat(line.amount),
-                        0
-                      ) + parseFloat(row.igtfAmount);
+                      const totalBase = row.taxLines.reduce((acc, l) => acc + parseFloat(l.base), 0);
+                      const totalIva  = row.taxLines.reduce((acc, l) => acc + parseFloat(l.amount), 0);
+                      const igtf = parseFloat(row.igtfAmount);
+                      const rowTotal = totalBase + totalIva + igtf;
+                      const totalTooltip = row.taxLines.length > 0
+                        ? `Base: ${formatAmount(totalBase)} | IVA: ${formatAmount(totalIva)}${igtf > 0 ? ` | IGTF: ${formatAmount(igtf)}` : ""}`
+                        : undefined;
 
                       // Botón NC/ND solo para FACTURAs
                       const ncNdButton = isFactura ? (
@@ -425,7 +428,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                   {row.igtfAmount}
                                 </td>
                               )}
-                              <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                              <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={totalTooltip}>
                                 {rowTotal > 0 ? formatAmount(rowTotal) : "—"}
                               </td>
                             </tr>
@@ -493,7 +496,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                 {idx === 0 ? row.igtfAmount : ""}
                               </td>
                             )}
-                            <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={idx === 0 ? totalTooltip : undefined}>
                               {idx === 0 ? formatAmount(rowTotal) : ""}
                             </td>
                           </tr>

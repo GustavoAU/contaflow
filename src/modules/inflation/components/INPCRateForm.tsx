@@ -88,9 +88,10 @@ export function INPCRateForm({ companyId, onSaved }: Props) {
       <button
         type="submit"
         disabled={isPending}
-        className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
       >
-        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar Índice"}
+        {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+        {isPending ? "Guardando..." : "Guardar Índice"}
       </button>
       {error && <p className="w-full text-xs text-red-600">{error}</p>}
     </form>
