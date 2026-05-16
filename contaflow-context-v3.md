@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — main limpio. Vercel GREEN ✅ (`bfcf685`)
+Ninguna — main limpio. commit `bd51399`
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **EmployeeLoan 2026-05-16** ✅ merged — `LoanStatus` enum + `EmployeeLoan` model (migración aplicada), `PRESTAMO_EMP` en SYSTEM_CONCEPTS, `EmployeeLoanService`, `employee-loan.actions.ts`, `PayrollRunService` inyecta cuotas en create() y actualiza saldos en approve(), UI `/payroll/loans` + `LoanTable` + `CreateLoanForm` + card en hub nómina. commit `bd51399`.
 - **TODOS LOS ÍTEMS BACKLOG 2026-05-16** ✅ — Grupos 7-9 confirmados YA ESTABA tras revisión código.
 - **CONT-LM YA ESTABA 2026-05-16** ✅ — período en header, saldo anterior por cuenta, firma contador al pie ya implementados en `FinancialStatementsPDFService.ts` + `getLedgerAction` + `LedgerAccountBlock`. Sin cambios de código.
 - **FAC-4/FAC-5 2026-05-16** ✅ merged — UTC timezone explícito en fmtDate + Date.UTC en filtro getBook; columna Total en libro facturas + colSpan NC/ND corregido a 13. commit bfcf685.
@@ -54,7 +55,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1937 tests GREEN | 0 TS errors** (2026-05-15)
+**1937 tests GREEN | 0 TS errors** (2026-05-16)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
@@ -65,7 +66,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 
 ### Próximas fases (backlog inmediato)
 - **BACKLOG PRE-LANZAMIENTO COMPLETADO** — confirmar con el usuario si hay nuevos ítems o proceder al lanzamiento
-- **Post-lanzamiento diferido:** 35B, 35C, 36A, 36B, 36E | RIVA XML | ISLR TXT | EmployeeLoan
+- **Post-lanzamiento diferido:** 35B, 35C, 36A, 36B, 36E | RIVA XML | ISLR TXT
 
 ---
 
