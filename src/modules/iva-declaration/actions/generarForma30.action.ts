@@ -163,3 +163,75 @@ export async function generarForma30Action(
     return { success: false, error: "Error al calcular la declaración de IVA" };
   }
 }
+
+// ─── Drill-down C1: facturas de venta con retención IVA sufrida ───────────────
+
+export type RetenciónSufridaRow = {
+  id: string;
+  invoiceNumber: string;
+  controlNumber: string | null;
+  counterpartName: string;
+  counterpartRif: string;
+  date: string;
+  ivaRetentionAmount: string;
+  currency: string;
+};
+
+export async function getRetencionesSufridas(
+  companyId: string,
+  year: number,
+  month: number,
+): Promise<ActionResult<RetenciónSufridaRow[]>> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  try {
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
+    const periodStart = new Date(year, month - 1, 1);
+    const periodEnd = new Date(year, month, 1);
+
+    // ADR-004-EXCEPTION: lookup global de retenciones sufridas — companyId siempre presente en where
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: "SALE",
+        date: { gte: periodStart, lt: periodEnd },
+        ivaRetentionAmount: { gt: 0 },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        controlNumber: true,
+        counterpartName: true,
+        counterpartRif: true,
+        date: true,
+        ivaRetentionAmount: true,
+        currency: true,
+      },
+      orderBy: { date: "asc" },
+    });
+
+    return {
+      success: true,
+      data: invoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        controlNumber: inv.controlNumber,
+        counterpartName: inv.counterpartName,
+        counterpartRif: inv.counterpartRif,
+        date: inv.date.toISOString(),
+        ivaRetentionAmount: inv.ivaRetentionAmount?.toString() ?? "0.00",
+        currency: inv.currency,
+      })),
+    };
+  } catch (err) {
+    if (err instanceof Error) return { success: false, error: err.message };
+    return { success: false, error: "Error al consultar retenciones sufridas" };
+  }
+}
