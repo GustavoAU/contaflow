@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **loan-gl 2026-05-16** ✅ merged — `loanReceivableAccountId` + `disbursementBankAccountId` en `PayrollConfig`; asiento desembolso en `EmployeeLoanService.create()` (DÉBITO Préstamos a Empleados / CRÉDITO Banco); causación `approve()` corregida (cuotas PRESTAMO_EMP excluidas de Gastos de Personal, creditadas contra activo). commit `f8bfa4c`.
 - **EmployeeLoan 2026-05-16** ✅ merged — `LoanStatus` enum + `EmployeeLoan` model (migración aplicada), `PRESTAMO_EMP` en SYSTEM_CONCEPTS, `EmployeeLoanService`, `employee-loan.actions.ts`, `PayrollRunService` inyecta cuotas en create() y actualiza saldos en approve(), UI `/payroll/loans` + `LoanTable` + `CreateLoanForm` + card en hub nómina. commit `bd51399`.
 - **TODOS LOS ÍTEMS BACKLOG 2026-05-16** ✅ — Grupos 7-9 confirmados YA ESTABA tras revisión código.
 - **CONT-LM YA ESTABA 2026-05-16** ✅ — período en header, saldo anterior por cuenta, firma contador al pie ya implementados en `FinancialStatementsPDFService.ts` + `getLedgerAction` + `LedgerAccountBlock`. Sin cambios de código.
