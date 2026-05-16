@@ -201,13 +201,20 @@ export function InflationAdjustmentPanel({
             <h3 className="text-sm font-semibold text-gray-800">
               Asientos proyectados — {MONTHS[periodMonth]} {periodYear}
             </h3>
-            {hasRows && totalAdjustment !== null && (
-              <div className="flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5">
-                <span className="text-xs font-medium text-indigo-700">Total ajuste INPC:</span>
-                <span className="font-mono text-sm font-bold text-indigo-900">{fmt(totalAdjustment)}</span>
-              </div>
-            )}
           </div>
+
+          {hasRows && totalAdjustment !== null && (
+            <div className="rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide">Total ajuste INPC</p>
+                <p className="font-mono text-2xl font-bold text-indigo-900 mt-0.5">Bs. {fmt(totalAdjustment)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-indigo-500">{MONTHS[periodMonth]} {periodYear}</p>
+                <p className="text-xs text-indigo-400 mt-0.5">{previewRows?.length ?? 0} cuentas afectadas</p>
+              </div>
+            </div>
+          )}
 
           {!hasRows ? (
             <p className="text-sm text-gray-500 py-4 text-center">

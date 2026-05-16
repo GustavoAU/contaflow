@@ -18,7 +18,7 @@ interface InventoryHit {
 interface Props {
   companyId: string;
   value: string;
-  onChange: (description: string, unit?: string) => void;
+  onChange: (description: string, unit?: string, stockQuantity?: string) => void;
   inputCls: string;
   placeholder?: string;
   required?: boolean;
@@ -76,7 +76,7 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
     setQuery(hit.name);
     setOpen(false);
     setResults([]);
-    onChange(hit.name, hit.baseUnitAbbr);
+    onChange(hit.name, hit.baseUnitAbbr, hit.stockQuantity);
   }
 
   const stockColor = (qty: string) => {

@@ -318,7 +318,7 @@ export function AccountsTable({
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="ASSET">Activo</SelectItem>
                         <SelectItem value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</SelectItem>
                         <SelectItem value="LIABILITY">Pasivo</SelectItem>

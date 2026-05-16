@@ -21,7 +21,7 @@ const TAX_RATES = [
   { value: "16", label: "16% — General" },
 ];
 
-const DEFAULT_ITEM = { description: "", unit: "und", quantity: "1", unitPrice: "", taxRate: "16" };
+const DEFAULT_ITEM = { description: "", unit: "und", quantity: "1", unitPrice: "", taxRate: "16", stockQuantity: null as string | null };
 
 export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -50,6 +50,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
           quantity: Number(i.quantity).toString(),
           unitPrice: Number(i.unitPrice).toString(),
           taxRate: Math.round(Number(i.taxRate)).toString() as "0" | "8" | "16",
+          stockQuantity: null,
         }))
       );
     }
@@ -64,10 +65,12 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   function updateItem(idx: number, field: string, value: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   }
-  function updateItemDescription(idx: number, description: string, unit?: string) {
+  function updateItemDescription(idx: number, description: string, unit?: string, stockQuantity?: string) {
     setItems((prev) =>
       prev.map((item, i) =>
-        i === idx ? { ...item, description, ...(unit !== undefined ? { unit } : {}) } : item
+        i === idx
+          ? { ...item, description, ...(unit !== undefined ? { unit } : {}), stockQuantity: stockQuantity ?? null }
+          : item
       )
     );
   }
@@ -200,7 +203,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
                   <ProductCombobox
                     companyId={companyId}
                     value={item.description}
-                    onChange={(desc, unit) => updateItemDescription(idx, desc, unit)}
+                    onChange={(desc, unit, stock) => updateItemDescription(idx, desc, unit, stock)}
                     inputCls={inputCls}
                     placeholder="Nombre o SKU…"
                     required
@@ -216,6 +219,11 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Cantidad</label>}
                 <input type="number" min="0.0001" step="0.0001" className={inputCls} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} required />
+                {type === "SALE" && item.stockQuantity !== null && (
+                  <p className={`mt-0.5 text-[10px] font-mono ${parseFloat(item.stockQuantity) <= 0 ? "text-red-600" : parseFloat(item.stockQuantity) <= 5 ? "text-amber-600" : "text-green-700"}`}>
+                    Stock: {parseFloat(item.stockQuantity).toFixed(2)}
+                  </p>
+                )}
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Precio unit.</label>}
