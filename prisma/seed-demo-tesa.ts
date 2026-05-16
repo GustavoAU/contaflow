@@ -5,9 +5,10 @@
 //
 // Cubre: empresa, cuentas, período, tasas BCV, proveedores, clientes,
 //        inventario (SERIAL + LOT + NONE), lotes, seriales, activos fijos,
-//        empleados, nómina (DRAFT), prestaciones, facturas (0%/8%/16%/31%),
-//        retenciones IVA+ISLR, pagos mixtos, IGTF, conciliación BNC,
-//        cotizaciones, órdenes, gastos, caja chica, asientos contables.
+//        empleados, nómina (DRAFT), prestaciones, préstamo empleado,
+//        facturas (0%/8%/16%/31%), retenciones IVA+ISLR, pagos mixtos,
+//        IGTF, conciliación BNC, cotizaciones, órdenes, gastos, caja chica,
+//        asientos contables.
 //
 // IDEMPOTENTE: se puede correr múltiples veces.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ import {
   LegalThresholdType,
   BcvRateType,
   BenefitAccrualType,
+  LoanStatus,
 } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
@@ -121,6 +123,7 @@ async function main() {
     { code: "1120", name: "IVA Crédito Fiscal", type: "ASSET", isMonetary: true },
     { code: "1305", name: "Cuentas por Cobrar — Clientes", type: "ASSET", isMonetary: true },
     { code: "1310", name: "Anticipo a Proveedores", type: "ASSET", isMonetary: true },
+    { code: "1315", name: "Préstamos a Empleados", type: "ASSET", isMonetary: true },
     { code: "1505", name: "Servidores y Equipos de Red", type: "ASSET" },
     { code: "1510", name: "Dep. Acum. — Servidores y Equipos", type: "CONTRA_ASSET" },
     { code: "1520", name: "Vehículos", type: "ASSET" },
@@ -484,30 +487,35 @@ async function main() {
   // ── 12. PayrollConfig + Conceptos ─────────────────────────────────────────
   console.log("\n⚙️  Nómina config...");
   const existingPayrollConfig = await prisma.payrollConfig.findUnique({ where: { companyId: cId } });
+  const payrollConfigData = {
+    companyId: cId, frequency: "MONTHLY" as PayrollFrequency, lottRegime: "POST_2012" as LottRegime,
+    sizeRange: "SMALL" as PayrollSizeRange, paymentCurrency: "USD" as PayrollPaymentCurrency,
+    ivssEnabled: true, incesEnabled: true, banavihEnabled: true, rpeEnabled: true,
+    cestaTicketType: "CARD" as CestaTicketType, fideicomiso: "INTERNAL" as FideicomisoType,
+    salaryMinimumVes: "130.00", utValue: "43.00",
+    profitDays: 30, vacationBonusDays: 7,
+    expenseAccountId:              accounts["5105"],
+    payableAccountId:              accounts["2210"],
+    ivssPayableAccountId:          accounts["2215"],
+    incesPayableAccountId:         accounts["2220"],
+    faovPayableAccountId:          accounts["2215"],
+    rpePayableAccountId:           accounts["2210"],
+    benefitsExpenseAccountId:      accounts["5107"],
+    benefitsPayableAccountId:      accounts["2230"],
+    vacationPayableAccountId:      accounts["2225"],
+    profitSharingPayableAccountId: accounts["2225"],
+    loanReceivableAccountId:       accounts["1315"],
+    disbursementBankAccountId:     accounts["1110"],
+  };
   if (!existingPayrollConfig) {
-    await prisma.payrollConfig.create({
-      data: {
-        companyId: cId, frequency: "MONTHLY" as PayrollFrequency, lottRegime: "POST_2012" as LottRegime,
-        sizeRange: "SMALL" as PayrollSizeRange, paymentCurrency: "USD" as PayrollPaymentCurrency,
-        ivssEnabled: true, incesEnabled: true, banavihEnabled: true, rpeEnabled: true,
-        cestaTicketType: "CARD" as CestaTicketType, fideicomiso: "INTERNAL" as FideicomisoType,
-        salaryMinimumVes: "130.00", utValue: "43.00",
-        profitDays: 30, vacationBonusDays: 7,
-        expenseAccountId:             accounts["5105"],
-        payableAccountId:             accounts["2210"],
-        ivssPayableAccountId:         accounts["2215"],
-        incesPayableAccountId:        accounts["2220"],
-        faovPayableAccountId:         accounts["2215"],
-        rpePayableAccountId:          accounts["2210"],
-        benefitsExpenseAccountId:     accounts["5107"],
-        benefitsPayableAccountId:     accounts["2230"],
-        vacationPayableAccountId:     accounts["2225"],
-        profitSharingPayableAccountId: accounts["2225"],
-      },
-    });
+    await prisma.payrollConfig.create({ data: payrollConfigData });
     console.log("  ✅ PayrollConfig creada");
   } else {
-    console.log("  ⏭️  PayrollConfig ya existe");
+    await prisma.payrollConfig.update({
+      where: { companyId: cId },
+      data: { loanReceivableAccountId: accounts["1315"], disbursementBankAccountId: accounts["1110"] },
+    });
+    console.log("  ✅ PayrollConfig actualizada (cuentas préstamo)");
   }
 
   // Conceptos de nómina
@@ -578,6 +586,32 @@ async function main() {
     console.log("  ✅ BenefitBalance Alejandro Blanco — saldo Bs. 8,450.00 + intereses Bs. 312.80");
   } else {
     console.log("  ⏭️  BenefitBalance ya existe");
+  }
+
+  // ── 14B. Préstamo a Empleado (Alejandro Blanco) ───────────────────────────
+  console.log("\n🤝 Préstamo empleado...");
+  const existingLoan = await prisma.employeeLoan.findFirst({
+    where: { companyId: cId, employeeId: empIds["Blanco"] },
+  });
+  if (!existingLoan) {
+    // $3,000 USD en 12 cuotas de $250. Ya pagó Feb + Mar 2026 (2 cuotas).
+    await prisma.employeeLoan.create({
+      data: {
+        companyId: cId,
+        employeeId: empIds["Blanco"],
+        totalAmount:        "3000.0000",
+        currency:           "USD",
+        installments:       12,
+        installmentAmount:  "250.0000",
+        paidInstallments:   2,
+        remainingBalance:   "2500.0000",
+        status:             "ACTIVE" as LoanStatus,
+        description:        "Préstamo personal — adquisición de equipo médico familiar",
+      },
+    });
+    console.log("  ✅ EmployeeLoan — Alejandro Blanco — $3,000 USD / 12 cuotas ($250/mes) — 2 pagadas");
+  } else {
+    console.log("  ⏭️  EmployeeLoan ya existe");
   }
 
   // ── 15. PayrollRun DRAFT — Abril 2026 ─────────────────────────────────────
