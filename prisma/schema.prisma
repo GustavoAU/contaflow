@@ -302,6 +302,8 @@ model Account {
   payrollConfigsAsBenefitsPayable  PayrollConfig[]          @relation("PayrollBenefitsPayable")
   payrollConfigsAsVacationPayable  PayrollConfig[]          @relation("PayrollVacationPayable")
   payrollConfigsAsProfitPayable    PayrollConfig[]          @relation("PayrollProfitPayable")
+  payrollConfigsAsLoanReceivable   PayrollConfig[]          @relation("PayrollLoanReceivable")
+  payrollConfigsAsDisbursementBank PayrollConfig[]          @relation("PayrollDisbursementBank")
   // Fase 37B: Módulo Gastos
   expensesAsAccount                Expense[]                @relation("ExpenseAccount")
   expenseCategoryDefaults          ExpenseCategory[]        @relation("ExpenseCategoryAccount")
@@ -1478,6 +1480,9 @@ model PayrollConfig {
   benefitsPayableAccountId      String? // LIABILITY — Prestaciones Sociales por Pagar
   vacationPayableAccountId      String? // LIABILITY — Vacaciones por Pagar
   profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
+  // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
+  loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
+  disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
   // Fase NOM-D: Configuración de beneficios legales
   profitDays                    Int                    @default(15) // días de utilidades (15–120 LOTTT Art. 131)
   vacationBonusDays             Int                    @default(7) // días bono vacacional año 1 (LOTTT Art. 223)
@@ -1506,6 +1511,8 @@ model PayrollConfig {
   benefitsPayableAccount      Account? @relation("PayrollBenefitsPayable", fields: [benefitsPayableAccountId], references: [id], onDelete: Restrict)
   vacationPayableAccount      Account? @relation("PayrollVacationPayable", fields: [vacationPayableAccountId], references: [id], onDelete: Restrict)
   profitSharingPayableAccount Account? @relation("PayrollProfitPayable", fields: [profitSharingPayableAccountId], references: [id], onDelete: Restrict)
+  loanReceivableAccount       Account? @relation("PayrollLoanReceivable", fields: [loanReceivableAccountId], references: [id], onDelete: Restrict)
+  disbursementBankAccount     Account? @relation("PayrollDisbursementBank", fields: [disbursementBankAccountId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {
