@@ -250,8 +250,8 @@ describe("InvoiceService.getBook", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           date: {
-            gte: new Date(2026, 2, 1),
-            lt: new Date(2026, 3, 1),
+            gte: new Date(Date.UTC(2026, 2, 1)),
+            lt: new Date(Date.UTC(2026, 3, 1)),
           },
         }),
       })

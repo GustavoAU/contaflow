@@ -14,9 +14,13 @@ export function formatAmount(value: string | number, currency?: "VES" | "USD" | 
   return currency === "USD" ? USD_FORMAT.format(num) : VE_FORMAT.format(num);
 }
 
+// FAC-4: siempre muestra la fecha UTC (sin ajuste de zona horaria) porque las fechas
+// de facturas se almacenan como medianoche UTC desde el date-picker del usuario.
+// Usar toLocaleDateString con timeZone: "UTC" es más explícito y robusto que extraer
+// componentes UTC manualmente, y funciona igual en cualquier timezone del servidor.
 export function fmtDate(d: Date | string): string {
   const dt = d instanceof Date ? d : new Date(d as string);
-  return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()).toLocaleDateString("es-VE");
+  return dt.toLocaleDateString("es-VE", { timeZone: "UTC" });
 }
 
 /**
