@@ -9,9 +9,17 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — main limpio.
+Ninguna — main limpio. Vercel GREEN ✅ (`bfcf685`)
 
 ### Completadas recientes
+- **CONT-LM YA ESTABA 2026-05-16** ✅ — período en header, saldo anterior por cuenta, firma contador al pie ya implementados en `FinancialStatementsPDFService.ts` + `getLedgerAction` + `LedgerAccountBlock`. Sin cambios de código.
+- **FAC-4/FAC-5 2026-05-16** ✅ merged — UTC timezone explícito en fmtDate + Date.UTC en filtro getBook; columna Total en libro facturas + colSpan NC/ND corregido a 13. commit bfcf685.
+- **CAJA-1 2026-05-16** ✅ merged — fix 404 /cajachica: useEffect en CajaCajaPageClient (useState initializer ilegal en React). commit cd8d786.
+- **AF-39 2026-05-16** ✅ — badge ámbar "Vence en N mes(es)" / rojo "Vida útil agotada" en tabla activos fijos.
+- **VAC-1/VAC-2 2026-05-16** ✅ — workSchedule en PayrollConfig + countWorkingDays + radio jornada en PayrollWizard + días hábiles en VacationPanel + balance visual vacaciones.
+- **fix(build) 2026-05-15** ✅ — `prisma generate` movido a script `build` (evita Vercel usar cliente Prisma cacheado desactualizado). main `fabafa5`.
+- **Bloque C 2026-05-15** ✅ merged — SIVIT TXT export, Calendario SENIAT, Diferencial Cambiario NIC21 + FxRevaluationClient + ADR-027, OCR PDF borrador (`exportOcrDraftPDFAction`), Landing refactor (Plus Jakarta Sans + CSS modules + LandingClient), PWA sw.js v2 (HMR fix + blob: worker-src), ProductCombobox (debounce 300ms, píldora stock). CSP connect-src + api.nowpayments.io. 1937 tests GREEN.
+- **prelaunch-ux 2026-05-15** ✅ merged — LOW-1 (doble checkout PAST_DUE guard), LOW-2 (Sentry captureException webhook), MEDIUM-2 (Sentry tunnel /monitoring 1MB cap), seed SALE 0008 USD+IGTF.
 - **PRE-LANZAMIENTO 2026-05-13 (c)** ✅ merged — 5 ítems: ítem 22 (excedenteCreditoFiscal en Forma 30), ítem 26 (filtro período contable Libro Mayor/Diario), ítem 57 (buscador Libro Diario), ítem 55 (búsqueda por RIF en picker NC/ND), ítem 65 (mapPrismaError util + 6 actions). 1919 tests GREEN.
   - `excedenteCreditoFiscal` en `SeccionE` — campo derivado `|cuotaPeriodo|` cuando saldo a favor; botón "Usar como crédito anterior" en Forma30View; fila E2 en PDF
   - `DateRangeFilter` acepta `periods?: PeriodOption[]` — selector desplegable por período contable (año+mes)
@@ -37,19 +45,20 @@ Ninguna — main limpio.
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1919 tests GREEN | 0 TS errors** (2026-05-13)
+**1937 tests GREEN | 0 TS errors** (2026-05-15)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
 - Action-level grant enforcement — grants actuales afectan solo nav/UI; action guards usan `canAccess()` puro (documentado en ADR-025 como post-lanzamiento)
-- Security findings Sprint-3 pendientes: MEDIUM-2 (Sentry tunnel size cap), MEDIUM-3 (CSP connect-src NOWPayments), LOW-1 (double checkout PAST_DUE), LOW-2 (captureException en webhook)
 - Rotar `UPSTASH_REDIS_REST_TOKEN` en Upstash dashboard (pendiente acción del usuario)
+- NOWPayments config (API key, IPN secret, wallet) — bloqueado hasta tener dominio de producción
 
 ### Próximas fases (backlog inmediato)
-1. **Fase 36D** — IncomeDistribution (ADR-023) — diseño completo listo
-2. **PWA** — Fase 27 diferida, importante para Venezuela
-3. Post-lanzamiento diferido: 35B, 35C, 36A, 36B
+- **CONT-AT** — UI Auditoría Trail: página Historial de cambios exponiendo AuditLog (OWNER/ADMIN)
+- **CONT-VAL** — alerta isBalanced=false antes de exportar PDF Balance General
+- **CONT-PER** — warning período contable activo > 30 días sin cerrar
+- **Post-lanzamiento diferido:** 35B, 35C, 36A, 36B, 36E
 
 ---
 
