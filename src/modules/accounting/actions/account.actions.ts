@@ -27,6 +27,8 @@ const CreateAccountSchema = z.object({
   description: z.string().max(255).optional(),
   // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — excluida de reexpresión INPC
   isMonetary: z.boolean().default(false),
+  // VEN-NIF BA-10 / IAS 1: true = corriente (ASSET/CONTRA_ASSET/LIABILITY ≤12 meses)
+  isCurrent: z.boolean().default(false),
 });
 
 const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
@@ -142,6 +144,7 @@ export async function createAccountAction(
             type: validated.type,
             description: validated.description,
             isMonetary: validated.isMonetary,
+            isCurrent: validated.isCurrent,
             companyId: validated.companyId,
           },
         });

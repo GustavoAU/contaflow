@@ -127,20 +127,36 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
         </div>
       ) : (
         <div className="mx-auto max-w-2xl space-y-6">
-          {/* Activos */}
+          {/* Activos Corrientes */}
           <Section
-            title="Activos"
-            rows={result.data.assets}
-            total={result.data.totalAssets}
+            title="Activos Corrientes"
+            rows={result.data.currentAssets}
+            total={result.data.totalCurrentAssets}
             colorClass="bg-blue-50 text-blue-800"
           />
 
-          {/* Pasivos */}
+          {/* Activos No Corrientes */}
           <Section
-            title="Pasivos"
-            rows={result.data.liabilities}
-            total={result.data.totalLiabilities}
+            title="Activos No Corrientes"
+            rows={result.data.nonCurrentAssets}
+            total={result.data.totalNonCurrentAssets}
+            colorClass="bg-sky-50 text-sky-800"
+          />
+
+          {/* Pasivos Corrientes */}
+          <Section
+            title="Pasivos Corrientes"
+            rows={result.data.currentLiabilities}
+            total={result.data.totalCurrentLiabilities}
             colorClass="bg-orange-50 text-orange-800"
+          />
+
+          {/* Pasivos No Corrientes */}
+          <Section
+            title="Pasivos No Corrientes"
+            rows={result.data.nonCurrentLiabilities}
+            total={result.data.totalNonCurrentLiabilities}
+            colorClass="bg-amber-50 text-amber-800"
           />
 
           {/* Patrimonio */}

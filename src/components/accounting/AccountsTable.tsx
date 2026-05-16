@@ -59,10 +59,13 @@ type Account = {
   type: AccountType;
   description: string | null;
   isMonetary: boolean;
+  isCurrent: boolean;
   companyId: string;
   createdAt: Date;
   updatedAt: Date;
 };
+
+const BALANCE_TYPES = new Set(["ASSET", "CONTRA_ASSET", "LIABILITY"]);
 
 const AccountFormSchema = z.object({
   name: z.string().min(2, "Minimo 2 caracteres"),
@@ -70,6 +73,7 @@ const AccountFormSchema = z.object({
   type: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
   description: z.string().optional(),
   isMonetary: z.boolean(),
+  isCurrent: z.boolean(),
 });
 
 type AccountFormValues = z.infer<typeof AccountFormSchema>;
@@ -110,7 +114,7 @@ export function AccountsTable({
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(AccountFormSchema),
-    defaultValues: { name: "", code: "", type: "ASSET", description: "", isMonetary: false },
+    defaultValues: { name: "", code: "", type: "ASSET", description: "", isMonetary: false, isCurrent: false },
   });
 
   const loadAccounts = async () => {
@@ -128,7 +132,7 @@ export function AccountsTable({
 
   async function openCreate() {
     setEditing(null);
-    form.reset({ name: "", code: "", type: "ASSET", description: "", isMonetary: false });
+    form.reset({ name: "", code: "", type: "ASSET", description: "", isMonetary: false, isCurrent: false });
     setDialogOpen(true);
     await new Promise((resolve) => setTimeout(resolve, 50));
     const result = await getNextAccountCodeAction("ASSET", companyId);
@@ -143,6 +147,7 @@ export function AccountsTable({
       type: account.type,
       description: account.description ?? "",
       isMonetary: account.isMonetary,
+      isCurrent: account.isCurrent,
     });
     setDialogOpen(true);
   }
@@ -177,6 +182,7 @@ export function AccountsTable({
             type: values.type,
             description: values.description ?? null,
             isMonetary: values.isMonetary,
+            isCurrent: values.isCurrent,
             companyId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -232,6 +238,12 @@ export function AccountsTable({
               >
                 Monetaria ⓘ
               </TableHead>
+              <TableHead
+                className="text-center cursor-help"
+                title="Corriente (VEN-NIF BA-10 / IAS 1): realizable o exigible en ≤12 meses. Solo aplica a Activos y Pasivos."
+              >
+                Corriente ⓘ
+              </TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -249,6 +261,17 @@ export function AccountsTable({
                 <TableCell className="text-center">
                   {account.isMonetary ? (
                     <Badge variant="secondary" className="text-xs">Monetaria</Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {BALANCE_TYPES.has(account.type) ? (
+                    account.isCurrent ? (
+                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">Corriente</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">No corriente</span>
+                    )
                   ) : (
                     <span className="text-muted-foreground text-xs">—</span>
                   )}
@@ -372,6 +395,31 @@ export function AccountsTable({
                   </FormItem>
                 )}
               />
+              {BALANCE_TYPES.has(form.watch("type")) && (
+                <FormField
+                  control={form.control}
+                  name="isCurrent"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start gap-3 rounded-lg border p-3">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                        />
+                      </FormControl>
+                      <div className="space-y-0.5">
+                        <FormLabel className="font-medium">Corriente (VEN-NIF BA-10 / IAS 1)</FormLabel>
+                        <p className="text-muted-foreground text-xs">
+                          Marcar si el activo se realizará o el pasivo se liquidará en ≤12 meses.
+                          Afecta la clasificación en el Balance General.
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar

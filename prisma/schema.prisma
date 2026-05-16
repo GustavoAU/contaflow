@@ -265,6 +265,8 @@ model Account {
   description                      String?
   // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — no se reexpresa por INPC; genera REPOMO
   isMonetary                       Boolean                  @default(false)
+  // VEN-NIF BA-10 / IAS 1: true = corriente (realizable/exigible en ≤12 meses)
+  isCurrent                        Boolean                  @default(false)
   companyId                        String
   company                          Company                  @relation(fields: [companyId], references: [id])
   journalEntries                   JournalEntry[]

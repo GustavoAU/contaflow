@@ -90,6 +90,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(true);
@@ -110,6 +111,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(false);
@@ -131,6 +133,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(false);
@@ -146,6 +149,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(false);
@@ -164,6 +168,7 @@ describe("createAccountAction", () => {
       code: "1999",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(false);
@@ -179,6 +184,7 @@ describe("createAccountAction", () => {
         code,
         type: "ASSET",
         isMonetary: false,
+      isCurrent: false,
       });
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -203,6 +209,7 @@ describe("createAccountAction", () => {
         code,
         type: "ASSET",
         isMonetary: false,
+      isCurrent: false,
       });
       expect(result.success, `código "${code}" debe ser válido`).toBe(true);
     }
@@ -221,6 +228,7 @@ describe("createAccountAction", () => {
       code: "1105",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(true);
@@ -239,6 +247,7 @@ describe("createAccountAction", () => {
       code: "9999",
       type: "ASSET",
       isMonetary: false,
+      isCurrent: false,
     });
 
     expect(result.success).toBe(true);

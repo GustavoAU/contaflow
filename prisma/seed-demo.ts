@@ -69,14 +69,15 @@ async function main() {
   // ── 1. Plan de Cuentas ampliado ──────────────────────────────────────────
   console.log("\n📊 Cuentas contables...");
 
-  const accountDefs: { code: string; name: string; type: AccountType }[] = [
-    // ACTIVOS
-    { code: "1105", name: "Caja General", type: "ASSET" },
-    { code: "1110", name: "Bancos — Banesco CTA CTE", type: "ASSET" },
-    { code: "1115", name: "Inventario de Mercancías", type: "ASSET" },
-    { code: "1120", name: "IVA Crédito Fiscal", type: "ASSET" },
-    { code: "1305", name: "Cuentas por Cobrar Clientes", type: "ASSET" },
-    { code: "1310", name: "Anticipo a Proveedores", type: "ASSET" },
+  const accountDefs: { code: string; name: string; type: AccountType; isCurrent?: boolean; isMonetary?: boolean }[] = [
+    // ACTIVOS CORRIENTES (VEN-NIF BA-10 / IAS 1)
+    { code: "1105", name: "Caja General", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1110", name: "Bancos — Banesco CTA CTE", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1115", name: "Inventario de Mercancías", type: "ASSET", isCurrent: true },
+    { code: "1120", name: "IVA Crédito Fiscal", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1305", name: "Cuentas por Cobrar Clientes", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1310", name: "Anticipo a Proveedores", type: "ASSET", isCurrent: true, isMonetary: true },
+    // ACTIVOS NO CORRIENTES
     { code: "1505", name: "Equipos de Computación", type: "ASSET" },
     { code: "1510", name: "Dep. Acum. Equipos de Computación", type: "CONTRA_ASSET" },
     { code: "1520", name: "Vehículos", type: "ASSET" },
@@ -85,12 +86,12 @@ async function main() {
     { code: "1531", name: "Dep. Acum. Mobiliario y Equipo", type: "CONTRA_ASSET" },
     { code: "1540", name: "Maquinaria y Equipos", type: "ASSET" },
     { code: "1541", name: "Dep. Acum. Maquinaria y Equipos", type: "CONTRA_ASSET" },
-    // PASIVOS
-    { code: "2105", name: "IVA Débito Fiscal", type: "LIABILITY" },
-    { code: "2110", name: "Retenciones IVA por Pagar", type: "LIABILITY" },
-    { code: "2115", name: "Retenciones ISLR por Pagar", type: "LIABILITY" },
-    { code: "2205", name: "Proveedores", type: "LIABILITY" },
-    { code: "2210", name: "Nómina por Pagar", type: "LIABILITY" },
+    // PASIVOS CORRIENTES
+    { code: "2105", name: "IVA Débito Fiscal", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2110", name: "Retenciones IVA por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2115", name: "Retenciones ISLR por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2210", name: "Nómina por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
     // PATRIMONIO
     { code: "3105", name: "Capital Social", type: "EQUITY" },
     { code: "3205", name: "Utilidades Retenidas", type: "EQUITY" },
@@ -111,8 +112,8 @@ async function main() {
   for (const acc of accountDefs) {
     const a = await prisma.account.upsert({
       where: { companyId_code: { companyId: cId, code: acc.code } },
-      update: { name: acc.name, type: acc.type },
-      create: { companyId: cId, code: acc.code, name: acc.name, type: acc.type },
+      update: { name: acc.name, type: acc.type, isCurrent: acc.isCurrent ?? false, isMonetary: acc.isMonetary ?? false },
+      create: { companyId: cId, code: acc.code, name: acc.name, type: acc.type, isCurrent: acc.isCurrent ?? false, isMonetary: acc.isMonetary ?? false },
     });
     accounts[acc.code] = a.id;
     process.stdout.write(`  ✅ ${acc.code} — ${acc.name}\n`);

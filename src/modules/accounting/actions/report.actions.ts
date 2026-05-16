@@ -71,6 +71,16 @@ export type BalanceSheetRow = {
 };
 
 export type BalanceSheet = {
+  // Split corriente / no corriente (VEN-NIF BA-10 / IAS 1)
+  currentAssets: BalanceSheetRow[];
+  nonCurrentAssets: BalanceSheetRow[];
+  currentLiabilities: BalanceSheetRow[];
+  nonCurrentLiabilities: BalanceSheetRow[];
+  totalCurrentAssets: string;
+  totalNonCurrentAssets: string;
+  totalCurrentLiabilities: string;
+  totalNonCurrentLiabilities: string;
+  // Mantenidos para compatibilidad con PDF service
   assets: BalanceSheetRow[];
   liabilities: BalanceSheetRow[];
   equity: BalanceSheetRow[];
@@ -507,10 +517,18 @@ export async function getBalanceSheetAction(
     let totalAssets = new Decimal(0);
     let totalLiabilities = new Decimal(0);
     let totalEquity = new Decimal(0);
+    let totalCurrentAssets = new Decimal(0);
+    let totalNonCurrentAssets = new Decimal(0);
+    let totalCurrentLiabilities = new Decimal(0);
+    let totalNonCurrentLiabilities = new Decimal(0);
 
     const assets: BalanceSheetRow[] = [];
     const liabilities: BalanceSheetRow[] = [];
     const equity: BalanceSheetRow[] = [];
+    const currentAssets: BalanceSheetRow[] = [];
+    const nonCurrentAssets: BalanceSheetRow[] = [];
+    const currentLiabilities: BalanceSheetRow[] = [];
+    const nonCurrentLiabilities: BalanceSheetRow[] = [];
 
     for (const account of accounts) {
       if (account.journalEntries.length === 0) continue;
@@ -521,16 +539,25 @@ export async function getBalanceSheetAction(
       );
 
       if (account.type === "ASSET") {
-        assets.push({ id: account.id, code: account.code, name: account.name, balance: balance.toFixed(2) });
+        const row: BalanceSheetRow = { id: account.id, code: account.code, name: account.name, balance: balance.toFixed(2) };
+        assets.push(row);
         totalAssets = totalAssets.plus(balance);
+        if (account.isCurrent) { currentAssets.push(row); totalCurrentAssets = totalCurrentAssets.plus(balance); }
+        else { nonCurrentAssets.push(row); totalNonCurrentAssets = totalNonCurrentAssets.plus(balance); }
       } else if (account.type === "CONTRA_ASSET") {
         // Credit balance (negative) — shown as deduction from assets with (-) prefix
-        assets.push({ id: account.id, code: account.code, name: `(-) ${account.name}`, balance: balance.toFixed(2) });
+        const row: BalanceSheetRow = { id: account.id, code: account.code, name: `(-) ${account.name}`, balance: balance.toFixed(2) };
+        assets.push(row);
         totalAssets = totalAssets.plus(balance);
+        if (account.isCurrent) { currentAssets.push(row); totalCurrentAssets = totalCurrentAssets.plus(balance); }
+        else { nonCurrentAssets.push(row); totalNonCurrentAssets = totalNonCurrentAssets.plus(balance); }
       } else if (account.type === "LIABILITY") {
         const display = balance.negated();
-        liabilities.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
+        const row: BalanceSheetRow = { id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) };
+        liabilities.push(row);
         totalLiabilities = totalLiabilities.plus(display);
+        if (account.isCurrent) { currentLiabilities.push(row); totalCurrentLiabilities = totalCurrentLiabilities.plus(display); }
+        else { nonCurrentLiabilities.push(row); totalNonCurrentLiabilities = totalNonCurrentLiabilities.plus(display); }
       } else {
         const display = balance.negated();
         equity.push({ id: account.id, code: account.code, name: account.name, balance: display.toFixed(2) });
@@ -564,6 +591,14 @@ export async function getBalanceSheetAction(
     return {
       success: true,
       data: {
+        currentAssets,
+        nonCurrentAssets,
+        currentLiabilities,
+        nonCurrentLiabilities,
+        totalCurrentAssets: totalCurrentAssets.toFixed(2),
+        totalNonCurrentAssets: totalNonCurrentAssets.toFixed(2),
+        totalCurrentLiabilities: totalCurrentLiabilities.toFixed(2),
+        totalNonCurrentLiabilities: totalNonCurrentLiabilities.toFixed(2),
         assets,
         liabilities,
         equity,
