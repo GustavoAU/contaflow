@@ -409,6 +409,7 @@ export const PayrollRunService = {
         faovPayableAccountId: true,
         incesPayableAccountId: true,
         rpePayableAccountId: true,
+        loanReceivableAccountId: true,
         ivssEnabled: true,
         incesEnabled: true,
         banavihEnabled: true,
@@ -467,28 +468,37 @@ export const PayrollRunService = {
 
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
       // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
-      // DÉBITO: Gastos de Personal (totalEarnings)
-      // CRÉDITO: Sueldos por Pagar + cuentas separadas de retenciones configuradas
+      // DÉBITO: Gastos de Personal (totalEarnings — solo componentes salariales, sin cuotas de préstamo)
+      // CRÉDITO: Sueldos por Pagar (neto sin préstamos) + retenciones separadas + recuperación préstamos
       //
-      // Invariante de cuadre: el crédito a "Sueldos por Pagar" cubre el bruto
-      // MENOS SOLO las deducciones que tienen cuenta separada configurada.
-      // Las deducciones sin cuenta separada quedan consolidadas en "Sueldos por Pagar".
-      // Esto garantiza Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
+      // Invariante de cuadre: Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
+      // Las cuotas de préstamo (PRESTAMO_EMP) NO son un gasto de nómina — son recuperación de un activo
+      // (Préstamos a Empleados). Por eso se excluyen de totalEarnings y se creditean contra la cuenta
+      // del activo si está configurada, o se incluyen en "Sueldos por Pagar" si no lo está.
       const expenseAccountId = config.expenseAccountId!;
       const payableAccountId = config.payableAccountId!;
       const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
 
-      // Suma de deducciones que SÍ tienen cuenta separada configurada
+      // Total de cuotas de préstamo descontadas en esta nómina
+      const loanTotal = lines
+        .filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION")
+        .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0));
+
+      // Gasto salarial real = bruto total − cuotas de préstamo (estas no son gasto, son recuperación de activo)
+      const salaryExpense = new Decimal(run.totalEarnings.toString()).minus(loanTotal);
+
+      // Deducciones que SÍ tienen cuenta separada configurada (retenciones)
       const configuredDeductions = [
         config.ivssPayableAccountId ? ivssTotal : new Decimal(0),
         config.faovPayableAccountId ? faovTotal : new Decimal(0),
         config.incesPayableAccountId ? incesTotal : new Decimal(0),
         config.rpePayableAccountId ? rpeTotal : new Decimal(0),
+        // Loan recovery: solo si está configurada la cuenta del activo
+        config.loanReceivableAccountId ? loanTotal : new Decimal(0),
       ].reduce((s, v) => s.plus(v), new Decimal(0));
 
-      // Crédito consolidado = bruto − retenciones con cuenta propia
-      // (incluye retenciones sin cuenta + neto empleados)
-      const payableCredit = run.totalEarnings.minus(configuredDeductions).negated();
+      // Crédito consolidado a "Sueldos por Pagar" = gasto salarial − retenciones con cuenta propia
+      const payableCredit = salaryExpense.minus(configuredDeductions).negated();
 
       const asiento = await tx.transaction.create({
         data: {
@@ -502,9 +512,9 @@ export const PayrollRunService = {
           type: "DIARIO",
           entries: {
             create: [
-              // DÉBITO — Gastos de Personal (positivo)
-              { accountId: expenseAccountId, amount: run.totalEarnings, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados` },
-              // CRÉDITO — Sueldos y Retenciones por Pagar (negativo)
+              // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
+              { accountId: expenseAccountId, amount: salaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados` },
+              // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
               { accountId: payableAccountId, amount: payableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada` },
               // CRÉDITO — IVSS Obrero por Pagar (si aplica)
               ...(config.ivssPayableAccountId && ivssTotal.greaterThan(0)
@@ -521,6 +531,10 @@ export const PayrollRunService = {
               // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
               ...(config.rpePayableAccountId && rpeTotal.greaterThan(0)
                 ? [{ accountId: config.rpePayableAccountId, amount: rpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero` }]
+                : []),
+              // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
+              ...(config.loanReceivableAccountId && loanTotal.greaterThan(0)
+                ? [{ accountId: config.loanReceivableAccountId, amount: loanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados` }]
                 : []),
             ],
           },

@@ -44,6 +44,8 @@ export interface PayrollConfigRow {
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
   rpePayableAccountId: string | null;
+  loanReceivableAccountId: string | null;
+  disbursementBankAccountId: string | null;
   workSchedule: WorkSchedule;
   updatedAt: string;
 }
@@ -65,6 +67,8 @@ export interface SavePayrollConfigInput {
   vacationPayableAccountId?: string | null;
   profitSharingPayableAccountId?: string | null;
   rpePayableAccountId?: string | null;
+  loanReceivableAccountId?: string | null;
+  disbursementBankAccountId?: string | null;
   workSchedule?: WorkSchedule;
 }
 
@@ -89,6 +93,8 @@ function serializeConfig(c: {
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
   rpePayableAccountId: string | null;
+  loanReceivableAccountId: string | null;
+  disbursementBankAccountId: string | null;
   workSchedule: WorkSchedule;
   updatedAt: Date;
 }): PayrollConfigRow {
@@ -111,6 +117,8 @@ function serializeConfig(c: {
     vacationPayableAccountId: c.vacationPayableAccountId,
     profitSharingPayableAccountId: c.profitSharingPayableAccountId,
     rpePayableAccountId: c.rpePayableAccountId,
+    loanReceivableAccountId: c.loanReceivableAccountId,
+    disbursementBankAccountId: c.disbursementBankAccountId,
     workSchedule: c.workSchedule,
     updatedAt: c.updatedAt.toISOString(),
   };

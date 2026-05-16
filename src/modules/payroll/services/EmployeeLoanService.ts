@@ -51,10 +51,16 @@ export const EmployeeLoanService = {
     userId: string,
     auditMeta: { ipAddress?: string; userAgent?: string },
   ): Promise<EmployeeLoanRow> {
-    const employee = await prisma.employee.findFirst({
-      where: { id: input.employeeId, companyId },
-      select: { id: true, firstName: true, lastName: true },
-    });
+    const [employee, payrollConfig] = await Promise.all([
+      prisma.employee.findFirst({
+        where: { id: input.employeeId, companyId },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+      prisma.payrollConfig.findUnique({
+        where: { companyId },
+        select: { loanReceivableAccountId: true, disbursementBankAccountId: true },
+      }),
+    ]);
     if (!employee) throw new Error("Empleado no encontrado en esta empresa.");
 
     const total = new Decimal(input.totalAmount);
@@ -63,6 +69,22 @@ export const EmployeeLoanService = {
 
     // Cuota fija = ceil(totalAmount / cuotas, 2 dec)
     const installmentAmount = total.dividedBy(input.installments).toDecimalPlaces(2, Decimal.ROUND_UP);
+
+    // Si ambas cuentas GL están configuradas, crear asiento de desembolso.
+    // DÉBITO: Préstamos a Empleados (activo ↑) / CRÉDITO: Banco de Desembolso (activo ↓)
+    const canJournalize =
+      payrollConfig?.loanReceivableAccountId && payrollConfig?.disbursementBankAccountId;
+
+    // Período contable: solo se necesita si se va a crear asiento
+    let openPeriod: { id: string } | null = null;
+    if (canJournalize) {
+      const now = new Date();
+      openPeriod = await prisma.accountingPeriod.findFirst({
+        where: { companyId, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, status: "OPEN" },
+        select: { id: true },
+      });
+      if (!openPeriod) throw new Error("No hay período contable abierto en el mes actual. Abra el período antes de registrar el préstamo.");
+    }
 
     const loan = await prisma.$transaction(async (tx) => {
       const created = await tx.employeeLoan.create({
@@ -82,6 +104,39 @@ export const EmployeeLoanService = {
         include: { employee: { select: { firstName: true, lastName: true } } },
       });
 
+      // Asiento de desembolso (R-1: Libro Diario — Transaction)
+      if (canJournalize && openPeriod) {
+        const empName = `${created.employee.firstName} ${created.employee.lastName}`;
+        await tx.transaction.create({
+          data: {
+            companyId,
+            number: `PREST-${created.id.slice(-8).toUpperCase()}`,
+            date: new Date(),
+            description: `Desembolso préstamo — ${empName} — ${input.installments} cuota(s) de ${installmentAmount.toFixed(2)} ${input.currency}`,
+            reference: created.id,
+            userId,
+            periodId: openPeriod.id,
+            type: "DIARIO",
+            entries: {
+              create: [
+                // DÉBITO: Préstamos a Empleados (activo sube — positivo)
+                {
+                  accountId: payrollConfig!.loanReceivableAccountId!,
+                  amount: total,
+                  description: `Préstamo ${empName}`,
+                },
+                // CRÉDITO: Banco de Desembolso (activo baja — negativo)
+                {
+                  accountId: payrollConfig!.disbursementBankAccountId!,
+                  amount: total.negated(),
+                  description: `Salida banco — préstamo ${empName}`,
+                },
+              ],
+            },
+          },
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           companyId,
@@ -89,7 +144,12 @@ export const EmployeeLoanService = {
           entityName: "EmployeeLoan",
           action: "CREATE",
           userId,
-          newValue: JSON.stringify({ totalAmount: total.toFixed(2), currency: input.currency, installments: input.installments }),
+          newValue: JSON.stringify({
+            totalAmount: total.toFixed(2),
+            currency: input.currency,
+            installments: input.installments,
+            journalized: canJournalize,
+          }),
           ipAddress: auditMeta.ipAddress ?? null,
           userAgent: auditMeta.userAgent ?? null,
         },

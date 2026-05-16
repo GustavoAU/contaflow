@@ -88,6 +88,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     vacationPayableAccountId: initial?.vacationPayableAccountId ?? "",
     profitSharingPayableAccountId: initial?.profitSharingPayableAccountId ?? "",
     rpePayableAccountId: initial?.rpePayableAccountId ?? "",
+    loanReceivableAccountId: initial?.loanReceivableAccountId ?? "",
+    disbursementBankAccountId: initial?.disbursementBankAccountId ?? "",
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -124,6 +126,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
         vacationPayableAccountId: form.vacationPayableAccountId || null,
         profitSharingPayableAccountId: form.profitSharingPayableAccountId || null,
         rpePayableAccountId: form.rpePayableAccountId || null,
+        loanReceivableAccountId: form.loanReceivableAccountId || null,
+        disbursementBankAccountId: form.disbursementBankAccountId || null,
       };
       const result = await savePayrollConfigAction(companyId, payload);
       if (!result.success) {
@@ -390,6 +394,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                   { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
                   { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
                   { key: "rpePayableAccountId", label: "Paro Forzoso RPE por Pagar" },
+                  { key: "loanReceivableAccountId", label: "Préstamos a Empleados (Activo)" },
+                  { key: "disbursementBankAccountId", label: "Banco de Desembolso (para préstamos)" },
                 ] as const
               ).map(({ key, label }) => (
                 <div key={key}>
