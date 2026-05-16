@@ -24,6 +24,20 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   FULLY_DEPRECIATED: { label: "Depreciado", className: "bg-gray-100 text-gray-700" },
 };
 
+// AF-39: meses restantes de vida útil para activos ACTIVE basados en tiempo
+// Retorna null si no aplica (DISPOSED, FULLY_DEPRECIATED, UNIDADES_PRODUCCION)
+function getMonthsRemaining(a: FixedAssetSummary): number | null {
+  if (a.status !== "ACTIVE") return null;
+  if (a.depreciationMethod === "UNIDADES_PRODUCCION") return null;
+  if (!a.lastEntryDate) return a.usefulLifeMonths;
+  const acqDate = new Date(a.acquisitionDate);
+  const acqYear = acqDate.getUTCFullYear();
+  const acqMonth = acqDate.getUTCMonth() + 1;
+  const monthsDepreciated =
+    (a.lastEntryDate.year - acqYear) * 12 + (a.lastEntryDate.month - acqMonth);
+  return Math.max(0, a.usefulLifeMonths - monthsDepreciated);
+}
+
 type Props = {
   assets: FixedAssetSummary[];
   companyId: string;
@@ -206,6 +220,8 @@ export function FixedAssetList({ assets, companyId }: Props) {
             <tbody className="divide-y divide-gray-100">
               {assets.map((a) => {
                 const statusInfo = STATUS_LABELS[a.status] ?? { label: a.status, className: "bg-gray-100 text-gray-600" };
+                const monthsLeft = getMonthsRemaining(a);
+                const showAlert = monthsLeft !== null && monthsLeft <= 3;
                 return (
                   <tr key={a.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{a.name}</td>
@@ -225,9 +241,25 @@ export function FixedAssetList({ assets, companyId }: Props) {
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
-                        {statusInfo.label}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
+                          {statusInfo.label}
+                        </span>
+                        {showAlert && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              monthsLeft === 0
+                                ? "bg-red-100 text-red-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                            title={`Quedan ${monthsLeft} mes${monthsLeft !== 1 ? "es" : ""} de vida útil`}
+                          >
+                            {monthsLeft === 0
+                              ? "Vida útil agotada"
+                              : `Vence en ${monthsLeft} mes${monthsLeft !== 1 ? "es" : ""}`}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
