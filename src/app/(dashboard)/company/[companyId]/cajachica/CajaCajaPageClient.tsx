@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useTransition, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,8 +148,7 @@ export function CajaCajaPageClient({ companyId, accounts, isAdmin }: Props) {
     });
   }, [companyId]);
 
-  // Load on mount
-  useState(() => { load(); });
+  useEffect(() => { load(); }, [load]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
