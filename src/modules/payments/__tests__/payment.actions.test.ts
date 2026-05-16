@@ -24,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
     company: { findFirst: vi.fn() },
+    invoice: { findUnique: vi.fn(), update: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -69,10 +70,12 @@ describe("createPaymentAction — security", () => {
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog })) as never,
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
     );
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
   });
 
   it("retorna { success: false } si no hay sesión autenticada", async () => {
@@ -134,6 +137,84 @@ describe("createPaymentAction — security", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
+  });
+});
+
+// ─── createPaymentAction — IGTF acumulado en Invoice ─────────────────────────
+describe("createPaymentAction — IGTF acumulado en Invoice", () => {
+  const USD_INPUT = {
+    companyId: COMPANY_ID,
+    method: "ZELLE" as const,
+    amountVes: "857397.00",
+    currency: "USD" as const,
+    amountOriginal: "1807.42",
+    invoiceId: "invoice-1",
+    date: "2026-04-03",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+    );
+    vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+  });
+
+  it("acumula igtfBase/igtfAmount en Invoice SALE cuando pago es en USD", async () => {
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      type: "SALE", igtfBase: { toString: () => "0" }, igtfAmount: { toString: () => "0" },
+    } as never);
+
+    await createPaymentAction(USD_INPUT);
+
+    expect(prisma.invoice.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "invoice-1" } }),
+    );
+    expect(prisma.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "invoice-1" },
+        data: expect.objectContaining({
+          igtfBase:   expect.anything(),
+          igtfAmount: expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it("NO actualiza Invoice si el tipo es PURCHASE", async () => {
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      type: "PURCHASE", igtfBase: { toString: () => "0" }, igtfAmount: { toString: () => "0" },
+    } as never);
+
+    await createPaymentAction(USD_INPUT);
+
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it("NO actualiza Invoice si el pago es en VES (IGTF no aplica)", async () => {
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+
+    await createPaymentAction({ ...USD_INPUT, currency: "VES", amountOriginal: undefined });
+
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it("NO actualiza Invoice si no hay invoiceId (pago sin factura vinculada)", async () => {
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+    const { invoiceId: _ignored, ...inputWithoutInvoice } = USD_INPUT;
+
+    await createPaymentAction(inputWithoutInvoice);
+
+    expect(prisma.invoice.findUnique).not.toHaveBeenCalled();
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
   });
 });
 

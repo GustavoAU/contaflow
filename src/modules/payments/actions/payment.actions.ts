@@ -79,6 +79,25 @@ export async function createPaymentAction(
             createdBy: userId, // always use authenticated userId
           });
 
+          // Acumular igtfBase/igtfAmount en la factura vinculada.
+          // Necesario cuando el pago en divisa se registra después de emitir la factura
+          // (Invoice.igtfBase queda en 0 si se llenó sin pago simultáneo).
+          if (computedIgtf && d.invoiceId) {
+            const inv = await (tx as typeof prisma).invoice.findUnique({
+              where: { id: d.invoiceId },
+              select: { type: true, igtfBase: true, igtfAmount: true },
+            });
+            if (inv?.type === "SALE") {
+              await (tx as typeof prisma).invoice.update({
+                where: { id: d.invoiceId },
+                data: {
+                  igtfBase:   new Decimal(inv.igtfBase.toString()).plus(d.amountVes),
+                  igtfAmount: new Decimal(inv.igtfAmount.toString()).plus(computedIgtf),
+                },
+              });
+            }
+          }
+
           await (tx as typeof prisma).auditLog.create({
             data: {
               companyId: d.companyId,
