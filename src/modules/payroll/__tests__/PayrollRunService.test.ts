@@ -38,6 +38,10 @@ vi.mock("@/lib/prisma", () => ({
     legalThreshold: {
       findFirst: vi.fn(),
     },
+    employeeLoan: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     transaction: {
       create: vi.fn(),
     },
@@ -156,6 +160,7 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 4 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never); // sin préstamos activos
   }
 
   it("creates run with AuditLog in $transaction", async () => {
@@ -280,6 +285,7 @@ describe("PayrollRunService.approve", () => {
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
     vi.mocked(prisma.payrollRun.update).mockResolvedValue({ ...BASE_RUN, status: "APPROVED", transactionId: "tx-1" } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never); // sin préstamos activos
   }
 
   it("approves run with updateMany mutex and creates AuditLog (NOM-C-03, NOM-C-11)", async () => {

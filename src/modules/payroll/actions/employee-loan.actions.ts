@@ -1,0 +1,110 @@
+// src/modules/payroll/actions/employee-loan.actions.ts
+// Server Actions para gestión de préstamos a empleados.
+//
+// Seguridad:
+//   - companyMember.findFirst verifica tenant antes de toda query // ADR-004-EXCEPTION: IDOR guard — where:{userId,companyId}
+//   - write = ADMIN_ONLY; read = ACCOUNTING
+//   - checkRateLimit(limiters.fiscal) en toda acción write
+//   - R-6: ipAddress + userAgent en AuditLog en todo write
+
+"use server";
+
+import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
+import prisma from "@/lib/prisma";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { EmployeeLoanService, type EmployeeLoanRow } from "../services/EmployeeLoanService";
+import { createLoanSchema } from "../schemas/employee-loan.schema";
+import type { LoanStatus } from "@prisma/client";
+
+type Result<T> = { success: true; data: T } | { success: false; error: string };
+
+async function resolveAuth(companyId: string) {
+  const { userId } = await auth();
+  if (!userId) return { userId: null, member: null };
+  const member = await prisma.companyMember.findFirst({
+    where: { userId, companyId },
+  });
+  return { userId, member };
+}
+
+async function getAuditMeta() {
+  const hdrs = await headers();
+  return {
+    ipAddress: hdrs.get("x-forwarded-for") ?? hdrs.get("x-real-ip") ?? undefined,
+    userAgent: hdrs.get("user-agent") ?? undefined,
+  };
+}
+
+function revalidateLoans(companyId: string) {
+  revalidatePath(`/company/${companyId}/payroll/loans`);
+}
+
+// ─── Crear préstamo ───────────────────────────────────────────────────────────
+
+export async function createLoanAction(
+  companyId: string,
+  rawInput: unknown,
+): Promise<Result<EmployeeLoanRow>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado." };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado. Intente más tarde." };
+
+  const parsed = createLoanSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  try {
+    const meta = await getAuditMeta();
+    const loan = await EmployeeLoanService.create(companyId, parsed.data, userId, meta);
+    revalidateLoans(companyId);
+    return { success: true, data: loan };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+  }
+}
+
+// ─── Listar préstamos ─────────────────────────────────────────────────────────
+
+export async function listLoansAction(
+  companyId: string,
+  filters?: { employeeId?: string; status?: LoanStatus },
+): Promise<Result<EmployeeLoanRow[]>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado." };
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
+
+  try {
+    const loans = await EmployeeLoanService.list(companyId, filters);
+    return { success: true, data: loans };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+  }
+}
+
+// ─── Cancelar préstamo ────────────────────────────────────────────────────────
+
+export async function cancelLoanAction(
+  companyId: string,
+  loanId: string,
+): Promise<Result<void>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado." };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado. Intente más tarde." };
+
+  try {
+    const meta = await getAuditMeta();
+    await EmployeeLoanService.cancel(companyId, loanId, userId, meta);
+    revalidateLoans(companyId);
+    return { success: true, data: undefined };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+  }
+}

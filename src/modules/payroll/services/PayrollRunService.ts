@@ -271,6 +271,35 @@ export const PayrollRunService = {
       }
     }
 
+    // ── Cuotas de préstamos activos (PRESTAMO_EMP) ────────────────────────
+    // Inyectadas como deducciones automáticas antes del cálculo.
+    // La cuota = min(installmentAmount, remainingBalance) por préstamo.
+    const employeeIds = empInputs.map((e) => e.employeeId);
+    const activeLoans = await prisma.employeeLoan.findMany({
+      where: { companyId, status: "ACTIVE", employeeId: { in: employeeIds } },
+      orderBy: { createdAt: "asc" }, // más antiguo primero
+    });
+    if (activeLoans.length > 0) {
+      const loanConcept = systemConcepts.find((c) => c.code === "PRESTAMO_EMP");
+      if (loanConcept) {
+        for (const loan of activeLoans) {
+          const installment = Decimal.min(
+            new Decimal(loan.installmentAmount.toString()),
+            new Decimal(loan.remainingBalance.toString()),
+          );
+          if (installment.greaterThan(0)) {
+            manualInputs.push({
+              conceptId: loanConcept.id,
+              conceptCode: "PRESTAMO_EMP",
+              conceptType: "DEDUCTION",
+              employeeId: loan.employeeId,
+              amount: installment,
+            });
+          }
+        }
+      }
+    }
+
     // ── Calcular (servicio puro — lanza si netPayable < 0) ────────────────
     const result = PayrollCalculatorService.calculate(empInputs, manualInputs, calcConfig);
 
@@ -503,6 +532,41 @@ export const PayrollRunService = {
         where: { id: runId },
         data: { transactionId: asiento.id },
       });
+
+      // ── Actualizar saldos de préstamos (PRESTAMO_EMP) ─────────────────
+      // Fetch PRESTAMO_EMP lines grouped by employeeId, apply oldest-loan-first.
+      const loanLines = lines.filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION");
+      if (loanLines.length > 0) {
+        // Sum deducted per employee
+        const deductedByEmployee = new Map<string, Decimal>();
+        for (const l of loanLines) {
+          const prev = deductedByEmployee.get(l.employeeId) ?? new Decimal(0);
+          deductedByEmployee.set(l.employeeId, prev.plus(new Decimal(l.amount.toString())));
+        }
+        for (const [empId, deducted] of deductedByEmployee.entries()) {
+          // Fetch ACTIVE loans for this employee, oldest first
+          const empLoans = await tx.employeeLoan.findMany({
+            where: { companyId, employeeId: empId, status: "ACTIVE" },
+            orderBy: { createdAt: "asc" },
+          });
+          let remaining = deducted;
+          for (const loan of empLoans) {
+            if (remaining.isZero()) break;
+            const balance = new Decimal(loan.remainingBalance.toString());
+            const applied = Decimal.min(remaining, balance);
+            const newBalance = balance.minus(applied);
+            remaining = remaining.minus(applied);
+            await tx.employeeLoan.update({
+              where: { id: loan.id },
+              data: {
+                remainingBalance: newBalance.toFixed(2),
+                paidInstallments: loan.paidInstallments + 1,
+                status: newBalance.isZero() ? "PAID" : "ACTIVE",
+              },
+            });
+          }
+        }
+      }
 
       // ── AuditLog (NOM-C-11) ────────────────────────────────────────────
       await tx.auditLog.create({
