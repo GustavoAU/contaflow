@@ -3,8 +3,10 @@
 // src/modules/iva-declaration/components/Forma30View.tsx
 
 import { useState, useTransition } from "react";
-import { generarForma30Action, type Forma30ActionResult } from "../actions/generarForma30.action";
+import { generarForma30Action, getRetencionesSufridas, type Forma30ActionResult, type RetenciónSufridaRow } from "../actions/generarForma30.action";
 import { exportForma30PDFAction } from "../actions/exportForma30PDF.action";
+import { ChevronDownIcon, ChevronRightIcon, FileTextIcon } from "lucide-react";
+import { fmtDate } from "@/lib/format";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -112,6 +114,10 @@ export function Forma30View({ companyId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isExporting, startExportTransition] = useTransition();
+  const [isLoadingC1, startC1Transition] = useTransition();
+  const [showC1Detail, setShowC1Detail] = useState(false);
+  const [c1Detail, setC1Detail] = useState<RetenciónSufridaRow[] | null>(null);
+  const [c1DetailError, setC1DetailError] = useState<string | null>(null);
 
   function handleCalcular() {
     setError(null);
@@ -125,6 +131,20 @@ export function Forma30View({ companyId }: Props) {
         setResult(null);
       }
     });
+  }
+
+  function handleToggleC1Detail() {
+    if (!result) return;
+    const next = !showC1Detail;
+    setShowC1Detail(next);
+    if (next && c1Detail === null) {
+      setC1DetailError(null);
+      startC1Transition(async () => {
+        const res = await getRetencionesSufridas(companyId, result.year, result.month);
+        if (res.success) setC1Detail(res.data);
+        else setC1DetailError(res.error);
+      });
+    }
   }
 
   function handleExportarPDF() {
@@ -288,7 +308,85 @@ export function Forma30View({ companyId }: Props) {
 
           {/* Sección C — Retenciones */}
           <SectionSimple title="C — Retenciones IVA">
-            <SimpleRow label="C1. Retenciones IVA sufridas (clientes nos retuvieron)" value={result.seccionC.retencionesIvaSufridas} />
+            {/* C1 con drill-down */}
+            <tr className="border-b last:border-0">
+              <td className={`py-2 pr-4 text-sm ${isZero(result.seccionC.retencionesIvaSufridas) ? "text-zinc-400" : "text-zinc-600"}`}>
+                C1. Retenciones IVA sufridas (clientes nos retuvieron)
+                {!isZero(result.seccionC.retencionesIvaSufridas) && (
+                  <button
+                    type="button"
+                    onClick={handleToggleC1Detail}
+                    disabled={isLoadingC1}
+                    className="ml-2 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                    aria-expanded={showC1Detail}
+                  >
+                    {showC1Detail
+                      ? <ChevronDownIcon className="h-3 w-3" />
+                      : <ChevronRightIcon className="h-3 w-3" />}
+                    {isLoadingC1 ? "Cargando…" : showC1Detail ? "Ocultar" : "Ver comprobantes"}
+                  </button>
+                )}
+              </td>
+              <td className={`py-2 text-right font-mono text-sm font-medium tabular-nums [font-variant-numeric:tabular-nums] ${isZero(result.seccionC.retencionesIvaSufridas) ? "text-zinc-300" : ""}`}>
+                {fmt(result.seccionC.retencionesIvaSufridas)}
+              </td>
+            </tr>
+            {/* Detalle drill-down C1 */}
+            {showC1Detail && (
+              <tr>
+                <td colSpan={2} className="pb-3 pt-1">
+                  {c1DetailError && (
+                    <p className="rounded bg-red-50 px-3 py-2 text-xs text-red-600">{c1DetailError}</p>
+                  )}
+                  {c1Detail && c1Detail.length === 0 && (
+                    <p className="rounded bg-zinc-50 px-3 py-2 text-xs text-zinc-400">
+                      No se encontraron comprobantes con retención IVA en este período.
+                    </p>
+                  )}
+                  {c1Detail && c1Detail.length > 0 && (
+                    <div className="overflow-hidden rounded-md border border-blue-100">
+                      <table className="w-full text-xs">
+                        <thead className="bg-blue-50">
+                          <tr className="text-zinc-500">
+                            <th className="px-3 py-1.5 text-left font-medium">N° Factura</th>
+                            <th className="px-3 py-1.5 text-left font-medium">N° Control</th>
+                            <th className="px-3 py-1.5 text-left font-medium">Cliente</th>
+                            <th className="px-3 py-1.5 text-left font-medium">RIF</th>
+                            <th className="px-3 py-1.5 text-left font-medium">Fecha</th>
+                            <th className="px-3 py-1.5 text-right font-medium">IVA Retenido (Bs.)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-blue-50">
+                          {c1Detail.map((row) => (
+                            <tr key={row.id} className="bg-white hover:bg-blue-50/40">
+                              <td className="px-3 py-1.5 font-mono">{row.invoiceNumber}</td>
+                              <td className="px-3 py-1.5 font-mono text-zinc-400">{row.controlNumber ?? "—"}</td>
+                              <td className="max-w-45 truncate px-3 py-1.5">{row.counterpartName}</td>
+                              <td className="px-3 py-1.5 font-mono text-zinc-500">{row.counterpartRif}</td>
+                              <td className="px-3 py-1.5 text-zinc-500">{fmtDate(new Date(row.date))}</td>
+                              <td className="px-3 py-1.5 text-right font-mono font-semibold text-blue-700 tabular-nums">
+                                {fmt(row.ivaRetentionAmount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="border-t border-blue-100 bg-blue-50">
+                          <tr>
+                            <td colSpan={5} className="px-3 py-1.5 text-zinc-400">
+                              <FileTextIcon className="mr-1 inline h-3 w-3" />
+                              {c1Detail.length} comprobante{c1Detail.length !== 1 ? "s" : ""}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono font-bold text-blue-800 tabular-nums">
+                              {fmt(result.seccionC.retencionesIvaSufridas)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )}
             <SimpleRow label="C2. Retenciones IVA practicadas (retuvimos a proveedores)" value={result.seccionC.retencionesIvaPracticadas} />
             <tr className="border-t bg-zinc-50 font-semibold">
               <td className="py-2 pr-4 text-sm">Total Retenciones</td>
