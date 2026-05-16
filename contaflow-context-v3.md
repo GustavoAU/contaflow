@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **ux-pending-items 2026-05-16** ✅ merged — Ítems backlog: ítem 13 (SelectContent position=popper z-200 en AccountsTable Dialog), ítem 18 (loading.tsx en /reports y /transactions), ítem 19-20 (total ajuste INPC como tarjeta prominente Bs. 2xl + spinner Guardar Índice), ítem 49 (tooltip Base|IVA|IGTF en columna Total de InvoiceBook), ítem 51 (stock disponible post-selección en OV — ProductCombobox pasa stockQuantity, badge semáforo verde/ámbar/rojo). Ítem 65 ya estaba. commit `a55a80e`.
 - **loan-gl 2026-05-16** ✅ merged — `loanReceivableAccountId` + `disbursementBankAccountId` en `PayrollConfig`; asiento desembolso en `EmployeeLoanService.create()` (DÉBITO Préstamos a Empleados / CRÉDITO Banco); causación `approve()` corregida (cuotas PRESTAMO_EMP excluidas de Gastos de Personal, creditadas contra activo). commit `f8bfa4c`.
 - **EmployeeLoan 2026-05-16** ✅ merged — `LoanStatus` enum + `EmployeeLoan` model (migración aplicada), `PRESTAMO_EMP` en SYSTEM_CONCEPTS, `EmployeeLoanService`, `employee-loan.actions.ts`, `PayrollRunService` inyecta cuotas en create() y actualiza saldos en approve(), UI `/payroll/loans` + `LoanTable` + `CreateLoanForm` + card en hub nómina. commit `bd51399`.
 - **TODOS LOS ÍTEMS BACKLOG 2026-05-16** ✅ — Grupos 7-9 confirmados YA ESTABA tras revisión código.
@@ -56,7 +57,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1937 tests GREEN | 0 TS errors** (2026-05-16)
+**1937 tests GREEN | 0 TS errors** (2026-05-16 post ux-pending-items)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
