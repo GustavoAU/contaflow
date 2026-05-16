@@ -526,8 +526,16 @@ async function main() {
     { code: "BONO_PROD",     name: "Bono de Productividad",           type: "EARNING"   as ConceptType, isSystem: false, affectsSalaryIntegral: false },
     { code: "IVSS_OBR",      name: "IVSS Obrero (4%)",                type: "DEDUCTION" as ConceptType, isSystem: true,  affectsSalaryIntegral: false },
     { code: "RPE_OBR",       name: "Paro Forzoso Obrero (0.5%)",      type: "DEDUCTION" as ConceptType, isSystem: true,  affectsSalaryIntegral: false },
-    { code: "BANAVIH_OBR",   name: "BANAVIH Obrero (1%)",             type: "DEDUCTION" as ConceptType, isSystem: true,  affectsSalaryIntegral: false },
+    // BANAVIH_OBR eliminado: el sistema crea FAOV_OBR (mismo concepto 1%) al procesar nómina
   ];
+  // Limpiar BANAVIH_OBR si quedó de una ejecución anterior (duplica FAOV_OBR del sistema)
+  const banavih = await prisma.payrollConcept.findUnique({ where: { companyId_code: { companyId: cId, code: "BANAVIH_OBR" } } });
+  if (banavih) {
+    await prisma.payrollRunLine.deleteMany({ where: { companyId: cId, conceptId: banavih.id } });
+    await prisma.payrollConcept.delete({ where: { id: banavih.id } });
+    console.log("  🧹 BANAVIH_OBR duplicado eliminado (FAOV_OBR del sistema lo reemplaza)");
+  }
+
   const conceptIds: Record<string, string> = {};
   for (const c of conceptDefs) {
     const concept = await prisma.payrollConcept.upsert({
@@ -607,6 +615,7 @@ async function main() {
         remainingBalance:   "2500.0000",
         status:             "ACTIVE" as LoanStatus,
         description:        "Préstamo personal — adquisición de equipo médico familiar",
+        createdByUserId:    USER_ID,
       },
     });
     console.log("  ✅ EmployeeLoan — Alejandro Blanco — $3,000 USD / 12 cuotas ($250/mes) — 2 pagadas");
@@ -740,16 +749,16 @@ async function main() {
       base: "192080.00", taxType: "EXENTO" as TaxLineType, taxCategory: "EXENTA" as TaxCategory,
       ivaRate: 0, ivaAmt: "0.00", total: "192080.00", paymentStatus: "PAID" as InvoicePaymentStatus,
     },
-    // FAC-TESA-004: 2 smartwatches → Smart Solutions — 31% IVA — pagada parcial
-    // Base: 2 × $230 × 486.50 = 223,790; IVA 16% = 35,806.40; IVA adicional 15% = 33,568.50; Total = 293,164.90
+    // FAC-TESA-004: 2 smartwatches → Smart Solutions — 16% IVA — pagada parcial
+    // Base: 2 × $230 × 486.50 = 223,790; IVA 16% = 35,806.40; Total = 259,596.40
+    // Nota: smartwatches NO son bienes de lujo bajo Art. 59-62 LIVA → IVA adicional no aplica
     {
       invoiceNumber: "TESA-004", controlNumber: "00-00000004",
       date: d(10), dueDate: d(25),
       counterpartName: "Smart Solutions Venezuela C.A.", counterpartRif: "J-29876543-7",
       customerId: customers["Smart Solutions Venezuela C.A."],
       base: "223790.00", taxType: "IVA_GENERAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory,
-      ivaRate: 16, ivaAmt: "35806.40", total: "293164.90", paymentStatus: "PARTIAL" as InvoicePaymentStatus,
-      extraTaxLine: { taxType: "IVA_ADICIONAL" as TaxLineType, base: "223790.00", rate: 15, amount: "33568.50" },
+      ivaRate: 16, ivaAmt: "35806.40", total: "259596.40", paymentStatus: "PARTIAL" as InvoicePaymentStatus,
     },
     // FAC-TESA-005: 1 laptop + suministros → Industrias Metálicas — 16% IVA — sin pagar
     // Laptop: 369,993 + Sumin 10 kits × 1,423 = 14,230; Base = 384,223; IVA 16% = 61,475.68; Total = 445,698.68
@@ -814,23 +823,36 @@ async function main() {
     }
   }
 
+  // UPDATE: TESA-004 — eliminar IVA_ADICIONAL (smartwatches no son bienes de lujo — Art. 59-62 LIVA)
+  // Corrección: total 293,164.90 → 259,596.40 (sin IVA adicional 15%)
+  if (saleIds["TESA-004"]) {
+    await prisma.invoiceTaxLine.deleteMany({
+      where: { invoiceId: saleIds["TESA-004"], taxType: "IVA_ADICIONAL" },
+    });
+    await prisma.invoice.update({
+      where: { id: saleIds["TESA-004"] },
+      data: { totalAmountVes: "259596.40", pendingAmount: "113013.95" },
+    });
+    console.log("  ✅ TESA-004 corregida: IVA_ADICIONAL eliminado, total=259,596.40, pendiente=113,013.95");
+  }
+
   // ── 18. Facturas de Compra ────────────────────────────────────────────────
   console.log("\n🛒 Facturas de Compra...");
   const purchaseDefs = [
     // COMP-001: 5 laptops → Global Tech — 16% — pagada
-    { invoiceNumber: "TCOMP-001", date: d(2), dueDate: d(17), counterpartName: "Importaciones Global Tech C.A.", counterpartRif: "J-30987654-6",
+    { invoiceNumber: "TCOMP-001", controlNumber: "00-00100001", date: d(2), dueDate: d(17), counterpartName: "Importaciones Global Tech C.A.", counterpartRif: "J-30987654-6",
       vendorId: vendors["Importaciones Global Tech C.A."], base: "1849975.00", ivaRate: 16, ivaAmt: "295996.00", total: "2145971.00", paymentStatus: "PAID" as InvoicePaymentStatus },
     // COMP-002: 30 oxímetros + 20 tensiómetros → Médica Andina — 8% — pendiente
-    { invoiceNumber: "TCOMP-002", date: d(4), dueDate: d(19), counterpartName: "Distribuidora Médica Andina C.A.", counterpartRif: "J-41123456-9",
+    { invoiceNumber: "TCOMP-002", controlNumber: "00-00200001", date: d(4), dueDate: d(19), counterpartName: "Distribuidora Médica Andina C.A.", counterpartRif: "J-41123456-9",
       vendorId: vendors["Distribuidora Médica Andina C.A."], base: "854060.00", ivaRate: 8, ivaAmt: "68324.80", total: "922384.80", paymentStatus: "UNPAID" as InvoicePaymentStatus },
     // COMP-003: hosting/cloud → Cloud Venezuela — 16% — pagada parcial
-    { invoiceNumber: "TCOMP-003", date: d(6), dueDate: d(21), counterpartName: "Servicios Cloud Venezuela C.A.", counterpartRif: "J-29345678-5",
+    { invoiceNumber: "TCOMP-003", controlNumber: "00-00300001", date: d(6), dueDate: d(21), counterpartName: "Servicios Cloud Venezuela C.A.", counterpartRif: "J-29345678-5",
       vendorId: vendors["Servicios Cloud Venezuela C.A."], base: "70275.00", ivaRate: 16, ivaAmt: "11244.00", total: "81519.00", paymentStatus: "PARTIAL" as InvoicePaymentStatus },
     // COMP-004: papelería → Papelería Caracas Norte — 16% — pagada
-    { invoiceNumber: "TCOMP-004", date: d(9), dueDate: d(24), counterpartName: "Papelería Caracas Norte C.A.", counterpartRif: "J-20456789-2",
+    { invoiceNumber: "TCOMP-004", controlNumber: "00-00400001", date: d(9), dueDate: d(24), counterpartName: "Papelería Caracas Norte C.A.", counterpartRif: "J-20456789-2",
       vendorId: vendors["Papelería Caracas Norte C.A."], base: "56220.00", ivaRate: 16, ivaAmt: "8995.20", total: "65215.20", paymentStatus: "PAID" as InvoicePaymentStatus },
-    // COMP-005: 4 smartwatches → Samsung — 16% — pendiente (venta tiene IVA adicional al cliente)
-    { invoiceNumber: "TCOMP-005", date: d(11), dueDate: d(26), counterpartName: "Samsung Venezuela Representaciones C.A.", counterpartRif: "J-31123456-7",
+    // COMP-005: 4 smartwatches → Samsung — 16% — pendiente
+    { invoiceNumber: "TCOMP-005", controlNumber: "00-00500001", date: d(11), dueDate: d(26), counterpartName: "Samsung Venezuela Representaciones C.A.", counterpartRif: "J-31123456-7",
       vendorId: vendors["Samsung Venezuela Representaciones C.A."], base: "436400.00", ivaRate: 16, ivaAmt: "69824.00", total: "506224.00", paymentStatus: "UNPAID" as InvoicePaymentStatus },
   ];
 
@@ -844,7 +866,7 @@ async function main() {
       const created = await prisma.invoice.create({
         data: {
           companyId: cId, type: "PURCHASE", docType: "FACTURA", taxCategory: "GRAVADA",
-          invoiceNumber: inv.invoiceNumber, date: inv.date, dueDate: inv.dueDate,
+          invoiceNumber: inv.invoiceNumber, controlNumber: inv.controlNumber, date: inv.date, dueDate: inv.dueDate,
           counterpartName: inv.counterpartName, counterpartRif: inv.counterpartRif,
           vendorId: inv.vendorId, periodId: period.id,
           totalAmountVes: inv.total, pendingAmount: pendingAmt,
@@ -861,6 +883,23 @@ async function main() {
       console.log(`  ⏭️  PURCHASE ${inv.invoiceNumber} ya existe`);
     }
   }
+
+  // UPDATE: asignar controlNumber a facturas de compra que ya existían sin él
+  for (const inv of purchaseDefs) {
+    await prisma.invoice.updateMany({
+      where: { companyId: cId, invoiceNumber: inv.invoiceNumber, type: "PURCHASE", controlNumber: null },
+      data: { controlNumber: inv.controlNumber },
+    });
+  }
+  console.log("  ✅ controlNumber asignado a TCOMP-001..005 (existentes o nuevas)");
+
+  // UPDATE: TESA-001 — igtfBase + igtfAmount (cobro en divisas Zelle $1,807.42)
+  // Base VES = 857,397.00; IGTF 3% = 25,721.91
+  await prisma.invoice.updateMany({
+    where: { companyId: cId, invoiceNumber: "TESA-001", type: "SALE", igtfBase: { equals: 0 } },
+    data: { igtfBase: "857397.00", igtfAmount: "25721.91" },
+  });
+  console.log("  ✅ TESA-001 igtfBase=857,397 / igtfAmount=25,721.91 actualizados");
 
   // ── 19. Retenciones IVA 75% y ISLR ───────────────────────────────────────
   console.log("\n📋 Retenciones...");
@@ -1318,6 +1357,52 @@ async function main() {
       console.log(`  ✅ ${asiento.number} — ${asiento.description}`);
     } else {
       console.log(`  ⏭️  ${asiento.number} ya existe`);
+    }
+  }
+
+  // ── 26B. Registros de Depreciación (DepreciationEntry) ──────────────────
+  // Sin estos registros el módulo Activos Fijos muestra depreciación acumulada = 0
+  console.log("\n📊 DepreciationEntry activos fijos...");
+  {
+    const serverAsset = await prisma.fixedAsset.findFirst({ where: { companyId: cId, name: "Servidor HPE ProLiant ML350 Gen11" } });
+    const truckAsset  = await prisma.fixedAsset.findFirst({ where: { companyId: cId, name: "Camioneta Toyota Hilux DC 4x4 2024" } });
+    const serverTx    = await prisma.transaction.findUnique({ where: { companyId_number: { companyId: cId, number: "T-2026-002" } } });
+    const truckTx     = await prisma.transaction.findUnique({ where: { companyId_number: { companyId: cId, number: "T-2026-003" } } });
+
+    if (serverAsset) {
+      // Adquirido ene-2025; Abril 2026 = mes 16 de depreciación. 16 × 29,025 = 464,400
+      await prisma.depreciationEntry.upsert({
+        where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: serverAsset.id, periodYear: 2026, periodMonth: 4 } },
+        update: {},
+        create: {
+          companyId: cId, fixedAssetId: serverAsset.id,
+          periodYear: 2026, periodMonth: 4,
+          amount: "29025.0000",
+          accumulatedDepreciation: "464400.0000",
+          bookValue: "1470600.0000",  // 1,935,000 − 464,400
+          transactionId: serverTx?.id ?? null,
+          postedAt: d(30),
+        },
+      });
+      console.log("  ✅ DepreciationEntry Servidor HPE — Abril 2026 Bs. 29,025");
+    }
+
+    if (truckAsset) {
+      // Adquirida mar-2024; Abril 2026 = mes 25 de depreciación. 25 × 167,416.67 = 4,185,416.75
+      await prisma.depreciationEntry.upsert({
+        where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: truckAsset.id, periodYear: 2026, periodMonth: 4 } },
+        update: {},
+        create: {
+          companyId: cId, fixedAssetId: truckAsset.id,
+          periodYear: 2026, periodMonth: 4,
+          amount: "167416.6700",
+          accumulatedDepreciation: "4185416.7500",
+          bookValue: "10164583.2500",  // 14,350,000 − 4,185,416.75
+          transactionId: truckTx?.id ?? null,
+          postedAt: d(30),
+        },
+      });
+      console.log("  ✅ DepreciationEntry Camioneta Toyota — Abril 2026 Bs. 167,416.67");
     }
   }
 
