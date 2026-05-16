@@ -209,18 +209,21 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
           <div className="bg-green-50 rounded-lg p-4">
             <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Total Asignaciones</p>
             <p className="mt-1 text-2xl font-bold text-green-900 font-mono">
+              <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalEarnings))}
             </p>
           </div>
           <div className="bg-red-50 rounded-lg p-4">
             <p className="text-xs font-medium text-red-700 uppercase tracking-wide">Total Deducciones</p>
             <p className="mt-1 text-2xl font-bold text-red-900 font-mono">
+              <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalDeductions))}
             </p>
           </div>
           <div className="bg-blue-50 rounded-lg p-4">
             <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Neto a Pagar</p>
             <p className="mt-1 text-2xl font-bold text-blue-900 font-mono">
+              <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalNet))}
             </p>
           </div>
@@ -315,9 +318,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                 <div className="flex items-center justify-between mb-3">
                   <p className="font-medium text-gray-900">{name}</p>
                   <div className="flex gap-6 text-sm">
-                    <span className="text-green-700">+{formatAmount(totalEarnings)}</span>
-                    <span className="text-red-600">-{formatAmount(totalDeductions)}</span>
-                    <span className="font-semibold text-gray-900">={formatAmount(net)}</span>
+                    <span className="text-green-700">
+                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>+{formatAmount(totalEarnings)}
+                    </span>
+                    <span className="text-red-600">
+                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>-{formatAmount(totalDeductions)}
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      <span className="mr-0.5 text-xs font-normal opacity-60">{currency}</span>={formatAmount(net)}
+                    </span>
                   </div>
                 </div>
 
