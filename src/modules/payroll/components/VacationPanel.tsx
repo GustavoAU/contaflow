@@ -2,9 +2,11 @@
 // src/modules/payroll/components/VacationPanel.tsx
 // Fase NOM-D: Panel de vacaciones por empleado (registro + historial)
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { Loader2Icon } from "lucide-react";
 import { createVacationAction } from "../actions/nom-d.actions";
+import { countWorkingDays } from "@/lib/working-days";
+import type { WorkScheduleType } from "@/lib/working-days";
 import type { VacationRecordRow } from "../services/VacationService";
 
 function fmt(v: string | number) {
@@ -19,11 +21,12 @@ interface Props {
   vacationEntitlement?: number;
   vacationUsedThisYear?: number;
   yearsOfService?: number;
+  workSchedule?: WorkScheduleType;
 }
 
 const currentYear = new Date().getFullYear();
 
-export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin, vacationEntitlement, vacationUsedThisYear, yearsOfService }: Props) {
+export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin, vacationEntitlement, vacationUsedThisYear, yearsOfService, workSchedule }: Props) {
   const [records, setRecords] = useState<VacationRecordRow[]>(initialRecords);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -37,6 +40,11 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
     endDate: "",
     isFractional: false,
   });
+
+  const workingDays = useMemo(() => {
+    if (!form.startDate || !form.endDate) return null;
+    return countWorkingDays(form.startDate, form.endDate, workSchedule ?? "LUNES_VIERNES");
+  }, [form.startDate, form.endDate, workSchedule]);
 
   function handleSubmit() {
     setError(null);
@@ -208,6 +216,12 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
               />
             </div>
           </div>
+
+          {workingDays !== null && (
+            <p className="text-xs text-blue-700 font-medium">
+              Días hábiles en el período: <strong>{workingDays}</strong>
+            </p>
+          )}
 
           {error && (
             <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>

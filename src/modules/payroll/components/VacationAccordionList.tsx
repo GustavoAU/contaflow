@@ -20,6 +20,7 @@ interface Props {
   recordsByEmployee: Record<string, VacationRecordRow[]>;
   companyId: string;
   canAdmin: boolean;
+  workSchedule?: "LUNES_VIERNES" | "LUNES_SABADO" | "LUNES_SABADO_MEDIO";
 }
 
 export default function VacationAccordionList({
@@ -27,6 +28,7 @@ export default function VacationAccordionList({
   recordsByEmployee,
   companyId,
   canAdmin,
+  workSchedule,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -87,6 +89,7 @@ export default function VacationAccordionList({
                   vacationEntitlement={emp.vacationEntitlement}
                   vacationUsedThisYear={emp.vacationUsedThisYear}
                   yearsOfService={emp.yearsOfService}
+                  workSchedule={workSchedule}
                 />
               </div>
             )}

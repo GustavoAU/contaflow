@@ -32,6 +32,8 @@ export const PayrollConfigSchema = z.object({
   fideicomiso: z.enum(["EXTERNAL_BANK", "INTERNAL"], {
     error: "Selecciona la modalidad de fideicomiso",
   }),
+  // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
+  workSchedule: z.enum(["LUNES_VIERNES", "LUNES_SABADO", "LUNES_SABADO_MEDIO"]).default("LUNES_VIERNES"),
   // Paso 3 — Cuentas contables NOM-D (opcionales; requeridas para prestaciones/vacaciones/utilidades)
   benefitsExpenseAccountId: z.string().optional().nullable(),
   benefitsPayableAccountId: z.string().optional().nullable(),

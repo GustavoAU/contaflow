@@ -51,6 +51,12 @@ const FIDEICOMISO_LABELS: Record<string, string> = {
   INTERNAL: "Registro contable interno",
 };
 
+const WORK_SCHEDULE_LABELS: Record<string, string> = {
+  LUNES_VIERNES: "Lunes a viernes (sábado y domingo libres)",
+  LUNES_SABADO: "Lunes a sábado (solo domingo libre)",
+  LUNES_SABADO_MEDIO: "Lunes a viernes + sábado medio turno",
+};
+
 const CESTA_LABELS: Record<string, string> = {
   CARD: "Tarjeta de alimentación",
   CASH: "Efectivo",
@@ -75,6 +81,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     paymentCurrency: initial?.paymentCurrency ?? "VES",
     frequency: initial?.frequency ?? "BIWEEKLY",
     fideicomiso: initial?.fideicomiso ?? "INTERNAL",
+    workSchedule: (initial?.workSchedule ?? "LUNES_VIERNES") as "LUNES_VIERNES" | "LUNES_SABADO" | "LUNES_SABADO_MEDIO",
     salaryMinimumVes: initial?.salaryMinimumVes ?? "",
     benefitsExpenseAccountId: initial?.benefitsExpenseAccountId ?? "",
     benefitsPayableAccountId: initial?.benefitsPayableAccountId ?? "",
@@ -189,6 +196,25 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                   value={val}
                   checked={form.lottRegime === val}
                   onChange={() => set("lottRegime", val as typeof form.lottRegime)}
+                  className="accent-blue-600"
+                />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Jornada laboral <span className="text-xs text-gray-400 font-normal">(días hábiles para vacaciones)</span>
+            </label>
+            {Object.entries(WORK_SCHEDULE_LABELS).map(([val, label]) => (
+              <label key={val} className="flex cursor-pointer items-center gap-2 py-1">
+                <input
+                  type="radio"
+                  name="workSchedule"
+                  value={val}
+                  checked={form.workSchedule === val}
+                  onChange={() => set("workSchedule", val as typeof form.workSchedule)}
                   className="accent-blue-600"
                 />
                 <span className="text-sm">{label}</span>
@@ -407,6 +433,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             <p>Moneda: {CURRENCY_LABELS[form.paymentCurrency]}</p>
             <p>Frecuencia: {FREQUENCY_LABELS[form.frequency]}</p>
             <p>Fideicomiso: {FIDEICOMISO_LABELS[form.fideicomiso]}</p>
+            <p>Jornada: {WORK_SCHEDULE_LABELS[form.workSchedule]}</p>
           </div>
 
           {error && (

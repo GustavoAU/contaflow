@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import { VacationService } from "@/modules/payroll/services/VacationService";
+import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigService";
 import VacationAccordionList from "@/modules/payroll/components/VacationAccordionList";
 
 type Props = { params: Promise<{ companyId: string }> };
@@ -33,7 +34,12 @@ export default async function VacationsPage({ params }: Props) {
     );
   }
 
-  const employees = await EmployeeService.list(companyId, "ACTIVE");
+  const [employees, payrollConfig] = await Promise.all([
+    EmployeeService.list(companyId, "ACTIVE"),
+    PayrollConfigService.getConfig(companyId),
+  ]);
+
+  const workSchedule = payrollConfig?.workSchedule ?? "LUNES_VIERNES";
 
   const employeeRecords = await Promise.all(
     employees.slice(0, 20).map(async (emp) => ({
@@ -106,6 +112,7 @@ export default async function VacationsPage({ params }: Props) {
             recordsByEmployee={recordsByEmployee}
             companyId={companyId}
             canAdmin={isAdmin}
+            workSchedule={workSchedule}
           />
         )}
       </section>

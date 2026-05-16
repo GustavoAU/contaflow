@@ -20,6 +20,7 @@ import type {
   PayrollFrequency,
   CestaTicketType,
   FideicomisoType,
+  WorkSchedule,
 } from "@prisma/client";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export interface PayrollConfigRow {
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
   rpePayableAccountId: string | null;
+  workSchedule: WorkSchedule;
   updatedAt: string;
 }
 
@@ -63,6 +65,7 @@ export interface SavePayrollConfigInput {
   vacationPayableAccountId?: string | null;
   profitSharingPayableAccountId?: string | null;
   rpePayableAccountId?: string | null;
+  workSchedule?: WorkSchedule;
 }
 
 // ─── Serialización ────────────────────────────────────────────────────────────
@@ -86,6 +89,7 @@ function serializeConfig(c: {
   vacationPayableAccountId: string | null;
   profitSharingPayableAccountId: string | null;
   rpePayableAccountId: string | null;
+  workSchedule: WorkSchedule;
   updatedAt: Date;
 }): PayrollConfigRow {
   return {
@@ -107,6 +111,7 @@ function serializeConfig(c: {
     vacationPayableAccountId: c.vacationPayableAccountId,
     profitSharingPayableAccountId: c.profitSharingPayableAccountId,
     rpePayableAccountId: c.rpePayableAccountId,
+    workSchedule: c.workSchedule,
     updatedAt: c.updatedAt.toISOString(),
   };
 }
@@ -192,6 +197,7 @@ export const PayrollConfigService = {
             frequency: input.frequency,
             fideicomiso: input.fideicomiso,
             salaryMinimumVes: input.salaryMinimumVes ?? null,
+            workSchedule: input.workSchedule ?? "LUNES_VIERNES",
           },
         },
       });

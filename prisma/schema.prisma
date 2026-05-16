@@ -1381,6 +1381,12 @@ model Order {
 
 // ─── Fase NOM-A: Configuración de Nómina ────────────────────────────────────
 
+enum WorkSchedule {
+  LUNES_VIERNES // Lun-Vie (Sab+Dom libres) — jornada estándar LOTTT
+  LUNES_SABADO // Lun-Sab (solo Dom libre)
+  LUNES_SABADO_MEDIO // Lun-Vie + Sab medio turno
+}
+
 enum PayrollSizeRange {
   SMALL // < 20 empleados
   MEDIUM // 20-100 empleados
@@ -1474,6 +1480,8 @@ model PayrollConfig {
   // Fase NOM-D: Configuración de beneficios legales
   profitDays                    Int                    @default(15) // días de utilidades (15–120 LOTTT Art. 131)
   vacationBonusDays             Int                    @default(7) // días bono vacacional año 1 (LOTTT Art. 223)
+  // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
+  workSchedule                  WorkSchedule           @default(LUNES_VIERNES)
   // Fase NOM-E: Valor de la Unidad Tributaria para cálculo de techo IVSS (LSS Art. 62)
   // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
   // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
