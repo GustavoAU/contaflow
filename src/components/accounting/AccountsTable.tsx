@@ -29,6 +29,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -94,7 +101,9 @@ export function AccountsTable({
   initialAccounts: Account[];
   companyId: string;
 }) {
-  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
+  const [accounts, setAccounts] = useState<Account[]>(
+    [...initialAccounts].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -107,7 +116,11 @@ export function AccountsTable({
   const loadAccounts = async () => {
     const result = await getAccountsAction(companyId);
     if (result.success) {
-      setAccounts(result.data as Account[]);
+      setAccounts(
+        [...(result.data as Account[])].sort((a, b) =>
+          a.code.localeCompare(b.code, undefined, { numeric: true })
+        )
+      );
     } else {
       toast.error(result.error);
     }
@@ -135,7 +148,6 @@ export function AccountsTable({
   }
 
   async function handleTypeChange(type: string) {
-    form.setValue("type", type as AccountFormValues["type"]);
     if (!editing) {
       const result = await getNextAccountCodeAction(type as AccountType, companyId);
       if (result.success) form.setValue("code", result.data.code);
@@ -154,6 +166,29 @@ export function AccountsTable({
         } else {
           toast.success(
             editing ? "Cuenta actualizada correctamente" : "Cuenta creada correctamente"
+          );
+        }
+        // Ítem 14: insert/update optimista en posición ordenada por código
+        if (!editing) {
+          const optimistic: Account = {
+            id: result.data.id,
+            name: values.name,
+            code: values.code,
+            type: values.type,
+            description: values.description ?? null,
+            isMonetary: values.isMonetary,
+            companyId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          setAccounts((prev) =>
+            [...prev, optimistic].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+          );
+        } else {
+          setAccounts((prev) =>
+            prev
+              .map((a) => (a.id === editing.id ? { ...a, ...values, updatedAt: new Date() } : a))
+              .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
           );
         }
         setDialogOpen(false);
@@ -248,20 +283,27 @@ export function AccountsTable({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Cuenta</FormLabel>
-                    <FormControl>
-                      <select
-                        className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
-                        {...field}
-                        onChange={(e) => handleTypeChange(e.target.value)}
-                      >
-                        <option value="ASSET">Activo</option>
-                        <option value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</option>
-                        <option value="LIABILITY">Pasivo</option>
-                        <option value="EQUITY">Patrimonio</option>
-                        <option value="REVENUE">Ingreso</option>
-                        <option value="EXPENSE">Gasto</option>
-                      </select>
-                    </FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        void handleTypeChange(value);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="ASSET">Activo</SelectItem>
+                        <SelectItem value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</SelectItem>
+                        <SelectItem value="LIABILITY">Pasivo</SelectItem>
+                        <SelectItem value="EQUITY">Patrimonio</SelectItem>
+                        <SelectItem value="REVENUE">Ingreso</SelectItem>
+                        <SelectItem value="EXPENSE">Gasto</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
