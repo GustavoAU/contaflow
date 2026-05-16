@@ -9,6 +9,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { getCompanyGrants } from "@/lib/get-company-grants";
+import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
 
 type Props = {
   children: React.ReactNode;
@@ -33,6 +34,17 @@ export default async function CompanyLayout({ children, params }: Props) {
   const rolePrefix = `${company.role}:`;
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
 
+  const periodResult = await getActivePeriodAction(companyId);
+  const activePeriod = periodResult.success && periodResult.data
+    ? {
+        year: periodResult.data.year,
+        month: periodResult.data.month,
+        isStale: Math.floor(
+          (Date.now() - new Date(periodResult.data.openedAt).getTime()) / 86_400_000
+        ) > 30,
+      }
+    : null;
+
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-50">
       {/* Sidebar vertical */}
@@ -49,6 +61,7 @@ export default async function CompanyLayout({ children, params }: Props) {
           companyId={companyId}
           companyName={company.name}
           userRole={company.role}
+          activePeriod={activePeriod}
           notificationSlot={
             showNotifications ? <NotificationBell companyId={companyId} /> : null
           }

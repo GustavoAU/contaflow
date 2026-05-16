@@ -323,8 +323,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr>
-                      <th className="px-4 py-3 text-left">Fecha</th>
-                      <th className="px-4 py-3 text-left">
+                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left w-[100px]">Fecha</th>
+                      <th className="sticky left-[100px] z-10 bg-zinc-50 px-4 py-3 text-left min-w-[140px]">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
                       </th>
                       <th className="px-4 py-3 text-left">RIF</th>
@@ -377,10 +377,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                         <React.Fragment key={row.id}>
                           {row.taxLines.length === 0 ? (
                             <tr className="hover:bg-zinc-50">
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                                 {fmtDate(row.date)}
                               </td>
-                              <td className="px-4 py-3">{row.counterpartName}</td>
+                              <td className="sticky left-[100px] z-10 bg-white px-4 py-3 max-w-[160px] truncate"
+                                  title={row.counterpartName}>
+                                {row.counterpartName}
+                              </td>
                               <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
                               <td className="px-4 py-3 font-mono text-xs">
                                 <div className="flex flex-col gap-0.5">
@@ -416,29 +419,32 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono text-orange-700">
-                                {row.ivaRetentionAmount}
+                                Bs. {row.ivaRetentionAmount}
                               </td>
                               {type === "PURCHASE" && (
                                 <td className="px-4 py-3 text-right font-mono text-orange-700">
-                                  {row.islrRetentionAmount}
+                                  Bs. {row.islrRetentionAmount}
                                 </td>
                               )}
                               {type === "SALE" && (
                                 <td className="px-4 py-3 text-right font-mono text-yellow-700">
-                                  {row.igtfAmount}
+                                  Bs. {row.igtfAmount}
                                 </td>
                               )}
                               <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={totalTooltip}>
-                                {rowTotal > 0 ? formatAmount(rowTotal) : "—"}
+                                {rowTotal > 0 ? `Bs. ${formatAmount(rowTotal)}` : "—"}
                               </td>
                             </tr>
                           ) : (
                             row.taxLines.map((line, idx) => (
                               <tr key={`${row.id}-${line.id}`} className="hover:bg-zinc-50">
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                               {idx === 0 ? fmtDate(row.date) : ""}
                             </td>
-                            <td className="px-4 py-3">{idx === 0 ? row.counterpartName : ""}</td>
+                            <td className="sticky left-[100px] z-10 bg-white px-4 py-3 max-w-[160px] truncate"
+                                title={idx === 0 ? row.counterpartName : undefined}>
+                              {idx === 0 ? row.counterpartName : ""}
+                            </td>
                             <td className="px-4 py-3 font-mono text-xs">
                               {idx === 0 ? row.counterpartRif : ""}
                             </td>
@@ -480,24 +486,24 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                                 {TAX_LINE_LABELS[line.taxType] ?? line.taxType}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-mono">{line.base}</td>
+                            <td className="px-4 py-3 text-right font-mono">Bs. {line.base}</td>
                             <td className="px-4 py-3 text-right font-mono">{line.rate}%</td>
-                            <td className="px-4 py-3 text-right font-mono">{line.amount}</td>
+                            <td className="px-4 py-3 text-right font-mono">Bs. {line.amount}</td>
                             <td className="px-4 py-3 text-right font-mono text-orange-700">
-                              {idx === 0 ? row.ivaRetentionAmount : ""}
+                              {idx === 0 ? `Bs. ${row.ivaRetentionAmount}` : ""}
                             </td>
                             {type === "PURCHASE" && (
                               <td className="px-4 py-3 text-right font-mono text-orange-700">
-                                {idx === 0 ? row.islrRetentionAmount : ""}
+                                {idx === 0 ? `Bs. ${row.islrRetentionAmount}` : ""}
                               </td>
                             )}
                             {type === "SALE" && (
                               <td className="px-4 py-3 text-right font-mono text-yellow-700">
-                                {idx === 0 ? row.igtfAmount : ""}
+                                {idx === 0 ? `Bs. ${row.igtfAmount}` : ""}
                               </td>
                             )}
                             <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={idx === 0 ? totalTooltip : undefined}>
-                              {idx === 0 ? formatAmount(rowTotal) : ""}
+                              {idx === 0 ? `Bs. ${formatAmount(rowTotal)}` : ""}
                             </td>
                           </tr>
                             ))
@@ -516,27 +522,27 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
                       </td>
                       <td className="px-4 py-3"></td>{/* Impuesto col */}
                       <td className="px-4 py-3 text-right font-mono">
-                        {result.summary.totalBaseGeneral}
+                        Bs. {result.summary.totalBaseGeneral}
                       </td>
                       <td className="px-4 py-3"></td>{/* Tasa% col */}
                       <td className="px-4 py-3 text-right font-mono">
-                        {result.summary.totalIvaGeneral}
+                        Bs. {result.summary.totalIvaGeneral}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-orange-700">
-                        {result.summary.totalIvaRetention}
+                        Bs. {result.summary.totalIvaRetention}
                       </td>
                       {type === "PURCHASE" && (
                         <td className="px-4 py-3 text-right font-mono text-orange-700">
-                          {result.summary.totalIslrRetention}
+                          Bs. {result.summary.totalIslrRetention}
                         </td>
                       )}
                       {type === "SALE" && (
                         <td className="px-4 py-3 text-right font-mono text-yellow-700">
-                          {result.summary.totalIgtf}
+                          Bs. {result.summary.totalIgtf}
                         </td>
                       )}
                       <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
-                        {formatAmount(result.rows.reduce((acc, row) => {
+                        Bs. {formatAmount(result.rows.reduce((acc, row) => {
                           const rt = row.taxLines.reduce(
                             (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
                             0

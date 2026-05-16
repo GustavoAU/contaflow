@@ -27,11 +27,14 @@ const ROLE_STYLES: Record<UserRole, string> = {
 
 // ─── TopbarInner ──────────────────────────────────────────────────────────────
 
+const MONTHS_SHORT = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
 type TopbarInnerProps = {
   companyId?: string;
   companyName?: string;
   userRole?: UserRole;
   notificationSlot?: React.ReactNode;
+  activePeriod?: { year: number; month: number; isStale: boolean } | null;
 };
 
 export function TopbarInner({
@@ -39,6 +42,7 @@ export function TopbarInner({
   companyName,
   userRole = "ACCOUNTANT",
   notificationSlot,
+  activePeriod,
 }: TopbarInnerProps) {
   return (
     <header className="h-14 bg-white border-b border-zinc-200 flex items-center gap-3 px-5 shrink-0">
@@ -72,6 +76,22 @@ export function TopbarInner({
 
       {/* Sin empresa: spacer */}
       {!companyName && <div className="flex-1" />}
+
+      {/* Período activo */}
+      {activePeriod && (
+        <div
+          className={cn(
+            "hidden sm:flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border shrink-0",
+            activePeriod.isStale
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-zinc-100 text-zinc-500 border-zinc-200"
+          )}
+          title={activePeriod.isStale ? "Período con más de 30 días abierto" : "Período contable activo"}
+        >
+          {MONTHS_SHORT[activePeriod.month - 1]} {activePeriod.year}
+          {activePeriod.isStale && " ⚠"}
+        </div>
+      )}
 
       {/* Tasa BCV */}
       {companyId && <BcvRateWidget companyId={companyId} />}

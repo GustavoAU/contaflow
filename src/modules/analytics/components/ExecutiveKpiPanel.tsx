@@ -14,7 +14,7 @@ type Props = {
 };
 
 function fmt(value: string): string {
-  return Number(value).toLocaleString("es-VE", {
+  return "Bs. " + Number(value).toLocaleString("es-VE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

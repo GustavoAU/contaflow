@@ -365,7 +365,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <TrendingUpIcon className="h-4 w-4 text-green-500" />
               </div>
               <p className="mt-2 text-2xl font-bold text-green-600">
-                {Number(m.totalRevenue).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs. {Number(m.totalRevenue).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
               </p>
               <p className="text-muted-foreground mt-1 text-xs">acumulado</p>
             </div>
@@ -376,7 +376,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <TrendingDownIcon className="h-4 w-4 text-red-500" />
               </div>
               <p className="mt-2 text-2xl font-bold text-red-600">
-                {Number(m.totalExpenses).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs. {Number(m.totalExpenses).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
               </p>
               <p className="text-muted-foreground mt-1 text-xs">acumulado</p>
             </div>
@@ -389,7 +389,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <ScaleIcon className="h-4 w-4 text-blue-500" />
               </div>
               <p className="mt-2 text-2xl font-bold">
-                {Number(m.totalAssets).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs. {Number(m.totalAssets).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
               </p>
             </div>
 
@@ -399,7 +399,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <ScaleIcon className="h-4 w-4 text-red-500" />
               </div>
               <p className="mt-2 text-2xl font-bold">
-                {Number(m.totalLiabilities).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs. {Number(m.totalLiabilities).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
               </p>
             </div>
 
@@ -413,7 +413,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 )}
               </div>
               <p className={`mt-2 text-2xl font-bold ${Number(m.netIncome) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {Number(m.netIncome).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs. {Number(m.netIncome).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
               </p>
             </div>
           </div>
