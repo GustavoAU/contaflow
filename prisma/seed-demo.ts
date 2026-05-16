@@ -475,6 +475,17 @@ async function main() {
     console.log(`  ✅ ${ret.voucherNumber} — ${pd.counterpartName} — Bs. ${ret.retention}`);
   }
 
+  // Actualizar ivaRetentionAmount en facturas de compra con retención (Forma 30 C2)
+  for (const ret of retDefs) {
+    if (purchaseInvoiceIds[ret.invoiceIdx]) {
+      await prisma.invoice.update({
+        where: { id: purchaseInvoiceIds[ret.invoiceIdx]! },
+        data: { ivaRetentionAmount: ret.retention },
+      });
+    }
+  }
+  console.log("  ✅ ivaRetentionAmount actualizado en C-0001, C-0003, C-0005 (Forma 30 C2)");
+
   // ── 9. Cuenta Bancaria ───────────────────────────────────────────────────
   console.log("\n🏦 Cuenta bancaria...");
   let bankAccount = await prisma.bankAccount.findFirst({ where: { companyId: cId, deletedAt: null } });
@@ -1091,6 +1102,108 @@ async function main() {
     console.log("  ⏭️  SALE 0008 ya existe");
   }
 
+  // ── 20b. Compras con IVA variado (ítem 7) ───────────────────────────────
+  console.log("\n🛒 Compras IVA variado...");
+
+  // C-0006: IVA Reducido 8% (insumos médicos — LIVA Art. 63)
+  const c0006Existing = await prisma.invoice.findUnique({
+    where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "C-0006", type: "PURCHASE" } },
+  });
+  if (!c0006Existing) {
+    await prisma.invoice.create({
+      data: {
+        companyId: cId,
+        type: "PURCHASE" as InvoiceType,
+        docType: "FACTURA" as InvoiceDocType,
+        taxCategory: "GRAVADA" as TaxCategory,
+        invoiceNumber: "C-0006",
+        date: d(8),
+        dueDate: d(23),
+        counterpartName: "Farmacéutica Nacional C.A.",
+        counterpartRif: "J-09876543-1",
+        periodId: period.id,
+        totalAmountVes: "108000.00",
+        pendingAmount: "0.00",
+        paymentStatus: "PAID" as InvoicePaymentStatus,
+        createdBy: USER_ID,
+        taxLines: {
+          create: [{ taxType: "IVA_REDUCIDO" as TaxLineType, base: "100000.00", rate: 8, amount: "8000.00" }],
+        },
+      },
+    });
+    console.log("  ✅ PURCHASE C-0006 — Farmacéutica Nacional — Bs. 108,000 [IVA Reducido 8%]");
+  } else {
+    console.log("  ⏭️  PURCHASE C-0006 ya existe");
+  }
+
+  // C-0007: Exento 0% (servicios educativos/libros — LIVA Art. 62)
+  const c0007Existing = await prisma.invoice.findUnique({
+    where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "C-0007", type: "PURCHASE" } },
+  });
+  if (!c0007Existing) {
+    await prisma.invoice.create({
+      data: {
+        companyId: cId,
+        type: "PURCHASE" as InvoiceType,
+        docType: "FACTURA" as InvoiceDocType,
+        taxCategory: "EXENTA" as TaxCategory,
+        invoiceNumber: "C-0007",
+        date: d(11),
+        dueDate: d(26),
+        counterpartName: "Editorial Académica Venezolana C.A.",
+        counterpartRif: "J-08765432-0",
+        periodId: period.id,
+        totalAmountVes: "65000.00",
+        pendingAmount: "0.00",
+        paymentStatus: "PAID" as InvoicePaymentStatus,
+        createdBy: USER_ID,
+        taxLines: {
+          create: [{ taxType: "EXENTO" as TaxLineType, base: "65000.00", rate: 0, amount: "0.00" }],
+        },
+      },
+    });
+    console.log("  ✅ PURCHASE C-0007 — Editorial Académica Venezolana — Bs. 65,000 [Exento 0%]");
+  } else {
+    console.log("  ⏭️  PURCHASE C-0007 ya existe");
+  }
+
+  // ── 20c. Venta con IVA Retenido Sufrido (Forma 30 C1 drill-down) ────────
+  console.log("\n🧾 Factura venta con IVA retenido sufrido...");
+  const sale0009Existing = await prisma.invoice.findUnique({
+    where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "0009", type: "SALE" } },
+  });
+  if (!sale0009Existing) {
+    // Construcciones Andinas es Agente de Retención — retiene 75% del IVA emitido
+    // Base: 100,000 | IVA 16%: 16,000 | Retenido (75%): 12,000 | Neto cobrado: 104,000
+    await prisma.invoice.create({
+      data: {
+        companyId: cId,
+        type: "SALE" as InvoiceType,
+        docType: "FACTURA" as InvoiceDocType,
+        taxCategory: "GRAVADA" as TaxCategory,
+        invoiceNumber: "0009",
+        controlNumber: "00-00000009",
+        date: d(22),
+        dueDate: d(30),
+        counterpartName: "Construcciones Andinas del Orinoco S.A.",
+        counterpartRif: "J-21234567-5",
+        customerId: customers["Construcciones Andinas del Orinoco S.A."],
+        periodId: period.id,
+        ivaRetentionAmount: "12000.00",
+        totalAmountVes: "104000.00",
+        pendingAmount: "0.00",
+        paymentStatus: "PAID" as InvoicePaymentStatus,
+        createdBy: USER_ID,
+        taxLines: {
+          create: [{ taxType: "IVA_GENERAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory, base: "100000.00", rate: 16, amount: "16000.00" }],
+        },
+      },
+    });
+    console.log("  ✅ SALE 0009 — Construcciones Andinas (IVA Sufrido 75%) — ivaRetentionAmount: Bs. 12,000");
+  } else {
+    console.log("  ⏭️  SALE 0009 ya existe");
+  }
+
   // ── 21. Asientos Contables Manuales (Libro Diario) ────────────────────────
   console.log("\n📒 Asientos contables...");
 
@@ -1170,9 +1283,9 @@ async function main() {
 ║  💱 5 tasas BCV (USD/VES)                          ║
 ║  🏭 ${vendorDefs.length} proveedores                                   ║
 ║  👥 ${customerDefs.length} clientes                                    ║
-║  🧾 ${saleDefs.length + 1} facturas de venta (incl. lujo 31%)          ║
-║  🛒 ${purchaseDefs.length} facturas de compra                          ║
-║  📋 3 retenciones IVA 75% + 1 ISLR 5%             ║
+║  🧾 ${saleDefs.length + 3} facturas venta (lujo/IGTF/sufrida)          ║
+║  🛒 ${purchaseDefs.length + 2} facturas compra (16%/8%/0%)             ║
+║  📋 3 ret. IVA 75% + 1 ISLR 5% + 1 sufrida        ║
 ║  📒 4 asientos contables manuales                  ║
 ║  🏦 1 cuenta bancaria + estado de cuenta           ║
 ║  👤 3 empleados con historial salarial             ║
