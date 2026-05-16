@@ -11,7 +11,16 @@ _Solo esto se carga por defecto en cada sesión._
 ### Fase en vuelo
 Ninguna — main limpio. Vercel GREEN ✅ (`bfcf685`)
 
+### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
+Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
+- CONT-AT: módulo audit completo (`AuditLogService` + `AuditLogTable` con paginación/filtros/diff view + `audit.actions.ts` + `/audit-log/page.tsx`)
+- CONT-VAL: `exportBalanceSheetPDFAction` bloquea si `isBalanced=false`; página muestra ⚠️ visual
+- CONT-PER: `PendingTasksService` emite warning si período abierto >30 días
+- UX-10/11/12/24/63: breadcrumbs en nav, tooltip en trash button, asientoDefs seed, /periods page, PrerequisiteGuide con Driver.js
+- LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
+
 ### Completadas recientes
+- **TODOS LOS ÍTEMS BACKLOG 2026-05-16** ✅ — Grupos 7-9 confirmados YA ESTABA tras revisión código.
 - **CONT-LM YA ESTABA 2026-05-16** ✅ — período en header, saldo anterior por cuenta, firma contador al pie ya implementados en `FinancialStatementsPDFService.ts` + `getLedgerAction` + `LedgerAccountBlock`. Sin cambios de código.
 - **FAC-4/FAC-5 2026-05-16** ✅ merged — UTC timezone explícito en fmtDate + Date.UTC en filtro getBook; columna Total en libro facturas + colSpan NC/ND corregido a 13. commit bfcf685.
 - **CAJA-1 2026-05-16** ✅ merged — fix 404 /cajachica: useEffect en CajaCajaPageClient (useState initializer ilegal en React). commit cd8d786.
@@ -55,10 +64,8 @@ Ninguna — main limpio. Vercel GREEN ✅ (`bfcf685`)
 - NOWPayments config (API key, IPN secret, wallet) — bloqueado hasta tener dominio de producción
 
 ### Próximas fases (backlog inmediato)
-- **CONT-AT** — UI Auditoría Trail: página Historial de cambios exponiendo AuditLog (OWNER/ADMIN)
-- **CONT-VAL** — alerta isBalanced=false antes de exportar PDF Balance General
-- **CONT-PER** — warning período contable activo > 30 días sin cerrar
-- **Post-lanzamiento diferido:** 35B, 35C, 36A, 36B, 36E
+- **BACKLOG PRE-LANZAMIENTO COMPLETADO** — confirmar con el usuario si hay nuevos ítems o proceder al lanzamiento
+- **Post-lanzamiento diferido:** 35B, 35C, 36A, 36B, 36E | RIVA XML | ISLR TXT | EmployeeLoan
 
 ---
 
