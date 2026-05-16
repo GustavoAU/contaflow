@@ -16,11 +16,14 @@ interface Props {
   employeeId: string;
   initialRecords: VacationRecordRow[];
   canAdmin?: boolean;
+  vacationEntitlement?: number;
+  vacationUsedThisYear?: number;
+  yearsOfService?: number;
 }
 
 const currentYear = new Date().getFullYear();
 
-export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin }: Props) {
+export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin, vacationEntitlement, vacationUsedThisYear, yearsOfService }: Props) {
   const [records, setRecords] = useState<VacationRecordRow[]>(initialRecords);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -51,6 +54,32 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
 
   return (
     <div className="space-y-3">
+      {/* VAC-2: Balance de vacaciones */}
+      {vacationEntitlement !== undefined && vacationUsedThisYear !== undefined && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-gray-50 px-4 py-2.5 text-xs">
+          <span className="text-gray-500">
+            Antigüedad: <strong>{yearsOfService ?? 0} año{yearsOfService !== 1 ? "s" : ""}</strong>
+          </span>
+          <span className="text-gray-300">|</span>
+          <span className="text-gray-500">
+            Derecho: <strong>{vacationEntitlement} días</strong>
+          </span>
+          <span className="text-gray-300">|</span>
+          <span className="text-gray-500">
+            Usados ({new Date().getFullYear()}): <strong>{vacationUsedThisYear} días</strong>
+          </span>
+          <span className="text-gray-300">|</span>
+          {(() => {
+            const remaining = vacationEntitlement - vacationUsedThisYear;
+            return (
+              <span className={`font-semibold ${remaining < 0 ? "text-red-600" : remaining === 0 ? "text-amber-600" : "text-green-700"}`}>
+                Restantes: {remaining} días
+              </span>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Historial */}
       {records.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">

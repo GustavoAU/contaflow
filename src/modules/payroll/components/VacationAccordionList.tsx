@@ -10,6 +10,9 @@ interface EmployeeItem {
   id: string;
   fullName: string;
   position: string | null;
+  yearsOfService: number;
+  vacationEntitlement: number;
+  vacationUsedThisYear: number;
 }
 
 interface Props {
@@ -44,6 +47,23 @@ export default function VacationAccordionList({
                 <span className="text-xs text-gray-400">{emp.position}</span>
               </div>
               <div className="flex items-center gap-3">
+                {/* VAC-2: balance derecho vs usados */}
+                {(() => {
+                  const remaining = emp.vacationEntitlement - emp.vacationUsedThisYear;
+                  const colorClass = remaining <= 0
+                    ? "bg-red-50 text-red-700"
+                    : remaining <= 5
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-green-50 text-green-700";
+                  return (
+                    <span
+                      className={`hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}
+                      title={`${emp.yearsOfService} año(s) de servicio — Derecho: ${emp.vacationEntitlement} días`}
+                    >
+                      {emp.vacationUsedThisYear}/{emp.vacationEntitlement} días
+                    </span>
+                  );
+                })()}
                 <span className="text-xs text-gray-500">
                   {records.length} registro{records.length !== 1 ? "s" : ""}
                 </span>
@@ -64,6 +84,9 @@ export default function VacationAccordionList({
                   employeeId={emp.id}
                   initialRecords={records}
                   canAdmin={canAdmin}
+                  vacationEntitlement={emp.vacationEntitlement}
+                  vacationUsedThisYear={emp.vacationUsedThisYear}
+                  yearsOfService={emp.yearsOfService}
                 />
               </div>
             )}

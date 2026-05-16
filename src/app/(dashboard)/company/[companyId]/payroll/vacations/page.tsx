@@ -46,11 +46,27 @@ export default async function VacationsPage({ params }: Props) {
     employeeRecords.map(({ emp, records }) => [emp.id, records])
   );
 
-  const employeeItems = employees.slice(0, 20).map((emp) => ({
-    id: emp.id,
-    fullName: emp.fullName,
-    position: emp.position ?? null,
-  }));
+  // VAC-2: balance de vacaciones por empleado (Art. 190 LOTTT)
+  const today = new Date();
+  const currentYear = today.getFullYear();
+
+  const employeeItems = employees.slice(0, 20).map((emp) => {
+    const hire = new Date(emp.hireDate);
+    const yearsOfService = Math.floor((today.getTime() - hire.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    const entitlement = 15 + Math.max(0, yearsOfService - 1);
+    const records = recordsByEmployee[emp.id] ?? [];
+    const usedThisYear = records
+      .filter((r) => r.periodYear === currentYear)
+      .reduce((sum, r) => sum + Number(r.vacationDays), 0);
+    return {
+      id: emp.id,
+      fullName: emp.fullName,
+      position: emp.position ?? null,
+      yearsOfService,
+      vacationEntitlement: entitlement,
+      vacationUsedThisYear: usedThisYear,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 py-8 px-4">
