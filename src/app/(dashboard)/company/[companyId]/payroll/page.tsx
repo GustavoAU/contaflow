@@ -257,6 +257,24 @@ export default async function PayrollPage({ params }: Props) {
               </div>
             )}
 
+            {/* Préstamos a Empleados */}
+            {canAccess(member.role, ROLES.ACCOUNTING) ? (
+              <Link
+                href={`/company/${companyId}/payroll/loans`}
+                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-800">Préstamos</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Descuento automático en nómina
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
+                <p className="font-medium text-gray-700">Préstamos</p>
+                <p className="mt-0.5 text-xs text-gray-500">Sin acceso</p>
+              </div>
+            )}
+
             {/* Topes Legales — Ítem 72 */}
             <Link
               href={`/company/${companyId}/payroll/legal-thresholds`}

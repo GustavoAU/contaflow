@@ -46,6 +46,8 @@ const SYSTEM_CONCEPTS: Array<{
   { code: "FAOV_OBR",   name: "Banavih / FAOV Trabajador (1%)",    type: "DEDUCTION", affectsSalaryIntegral: false },
   { code: "RPE_OBR",    name: "Paro Forzoso RPE (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
   { code: "ISLR_RET",   name: "Retención ISLR Empleado",           type: "DEDUCTION", affectsSalaryIntegral: false },
+  // Cuota de préstamo empresa — no afecta salario integral (es recuperación de deuda, no gasto salarial)
+  { code: "PRESTAMO_EMP", name: "Cuota Préstamo Empresa",          type: "DEDUCTION", affectsSalaryIntegral: false },
 ];
 
 // ─── Serialización ────────────────────────────────────────────────────────────

@@ -231,6 +231,7 @@ model Company {
   cajaCajas                 CajaCaja[]
   // Permisos granulares por rol (grants adicionales al rol base)
   rolePermissions           RolePermission[]
+  employeeLoans             EmployeeLoan[]
 }
 
 model CompanyMember {
@@ -1536,6 +1537,12 @@ enum EmployeeStatus {
   TERMINATED
 }
 
+enum LoanStatus {
+  ACTIVE
+  PAID
+  CANCELLED
+}
+
 enum ConceptType {
   EARNING // Ingreso / asignación
   DEDUCTION // Deducción / descuento
@@ -1591,6 +1598,7 @@ model Employee {
   vacationRecords      VacationRecord[]
   profitSharingRecords ProfitSharingRecord[]
   terminations         Termination[]
+  loans                EmployeeLoan[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -1892,6 +1900,33 @@ model BenefitAdvance {
 
   @@index([companyId, employeeId])
   @@index([companyId])
+}
+
+// Préstamos otorgados por la empresa al empleado, con descuento automático en nómina.
+// La cuota se inyecta en cada PayrollRun como concepto PRESTAMO_EMP (DEDUCTION).
+// Append-only en cuanto al saldo: remainingBalance decrece en approve(); nunca se edita directamente.
+model EmployeeLoan {
+  id                String     @id @default(cuid())
+  companyId         String
+  employeeId        String
+  totalAmount       Decimal    @db.Decimal(20, 2)
+  currency          String // "VES" | "USD"
+  installments      Int // número total de cuotas
+  installmentAmount Decimal    @db.Decimal(20, 2) // cuota fija = ceil(totalAmount / installments, 2)
+  paidInstallments  Int        @default(0)
+  remainingBalance  Decimal    @db.Decimal(20, 2)
+  status            LoanStatus @default(ACTIVE)
+  description       String?
+  approvedAt        DateTime   @default(now())
+  createdByUserId   String
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, status])
+  @@index([companyId, employeeId, status])
 }
 
 // Registro de vacaciones causadas por el empleado (disfrute o pago).

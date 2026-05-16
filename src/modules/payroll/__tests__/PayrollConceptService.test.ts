@@ -69,10 +69,10 @@ describe("PayrollConceptService.list", () => {
 });
 
 describe("PayrollConceptService.seedDefaults", () => {
-  it("upserts all 10 system concepts (incl. RPE_OBR)", async () => {
+  it("upserts all 11 system concepts (incl. RPE_OBR + PRESTAMO_EMP)", async () => {
     vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-    expect(vi.mocked(prisma.payrollConcept.upsert)).toHaveBeenCalledTimes(10);
+    expect(vi.mocked(prisma.payrollConcept.upsert)).toHaveBeenCalledTimes(11);
   });
 
   it("is idempotent — upsert propagates affectsSalaryIntegral on update", async () => {
