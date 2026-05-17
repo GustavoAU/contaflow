@@ -19,7 +19,6 @@ import {
   BookOpen,
   FileText,
   BarChart3,
-  Settings,
   ScanIcon,
   FileSpreadsheetIcon,
   ReceiptIcon,
@@ -123,13 +122,6 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
         group: "IA",
         items: [
           item("Asistente IA", p("/ai-assistant"), SparklesIcon),
-        ],
-      },
-      {
-        group: "Administración",
-        items: [
-          item("Configuración", p("/settings"), Settings),
-          item("Auditoría", p("/audit-log"), ShieldCheckIcon),
         ],
       },
     ],
