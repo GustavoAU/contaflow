@@ -425,28 +425,31 @@ export function Sidebar({
             ))}
           </div>
         ))}
+
+        {/* Configuración + Auditoría — siguen al último ítem del nav */}
+        {companyId && (
+          <div className="px-2">
+            <div className="h-px bg-zinc-100 mx-1 my-1.5" />
+            <SidebarItem
+              href={`/company/${companyId}/settings`}
+              Icon={Settings}
+              label="Configuración"
+              active={pathname.startsWith(`/company/${companyId}/settings`)}
+              collapsed={collapsed}
+            />
+            <SidebarItem
+              href={`/company/${companyId}/audit-log`}
+              Icon={ShieldCheck}
+              label="Auditoría"
+              active={pathname.startsWith(`/company/${companyId}/audit-log`)}
+              collapsed={collapsed}
+            />
+          </div>
+        )}
       </nav>
 
-      {/* Footer: configuración + auditoría + logout */}
-      <div className="px-2 py-2 border-t border-zinc-100 shrink-0 flex flex-col gap-0.5">
-        {companyId && (
-          <SidebarItem
-            href={`/company/${companyId}/settings`}
-            Icon={Settings}
-            label="Configuración"
-            active={pathname.startsWith(`/company/${companyId}/settings`)}
-            collapsed={collapsed}
-          />
-        )}
-        {companyId && (
-          <SidebarItem
-            href={`/company/${companyId}/audit-log`}
-            Icon={ShieldCheck}
-            label="Auditoría"
-            active={pathname.startsWith(`/company/${companyId}/audit-log`)}
-            collapsed={collapsed}
-          />
-        )}
+      {/* Footer: solo logout — siempre visible al fondo */}
+      <div className="px-2 py-2 border-t border-zinc-100 shrink-0">
         <LogoutButton collapsed={collapsed} />
       </div>
     </aside>
