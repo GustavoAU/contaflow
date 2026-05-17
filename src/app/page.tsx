@@ -332,6 +332,7 @@ export default async function LandingPage() {
 
       {/* ── Conciliación bancaria ─────────────────────────────────────────── */}
       <section className={styles.concilia}>
+        <div className={styles.wrap}>
         <div className={styles.conciliaInner}>
           <p className={styles.conciliaTagline}>Módulo destacado</p>
           <h2 className={styles.conciliaH2}>Conciliación bancaria<br />sin dolor de cabeza</h2>
@@ -369,6 +370,7 @@ export default async function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
         </div>
       </section>
 

@@ -175,7 +175,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex flex-col h-full bg-white border-r border-zinc-200",
+        "flex flex-col sticky top-0 h-screen bg-white border-r border-zinc-200",
         "transition-[width] duration-200 ease-in-out overflow-hidden shrink-0",
         collapsed ? "w-14" : "w-[232px]"
       )}

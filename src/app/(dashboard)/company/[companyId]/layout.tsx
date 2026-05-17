@@ -46,7 +46,7 @@ export default async function CompanyLayout({ children, params }: Props) {
     : null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-50">
+    <div className="flex min-h-screen bg-zinc-50">
       {/* Sidebar vertical */}
       <Sidebar
         companyId={companyId}
@@ -55,7 +55,7 @@ export default async function CompanyLayout({ children, params }: Props) {
       />
 
       {/* Columna principal */}
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+      <div className="flex flex-col flex-1 min-w-0">
         {/* Topbar lean */}
         <TopbarInner
           companyId={companyId}
@@ -67,8 +67,8 @@ export default async function CompanyLayout({ children, params }: Props) {
           }
         />
 
-        {/* Contenido de página — scroll aquí, no en body */}
-        <main className="flex-1 overflow-y-auto px-4 py-6">
+        {/* Contenido de página — scroll global (body) */}
+        <main className="flex-1 px-4 py-6">
           {children}
         </main>
       </div>

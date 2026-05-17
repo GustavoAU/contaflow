@@ -679,6 +679,13 @@
 .despCta { text-align: center; margin-top: 48px; }
 .despCtaSub { font-size: 13px; color: oklch(0.48 0.04 258); margin-top: 10px; }
 
+/* Role cards grid */
+.despRoles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 0; }
+.despRoleCard { background: oklch(1 0 0 / 0.05); border: 1px solid oklch(1 0 0 / 0.1); border-radius: var(--lnd-r); padding: 24px 20px; text-align: center; }
+.despRoleEmoji { font-size: 28px; margin-bottom: 12px; line-height: 1; }
+.despRoleName { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.despRoleDesc { font-size: 13px; color: oklch(0.58 0.05 258); line-height: 1.6; }
+
 /* ─── ROI Calculator ─── */
 .roi { padding: 96px 0; background: var(--lnd-tint); }
 .roiCard { background: var(--lnd-surface); border: 1px solid var(--lnd-border); border-radius: var(--lnd-r-lg); padding: 48px; box-shadow: var(--lnd-sh2); max-width: 720px; margin: 0 auto; }
@@ -690,24 +697,23 @@
 .roiResult { text-align: center; }
 .roiSavings { font-size: 40px; font-weight: 800; letter-spacing: -2px; color: var(--lnd-blue); margin-bottom: 8px; }
 .roiSavingsSub { font-size: 15px; color: var(--lnd-muted); margin-bottom: 28px; line-height: 1.65; }
-.roiBreakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.roiBreakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .roiBreakdownItem { background: var(--lnd-tint); border: 1px solid var(--lnd-border); border-radius: 10px; padding: 16px 12px; }
-.roiBreakdownVal { font-size: 22px; font-weight: 800; color: var(--lnd-fg); margin-bottom: 4px; letter-spacing: -0.5px; }
-.roiBreakdownLabel { font-size: 12px; color: var(--lnd-muted); line-height: 1.4; }
+.roiBreakdownVal { display: block; font-size: 22px; font-weight: 800; color: var(--lnd-fg); margin-bottom: 4px; letter-spacing: -0.5px; }
+.roiBreakdownLabel { display: block; font-size: 12px; color: var(--lnd-muted); line-height: 1.4; }
 .roiNote { font-size: 12px; color: var(--lnd-subtle); text-align: center; margin-top: 20px; line-height: 1.55; }
 
 /* ─── Responsive additions ─── */
 @media (max-width: 1024px) {
   .conciliaInner { grid-template-columns: 1fr; gap: 48px; }
   .despBenefits { grid-template-columns: repeat(2, 1fr); }
+  .despRoles { grid-template-columns: repeat(2, 1fr); }
   .roiInputs { grid-template-columns: 1fr; gap: 28px; }
+  .roiBreakdown { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
   .despBenefits { grid-template-columns: 1fr; }
-  .despMockup { grid-template-columns: 1fr; gap: 10px; }
+  .despRoles { grid-template-columns: repeat(2, 1fr); }
   .roiCard { padding: 28px 20px; }
-  .roiBreakdown { grid-template-columns: 1fr; }
-  .despTabs { flex-direction: column; }
-  .despTabBtn { border-right: none; border-bottom: 1px solid oklch(1 0 0 / 0.08); white-space: normal; }
-  .despTabBtn:last-child { border-bottom: none; }
+  .roiBreakdown { grid-template-columns: repeat(2, 1fr); }
 }

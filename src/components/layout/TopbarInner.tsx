@@ -45,7 +45,7 @@ export function TopbarInner({
   activePeriod,
 }: TopbarInnerProps) {
   return (
-    <header className="h-14 bg-white border-b border-zinc-200 flex items-center gap-3 px-5 shrink-0">
+    <header className="sticky top-0 z-40 h-14 bg-white border-b border-zinc-200 flex items-center gap-3 px-5 shrink-0">
 
       {/* Empresa + rol */}
       {companyName && (
