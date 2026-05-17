@@ -6,10 +6,34 @@ import {
   getUserCompaniesAction,
   getArchivedCompaniesAction,
 } from "@/modules/auth/actions/user.actions";
-import { PlusIcon, BuildingIcon, ArchiveIcon } from "lucide-react";
+import { PlusIcon, ArchiveIcon, Settings2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReactivateCompanyButton } from "@/components/company/ReactivateCompanyButton";
+import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import { currentUser } from "@clerk/nextjs/server";
+import type { UserRole } from "@/lib/nav-items";
+
+// ─── Role badge styles ─────────────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  OWNER:          "Propietario",
+  ADMIN:          "Administrador",
+  ACCOUNTANT:     "Contador",
+  ADMINISTRATIVE: "Administrativo",
+  VIEWER:         "Lector",
+  SENIAT:         "Auditor SENIAT",
+};
+
+const ROLE_BADGE: Record<UserRole, string> = {
+  OWNER:          "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+  ADMIN:          "bg-blue-50   text-blue-700   ring-1 ring-blue-200",
+  ACCOUNTANT:     "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  ADMINISTRATIVE: "bg-amber-50  text-amber-700  ring-1 ring-amber-200",
+  VIEWER:         "bg-zinc-100  text-zinc-600   ring-1 ring-zinc-200",
+  SENIAT:         "bg-red-50    text-red-700    ring-1 ring-red-200",
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
   await syncUserAction();
@@ -24,21 +48,26 @@ export default async function DashboardPage() {
     redirect(`/company/${companies[0].id}`);
   }
 
+  const hasCompanies = companies.length > 0 || archivedCompanies.length > 0;
+
   return (
     <div className="min-h-screen bg-zinc-50">
       <div className="mx-auto max-w-5xl px-4 py-12">
-        {/* ─── Encabezado ──────────────────────────────────────────────── */}
+
+        {/* ─── Encabezado ────────────────────────────────────────────────── */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {companies.length === 0 && archivedCompanies.length === 0
-                ? "Bienvenido a ContaFlow"
-                : "Mis Empresas"}
+              {hasCompanies ? "Mis Empresas" : "Bienvenido a ContaFlow"}
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              {companies.length === 0 && archivedCompanies.length === 0
-                ? "Crea tu primera empresa para comenzar"
-                : `${companies.length} activa${companies.length !== 1 ? "s" : ""}${archivedCompanies.length > 0 ? `, ${archivedCompanies.length} archivada${archivedCompanies.length !== 1 ? "s" : ""}` : ""}`}
+              {hasCompanies
+                ? `${companies.length} activa${companies.length !== 1 ? "s" : ""}${
+                    archivedCompanies.length > 0
+                      ? ` · ${archivedCompanies.length} archivada${archivedCompanies.length !== 1 ? "s" : ""}`
+                      : ""
+                  }`
+                : "Crea tu primera empresa para comenzar"}
             </p>
           </div>
           <Button asChild>
@@ -49,11 +78,13 @@ export default async function DashboardPage() {
           </Button>
         </div>
 
-        {/* ─── Empresas activas ────────────────────────────────────────── */}
-        {companies.length === 0 && archivedCompanies.length === 0 ? (
-          <div className="rounded-lg border border-dashed bg-white p-12 text-center">
-            <BuildingIcon className="mx-auto mb-4 h-10 w-10 text-zinc-300" />
-            <p className="font-semibold text-zinc-700">No tienes empresas activas</p>
+        {/* ─── Empresas activas ───────────────────────────────────────────── */}
+        {!hasCompanies ? (
+          <div className="rounded-xl border border-dashed bg-white p-14 text-center">
+            <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl">
+              🏢
+            </div>
+            <p className="font-semibold text-zinc-700 text-lg">No tienes empresas activas</p>
             <p className="text-muted-foreground mt-1 mb-6 text-sm">
               Crea tu primera empresa para comenzar a contabilizar
             </p>
@@ -66,44 +97,65 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {companies.map((company) => (
-              <Link
-                key={company.id}
-                href={`/company/${company.id}`}
-                className="block rounded-lg border bg-white p-6 transition-all hover:border-blue-500 hover:shadow-sm"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="font-semibold">{company.name}</h2>
-                    {company.rif && (
-                      <p className="text-muted-foreground mt-1 text-sm">RIF: {company.rif}</p>
-                    )}
-                  </div>
-                  <BuildingIcon className="h-5 w-5 shrink-0 text-zinc-300" />
-                </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
-                    {company.role}
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    {new Date(company.createdAt).toLocaleDateString("es-VE")}
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {companies.map((company) => {
+              const role = company.role as UserRole;
+              return (
+                <div
+                  key={company.id}
+                  className="group relative rounded-xl border bg-white transition-all hover:border-blue-300 hover:shadow-md"
+                >
+                  {/* Main clickable area */}
+                  <Link
+                    href={`/company/${company.id}`}
+                    className="block p-5"
+                  >
+                    {/* Avatar + nombre */}
+                    <div className="flex items-start gap-3 mb-4">
+                      <CompanyAvatar id={company.id} name={company.name} size="md" />
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <h2 className="font-semibold text-zinc-900 leading-tight truncate">
+                          {company.name}
+                        </h2>
+                        {company.rif && (
+                          <p className="text-xs text-zinc-400 mt-0.5">RIF: {company.rif}</p>
+                        )}
+                      </div>
+                    </div>
 
-            {/* Card nueva empresa */}
-            <Link
-              href="/company/new"
-              className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-white p-6 text-zinc-400 transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-500"
-            >
-              <PlusIcon className="mb-2 h-8 w-8" />
-              <span className="text-sm font-medium">Nueva Empresa</span>
-            </Link>
+                    {/* Badge de rol + fecha */}
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[role]}`}>
+                        {ROLE_LABELS[role]}
+                      </span>
+                      <span className="text-[11px] text-zinc-400">
+                        Miembro desde: {new Date(company.createdAt).toLocaleDateString("es-VE")}
+                      </span>
+                    </div>
+                  </Link>
+
+                  {/* Quick actions — aparecen al hover */}
+                  <div className="hidden group-hover:flex items-center gap-1 px-5 py-2.5 border-t border-zinc-100">
+                    <Link
+                      href={`/company/${company.id}`}
+                      className="flex-1 text-center text-[12px] font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-md px-3 py-1.5 transition-colors"
+                    >
+                      Entrar
+                    </Link>
+                    <Link
+                      href={`/company/${company.id}/settings`}
+                      className="flex items-center gap-1.5 text-[12px] font-medium text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 rounded-md px-3 py-1.5 transition-colors"
+                    >
+                      <Settings2Icon className="w-3.5 h-3.5" />
+                      Configurar
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* ─── Empresas archivadas ─────────────────────────────────────── */}
+        {/* ─── Empresas archivadas ────────────────────────────────────────── */}
         {archivedCompanies.length > 0 && (
           <div className="mt-10">
             <div className="mb-4 flex items-center gap-2">
@@ -112,28 +164,29 @@ export default async function DashboardPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {archivedCompanies.map((company) => (
-                <div key={company.id} className="rounded-lg border bg-white p-6 opacity-70">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h2 className="font-semibold text-zinc-500">{company.name}</h2>
+                <div key={company.id} className="rounded-xl border bg-white p-5 opacity-60">
+                  <div className="flex items-start gap-3 mb-4">
+                    <CompanyAvatar id={company.id} name={company.name} size="md" className="grayscale" />
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <h2 className="font-semibold text-zinc-500 leading-tight truncate">
+                        {company.name}
+                      </h2>
                       {company.rif && (
-                        <p className="text-muted-foreground mt-1 text-sm">RIF: {company.rif}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">RIF: {company.rif}</p>
                       )}
                     </div>
-                    <ArchiveIcon className="h-5 w-5 shrink-0 text-zinc-300" />
                   </div>
-                  <div className="mt-4">
-                    <ReactivateCompanyButton
-                      companyId={company.id}
-                      companyName={company.name}
-                      userId={user.id}
-                    />
-                  </div>
+                  <ReactivateCompanyButton
+                    companyId={company.id}
+                    companyName={company.name}
+                    userId={user.id}
+                  />
                 </div>
               ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

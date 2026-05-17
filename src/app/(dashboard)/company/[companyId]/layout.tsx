@@ -52,6 +52,7 @@ export default async function CompanyLayout({ children, params }: Props) {
         companyId={companyId}
         userRole={company.role}
         grantedModules={grantedModules}
+        companies={companies.map((c) => ({ id: c.id, name: c.name, role: c.role }))}
       />
 
       {/* Columna principal */}

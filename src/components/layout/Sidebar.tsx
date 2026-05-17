@@ -3,20 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
   LogOut,
   Settings,
   ShieldCheck,
+  PlusIcon,
+  LayoutGrid,
 } from "lucide-react";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
+import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import type { LucideIcon } from "lucide-react";
 
 const STORAGE_KEY = "cf-sidebar-collapsed";
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  OWNER:          "Propietario",
+  ADMIN:          "Administrador",
+  ACCOUNTANT:     "Contador",
+  ADMINISTRATIVE: "Administrativo",
+  VIEWER:         "Lector",
+  SENIAT:         "SENIAT",
+};
 
 // ─── NavLink ──────────────────────────────────────────────────────────────────
 
@@ -131,18 +146,159 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+// ─── CompanySwitcher ──────────────────────────────────────────────────────────
+
+type CompanyEntry = { id: string; name: string; role: UserRole };
+
+function CompanySwitcher({
+  companies,
+  currentCompanyId,
+  collapsed,
+}: {
+  companies: CompanyEntry[];
+  currentCompanyId: string;
+  collapsed: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const { navigate } = usePageTransition();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as Element).closest("[data-co-sw]")) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setDropPos({
+        top: r.bottom + 4,
+        left: collapsed ? r.right + 8 : r.left,
+        width: collapsed ? 228 : r.width,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
+  const goTo = (href: string) => {
+    setOpen(false);
+    navigate(href);
+  };
+
+  const current = companies.find((c) => c.id === currentCompanyId);
+  if (!current) return null;
+
+  return (
+    <div data-co-sw className="px-2 py-2 border-b border-zinc-100 shrink-0">
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        title={collapsed ? current.name : undefined}
+        aria-label="Cambiar empresa"
+        className={cn(
+          "flex items-center gap-2 w-full rounded-md px-1.5 py-1.5",
+          "hover:bg-zinc-100 transition-colors text-left",
+          collapsed && "justify-center"
+        )}
+      >
+        <CompanyAvatar id={current.id} name={current.name} size="sm" />
+        {!collapsed && (
+          <>
+            <span className="flex-1 text-[13px] font-semibold text-zinc-800 truncate leading-tight min-w-0">
+              {current.name}
+            </span>
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 text-zinc-400 shrink-0 transition-transform duration-150",
+                open && "rotate-180"
+              )}
+            />
+          </>
+        )}
+      </button>
+
+      {open &&
+        typeof window !== "undefined" &&
+        createPortal(
+          <div
+            data-co-sw
+            style={{
+              position: "fixed",
+              top: dropPos.top,
+              left: dropPos.left,
+              width: Math.max(dropPos.width, 228),
+              zIndex: 9999,
+            }}
+            className="bg-white border border-zinc-200 rounded-xl shadow-xl py-1.5 overflow-hidden"
+          >
+            <p className="px-3 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[1px] text-zinc-400">
+              Mis Empresas
+            </p>
+
+            {companies.map((co) => (
+              <button
+                key={co.id}
+                onClick={() => goTo(`/company/${co.id}`)}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors",
+                  co.id === currentCompanyId ? "bg-blue-50" : "hover:bg-zinc-50"
+                )}
+              >
+                <CompanyAvatar id={co.id} name={co.name} size="xs" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-zinc-800 truncate leading-tight">
+                    {co.name}
+                  </p>
+                  <p className="text-[11px] text-zinc-400">{ROLE_LABELS[co.role]}</p>
+                </div>
+                {co.id === currentCompanyId && (
+                  <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                )}
+              </button>
+            ))}
+
+            <div className="h-px bg-zinc-100 my-1" />
+
+            <button
+              onClick={() => goTo("/company/new")}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 hover:bg-zinc-50 transition-colors"
+            >
+              <PlusIcon className="w-3.5 h-3.5 shrink-0" />
+              Agregar empresa
+            </button>
+            <button
+              onClick={() => goTo("/dashboard")}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 hover:bg-zinc-50 transition-colors"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+              Ver todas las empresas
+            </button>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 type SidebarProps = {
   companyId?: string;
   userRole?: UserRole;
   grantedModules?: string[];
+  companies?: CompanyEntry[];
 };
 
 export function Sidebar({
   companyId,
   userRole = "ACCOUNTANT",
   grantedModules,
+  companies = [],
 }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -180,7 +336,7 @@ export function Sidebar({
         collapsed ? "w-14" : "w-[232px]"
       )}
     >
-      {/* Logo */}
+      {/* Logo + collapse toggle */}
       <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 shrink-0">
         <Link
           href="/dashboard"
@@ -214,6 +370,15 @@ export function Sidebar({
             : <ChevronLeft  className="w-3.5 h-3.5 text-zinc-500" />}
         </button>
       </div>
+
+      {/* Company switcher */}
+      {companyId && companies.length > 0 && (
+        <CompanySwitcher
+          companies={companies}
+          currentCompanyId={companyId}
+          collapsed={collapsed}
+        />
+      )}
 
       {/* Nav scrollable */}
       <nav
