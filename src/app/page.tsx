@@ -5,6 +5,8 @@ import { FileTextIcon, UsersIcon, PackageIcon, LandmarkIcon, BuildingIcon, Shiel
 import { VideoModal } from "@/components/landing/VideoModal";
 import { LandingMobileNav } from "@/components/landing/LandingMobileNav";
 import { LandingClient } from "@/components/landing/LandingClient";
+import { LandingDespachos } from "@/components/landing/LandingDespachos";
+import { RoiCalculator } from "@/components/landing/RoiCalculator";
 import styles from "./landing.module.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -221,13 +223,13 @@ export default async function LandingPage() {
             <div>
               <div className={styles.hBadge}>Conforme a PA 121 — SENIAT Venezuela</div>
               <h1 className={styles.heroH1}>
-                La plataforma contable<br />
-                hecha para<br />
-                <em>Venezuela.</em>
+                El cierre fiscal que te<br />
+                tomaba 3 días,<br />
+                <em>ahora son 3 horas.</em>
               </h1>
               <p className={styles.heroCopy}>
-                Facturación PA 121, nómina LOTTT, inventario y conciliación bancaria
-                — todo integrado, sin Excel, sin módulos separados, sin costos sorpresa.
+                Facturación PA 121, nómina LOTTT, inventario y conciliación bancaria — todo
+                integrado. El contador cierra el mes en horas, no en días.
               </p>
               <div className={styles.heroCtas}>
                 {isAuthenticated ? (
@@ -245,7 +247,7 @@ export default async function LandingPage() {
                   </>
                 )}
               </div>
-              <p className={styles.heroSub}>Sin tarjeta de crédito. Acceso completo los primeros 14 días.</p>
+              <p className={styles.heroSub}>Sin tarjeta de crédito · Configuración en 10 min · Cancela cuando quieras</p>
             </div>
 
             {/* Video card */}
@@ -278,15 +280,20 @@ export default async function LandingPage() {
               { val: <><span>6</span> módulos</>, desc: "Todo en una sola plataforma", delay: "" },
               { val: <>PA <span>121</span></>, desc: "100% conforme a SENIAT", delay: styles.d1 },
               { val: <><span>14</span> días</>, desc: "Prueba gratis, sin tarjeta", delay: styles.d2 },
-              { val: <>USDT <span>+</span></>, desc: "Pago seguro en crypto", delay: styles.d3 },
-            ].map(({ val, desc, delay }) => (
+              { val: <>USDT <span>+</span></>, desc: "Pago seguro en crypto", delay: styles.d3, tip: "Tether (USDT) es una stablecoin anclada al dólar. Pagas con crypto, sin banco intermediario." },
+            ].map(({ val, desc, delay, tip }) => (
               <div
                 key={desc}
                 className={`${styles.stat} ${styles.reveal} ${delay}`}
                 data-reveal
               >
                 <div className={styles.statVal}>{val}</div>
-                <div className={styles.statDesc}>{desc}</div>
+                <div
+                  className={`${styles.statDesc}${tip ? ` ${styles.usdtTip}` : ""}`}
+                  {...(tip ? { "data-tip": tip } : {})}
+                >
+                  {desc}
+                </div>
               </div>
             ))}
           </div>
@@ -323,6 +330,54 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ── Conciliación bancaria ─────────────────────────────────────────── */}
+      <section className={styles.concilia}>
+        <div className={styles.conciliaInner}>
+          <p className={styles.conciliaTagline}>Módulo destacado</p>
+          <h2 className={styles.conciliaH2}>Conciliación bancaria<br />sin dolor de cabeza</h2>
+          <p className={styles.conciliaKicker}>
+            Antes: extracto bancario + Excel + 3 horas de trabajo.<br />
+            Ahora: importa el estado de cuenta, ContaFlow cruza cada movimiento automáticamente.
+          </p>
+          <ul className={styles.conciliaBullets}>
+            {[
+              "Importa extractos en segundos",
+              "Cruza movimientos automáticamente contra asientos del libro mayor",
+              "Detecta diferencias y las resalta para tu revisión",
+              "Genera el informe de conciliación con un clic",
+            ].map((text) => (
+              <li key={text} className={styles.conciliaBullet}>
+                <svg className={styles.conciliaCheck} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span className={styles.conciliaBulletText}>{text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className={styles.conciliaStepper}>
+            {[
+              { n: "1", title: "Importa el extracto", desc: "Sube el PDF o CSV del banco. ContaFlow lo parsea automáticamente." },
+              { n: "2", title: "Revisión automática", desc: "El sistema cruza cada línea con los asientos del libro mayor." },
+              { n: "3", title: "Informe listo", desc: "Descarga el informe de conciliación firmado en segundos." },
+            ].map(({ n, title, desc }) => (
+              <div key={n} className={styles.conciliaStep}>
+                <div className={styles.conciliaStepNum}>{n}</div>
+                <div className={styles.conciliaStepBody}>
+                  <div className={styles.conciliaStepTitle}>{title}</div>
+                  <div className={styles.conciliaStepDesc}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Para despachos / multi-empresa ────────────────────────────────── */}
+      <LandingDespachos />
+
+      {/* ── ROI Calculator ────────────────────────────────────────────────── */}
+      <RoiCalculator />
+
       {/* ── Precios ───────────────────────────────────────────────────────── */}
       <section id="precios" className={styles.section}>
         <div className={styles.wrap}>
@@ -353,6 +408,17 @@ export default async function LandingPage() {
                   </div>
                   {plan.priceSub && <div className={styles.pcSub}>{plan.priceSub}</div>}
                   <div className={styles.pcDesc}>{plan.description}</div>
+                  {plan.key === "early_adopter" && (
+                    <div className={styles.eaProgressWrap}>
+                      <div className={styles.eaProgressTrack}>
+                        <div className={styles.eaProgressFill} />
+                      </div>
+                      <div className={styles.eaProgressMeta}>
+                        <span>{EARLY_ADOPTER_SLOTS_TAKEN} de {EARLY_ADOPTER_SLOTS_TOTAL} slots ocupados</span>
+                        <span>{SLOTS_LEFT} disponibles</span>
+                      </div>
+                    </div>
+                  )}
                   <ul className={styles.pcFeats}>
                     {plan.features.map((f) => (
                       <li key={f.text} className={f.gold ? styles.pcFeatsGold : undefined}>

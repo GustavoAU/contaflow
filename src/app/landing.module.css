@@ -615,3 +615,99 @@
   .stat { padding: 20px 12px; }
   .statVal { font-size: 28px; }
 }
+
+/* ─── Conciliación bancaria ─── */
+.concilia { padding: 96px 0; }
+.conciliaInner { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 80px; align-items: start; }
+.conciliaTagline { font-size: 12px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--lnd-blue); margin-bottom: 10px; }
+.conciliaH2 { font-size: clamp(24px, 2.5vw, 36px); font-weight: 800; letter-spacing: -0.8px; color: var(--lnd-fg); margin-bottom: 8px; line-height: 1.2; }
+.conciliaKicker { font-size: 15px; font-weight: 600; color: var(--lnd-fg); margin-bottom: 20px; }
+.conciliaBody { font-size: 15px; color: var(--lnd-muted); line-height: 1.8; margin-bottom: 14px; }
+.conciliaBodyBold { font-size: 15px; font-weight: 600; color: var(--lnd-fg); line-height: 1.8; margin-bottom: 14px; }
+.conciliaBullets { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 12px; }
+.conciliaBullet { display: flex; gap: 10px; align-items: flex-start; }
+.conciliaCheck { width: 18px; height: 18px; color: var(--lnd-blue); flex-shrink: 0; margin-top: 2px; }
+.conciliaBulletText { font-size: 14px; color: var(--lnd-fg); line-height: 1.65; }
+.conciliaStepper { display: flex; flex-direction: column; }
+.conciliaStep { display: flex; gap: 18px; align-items: flex-start; position: relative; padding-bottom: 32px; }
+.conciliaStep:last-child { padding-bottom: 0; }
+.conciliaStep::before { content: ''; position: absolute; left: 19px; top: 42px; width: 2px; height: calc(100% - 20px); background: var(--lnd-border); }
+.conciliaStep:last-child::before { display: none; }
+.conciliaStepNum { width: 40px; height: 40px; border-radius: 50%; background: var(--lnd-blue); color: #fff; display: grid; place-items: center; font-size: 15px; font-weight: 800; flex-shrink: 0; position: relative; z-index: 1; box-shadow: 0 2px 12px var(--lnd-blue-glow); }
+.conciliaStepBody { padding-top: 8px; }
+.conciliaStepTitle { font-size: 14px; font-weight: 700; color: var(--lnd-fg); margin-bottom: 6px; }
+.conciliaStepDesc { font-size: 13px; color: var(--lnd-muted); line-height: 1.65; }
+
+/* ─── USDT tooltip (CSS-only) ─── */
+.usdtTip { position: relative; cursor: help; border-bottom: 1px dotted var(--lnd-muted); display: inline; }
+.usdtTip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--lnd-fg); color: var(--lnd-bg); font-size: 12px; line-height: 1.55; white-space: normal; width: 260px; padding: 10px 14px; border-radius: 8px; box-shadow: var(--lnd-sh2); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 10; text-align: left; font-weight: 400; }
+.usdtTip:hover::after { opacity: 1; }
+
+/* ─── Early Adopter progress bar ─── */
+.eaProgressWrap { margin: 10px 0 6px; }
+.eaProgressTrack { height: 6px; background: var(--lnd-gold-dim); border-radius: 999px; overflow: hidden; }
+.eaProgressFill { height: 100%; border-radius: 999px; background: var(--lnd-gold); width: 30%; }
+.eaProgressMeta { display: flex; justify-content: space-between; font-size: 11px; color: var(--lnd-subtle); margin-top: 5px; }
+
+/* ─── Para Despachos section ─── */
+.despachos { padding: 96px 0; background: var(--lnd-hero); position: relative; overflow: hidden; }
+.despachos::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 50%, oklch(0.50 0.25 258 / 0.10) 0%, transparent 70%); pointer-events: none; }
+.despInner { position: relative; z-index: 1; }
+.despHead { text-align: center; margin-bottom: 56px; }
+.despEyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--lnd-gold); margin-bottom: 12px; }
+.despH2 { font-size: clamp(26px, 3.2vw, 44px); font-weight: 800; letter-spacing: -1.5px; color: #fff; margin-bottom: 16px; line-height: 1.08; }
+.despSubtitle { font-size: 16px; color: oklch(0.65 0.05 258); max-width: 580px; margin: 0 auto; line-height: 1.75; }
+.despBenefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 52px; }
+.despBenefit { background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.1); border-radius: var(--lnd-r); padding: 28px; }
+.despBenefitIcon { font-size: 24px; margin-bottom: 14px; line-height: 1; }
+.despBenefitTitle { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.despBenefitDesc { font-size: 14px; color: oklch(0.60 0.05 258); line-height: 1.65; }
+.despSelector { background: oklch(1 0 0 / 0.04); border: 1px solid oklch(1 0 0 / 0.1); border-radius: var(--lnd-r-lg); overflow: hidden; }
+.despTabs { display: flex; border-bottom: 1px solid oklch(1 0 0 / 0.1); }
+.despTabBtn { flex: 1; padding: 14px 10px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 500; color: oklch(0.50 0.05 258); transition: background .15s, color .15s; border-right: 1px solid oklch(1 0 0 / 0.08); overflow: hidden; text-overflow: ellipsis; font-family: inherit; white-space: nowrap; }
+.despTabBtn:last-child { border-right: none; }
+.despTabBtn:hover { background: oklch(1 0 0 / 0.04); color: oklch(0.75 0.05 258); }
+.despTabActive { background: oklch(1 0 0 / 0.09) !important; color: #fff !important; font-weight: 600 !important; }
+.despPanels { padding: 28px 32px 32px; }
+.despMeta { font-size: 12px; color: oklch(0.50 0.04 258); margin-bottom: 18px; }
+.despMockup { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.despKpi { background: oklch(1 0 0 / 0.07); border: 1px solid oklch(1 0 0 / 0.08); border-radius: 10px; padding: 16px; }
+.despKpiLabel { font-size: 11px; color: oklch(0.48 0.04 258); margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+.despKpiVal { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.5px; line-height: 1.2; }
+.despKpiSub { font-size: 11px; color: oklch(0.45 0.04 258); margin-top: 4px; }
+.despCaption { text-align: center; font-size: 13px; color: oklch(0.48 0.04 258); margin-top: 20px; padding-top: 20px; border-top: 1px solid oklch(1 0 0 / 0.08); font-style: italic; }
+.despCta { text-align: center; margin-top: 48px; }
+.despCtaSub { font-size: 13px; color: oklch(0.48 0.04 258); margin-top: 10px; }
+
+/* ─── ROI Calculator ─── */
+.roi { padding: 96px 0; background: var(--lnd-tint); }
+.roiCard { background: var(--lnd-surface); border: 1px solid var(--lnd-border); border-radius: var(--lnd-r-lg); padding: 48px; box-shadow: var(--lnd-sh2); max-width: 720px; margin: 0 auto; }
+.roiInputs { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 36px; }
+.roiInputGroup label { display: block; font-size: 13px; font-weight: 600; color: var(--lnd-muted); margin-bottom: 10px; line-height: 1.5; }
+.roiVal { font-size: 30px; font-weight: 800; color: var(--lnd-blue); letter-spacing: -0.8px; margin-bottom: 8px; }
+.roiSlider { width: 100%; accent-color: var(--lnd-blue); cursor: pointer; }
+.roiDivider { height: 1px; background: var(--lnd-border); margin: 0 0 32px; }
+.roiResult { text-align: center; }
+.roiSavings { font-size: 40px; font-weight: 800; letter-spacing: -2px; color: var(--lnd-blue); margin-bottom: 8px; }
+.roiSavingsSub { font-size: 15px; color: var(--lnd-muted); margin-bottom: 28px; line-height: 1.65; }
+.roiBreakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.roiBreakdownItem { background: var(--lnd-tint); border: 1px solid var(--lnd-border); border-radius: 10px; padding: 16px 12px; }
+.roiBreakdownVal { font-size: 22px; font-weight: 800; color: var(--lnd-fg); margin-bottom: 4px; letter-spacing: -0.5px; }
+.roiBreakdownLabel { font-size: 12px; color: var(--lnd-muted); line-height: 1.4; }
+.roiNote { font-size: 12px; color: var(--lnd-subtle); text-align: center; margin-top: 20px; line-height: 1.55; }
+
+/* ─── Responsive additions ─── */
+@media (max-width: 1024px) {
+  .conciliaInner { grid-template-columns: 1fr; gap: 48px; }
+  .despBenefits { grid-template-columns: repeat(2, 1fr); }
+  .roiInputs { grid-template-columns: 1fr; gap: 28px; }
+}
+@media (max-width: 768px) {
+  .despBenefits { grid-template-columns: 1fr; }
+  .despMockup { grid-template-columns: 1fr; gap: 10px; }
+  .roiCard { padding: 28px 20px; }
+  .roiBreakdown { grid-template-columns: 1fr; }
+  .despTabs { flex-direction: column; }
+  .despTabBtn { border-right: none; border-bottom: 1px solid oklch(1 0 0 / 0.08); white-space: normal; }
+  .despTabBtn:last-child { border-bottom: none; }
+}
