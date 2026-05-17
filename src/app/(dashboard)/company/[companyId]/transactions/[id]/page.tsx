@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeftIcon } from "lucide-react";
 import { getTransactionByIdAction } from "@/modules/accounting/actions/transaction.actions";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = { params: Promise<{ companyId: string; id: string }> };
 
@@ -23,7 +24,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 };
 
 function fmt(n: number) {
-  return n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return fmtVen(n);
 }
 
 export default async function TransactionDetailPage({ params }: Props) {

@@ -21,6 +21,7 @@ import {
   searchPaymentRecordsAction,
 } from "../actions/banking.actions";
 import { fmtDate } from "@/lib/format";
+import { fmtVen } from "@/lib/fmt-ven";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,13 +103,7 @@ type Props = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtAmount(value: string | unknown) {
-  const str = typeof value === "string" ? value : String(value);
-  const n = parseFloat(str);
-  if (isNaN(n)) return str;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return fmtVen(typeof value === "string" ? value : String(value));
 }
 
 function getMatchLabel(tx: BankTransaction): string {
@@ -660,9 +655,7 @@ function InvoicePaymentPanel({
             </div>
             <div className="flex shrink-0 items-center gap-3">
               <span className="font-mono font-semibold text-zinc-800" style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}>
-                {new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-                  parseFloat(payment.amount)
-                )}{" "}
+                {fmtVen(payment.amount)}{" "}
                 {payment.currency as string}
               </span>
               <MatchButton disabled={isPending} onClick={() => onMatch(payment.id)} label={`Conciliar con pago ${payment.id}`} />

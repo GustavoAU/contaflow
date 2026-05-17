@@ -19,6 +19,7 @@ import type {
   AutoReconciliationResult,
   AutoMatchResult,
 } from "../schemas/auto-reconciliation.schema";
+import { fmtVen } from "@/lib/fmt-ven";
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -69,12 +70,7 @@ function reducer(state: PanelState, action: PanelAction): PanelState {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtAmount(value: string): string {
-  const n = parseFloat(value);
-  if (isNaN(n)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return fmtVen(value);
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

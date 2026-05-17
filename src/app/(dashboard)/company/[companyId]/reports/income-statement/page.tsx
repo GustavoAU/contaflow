@@ -7,6 +7,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -14,9 +15,7 @@ type Props = {
 };
 
 function fmt(value: string | number): string {
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return "0,00";
-  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+  return fmtVen(value);
 }
 
 function pct(amount: string, total: string): string | null {

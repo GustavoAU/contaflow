@@ -5,6 +5,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import type { LedgerAccount } from "@/modules/accounting/actions/report.actions";
+import { fmtVen } from "@/lib/fmt-ven";
 
 const TYPE_LABELS: Record<string, string> = {
   ASSET: "Activo",
@@ -15,10 +16,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 function fmt(v: string): string {
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(parseFloat(v));
+  return fmtVen(v);
 }
 
 interface LedgerAccountBlockProps {

@@ -5,6 +5,7 @@ import { TrialBalanceFilter } from "@/components/reports/TrialBalanceFilter";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -30,10 +31,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 function fmt(v: string | number): string {
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(typeof v === "string" ? parseFloat(v) : v);
+  return fmtVen(v);
 }
 
 export default async function TrialBalancePage({ params, searchParams }: Props) {

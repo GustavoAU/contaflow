@@ -5,6 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import { previewInflationAdjustmentAction, runInflationAdjustmentAction } from "../actions/inpc.actions";
 import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
+import { fmtVen } from "@/lib/fmt-ven";
 
 const MONTHS = [
   "","Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -12,10 +13,7 @@ const MONTHS = [
 ];
 
 function fmt(v: string | number, decimals = 2): string {
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(typeof v === "string" ? parseFloat(v) : v);
+  return fmtVen(v, decimals);
 }
 
 type Props = {

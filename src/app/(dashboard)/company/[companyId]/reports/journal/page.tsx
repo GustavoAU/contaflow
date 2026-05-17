@@ -6,6 +6,7 @@ import { JournalExportButton } from "@/components/reports/JournalExportButton";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { JournalTransaction } from "@/modules/accounting/actions/report.actions";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -20,10 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 function fmt(v: string): string {
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(parseFloat(v));
+  return fmtVen(v);
 }
 
 function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; companyId: string; folio?: number }) {

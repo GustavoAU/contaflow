@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { PlusIcon, BuildingIcon, ChevronRightIcon, XIcon, Loader2Icon } from "lucide-react";
 import { createBankAccountAction } from "../actions/banking.actions";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type BankAccountListItem = {
   id: string;
@@ -37,13 +38,7 @@ const CURRENCY_BADGE: Record<string, string> = {
 };
 
 function fmtAmount(value: string | null, currency: string) {
-  if (!value) return "—";
-  const n = parseFloat(value);
-  if (isNaN(n)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return fmtVen(value);
 }
 
 export function BankAccountList({ accounts, chartAccounts, companyId, userId }: Props) {

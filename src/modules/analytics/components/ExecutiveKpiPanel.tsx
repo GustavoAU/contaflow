@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, Loader2Icon } from "lucide-react";
 import { getKpiDashboardAction } from "../actions/kpi-dashboard.actions";
 import type { KpiDashboardData } from "../actions/kpi-dashboard.actions";
+import { fmtBs } from "@/lib/fmt-ven";
 
 type Props = {
   companyId: string;
@@ -14,10 +15,7 @@ type Props = {
 };
 
 function fmt(value: string): string {
-  return "Bs. " + Number(value).toLocaleString("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return fmtBs(value);
 }
 
 function NetBadge({ value }: { value: string }) {

@@ -9,6 +9,7 @@ import { BankAccountList } from "@/modules/bank-reconciliation/components/BankAc
 import { AutoReconciliationPanel } from "@/modules/bank-reconciliation/components/AutoReconciliationPanel";
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -16,13 +17,7 @@ type Props = {
 };
 
 function fmtAmount(value: unknown) {
-  const str = typeof value === "object" && value !== null ? value.toString() : String(value);
-  const n = parseFloat(str);
-  if (isNaN(n)) return str;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return fmtVen(value as string);
 }
 
 export default async function BankReconciliationPage({ params, searchParams }: Props) {
