@@ -460,7 +460,7 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("retorna error si la factura no existe", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(null as never);
 
     const result = await exportInvoiceVoucherPDFAction("inv-inexistente", "company-1");
@@ -471,7 +471,7 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("happy path: retorna buffer PDF serializable", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(mockInvoice as never);
     vi.mocked(generateInvoiceVoucherPDF).mockResolvedValue(Buffer.from("fake-voucher-pdf"));
 
@@ -487,7 +487,7 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("retorna error genérico si generateInvoiceVoucherPDF lanza excepción", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(mockInvoice as never);
     vi.mocked(generateInvoiceVoucherPDF).mockRejectedValue(new Error("render failed") as never);
 

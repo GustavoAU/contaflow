@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ScreenshotLightbox } from "@/components/landing/ScreenshotLightbox";
 import styles from "@/app/landing.module.css";
 
 const ROLES = [
@@ -40,6 +41,18 @@ export function LandingDespachos() {
             Agrega múltiples empresas a tu cuenta y asigna roles específicos
             a cada miembro de tu equipo. Cada quien ve solo lo que necesita.
           </p>
+        </div>
+
+        {/* Multi-empresa screenshot */}
+        <div className={styles.despScreenshot}>
+          <div className={styles.despScreenshotFrame}>
+            <ScreenshotLightbox
+              src="/screenshots/multi-empresa.jpg"
+              alt="Vista multi-empresa ContaFlow — todas tus empresas en un solo dashboard"
+              width={1280}
+              height={840}
+            />
+          </div>
         </div>
 
         <div className={styles.despBenefits}>

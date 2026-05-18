@@ -7,9 +7,11 @@
 //   NOM-B-04 (HIGH):     write = ADMIN_ONLY; read = ACCOUNTING (contador necesita ver conceptos)
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateConceptSchema, UpdateConceptSchema } from "../schemas/payroll-concept.schema";
 import { PayrollConceptService } from "../services/PayrollConceptService";
 import type { PayrollConceptRow } from "../services/PayrollConceptService";
@@ -54,12 +56,19 @@ export async function createConceptAction(
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede crear conceptos" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+
   const parsed = CreateConceptSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const concept = await PayrollConceptService.create(companyId, userId, parsed.data);
+    const concept = await PayrollConceptService.create(companyId, userId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -81,12 +90,19 @@ export async function updateConceptAction(
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede editar conceptos" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+
   const parsed = UpdateConceptSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const concept = await PayrollConceptService.update(companyId, userId, conceptId, parsed.data);
+    const concept = await PayrollConceptService.update(companyId, userId, conceptId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -105,8 +121,15 @@ export async function deleteConceptAction(
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede eliminar conceptos" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    await PayrollConceptService.delete(companyId, userId, conceptId);
+    await PayrollConceptService.delete(companyId, userId, conceptId, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: { deleted: true } };
   } catch (err) {

@@ -53,6 +53,22 @@ export const limiters = {
         prefix: "rl:qstash",
       })
     : null,
+  // Sentry tunnel — 100 req/min por IP para prevenir abuso del relay
+  sentry: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(100, "1 m"),
+        prefix: "rl:sentry",
+      })
+    : null,
+  // NOWPayments IPN webhook — 20 req/min por IP para prevenir replay flood
+  nowpayments: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, "1 m"),
+        prefix: "rl:nowpayments",
+      })
+    : null,
 };
 
 export async function checkRateLimit(

@@ -35,12 +35,14 @@ export default async function CompanyLayout({ children, params }: Props) {
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
 
   const periodResult = await getActivePeriodAction(companyId);
+  // eslint-disable-next-line react-hooks/purity -- Server Component: no re-renders, Date.now() es seguro aquí
+  const nowMs = Date.now();
   const activePeriod = periodResult.success && periodResult.data
     ? {
         year: periodResult.data.year,
         month: periodResult.data.month,
         isStale: Math.floor(
-          (Date.now() - new Date(periodResult.data.openedAt).getTime()) / 86_400_000
+          (nowMs - new Date(periodResult.data.openedAt).getTime()) / 86_400_000
         ) > 30,
       }
     : null;

@@ -198,7 +198,14 @@ export async function getTransactionsByPeriodAction(
   if (!periodId) return { success: false, error: "Period ID es requerido" };
 
   try {
-    // Verificar membresía y obtener estado del período en un solo query (ADR-004)
+    // Role intent: ROLES.ALL — cualquier miembro autenticado puede leer el libro diario.
+    // VIEWER y ADMINISTRATIVE necesitan ver los asientos aunque no puedan crearlos.
+    const member = await prisma.companyMember.findFirst({
+      where: { userId, companyId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" };
+
     const period = await prisma.accountingPeriod.findFirst({
       where: { id: periodId, companyId },
       select: { id: true, status: true },

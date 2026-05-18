@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { generateSIVITZip } from "../services/SIVITExportService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -27,6 +28,9 @@ export async function generateSIVITAction(
 
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: rl.error };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },

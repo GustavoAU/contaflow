@@ -10,6 +10,9 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
   limiters: { fiscal: {}, ocr: {} },
@@ -198,6 +201,8 @@ describe("createCreditNoteAction", () => {
       COMPANY_ID,
       expect.objectContaining({ relatedInvoiceId: "inv-original" }),
       USER_ID,
+      null,
+      null,
     );
   });
 
@@ -215,6 +220,8 @@ describe("createCreditNoteAction", () => {
       COMPANY_ID,
       expect.not.objectContaining({ relatedDocNumber: "INJECTED-DOC-NUMBER" }),
       USER_ID,
+      null,
+      null,
     );
   });
 });
@@ -269,6 +276,8 @@ describe("createDebitNoteAction", () => {
       COMPANY_ID,
       expect.objectContaining({ relatedInvoiceId: "inv-original" }),
       USER_ID,
+      null,
+      null,
     );
   });
 });

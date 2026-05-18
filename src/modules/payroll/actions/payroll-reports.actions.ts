@@ -3,7 +3,7 @@
 //
 // Seguridad (ADR-006):
 //   - Todas las actions: auth → companyId guard (tenant check) → ACCOUNTING role
-//   - Sin rate limiting de mutación (read-only — no aplica limiters.fiscal)
+//   - PDF exports: limiters.export (3 por 10 minutos) para prevenir generación masiva
 //   - Sin $transaction (sin escrituras)
 //   - Sin AuditLog (sin mutaciones)
 //   - PDFs: retornados como base64 (patrón exportForma30PDFAction)
@@ -14,6 +14,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import {
   PayrollReportService,
   type IvssReportData,
@@ -30,14 +31,14 @@ type PdfResult = { success: true; buffer: string } | { success: false; error: st
 
 async function resolveAccounting(companyId: string) {
   const { userId } = await auth();
-  if (!userId) return { userId: null, ok: false };
+  if (!userId) return { userId: null, ok: false as const };
   const member = await prisma.companyMember.findFirst({
     where: { userId, companyId },
     select: { role: true },
   });
-  if (!member) return { userId, ok: false };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { userId, ok: false };
-  return { userId, ok: true };
+  if (!member) return { userId, ok: false as const };
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { userId, ok: false as const };
+  return { userId, ok: true as const };
 }
 
 // ─── IVSS ─────────────────────────────────────────────────────────────────────
@@ -63,8 +64,11 @@ export async function exportIvssPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const { ok } = await resolveAccounting(companyId);
+  const { userId, ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: rl.error };
 
   try {
     const data = await PayrollReportService.getIvssReport(companyId, year, month);
@@ -98,8 +102,11 @@ export async function exportBanavihPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const { ok } = await resolveAccounting(companyId);
+  const { userId, ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: rl.error };
 
   try {
     const data = await PayrollReportService.getBanavihReport(companyId, year, month);
@@ -133,8 +140,11 @@ export async function exportIncesPdfAction(
   year: number,
   quarter: number
 ): Promise<PdfResult> {
-  const { ok } = await resolveAccounting(companyId);
+  const { userId, ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: rl.error };
 
   try {
     const data = await PayrollReportService.getIncesReport(companyId, year, quarter);
@@ -155,7 +165,7 @@ export async function getArcReportAction(
   const { ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
 
-  // IDOR guard: verificar que el empleado pertenece a la empresa
+  // IDOR guard: verificar que el empleado pertenezca a la empresa
   const emp = await prisma.employee.findFirst({
     where: { id: employeeId, companyId },
     select: { id: true },
@@ -175,8 +185,11 @@ export async function exportArcPdfAction(
   employeeId: string,
   year: number
 ): Promise<PdfResult> {
-  const { ok } = await resolveAccounting(companyId);
+  const { userId, ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: rl.error };
 
   // IDOR guard
   const emp = await prisma.employee.findFirst({

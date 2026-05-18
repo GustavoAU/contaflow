@@ -9,6 +9,7 @@
 //   NOM-B-04 (HIGH):     write = ADMIN_ONLY; read = WRITERS (todos menos VIEWER)
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -89,8 +90,12 @@ export async function createEmployeeAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const emp = await EmployeeService.create(companyId, userId, parsed.data);
+    const emp = await EmployeeService.create(companyId, userId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -121,8 +126,12 @@ export async function updateEmployeeAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const emp = await EmployeeService.update(companyId, userId, employeeId, parsed.data);
+    const emp = await EmployeeService.update(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -150,8 +159,12 @@ export async function terminateEmployeeAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const emp = await EmployeeService.terminate(companyId, userId, employeeId, parsed.data);
+    const emp = await EmployeeService.terminate(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -179,8 +192,12 @@ export async function addSalaryAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const entry = await EmployeeService.addSalary(companyId, userId, employeeId, parsed.data);
+    const entry = await EmployeeService.addSalary(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: entry };
   } catch (err) {

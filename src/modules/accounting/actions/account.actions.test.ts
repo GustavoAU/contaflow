@@ -20,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     companyMember: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -372,7 +373,11 @@ describe("updateAccountAction", () => {
 // ─── getAccountsAction ────────────────────────────────────────────────────────
 
 describe("getAccountsAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
 
   it("retorna lista de cuentas de la empresa", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([BASE_ACCOUNT] as never);
@@ -410,7 +415,11 @@ describe("getAccountsAction", () => {
 // ─── getNextAccountCodeAction ─────────────────────────────────────────────────
 
 describe("getNextAccountCodeAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
 
   it("sugiere el primer codigo del rango para empresa sin cuentas", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([]);

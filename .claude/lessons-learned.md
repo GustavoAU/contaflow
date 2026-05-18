@@ -107,3 +107,35 @@
 - **Context**: any schema change + `prisma generate`
 - **Error**: Next.js caches the Prisma module in development. Without restarting, the client uses the previous version of the schema and throws `Cannot read properties of undefined` on new models/fields.
 - **Golden rule**: Mandatory flow always: `prisma migrate dev` → `prisma generate` → restart `npm run dev`. No shortcut exists.
+
+---
+
+## LL-011 — Read-Only Server Actions Also Need Auth (Security Audit 2026-05-18)
+
+- **Phase detected**: full security audit 2026-05-18
+- **Context**: `account.actions.ts` — `getAccountsAction`, `getNextAccountCodeAction`; `period.actions.ts` — `getActivePeriodAction`, `getPeriodsAction`
+- **Error**: Read-only Server Actions that query domain tables (accounts, periods) were written without `auth()` + `companyMember` checks because they "only read data." Next.js Server Actions are callable via direct POST to the action endpoint — middleware does NOT protect Server Action invocations that bypass the page render flow.
+- **Impact**: CRITICAL — any unauthenticated caller who knows a `companyId` can read the full chart of accounts or period history of any company.
+- **Fix required**: EVERY `"use server"` function that queries company-scoped data must start with `auth()` + `companyMember` check, regardless of whether it's a mutation or a read. The middleware only protects page navigation — it does not protect direct Server Action POST calls.
+- **Golden rule**: There is no such thing as a "safe read-only action" that skips auth. ALL `"use server"` exports that accept `companyId` as a parameter must call `auth()` and verify `companyMember` before any DB query. The test for this: "would this endpoint leak data if called from curl with no cookies?" If yes, it needs auth.
+- **Regression test**: For every action in `account.actions.ts` and `period.actions.ts`, test that a call with a mocked empty Clerk session returns `{ success: false, error: "No autorizado" }`.
+
+---
+
+## LL-012 — Sentry Tunnel Must Pin DSN to Application DSN (Security Audit 2026-05-18)
+
+- **Phase detected**: full security audit 2026-05-18
+- **Context**: `src/app/monitoring/route.ts` — Sentry tunnel handler
+- **Error**: The tunnel extracts the DSN from the user-supplied request body and relays to it. An attacker can send any Sentry DSN and the server will relay the payload to an arbitrary Sentry project, turning the app into an open relay.
+- **Fix required**: Pin the allowed DSN: `const ALLOWED_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN; if (sentryDsn !== ALLOWED_DSN) return 400`. Add `checkRateLimit` on the tunnel route.
+- **Golden rule**: Sentry tunnel routes must validate that the envelope DSN matches the application's own DSN before forwarding. Never relay to arbitrary Sentry endpoints.
+
+---
+
+## LL-013 — GL Configuration Changes Require AuditLog (Security Audit 2026-05-18)
+
+- **Phase detected**: full security audit 2026-05-18
+- **Context**: `src/modules/settings/actions/gl-config.actions.ts` — `saveGLConfigAction`
+- **Error**: `companySettings.upsert` (GL account mapping) runs without `$transaction` and without `AuditLog.create`. Changing which GL accounts receive invoice postings leaves no audit trail.
+- **Fix required**: Wrap in `prisma.$transaction`, capture `oldValue` (previous settings), create `AuditLog` with `action: "UPDATE_GL_CONFIG"`, include `ipAddress`/`userAgent` per R-6.
+- **Golden rule**: Any mutation to `CompanySettings` is a fiscal configuration change — it must be wrapped in `$transaction` with `AuditLog` exactly like a `closeFiscalYearAction`. Configuration changes are as auditable as data changes.

@@ -5,9 +5,11 @@
 // y el posting retroactivo de facturas que quedaron sin asiento.
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -103,6 +105,9 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
@@ -111,12 +116,31 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
       return { success: false, error: "Solo el Administrador puede modificar la configuración contable." };
     }
 
+    const hdrs = await headers();
+    const ipAddress = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? hdrs.get("x-real-ip") ?? null;
+    const userAgent = hdrs.get("user-agent") ?? null;
+
     const { companyId, ...fields } = parsed.data;
 
-    await prisma.companySettings.upsert({
-      where: { companyId },
-      update: fields,
-      create: { companyId, ...fields },
+    await prisma.$transaction(async (tx) => {
+      await tx.companySettings.upsert({
+        where: { companyId },
+        update: fields,
+        create: { companyId, ...fields },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: companyId,
+          entityName: "CompanySettings",
+          action: "UPDATE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: fields,
+        },
+      });
     });
 
     revalidatePath(`/company/${companyId}/settings`);
@@ -137,6 +161,9 @@ export async function postUnbookedInvoicesAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
@@ -144,6 +171,10 @@ export async function postUnbookedInvoicesAction(
     if (!member || member.role !== "ADMIN") {
       return { success: false, error: "Solo el Administrador puede ejecutar la causación retroactiva." };
     }
+
+    const hdrs = await headers();
+    const ipAddress = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? hdrs.get("x-real-ip") ?? null;
+    const userAgent = hdrs.get("user-agent") ?? null;
 
     const settings = await prisma.companySettings.findUnique({
       where: { companyId },
@@ -161,6 +192,7 @@ export async function postUnbookedInvoicesAction(
       return { success: false, error: "Configure primero las cuentas contables antes de causar." };
     }
 
+    // Cap at 200 to prevent runaway transactions on very large datasets
     const invoices = await prisma.invoice.findMany({
       where: {
         companyId,
@@ -170,6 +202,7 @@ export async function postUnbookedInvoicesAction(
       },
       include: { taxLines: true },
       orderBy: { date: "asc" },
+      take: 200,
     });
 
     let posted = 0;
@@ -199,6 +232,19 @@ export async function postUnbookedInvoicesAction(
             userId,
             db
           );
+
+          await db.auditLog.create({
+            data: {
+              companyId,
+              entityId: inv.id,
+              entityName: "Invoice",
+              action: "GL_POST",
+              userId,
+              ipAddress,
+              userAgent,
+              newValue: { invoiceNumber: inv.invoiceNumber, type },
+            },
+          });
         });
         posted++;
       } catch {

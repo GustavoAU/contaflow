@@ -301,13 +301,13 @@ export function Sidebar({
   companies = [],
 }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
+  const [collapsed, setCollapsed] = useState(() => {
     try {
-      if (localStorage.getItem(STORAGE_KEY) === "true") setCollapsed(true);
-    } catch {}
-  }, []);
+      return localStorage.getItem(STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
 
   const toggle = () =>
     setCollapsed((prev) => {
