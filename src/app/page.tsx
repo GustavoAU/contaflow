@@ -6,6 +6,7 @@ import { VideoModal } from "@/components/landing/VideoModal";
 import { LandingMobileNav } from "@/components/landing/LandingMobileNav";
 import { LandingClient } from "@/components/landing/LandingClient";
 import { LandingDespachos } from "@/components/landing/LandingDespachos";
+import { ScreenshotLightbox } from "@/components/landing/ScreenshotLightbox";
 import { RoiCalculator } from "@/components/landing/RoiCalculator";
 import styles from "./landing.module.css";
 
@@ -327,6 +328,73 @@ export default async function LandingPage() {
               );
             })}
           </div>
+
+          {/* Screenshot duo — Libro IVA + Estado de Resultados */}
+          <div className={`${styles.screenshotDuo} ${styles.reveal} ${styles.d1}`} data-reveal>
+            <div className={styles.screenshotItem}>
+              <div className={styles.screenshotFrame}>
+                <ScreenshotLightbox
+                  src="/screenshots/libro-iva.jpg"
+                  alt="Libros IVA compras ContaFlow"
+                  width={1280}
+                  height={840}
+                />
+              </div>
+              <p className={styles.screenshotCaption}>Libros IVA Compras y Ventas — conformes a PA 121</p>
+            </div>
+            <div className={styles.screenshotItem}>
+              <div className={styles.screenshotFrame}>
+                <ScreenshotLightbox
+                  src="/screenshots/estado-resultados.jpg"
+                  alt="Estado de Resultados VEN-NIF ContaFlow"
+                  width={1280}
+                  height={840}
+                />
+              </div>
+              <p className={styles.screenshotCaption}>Estado de Resultados VEN-NIF — generado automáticamente</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Declaración IVA Forma 30 ──────────────────────────────────────── */}
+      <section className={styles.ivaSection}>
+        <div className={styles.wrap}>
+          <div className={styles.ivaInner}>
+            <div className={`${styles.reveal}`} data-reveal>
+              <div className={styles.screenshotFrame}>
+                <ScreenshotLightbox
+                  src="/screenshots/declaracion-iva.jpg"
+                  alt="Declaración IVA Forma 30 ContaFlow"
+                  width={1280}
+                  height={840}
+                />
+              </div>
+            </div>
+            <div className={`${styles.reveal} ${styles.d1}`} data-reveal>
+              <p className={styles.conciliaTagline}>Cumplimiento fiscal automático</p>
+              <h2 className={styles.conciliaH2}>Declaración IVA<br />Forma 30, lista al instante</h2>
+              <p className={styles.conciliaKicker}>
+                ContaFlow genera la Forma 30 desde tus asientos.<br />
+                Sin errores manuales, sin exportar a Excel.
+              </p>
+              <ul className={styles.conciliaBullets}>
+                {[
+                  "Secciones A, B, C, D y E calculadas automáticamente",
+                  "Alícuotas 16%, 8% y Lujo 31% según VEN-NIF",
+                  "Retenciones IVA incluidas en el cálculo final",
+                  "Exporta el PDF listo para declarar ante el SENIAT",
+                ].map((text) => (
+                  <li key={text} className={styles.conciliaBullet}>
+                    <svg className={styles.conciliaCheck} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span className={styles.conciliaBulletText}>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -334,41 +402,55 @@ export default async function LandingPage() {
       <section className={styles.concilia}>
         <div className={styles.wrap}>
         <div className={styles.conciliaInner}>
-          <p className={styles.conciliaTagline}>Módulo destacado</p>
-          <h2 className={styles.conciliaH2}>Conciliación bancaria<br />sin dolor de cabeza</h2>
-          <p className={styles.conciliaKicker}>
-            Antes: extracto bancario + Excel + 3 horas de trabajo.<br />
-            Ahora: importa el estado de cuenta, ContaFlow cruza cada movimiento automáticamente.
-          </p>
-          <ul className={styles.conciliaBullets}>
-            {[
-              "Importa extractos en segundos",
-              "Cruza movimientos automáticamente contra asientos del libro mayor",
-              "Detecta diferencias y las resalta para tu revisión",
-              "Genera el informe de conciliación con un clic",
-            ].map((text) => (
-              <li key={text} className={styles.conciliaBullet}>
-                <svg className={styles.conciliaCheck} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                <span className={styles.conciliaBulletText}>{text}</span>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.conciliaStepper}>
-            {[
-              { n: "1", title: "Importa el extracto", desc: "Sube el PDF o CSV del banco. ContaFlow lo parsea automáticamente." },
-              { n: "2", title: "Revisión automática", desc: "El sistema cruza cada línea con los asientos del libro mayor." },
-              { n: "3", title: "Informe listo", desc: "Descarga el informe de conciliación firmado en segundos." },
-            ].map(({ n, title, desc }) => (
-              <div key={n} className={styles.conciliaStep}>
-                <div className={styles.conciliaStepNum}>{n}</div>
-                <div className={styles.conciliaStepBody}>
-                  <div className={styles.conciliaStepTitle}>{title}</div>
-                  <div className={styles.conciliaStepDesc}>{desc}</div>
+          {/* Left col — copy */}
+          <div className={`${styles.reveal}`} data-reveal>
+            <p className={styles.conciliaTagline}>Módulo destacado</p>
+            <h2 className={styles.conciliaH2}>Conciliación bancaria<br />sin dolor de cabeza</h2>
+            <p className={styles.conciliaKicker}>
+              Antes: extracto bancario + Excel + 3 horas de trabajo.<br />
+              Ahora: importa el estado de cuenta, ContaFlow cruza cada movimiento automáticamente.
+            </p>
+            <ul className={styles.conciliaBullets}>
+              {[
+                "Importa extractos en segundos",
+                "Cruza movimientos automáticamente contra asientos del libro mayor",
+                "Detecta diferencias y las resalta para tu revisión",
+                "Genera el informe de conciliación con un clic",
+              ].map((text) => (
+                <li key={text} className={styles.conciliaBullet}>
+                  <svg className={styles.conciliaCheck} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span className={styles.conciliaBulletText}>{text}</span>
+                </li>
+              ))}
+            </ul>
+            <div className={styles.conciliaStepper}>
+              {[
+                { n: "1", title: "Importa el extracto", desc: "Sube el PDF o CSV del banco. ContaFlow lo parsea automáticamente." },
+                { n: "2", title: "Revisión automática", desc: "El sistema cruza cada línea con los asientos del libro mayor." },
+                { n: "3", title: "Informe listo", desc: "Descarga el informe de conciliación firmado en segundos." },
+              ].map(({ n, title, desc }) => (
+                <div key={n} className={styles.conciliaStep}>
+                  <div className={styles.conciliaStepNum}>{n}</div>
+                  <div className={styles.conciliaStepBody}>
+                    <div className={styles.conciliaStepTitle}>{title}</div>
+                    <div className={styles.conciliaStepDesc}>{desc}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          {/* Right col — screenshot */}
+          <div className={`${styles.reveal} ${styles.d1}`} data-reveal>
+            <div className={styles.screenshotFrame}>
+              <ScreenshotLightbox
+                src="/screenshots/conciliacion.jpg"
+                alt="Workbench de conciliación bancaria ContaFlow"
+                width={1280}
+                height={840}
+              />
+            </div>
           </div>
         </div>
         </div>
