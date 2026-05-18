@@ -32,26 +32,27 @@ export async function savePayrollConfigAction(
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
-  // 2. Rate limit — NOM-A-04: es una mutación fiscal
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
-
-  // 3. Validación Zod
-  const parsed = PayrollConfigSchema.safeParse(rawInput);
-  if (!parsed.success)
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
-
-  // 4. NOM-A-01: verificar membresía (companyId viene del cliente — nunca confiar)
+  // 2. NOM-A-01: verificar membresía antes del rate limit para evitar que un userId
+  //    sin pertenencia consuma cuota — defensa en profundidad
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
   if (!member) return { success: false, error: "No autorizado" };
 
-  // 5. NOM-A-05: solo ADMIN_ONLY puede escribir configuración de nómina
+  // 3. NOM-A-05: solo ADMIN_ONLY puede escribir configuración de nómina
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede configurar la nómina" };
+
+  // 4. Rate limit — NOM-A-04: es una mutación fiscal
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed)
+    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+
+  // 5. Validación Zod
+  const parsed = PayrollConfigSchema.safeParse(rawInput);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const cfg = await PayrollConfigService.saveConfig(companyId, userId, parsed.data);

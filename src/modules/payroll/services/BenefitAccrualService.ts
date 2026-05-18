@@ -143,7 +143,9 @@ export const BenefitAccrualService = {
     companyId: string,
     userId: string,
     year: number,
-    quarter: number // 1–4
+    quarter: number, // 1–4
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<{ employeesProcessed: number; totalAccrued: string }> {
     if (quarter < 1 || quarter > 4) throw new Error("El trimestre debe ser entre 1 y 4");
 
@@ -313,8 +315,8 @@ export const BenefitAccrualService = {
               entityId: balance!.id,
               action: "ACCRUE_QUARTERLY_BENEFITS",
               userId,
-              ipAddress: null,
-              userAgent: null,
+              ipAddress,
+              userAgent,
               oldValue: { balance: balance!.currentBalance.toString() },
               newValue: {
                 employeeId: emp.id,
@@ -356,7 +358,9 @@ export const BenefitAccrualService = {
     companyId: string,
     userId: string,
     year: number,
-    month: number // 1–12
+    month: number, // 1–12
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<{ employeesProcessed: number; totalInterest: string }> {
     if (month < 1 || month > 12) throw new Error("El mes debe ser entre 1 y 12");
 
@@ -472,8 +476,8 @@ export const BenefitAccrualService = {
             entityId: balance.id,
             action: "POST_BENEFIT_INTEREST",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: { interestBalance: balance.interestBalance.toString() },
             newValue: {
               year,

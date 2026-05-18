@@ -113,7 +113,7 @@ export const PayrollConceptService = {
 
   // ── create — concepto personalizado (no isSystem) ─────────────────────────
   // NOM-C-15: $transaction + AuditLog (operación de impacto fiscal — ADR-006 D-4)
-  async create(companyId: string, userId: string, input: CreateConceptInput): Promise<PayrollConceptRow> {
+  async create(companyId: string, userId: string, input: CreateConceptInput, ipAddress: string | null = null, userAgent: string | null = null): Promise<PayrollConceptRow> {
     return prisma.$transaction(async (tx) => {
       const concept = await tx.payrollConcept.create({
         data: {
@@ -132,8 +132,8 @@ export const PayrollConceptService = {
           entityId: concept.id,
           action: "CREATE_PAYROLL_CONCEPT",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: Prisma.JsonNull,
           newValue: { code: input.code, name: input.name, type: input.type },
         },
@@ -149,7 +149,9 @@ export const PayrollConceptService = {
     companyId: string,
     userId: string,
     conceptId: string,
-    input: UpdateConceptInput
+    input: UpdateConceptInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<PayrollConceptRow> {
     return prisma.$transaction(async (tx) => {
       const concept = await tx.payrollConcept.findFirst({
@@ -168,8 +170,8 @@ export const PayrollConceptService = {
           entityId: conceptId,
           action: "UPDATE_PAYROLL_CONCEPT",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { name: concept.name, isActive: concept.isActive },
           newValue: { name: input.name, isActive: input.isActive },
         },
@@ -182,7 +184,7 @@ export const PayrollConceptService = {
   // NOM-B: solo permitir borrar si isSystem = false
   // PayrollRunLine.conceptId → onDelete: Restrict (previene borrado con referencias)
   // NOM-C-15: $transaction + AuditLog
-  async delete(companyId: string, userId: string, conceptId: string): Promise<void> {
+  async delete(companyId: string, userId: string, conceptId: string, ipAddress: string | null = null, userAgent: string | null = null): Promise<void> {
     await prisma.$transaction(async (tx) => {
       const concept = await tx.payrollConcept.findFirst({
         where: { id: conceptId, companyId },
@@ -199,8 +201,8 @@ export const PayrollConceptService = {
           entityId: conceptId,
           action: "DELETE_PAYROLL_CONCEPT",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { code: concept.code, name: concept.name, type: concept.type },
           newValue: Prisma.JsonNull,
         },

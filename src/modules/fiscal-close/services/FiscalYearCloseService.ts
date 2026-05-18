@@ -51,7 +51,9 @@ export class FiscalYearCloseService {
   static async closeFiscalYear(
     companyId: string,
     year: number,
-    closedBy: string
+    closedBy: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<FiscalYearCloseResult> {
     return await prisma.$transaction(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
@@ -242,8 +244,8 @@ export class FiscalYearCloseService {
             entityName: "FiscalYearClose",
             action: "CLOSE",
             userId: closedBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               fiscalYearCloseId: fiscalClose.id,
               companyId,
@@ -276,7 +278,9 @@ export class FiscalYearCloseService {
   static async appropriateFiscalYearResult(
     companyId: string,
     year: number,
-    approvedBy: string
+    approvedBy: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<{ appropriationTransactionId: string }> {
     return await prisma.$transaction(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
@@ -380,8 +384,8 @@ export class FiscalYearCloseService {
             entityName: "FiscalYearClose",
             action: "APPROPRIATE",
             userId: approvedBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: { appropriationTransactionId: null },
             newValue: { appropriationTransactionId: appTx.id },
           },

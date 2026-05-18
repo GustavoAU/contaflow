@@ -513,7 +513,9 @@ export class InvoiceService {
   static async createCreditNote(
     companyId: string,
     data: CreateCreditDebitNoteInput,
-    createdBy: string
+    createdBy: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ) {
     const MAX_ATTEMPTS = 3;
     let lastP2034Err: unknown;
@@ -612,8 +614,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "CREATE_NC",
             userId: createdBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               invoiceNumber: nc.invoiceNumber,
               relatedInvoiceId: data.relatedInvoiceId,
@@ -632,8 +634,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",
             userId: createdBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               pendingAmount: newPending.toFixed(2),
               paymentStatus: newStatus,
@@ -674,7 +676,9 @@ export class InvoiceService {
   static async createDebitNote(
     companyId: string,
     data: CreateCreditDebitNoteInput,
-    createdBy: string
+    createdBy: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ) {
     const MAX_ATTEMPTS = 3;
     let lastP2034Err: unknown;
@@ -773,8 +777,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "CREATE_ND",
             userId: createdBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               invoiceNumber: nd.invoiceNumber,
               relatedInvoiceId: data.relatedInvoiceId,
@@ -793,8 +797,8 @@ export class InvoiceService {
             entityName: "Invoice",
             action: "PENDING_AMOUNT_UPDATE",
             userId: createdBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               pendingAmount: newPending.toFixed(2),
               paymentStatus: newStatus,

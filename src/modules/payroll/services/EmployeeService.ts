@@ -208,7 +208,9 @@ export const EmployeeService = {
   async create(
     companyId: string,
     userId: string,
-    input: CreateEmployeeInput
+    input: CreateEmployeeInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<EmployeeRow> {
     return prisma.$transaction(async (tx) => {
       const employee = await tx.employee.create({
@@ -257,8 +259,8 @@ export const EmployeeService = {
           entityId: employee.id,
           action: "CREATE_EMPLOYEE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: Prisma.JsonNull,
           newValue: {
             firstName: input.firstName,
@@ -285,7 +287,9 @@ export const EmployeeService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: UpdateEmployeeInput
+    input: UpdateEmployeeInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<EmployeeRow> {
     return prisma.$transaction(async (tx) => {
       const previous = await tx.employee.findFirst({
@@ -318,8 +322,8 @@ export const EmployeeService = {
           entityId: employeeId,
           action: "UPDATE_EMPLOYEE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: {
             firstName: previous.firstName,
             lastName: previous.lastName,
@@ -345,7 +349,9 @@ export const EmployeeService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: TerminateEmployeeInput
+    input: TerminateEmployeeInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<EmployeeRow> {
     return prisma.$transaction(async (tx) => {
       const previous = await tx.employee.findFirst({
@@ -376,8 +382,8 @@ export const EmployeeService = {
           entityId: employeeId,
           action: "TERMINATE_EMPLOYEE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { status: previous.status },
           newValue: { status: "TERMINATED", terminationDate: input.terminationDate },
         },
@@ -393,7 +399,9 @@ export const EmployeeService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: AddSalaryInput
+    input: AddSalaryInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<SalaryHistoryRow> {
     return prisma.$transaction(async (tx) => {
       const employee = await tx.employee.findFirst({
@@ -423,8 +431,8 @@ export const EmployeeService = {
           entityId: entry.id,
           action: "ADD_SALARY",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: Prisma.JsonNull,
           newValue: {
             employeeId,

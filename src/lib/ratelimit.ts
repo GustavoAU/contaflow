@@ -61,6 +61,14 @@ export const limiters = {
         prefix: "rl:sentry",
       })
     : null,
+  // NOWPayments IPN webhook — 20 req/min por IP para prevenir replay flood
+  nowpayments: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, "1 m"),
+        prefix: "rl:nowpayments",
+      })
+    : null,
 };
 
 export async function checkRateLimit(

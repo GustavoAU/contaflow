@@ -190,12 +190,16 @@ export async function exportInvoiceBookPDFAction(params: {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.export);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de exportaciones excedido" };
+
     // Verificar que company pertenece al usuario
     const membership = await prisma.companyMember.findFirst({
       where: { companyId: params.companyId, userId },
       include: { company: true },
     });
     if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
 
     const { rows, summary } = await InvoiceService.getBook({
       companyId: params.companyId,
@@ -235,10 +239,15 @@ export async function exportInvoiceVoucherPDFAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes excedido" };
+
     const membership = await prisma.companyMember.findFirst({
       where: { companyId, userId },
+      select: { role: true },
     });
     if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
 
     const invoice = await InvoiceService.getById(invoiceId, companyId);
     if (!invoice) return { success: false, error: "Factura no encontrada" };
@@ -378,7 +387,11 @@ export async function createCreditNoteAction(input: unknown) {
     if (!member) return { success: false as const, error: "No autorizado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
 
-    const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId);
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nc };
@@ -419,7 +432,11 @@ export async function createDebitNoteAction(input: unknown) {
     if (!member) return { success: false as const, error: "No autorizado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
 
-    const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId);
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nd };
@@ -573,6 +590,19 @@ export async function getInvoiceBookAction(input: unknown) {
   }
 
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false as const, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: parsed.data.companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false as const, error: "No autorizado" };
+
     const result = await InvoiceService.getBook(parsed.data);
     return { success: true as const, data: result };
   } catch {

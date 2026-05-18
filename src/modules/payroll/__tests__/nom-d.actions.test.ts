@@ -10,6 +10,9 @@ const mockRateLimit = vi.hoisted(() => vi.fn().mockResolvedValue({ allowed: true
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockUserId }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockRateLimit,
   limiters: { fiscal: {} },
@@ -226,7 +229,7 @@ describe("Zod validation", () => {
 
     // Zod schema passes (strips annualRate), service is called
     expect(vi.mocked(BenefitAccrualService.postBenefitInterest)).toHaveBeenCalledWith(
-      COMPANY, "user-1", 2026, 3  // annualRate NOT passed to service
+      COMPANY, "user-1", 2026, 3, null, null  // annualRate NOT passed to service; null/null = IP/UA
     );
     expect(result.success).toBe(true);
   });

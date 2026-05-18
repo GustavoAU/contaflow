@@ -12,6 +12,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -144,12 +145,18 @@ export async function accrueQuarterAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await BenefitAccrualService.accrueQuarter(
       companyId,
       userId,
       parsed.data.year,
-      parsed.data.quarter
+      parsed.data.quarter,
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -179,12 +186,18 @@ export async function postBenefitInterestAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h2 = await headers();
+  const ipAddress2 = h2.get("x-real-ip") ?? h2.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent2 = (h2.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await BenefitAccrualService.postBenefitInterest(
       companyId,
       userId,
       parsed.data.year,
-      parsed.data.month
+      parsed.data.month,
+      ipAddress2,
+      userAgent2
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -234,8 +247,12 @@ export async function createVacationAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const data = await VacationService.create(companyId, userId, employeeId, parsed.data);
+    const data = await VacationService.create(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
@@ -386,6 +403,9 @@ export async function updateTerminationAction(
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
     return { success: false, error: "Se requiere rol de Administrador" };
   }
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
 
   const parsed = UpdateTerminationSchema.safeParse(rawInput);
   if (!parsed.success) {

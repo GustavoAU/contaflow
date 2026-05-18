@@ -14,6 +14,10 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn().mockResolvedValue({ userId: "user-test" }),
 }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
+
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 vi.mock("../services/PayrollConceptService", () => ({

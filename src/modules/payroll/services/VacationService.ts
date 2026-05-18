@@ -89,7 +89,9 @@ export const VacationService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: CreateVacationInput
+    input: CreateVacationInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<VacationRecordRow> {
     // IDOR guard
     const employee = await prisma.employee.findFirst({
@@ -198,8 +200,8 @@ export const VacationService = {
             entityId: record.id,
             action: "CREATE_VACATION_RECORD",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: Prisma.JsonNull,
             newValue: {
               employeeId,

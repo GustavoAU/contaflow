@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 import {
@@ -28,6 +29,7 @@ export async function getFiscalYearCloseHistoryAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Acceso denegado" };
 
     const history = await FiscalYearCloseService.getFiscalYearCloseHistory(companyId);
     return { success: true, data: history };
@@ -61,19 +63,25 @@ export async function closeFiscalYearAction(
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     // Solo ADMIN puede ejecutar el cierre de ejercicio
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
-    if (member.role !== "ADMIN") {
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo el Administrador puede cerrar el ejercicio económico." };
     }
 
     const result = await FiscalYearCloseService.closeFiscalYear(
       parsed.data.companyId,
       parsed.data.year,
-      userId
+      userId,
+      ipAddress,
+      userAgent
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/fiscal-close`);
@@ -112,12 +120,16 @@ export async function appropriateFiscalYearResultAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
-    if (member.role !== "ADMIN") {
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return {
         success: false,
         error: "Solo el Administrador puede registrar la apropiación del resultado.",
@@ -127,7 +139,9 @@ export async function appropriateFiscalYearResultAction(
     const result = await FiscalYearCloseService.appropriateFiscalYearResult(
       parsed.data.companyId,
       parsed.data.year,
-      userId
+      userId,
+      ipAddress,
+      userAgent
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/fiscal-close`);
@@ -164,7 +178,7 @@ export async function updateFiscalConfigAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
-    if (member.role !== "ADMIN") {
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return {
         success: false,
         error: "Solo el Administrador puede modificar la configuración contable.",
@@ -259,6 +273,7 @@ export async function getFiscalConfigAction(companyId: string): Promise<
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Acceso denegado" };
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
