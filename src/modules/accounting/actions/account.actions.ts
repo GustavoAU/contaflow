@@ -60,6 +60,13 @@ export async function getAccountsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" };
     const accounts = await prisma.account.findMany({
       where: { companyId, deletedAt: null },
       orderBy: { code: "asc" },
@@ -286,6 +293,13 @@ export async function getNextAccountCodeAction(
   companyId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" };
     const range = RANGES[type];
 
     const accounts = await prisma.account.findMany({

@@ -30,6 +30,13 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 
 export async function getActivePeriodAction(companyId: string) {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" } as const;
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" } as const;
     const period = await PeriodService.getActivePeriod(companyId);
     return { success: true, data: period } as const;
   } catch (error) {
@@ -42,6 +49,13 @@ export async function getActivePeriodAction(companyId: string) {
 
 export async function getPeriodsAction(companyId: string) {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" } as const;
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" } as const;
     const periods = await PeriodService.getPeriods(companyId);
     return { success: true, data: periods } as const;
   } catch (error) {

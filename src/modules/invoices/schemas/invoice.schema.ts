@@ -101,7 +101,7 @@ export const CreateInvoiceSchema = z.object({
   date: z.coerce.date(),
 
   // Contraparte
-  counterpartName: z.string().min(1, { error: "El nombre es requerido" }),
+  counterpartName: z.string().min(1, { error: "El nombre es requerido" }).trim().max(200),
   counterpartRif: z
     .string()
     .min(1, { error: "El RIF es requerido" })

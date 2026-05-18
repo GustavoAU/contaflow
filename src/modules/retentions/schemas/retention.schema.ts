@@ -97,7 +97,7 @@ function nonNegativeBelowCeiling(v: string): boolean {
 // ─── Schema de creación ───────────────────────────────────────────────────────
 export const CreateRetentionSchema = z.object({
   companyId: z.string().min(1, { error: "Empresa requerida" }),
-  providerName: z.string().min(1, { error: "Nombre del proveedor requerido" }),
+  providerName: z.string().min(1, { error: "Nombre del proveedor requerido" }).trim().max(200),
   providerRif: z
     .string()
     .regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),

@@ -53,6 +53,14 @@ export const limiters = {
         prefix: "rl:qstash",
       })
     : null,
+  // Sentry tunnel — 100 req/min por IP para prevenir abuso del relay
+  sentry: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(100, "1 m"),
+        prefix: "rl:sentry",
+      })
+    : null,
 };
 
 export async function checkRateLimit(

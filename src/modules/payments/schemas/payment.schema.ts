@@ -59,10 +59,8 @@ export const CreatePaymentSchema = z
     // Cashea
     commissionPct: z.string().optional(),
     commissionAmount: z.string().optional(),
-    // IGTF
-    igtfAmount: z.string().optional(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
-    notes: z.string().optional(),
+    notes: z.string().max(500).optional(),
     createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
   })
   .superRefine((data, ctx) => {

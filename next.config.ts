@@ -4,6 +4,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+// CSP is now injected per-request in middleware.ts with a cryptographic nonce
+// (eliminates unsafe-inline — MEDIUM-1 fix). These static headers cover everything else.
 const securityHeaders = [
   // Previene clickjacking — equivalente a CSP frame-ancestors 'none'
   { key: "X-Frame-Options", value: "DENY" },
@@ -15,27 +17,6 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Deshabilita features del navegador no utilizadas
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-  // CSP: permite self + Clerk (auth) + Sentry (tunnel /monitoring) + Upstash + Gemini
-  // Nota: unsafe-inline requerido por Next.js App Router sin nonces — mejorar con nonces post-lanzamiento
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      // unsafe-eval removido — no requerido por Clerk v7 ni Next.js App Router en producción
-      // unsafe-inline requerido por Next.js RSC sin nonces — eliminar post-lanzamiento con nonce strategy
-      `script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
-      "font-src 'self'",
-      `connect-src 'self' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://*.sentry.io https://*.ingest.sentry.io https://*.upstash.io https://generativelanguage.googleapis.com https://api.nowpayments.io${process.env.NODE_ENV === "development" ? " ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*" : ""}`,
-      "worker-src 'self' blob:",
-      "frame-src 'none'",
-      "frame-ancestors 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join("; "),
-  },
 ];
 
 const nextConfig: NextConfig = {

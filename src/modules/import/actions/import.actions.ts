@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { ImportService } from "../services/ImportService";
 import type { ImportAccountRow } from "../schemas/import.schema";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -19,11 +20,18 @@ export async function importAccountsAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error };
+
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+
+    if (rows.length > 1000) {
+      return { success: false, error: "El archivo supera el límite de 1000 cuentas por importación." };
+    }
 
     const result = await ImportService.importAccounts(companyId, userId, rows);
     revalidatePath(`/company/${companyId}/accounts`);
@@ -36,6 +44,8 @@ export async function importAccountsAction(
 
 export async function downloadTemplateAction(): Promise<ActionResult<string>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
     const buffer = await ImportService.generateAccountsTemplate();
     const base64 = buffer.toString("base64");
     return { success: true, data: base64 };
