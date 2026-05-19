@@ -11,6 +11,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { getInventoryItems, getDraftMovements } from "@/modules/inventory/services/InventoryOperationsService";
 import { getInventoryValuation } from "@/modules/inventory/services/InventoryAccountingService";
 import { InventoryReportService } from "@/modules/inventory/services/InventoryReportService";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { InventoryItemList, type InventoryItemRow } from "@/modules/inventory/components/InventoryItemList";
 import { InventoryItemForm } from "@/modules/inventory/components/InventoryItemForm";
 import { MovementForm } from "@/modules/inventory/components/MovementForm";
@@ -47,10 +48,11 @@ export default async function InventoryPage({ params }: Props) {
   ]);
 
   // Para ACCOUNTANT / OWNER / ADMIN: también cargar valoración, pendientes y reporte de stock
-  const [valuation, pending, stockSummary] = await Promise.all([
+  const [valuation, pending, stockSummary, usdRate] = await Promise.all([
     isAccounting ? getInventoryValuation(companyId) : null,
     isAccounting ? getDraftMovements(companyId) : null,
     isAccounting ? InventoryReportService.getStockSummary(companyId) : null,
+    isAccounting ? ExchangeRateService.getLatestRate(companyId, "USD") : null,
   ]);
 
   // Serializar Decimals → string para los componentes cliente
@@ -133,10 +135,12 @@ export default async function InventoryPage({ params }: Props) {
                 sku: i.sku,
                 name: i.name,
                 unit: i.baseUnitName,
+                trackingType: i.trackingType,
                 stockQuantity: i.stockQuantity.toString(),
                 averageCost: i.averageCost.toString(),
               }))}
               totalValue={valuation?.totalValue.toString() ?? "0"}
+              usdRate={usdRate?.rate ?? undefined}
             />
           </section>
 

@@ -423,6 +423,7 @@ export async function getInventoryValuation(companyId: string) {
       baseUnitName: true,
       stockQuantity: true,
       averageCost: true,
+      trackingType: true,
     },
     orderBy: { name: "asc" },
   });
