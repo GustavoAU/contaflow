@@ -16,7 +16,7 @@ const securityHeaders = [
   // Limita información en el header Referer al enviar a otros orígenes
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Deshabilita features del navegador no utilizadas
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
 ];
 
 const nextConfig: NextConfig = {
