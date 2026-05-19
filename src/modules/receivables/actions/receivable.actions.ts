@@ -38,6 +38,8 @@ export async function getReceivablesAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL — todos los roles pueden consultar CxC (incluye VIEWER y ADMINISTRATIVE)
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const report = await ReceivableService.getReceivables(companyId, parsed.data.asOf);
     return { success: true, data: report };
@@ -66,6 +68,8 @@ export async function getPayablesAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL — todos los roles pueden consultar CxP
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const report = await ReceivableService.getPayables(companyId, parsed.data.asOf);
     return { success: true, data: report };
@@ -91,6 +95,8 @@ export async function getReceivablesPaginatedAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const page = await ReceivableService.getReceivablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
@@ -116,6 +122,8 @@ export async function getPayablesPaginatedAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const page = await ReceivableService.getPayablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
@@ -201,6 +209,9 @@ export async function cancelPaymentAction(
       return { success: false, error: "No autorizado" };
     }
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
+
     await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId);
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);
@@ -226,6 +237,11 @@ export async function getPaymentsByInvoiceAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
 
     const payments = await ReceivableService.getPaymentsByInvoice(invoiceId, companyId);
     return { success: true, data: payments };
@@ -258,27 +274,38 @@ export async function updatePaymentTermsAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role !== "ADMIN") {
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo los administradores pueden cambiar el plazo de pago" };
     }
 
-    const company = await prisma.company.update({
-      where: { id: parsed.data.companyId },
-      data: { paymentTermDays: parsed.data.paymentTermDays },
-      select: { paymentTermDays: true },
-    });
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
 
-    await prisma.auditLog.create({
-      data: {
-        companyId: parsed.data.companyId,
-        entityId: parsed.data.companyId,
-        entityName: "Company",
-        action: "UPDATE",
-        userId,
-        ipAddress,
-        userAgent,
-        newValue: { paymentTermDays: parsed.data.paymentTermDays },
-      },
+    // MEDIUM-04: AuditLog en el mismo $transaction que la mutación — R-6
+    const company = await prisma.$transaction(async (tx) => {
+      const prev = await tx.company.findUnique({
+        where: { id: parsed.data.companyId },
+        select: { paymentTermDays: true },
+      });
+      const updated = await tx.company.update({
+        where: { id: parsed.data.companyId },
+        data: { paymentTermDays: parsed.data.paymentTermDays },
+        select: { paymentTermDays: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId: parsed.data.companyId,
+          entityId: parsed.data.companyId,
+          entityName: "Company",
+          action: "UPDATE",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: { paymentTermDays: prev?.paymentTermDays ?? null },
+          newValue: { paymentTermDays: parsed.data.paymentTermDays },
+        },
+      });
+      return updated;
     });
 
     revalidatePath(`/company/${parsed.data.companyId}/settings`);

@@ -4,7 +4,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import prisma from "@/lib/prisma";
 import {
   CreateExpenseSchema,
@@ -37,12 +39,14 @@ async function getAuthContext() {
   return { userId, ipAddress, userAgent };
 }
 
-async function assertMember(companyId: string, userId: string) {
+// MEDIUM-05: assertMember verifica membresía Y rol mínimo requerido
+async function assertMember(companyId: string, userId: string, allowed = ROLES.WRITERS) {
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
   if (!member) throw new Error("No perteneces a esta empresa");
+  if (!canAccess(member.role, allowed)) throw new Error("No autorizado");
   return member;
 }
 
@@ -63,9 +67,19 @@ export async function createExpenseAction(
       return { success: false, error: msg };
     }
 
-    await assertMember(parsed.data.companyId, ctx.userId);
+    await assertMember(parsed.data.companyId, ctx.userId, ROLES.WRITERS);
 
-    const data = await createExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    // MEDIUM-08: IVA siempre computado server-side — Z-2, nunca confiar en el cliente
+    const computedIva = parsed.data.hasIva
+      ? new Decimal(parsed.data.amount).times(new Decimal("0.16")).toFixed(2)
+      : undefined;
+
+    const data = await createExpense(
+      { ...parsed.data, ivaAmount: computedIva },
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent,
+    );
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
   } catch (err) {
@@ -90,7 +104,7 @@ export async function confirmExpenseAction(
       return { success: false, error: msg };
     }
 
-    await assertMember(parsed.data.companyId, ctx.userId);
+    await assertMember(parsed.data.companyId, ctx.userId, ROLES.WRITERS);
 
     const data = await confirmExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
@@ -117,7 +131,8 @@ export async function voidExpenseAction(
       return { success: false, error: msg };
     }
 
-    await assertMember(parsed.data.companyId, ctx.userId);
+    // voidExpense genera asiento de reversión — requiere rol ACCOUNTING mínimo
+    await assertMember(parsed.data.companyId, ctx.userId, ROLES.ACCOUNTING);
 
     const data = await voidExpense(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
@@ -134,6 +149,10 @@ export async function listExpensesAction(
   try {
     const ctx = await getAuthContext();
     if (!ctx) return { success: false, error: "No autorizado" };
+
+    // MEDIUM-06: rate limit en lectura paginada
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const parsed = ListExpensesSchema.safeParse(input);
     if (!parsed.success) {
@@ -167,7 +186,7 @@ export async function createExpenseCategoryAction(
       return { success: false, error: msg };
     }
 
-    await assertMember(parsed.data.companyId, ctx.userId);
+    await assertMember(parsed.data.companyId, ctx.userId, ROLES.WRITERS);
 
     const data = await createExpenseCategory(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
@@ -184,6 +203,10 @@ export async function listExpenseCategoriesAction(
   try {
     const ctx = await getAuthContext();
     if (!ctx) return { success: false, error: "No autorizado" };
+
+    // MEDIUM-07: rate limit en lectura
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     await assertMember(companyId, ctx.userId);
 
