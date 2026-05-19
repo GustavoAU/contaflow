@@ -90,8 +90,13 @@ vi.mock("node-forge", () => {
   };
 });
 
+import { beforeAll, afterAll } from "vitest";
 import prisma from "@/lib/prisma";
 import { CertificateService, decryptCertificate } from "../services/CertificateService";
+
+// CERT_ENCRYPTION_SECRET required by deriveKey after Bloque F hardening
+beforeAll(() => { process.env.CERT_ENCRYPTION_SECRET = "test-secret-32-chars-minimum-ok"; });
+afterAll(() => { delete process.env.CERT_ENCRYPTION_SECRET; });
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -334,8 +339,8 @@ describe("decryptCertificate", () => {
     // usando el módulo de crypto directamente con el mismo algoritmo
     const crypto = await import("node:crypto");
     const companyId = "test-company-decrypt";
-    const secret = process.env.CERT_ENCRYPTION_SECRET ?? "";
-    const key = crypto.createHash("sha256").update(companyId + secret).digest();
+    const secret = process.env.CERT_ENCRYPTION_SECRET!;
+    const key = crypto.createHmac("sha256", secret).update(companyId).digest();
     const iv = crypto.randomBytes(12);
     const plaintext = Buffer.from("test-p12-content");
     const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);

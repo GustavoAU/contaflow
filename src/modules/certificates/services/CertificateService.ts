@@ -39,8 +39,10 @@ interface GeneratedCert {
 // ─── Utilidades de cifrado AES-256-GCM ───────────────────────────────────────
 
 function deriveKey(companyId: string): Buffer {
-  const secret = process.env.CERT_ENCRYPTION_SECRET ?? "";
-  return crypto.createHash("sha256").update(companyId + secret).digest();
+  const secret = process.env.CERT_ENCRYPTION_SECRET;
+  if (!secret) throw new Error("CERT_ENCRYPTION_SECRET is required");
+  // HMAC-SHA256(key=secret, data=companyId) avoids concatenation canonicalization
+  return crypto.createHmac("sha256", secret).update(companyId).digest();
 }
 
 function encryptP12(p12Buffer: Buffer, companyId: string): Buffer {
