@@ -74,7 +74,7 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
           Sin resultados para &ldquo;{query}&rdquo;
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((company) => {
             const role = company.role;
             const period = company.activePeriod;
@@ -83,7 +83,7 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
                 key={company.id}
                 className="group relative rounded-xl border bg-white transition-all hover:border-blue-300 hover:shadow-md"
               >
-                <Link href={`/company/${company.id}`} className="block p-5">
+                <Link href={`/company/${company.id}`} className="block p-5 pb-14">
                   {/* Avatar + nombre */}
                   <div className="mb-4 flex items-start gap-3">
                     <CompanyAvatar id={company.id} name={company.name} size="md" />
@@ -126,8 +126,8 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
                   </div>
                 </Link>
 
-                {/* Quick actions — visible on hover */}
-                <div className="hidden items-center gap-1 border-t border-zinc-100 px-5 py-2.5 group-hover:flex">
+                {/* Quick actions — absolute overlay, never affects card height */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 rounded-b-xl border-t border-zinc-100 bg-white px-5 py-2.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                   <Link
                     href={`/company/${company.id}`}
                     className="flex-1 rounded-md bg-blue-500 px-3 py-1.5 text-center text-[12px] font-semibold text-white transition-colors hover:bg-blue-600"
