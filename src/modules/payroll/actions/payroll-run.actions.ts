@@ -203,6 +203,10 @@ export async function exportPayrollBankTxtAction(
   if (!canAccess(member.role, ROLES.ACCOUNTING))
     return { success: false, error: "Acceso denegado" };
 
+  // HIGH-06: rate limit en exportación de datos bancarios sensibles
+  const rl = await checkRateLimit(userId, limiters.export);
+  if (!rl.allowed) return { success: false, error: "Límite de exportación alcanzado. Intente en unos minutos." };
+
   try {
     const file = await PayrollBankTxtService.generate(companyId, runId);
     return { success: true, data: file };

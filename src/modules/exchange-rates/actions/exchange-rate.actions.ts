@@ -86,6 +86,13 @@ export async function listExchangeRatesAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    // MEDIUM-01: tenant isolation — verificar membresía antes de retornar datos
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
     const data = await ExchangeRateService.list(companyId, currency);
     return { success: true, data };
   } catch {
@@ -228,6 +235,13 @@ export async function getLatestRatesWithDeltaAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    // MEDIUM-02: tenant isolation guard
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+
     async function rateWithDelta(currency: Currency): Promise<RateWithDelta | null> {
       const records = await prisma.exchangeRate.findMany({
         where: { companyId, currency },
@@ -262,6 +276,13 @@ export async function getLatestRateAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // MEDIUM-03: tenant isolation guard
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
     const parsed = GetRateSchema.safeParse({
       companyId,

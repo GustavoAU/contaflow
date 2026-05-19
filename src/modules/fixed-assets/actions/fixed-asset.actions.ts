@@ -133,7 +133,10 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role !== "ADMIN") return { success: false, error: "Solo administradores pueden dar de baja activos" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo administradores pueden dar de baja activos" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
     await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
@@ -159,8 +162,11 @@ export async function getFixedAssetsAction(
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
+      select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL — todos los miembros pueden consultar el resumen de activos
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const assets = await FixedAssetService.getSummary(companyId);
     return { success: true, data: assets };
@@ -187,8 +193,11 @@ export async function getDepreciationScheduleAction(
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
+      select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // ADR-025: ROLES.ALL — todos los miembros pueden ver la tabla de depreciación
+    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
     const schedule = await FixedAssetService.getSchedule(assetId, companyId);
 
@@ -392,6 +401,9 @@ export async function previewDepreciationScheduleAction(input: {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
     const schedule = generateDepreciationSchedule({
       acquisitionCost: input.acquisitionCost as never,

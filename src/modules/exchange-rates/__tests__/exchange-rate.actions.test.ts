@@ -22,7 +22,7 @@ vi.mock("../services/BcvFetchService", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember: { findUnique: vi.fn() },
+    companyMember: { findUnique: vi.fn(), findFirst: vi.fn() },
     exchangeRate: { upsert: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -250,6 +250,7 @@ describe("listExchangeRatesAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.exchangeRate.findMany).mockResolvedValue([RATE_RECORD] as never);
   });
 
