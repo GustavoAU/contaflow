@@ -308,12 +308,18 @@ export async function calculateProfitSharingAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await ProfitSharingService.calculate(
       companyId,
       userId,
       employeeId,
-      parsed.data
+      parsed.data,
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -370,12 +376,18 @@ export async function createTerminationAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await TerminationService.create(
       companyId,
       userId,
       employeeId,
-      parsed.data
+      parsed.data,
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -412,12 +424,18 @@ export async function updateTerminationAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await TerminationService.update(
       companyId,
       userId,
       terminationId,
-      parsed.data
+      parsed.data,
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -439,8 +457,12 @@ export async function finalizeTerminationAction(
   const rl = await checkRateLimit(userId, limiters.fiscal);
   if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const data = await TerminationService.finalize(companyId, userId, terminationId);
+    const data = await TerminationService.finalize(companyId, userId, terminationId, ipAddress, userAgent);
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
@@ -503,13 +525,17 @@ export async function registerBenefitAdvanceAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await BenefitAdvanceService.registerAdvance(companyId, userId, {
       employeeId: parsed.data.employeeId,
       amount: parsed.data.amount,
       reason: parsed.data.reason,
       notes: parsed.data.notes,
-    });
+    }, ipAddress, userAgent);
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {

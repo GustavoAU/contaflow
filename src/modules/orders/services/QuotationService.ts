@@ -209,6 +209,8 @@ export const QuotationService = {
     quotationId: string,
     userId: string,
     input: Partial<CreateQuotationInput>,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<QuotationRow> {
     const existing = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
@@ -263,8 +265,8 @@ export const QuotationService = {
             entityName: "Quotation",
             action: "UPDATE",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             newValue: {
               updatedFields: Object.keys(updates).filter((k) => k !== "items"),
               itemsReplaced: itemsComputed !== null,

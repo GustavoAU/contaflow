@@ -166,11 +166,15 @@ export async function recordPaymentAction(
       ? IGTFService.calculate(parsed.data.amount, IGTF_RATE).igtfAmount
       : undefined;
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const payment = await ReceivableService.recordPayment({
       ...parsed.data,
       createdBy: userId,
       igtfAmount: computedIgtf, // computed server-side, overwrites any client value
-    });
+    }, ipAddress, userAgent);
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);
     revalidatePath(`/company/${parsed.data.companyId}/payables`);
@@ -212,7 +216,11 @@ export async function cancelPaymentAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
 
-    await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId);
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId, ipAddress, userAgent);
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);
     revalidatePath(`/company/${parsed.data.companyId}/payables`);

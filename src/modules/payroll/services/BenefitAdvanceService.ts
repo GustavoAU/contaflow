@@ -60,7 +60,9 @@ export const BenefitAdvanceService = {
   async registerAdvance(
     companyId: string,
     userId: string,
-    input: RegisterAdvanceInput
+    input: RegisterAdvanceInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<BenefitAdvanceRow> {
     const amount = new Decimal(input.amount);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
@@ -173,8 +175,8 @@ export const BenefitAdvanceService = {
           entityId: advance.id,
           action: "REGISTER_BENEFIT_ADVANCE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { currentBalance: balance.currentBalance.toString() },
           newValue: {
             employeeId: input.employeeId,

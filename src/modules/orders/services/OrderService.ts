@@ -268,7 +268,9 @@ export const OrderService = {
       date: Date;
       dueDate?: Date;
       periodId?: string;
-    }
+    },
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<{ invoiceId: string }> {
     return prisma.$transaction(async (tx) => {
       // CRITICAL-1: scope to companyId — no cross-tenant IDOR possible
@@ -363,8 +365,8 @@ export const OrderService = {
           entityId: orderId,
           action: "CONVERTED_TO_INVOICE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           newValue: { invoiceId: invoice.id, invoiceNumber: invoiceData.invoiceNumber },
         },
       });

@@ -472,7 +472,7 @@ describe("linkRetentionToInvoiceAction", () => {
 
     expect(result.success).toBe(true);
     expect(revalidatePath).toHaveBeenCalledWith("/accounting/retentions");
-    expect(linkRetentionToInvoice).toHaveBeenCalledWith("ret-1", "inv-1", "company-1");
+    expect(linkRetentionToInvoice).toHaveBeenCalledWith("ret-1", "inv-1", "company-1", null, null);
   });
 
   it("retorna error de negocio cuando P2002 — ya vinculada", async () => {

@@ -354,7 +354,8 @@ export async function linkRetentionToInvoiceAction(
     if (!canAccess(membership.role, ROLES.ACCOUNTING))
       return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
-    await linkRetentionToInvoice(retentionId, invoiceId, companyId);
+    const { ipAddress, userAgent } = await getIpAndUa();
+    await linkRetentionToInvoice(retentionId, invoiceId, companyId, ipAddress, userAgent);
 
     revalidatePath("/accounting/retentions");
     return { success: true };
