@@ -5,7 +5,11 @@ import { useTransition, useState } from "react";
 import { toast } from "sonner";
 import { approveOrderAction, convertOrderToInvoiceAction, cloneOrderAction } from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, fmtDate } from "@/lib/format";
+
+const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
+const fmtCurrency = (code: string, amount: string) =>
+  `${CURRENCY_LABEL[code] ?? code} ${formatAmount(amount)}`;
 
 interface Props {
   companyId: string;
@@ -157,7 +161,18 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {["N°", "Tipo", "Contraparte", "Fecha esperada", "Total", "Estado", "Acciones"].map((h) => (
+              {["N°", "Tipo", "Contraparte"].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {h}
+                </th>
+              ))}
+              <th
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                title="Fecha estimada de entrega o recepción del pedido"
+              >
+                Entrega est.
+              </th>
+              {["Total", "Estado", "Acciones"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   {h}
                 </th>
@@ -186,25 +201,23 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                       <div className="text-xs text-gray-400">{o.counterpartRif}</div>
                     )}
                   </td>
-                  <td className={`px-4 py-3 ${isExpired ? "text-red-600 font-medium" : "text-gray-600"}`}>
-                    {o.expectedDate ?? "—"}
+                  <td className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
+                    {o.expectedDate ? fmtDate(o.expectedDate) : "—"}
+                    {isExpired && (
+                      <span className="ml-1.5 text-xs font-normal text-red-500">(venc.)</span>
+                    )}
                   </td>
                   <td
                     className="px-4 py-3 font-mono text-right cursor-help"
-                    title={`Base: ${formatAmount(o.subtotal)} + IVA: ${formatAmount(o.taxAmount)} = Total: ${formatAmount(o.total)}`}
+                    title={`Base: ${formatAmount(o.subtotal)} + IVA: ${formatAmount(o.taxAmount)} = Total: ${fmtCurrency(o.currency, o.total)}`}
                   >
-                    {o.currency} {formatAmount(o.total)}
+                    {fmtCurrency(o.currency, o.total)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
                         {badge.label}
                       </span>
-                      {isExpired && (
-                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
-                          Vencida
-                        </span>
-                      )}
                       {o.approvedAt && (
                         <span className="text-xs text-zinc-400" title={`Aprobado por ${o.approvedBy ?? "—"}`}>
                           Aprobado {new Date(o.approvedAt).toLocaleDateString("es-VE")}
