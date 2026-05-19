@@ -19,7 +19,8 @@ import prisma from "@/lib/prisma";
 
 const Schema = z.object({
   companyId: z.string().min(1, { error: "companyId requerido" }),
-  base64: z.string().min(1, { error: "Imagen requerida" }),
+  // 14 MB cap (10 MB image + ~33% base64 overhead) — client enforces 10 MB but server must too
+  base64: z.string().min(1, { error: "Imagen requerida" }).max(14_000_000, { error: "La imagen no puede superar 10 MB" }),
   mimeType: z
     .enum(["image/jpeg", "image/png", "image/webp"])
     .catch("image/jpeg"),
