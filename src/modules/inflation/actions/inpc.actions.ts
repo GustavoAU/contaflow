@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -101,9 +102,13 @@ export async function upsertINPCRateAction(input: unknown): Promise<ActionResult
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const result = await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
-        INPCService.upsertRate(parsed.data, userId, tx)
+        INPCService.upsertRate(parsed.data, userId, tx, ipAddress, userAgent)
       )
     );
 
@@ -159,9 +164,13 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo administradores pueden configurar el período base" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
-        INPCService.setInflationBase(parsed.data, userId, tx)
+        INPCService.setInflationBase(parsed.data, userId, tx, ipAddress, userAgent)
       )
     );
 
@@ -298,11 +307,15 @@ export async function runInflationAdjustmentAction(
       };
     }
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     // ADR-008 D-6: Serializable isolation level
     const result = await prisma.$transaction(
       async (tx) =>
         withCompanyContext(parsed.data.companyId, tx, async (tx) =>
-          INPCService.runAdjustment(parsed.data, userId, tx)
+          INPCService.runAdjustment(parsed.data, userId, tx, ipAddress, userAgent)
         ),
       { isolationLevel: "Serializable" },
     );

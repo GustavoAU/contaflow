@@ -265,7 +265,9 @@ export async function enterRetention(
 export async function linkRetentionToInvoice(
   retentionId: string,
   invoiceId: string,
-  companyId: string
+  companyId: string,
+  ipAddress: string | null = null,
+  userAgent: string | null = null
 ): Promise<Prisma.RetencionGetPayload<{ include: { invoice: true } }>> {
   // 1. Verificar que retención pertenece a companyId
   const retention = await prisma.retencion.findFirst({
@@ -303,8 +305,8 @@ export async function linkRetentionToInvoice(
         entityName: "Retencion",
         action: "LINK_RETENTION_INVOICE",
         userId: retention.createdBy,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: { invoiceId, companyId },
       },
     }),

@@ -10,6 +10,7 @@ const mockRateLimit = vi.hoisted(() => vi.fn().mockResolvedValue({ allowed: true
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockUserId }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue(new Map()) }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockRateLimit,
   limiters: { fiscal: {} },

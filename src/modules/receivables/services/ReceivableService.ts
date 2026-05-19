@@ -425,6 +425,8 @@ export class ReceivableService {
   // ─── Registrar pago sobre una factura ───────────────────────────────────────
   static async recordPayment(
     input: RecordPaymentInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null,
     tx?: Prisma.TransactionClient
   ): Promise<InvoicePaymentSummary> {
     const run = async (db: Prisma.TransactionClient): Promise<InvoicePaymentSummary> => {
@@ -513,8 +515,8 @@ export class ReceivableService {
           entityName: "InvoicePayment",
           action: "CREATE",
           userId: input.createdBy,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           newValue: {
             invoiceId: input.invoiceId,
             amount: paymentAmount.toFixed(4),
@@ -552,7 +554,9 @@ export class ReceivableService {
   static async cancelPayment(
     paymentId: string,
     companyId: string,
-    cancelledBy: string
+    cancelledBy: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<void> {
     await prisma.$transaction(
       async (tx) => {
@@ -603,8 +607,8 @@ export class ReceivableService {
             entityName: "InvoicePayment",
             action: "CANCEL",
             userId: cancelledBy,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: {
               amount: paymentAmount.toFixed(4),
               method: payment.method,

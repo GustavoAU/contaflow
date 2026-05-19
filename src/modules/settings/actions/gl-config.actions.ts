@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -112,7 +113,7 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
-    if (!member || member.role !== "ADMIN") {
+    if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo el Administrador puede modificar la configuración contable." };
     }
 
@@ -168,7 +169,7 @@ export async function postUnbookedInvoicesAction(
       where: { companyId, userId },
       select: { role: true },
     });
-    if (!member || member.role !== "ADMIN") {
+    if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo el Administrador puede ejecutar la causación retroactiva." };
     }
 

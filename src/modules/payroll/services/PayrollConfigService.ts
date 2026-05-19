@@ -149,7 +149,9 @@ export const PayrollConfigService = {
   async saveConfig(
     companyId: string,
     userId: string,
-    input: SavePayrollConfigInput
+    input: SavePayrollConfigInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<PayrollConfigRow> {
     return prisma.$transaction(async (tx) => {
       // Leer config previa para AuditLog (oldValue)
@@ -176,8 +178,8 @@ export const PayrollConfigService = {
           entityId: cfg.id,
           action: previous ? "UPDATE_PAYROLL_CONFIG" : "CREATE_PAYROLL_CONFIG",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: previous
             ? {
                 sizeRange: previous.sizeRange,

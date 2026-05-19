@@ -153,7 +153,9 @@ export const PayrollRunService = {
   async create(
     companyId: string,
     userId: string,
-    input: CreatePayrollRunInput
+    input: CreatePayrollRunInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<PayrollRunRow> {
     const periodStart = new Date(input.periodStart);
     const periodEnd = new Date(input.periodEnd);
@@ -347,8 +349,8 @@ export const PayrollRunService = {
           entityId: run.id,
           action: "CREATE_PAYROLL_RUN",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: Prisma.JsonNull,
           newValue: {
             periodStart: input.periodStart,
@@ -371,7 +373,9 @@ export const PayrollRunService = {
   async approve(
     companyId: string,
     userId: string,
-    runId: string
+    runId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<PayrollRunRow> {
     // ── Guard período contable (NOM-C-13) ─────────────────────────────────
     // Se verifica antes del $transaction para mensajes de error claros
@@ -590,8 +594,8 @@ export const PayrollRunService = {
           entityId: runId,
           action: "APPROVE_PAYROLL_RUN",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { status: "DRAFT" },
           newValue: {
             status: "APPROVED",
@@ -611,7 +615,9 @@ export const PayrollRunService = {
     companyId: string,
     userId: string,
     runId: string,
-    reason: string
+    reason: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<PayrollRunRow> {
     return prisma.$transaction(async (tx) => {
       const run = await tx.payrollRun.findFirst({
@@ -644,8 +650,8 @@ export const PayrollRunService = {
           entityId: runId,
           action: "CANCEL_PAYROLL_RUN",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { status: "DRAFT" },
           newValue: { status: "CANCELLED", reason, cancelledAt: new Date().toISOString() },
         },

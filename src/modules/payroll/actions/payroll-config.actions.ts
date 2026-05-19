@@ -11,6 +11,7 @@
 //   NOM-A-05 (HIGH):     write = ADMIN_ONLY, read = cualquier miembro (VIEWER solo status)
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -54,8 +55,12 @@ export async function savePayrollConfigAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const cfg = await PayrollConfigService.saveConfig(companyId, userId, parsed.data);
+    const cfg = await PayrollConfigService.saveConfig(companyId, userId, parsed.data, ipAddress, userAgent);
     revalidatePath(`/company/${companyId}/payroll`);
     return { success: true, data: cfg };
   } catch (err) {

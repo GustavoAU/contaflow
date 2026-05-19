@@ -110,7 +110,7 @@ export class INPCService {
    * Upsert de un índice INPC mensual.
    * Idempotente: si ya existe el registro (companyId, year, month), lo actualiza.
    */
-  static async upsertRate(input: UpsertINPCRateInput, userId: string, tx: Tx): Promise<{ id: string }> {
+  static async upsertRate(input: UpsertINPCRateInput, userId: string, tx: Tx, ipAddress: string | null = null, userAgent: string | null = null): Promise<{ id: string }> {
     const rate = await tx.iNPCRate.upsert({
       where: {
         companyId_year_month: {
@@ -139,8 +139,8 @@ export class INPCService {
         entityName: "INPCRate",
         action: "UPSERT",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: {
           companyId: input.companyId,
           year: input.year,
@@ -185,7 +185,7 @@ export class INPCService {
   /**
    * Configura el período base de reexpresión para la empresa.
    */
-  static async setInflationBase(input: SetInflationBaseInput, userId: string, tx: Tx): Promise<void> {
+  static async setInflationBase(input: SetInflationBaseInput, userId: string, tx: Tx, ipAddress: string | null = null, userAgent: string | null = null): Promise<void> {
     await tx.company.update({
       where: { id: input.companyId },
       data: {
@@ -201,8 +201,8 @@ export class INPCService {
         entityName: "Company",
         action: "SET_INFLATION_BASE",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: {
           inflationBaseYear: input.inflationBaseYear,
           inflationBaseMonth: input.inflationBaseMonth,
@@ -348,6 +348,8 @@ export class INPCService {
     input: RunInflationAdjustmentInput,
     userId: string,
     tx: Tx,
+    ipAddress: string | null = null,
+    userAgent: string | null = null,
   ): Promise<InflationAdjustmentSummary> {
     const { companyId, periodYear, periodMonth, adjustmentAccountId, repomoAccountId } = input;
 
@@ -447,8 +449,8 @@ export class INPCService {
         entityName: "InflationAdjustment",
         action: "RUN_ADJUSTMENT",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         newValue: {
           companyId,
           periodYear,

@@ -137,7 +137,9 @@ export const TerminationService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: CreateTerminationInput
+    input: CreateTerminationInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<TerminationRow> {
     // IDOR guard + guard ACTIVE
     const employee = await prisma.employee.findFirst({
@@ -300,8 +302,8 @@ export const TerminationService = {
           entityId: termination.id,
           action: "CREATE_TERMINATION_DRAFT",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: Prisma.JsonNull,
           newValue: {
             employeeId,
@@ -336,7 +338,9 @@ export const TerminationService = {
       pendingConceptsAmount?: string;
       pendingConceptsNotes?: string;
       deductionsAmount?: string;
-    }
+    },
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<TerminationRow> {
     const existing = await prisma.termination.findFirst({
       where: { id: terminationId, companyId },
@@ -383,8 +387,8 @@ export const TerminationService = {
         entityId: terminationId,
         action: "UPDATE_TERMINATION_DRAFT",
         userId,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress,
+        userAgent,
         oldValue: {
           pendingConceptsAmount: existing.pendingConceptsAmount.toString(),
           deductionsAmount: existing.deductionsAmount.toString(),
@@ -407,7 +411,9 @@ export const TerminationService = {
   async finalize(
     companyId: string,
     userId: string,
-    terminationId: string
+    terminationId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<TerminationRow> {
     // IDOR guard
     const termination = await prisma.termination.findFirst({
@@ -579,8 +585,8 @@ export const TerminationService = {
           entityId: terminationId,
           action: "FINALIZE_TERMINATION",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress,
+          userAgent,
           oldValue: { status: "DRAFT", totalNetAmount: termination.totalNetAmount.toString() },
           newValue: {
             status: "FINALIZED",

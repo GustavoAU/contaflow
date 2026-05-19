@@ -86,7 +86,9 @@ export const ProfitSharingService = {
     companyId: string,
     userId: string,
     employeeId: string,
-    input: CalculateProfitSharingInput
+    input: CalculateProfitSharingInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<ProfitSharingRecordRow> {
     // IDOR guard
     const employee = await prisma.employee.findFirst({
@@ -227,8 +229,8 @@ export const ProfitSharingService = {
             entityId: record.id,
             action: "CREATE_PROFIT_SHARING_RECORD",
             userId,
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: Prisma.JsonNull,
             newValue: {
               employeeId,

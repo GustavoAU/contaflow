@@ -11,6 +11,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -103,8 +104,12 @@ export async function createPayrollRunAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const run = await PayrollRunService.create(companyId, userId, parsed.data);
+    const run = await PayrollRunService.create(companyId, userId, parsed.data, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -144,8 +149,12 @@ export async function approvePayrollRunAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
-    const run = await PayrollRunService.approve(companyId, userId, parsed.data.runId);
+    const run = await PayrollRunService.approve(companyId, userId, parsed.data.runId, ipAddress, userAgent);
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -175,12 +184,18 @@ export async function cancelPayrollRunAction(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const run = await PayrollRunService.cancel(
       companyId,
       userId,
       parsed.data.runId,
-      parsed.data.reason
+      parsed.data.reason,
+      ipAddress,
+      userAgent
     );
     revalidate(companyId);
     return { success: true, data: run };
