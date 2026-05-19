@@ -3,8 +3,8 @@
 // src/modules/analytics/components/ExecutiveKpiPanel.tsx
 // Panel de KPIs ejecutivos: CxC, CxP, DSO, capital de trabajo + flujo proyectado.
 
-import { useState, useTransition, useEffect } from "react";
-import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, Loader2Icon, InboxIcon } from "lucide-react";
+import { useState, useTransition } from "react";
+import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, InboxIcon } from "lucide-react";
 import { getKpiDashboardAction } from "../actions/kpi-dashboard.actions";
 import type { KpiDashboardData } from "../actions/kpi-dashboard.actions";
 import { fmtBs } from "@/lib/fmt-ven";
@@ -45,9 +45,7 @@ function NetBadge({ value }: { value: string }) {
 export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
   const [data, setData] = useState<KpiDashboardData>(initialData);
   const [isPending, startTransition] = useTransition();
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  useEffect(() => { setLastUpdated(new Date()); }, []);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => new Date());
 
   function handleRefresh() {
     startTransition(async () => {
