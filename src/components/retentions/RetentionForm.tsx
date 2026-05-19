@@ -1,7 +1,7 @@
 // src/components/retentions/RetentionForm.tsx
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Loader2Icon } from "lucide-react";
 import { suggestIslrCode, type IslrSuggestion } from "@/lib/islr-suggestions";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ type Props = {
 };
 
 export function RetentionForm({ companyId, userId }: Props) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
   const [isPendingLink, startTransitionLink] = useTransition();
@@ -33,6 +34,8 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [invoiceMatches, setInvoiceMatches] = useState<InvoiceMatch[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceMatch | null>(null);
   const [retentionType, setRetentionType] = useState<"IVA" | "ISLR" | "AMBAS">("IVA");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceAmount, setInvoiceAmount] = useState("");
   const [taxBase, setTaxBase] = useState("");
   const [ivaRetentionPct, setIvaRetentionPct] = useState<75 | 100>(75);
   const [islrCode, setIslrCode] = useState("SERVICIOS_PJ");
@@ -112,6 +115,35 @@ export function RetentionForm({ companyId, userId }: Props) {
         )
       : null;
 
+  const invoiceDateDisplay = invoiceDate ? (() => {
+    const [year, month, day] = invoiceDate.split("-").map(Number);
+    const d = new Date(Date.UTC(year!, month! - 1, day!));
+    return d.toLocaleDateString("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  })() : null;
+
+  const baseExceedsTotal =
+    taxBase && invoiceAmount &&
+    parseFloat(taxBase) > parseFloat(invoiceAmount);
+
+  function handleClear() {
+    setInvoiceDate("");
+    setInvoiceAmount("");
+    setTaxBase("");
+    setRetentionType("IVA");
+    setIvaRetentionPct(75);
+    setIslrCode("SERVICIOS_PJ");
+    setIslrConcept("");
+    setIslrSuggestion(null);
+    setApplyInces(false);
+    setApplyFat(false);
+    setSavedRetentionId(null);
+    setSavedVoucherNumber(null);
+    setSelectedInvoice(null);
+    setInvoiceSearch("");
+    setInvoiceMatches([]);
+    formRef.current?.reset();
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -144,6 +176,8 @@ export function RetentionForm({ companyId, userId }: Props) {
         setInvoiceMatches([]);
         form.reset();
         setTaxBase("");
+        setInvoiceDate("");
+        setInvoiceAmount("");
       } else {
         toast.error(result.error);
       }
@@ -155,7 +189,7 @@ export function RetentionForm({ companyId, userId }: Props) {
       <div className="rounded-lg border bg-white p-6">
         <h2 className="mb-4 font-semibold">Nueva Retención</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
           {/* Proveedor */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -201,9 +235,15 @@ export function RetentionForm({ companyId, userId }: Props) {
                 name="invoiceDate"
                 type="date"
                 required
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
-              <p className="mt-0.5 text-xs text-zinc-400">dd/mm/aaaa</p>
+              {invoiceDateDisplay ? (
+                <p className="mt-0.5 text-xs text-emerald-600">{invoiceDateDisplay}</p>
+              ) : (
+                <p className="mt-0.5 text-xs text-zinc-400">Selecciona una fecha</p>
+              )}
             </div>
           </div>
 
@@ -211,28 +251,41 @@ export function RetentionForm({ companyId, userId }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Monto Total Factura
+                Monto Total Factura{" "}
+                <span className="font-normal text-zinc-400">(Bs.)</span>
               </label>
               <input
                 name="invoiceAmount"
                 type="number"
                 step="0.01"
                 required
+                value={invoiceAmount}
+                onChange={(e) => setInvoiceAmount(e.target.value)}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 placeholder="1160.00"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Base Imponible</label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Base Imponible{" "}
+                <span className="font-normal text-zinc-400">(Bs.)</span>
+              </label>
               <input
                 type="number"
                 step="0.01"
                 required
                 value={taxBase}
                 onChange={(e) => setTaxBase(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className={`w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                  baseExceedsTotal ? "border-amber-400 bg-amber-50" : ""
+                }`}
                 placeholder="1000.00"
               />
+              {baseExceedsTotal && (
+                <p className="mt-0.5 text-xs text-amber-600">
+                  La base supera el total de la factura
+                </p>
+              )}
             </div>
           </div>
 
@@ -393,10 +446,21 @@ export function RetentionForm({ companyId, userId }: Props) {
             </div>
           )}
 
-          <Button type="submit" disabled={isPending} className="w-full">
-            {isPending && <Loader2Icon className="animate-spin" />}
-            {isPending ? "Guardando..." : "Crear Retención"}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClear}
+              disabled={isPending}
+              className="flex-1"
+            >
+              Limpiar
+            </Button>
+            <Button type="submit" disabled={isPending} className="flex-1">
+              {isPending && <Loader2Icon className="animate-spin" />}
+              {isPending ? "Guardando..." : "Crear Retención"}
+            </Button>
+          </div>
         </form>
 
         {/* Acciones post-guardado */}
