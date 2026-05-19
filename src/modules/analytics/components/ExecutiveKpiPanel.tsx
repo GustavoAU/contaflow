@@ -3,11 +3,19 @@
 // src/modules/analytics/components/ExecutiveKpiPanel.tsx
 // Panel de KPIs ejecutivos: CxC, CxP, DSO, capital de trabajo + flujo proyectado.
 
-import { useState, useTransition } from "react";
-import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, Loader2Icon } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, Loader2Icon, InboxIcon } from "lucide-react";
 import { getKpiDashboardAction } from "../actions/kpi-dashboard.actions";
 import type { KpiDashboardData } from "../actions/kpi-dashboard.actions";
 import { fmtBs } from "@/lib/fmt-ven";
+
+function fmtRelativeTime(date: Date): string {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60_000);
+  if (mins < 1) return "ahora mismo";
+  if (mins === 1) return "hace 1 min";
+  if (mins < 60) return `hace ${mins} min`;
+  return `hace ${Math.floor(mins / 60)}h`;
+}
 
 type Props = {
   companyId: string;
@@ -37,16 +45,22 @@ function NetBadge({ value }: { value: string }) {
 export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
   const [data, setData] = useState<KpiDashboardData>(initialData);
   const [isPending, startTransition] = useTransition();
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  useEffect(() => { setLastUpdated(new Date()); }, []);
 
   function handleRefresh() {
     startTransition(async () => {
       const r = await getKpiDashboardAction(companyId);
-      if (r.success) setData(r.data);
+      if (r.success) { setData(r.data); setLastUpdated(new Date()); }
     });
   }
 
   const { summary, cashFlow } = data;
   const workingPositive = Number(summary.workingCapital) >= 0;
+  const isCashFlowEmpty = cashFlow.every(
+    (b) => Number(b.collections) === 0 && Number(b.payments) === 0
+  );
 
   return (
     <div className="space-y-4">
@@ -59,9 +73,14 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
           onClick={handleRefresh}
           disabled={isPending}
           className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50 transition-colors"
+          title={lastUpdated ? `Actualizado ${fmtRelativeTime(lastUpdated)}` : undefined}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
+          {isPending
+            ? "Actualizando..."
+            : lastUpdated
+            ? `Actualizado ${fmtRelativeTime(lastUpdated)}`
+            : "Actualizar"}
         </button>
       </div>
 
@@ -134,60 +153,66 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
             Basado en vencimientos de facturas activas no pagadas
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500">
-                <th className="px-5 py-2 text-left font-medium">Ventana</th>
-                <th className="px-5 py-2 text-right font-medium text-emerald-600">
-                  Cobros esperados
-                </th>
-                <th className="px-5 py-2 text-right font-medium text-red-600">
-                  Pagos comprometidos
-                </th>
-                <th className="px-5 py-2 text-right font-medium text-zinc-700">Neto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {cashFlow.map((bucket) => (
-                <tr key={bucket.label} className="hover:bg-zinc-50">
-                  <td className="px-5 py-3 font-medium text-zinc-700">{bucket.label}</td>
-                  <td className="px-5 py-3 text-right text-emerald-600">{fmt(bucket.collections)}</td>
-                  <td className="px-5 py-3 text-right text-red-600">{fmt(bucket.payments)}</td>
+        {isCashFlowEmpty ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-5 py-10 text-center">
+            <InboxIcon className="h-10 w-10 text-zinc-200" aria-hidden />
+            <div>
+              <p className="text-sm font-medium text-zinc-500">
+                Sin proyecciones para los próximos 90 días
+              </p>
+              <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+                El flujo de caja se calcula a partir de facturas activas con fecha de vencimiento.
+                Registra facturas en <strong className="text-zinc-500">Cuentas por Cobrar</strong> o{" "}
+                <strong className="text-zinc-500">Cuentas por Pagar</strong> para ver la proyección.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500">
+                  <th className="px-5 py-2 text-left font-medium">Ventana</th>
+                  <th className="px-5 py-2 text-right font-medium text-emerald-600">
+                    Cobros esperados
+                  </th>
+                  <th className="px-5 py-2 text-right font-medium text-red-600">
+                    Pagos comprometidos
+                  </th>
+                  <th className="px-5 py-2 text-right font-medium text-zinc-700">Neto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {cashFlow.map((bucket) => (
+                  <tr key={bucket.label} className="hover:bg-zinc-50">
+                    <td className="px-5 py-3 font-medium text-zinc-700">{bucket.label}</td>
+                    <td className="px-5 py-3 text-right text-emerald-600">{fmt(bucket.collections)}</td>
+                    <td className="px-5 py-3 text-right text-red-600">{fmt(bucket.payments)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <NetBadge value={bucket.net} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-zinc-50 font-semibold">
+                  <td className="px-5 py-3 text-zinc-700">Total 90d</td>
+                  <td className="px-5 py-3 text-right text-emerald-700">
+                    {fmt(cashFlow.reduce((acc, b) => acc + Number(b.collections), 0).toFixed(2))}
+                  </td>
+                  <td className="px-5 py-3 text-right text-red-700">
+                    {fmt(cashFlow.reduce((acc, b) => acc + Number(b.payments), 0).toFixed(2))}
+                  </td>
                   <td className="px-5 py-3 text-right">
-                    <NetBadge value={bucket.net} />
+                    <NetBadge
+                      value={cashFlow.reduce((acc, b) => acc + Number(b.net), 0).toFixed(2)}
+                    />
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-zinc-50 font-semibold">
-                <td className="px-5 py-3 text-zinc-700">Total 90d</td>
-                <td className="px-5 py-3 text-right text-emerald-700">
-                  {fmt(
-                    cashFlow
-                      .reduce((acc, b) => acc + Number(b.collections), 0)
-                      .toFixed(2),
-                  )}
-                </td>
-                <td className="px-5 py-3 text-right text-red-700">
-                  {fmt(
-                    cashFlow
-                      .reduce((acc, b) => acc + Number(b.payments), 0)
-                      .toFixed(2),
-                  )}
-                </td>
-                <td className="px-5 py-3 text-right">
-                  <NetBadge
-                    value={cashFlow
-                      .reduce((acc, b) => acc + Number(b.net), 0)
-                      .toFixed(2)}
-                  />
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
