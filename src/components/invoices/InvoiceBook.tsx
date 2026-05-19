@@ -1,9 +1,10 @@
 ﻿// src/components/invoices/InvoiceBook.tsx
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2Icon } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { Loader2Icon, InboxIcon, PlusIcon, ScanIcon } from "lucide-react";
 import React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ type Props = {
   companyId: string;
   companyName: string;
   defaultType?: "SALE" | "PURCHASE";
+  activePeriodMonth?: number;
+  activePeriodYear?: number;
 };
 
 const MONTHS = [
@@ -47,16 +50,24 @@ const TAX_LINE_LABELS: Record<string, string> = {
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
-export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }: Props) {
+export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", activePeriodMonth, activePeriodYear }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isPendingPDF, startTransitionPDF] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
   const [pendingVoucherId, setPendingVoucherId] = useState<string | null>(null);
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
-  const [year, setYear] = useState(currentYear);
-  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState(activePeriodYear ?? currentYear);
+  const [month, setMonth] = useState(activePeriodMonth ?? currentMonth);
   const [result, setResult] = useState<InvoiceBookResult | null>(null);
   const [expandedNcNdId, setExpandedNcNdId] = useState<string | null>(null);
+
+  useEffect(() => {
+    startTransition(async () => {
+      const res = await getInvoiceBookAction({ companyId, type, year, month });
+      if (res.success) setResult(res.data);
+      else toast.error(res.error);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch() {
     startTransition(async () => {
@@ -313,10 +324,32 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE" }
             </div>
 
             {result.rows.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-sm text-zinc-400">
-                  No hay facturas registradas para este período
-                </p>
+              <div className="flex flex-col items-center gap-4 px-5 py-12 text-center">
+                <InboxIcon className="h-10 w-10 text-zinc-200" aria-hidden />
+                <div>
+                  <p className="text-sm font-medium text-zinc-500">
+                    No hay facturas en {MONTHS[month - 1]} {year}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Registra o escanea una factura para que aparezca aquí.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Link
+                    href={`/company/${companyId}/invoices/new`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Nueva Factura
+                  </Link>
+                  <Link
+                    href={`/company/${companyId}/invoices/upload`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+                  >
+                    <ScanIcon className="h-4 w-4" />
+                    Escanear
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">

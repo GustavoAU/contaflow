@@ -16,10 +16,17 @@ export default async function InvoicesPage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { name: true },
-  });
+  const [company, activePeriod] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    }),
+    prisma.accountingPeriod.findFirst({
+      where: { companyId, status: "OPEN" },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+      select: { month: true, year: true },
+    }),
+  ]);
   if (!company) redirect("/dashboard");
 
   return (
@@ -47,7 +54,12 @@ export default async function InvoicesPage({ params }: Props) {
         </div>
       </div>
 
-      <InvoiceBook companyId={companyId} companyName={company.name} />
+      <InvoiceBook
+        companyId={companyId}
+        companyName={company.name}
+        activePeriodMonth={activePeriod?.month}
+        activePeriodYear={activePeriod?.year}
+      />
     </div>
   );
 }
