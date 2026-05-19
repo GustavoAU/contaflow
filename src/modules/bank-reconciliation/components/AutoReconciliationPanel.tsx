@@ -410,7 +410,11 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         <UploadIcon className="mb-3 h-8 w-8 text-zinc-400" />
         <p className="text-sm font-medium text-zinc-700">Sube el extracto bancario en PDF</p>
         <p className="mt-1 text-xs text-zinc-400">
-          Compatible con BNC, Banesco, Mercantil, Provincial, BDV — máx. 10 MB
+          Optimizado para BNC, Banesco, Mercantil, Provincial y BDV — máx. 10 MB
+        </p>
+        <p className="mt-0.5 text-xs text-zinc-400">
+          El parser IA puede leer otros bancos también; si el formato no se reconoce
+          automáticamente, se extrae igual — revisa la vista previa antes de confirmar.
         </p>
         <button
           type="button"

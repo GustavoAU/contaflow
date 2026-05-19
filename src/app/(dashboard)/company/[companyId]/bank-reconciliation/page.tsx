@@ -85,6 +85,18 @@ export default async function BankReconciliationPage({ params, searchParams }: P
             </Link>
           </div>
 
+          {/* Workflow hint */}
+          <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <span className="mt-0.5 shrink-0 font-semibold">Flujo:</span>
+            <span>
+              <strong>Paso 1</strong> — Importa el extracto PDF; la IA concilia
+              automáticamente los movimientos que coincidan con pagos registrados.{" "}
+              <strong>Paso 2</strong> — Para los movimientos sin coincidencia, abre
+              el <em>Libro de trabajo</em> del extracto (botón azul en la tabla) y
+              empareja banco ↔ sistema manualmente.
+            </span>
+          </div>
+
           {/* Auto-conciliación */}
           <AutoReconciliationPanel
             bankAccountId={selectedAccount.id}
@@ -134,21 +146,30 @@ export default async function BankReconciliationPage({ params, searchParams }: P
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
                             stmt.status === "CLOSED"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-amber-100 text-amber-700"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-amber-100 text-amber-800"
                           }`}
                         >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              stmt.status === "CLOSED" ? "bg-green-500" : "bg-amber-500"
+                            }`}
+                          />
                           {stmt.status === "CLOSED" ? "Cerrado" : "Abierto"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <Link
                           href={`/company/${companyId}/bank-reconciliation/${stmt.id}`}
-                          className="text-sm font-medium text-blue-600 hover:underline"
+                          className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors ${
+                            stmt.status === "CLOSED"
+                              ? "bg-zinc-500 hover:bg-zinc-600"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }`}
                         >
-                          Conciliar
+                          {stmt.status === "CLOSED" ? "Ver detalle" : "Libro de trabajo"}
                         </Link>
                       </td>
                     </tr>
