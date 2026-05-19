@@ -203,6 +203,7 @@ export function RetentionForm({ companyId, userId }: Props) {
                 required
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
+              <p className="mt-0.5 text-xs text-zinc-400">dd/mm/aaaa</p>
             </div>
           </div>
 

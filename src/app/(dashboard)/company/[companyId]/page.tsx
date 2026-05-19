@@ -222,6 +222,14 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
     ? Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000)
     : 0;
   const isStale = openDays > 30;
+  // Detectar si el período activo está retrasado respecto al calendario actual
+  const nowDate = new Date();
+  const calMonth = nowDate.getMonth() + 1;
+  const calYear = nowDate.getFullYear();
+  const isPeriodBehind = m.activePeriod && (
+    m.activePeriod.year < calYear ||
+    (m.activePeriod.year === calYear && m.activePeriod.month < calMonth)
+  );
 
   return (
     <div className="space-y-6">
@@ -263,7 +271,33 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       )}
 
       {/* ─── Período activo ──────────────────────────────────────────────── */}
-      {showAccountingMetrics && m.activePeriod && (isStale ? (
+      {showAccountingMetrics && m.activePeriod && (isPeriodBehind ? (
+          /* CRÍTICO: período retrasado — el usuario podría registrar en el mes incorrecto */
+          <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+            <AlertCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-800">
+                Atención: estás registrando en{" "}
+                <strong>{MONTH_NAMES[m.activePeriod.month]} {m.activePeriod.year}</strong>,
+                no en {MONTH_NAMES[calMonth]} {calYear}
+              </p>
+              <p className="mt-0.5 text-xs text-red-700">
+                El período contable activo es {MONTH_NAMES[m.activePeriod.month]}.
+                Todos los asientos y facturas nuevos se registrarán en ese mes.
+                Cierra el período y abre {MONTH_NAMES[calMonth]} para operar correctamente.
+              </p>
+            </div>
+            {(role === "OWNER" || role === "ADMIN") && (
+              <Button
+                asChild
+                size="sm"
+                className="shrink-0 bg-red-600 text-white hover:bg-red-700 border-0"
+              >
+                <Link href={`/company/${companyId}/settings`}>Cerrar Período</Link>
+              </Button>
+            )}
+          </div>
+        ) : isStale ? (
           <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
             <AlertCircleIcon className="h-5 w-5 shrink-0 text-amber-600" />
             <div className="flex-1">
