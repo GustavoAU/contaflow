@@ -28,7 +28,8 @@ function fmt(value: string): string {
 
 function NetBadge({ value }: { value: string }) {
   const num = Number(value);
-  const isPositive = num >= 0;
+  if (num === 0) return <span className="text-sm text-zinc-300">—</span>;
+  const isPositive = num > 0;
   return (
     <span
       className={`inline-flex items-center gap-1 text-sm font-semibold ${
@@ -40,6 +41,18 @@ function NetBadge({ value }: { value: string }) {
       {fmt(value)}
     </span>
   );
+}
+
+function AmountCell({
+  value,
+  colorClass,
+}: {
+  value: string;
+  colorClass: string;
+}) {
+  if (Number(value) === 0)
+    return <span className="text-zinc-300">—</span>;
+  return <span className={colorClass}>{fmt(value)}</span>;
 }
 
 export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
@@ -90,8 +103,17 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
             <p className="text-sm text-muted-foreground">Por Cobrar (CxC)</p>
             <TrendingUp className="h-4 w-4 text-emerald-500" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-emerald-600">{fmt(summary.cxcTotal)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Bs. pendientes de clientes</p>
+          {Number(summary.cxcTotal) === 0 ? (
+            <>
+              <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
+              <p className="mt-1 text-xs text-muted-foreground">sin facturas activas</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-2xl font-bold text-emerald-600">{fmt(summary.cxcTotal)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Bs. pendientes de clientes</p>
+            </>
+          )}
         </div>
 
         {/* CxP */}
@@ -100,8 +122,17 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
             <p className="text-sm text-muted-foreground">Por Pagar (CxP)</p>
             <TrendingDown className="h-4 w-4 text-red-500" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-red-600">{fmt(summary.cxpTotal)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Bs. comprometidos a proveedores</p>
+          {Number(summary.cxpTotal) === 0 ? (
+            <>
+              <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
+              <p className="mt-1 text-xs text-muted-foreground">sin compromisos activos</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-2xl font-bold text-red-600">{fmt(summary.cxpTotal)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Bs. comprometidos a proveedores</p>
+            </>
+          )}
         </div>
 
         {/* Capital de trabajo */}
@@ -110,15 +141,24 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
             <p className="text-sm text-muted-foreground">Capital de Trabajo</p>
             <Wallet className={`h-4 w-4 ${workingPositive ? "text-blue-500" : "text-red-500"}`} />
           </div>
-          <p
-            className={`mt-2 text-2xl font-bold ${
-              workingPositive ? "text-blue-600" : "text-red-600"
-            }`}
-          >
-            {workingPositive ? "+" : ""}
-            {fmt(summary.workingCapital)}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">CxC − CxP</p>
+          {Number(summary.workingCapital) === 0 ? (
+            <>
+              <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
+              <p className="mt-1 text-xs text-muted-foreground">CxC − CxP</p>
+            </>
+          ) : (
+            <>
+              <p
+                className={`mt-2 text-2xl font-bold ${
+                  workingPositive ? "text-blue-600" : "text-red-600"
+                }`}
+              >
+                {workingPositive ? "+" : ""}
+                {fmt(summary.workingCapital)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">CxC − CxP</p>
+            </>
+          )}
         </div>
 
         {/* DSO */}
@@ -184,8 +224,12 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
                 {cashFlow.map((bucket) => (
                   <tr key={bucket.label} className="hover:bg-zinc-50">
                     <td className="px-5 py-3 font-medium text-zinc-700">{bucket.label}</td>
-                    <td className="px-5 py-3 text-right text-emerald-600">{fmt(bucket.collections)}</td>
-                    <td className="px-5 py-3 text-right text-red-600">{fmt(bucket.payments)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <AmountCell value={bucket.collections} colorClass="text-emerald-600" />
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <AmountCell value={bucket.payments} colorClass="text-red-600" />
+                    </td>
                     <td className="px-5 py-3 text-right">
                       <NetBadge value={bucket.net} />
                     </td>
@@ -195,11 +239,17 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
               <tfoot>
                 <tr className="border-t bg-zinc-50 font-semibold">
                   <td className="px-5 py-3 text-zinc-700">Total 90d</td>
-                  <td className="px-5 py-3 text-right text-emerald-700">
-                    {fmt(cashFlow.reduce((acc, b) => acc + Number(b.collections), 0).toFixed(2))}
+                  <td className="px-5 py-3 text-right">
+                    <AmountCell
+                      value={cashFlow.reduce((acc, b) => acc + Number(b.collections), 0).toFixed(2)}
+                      colorClass="text-emerald-700"
+                    />
                   </td>
-                  <td className="px-5 py-3 text-right text-red-700">
-                    {fmt(cashFlow.reduce((acc, b) => acc + Number(b.payments), 0).toFixed(2))}
+                  <td className="px-5 py-3 text-right">
+                    <AmountCell
+                      value={cashFlow.reduce((acc, b) => acc + Number(b.payments), 0).toFixed(2)}
+                      colorClass="text-red-700"
+                    />
                   </td>
                   <td className="px-5 py-3 text-right">
                     <NetBadge
