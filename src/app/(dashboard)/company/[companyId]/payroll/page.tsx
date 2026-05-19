@@ -37,9 +37,17 @@ export default async function PayrollPage({ params }: Props) {
     : null;
 
   const canReadEmployees = canAccess(member.role, ROLES.WRITERS);
-  const activeEmployeeCount = config && canReadEmployees
-    ? await EmployeeService.countActive(companyId)
-    : null;
+  const canReadAccounting = canAccess(member.role, ROLES.ACCOUNTING);
+
+  const [activeEmployeeCount, draftRunsCount, activeLoansCount] = await Promise.all([
+    config && canReadEmployees ? EmployeeService.countActive(companyId) : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.payrollRun.count({ where: { companyId, status: "DRAFT" } })
+      : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.employeeLoan.count({ where: { companyId, status: "ACTIVE" } })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-8 px-4">
@@ -156,7 +164,19 @@ export default async function PayrollPage({ params }: Props) {
                 href={`/company/${companyId}/payroll/runs`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-800">Cálculo de Nómina</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800">Cálculo de Nómina</p>
+                  {draftRunsCount !== null && draftRunsCount > 0 ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      {draftRunsCount} en borrador
+                    </span>
+                  ) : draftRunsCount === 0 ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs text-green-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                      Al día
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Motor quincenal/mensual + recibo PDF
                 </p>
@@ -263,7 +283,18 @@ export default async function PayrollPage({ params }: Props) {
                 href={`/company/${companyId}/payroll/loans`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-800">Préstamos</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800">Préstamos</p>
+                  {activeLoansCount !== null && activeLoansCount > 0 ? (
+                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                      {activeLoansCount} activo{activeLoansCount !== 1 ? "s" : ""}
+                    </span>
+                  ) : activeLoansCount === 0 ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs text-zinc-400">
+                      Ninguno
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Descuento automático en nómina
                 </p>
