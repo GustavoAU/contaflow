@@ -55,7 +55,7 @@ export function FiscalDeadlineWidget({ companyId, rif, isSpecialContributor }: P
           <span className={`text-sm font-semibold ${hasAlert ? "text-red-800" : "text-zinc-700"}`}>
             Vencimientos SENIAT
           </span>
-          <span className="text-xs text-zinc-400 font-mono">dígito {lastDigit}</span>
+          <span className="text-xs text-zinc-500 font-mono">dígito {lastDigit}</span>
         </div>
         <Link
           href={`/company/${companyId}/fiscal-calendar`}
@@ -71,7 +71,7 @@ export function FiscalDeadlineWidget({ companyId, rif, isSpecialContributor }: P
             <SeverityIcon severity={d.severity} />
             <span className="flex-1 text-zinc-700">
               {d.label}{" "}
-              <span className="text-zinc-400 text-xs">({d.period})</span>
+              <span className="text-zinc-500 text-xs">({d.period})</span>
             </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(d.severity)}`}>
               {severityBadge(d)}

@@ -54,7 +54,7 @@ export default async function FixedAssetsPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-gray-800">
           Activos registrados
-          <span className="ml-2 text-sm font-normal text-gray-400">({assets.length})</span>
+          <span className="ml-2 text-sm font-normal text-gray-500">({assets.length})</span>
         </h2>
         <FixedAssetList assets={serializedAssets as never} companyId={companyId} />
       </section>

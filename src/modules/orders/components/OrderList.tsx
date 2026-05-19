@@ -3,6 +3,7 @@
 
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
+import { FileIcon, CheckCircleIcon, ArrowRightCircleIcon, XCircleIcon, type LucideIcon } from "lucide-react";
 import { approveOrderAction, convertOrderToInvoiceAction, cloneOrderAction } from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
 import { formatAmount, fmtDate } from "@/lib/format";
@@ -18,11 +19,11 @@ interface Props {
   canOperate: boolean;   // ADMINISTRATIVE+
 }
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  DRAFT:     { label: "Borrador",    cls: "bg-gray-100 text-gray-700" },
-  APPROVED:  { label: "Aprobada",    cls: "bg-green-100 text-green-800" },
-  CONVERTED: { label: "Convertida",  cls: "bg-blue-100 text-blue-800" },
-  CANCELLED: { label: "Cancelada",   cls: "bg-gray-200 text-gray-500" },
+const STATUS_BADGE: Record<string, { label: string; cls: string; Icon: LucideIcon }> = {
+  DRAFT:     { label: "Borrador",   cls: "bg-gray-100 text-gray-700",    Icon: FileIcon },
+  APPROVED:  { label: "Aprobada",   cls: "bg-green-100 text-green-800",  Icon: CheckCircleIcon },
+  CONVERTED: { label: "Convertida", cls: "bg-blue-100 text-blue-800",    Icon: ArrowRightCircleIcon },
+  CANCELLED: { label: "Cancelada",  cls: "bg-gray-200 text-gray-500",    Icon: XCircleIcon },
 };
 
 const TYPE_BADGE: Record<string, string> = {
@@ -181,7 +182,8 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {orders.map((o) => {
-              const badge = STATUS_BADGE[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-700" };
+              const badge = STATUS_BADGE[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-700", Icon: FileIcon };
+              const BadgeIcon = badge.Icon;
               const today = new Date().toISOString().split("T")[0]!;
               const isExpired =
                 o.expectedDate &&
@@ -215,7 +217,8 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                        <BadgeIcon className="h-3 w-3" aria-hidden />
                         {badge.label}
                       </span>
                       {o.approvedAt && (

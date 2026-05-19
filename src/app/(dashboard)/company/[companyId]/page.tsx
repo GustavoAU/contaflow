@@ -483,7 +483,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <p className="text-xs text-zinc-500">Asientos del mes</p>
                 <p className="text-sm font-semibold text-zinc-700">
                   {m.monthTransactions}
-                  <span className="ml-1 font-normal text-zinc-400">({m.totalTransactions} en total)</span>
+                  <span className="ml-1 font-normal text-zinc-500">({m.totalTransactions} en total)</span>
                 </p>
               </div>
             </div>
@@ -493,7 +493,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <p className="text-xs text-zinc-500">Plan de cuentas</p>
                 <p className="text-sm font-semibold text-zinc-700">
                   {m.totalAccounts}
-                  <span className="ml-1 font-normal text-zinc-400">cuentas registradas</span>
+                  <span className="ml-1 font-normal text-zinc-500">cuentas registradas</span>
                 </p>
               </div>
             </div>
@@ -516,7 +516,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
           <div className="col-span-2 flex items-center justify-center rounded-lg border border-dashed bg-white p-8 text-center">
             <div>
               <p className="text-sm font-medium text-zinc-500">Métricas operativas</p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-zinc-500">
                 Facturas por cobrar, pagos pendientes y más en los módulos de Facturas y Cartera.
               </p>
               <Link

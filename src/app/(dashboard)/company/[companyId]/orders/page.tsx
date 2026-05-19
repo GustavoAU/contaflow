@@ -55,7 +55,7 @@ export default async function OrdersPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-base font-semibold text-gray-800">
           Cotizaciones / Presupuestos
-          <span className="ml-2 text-sm font-normal text-gray-400">
+          <span className="ml-2 text-sm font-normal text-gray-500">
             ({quotations.length})
           </span>
         </h2>
@@ -86,7 +86,7 @@ export default async function OrdersPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-base font-semibold text-gray-800">
           Órdenes de Compra y Venta
-          <span className="ml-2 text-sm font-normal text-gray-400">
+          <span className="ml-2 text-sm font-normal text-gray-500">
             ({orders.length})
           </span>
         </h2>

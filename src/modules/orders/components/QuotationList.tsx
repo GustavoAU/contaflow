@@ -3,6 +3,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { FileIcon, ClockIcon, CheckCircleIcon, XCircleIcon, ArrowRightCircleIcon, type LucideIcon } from "lucide-react";
 import {
   submitForApprovalAction,
   approveQuotationAction,
@@ -23,13 +24,13 @@ interface Props {
   canOperate: boolean;   // ADMINISTRATIVE+
 }
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  DRAFT:            { label: "Borrador",       cls: "bg-gray-100 text-gray-700" },
-  PENDING_APPROVAL: { label: "Pend. Aprob.",   cls: "bg-amber-100 text-amber-800" },
-  APPROVED:         { label: "Aprobada",       cls: "bg-green-100 text-green-800" },
-  REJECTED:         { label: "Rechazada",      cls: "bg-red-100 text-red-700" },
-  CANCELLED:        { label: "Cancelada",      cls: "bg-gray-200 text-gray-500" },
-  CONVERTED:        { label: "Convertida",     cls: "bg-blue-100 text-blue-800" },
+const STATUS_BADGE: Record<string, { label: string; cls: string; Icon: LucideIcon }> = {
+  DRAFT:            { label: "Borrador",     cls: "bg-gray-100 text-gray-700",   Icon: FileIcon },
+  PENDING_APPROVAL: { label: "Pend. Aprob.", cls: "bg-amber-100 text-amber-800", Icon: ClockIcon },
+  APPROVED:         { label: "Aprobada",     cls: "bg-green-100 text-green-800", Icon: CheckCircleIcon },
+  REJECTED:         { label: "Rechazada",    cls: "bg-red-100 text-red-700",     Icon: XCircleIcon },
+  CANCELLED:        { label: "Cancelada",    cls: "bg-gray-200 text-gray-500",   Icon: XCircleIcon },
+  CONVERTED:        { label: "Convertida",   cls: "bg-blue-100 text-blue-800",   Icon: ArrowRightCircleIcon },
 };
 
 const TYPE_BADGE: Record<string, string> = {
@@ -103,7 +104,8 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white">
           {quotations.map((q) => {
-            const badge = STATUS_BADGE[q.status] ?? { label: q.status, cls: "bg-gray-100 text-gray-700" };
+            const badge = STATUS_BADGE[q.status] ?? { label: q.status, cls: "bg-gray-100 text-gray-700", Icon: FileIcon };
+            const BadgeIcon = badge.Icon;
             const today = new Date().toISOString().split("T")[0]!;
             const isExpired =
               q.validUntil &&
@@ -137,7 +139,8 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
+                      <BadgeIcon className="h-3 w-3" aria-hidden />
                       {badge.label}
                     </span>
                     {q.approvedAt && (

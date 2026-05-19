@@ -125,7 +125,7 @@ export default async function InventoryPage({ params }: Props) {
           <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-base font-semibold text-gray-800">
               Valoración del inventario
-              <span className="ml-2 text-sm font-normal text-gray-400">
+              <span className="ml-2 text-sm font-normal text-gray-500">
                 (CPP — Costo Promedio Ponderado)
               </span>
             </h2>
@@ -198,7 +198,7 @@ export default async function InventoryPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-gray-800">
           Catálogo de productos
-          <span className="ml-2 text-sm font-normal text-gray-400">
+          <span className="ml-2 text-sm font-normal text-gray-500">
             ({serializedItems.length})
           </span>
         </h2>

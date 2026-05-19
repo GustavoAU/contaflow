@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, ClockIcon, CheckCircleIcon, CheckCheckIcon, XCircleIcon, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +19,11 @@ type Props = {
   retentions: RetentionSummary[];
 };
 
-const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  PENDING: { label: "Pendiente", className: "bg-yellow-100 text-yellow-700" },
-  ISSUED: { label: "Emitida", className: "bg-green-100 text-green-700" },
-  ENTERADO: { label: "Enterada", className: "bg-indigo-100 text-indigo-700" },
-  VOIDED: { label: "Anulada", className: "bg-red-100 text-red-700" },
+const STATUS_LABEL: Record<string, { label: string; className: string; Icon?: LucideIcon }> = {
+  PENDING:  { label: "Pendiente", className: "bg-yellow-100 text-yellow-700", Icon: ClockIcon },
+  ISSUED:   { label: "Emitida",   className: "bg-green-100 text-green-700",   Icon: CheckCircleIcon },
+  ENTERADO: { label: "Enterada",  className: "bg-indigo-100 text-indigo-700", Icon: CheckCheckIcon },
+  VOIDED:   { label: "Anulada",   className: "bg-red-100 text-red-700",       Icon: XCircleIcon },
 };
 
 function EnterRetentionModal({
@@ -161,6 +161,7 @@ function RetentionCard({
     label: localStatus,
     className: "bg-zinc-100 text-zinc-600",
   };
+  const StatusIcon = statusInfo.Icon;
 
   function handleDownloadVoucher() {
     startTransitionPdf(async () => {
@@ -186,13 +187,14 @@ function RetentionCard({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium">{retention.providerName}</p>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-500">
             {retention.providerRif} — {retention.invoiceNumber}
           </p>
         </div>
         <div className="text-right">
           <p className="font-mono text-sm font-bold">{formatAmount(retention.totalRetention)}</p>
-          <span className={`rounded-full px-2 py-0.5 text-xs ${statusInfo.className}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
+            {StatusIcon && <StatusIcon className="h-3 w-3" aria-hidden />}
             {statusInfo.label}
           </span>
         </div>
@@ -249,7 +251,7 @@ export function RetentionList({ companyId, retentions }: Props) {
   if (retentions.length === 0) {
     return (
       <div className="rounded-lg border border-dashed bg-white p-8 text-center">
-        <p className="text-sm text-zinc-400">No hay retenciones registradas</p>
+        <p className="text-sm text-zinc-500">No hay retenciones registradas</p>
       </div>
     );
   }
