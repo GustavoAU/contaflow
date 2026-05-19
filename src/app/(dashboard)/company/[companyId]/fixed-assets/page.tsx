@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { FixedAssetService } from "@/modules/fixed-assets/services/FixedAssetService";
 import { FixedAssetList } from "@/modules/fixed-assets/components/FixedAssetList";
-import { FixedAssetForm } from "@/modules/fixed-assets/components/FixedAssetForm";
+import { FixedAssetFormPanel } from "@/modules/fixed-assets/components/FixedAssetFormPanel";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -22,7 +22,7 @@ export default async function FixedAssetsPage({ params }: Props) {
   const [assets, accounts] = await Promise.all([
     FixedAssetService.getSummary(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE"] } },
+      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET"] } },
       select: { id: true, code: true, name: true, type: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),
@@ -45,14 +45,10 @@ export default async function FixedAssetsPage({ params }: Props) {
         </p>
       </div>
 
-      {/* Registro de nuevo activo */}
-      <section className="mb-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-base font-semibold text-gray-800">Registrar nuevo activo</h2>
-        <FixedAssetForm
-          companyId={companyId}
-          accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
-        />
-      </section>
+      <FixedAssetFormPanel
+        companyId={companyId}
+        accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
+      />
 
       {/* Listado de activos */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

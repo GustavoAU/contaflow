@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
@@ -10,6 +10,7 @@ type Props = {
   companyId: string;
   accounts: AccountOption[];
   onSuccess?: (assetId: string) => void;
+  onCancel?: () => void;
 };
 
 const METHOD_OPTIONS = [
@@ -18,7 +19,24 @@ const METHOD_OPTIONS = [
   { value: "UNIDADES_PRODUCCION", label: "Unidades de Producción" },
 ] as const;
 
-export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
+function findBestMatch(pool: AccountOption[], keywords: string[]): string {
+  if (pool.length === 0) return "";
+  if (pool.length === 1) return pool[0]!.id;
+  const lower = keywords.map((k) => k.toLowerCase());
+  let bestId = "";
+  let bestScore = 0;
+  for (const a of pool) {
+    const text = `${a.code} ${a.name}`.toLowerCase();
+    const score = lower.reduce((s, k) => s + (text.includes(k) ? 1 : 0), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = a.id;
+    }
+  }
+  return bestId;
+}
+
+export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION">("LINEA_RECTA");
@@ -26,6 +44,16 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
+
+  const [assetAccountId, setAssetAccountId] = useState(() =>
+    findBestMatch(assetAccounts, ["propiedad", "planta", "equipo", "inmueble", "vehiculo", "vehículo", "maquinaria", "mobiliario", "activo fijo"])
+  );
+  const [depreciationAccountId, setDepreciationAccountId] = useState(() =>
+    findBestMatch(expenseAccounts, ["depreci", "amortiz"])
+  );
+  const [accDepreciationAccountId, setAccDepreciationAccountId] = useState(() =>
+    findBestMatch(contraAssetAccounts, ["acumul", "depreci", "amortiz"])
+  );
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,9 +64,9 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
       companyId,
       name: fd.get("name") as string,
       description: (fd.get("description") as string) || null,
-      assetAccountId: fd.get("assetAccountId") as string,
-      depreciationAccountId: fd.get("depreciationAccountId") as string,
-      accDepreciationAccountId: fd.get("accDepreciationAccountId") as string,
+      assetAccountId,
+      depreciationAccountId,
+      accDepreciationAccountId,
       acquisitionDate: new Date(fd.get("acquisitionDate") as string),
       acquisitionCost: fd.get("acquisitionCost") as string,
       residualValue: (fd.get("residualValue") as string) || "0",
@@ -100,12 +128,12 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
         </div>
 
         <div>
-          <label className={labelClass}>Costo de adquisición (VES) *</label>
+          <label className={labelClass}>Costo de adquisición <span className="font-normal text-zinc-400">(Bs.)</span> *</label>
           <input name="acquisitionCost" type="number" step="0.01" min="0.01" required className={fieldClass} placeholder="0.00" />
         </div>
 
         <div>
-          <label className={labelClass}>Valor residual (VES)</label>
+          <label className={labelClass}>Valor residual <span className="font-normal text-zinc-400">(Bs.)</span></label>
           <input name="residualValue" type="number" step="0.01" min="0" defaultValue="0" className={fieldClass} />
         </div>
 
@@ -141,45 +169,88 @@ export function FixedAssetForm({ companyId, accounts, onSuccess }: Props) {
         <legend className="text-sm font-semibold text-gray-700 px-1">Cuentas contables</legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mt-2">
           <div>
-            <label className={labelClass}>Cuenta del activo (ASSET) *</label>
-            <select name="assetAccountId" required className={fieldClass}>
-              <option value="">Seleccionar...</option>
-              {assetAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-              ))}
-            </select>
+            <label className={labelClass}>Cuenta del activo *</label>
+            {assetAccounts.length === 0 ? (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                Sin cuentas tipo Activo. Créalas en el Plan de Cuentas.
+              </p>
+            ) : (
+              <select
+                value={assetAccountId}
+                onChange={(e) => setAssetAccountId(e.target.value)}
+                required
+                className={fieldClass}
+              >
+                <option value="">Seleccionar cuenta ASSET…</option>
+                {assetAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-[11px] text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
           </div>
           <div>
-            <label className={labelClass}>Gasto depreciación (EXPENSE) *</label>
-            <select name="depreciationAccountId" required className={fieldClass}>
-              <option value="">Seleccionar...</option>
-              {expenseAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-              ))}
-            </select>
+            <label className={labelClass}>Gasto depreciación *</label>
+            {expenseAccounts.length === 0 ? (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                Sin cuentas tipo Gasto. Créalas en el Plan de Cuentas.
+              </p>
+            ) : (
+              <select
+                value={depreciationAccountId}
+                onChange={(e) => setDepreciationAccountId(e.target.value)}
+                required
+                className={fieldClass}
+              >
+                <option value="">Seleccionar cuenta EXPENSE…</option>
+                {expenseAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-[11px] text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
           </div>
           <div>
-            <label className={labelClass}>Dep. acumulada (CONTRA_ASSET) *</label>
-            <select name="accDepreciationAccountId" required className={fieldClass}>
-              <option value="">Seleccionar...</option>
-              {contraAssetAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-              ))}
-            </select>
+            <label className={labelClass}>Dep. acumulada *</label>
+            {contraAssetAccounts.length === 0 ? (
+              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Sin cuentas tipo CONTRA_ASSET. Créalas en el Plan de Cuentas.
+              </p>
+            ) : (
+              <select
+                value={accDepreciationAccountId}
+                onChange={(e) => setAccDepreciationAccountId(e.target.value)}
+                required
+                className={fieldClass}
+              >
+                <option value="">Seleccionar cuenta CONTRA_ASSET…</option>
+                {contraAssetAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-[11px] text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
           </div>
         </div>
-        <p className="mt-2 text-xs text-gray-500">
-          La cuenta de depreciación acumulada debe ser tipo CONTRA_ASSET (ej: &quot;Dep. Acum. Equipos&quot;).
-        </p>
       </fieldset>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded border border-gray-300 px-5 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        )}
         <button
           type="submit"
           disabled={isPending}
-          className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Registrar Activo"}
+          {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+          {isPending ? "Guardando…" : "Registrar Activo"}
         </button>
       </div>
     </form>
