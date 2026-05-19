@@ -99,17 +99,24 @@ function RateTicker({ label, symbol, rate }: { label: string; symbol: string; ra
     ? (isUp ? "+" : "") + (Math.trunc(Math.abs(delta) * 10000) / 10000).toFixed(4)
     : null;
 
+  const deltaTitle = formattedDelta
+    ? `Variación del día: ${formattedDelta} Bs./USD`
+    : undefined;
+
   return (
     <span
       className="flex items-center gap-1"
-      title={`${label}/VES — ${dateDisplay}`}
+      title={`${label}/VES al ${dateDisplay}${deltaTitle ? ` · ${deltaTitle}` : ""}`}
     >
       <span className="font-medium text-zinc-400">{label}</span>
       <span className="font-mono font-semibold text-zinc-800">
         {symbol} {formattedRate}
       </span>
       {formattedDelta && (
-        <span className={`flex items-center gap-0.5 font-mono ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400"}`}>
+        <span
+          title={deltaTitle}
+          className={`flex items-center gap-0.5 font-mono text-[10px] ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400"}`}
+        >
           {isUp ? (
             <TrendingUp className="h-2.5 w-2.5" />
           ) : isDown ? (
@@ -118,6 +125,7 @@ function RateTicker({ label, symbol, rate }: { label: string; symbol: string; ra
             <Minus className="h-2.5 w-2.5" />
           )}
           {formattedDelta}
+          <span className="text-zinc-400 not-italic">hoy</span>
         </span>
       )}
     </span>

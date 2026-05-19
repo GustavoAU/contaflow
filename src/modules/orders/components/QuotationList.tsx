@@ -12,6 +12,10 @@ import {
 import type { QuotationRow } from "../services/QuotationService";
 import { formatAmount } from "@/lib/format";
 
+const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
+const fmtCurrency = (code: string, amount: string) =>
+  `${CURRENCY_LABEL[code] ?? code} ${formatAmount(amount)}`;
+
 interface Props {
   companyId: string;
   quotations: QuotationRow[];
@@ -113,9 +117,9 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                 </td>
                 <td
                   className="px-4 py-3 font-mono text-right cursor-help"
-                  title={`Base: ${formatAmount(q.subtotal)} + IVA: ${formatAmount(q.taxAmount)} = Total: ${formatAmount(q.total)}`}
+                  title={`Base: ${fmtCurrency(q.currency, q.subtotal)} + IVA: ${fmtCurrency(q.currency, q.taxAmount)} = Total: ${fmtCurrency(q.currency, q.total)}`}
                 >
-                  {q.currency} {formatAmount(q.total)}
+                  {fmtCurrency(q.currency, q.total)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
