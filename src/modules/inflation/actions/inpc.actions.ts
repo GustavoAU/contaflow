@@ -127,6 +127,7 @@ export async function getINPCRatesAction(companyId: string): Promise<ActionResul
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const rates = await prisma.$transaction(async (tx) =>
       INPCService.getRates(companyId, tx)
@@ -148,12 +149,15 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role !== "ADMIN") return { success: false, error: "Solo administradores pueden configurar el período base" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo administradores pueden configurar el período base" };
 
     await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
@@ -181,11 +185,15 @@ export async function previewInflationAdjustmentAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const result = await prisma.$transaction(async (tx) =>
       INPCService.previewAdjustment(
@@ -230,7 +238,7 @@ export async function runInflationAdjustmentAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (member.role !== "ADMIN") return { success: false, error: "Solo administradores pueden ejecutar el ajuste por inflación" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo administradores pueden ejecutar el ajuste por inflación" };
 
     // Guard: año fiscal cerrado (ADR-008 D-7)
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(

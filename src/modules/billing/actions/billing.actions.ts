@@ -34,6 +34,7 @@ export async function createCheckoutAction(
       where: { userId_companyId: { userId, companyId: validated.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
+    // ADR-025: intencionalmente solo OWNER puede gestionar la suscripción
     if (member.role !== "OWNER") {
       return { success: false, error: "Solo el Propietario puede gestionar la suscripción." };
     }

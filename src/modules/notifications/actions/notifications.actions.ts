@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { NotificationService, type NotificationAlert } from "../services/NotificationService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -13,6 +14,9 @@ export async function getNotificationsAction(
 ): Promise<ActionResult<NotificationAlert[]>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },

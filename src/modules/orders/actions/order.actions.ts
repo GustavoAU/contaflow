@@ -26,6 +26,9 @@ export async function createOrderAction(
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
+
   // HIGH-1: member lookup — companyId is authoritative from DB
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
@@ -181,6 +184,9 @@ export async function cloneOrderAction(
 ): Promise<Result<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },

@@ -494,7 +494,7 @@ describe("banking.actions", () => {
 
   it("searchJournalEntriesAction — happy path con query pasa filtro OR a prisma", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.transaction.findMany).mockResolvedValue([] as never);
 
     const result = await searchJournalEntriesAction({ companyId: COMPANY_ID, query: "depósito" });

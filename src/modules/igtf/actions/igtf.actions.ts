@@ -129,6 +129,16 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 // ─── Listar IGTF ──────────────────────────────────────────────────────────────
 export async function getIGTFAction(companyId: string): Promise<ActionResult<IGTFSummary[]>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
     const records = await prisma.iGTFTransaction.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },

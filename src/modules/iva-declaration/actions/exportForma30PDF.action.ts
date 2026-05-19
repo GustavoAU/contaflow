@@ -35,7 +35,7 @@ export async function exportForma30PDFAction(
   if (!userId) return { success: false, error: "No autorizado" };
 
   // 2. Rate limit
-  const rl = await checkRateLimit(userId, limiters.fiscal);
+  const rl = await checkRateLimit(userId, limiters.export);
   if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
 
   // 3. Validar input
