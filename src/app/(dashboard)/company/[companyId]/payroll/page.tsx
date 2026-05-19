@@ -39,7 +39,19 @@ export default async function PayrollPage({ params }: Props) {
   const canReadEmployees = canAccess(member.role, ROLES.WRITERS);
   const canReadAccounting = canAccess(member.role, ROLES.ACCOUNTING);
 
-  const [activeEmployeeCount, draftRunsCount, activeLoansCount] = await Promise.all([
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+
+  const [
+    activeEmployeeCount,
+    draftRunsCount,
+    activeLoansCount,
+    benefitLinesThisQuarter,
+    benefitBalancesActive,
+    vacationsThisYear,
+    profitSharingThisYear,
+  ] = await Promise.all([
     config && canReadEmployees ? EmployeeService.countActive(companyId) : Promise.resolve(null),
     config && canReadAccounting
       ? prisma.payrollRun.count({ where: { companyId, status: "DRAFT" } })
@@ -47,7 +59,26 @@ export default async function PayrollPage({ params }: Props) {
     config && canReadAccounting
       ? prisma.employeeLoan.count({ where: { companyId, status: "ACTIVE" } })
       : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.benefitAccrualLine.count({
+          where: { companyId, type: "QUARTERLY_ACCRUAL", year: currentYear, quarter: currentQuarter },
+        })
+      : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.benefitBalance.count({ where: { companyId, isLiquidated: false } })
+      : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.vacationRecord.count({ where: { companyId, periodYear: currentYear, isFractional: false } })
+      : Promise.resolve(null),
+    config && canReadAccounting
+      ? prisma.profitSharingRecord.count({ where: { companyId, fiscalYear: currentYear, isFractional: false } })
+      : Promise.resolve(null),
   ]);
+
+  const benefitsGap =
+    benefitBalancesActive !== null && benefitLinesThisQuarter !== null
+      ? benefitBalancesActive - benefitLinesThisQuarter
+      : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-8 px-4">
@@ -194,7 +225,19 @@ export default async function PayrollPage({ params }: Props) {
                 href={`/company/${companyId}/payroll/benefits`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-800">Prestaciones Sociales</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800">Prestaciones Sociales</p>
+                  {benefitsGap !== null && benefitsGap > 0 ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      {benefitsGap} sin calcular Q{currentQuarter}
+                    </span>
+                  ) : benefitsGap === 0 && (benefitBalancesActive ?? 0) > 0 ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs text-green-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                      Al día Q{currentQuarter}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Garantía trimestral + intereses BCV
                 </p>
@@ -212,7 +255,14 @@ export default async function PayrollPage({ params }: Props) {
                 href={`/company/${companyId}/payroll/vacations`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-800">Vacaciones</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800">Vacaciones</p>
+                  {vacationsThisYear !== null && vacationsThisYear > 0 ? (
+                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                      {vacationsThisYear} en {currentYear}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Registro y bono vacacional (Art. 190–192 LOTTT)
                 </p>
@@ -230,7 +280,18 @@ export default async function PayrollPage({ params }: Props) {
                 href={`/company/${companyId}/payroll/profit-sharing`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
-                <p className="font-medium text-gray-800">Utilidades</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800">Utilidades</p>
+                  {profitSharingThisYear !== null && profitSharingThisYear > 0 ? (
+                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                      {profitSharingThisYear} calculadas
+                    </span>
+                  ) : profitSharingThisYear === 0 && currentYear === now.getFullYear() && now.getMonth() >= 9 ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      Pendiente {currentYear}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Cálculo anual/fraccionado (Art. 131–132 LOTTT)
                 </p>
