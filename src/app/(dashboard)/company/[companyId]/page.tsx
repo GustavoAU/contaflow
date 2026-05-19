@@ -236,13 +236,27 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       <PaymentSuccessToast payment={payment} />
 
       {/* ─── Encabezado ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-            {company.rif && <p className="text-muted-foreground text-sm">RIF: {company.rif}</p>}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight truncate">{company.name}</h1>
+            <RoleBadge role={role} />
+            {/* Pill de período — siempre visible junto al nombre de empresa */}
+            {showAccountingMetrics && m.activePeriod && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0 ${
+                isPeriodBehind
+                  ? "bg-red-100 text-red-700"
+                  : isStale
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-green-100 text-green-700"
+              }`}>
+                <CalendarIcon className="h-3 w-3" />
+                {MONTH_NAMES[m.activePeriod.month]} {m.activePeriod.year}
+                {isPeriodBehind && " · VENCIDO"}
+              </span>
+            )}
           </div>
-          <RoleBadge role={role} />
+          {company.rif && <p className="text-muted-foreground mt-0.5 text-sm">RIF: {company.rif}</p>}
         </div>
         <DashboardCTA role={role} companyId={companyId} />
       </div>
@@ -375,34 +389,41 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       {/* ─── Métricas contables (OWNER, ADMIN, ACCOUNTANT, VIEWER) ──────── */}
       {showAccountingMetrics && (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-white p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Plan de Cuentas</p>
-                <BookOpenIcon className="h-4 w-4 text-blue-500" />
+          {/* Utilidad Neta — hero card: lo más importante, primero y más grande */}
+          {(() => {
+            const netPositive = Number(m.netIncome) >= 0;
+            return (
+              <div className={`rounded-lg border p-6 ${netPositive ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${netPositive ? "text-green-700" : "text-red-700"}`}>
+                      Utilidad Neta del Período
+                    </p>
+                    <p className={`mt-1 text-4xl font-extrabold tracking-tight ${netPositive ? "text-green-700" : "text-red-700"}`}>
+                      {fmtBs(m.netIncome)}
+                    </p>
+                    <p className={`mt-2 text-xs ${netPositive ? "text-green-600" : "text-red-600"}`}>
+                      Ingresos {fmtBs(m.totalRevenue)} · Gastos {fmtBs(m.totalExpenses)}
+                    </p>
+                  </div>
+                  {netPositive
+                    ? <TrendingUpIcon className="h-10 w-10 text-green-300" />
+                    : <TrendingDownIcon className="h-10 w-10 text-red-300" />
+                  }
+                </div>
               </div>
-              <p className="mt-2 text-2xl font-bold">{m.totalAccounts}</p>
-              <p className="text-muted-foreground mt-1 text-xs">cuentas registradas</p>
-            </div>
+            );
+          })()}
 
-            <div className="rounded-lg border bg-white p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Asientos del Mes</p>
-                <FileTextIcon className="h-4 w-4 text-purple-500" />
-              </div>
-              <p className="mt-2 text-2xl font-bold">{m.monthTransactions}</p>
-              <p className="text-muted-foreground mt-1 text-xs">{m.totalTransactions} en total</p>
-            </div>
-
+          {/* Fila de métricas de balance — contexto financiero */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border bg-white p-5">
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground text-sm">Ingresos</p>
                 <TrendingUpIcon className="h-4 w-4 text-green-500" />
               </div>
-              <p className="mt-2 text-2xl font-bold text-green-600">
-                {fmtBs(m.totalRevenue)}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">acumulado</p>
+              <p className="mt-2 text-xl font-bold text-green-600">{fmtBs(m.totalRevenue)}</p>
+              <p className="text-muted-foreground mt-1 text-xs">acumulado del período</p>
             </div>
 
             <div className="rounded-lg border bg-white p-5">
@@ -410,46 +431,24 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 <p className="text-muted-foreground text-sm">Gastos</p>
                 <TrendingDownIcon className="h-4 w-4 text-red-500" />
               </div>
-              <p className="mt-2 text-2xl font-bold text-red-600">
-                {fmtBs(m.totalExpenses)}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">acumulado</p>
+              <p className="mt-2 text-xl font-bold text-red-600">{fmtBs(m.totalExpenses)}</p>
+              <p className="text-muted-foreground mt-1 text-xs">acumulado del período</p>
             </div>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg border bg-white p-5">
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground text-sm">Total Activos</p>
                 <ScaleIcon className="h-4 w-4 text-blue-500" />
               </div>
-              <p className="mt-2 text-2xl font-bold">
-                {fmtBs(m.totalAssets)}
-              </p>
+              <p className="mt-2 text-xl font-bold">{fmtBs(m.totalAssets)}</p>
             </div>
 
             <div className="rounded-lg border bg-white p-5">
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground text-sm">Total Pasivos</p>
-                <ScaleIcon className="h-4 w-4 text-red-500" />
+                <ScaleIcon className="h-4 w-4 text-zinc-400" />
               </div>
-              <p className="mt-2 text-2xl font-bold">
-                {fmtBs(m.totalLiabilities)}
-              </p>
-            </div>
-
-            <div className="rounded-lg border bg-white p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Utilidad Neta</p>
-                {Number(m.netIncome) >= 0 ? (
-                  <TrendingUpIcon className="h-4 w-4 text-green-500" />
-                ) : (
-                  <TrendingDownIcon className="h-4 w-4 text-red-500" />
-                )}
-              </div>
-              <p className={`mt-2 text-2xl font-bold ${Number(m.netIncome) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {fmtBs(m.netIncome)}
-              </p>
+              <p className="mt-2 text-xl font-bold">{fmtBs(m.totalLiabilities)}</p>
             </div>
           </div>
 
@@ -475,6 +474,30 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
               </div>
             </div>
           )}
+
+          {/* Actividad del período — métricas de sistema, tamaño reducido */}
+          <div className="grid gap-3 sm:grid-cols-2 rounded-lg border bg-zinc-50 p-4">
+            <div className="flex items-center gap-3">
+              <FileTextIcon className="h-4 w-4 shrink-0 text-purple-400" />
+              <div>
+                <p className="text-xs text-zinc-500">Asientos del mes</p>
+                <p className="text-sm font-semibold text-zinc-700">
+                  {m.monthTransactions}
+                  <span className="ml-1 font-normal text-zinc-400">({m.totalTransactions} en total)</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <BookOpenIcon className="h-4 w-4 shrink-0 text-blue-400" />
+              <div>
+                <p className="text-xs text-zinc-500">Plan de cuentas</p>
+                <p className="text-sm font-semibold text-zinc-700">
+                  {m.totalAccounts}
+                  <span className="ml-1 font-normal text-zinc-400">cuentas registradas</span>
+                </p>
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -507,6 +530,11 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
         </div>
       )}
 
+      {/* ─── KPIs ejecutivos (OWNER, ADMIN, ACCOUNTANT) — posición prioritaria ── */}
+      {showKpis && kpiResult?.success && (
+        <ExecutiveKpiPanel companyId={companyId} initialData={kpiResult.data} />
+      )}
+
       {/* ─── Tareas pendientes IA (OWNER, ADMIN, ACCOUNTANT) ────────────── */}
       {showKpis && pendingTasksResult?.success && pendingTasksResult.data.tasks.length > 0 && (
         <PendingTasksWidget companyId={companyId} data={pendingTasksResult.data} />
@@ -514,11 +542,6 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
 
       {/* ─── Conflictos de concurrencia P2034 (OWNER, ADMIN) ────────────── */}
       {isAdmin && <P2034Widget data={p2034Data} />}
-
-      {/* ─── KPIs ejecutivos (OWNER, ADMIN, ACCOUNTANT) ──────────────────── */}
-      {showKpis && kpiResult?.success && (
-        <ExecutiveKpiPanel companyId={companyId} initialData={kpiResult.data} />
-      )}
 
       {m.totalAccounts === 0 && showAccountingMetrics && (
         <OnboardingWizard companyId={companyId} companyName={company.name} />
