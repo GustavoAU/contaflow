@@ -74,7 +74,7 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
           Sin resultados para &ldquo;{query}&rdquo;
         </p>
       ) : (
-        <div className="grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((company) => {
             const role = company.role;
             const period = company.activePeriod;
