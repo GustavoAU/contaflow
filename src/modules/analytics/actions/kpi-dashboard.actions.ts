@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import {
   KpiDashboardService,
   type KpiSummary,
@@ -22,6 +23,9 @@ export async function getKpiDashboardAction(
 ): Promise<ActionResult<KpiDashboardData>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },

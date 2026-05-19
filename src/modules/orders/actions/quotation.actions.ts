@@ -24,6 +24,9 @@ export async function createQuotationAction(
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
+
   // HIGH-1: member lookup — companyId from DB, not from client
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
@@ -55,6 +58,9 @@ export async function submitForApprovalAction(
 ): Promise<Result<void>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
@@ -155,6 +161,9 @@ export async function cloneQuotationAction(
 ): Promise<Result<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },

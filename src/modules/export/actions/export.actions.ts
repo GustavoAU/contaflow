@@ -98,7 +98,7 @@ export async function createExportJobAction(
     if (error instanceof Error && error.message.startsWith("Error desconocido")) {
       return { success: false, error: error.message };
     }
-    console.error("[createExportJobAction]", error);
+    console.error("[createExportJobAction]", error instanceof Error ? error.message : "Error");
     return { success: false, error: "Error al generar la exportación" };
   }
 }
@@ -144,7 +144,7 @@ export async function listExportJobsAction(
 
     return { success: true, data: jobs };
   } catch (error) {
-    console.error("[listExportJobsAction]", error);
+    console.error("[listExportJobsAction]", error instanceof Error ? error.message : "Error");
     return { success: false, error: "Error al obtener historial de exportaciones" };
   }
 }

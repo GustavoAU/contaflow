@@ -29,16 +29,14 @@ const CreateSchema = z.object({
   notes: z.string().max(200).optional(),
 });
 
-async function guardAdmin(companyId: string): Promise<{ userId: string } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+async function guardAdmin(companyId: string, userId: string): Promise<{ success: false; error: string } | null> {
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
   if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Se requiere rol Administrador" };
-  return { userId };
+  return null;
 }
 
 async function guardAny(companyId: string): Promise<{ userId: string } | { success: false; error: string }> {
@@ -79,8 +77,8 @@ export async function createLegalThresholdAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-    const guard = await guardAdmin(companyId);
-    if ("error" in guard) return guard;
+    const guard = await guardAdmin(companyId, userId);
+    if (guard) return guard;
 
     const parsed = CreateSchema.safeParse(rawInput);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -116,8 +114,8 @@ export async function deleteLegalThresholdAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-    const guard = await guardAdmin(companyId);
-    if ("error" in guard) return guard;
+    const guard = await guardAdmin(companyId, userId);
+    if (guard) return guard;
 
     await LegalThresholdService.delete(companyId, id);
     revalidatePath(`/payroll/legal-thresholds`);

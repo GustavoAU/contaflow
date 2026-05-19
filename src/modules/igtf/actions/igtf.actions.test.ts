@@ -17,6 +17,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     companyMember: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -128,7 +129,11 @@ describe("createIGTFAction", () => {
 });
 
 describe("getIGTFAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
 
   it("retorna lista de registros IGTF", async () => {
     vi.mocked(prisma.iGTFTransaction.findMany).mockResolvedValue([mockIGTF] as never);

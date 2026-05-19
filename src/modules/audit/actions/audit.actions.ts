@@ -6,6 +6,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import prisma from "@/lib/prisma";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { AuditLogService, type AuditLogFilters, type AuditLogPage } from "../services/AuditLogService";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -16,6 +17,9 @@ export async function listAuditLogsAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId: filters.companyId } },
@@ -40,6 +44,9 @@ export async function getAuditEntityNamesAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },

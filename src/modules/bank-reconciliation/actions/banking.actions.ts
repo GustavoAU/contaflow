@@ -285,6 +285,7 @@ export async function getUnreconciledTransactionsAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const transactions = await BankingService.getUnreconciledTransactions(bankAccountId, companyId);
 
@@ -363,6 +364,7 @@ export async function searchJournalEntriesAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const entries = await prisma.transaction.findMany({
       where: {
@@ -428,6 +430,7 @@ export async function searchPaymentRecordsAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const records = await prisma.paymentRecord.findMany({
       where: {
@@ -487,6 +490,7 @@ export async function getReconciliationSummaryAction(
 
     const role = await getMemberRole(userId, companyId);
     if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
     const summary = await BankingService.getReconciliationSummary(bankStatementId, companyId);
 
