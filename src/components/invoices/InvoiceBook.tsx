@@ -313,9 +313,30 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
           </div>
         </div>
 
+        {/* Skeleton — visible while loading with no previous result */}
+        {isPending && !result && (
+          <div className="rounded-lg border bg-white">
+            <div className="border-b px-6 py-4">
+              <div className="h-5 w-44 animate-pulse rounded bg-zinc-100" />
+              <div className="mt-1.5 h-3.5 w-32 animate-pulse rounded bg-zinc-100" />
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-3.5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-zinc-100" />
+                  <div className="h-3 w-36 animate-pulse rounded bg-zinc-100" />
+                  <div className="h-3 w-24 animate-pulse rounded bg-zinc-100" />
+                  <div className="h-3 w-16 animate-pulse rounded bg-zinc-100" />
+                  <div className="ml-auto h-3 w-20 animate-pulse rounded bg-zinc-100" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tabla */}
         {result && (
-          <div className="rounded-lg border bg-white">
+          <div className={`rounded-lg border bg-white transition-opacity ${isPending ? "pointer-events-none opacity-60" : ""}`}>
             <div className="border-b px-6 py-4">
               <h2 className="font-semibold">{bookTitle}</h2>
               <p className="text-sm text-zinc-500">

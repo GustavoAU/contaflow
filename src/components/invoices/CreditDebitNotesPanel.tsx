@@ -50,7 +50,10 @@ export function CreditDebitNotesPanel({ companyId, invoiceId }: Props) {
 
   if (isPending || (notes === null && !error)) {
     return (
-      <div className="px-4 py-3 text-xs text-zinc-400">Cargando notas...</div>
+      <div className="flex items-center gap-2 px-4 py-3 text-xs text-zinc-500">
+        <div className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-500" />
+        Cargando notas…
+      </div>
     );
   }
 
