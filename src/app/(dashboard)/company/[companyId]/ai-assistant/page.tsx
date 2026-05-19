@@ -17,6 +17,7 @@ export default async function AIAssistantPage({ params }: Props) {
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
+    include: { company: true },
   });
   if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
     redirect(`/company/${companyId}`);
@@ -24,7 +25,7 @@ export default async function AIAssistantPage({ params }: Props) {
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col">
-      <AIAssistantChat companyId={companyId} />
+      <AIAssistantChat companyId={companyId} companyName={member.company.name} />
     </div>
   );
 }

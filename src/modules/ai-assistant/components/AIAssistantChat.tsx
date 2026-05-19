@@ -15,6 +15,7 @@ type Message = {
 
 type Props = {
   companyId: string;
+  companyName: string;
 };
 
 const SUGGESTIONS = [
@@ -25,7 +26,7 @@ const SUGGESTIONS = [
   "Sugiere un asiento por pago de nómina",
 ];
 
-export function AIAssistantChat({ companyId }: Props) {
+export function AIAssistantChat({ companyId, companyName }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [imageBase64, setImageBase64] = useState<string | undefined>();
@@ -94,9 +95,13 @@ export function AIAssistantChat({ companyId }: Props) {
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
           <SparklesIcon className="h-5 w-5 text-violet-600" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-semibold text-zinc-800">ContaFlow IA</p>
           <p className="text-xs text-zinc-500">Asistente contable venezolano</p>
+        </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          {companyName}
         </div>
       </div>
 
@@ -110,7 +115,9 @@ export function AIAssistantChat({ companyId }: Props) {
             <div>
               <p className="text-sm font-medium text-zinc-700">Pregunta sobre tu contabilidad</p>
               <p className="mt-1 text-xs text-zinc-400">
-                Tengo acceso a tus datos financieros en tiempo real
+                Tengo acceso a los datos de{" "}
+                <span className="font-medium text-zinc-600">{companyName}</span>{" "}
+                en tiempo real
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
@@ -178,10 +185,13 @@ export function AIAssistantChat({ companyId }: Props) {
               <BotIcon className="h-4 w-4 text-violet-600" />
             </div>
             <div className="rounded-2xl bg-zinc-100 px-4 py-3">
-              <div className="flex gap-1 items-center">
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+              <div className="flex items-center gap-2.5">
+                <div className="flex gap-1 items-center">
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+                </div>
+                <span className="text-xs text-zinc-400">Analizando tus datos…</span>
               </div>
             </div>
           </div>
