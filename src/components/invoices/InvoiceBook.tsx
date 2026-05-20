@@ -67,18 +67,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
       if (res.success) setResult(res.data);
       else toast.error(res.error);
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleSearch() {
-    startTransition(async () => {
-      const res = await getInvoiceBookAction({ companyId, type, year, month });
-      if (res.success) {
-        setResult(res.data);
-      } else {
-        toast.error(res.error);
-      }
-    });
-  }
+  }, [companyId, type, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleExportPDF() {
     startTransitionPDF(async () => {
@@ -246,10 +235,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   <button
                     key={t}
                     type="button"
-                    onClick={() => {
-                      setType(t);
-                      setResult(null);
-                    }}
+                    onClick={() => { setType(t); setResult(null); }}
                     className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                       type === t ? "bg-blue-600 text-white" : "text-zinc-600 hover:bg-zinc-100"
                     }`}
@@ -290,9 +276,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               </select>
             </div>
 
-            <Button onClick={handleSearch} disabled={isPending}>
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Cargando..." : "Consultar"}
-            </Button>
+            {/* Loading indicator replaces the former "Consultar" button */}
+            <div className="flex h-9 w-9 items-center justify-center" aria-live="polite" aria-label={isPending ? "Cargando datos…" : undefined}>
+              {isPending && <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" aria-hidden />}
+            </div>
 
             {result && result.rows.length > 0 && (
               <>

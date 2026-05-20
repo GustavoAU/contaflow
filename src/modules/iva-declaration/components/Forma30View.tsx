@@ -103,12 +103,14 @@ function SimpleRow({ label, value }: { label: string; value: string }) {
 
 interface Props {
   companyId: string;
+  activePeriodMonth?: number;
+  activePeriodYear?: number;
 }
 
-export function Forma30View({ companyId }: Props) {
+export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: Props) {
   const currentDate = new Date();
-  const [year, setYear] = useState(currentDate.getFullYear());
-  const [month, setMonth] = useState(currentDate.getMonth() + 1);
+  const [year, setYear] = useState(activePeriodYear ?? currentDate.getFullYear());
+  const [month, setMonth] = useState(activePeriodMonth ?? currentDate.getMonth() + 1);
   const [creditoAnterior, setCreditoAnterior] = useState("0");
   const [result, setResult] = useState<Forma30ActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);

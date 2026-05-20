@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { Forma30View } from "@/modules/iva-declaration/components/Forma30View";
+import { prisma } from "@/lib/prisma";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -14,6 +15,12 @@ export default async function IvaDeclarationPage({ params }: Props) {
   if (!userId) redirect("/sign-in");
 
   const { companyId } = await params;
+
+  const activePeriod = await prisma.accountingPeriod.findFirst({
+    where: { companyId, status: "OPEN" },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+    select: { month: true, year: true },
+  });
 
   return (
     <div className="space-y-6">
@@ -31,7 +38,11 @@ export default async function IvaDeclarationPage({ params }: Props) {
         </p>
       </div>
 
-      <Forma30View companyId={companyId} />
+      <Forma30View
+        companyId={companyId}
+        activePeriodMonth={activePeriod?.month}
+        activePeriodYear={activePeriod?.year}
+      />
     </div>
   );
 }
