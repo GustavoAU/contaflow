@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   fetchBcvRateAction,
   fetchBcvEurRateAction,
@@ -9,9 +10,9 @@ import {
   type RateWithDelta,
 } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
-type Props = { companyId: string };
+type Props = { companyId: string; variant?: "light" | "dark" };
 
-export function BcvRateWidget({ companyId }: Props) {
+export function BcvRateWidget({ companyId, variant = "light" }: Props) {
   const [usd, setUsd] = useState<RateWithDelta | null>(null);
   const [eur, setEur] = useState<RateWithDelta | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,31 +60,43 @@ export function BcvRateWidget({ companyId }: Props) {
 
   if (!usd && !eur) return null;
 
+  const isDark = variant === "dark";
+
   return (
     <div className="hidden items-center gap-1 md:flex">
-      <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs">
-        {usd && <RateTicker label="USD" symbol="$" rate={usd} />}
-        {usd && eur && <span className="text-zinc-300">|</span>}
-        {eur && <RateTicker label="EUR" symbol="€" rate={eur} />}
+      <div className={cn(
+        "flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs",
+        isDark
+          ? "border-slate-600 bg-slate-700/60"
+          : "border-zinc-200 bg-zinc-50"
+      )}>
+        {usd && <RateTicker label="USD" symbol="$" rate={usd} dark={isDark} />}
+        {usd && eur && <span className={isDark ? "text-slate-500" : "text-zinc-300"}>|</span>}
+        {eur && <RateTicker label="EUR" symbol="€" rate={eur} dark={isDark} />}
         <button
           type="button"
           onClick={handleRefresh}
           disabled={isPending}
           title="Actualizar tasas BCV"
-          className="ml-0.5 rounded p-0.5 text-zinc-400 transition-colors hover:text-blue-600 disabled:cursor-wait"
+          className={cn(
+            "ml-0.5 rounded p-0.5 transition-colors disabled:cursor-wait",
+            isDark
+              ? "text-slate-400 hover:text-blue-400"
+              : "text-zinc-400 hover:text-blue-600"
+          )}
           aria-label="Actualizar tasas BCV"
         >
           <RefreshCw className={`h-3 w-3 ${isPending ? "animate-spin" : ""}`} />
         </button>
       </div>
       {error && (
-        <span className="text-xs text-red-500">{error}</span>
+        <span className={cn("text-xs", isDark ? "text-red-400" : "text-red-500")}>{error}</span>
       )}
     </div>
   );
 }
 
-function RateTicker({ label, symbol, rate }: { label: string; symbol: string; rate: RateWithDelta }) {
+function RateTicker({ label, symbol, rate, dark = false }: { label: string; symbol: string; rate: RateWithDelta; dark?: boolean }) {
   const delta = rate.delta ? parseFloat(rate.delta) : null;
   const isUp = delta !== null && delta > 0;
   const isDown = delta !== null && delta < 0;
@@ -108,14 +121,19 @@ function RateTicker({ label, symbol, rate }: { label: string; symbol: string; ra
       className="flex items-center gap-1"
       title={`${label}/VES al ${dateDisplay}${deltaTitle ? ` · ${deltaTitle}` : ""}`}
     >
-      <span className="font-medium text-zinc-400">{label}</span>
-      <span className="font-mono font-semibold text-zinc-800">
+      <span className={dark ? "font-medium text-slate-400" : "font-medium text-zinc-400"}>{label}</span>
+      <span className={dark ? "font-mono font-semibold text-slate-100" : "font-mono font-semibold text-zinc-800"}>
         {symbol} {formattedRate}
       </span>
       {formattedDelta && (
         <span
           title={deltaTitle}
-          className={`flex items-center gap-0.5 font-mono text-[10px] ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400"}`}
+          className={cn(
+            "flex items-center gap-0.5 font-mono text-[10px]",
+            dark
+              ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-400")
+              : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")
+          )}
         >
           {isUp ? (
             <TrendingUp className="h-2.5 w-2.5" />
@@ -125,7 +143,7 @@ function RateTicker({ label, symbol, rate }: { label: string; symbol: string; ra
             <Minus className="h-2.5 w-2.5" />
           )}
           {formattedDelta}
-          <span className="text-zinc-400 not-italic">hoy</span>
+          <span className={dark ? "text-slate-400 not-italic" : "text-zinc-400 not-italic"}>hoy</span>
         </span>
       )}
     </span>

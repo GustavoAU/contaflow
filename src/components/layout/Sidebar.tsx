@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore, useReducer, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +23,7 @@ import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import type { LucideIcon } from "lucide-react";
 
 const STORAGE_KEY = "cf-sidebar-collapsed";
+const SECTIONS_KEY = "cf-nav-sections-collapsed";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   OWNER:          "Propietario",
@@ -301,22 +302,39 @@ export function Sidebar({
   companies = [],
 }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
 
-  const toggle = () =>
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEY, String(next));
-      } catch {}
-      return next;
-    });
+  // useSyncExternalStore separates server snapshot (always default) from client
+  // snapshot (reads localStorage), eliminating the hydration mismatch that the
+  // useState lazy-initializer pattern causes when localStorage differs from SSR.
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
+  const collapsed = useSyncExternalStore(
+    () => () => {},
+    () => { try { return localStorage.getItem(STORAGE_KEY) === "true"; } catch { return false; } },
+    () => false,
+  );
+
+  const toggle = () => {
+    try { localStorage.setItem(STORAGE_KEY, String(!collapsed)); } catch {}
+    forceUpdate();
+  };
+
+  const sectionsJson = useSyncExternalStore(
+    () => () => {},
+    () => { try { return localStorage.getItem(SECTIONS_KEY) ?? "[]"; } catch { return "[]"; } },
+    () => "[]",
+  );
+
+  const collapsedSections = useMemo(() => {
+    try { return new Set(JSON.parse(sectionsJson) as string[]); } catch { return new Set<string>(); }
+  }, [sectionsJson]);
+
+  const toggleSection = (group: string) => {
+    const next = new Set(collapsedSections);
+    if (next.has(group)) next.delete(group); else next.add(group);
+    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify([...next])); } catch {}
+    forceUpdate();
+  };
 
   const grants = new Set(grantedModules ?? []);
   const { primary, sections } = companyId
@@ -403,28 +421,41 @@ export function Sidebar({
         </div>
 
         {/* Secciones agrupadas */}
-        {sections.map((section) => (
-          <div key={section.group} className="px-2">
-            <div className="h-px bg-zinc-100 mx-1 my-1.5" />
-            {!collapsed && (
-              <p className="px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-[0.85px] text-zinc-400">
-                {section.group}
-              </p>
-            )}
-            {section.items.map((item) => (
-              <SidebarItem
-                key={item.href}
-                href={item.href}
-                Icon={item.icon}
-                label={item.label}
-                active={isActive(item.href)}
-                collapsed={collapsed}
-                disabled={item.comingSoon}
-                badge={item.comingSoon ? "Pronto" : undefined}
-              />
-            ))}
-          </div>
-        ))}
+        {sections.map((section) => {
+          const isSectionOpen = !collapsedSections.has(section.group);
+          return (
+            <div key={section.group} className="px-2">
+              <div className="h-px bg-zinc-100 mx-1 my-1.5" />
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(section.group)}
+                  aria-expanded={isSectionOpen}
+                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-[0.85px] text-zinc-400 hover:text-zinc-600 transition-colors"
+                >
+                  <span>{section.group}</span>
+                  <ChevronDown
+                    className={cn(
+                      "w-3 h-3 transition-transform duration-150",
+                      !isSectionOpen && "-rotate-90"
+                    )}
+                  />
+                </button>
+              )}
+              {(collapsed || isSectionOpen) && section.items.map((item) => (
+                <SidebarItem
+                  key={item.href}
+                  href={item.href}
+                  Icon={item.icon}
+                  label={item.label}
+                  active={isActive(item.href)}
+                  collapsed={collapsed}
+                  disabled={item.comingSoon}
+                  badge={item.comingSoon ? "Pronto" : undefined}
+                />
+              ))}
+            </div>
+          );
+        })}
 
         {/* Configuración + Auditoría — siguen al último ítem del nav */}
         {companyId && (
