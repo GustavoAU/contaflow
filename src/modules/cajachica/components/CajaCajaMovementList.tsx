@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyBadge } from "@/components/ui/MoneyBadge";
 import { approveMovementAction, voidMovementAction } from "../actions/cajachica.actions";
 import type { MovementSummary } from "../services/CajaCajaMovementService";
 
@@ -22,11 +23,6 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   VOIDED: { label: "Anulado", className: "bg-zinc-100 text-zinc-500 line-through" },
 };
 
-function fmt(val: string) {
-  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-    Number(val)
-  );
-}
 
 function VoidConfirm({
   companyId,
@@ -137,7 +133,7 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {m.currency} {fmt(m.amount)}
+                  <MoneyBadge amount={m.amount} currency={m.currency} />
                 </p>
               </div>
             </div>

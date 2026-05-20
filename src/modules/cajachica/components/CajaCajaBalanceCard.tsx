@@ -1,6 +1,7 @@
 "use client";
 
 import type { CajaCajaSummary } from "../services/CajaCajaService";
+import { MoneyBadge } from "@/components/ui/MoneyBadge";
 
 type Props = {
   caja: CajaCajaSummary;
@@ -18,11 +19,6 @@ const STATUS_COLOR: Record<string, string> = {
   CLOSED: "bg-zinc-100 text-zinc-500",
 };
 
-function fmt(val: string) {
-  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-    Number(val)
-  );
-}
 
 export function CajaCajaBalanceCard({ caja }: Props) {
   const percent = caja.percentUsed;
@@ -50,18 +46,16 @@ export function CajaCajaBalanceCard({ caja }: Props) {
         <div>
           <p className="text-xs text-zinc-500">Depositado</p>
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {caja.currency} {fmt(caja.totalDeposited)}
+            <MoneyBadge amount={caja.totalDeposited} currency={caja.currency} />
           </p>
         </div>
         <div>
           <p className="text-xs text-zinc-500">Comprometido</p>
           <p className="text-sm font-semibold text-amber-600">
-            {caja.currency}{" "}
-            {fmt(
-              (
-                Number(caja.totalPendingMovements) + Number(caja.totalApprovedMovements)
-              ).toFixed(2)
-            )}
+            <MoneyBadge
+              amount={(Number(caja.totalPendingMovements) + Number(caja.totalApprovedMovements)).toFixed(2)}
+              currency={caja.currency}
+            />
           </p>
         </div>
         <div>
@@ -71,7 +65,7 @@ export function CajaCajaBalanceCard({ caja }: Props) {
               Number(caja.availableBalance) <= 0 ? "text-red-600" : "text-emerald-600"
             }`}
           >
-            {caja.currency} {fmt(caja.availableBalance)}
+            <MoneyBadge amount={caja.availableBalance} currency={caja.currency} />
           </p>
         </div>
       </div>

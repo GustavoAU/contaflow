@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   fetchBcvRateAction,
@@ -70,9 +70,9 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
           ? "border-slate-600 bg-slate-700/60"
           : "border-zinc-200 bg-zinc-50"
       )}>
-        {usd && <RateTicker label="USD" symbol="$" rate={usd} dark={isDark} />}
+        {usd && <RateTicker label="USD" rate={usd} dark={isDark} />}
         {usd && eur && <span className={isDark ? "text-slate-500" : "text-zinc-300"}>|</span>}
-        {eur && <RateTicker label="EUR" symbol="€" rate={eur} dark={isDark} />}
+        {eur && <RateTicker label="EUR" rate={eur} dark={isDark} />}
         <button
           type="button"
           onClick={handleRefresh}
@@ -96,54 +96,42 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
   );
 }
 
-function RateTicker({ label, symbol, rate, dark = false }: { label: string; symbol: string; rate: RateWithDelta; dark?: boolean }) {
+function RateTicker({ label, rate, dark = false }: { label: string; rate: RateWithDelta; dark?: boolean }) {
   const delta = rate.delta ? parseFloat(rate.delta) : null;
   const isUp = delta !== null && delta > 0;
   const isDown = delta !== null && delta < 0;
 
   const dateDisplay = formatDate(rate.date);
   const rawRate = parseFloat(rate.rate);
-  const truncated = Math.trunc(rawRate * 10000) / 10000;
-  const formattedRate = truncated.toLocaleString("es-VE", {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
+  const formattedRate = rawRate.toLocaleString("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
-  const formattedDelta = delta !== null
-    ? (isUp ? "+" : "") + (Math.trunc(Math.abs(delta) * 10000) / 10000).toFixed(4)
-    : null;
 
-  const deltaTitle = formattedDelta
-    ? `Variación del día: ${formattedDelta} Bs./USD`
-    : undefined;
+  const absDelta = delta !== null ? Math.abs(delta) : null;
+  const formattedDelta = absDelta !== null
+    ? `${isUp ? "+" : "−"}${absDelta.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
 
   return (
     <span
       className="flex items-center gap-1"
-      title={`${label}/VES al ${dateDisplay}${deltaTitle ? ` · ${deltaTitle}` : ""}`}
+      title={`${label}/VES al ${dateDisplay}${formattedDelta ? ` · variación: ${formattedDelta} Bs.` : ""}`}
     >
       <span className={dark ? "font-medium text-slate-400" : "font-medium text-zinc-400"}>{label}</span>
       <span className={dark ? "font-mono font-semibold text-slate-100" : "font-mono font-semibold text-zinc-800"}>
-        {symbol} {formattedRate}
+        Bs. {formattedRate}
       </span>
       {formattedDelta && (
         <span
-          title={deltaTitle}
           className={cn(
-            "flex items-center gap-0.5 font-mono text-[10px]",
+            "font-mono text-[10px]",
             dark
               ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-400")
               : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")
           )}
         >
-          {isUp ? (
-            <TrendingUp className="h-2.5 w-2.5" />
-          ) : isDown ? (
-            <TrendingDown className="h-2.5 w-2.5" />
-          ) : (
-            <Minus className="h-2.5 w-2.5" />
-          )}
-          {formattedDelta}
-          <span className={dark ? "text-slate-400 not-italic" : "text-zinc-400 not-italic"}>hoy</span>
+          ({formattedDelta} hoy)
         </span>
       )}
     </span>

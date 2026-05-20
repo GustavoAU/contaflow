@@ -26,9 +26,9 @@ const CURRENCY_BAR: Record<string, string> = {
 };
 
 const CURRENCY_SYMBOL: Record<string, string> = {
-  VES: "Bs. ",
-  USD: "$ ",
-  EUR: "€ ",
+  VES: "Bs. ",
+  USD: "$ ",
+  EUR: "€ ",
 };
 
 function barColor(currency: string): string {
@@ -36,7 +36,7 @@ function barColor(currency: string): string {
 }
 
 function symbol(currency: string): string {
-  return CURRENCY_SYMBOL[currency.toUpperCase()] ?? `${currency} `;
+  return CURRENCY_SYMBOL[currency.toUpperCase()] ?? `${currency} `;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,9 +63,10 @@ function formatDate(d: string | Date): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 /**
- * Renders a monetary amount with a 3 px currency-colour bar on the left and,
- * when exchangeRate is provided, a tooltip showing the applied rate and the
- * equivalent in the other currency (120 ms hover delay, CSS-only).
+ * Renders a monetary amount with a 3 px currency-colour bar on the left.
+ * When exchangeRate is provided:
+ *   - Shows the equivalent in the other currency as a second line (always visible)
+ *   - Shows a CSS-only tooltip (120 ms hover delay) with rate source and date
  *
  * Usage in a <td>:
  *   <MoneyBadge amount={row.totalVes} currency="VES"
@@ -79,19 +80,22 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
 
   const sign = num < 0 ? "−" : "";
   const amountText = `${sign}${symbol(currency)}${fmtNum(num)}`;
-  const hasTooltip = exchangeRate !== undefined;
 
   // Equivalent calculation — rate is always VES per 1 foreign unit
+  let equivLine: string | null = null;
   let tooltipContent: React.ReactNode = null;
-  if (hasTooltip && exchangeRate) {
+
+  if (exchangeRate) {
     const rateNum = parseFloat(exchangeRate.rate);
     const fc = exchangeRate.foreignCurrency.toUpperCase();
-    const rateLabel = `1 ${fc} = Bs. ${fmtNum(rateNum)} (${exchangeRate.source ?? "BCV"} ${formatDate(exchangeRate.date)})`;
+    const rateLabel = `1 ${fc} = Bs. ${fmtNum(rateNum)} (${exchangeRate.source ?? "BCV"} ${formatDate(exchangeRate.date)})`;
 
     const equiv =
       currency.toUpperCase() === "VES"
         ? `${symbol(fc)}${fmtNum(Math.abs(num) / rateNum)}`
-        : `Bs. ${fmtNum(Math.abs(num) * rateNum)}`;
+        : `Bs. ${fmtNum(Math.abs(num) * rateNum)}`;
+
+    equivLine = `≈ ${equiv}`;
 
     tooltipContent = (
       <>
@@ -105,24 +109,29 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
 
   return (
     // Named group avoids conflicts when MoneyBadge is nested inside other group elements
-    <span className={cn("group/mb relative inline-flex items-center gap-1.5 tabular-nums", className)}>
-      {/* 3 px currency colour bar */}
+    <span className={cn("group/mb relative inline-flex items-start gap-1.5 tabular-nums", className)}>
+      {/* 3 px currency colour bar — mt-[3px] centers it with the first text line */}
       <span
-        className={cn("inline-block h-3.5 w-[3px] shrink-0 rounded-full", barColor(currency))}
+        className={cn("mt-0.75 inline-block h-3.5 w-0.75 shrink-0 rounded-full", barColor(currency))}
         aria-hidden
       />
 
-      {/* Amount */}
-      <span className="font-mono">{amountText}</span>
+      {/* Amount + optional inline equivalent (Xero-style composite cell) */}
+      <span className="inline-flex flex-col">
+        <span className="font-mono">{amountText}</span>
+        {equivLine && (
+          <span className="text-[11px] leading-none text-zinc-400 mt-0.5">{equivLine}</span>
+        )}
+      </span>
 
       {/* Tooltip — CSS-only, 120 ms delay on enter, instant on leave */}
-      {hasTooltip && (
+      {tooltipContent && (
         <span
           role="tooltip"
           className={cn(
             "pointer-events-none absolute z-50 mb-2",
             align === "right" ? "right-0 bottom-full" : "left-0 bottom-full",
-            "w-max max-w-[280px] rounded-lg bg-zinc-900 px-3 py-2",
+            "w-max max-w-70 rounded-lg bg-zinc-900 px-3 py-2",
             "text-[11px] leading-snug text-white shadow-xl",
             // Show after 120 ms on hover, hide instantly on mouse-out
             "opacity-0 transition-opacity duration-100",
