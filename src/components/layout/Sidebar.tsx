@@ -136,7 +136,7 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
         "flex items-center gap-2.5 w-full px-2 py-[7px] rounded-md text-[13px] font-medium",
-        "text-zinc-500 hover:bg-red-50 hover:text-red-600 transition-colors",
+        "text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
         collapsed && "justify-center"
       )}
@@ -480,7 +480,7 @@ export function Sidebar({
       </nav>
 
       {/* Footer: solo logout — siempre visible al fondo */}
-      <div className="px-2 py-2 border-t border-zinc-100 shrink-0">
+      <div className="px-2 py-2 border-t border-red-100 shrink-0">
         <LogoutButton collapsed={collapsed} />
       </div>
     </aside>

@@ -4,9 +4,15 @@
  * Fuente de verdad de la navegación por rol.
  * No importa de Prisma — el rol llega como string desde el server component.
  *
+ * Arquitectura de 4 grupos (Sección 8 UX audit):
+ *   Primary (Inicio)   → Dashboard [+ Analítica para Owner/Admin]
+ *   Fiscal / SENIAT    → Libros IVA, Escanear, Importar, Retenciones, Decl. IVA, Cierre, Períodos, INPC
+ *   Contabilidad       → Asientos, Plan de Cuentas, Conciliación, Activos, Reportes, Exportar
+ *   Operaciones        → Pagos, Caja Chica, Distribución, Compras, Inventario, Nómina, Clientes, Proveedores, IA
+ *
  * Roles → secciones:
  *   OWNER / ADMIN    → todo
- *   ACCOUNTANT       → módulos contables + reportes
+ *   ACCOUNTANT       → módulos contables + reportes (sin Analítica avanzada)
  *   ADMINISTRATIVE   → módulos operativos (Fase 28+); amplíable con grants
  *   VIEWER           → igual que su área, acceso restringido por guards (Fase 28C)
  *
@@ -55,15 +61,15 @@ export type NavItem = {
 };
 
 export type NavSection = {
-  /** Etiqueta del grupo — visible como separador en el dropdown "Más" */
+  /** Etiqueta del grupo — visible como separador en el sidebar */
   group: string;
   items: NavItem[];
 };
 
 export type NavConfig = {
-  /** Items siempre visibles en la barra principal (máx ~4) */
+  /** Items siempre visibles sin cabecera de sección (el "Inicio" implícito) */
   primary: NavItem[];
-  /** Items en el dropdown "Más", agrupados por sección */
+  /** Items agrupados con cabecera colapsable */
   sections: NavSection[];
 };
 
@@ -76,108 +82,109 @@ const item = (label: string, path: string, icon: LucideIcon, comingSoon?: boolea
   comingSoon,
 });
 
-// ─── Configs por rol ──────────────────────────────────────────────────────────
+// ─── Owner / Admin (acceso completo) ─────────────────────────────────────────
 
 function buildOwnerAdminNav(companyId: string): NavConfig {
   const p = (path: string) => `/company/${companyId}${path}`;
   return {
     primary: [
-      item("Dashboard", p(""), LayoutDashboard),
-      item("Asientos", p("/transactions"), FileText),
-      item("Plan de Cuentas", p("/accounts"), BookOpen),
-      item("Reportes", p("/reports"), BarChart3),
+      item("Dashboard",  p(""),           LayoutDashboard),
+      item("Analítica",  p("/analytics"), LineChart),
     ],
     sections: [
       {
+        group: "Fiscal / SENIAT",
+        items: [
+          item("Libros IVA",       p("/invoices"),         ReceiptText),
+          item("Escanear",         p("/invoices/upload"),  ScanIcon),
+          item("Importar",         p("/import"),           FileSpreadsheetIcon),
+          item("Retenciones",      p("/retentions"),       ReceiptIcon),
+          item("Declaración IVA",  p("/iva-declaration"),  ScrollText),
+          item("Cierre Fiscal",    p("/fiscal-close"),     CalendarCheck),
+          item("Períodos",         p("/periods"),          Calendar),
+          item("Inflación INPC",   p("/inflation"),        TrendingUpIcon),
+        ],
+      },
+      {
         group: "Contabilidad",
         items: [
-          item("Libros IVA", p("/invoices"), ReceiptText),
-          item("Retenciones", p("/retentions"), ReceiptIcon),
-          item("Activos Fijos", p("/fixed-assets"), Building2),
-          item("Inflación INPC", p("/inflation"), TrendingUpIcon),
-          item("Declaración IVA", p("/iva-declaration"), ScrollText),
-          item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
-          item("Períodos", p("/periods"), Calendar),
-          item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
+          item("Asientos",         p("/transactions"),          FileText),
+          item("Plan de Cuentas",  p("/accounts"),              BookOpen),
+          item("Conciliación",     p("/bank-reconciliation"),   LandmarkIcon),
+          item("Activos Fijos",    p("/fixed-assets"),          Building2),
+          item("Reportes",         p("/reports"),               BarChart3),
+          item("Exportar Datos",   p("/export"),                ArchiveIcon),
         ],
       },
       {
         group: "Operaciones",
         items: [
-          item("Pagos", p("/payments"), WalletIcon),
-          item("Caja Chica", p("/cajachica"), PiggyBank),
-          item("Distribución Ingresos", p("/income-distribution"), Share2),
-          item("Escanear", p("/invoices/upload"), ScanIcon),
-          item("Importar", p("/import"), FileSpreadsheetIcon),
-          item("Analítica", p("/analytics"), LineChart),
-          item("Exportar Datos", p("/export"), ArchiveIcon),
-          item("Inventario", p("/inventory"), PackageIcon),
-          item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
-          item("Nómina", p("/payroll"), UsersIcon),
-          item("Proveedores", p("/vendors"), Truck),
-          item("Clientes", p("/customers"), UserCheck),
-        ],
-      },
-      {
-        group: "IA",
-        items: [
-          item("Asistente IA", p("/ai-assistant"), SparklesIcon),
+          item("Pagos",                 p("/payments"),             WalletIcon),
+          item("Caja Chica",            p("/cajachica"),            PiggyBank),
+          item("Distribución Ingresos", p("/income-distribution"),  Share2),
+          item("Compras y Ventas",      p("/orders"),               ShoppingCartIcon),
+          item("Inventario",            p("/inventory"),            PackageIcon),
+          item("Nómina",                p("/payroll"),              UsersIcon),
+          item("Proveedores",           p("/vendors"),              Truck),
+          item("Clientes",              p("/customers"),            UserCheck),
+          item("Asistente IA",          p("/ai-assistant"),         SparklesIcon),
         ],
       },
     ],
   };
 }
+
+// ─── Contador (módulos contables + reportes) ──────────────────────────────────
 
 function buildAccountantNav(companyId: string): NavConfig {
   const p = (path: string) => `/company/${companyId}${path}`;
   return {
     primary: [
       item("Dashboard", p(""), LayoutDashboard),
-      item("Asientos", p("/transactions"), FileText),
-      item("Plan de Cuentas", p("/accounts"), BookOpen),
-      item("Libros IVA", p("/invoices"), ReceiptText),
     ],
     sections: [
       {
+        group: "Fiscal / SENIAT",
+        items: [
+          item("Libros IVA",       p("/invoices"),         ReceiptText),
+          item("Escanear",         p("/invoices/upload"),  ScanIcon),
+          item("Retenciones",      p("/retentions"),       ReceiptIcon),
+          item("Declaración IVA",  p("/iva-declaration"),  ScrollText),
+          item("Cierre Fiscal",    p("/fiscal-close"),     CalendarCheck),
+          item("Períodos",         p("/periods"),          Calendar),
+          item("Inflación INPC",   p("/inflation"),        TrendingUpIcon),
+        ],
+      },
+      {
         group: "Contabilidad",
         items: [
-          item("Retenciones", p("/retentions"), ReceiptIcon),
-          item("Activos Fijos", p("/fixed-assets"), Building2),
-          item("Inflación INPC", p("/inflation"), TrendingUpIcon),
-          item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
-          item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
-          item("Períodos", p("/periods"), Calendar),
+          item("Asientos",         p("/transactions"),         FileText),
+          item("Plan de Cuentas",  p("/accounts"),             BookOpen),
+          item("Conciliación",     p("/bank-reconciliation"),  LandmarkIcon),
+          item("Activos Fijos",    p("/fixed-assets"),         Building2),
+          item("Reportes",         p("/reports"),              BarChart3),
+          item("Exportar Datos",   p("/export"),               ArchiveIcon),
         ],
       },
       {
-        group: "Inventario y Compras",
+        group: "Operaciones",
         items: [
-          item("Distribución Ingresos", p("/income-distribution"), Share2),
-          item("Caja Chica", p("/cajachica"), PiggyBank),
-          item("Inventario", p("/inventory"), PackageIcon),
-          item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
-          item("Nómina", p("/payroll"), UsersIcon),
-          item("Proveedores", p("/vendors"), Truck),
-          item("Clientes", p("/customers"), UserCheck),
-        ],
-      },
-      {
-        group: "Reportes",
-        items: [
-          item("Declaración IVA", p("/iva-declaration"), ScrollText),
-          item("Reportes", p("/reports"), BarChart3),
-          item("Exportar Datos", p("/export"), ArchiveIcon),
-        ],
-      },
-      {
-        group: "IA",
-        items: [
-          item("Asistente IA", p("/ai-assistant"), SparklesIcon),
+          item("Pagos",                 p("/payments"),             WalletIcon),
+          item("Caja Chica",            p("/cajachica"),            PiggyBank),
+          item("Distribución Ingresos", p("/income-distribution"),  Share2),
+          item("Compras y Ventas",      p("/orders"),               ShoppingCartIcon),
+          item("Inventario",            p("/inventory"),            PackageIcon),
+          item("Nómina",                p("/payroll"),              UsersIcon),
+          item("Proveedores",           p("/vendors"),              Truck),
+          item("Clientes",              p("/customers"),            UserCheck),
+          item("Asistente IA",          p("/ai-assistant"),         SparklesIcon),
         ],
       },
     ],
   };
 }
+
+// ─── Administrativo (operaciones + grants opcionales) ─────────────────────────
 
 function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConfig {
   const p = (path: string) => `/company/${companyId}${path}`;
@@ -185,47 +192,49 @@ function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConf
 
   const sections: NavSection[] = [
     {
-      group: "Operaciones",
+      group: "Fiscal",
       items: [
-        item("Escanear", p("/invoices/upload"), ScanIcon),
-        item("Conciliación", p("/bank-reconciliation"), LandmarkIcon),
+        item("Facturas",  p("/invoices"),        ReceiptText),
+        item("Escanear",  p("/invoices/upload"), ScanIcon),
       ],
     },
     {
-      group: "Inventario y Compras",
+      group: "Operaciones",
       items: [
-        item("Inventario", p("/inventory"), PackageIcon),
-        item("Compras y Ventas", p("/orders"), ShoppingCartIcon),
-        item("Nómina", p("/payroll"), UsersIcon),
-        item("Proveedores", p("/vendors"), Truck),
-        item("Clientes", p("/customers"), UserCheck),
+        item("Pagos",             p("/payments"),             WalletIcon),
+        item("Conciliación",      p("/bank-reconciliation"),  LandmarkIcon),
+        item("Compras y Ventas",  p("/orders"),               ShoppingCartIcon),
+        item("Inventario",        p("/inventory"),            PackageIcon),
+        item("Nómina",            p("/payroll"),              UsersIcon),
+        item("Proveedores",       p("/vendors"),              Truck),
+        item("Clientes",          p("/customers"),            UserCheck),
       ],
     },
   ];
 
-  // Grant: accounting → accede a Contabilidad
+  // Grant: accounting → accede a módulos contables
   if (hasGrant("accounting")) {
     sections.push({
       group: "Contabilidad",
       items: [
-        item("Asientos", p("/transactions"), FileText),
-        item("Plan de Cuentas", p("/accounts"), BookOpen),
-        item("Activos Fijos", p("/fixed-assets"), Building2),
-        item("Inflación INPC", p("/inflation"), TrendingUpIcon),
-        item("Cierre Fiscal", p("/fiscal-close"), CalendarCheck),
-        item("Períodos", p("/periods"), Calendar),
+        item("Asientos",        p("/transactions"),  FileText),
+        item("Plan de Cuentas", p("/accounts"),      BookOpen),
+        item("Activos Fijos",   p("/fixed-assets"),  Building2),
+        item("Inflación INPC",  p("/inflation"),     TrendingUpIcon),
+        item("Cierre Fiscal",   p("/fiscal-close"),  CalendarCheck),
+        item("Períodos",        p("/periods"),       Calendar),
       ],
     });
   }
 
-  // Grant: reports → accede a Reportes
+  // Grant: reports → accede a reportes
   if (hasGrant("reports")) {
     sections.push({
       group: "Reportes",
       items: [
-        item("Declaración IVA", p("/iva-declaration"), ScrollText),
-        item("Reportes", p("/reports"), BarChart3),
-        item("Exportar Datos", p("/export"), ArchiveIcon),
+        item("Declaración IVA",  p("/iva-declaration"),  ScrollText),
+        item("Reportes",         p("/reports"),          BarChart3),
+        item("Exportar Datos",   p("/export"),           ArchiveIcon),
       ],
     });
   }
@@ -233,8 +242,6 @@ function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConf
   return {
     primary: [
       item("Dashboard", p(""), LayoutDashboard),
-      item("Facturas", p("/invoices"), ReceiptText),
-      item("Pagos", p("/payments"), WalletIcon),
     ],
     sections,
   };
@@ -246,15 +253,15 @@ function buildSeniatAuditNav(companyId: string): NavConfig {
   const p = (path: string) => `/company/${companyId}${path}`;
   return {
     primary: [
-      item("Libro de Ventas", p("/audit/invoices"), ShieldCheckIcon),
-      item("Registro de Caja", p("/audit/cash"), ReceiptIcon),
+      item("Libro de Ventas",   p("/audit/invoices"), ShieldCheckIcon),
+      item("Registro de Caja",  p("/audit/cash"),     ReceiptIcon),
     ],
     sections: [
       {
         group: "Informes SENIAT",
         items: [
-          item("Libro de Ventas", p("/audit/invoices"), FileText),
-          item("Registro de Caja", p("/audit/cash"), ReceiptIcon),
+          item("Libro de Ventas",  p("/audit/invoices"), FileText),
+          item("Registro de Caja", p("/audit/cash"),     ReceiptIcon),
         ],
       },
     ],
