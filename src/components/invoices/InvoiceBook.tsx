@@ -15,6 +15,7 @@ import {
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
+import { MoneyBadge } from "@/components/ui/MoneyBadge";
 import { formatAmount, fmtDate } from "@/lib/format";
 
 type Props = {
@@ -364,8 +365,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr>
-                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left w-[100px]">Fecha</th>
-                      <th className="sticky left-[100px] z-10 bg-zinc-50 px-4 py-3 text-left min-w-[140px]">
+                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left w-25">Fecha</th>
+                      <th className="sticky left-25 z-10 bg-zinc-50 px-4 py-3 text-left min-w-35">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
                       </th>
                       <th className="px-4 py-3 text-left">RIF</th>
@@ -390,9 +391,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       const totalIva  = row.taxLines.reduce((acc, l) => acc + parseFloat(l.amount), 0);
                       const igtf = parseFloat(row.igtfAmount);
                       const rowTotal = totalBase + totalIva + igtf;
-                      const totalTooltip = row.taxLines.length > 0
-                        ? `Base: ${formatAmount(totalBase)} | IVA: ${formatAmount(totalIva)}${igtf > 0 ? ` | IGTF: ${formatAmount(igtf)}` : ""}`
-                        : undefined;
+
 
                       // Botón NC/ND solo para FACTURAs
                       const ncNdButton = isFactura ? (
@@ -421,7 +420,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                               <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                                 {fmtDate(row.date)}
                               </td>
-                              <td className="sticky left-[100px] z-10 bg-white px-4 py-3 max-w-[160px] truncate"
+                              <td className="sticky left-25 z-10 bg-white px-4 py-3 max-w-40 truncate"
                                   title={row.counterpartName}>
                                 {row.counterpartName}
                               </td>
@@ -472,8 +471,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                   Bs. {row.igtfAmount}
                                 </td>
                               )}
-                              <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={totalTooltip}>
-                                {rowTotal > 0 ? `Bs. ${formatAmount(rowTotal)}` : "—"}
+                              <td className="px-4 py-3 text-right font-semibold">
+                                {rowTotal > 0
+                                  ? <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
+                                  : "—"}
                               </td>
                             </tr>
                           ) : (
@@ -482,7 +483,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                             <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                               {idx === 0 ? fmtDate(row.date) : ""}
                             </td>
-                            <td className="sticky left-[100px] z-10 bg-white px-4 py-3 max-w-[160px] truncate"
+                            <td className="sticky left-25 z-10 bg-white px-4 py-3 max-w-40 truncate"
                                 title={idx === 0 ? row.counterpartName : undefined}>
                               {idx === 0 ? row.counterpartName : ""}
                             </td>
@@ -527,9 +528,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 {TAX_LINE_LABELS[line.taxType] ?? line.taxType}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-mono">Bs. {line.base}</td>
+                            <td className="px-4 py-3 text-right">
+                              <MoneyBadge amount={line.base} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
+                            </td>
                             <td className="px-4 py-3 text-right font-mono">{line.rate}%</td>
-                            <td className="px-4 py-3 text-right font-mono">Bs. {line.amount}</td>
+                            <td className="px-4 py-3 text-right">
+                              <MoneyBadge amount={line.amount} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
+                            </td>
                             <td className="px-4 py-3 text-right font-mono text-orange-700">
                               {idx === 0 ? `Bs. ${row.ivaRetentionAmount}` : ""}
                             </td>
@@ -543,8 +548,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 {idx === 0 ? `Bs. ${row.igtfAmount}` : ""}
                               </td>
                             )}
-                            <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900" title={idx === 0 ? totalTooltip : undefined}>
-                              {idx === 0 ? `Bs. ${formatAmount(rowTotal)}` : ""}
+                            <td className="px-4 py-3 text-right font-semibold">
+                              {idx === 0 && (
+                                <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
+                              )}
                             </td>
                           </tr>
                             ))
@@ -562,12 +569,12 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                         TOTALES
                       </td>
                       <td className="px-4 py-3"></td>{/* Impuesto col */}
-                      <td className="px-4 py-3 text-right font-mono">
-                        Bs. {result.summary.totalBaseGeneral}
+                      <td className="px-4 py-3 text-right">
+                        <MoneyBadge amount={result.summary.totalBaseGeneral} currency="VES" />
                       </td>
                       <td className="px-4 py-3"></td>{/* Tasa% col */}
-                      <td className="px-4 py-3 text-right font-mono">
-                        Bs. {result.summary.totalIvaGeneral}
+                      <td className="px-4 py-3 text-right">
+                        <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-orange-700">
                         Bs. {result.summary.totalIvaRetention}
@@ -582,14 +589,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                           Bs. {result.summary.totalIgtf}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
-                        Bs. {formatAmount(result.rows.reduce((acc, row) => {
-                          const rt = row.taxLines.reduce(
-                            (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
-                            0
-                          ) + parseFloat(row.igtfAmount);
-                          return acc + rt;
-                        }, 0))}
+                      <td className="px-4 py-3 text-right font-bold">
+                        <MoneyBadge
+                          amount={result.rows.reduce((acc, row) => {
+                            const rt = row.taxLines.reduce(
+                              (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
+                              0
+                            ) + parseFloat(row.igtfAmount);
+                            return acc + rt;
+                          }, 0)}
+                          currency="VES"
+                        />
                       </td>
                     </tr>
                   </tfoot>

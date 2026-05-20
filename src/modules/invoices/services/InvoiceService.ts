@@ -43,6 +43,13 @@ export type InvoiceTaxLineSerialized = {
   description: string | null;
 };
 
+export type InvoiceBookExchangeRate = {
+  foreignCurrency: string; // e.g. "USD"
+  rate: string;            // VES per 1 foreignCurrency unit
+  date: string;            // ISO date string
+  source: string;          // e.g. "BCV"
+};
+
 export type InvoiceBookRow = {
   id: string;
   date: Date;
@@ -64,6 +71,7 @@ export type InvoiceBookRow = {
   igtfAmount: string;
   currency: string;
   exchangeRateId: string | null;
+  exchangeRate: InvoiceBookExchangeRate | null;
   taxLines: InvoiceTaxLineSerialized[];
 };
 
@@ -496,6 +504,7 @@ export class InvoiceService {
       igtfAmount: inv.igtfAmount.toFixed(2),
       currency: inv.currency,
       exchangeRateId: inv.exchangeRateId,
+      exchangeRate: null, // paginated book view doesn't include rate details
       taxLines: inv.taxLines.map((line) => ({
         id: line.id,
         taxType: line.taxType,
@@ -862,7 +871,7 @@ export class InvoiceService {
         date: { gte: startDate, lt: endDate },
         deletedAt: null,
       },
-      include: { taxLines: true, retenciones: { where: { deletedAt: null } } },
+      include: { taxLines: true, retenciones: { where: { deletedAt: null } }, exchangeRate: true },
       orderBy: { date: "asc" },
     });
 
@@ -901,6 +910,14 @@ export class InvoiceService {
         igtfAmount: inv.igtfAmount.toFixed(2),
         currency: inv.currency,
         exchangeRateId: inv.exchangeRateId,
+        exchangeRate: inv.exchangeRate && inv.currency !== "VES"
+          ? {
+              foreignCurrency: inv.currency,
+              rate: inv.exchangeRate.rate.toFixed(6),
+              date: inv.exchangeRate.date.toISOString(),
+              source: inv.exchangeRate.source,
+            }
+          : null,
         taxLines: inv.taxLines.map((line) => ({
           id: line.id,
           taxType: line.taxType,

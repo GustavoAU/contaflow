@@ -60,6 +60,7 @@ const sampleInvoice = {
   igtfAmount: "30.00",
   currency: "VES",
   exchangeRateId: null,
+  exchangeRate: null,
   taxLines: [
     {
       id: "line-1",
