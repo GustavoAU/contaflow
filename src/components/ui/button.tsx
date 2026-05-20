@@ -43,22 +43,38 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  kbdHint,
+  children,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
+    asChild?: boolean;
+    /** Keyboard shortcut hint rendered inside the button, e.g. "Ctrl+↵" */
+    kbdHint?: string;
   }) {
-  const Comp = asChild ? Slot.Root : "button"
+  const sharedProps = {
+    "data-slot": "button",
+    "data-variant": variant,
+    "data-size": size,
+    className: cn(buttonVariants({ variant, size, className })),
+    ...props,
+  } as const;
+
+  // asChild (Slot) requires exactly one child element — never inject kbdHint here
+  if (asChild) {
+    return <Slot.Root {...sharedProps}>{children}</Slot.Root>;
+  }
 
   return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+    <button {...sharedProps}>
+      {children}
+      {kbdHint && (
+        <kbd className="ml-1 rounded bg-black/20 px-1 py-0.5 text-[10px] font-mono opacity-60 leading-none not-italic">
+          {kbdHint}
+        </kbd>
+      )}
+    </button>
+  );
 }
 
 export { Button, buttonVariants }

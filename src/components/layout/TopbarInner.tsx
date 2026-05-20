@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { BcvRateWidget } from "@/components/layout/BcvRateWidget";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { UserButton } from "@clerk/nextjs";
-import { AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
-import type { UserRole } from "@/lib/nav-items";
+import { AlertTriangle, CheckCircle2, ArrowRight, Search } from "lucide-react";
+import type { UserRole, NavSection, NavItem } from "@/lib/nav-items";
 
 // ─── Role label / badge ───────────────────────────────────────────────────────
 
@@ -89,6 +92,8 @@ type TopbarInnerProps = {
   userRole?: UserRole;
   notificationSlot?: React.ReactNode;
   activePeriod?: { year: number; month: number; daysOpen: number; isStale: boolean } | null;
+  navSections?: NavSection[];
+  navPrimary?: NavItem[];
 };
 
 export function TopbarInner({
@@ -97,58 +102,131 @@ export function TopbarInner({
   userRole = "ACCOUNTANT",
   notificationSlot,
   activePeriod,
+  navSections = [],
+  navPrimary = [],
 }: TopbarInnerProps) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const paletteOpenRef = useRef(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Keep ref in sync to avoid stale closure in keyboard handler
+  useEffect(() => { paletteOpenRef.current = paletteOpen; }, [paletteOpen]);
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Ctrl+/ → toggle command palette
+      if (ctrl && e.key === "/") {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+        return;
+      }
+
+      // Esc → close palette (also handled inside palette; this catches edge cases)
+      if (e.key === "Escape" && paletteOpenRef.current) {
+        setPaletteOpen(false);
+        return;
+      }
+
+      // Ctrl+Enter → submit the active form (skip when palette is open)
+      if (ctrl && e.key === "Enter" && !paletteOpenRef.current) {
+        const active = document.activeElement;
+        const form = active?.closest("form") ?? document.querySelector("form");
+        const submit = form?.querySelector<HTMLButtonElement>('button[type="submit"]:not([disabled])');
+        if (submit) {
+          e.preventDefault();
+          submit.click();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []); // empty deps — paletteOpenRef handles currency without re-registering
+
   return (
-    <header className="sticky top-0 z-40 h-12 bg-slate-800 flex items-center gap-3 px-4 shrink-0">
+    <>
+      <header className="sticky top-0 z-40 h-12 bg-slate-800 flex items-center gap-3 px-4 shrink-0">
 
-      {/* Empresa — avatar + nombre + rol */}
-      {companyName && companyId && (
-        <div className="flex items-center gap-2 min-w-0">
-          <CompanyAvatar id={companyId} name={companyName} size="xs" />
-          <span className="truncate text-[15px] font-semibold text-white leading-tight max-w-[220px]">
-            {companyName}
-          </span>
-          <span
-            className={cn(
-              "hidden lg:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
-              ROLE_STYLES[userRole]
-            )}
-          >
-            {ROLE_LABELS[userRole]}
-          </span>
-        </div>
+        {/* Empresa — avatar + nombre + rol */}
+        {companyName && companyId && (
+          <div className="flex items-center gap-2 min-w-0">
+            <CompanyAvatar id={companyId} name={companyName} size="xs" />
+            <span className="truncate text-[15px] font-semibold text-white leading-tight max-w-[220px]">
+              {companyName}
+            </span>
+            <span
+              className={cn(
+                "hidden lg:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                ROLE_STYLES[userRole]
+              )}
+            >
+              {ROLE_LABELS[userRole]}
+            </span>
+          </div>
+        )}
+
+        {/* Sin empresa: spacer */}
+        {!companyName && <div className="flex-1" />}
+
+        {/* Separador vertical */}
+        {companyName && activePeriod && (
+          <div className="w-px h-5 bg-slate-600 shrink-0" aria-hidden />
+        )}
+
+        {/* Período activo */}
+        {activePeriod && companyId && (
+          <PeriodBadge companyId={companyId} period={activePeriod} />
+        )}
+
+        {/* Spacer empuja derecha */}
+        <div className="flex-1" />
+
+        {/* Command palette trigger */}
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="hidden md:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
+          title="Abrir paleta de comandos"
+          aria-label="Abrir paleta de comandos"
+          aria-keyshortcuts="Control+/"
+        >
+          <Search className="h-3.5 w-3.5" aria-hidden />
+          <span>Buscar</span>
+          <kbd className="rounded bg-slate-600 px-1 py-0.5 text-[10px] font-mono not-italic">
+            Ctrl+/
+          </kbd>
+        </button>
+
+        {/* Tasa BCV */}
+        {companyId && <BcvRateWidget companyId={companyId} variant="dark" />}
+
+        {/* Notificaciones (slot externo) */}
+        {notificationSlot}
+
+        {/* Avatar Clerk */}
+        <UserButton
+          appearance={{
+            elements: {
+              userButtonAvatarBox: "ring-1 ring-white/20",
+            },
+          }}
+        />
+      </header>
+
+      {/* Command palette — portaled to body so it overlays everything */}
+      {mounted && createPortal(
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          sections={navSections}
+          primary={navPrimary}
+        />,
+        document.body
       )}
-
-      {/* Sin empresa: spacer */}
-      {!companyName && <div className="flex-1" />}
-
-      {/* Separador vertical */}
-      {companyName && activePeriod && (
-        <div className="w-px h-5 bg-slate-600 shrink-0" aria-hidden />
-      )}
-
-      {/* Período activo */}
-      {activePeriod && companyId && (
-        <PeriodBadge companyId={companyId} period={activePeriod} />
-      )}
-
-      {/* Spacer empuja derecha */}
-      <div className="flex-1" />
-
-      {/* Tasa BCV */}
-      {companyId && <BcvRateWidget companyId={companyId} variant="dark" />}
-
-      {/* Notificaciones (slot externo) */}
-      {notificationSlot}
-
-      {/* Avatar Clerk */}
-      <UserButton
-        appearance={{
-          elements: {
-            userButtonAvatarBox: "ring-1 ring-white/20",
-          },
-        }}
-      />
-    </header>
+    </>
   );
 }

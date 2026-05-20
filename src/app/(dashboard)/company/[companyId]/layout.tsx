@@ -10,6 +10,8 @@ import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { getCompanyGrants } from "@/lib/get-company-grants";
 import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
+import { getNavItems } from "@/lib/nav-items";
+import type { UserRole } from "@/lib/nav-items";
 
 type Props = {
   children: React.ReactNode;
@@ -33,6 +35,7 @@ export default async function CompanyLayout({ children, params }: Props) {
   const grantsSet = await getCompanyGrants(companyId);
   const rolePrefix = `${company.role}:`;
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
+  const navConfig = getNavItems(company.role as UserRole, companyId, grantsSet);
 
   const periodResult = await getActivePeriodAction(companyId);
   // eslint-disable-next-line react-hooks/purity -- Server Component: no re-renders, Date.now() es seguro aquí
@@ -70,8 +73,10 @@ export default async function CompanyLayout({ children, params }: Props) {
         <TopbarInner
           companyId={companyId}
           companyName={company.name}
-          userRole={company.role}
+          userRole={company.role as UserRole}
           activePeriod={activePeriod}
+          navSections={navConfig.sections}
+          navPrimary={navConfig.primary}
           notificationSlot={
             showNotifications ? <NotificationBell companyId={companyId} /> : null
           }
