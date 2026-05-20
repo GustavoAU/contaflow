@@ -63,9 +63,6 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
     return result;
   }, [filtered]);
 
-  // Reset selection when filter changes
-  useEffect(() => setSelectedIndex(0), [query]);
-
   // Auto-scroll selected item into view
   useEffect(() => {
     listRef.current
@@ -73,13 +70,14 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
       ?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
-  // Focus input on open
+  // Focus input on open; reset state inside rAF callback (not directly in effect body)
   useEffect(() => {
     if (open) {
-      setQuery("");
-      setSelectedIndex(0);
-      // rAF ensures the portal is in the DOM
-      requestAnimationFrame(() => inputRef.current?.focus());
+      requestAnimationFrame(() => {
+        setQuery("");
+        setSelectedIndex(0);
+        inputRef.current?.focus();
+      });
     }
   }, [open]);
 
@@ -113,7 +111,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
           <input
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={e => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();

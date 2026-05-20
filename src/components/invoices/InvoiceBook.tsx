@@ -16,7 +16,7 @@ import {
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
 import { MoneyBadge } from "@/components/ui/MoneyBadge";
-import { formatAmount, fmtDate } from "@/lib/format";
+import { fmtDate } from "@/lib/format";
 
 type Props = {
   companyId: string;
@@ -68,7 +68,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
       if (res.success) setResult(res.data);
       else toast.error(res.error);
     });
-  }, [companyId, type, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyId, type, year, month]);
 
   function handleExportPDF() {
     startTransitionPDF(async () => {

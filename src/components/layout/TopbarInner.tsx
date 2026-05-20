@@ -109,6 +109,7 @@ export function TopbarInner({
   const [mounted, setMounted] = useState(false);
   const paletteOpenRef = useRef(false);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
 
   // Keep ref in sync to avoid stale closure in keyboard handler
