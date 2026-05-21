@@ -362,9 +362,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm border-separate border-spacing-0">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
-                    <tr>
+                    <tr className="[&>th]:border-b [&>th]:border-zinc-200">
                       <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left w-25">Fecha</th>
                       <th className="sticky left-25 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
@@ -383,7 +383,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       <th className="px-4 py-3 text-right">Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody>
                     {result.rows.map((row) => {
                       const isFactura = row.docType === "FACTURA";
                       const ncNdOpen = expandedNcNdId === row.id;
@@ -416,7 +416,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       return (
                         <React.Fragment key={row.id}>
                           {row.taxLines.length === 0 ? (
-                            <tr className="bg-white hover:bg-zinc-50">
+                            <tr className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
                               <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                                 {fmtDate(row.date)}
                               </td>
@@ -479,7 +479,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                             </tr>
                           ) : (
                             row.taxLines.map((line, idx) => (
-                              <tr key={`${row.id}-${line.id}`} className="bg-white hover:bg-zinc-50">
+                              <tr key={`${row.id}-${line.id}`} className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
                             <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
                               {idx === 0 ? fmtDate(row.date) : ""}
                             </td>
