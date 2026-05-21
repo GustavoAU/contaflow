@@ -9,7 +9,7 @@ import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { UserButton } from "@clerk/nextjs";
 import { AlertTriangle, CheckCircle2, ArrowRight, Search } from "lucide-react";
-import type { UserRole, NavSection, NavItem } from "@/lib/nav-items";
+import { getNavItems, type UserRole } from "@/lib/nav-items";
 
 // ─── Role label / badge ───────────────────────────────────────────────────────
 
@@ -90,21 +90,23 @@ type TopbarInnerProps = {
   companyId?: string;
   companyName?: string;
   userRole?: UserRole;
+  grantedModules?: string[];
   notificationSlot?: React.ReactNode;
   activePeriod?: { year: number; month: number; daysOpen: number; isStale: boolean } | null;
-  navSections?: NavSection[];
-  navPrimary?: NavItem[];
 };
 
 export function TopbarInner({
   companyId,
   companyName,
   userRole = "ACCOUNTANT",
+  grantedModules,
   notificationSlot,
   activePeriod,
-  navSections = [],
-  navPrimary = [],
 }: TopbarInnerProps) {
+  const grants = new Set(grantedModules ?? []);
+  const { primary: navPrimary, sections: navSections } = companyId
+    ? getNavItems(userRole, companyId, grants)
+    : { primary: [], sections: [] };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const paletteOpenRef = useRef(false);
