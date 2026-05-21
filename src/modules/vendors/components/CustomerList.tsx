@@ -2,8 +2,8 @@
 // src/modules/vendors/components/CustomerList.tsx
 
 import { useState, useTransition, useMemo } from "react";
-import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon } from "lucide-react";
-import { createCustomerAction, deleteCustomerAction } from "../actions/customer.actions";
+import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon, Edit2Icon, CheckIcon } from "lucide-react";
+import { createCustomerAction, updateCustomerAction, deleteCustomerAction } from "../actions/customer.actions";
 import { createCustomerGroupAction, deleteCustomerGroupAction } from "../actions/contact-group.actions";
 import type { CustomerRow } from "../services/CustomerService";
 import type { ContactGroupRow } from "../services/ContactGroupService";
@@ -26,12 +26,22 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // ── Create fields ──────────────────────────────────────────────────────────
   const [createName, setCreateName] = useState("");
   const [createRif, setCreateRif] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPhone, setCreatePhone] = useState("");
   const [createCode, setCreateCode] = useState("");
   const [createGroupId, setCreateGroupId] = useState("");
+
+  // ── Edit fields ────────────────────────────────────────────────────────────
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRif, setEditRif] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editGroupId, setEditGroupId] = useState("");
 
   const [newGroupName, setNewGroupName] = useState("");
   const [search, setSearch] = useState("");
@@ -46,6 +56,8 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
         (c.code ?? "").toLowerCase().includes(q)
     );
   }, [customers, search]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleCreate() {
     setError(null);
@@ -63,6 +75,42 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
       setShowCreate(false);
       setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone("");
       setCreateCode(""); setCreateGroupId("");
+    });
+  }
+
+  function handleStartEdit(c: CustomerRow) {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setEditRif(c.rif ?? "");
+    setEditEmail(c.email ?? "");
+    setEditPhone(c.phone ?? "");
+    setEditCode(c.code ?? "");
+    setEditGroupId(c.groupId ?? "");
+    setError(null);
+  }
+
+  function handleCancelEdit() {
+    setEditingId(null);
+    setError(null);
+  }
+
+  function handleSaveEdit(customerId: string) {
+    if (!editName.trim()) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await updateCustomerAction(companyId, customerId, {
+        name: editName,
+        rif: editRif || undefined,
+        email: editEmail || undefined,
+        phone: editPhone || undefined,
+        code: editCode || undefined,
+        groupId: editGroupId || undefined,
+      });
+      if (!r.success) { setError(r.error); return; }
+      setCustomers(prev =>
+        prev.map(c => c.id === customerId ? r.data : c).sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setEditingId(null);
     });
   }
 
@@ -266,7 +314,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
           action={canWrite ? { label: "+ Nuevo cliente", onClick: () => setShowCreate(true), Icon: PlusIcon } : undefined}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto overflow-hidden rounded-lg border">
           {filteredCustomers.length === 0 && search ? (
             <p className="py-8 text-center text-sm text-zinc-400">
               No hay clientes que coincidan con &ldquo;{search}&rdquo;
@@ -276,17 +324,98 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Cliente</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Código</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Código</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-                {canDelete && <th className="px-4 py-3" />}
+                {canWrite && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {filteredCustomers.map(c => {
                 const initials = c.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+
+                // ── Edit row ────────────────────────────────────────────────
+                if (editingId === c.id) {
+                  return (
+                    <tr key={c.id} className="bg-emerald-50">
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1">
+                          <input
+                            className="rounded border px-2 py-1 text-sm w-full min-w-35"
+                            placeholder="Nombre *"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                          />
+                          <select
+                            className="rounded border px-2 py-1 text-xs text-zinc-600 w-full"
+                            value={editGroupId}
+                            onChange={e => setEditGroupId(e.target.value)}
+                          >
+                            <option value="">Sin grupo</option>
+                            {groups.map(g => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-20"
+                          placeholder="C-001"
+                          value={editCode}
+                          onChange={e => setEditCode(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-30"
+                          placeholder="J-12345678-9"
+                          value={editRif}
+                          onChange={e => setEditRif(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-35"
+                          placeholder="email@ejemplo.com"
+                          value={editEmail}
+                          onChange={e => setEditEmail(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-25"
+                          placeholder="+58 412…"
+                          value={editPhone}
+                          onChange={e => setEditPhone(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2" colSpan={canWrite ? 2 : 1}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleSaveEdit(c.id)}
+                            disabled={!editName.trim() || isPending}
+                            className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+                          >
+                            <CheckIcon className="h-3 w-3" />
+                            {isPending ? "Guardando…" : "Guardar"}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={isPending}
+                            className="rounded border px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // ── Display row ─────────────────────────────────────────────
                 return (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -315,15 +444,27 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                     <td className="px-4 py-3">
                       <StatusBadge status="ACTIVE" />
                     </td>
-                    {canDelete && (
+                    {canWrite && (
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(c.id, c.name)}
-                          disabled={isPending}
-                          className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                        >
-                          Desactivar
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => handleStartEdit(c)}
+                            disabled={isPending}
+                            className="text-zinc-400 hover:text-emerald-600 disabled:opacity-40"
+                            title="Editar cliente"
+                          >
+                            <Edit2Icon className="h-3.5 w-3.5" />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(c.id, c.name)}
+                              disabled={isPending}
+                              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              Desactivar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>

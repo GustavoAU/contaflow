@@ -2,7 +2,7 @@
 // src/modules/vendors/components/VendorList.tsx
 
 import { useState, useTransition, useMemo } from "react";
-import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon } from "lucide-react";
+import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon, Edit2Icon, CheckIcon } from "lucide-react";
 import { createVendorAction, updateVendorAction, deleteVendorAction } from "../actions/vendor.actions";
 import { createVendorGroupAction, deleteVendorGroupAction } from "../actions/contact-group.actions";
 import type { VendorRow } from "../services/VendorService";
@@ -26,6 +26,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // ── Create fields ──────────────────────────────────────────────────────────
   const [createName, setCreateName] = useState("");
   const [createRif, setCreateRif] = useState("");
   const [createEmail, setCreateEmail] = useState("");
@@ -33,6 +34,16 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
   const [createCode, setCreateCode] = useState("");
   const [createGroupId, setCreateGroupId] = useState("");
   const [createIsCE, setCreateIsCE] = useState(false);
+
+  // ── Edit fields ────────────────────────────────────────────────────────────
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRif, setEditRif] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editGroupId, setEditGroupId] = useState("");
+  const [editIsCE, setEditIsCE] = useState(false);
 
   const [newGroupName, setNewGroupName] = useState("");
   const [search, setSearch] = useState("");
@@ -47,6 +58,8 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
         (v.code ?? "").toLowerCase().includes(q)
     );
   }, [vendors, search]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleCreate() {
     setError(null);
@@ -65,6 +78,44 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
       setShowCreate(false);
       setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone("");
       setCreateCode(""); setCreateGroupId(""); setCreateIsCE(false);
+    });
+  }
+
+  function handleStartEdit(v: VendorRow) {
+    setEditingId(v.id);
+    setEditName(v.name);
+    setEditRif(v.rif ?? "");
+    setEditEmail(v.email ?? "");
+    setEditPhone(v.phone ?? "");
+    setEditCode(v.code ?? "");
+    setEditGroupId(v.groupId ?? "");
+    setEditIsCE(v.isSpecialContributor);
+    setError(null);
+  }
+
+  function handleCancelEdit() {
+    setEditingId(null);
+    setError(null);
+  }
+
+  function handleSaveEdit(vendorId: string) {
+    if (!editName.trim()) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await updateVendorAction(companyId, vendorId, {
+        name: editName,
+        rif: editRif || undefined,
+        email: editEmail || undefined,
+        phone: editPhone || undefined,
+        code: editCode || undefined,
+        groupId: editGroupId || undefined,
+        isSpecialContributor: editIsCE,
+      });
+      if (!r.success) { setError(r.error); return; }
+      setVendors(prev =>
+        prev.map(v => v.id === vendorId ? r.data : v).sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setEditingId(null);
     });
   }
 
@@ -286,7 +337,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
           action={canWrite ? { label: "+ Nuevo proveedor", onClick: () => setShowCreate(true), Icon: PlusIcon } : undefined}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto overflow-hidden rounded-lg border">
           {filteredVendors.length === 0 && search ? (
             <p className="py-8 text-center text-sm text-zinc-400">
               No hay proveedores que coincidan con &ldquo;{search}&rdquo;
@@ -296,18 +347,108 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Proveedor</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Código</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Código</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Teléfono</th>
                 <th className="px-4 py-3 text-center font-medium text-gray-600">C.E.</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-                {canDelete && <th className="px-4 py-3" />}
+                {canWrite && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {filteredVendors.map(v => {
                 const initials = v.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+
+                // ── Edit row ────────────────────────────────────────────────
+                if (editingId === v.id) {
+                  return (
+                    <tr key={v.id} className="bg-indigo-50">
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1">
+                          <input
+                            className="rounded border px-2 py-1 text-sm w-full min-w-35"
+                            placeholder="Nombre *"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                          />
+                          <select
+                            className="rounded border px-2 py-1 text-xs text-zinc-600 w-full"
+                            value={editGroupId}
+                            onChange={e => setEditGroupId(e.target.value)}
+                          >
+                            <option value="">Sin grupo</option>
+                            {groups.map(g => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-20"
+                          placeholder="P-001"
+                          value={editCode}
+                          onChange={e => setEditCode(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-30"
+                          placeholder="J-12345678-9"
+                          value={editRif}
+                          onChange={e => setEditRif(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-35"
+                          placeholder="email@ejemplo.com"
+                          value={editEmail}
+                          onChange={e => setEditEmail(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="rounded border px-2 py-1 text-sm w-full min-w-25"
+                          placeholder="+58 412…"
+                          value={editPhone}
+                          onChange={e => setEditPhone(e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={editIsCE}
+                          onChange={e => setEditIsCE(e.target.checked)}
+                          className="rounded border-gray-300 cursor-pointer"
+                          title="Contribuyente Especial"
+                        />
+                      </td>
+                      <td className="px-3 py-2" colSpan={canWrite ? 2 : 1}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleSaveEdit(v.id)}
+                            disabled={!editName.trim() || isPending}
+                            className="flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+                          >
+                            <CheckIcon className="h-3 w-3" />
+                            {isPending ? "Guardando…" : "Guardar"}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={isPending}
+                            className="rounded border px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // ── Display row ─────────────────────────────────────────────
                 return (
                   <tr key={v.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -355,15 +496,27 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                     <td className="px-4 py-3">
                       <StatusBadge status="ACTIVE" />
                     </td>
-                    {canDelete && (
+                    {canWrite && (
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(v.id, v.name)}
-                          disabled={isPending}
-                          className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                        >
-                          Desactivar
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => handleStartEdit(v)}
+                            disabled={isPending}
+                            className="text-zinc-400 hover:text-indigo-600 disabled:opacity-40"
+                            title="Editar proveedor"
+                          >
+                            <Edit2Icon className="h-3.5 w-3.5" />
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(v.id, v.name)}
+                              disabled={isPending}
+                              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              Desactivar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
