@@ -115,23 +115,24 @@ function RateTicker({ label, rate, dark = false }: { label: string; rate: RateWi
 
   return (
     <span
-      className="flex items-center gap-1"
+      className="flex items-center gap-1 cursor-default"
       title={`${label}/VES al ${dateDisplay}${formattedDelta ? ` · variación: ${formattedDelta} Bs.` : ""}`}
     >
-      <span className={dark ? "font-medium text-slate-400" : "font-medium text-zinc-400"}>{label}</span>
-      <span className={dark ? "font-mono font-semibold text-slate-100" : "font-mono font-semibold text-zinc-800"}>
-        Bs. {formattedRate}
+      <span className={dark ? "font-medium text-slate-400 text-[11px]" : "font-medium text-zinc-400 text-[11px]"}>{label}</span>
+      <span className={cn(
+        "font-mono font-semibold tabular-nums",
+        dark ? "text-slate-100" : "text-zinc-800"
+      )}>
+        Bs.&nbsp;{formattedRate}
       </span>
       {formattedDelta && (
-        <span
-          className={cn(
-            "font-mono text-[10px]",
-            dark
-              ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-400")
-              : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")
-          )}
-        >
-          ({formattedDelta} hoy)
+        <span className={cn(
+          "font-mono text-[10px] tabular-nums",
+          dark
+            ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-500")
+            : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")
+        )}>
+          {formattedDelta}
         </span>
       )}
     </span>

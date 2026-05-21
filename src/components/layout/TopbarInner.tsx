@@ -49,8 +49,10 @@ function PeriodBadge({
       ? "1 día abierto"
       : `${period.daysOpen} días abierto`;
 
+  const daysShort = period.daysOpen === 0 ? "hoy" : `${period.daysOpen}d`;
+
   return (
-    <div className="hidden sm:flex items-center gap-2 shrink-0">
+    <div className="hidden sm:flex items-center gap-1.5 shrink-0">
       {period.isStale ? (
         <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden />
       ) : (
@@ -59,24 +61,26 @@ function PeriodBadge({
 
       <span
         className={cn(
-          "text-[13px] font-medium",
+          "text-[13px] font-medium whitespace-nowrap",
           period.isStale ? "text-amber-300" : "text-emerald-300"
         )}
-        title={period.isStale ? "Período con más de 30 días abierto — se recomienda cerrar" : "Período contable al día"}
+        title={period.isStale
+          ? `Período ${monthLabel} — ${daysLabel} (se recomienda cerrar)`
+          : `Período ${monthLabel} al día`}
       >
-        Período: {monthLabel}
+        {monthLabel}
         {period.isStale && (
-          <span className="text-amber-400/80 font-normal"> — {daysLabel}</span>
+          <span className="text-amber-400/80 font-normal"> · {daysShort}</span>
         )}
       </span>
 
       {period.isStale && (
         <Link
           href={`/company/${companyId}/periods`}
-          className="flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0"
+          className="hidden xl:flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0"
           title="Ir a gestión de períodos"
         >
-          Cerrar período
+          Cerrar
           <ArrowRight className="w-3 h-3" />
         </Link>
       )}
@@ -152,13 +156,13 @@ export function TopbarInner({
 
   return (
     <>
-      <header className="sticky top-0 z-40 h-12 bg-slate-800 flex items-center gap-3 px-4 shrink-0">
+      <header className="sticky top-0 z-40 h-14 bg-slate-800 flex items-center gap-3 px-4 shrink-0">
 
         {/* Empresa — avatar + nombre + rol */}
         {companyName && companyId && (
           <div className="flex items-center gap-2 min-w-0">
             <CompanyAvatar id={companyId} name={companyName} size="xs" />
-            <span className="truncate text-[15px] font-semibold text-white leading-tight max-w-[220px]">
+            <span className="truncate text-[14px] font-semibold text-white leading-tight max-w-40 lg:max-w-52" title={companyName}>
               {companyName}
             </span>
             <span
