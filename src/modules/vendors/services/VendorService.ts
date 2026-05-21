@@ -11,21 +11,30 @@ export type VendorRow = {
   phone: string | null;
   address: string | null;
   isSpecialContributor: boolean;
+  code: string | null;
+  groupId: string | null;
+  group: { id: string; name: string } | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+const INCLUDE_GROUP = { group: { select: { id: true, name: true } } } as const;
 
 export const VendorService = {
   async list(companyId: string): Promise<VendorRow[]> {
     return prisma.vendor.findMany({
       where: { companyId, deletedAt: null },
       orderBy: { name: "asc" },
+      include: INCLUDE_GROUP,
     });
   },
 
   async get(companyId: string, vendorId: string): Promise<VendorRow | null> {
-    const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      include: INCLUDE_GROUP,
+    });
     // Post-fetch ownership check (ADR-004)
     if (!vendor || vendor.companyId !== companyId) return null;
     return vendor;
@@ -33,14 +42,19 @@ export const VendorService = {
 
   async create(companyId: string, data: CreateVendorInput): Promise<VendorRow> {
     return prisma.vendor.create({
-      data: { companyId, ...data },
+      data: { companyId, ...data, groupId: data.groupId ?? null },
+      include: INCLUDE_GROUP,
     });
   },
 
   async update(companyId: string, vendorId: string, data: UpdateVendorInput): Promise<VendorRow | null> {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!vendor || vendor.companyId !== companyId || vendor.deletedAt !== null) return null;
-    return prisma.vendor.update({ where: { id: vendorId }, data });
+    return prisma.vendor.update({
+      where: { id: vendorId },
+      data: { ...data, ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}) },
+      include: INCLUDE_GROUP,
+    });
   },
 
   async softDelete(companyId: string, vendorId: string): Promise<{ deleted: boolean; linkedCount: number }> {

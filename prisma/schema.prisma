@@ -203,6 +203,9 @@ model Company {
   // Fase 35A: Vendor / Customer
   vendors                   Vendor[]
   customers                 Customer[]
+  // ADR-028: Grupos de contactos
+  vendorGroups              VendorGroup[]
+  customerGroups            CustomerGroup[]
   // Fase 35H: PA-121 Outbox
   seniatSubmissions         SeniatSubmission[]
   // Fase 35I: Firma Digital
@@ -2068,7 +2071,21 @@ model Termination {
   @@index([companyId, terminationDate(sort: Desc)])
 }
 
-// Fase 35A: Vendor / Customer
+// Fase 35A: Vendor / Customer  |  ADR-028: code + groups
+model VendorGroup {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vendors Vendor[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
 model Vendor {
   id                   String    @id @default(cuid())
   companyId            String
@@ -2078,17 +2095,36 @@ model Vendor {
   phone                String?
   address              String?
   isSpecialContributor Boolean   @default(false) // Contribuyente Especial — determina si aplican retenciones IVA/ISLR
+  // ADR-028: código de referencia + grupo
+  code                 String?
+  groupId              String?
   deletedAt            DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company  Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  group    VendorGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   invoices Invoice[]
   // Fase 37B: Módulo Gastos
   expenses Expense[]
 
   @@unique([companyId, rif])
+  @@unique([companyId, code])
   @@index([companyId, deletedAt])
+}
+
+model CustomerGroup {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customers Customer[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model Customer {
@@ -2099,14 +2135,19 @@ model Customer {
   email     String?
   phone     String?
   address   String?
+  // ADR-028: código de referencia + grupo
+  code      String?
+  groupId   String?
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  group    CustomerGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   invoices Invoice[]
 
   @@unique([companyId, rif])
+  @@unique([companyId, code])
   @@index([companyId, deletedAt])
 }
 

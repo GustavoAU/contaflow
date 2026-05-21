@@ -9,6 +9,15 @@ const rifField = z
   .optional()
   .or(z.literal("").transform(() => undefined));
 
+const codeField = z
+  .string()
+  .trim()
+  .max(30, "Máximo 30 caracteres")
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
+const groupIdField = z.string().cuid().optional().or(z.literal("").transform(() => undefined));
+
 export const CreateVendorSchema = z.object({
   name:                 z.string().trim().min(1, "Nombre requerido").max(200),
   rif:                  rifField,
@@ -16,6 +25,8 @@ export const CreateVendorSchema = z.object({
   phone:                z.string().trim().max(50).optional().or(z.literal("").transform(() => undefined)),
   address:              z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
   isSpecialContributor: z.boolean().optional().default(false),
+  code:                 codeField,
+  groupId:              groupIdField,
 });
 
 export const UpdateVendorSchema = CreateVendorSchema.partial();
@@ -26,11 +37,18 @@ export const CreateCustomerSchema = z.object({
   email:   z.string().trim().email("Email inválido").optional().or(z.literal("").transform(() => undefined)),
   phone:   z.string().trim().max(50).optional().or(z.literal("").transform(() => undefined)),
   address: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
+  code:    codeField,
+  groupId: groupIdField,
 });
 
 export const UpdateCustomerSchema = CreateCustomerSchema.partial();
 
-export type CreateVendorInput   = z.input<typeof CreateVendorSchema>;
-export type UpdateVendorInput   = z.input<typeof UpdateVendorSchema>;
-export type CreateCustomerInput = z.input<typeof CreateCustomerSchema>;
-export type UpdateCustomerInput = z.input<typeof UpdateCustomerSchema>;
+export const CreateContactGroupSchema = z.object({
+  name: z.string().trim().min(1, "Nombre requerido").max(100),
+});
+
+export type CreateVendorInput      = z.input<typeof CreateVendorSchema>;
+export type UpdateVendorInput      = z.input<typeof UpdateVendorSchema>;
+export type CreateCustomerInput    = z.input<typeof CreateCustomerSchema>;
+export type UpdateCustomerInput    = z.input<typeof UpdateCustomerSchema>;
+export type CreateContactGroupInput = z.input<typeof CreateContactGroupSchema>;

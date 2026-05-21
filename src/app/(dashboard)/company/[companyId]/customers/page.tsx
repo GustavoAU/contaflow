@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CustomerService } from "@/modules/vendors/services/CustomerService";
+import { CustomerGroupService } from "@/modules/vendors/services/ContactGroupService";
 import { CustomerList } from "@/modules/vendors/components/CustomerList";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
@@ -21,7 +22,10 @@ export default async function CustomersPage({ params }: Props) {
   if (!member) redirect("/");
   if (!canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}`);
 
-  const customers = await CustomerService.list(companyId);
+  const [customers, customerGroups] = await Promise.all([
+    CustomerService.list(companyId),
+    CustomerGroupService.list(companyId),
+  ]);
 
   const canWrite  = canAccess(member.role, ROLES.WRITERS);
   const canDelete = canAccess(member.role, ROLES.ADMIN_ONLY);
@@ -47,6 +51,7 @@ export default async function CustomersPage({ params }: Props) {
       <CustomerList
         companyId={companyId}
         initialCustomers={customers}
+        initialGroups={customerGroups}
         canWrite={canWrite}
         canDelete={canDelete}
       />

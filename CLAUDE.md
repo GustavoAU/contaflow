@@ -270,8 +270,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Fase 37B** ✅ merged (Expense + ExpenseCategory + ExpenseService + ExpenseActions + seed onboarding — ADR-024 D-3)
 - **Fase 37C** ✅ merged (convertOrderToInvoice propaga OrderItems → InvoiceLines — ADR-024 D-1/D-2 — 1806 tests)
 - **Fase permisos-granulares** ✅ merged (RolePermission + APP_MODULES + PermissionsMatrix UI + nav grant-aware + ADR-025 — 1819 tests)
+- **Sprint UX Grupo 3** ✅ (código + grupos en Clientes/Proveedores — ADR-028 — código libre, sin auto-gen)
+- **Sprint UX Fixes** ✅ (InvoiceBook: MoneyBadge en Ret./IGTF/TOTALES sticky; Transactions: formatAmount Débito)
 
-**1819 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-07)
+**1941 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-21)
 
 ### middleware.ts
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PlusIcon } from "lucide-react";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
+import { formatAmount } from "@/lib/format";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -89,7 +90,7 @@ export default async function TransactionsPage({ params }: Props) {
                     <td className="px-4 py-3">
                       <span className="text-zinc-500">{TYPE_LABELS[tx.type]}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono">{tx.totalDebit}</td>
+                    <td className="px-4 py-3 text-right font-mono">{formatAmount(tx.totalDebit)}</td>
                     <td className="px-4 py-3">
                       <Badge variant={STATUS_COLORS[tx.status]}>
                         {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
