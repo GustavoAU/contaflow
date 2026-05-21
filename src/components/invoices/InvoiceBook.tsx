@@ -365,8 +365,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left w-25">Fecha</th>
-                      <th className="sticky left-25 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
+                      <th className="px-4 py-3 text-left w-25">Fecha</th>
+                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
                       </th>
                       <th className="px-4 py-3 text-left">RIF</th>
@@ -417,10 +417,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                         <React.Fragment key={row.id}>
                           {row.taxLines.length === 0 ? (
                             <tr className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
-                              <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
+                              <td className="px-4 py-3 whitespace-nowrap">
                                 {fmtDate(row.date)}
                               </td>
-                              <td className="sticky left-25 z-10 bg-white px-4 py-3 min-w-50"
+                              <td className="sticky left-0 z-10 bg-white px-4 py-3 min-w-50"
                                   title={row.counterpartName}>
                                 {row.counterpartName}
                               </td>
@@ -480,10 +480,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                           ) : (
                             row.taxLines.map((line, idx) => (
                               <tr key={`${row.id}-${line.id}`} className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
-                            <td className="sticky left-0 z-10 bg-white px-4 py-3 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap">
                               {idx === 0 ? fmtDate(row.date) : ""}
                             </td>
-                            <td className="sticky left-25 z-10 bg-white px-4 py-3 min-w-50"
+                            <td className="sticky left-0 z-10 bg-white px-4 py-3 min-w-50"
                                 title={idx === 0 ? row.counterpartName : undefined}>
                               {idx === 0 ? row.counterpartName : ""}
                             </td>
