@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getPayablesAction } from "@/modules/receivables/actions/receivable.actions";
 import { AgingReportTable } from "@/modules/receivables/components/AgingReportTable";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -17,14 +18,23 @@ export default async function PayablesPage({ params }: Props) {
   const result = await getPayablesAction(companyId);
   const report = result.success ? result.data : null;
 
+  const contactosTabs = [
+    { label: "Proveedores", href: `/company/${companyId}/vendors` },
+    { label: "Clientes",    href: `/company/${companyId}/customers` },
+    { label: "CxP",         href: `/company/${companyId}/payables` },
+    { label: "CxC",         href: `/company/${companyId}/receivables` },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cartera CxP — Cuentas por Pagar</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Cuentas por Pagar</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Facturas de compra con saldo pendiente de pago, ordenadas por antigüedad
         </p>
       </div>
+
+      <ModuleTabs tabs={contactosTabs} color="emerald" />
 
       {!result.success ? (
         <p className="text-destructive text-sm">{result.error}</p>

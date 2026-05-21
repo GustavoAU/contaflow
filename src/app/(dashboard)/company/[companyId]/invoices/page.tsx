@@ -6,6 +6,7 @@ import { PlusIcon, ScanIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { InvoiceBook } from "@/components/invoices/InvoiceBook";
 import { Button } from "@/components/ui/button";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -29,13 +30,19 @@ export default async function InvoicesPage({ params }: Props) {
   ]);
   if (!company) redirect("/dashboard");
 
+  const fiscalTabs = [
+    { label: "Libros IVA",    href: `/company/${companyId}/invoices` },
+    { label: "Retenciones",   href: `/company/${companyId}/retentions` },
+    { label: "Decl. IVA",     href: `/company/${companyId}/iva-declaration` },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Libros de Compras y Ventas</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Fiscal / SENIAT</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Registro fiscal de facturas — IVA Débito y Crédito Fiscal
+            Libros IVA, retenciones y declaraciones fiscales
           </p>
         </div>
         <div className="flex gap-2">
@@ -53,6 +60,8 @@ export default async function InvoicesPage({ params }: Props) {
           </Link>
         </div>
       </div>
+
+      <ModuleTabs tabs={fiscalTabs} color="amber" />
 
       <InvoiceBook
         companyId={companyId}

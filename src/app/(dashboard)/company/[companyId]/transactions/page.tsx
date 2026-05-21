@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PlusIcon } from "lucide-react";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -30,6 +31,12 @@ export default async function TransactionsPage({ params }: Props) {
 
   const transactions = result.data;
 
+  const contaTabs = [
+    { label: "Asientos",        href: `/company/${companyId}/transactions` },
+    { label: "Plan de Cuentas", href: `/company/${companyId}/accounts` },
+    { label: "Reportes",        href: `/company/${companyId}/reports` },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -47,6 +54,8 @@ export default async function TransactionsPage({ params }: Props) {
           </Link>
         </Button>
       </div>
+
+      <ModuleTabs tabs={contaTabs} color="blue" />
 
       {transactions.length === 0 ? (
         <div className="text-muted-foreground py-12 text-center text-sm">

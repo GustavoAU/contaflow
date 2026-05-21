@@ -1,11 +1,10 @@
 // src/app/(dashboard)/company/[companyId]/retentions/page.tsx
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ChevronLeftIcon } from "lucide-react";
 import { getRetentionsAction } from "@/modules/retentions/actions/retention.actions";
 import { RetentionForm } from "@/components/retentions/RetentionForm";
 import { RetentionList } from "@/components/retentions/RetentionList";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -18,21 +17,22 @@ export default async function RetentionsPage({ params }: Props) {
 
   const result = await getRetentionsAction(companyId);
 
+  const fiscalTabs = [
+    { label: "Libros IVA",    href: `/company/${companyId}/invoices` },
+    { label: "Retenciones",   href: `/company/${companyId}/retentions` },
+    { label: "Decl. IVA",     href: `/company/${companyId}/iva-declaration` },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/company/${companyId}`}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Dashboard
-        </Link>
         <h1 className="text-2xl font-bold tracking-tight">Retenciones</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Comprobantes de retención IVA, ISLR, INCES y FAT
         </p>
       </div>
+
+      <ModuleTabs tabs={fiscalTabs} color="amber" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Formulario */}

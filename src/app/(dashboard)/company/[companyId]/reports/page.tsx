@@ -1,6 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
 import Link from "next/link";
 import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon } from "lucide-react";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -42,12 +43,20 @@ export default async function ReportsPage({ params }: Props) {
     },
   ];
 
+  const contaTabs = [
+    { label: "Asientos",        href: `/company/${companyId}/transactions` },
+    { label: "Plan de Cuentas", href: `/company/${companyId}/accounts` },
+    { label: "Reportes",        href: `/company/${companyId}/reports` },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
         <p className="text-muted-foreground mt-1 text-sm">Reportes contables de tu empresa</p>
       </div>
+
+      <ModuleTabs tabs={contaTabs} color="blue" />
 
       <div className="grid gap-4 md:grid-cols-2">
         {reports.map((report) => {
