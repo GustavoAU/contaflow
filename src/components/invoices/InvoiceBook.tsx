@@ -458,16 +458,16 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono">—</td>
-                              <td className="px-4 py-3 text-right font-mono text-orange-700">
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                                 Bs. {row.ivaRetentionAmount}
                               </td>
                               {type === "PURCHASE" && (
-                                <td className="px-4 py-3 text-right font-mono text-orange-700">
+                                <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                                   Bs. {row.islrRetentionAmount}
                                 </td>
                               )}
                               {type === "SALE" && (
-                                <td className="px-4 py-3 text-right font-mono text-yellow-700">
+                                <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
                                   Bs. {row.igtfAmount}
                                 </td>
                               )}
@@ -535,16 +535,16 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                             <td className="px-4 py-3 text-right">
                               <MoneyBadge amount={line.amount} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-orange-700">
+                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                               {idx === 0 ? `Bs. ${row.ivaRetentionAmount}` : ""}
                             </td>
                             {type === "PURCHASE" && (
-                              <td className="px-4 py-3 text-right font-mono text-orange-700">
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                                 {idx === 0 ? `Bs. ${row.islrRetentionAmount}` : ""}
                               </td>
                             )}
                             {type === "SALE" && (
-                              <td className="px-4 py-3 text-right font-mono text-yellow-700">
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
                                 {idx === 0 ? `Bs. ${row.igtfAmount}` : ""}
                               </td>
                             )}
@@ -576,16 +576,16 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       <td className="px-4 py-3 text-right">
                         <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-orange-700">
+                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                         Bs. {result.summary.totalIvaRetention}
                       </td>
                       {type === "PURCHASE" && (
-                        <td className="px-4 py-3 text-right font-mono text-orange-700">
+                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
                           Bs. {result.summary.totalIslrRetention}
                         </td>
                       )}
                       {type === "SALE" && (
-                        <td className="px-4 py-3 text-right font-mono text-yellow-700">
+                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
                           Bs. {result.summary.totalIgtf}
                         </td>
                       )}
