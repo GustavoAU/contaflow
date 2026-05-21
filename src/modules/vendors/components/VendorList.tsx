@@ -1,8 +1,8 @@
 "use client";
 // src/modules/vendors/components/VendorList.tsx
 
-import { useState, useTransition } from "react";
-import { PlusIcon, TagIcon, Trash2Icon } from "lucide-react";
+import { useState, useTransition, useMemo } from "react";
+import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon } from "lucide-react";
 import { createVendorAction, updateVendorAction, deleteVendorAction } from "../actions/vendor.actions";
 import { createVendorGroupAction, deleteVendorGroupAction } from "../actions/contact-group.actions";
 import type { VendorRow } from "../services/VendorService";
@@ -35,6 +35,18 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
   const [createIsCE, setCreateIsCE] = useState(false);
 
   const [newGroupName, setNewGroupName] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filteredVendors = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return vendors;
+    return vendors.filter(
+      (v) =>
+        v.name.toLowerCase().includes(q) ||
+        (v.rif ?? "").toLowerCase().includes(q) ||
+        (v.code ?? "").toLowerCase().includes(q)
+    );
+  }, [vendors, search]);
 
   function handleCreate() {
     setError(null);
@@ -243,6 +255,29 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
         <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
+      {/* Search */}
+      {vendors.length > 0 && (
+        <div className="relative max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, RIF o código…"
+            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-8 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              aria-label="Limpiar"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {vendors.length === 0 ? (
         <EmptyState
           illustration="list"
@@ -252,6 +287,11 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
         />
       ) : (
         <div className="overflow-hidden rounded-lg border">
+          {filteredVendors.length === 0 && search ? (
+            <p className="py-8 text-center text-sm text-zinc-400">
+              No hay proveedores que coincidan con &ldquo;{search}&rdquo;
+            </p>
+          ) : (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -266,7 +306,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {vendors.map(v => {
+              {filteredVendors.map(v => {
                 const initials = v.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
                 return (
                   <tr key={v.id} className="hover:bg-gray-50">
@@ -331,6 +371,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
               })}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </div>
