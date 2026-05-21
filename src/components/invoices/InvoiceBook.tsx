@@ -365,22 +365,22 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                      <th className="px-4 py-3 text-left w-25">Fecha</th>
+                      <th className="px-4 py-3 text-left w-25 whitespace-nowrap">Fecha</th>
                       <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
                       </th>
-                      <th className="px-4 py-3 text-left">RIF</th>
-                      <th className="px-4 py-3 text-left">N° Factura</th>
-                      <th className="px-4 py-3 text-left">N° Control</th>
+                      <th className="px-4 py-3 text-left whitespace-nowrap">RIF</th>
+                      <th className="px-4 py-3 text-left whitespace-nowrap">N° Factura</th>
+                      <th className="px-4 py-3 text-left whitespace-nowrap">N° Control</th>
                       <th className="px-4 py-3 text-left"></th>
-                      <th className="px-4 py-3 text-left">Impuesto</th>
-                      <th className="px-4 py-3 text-right">Base</th>
-                      <th className="px-4 py-3 text-right">Tasa %</th>
-                      <th className="px-4 py-3 text-right">IVA</th>
-                      <th className="px-4 py-3 text-right">IVA Ret.</th>
-                      {type === "PURCHASE" && <th className="px-4 py-3 text-right">ISLR Ret.</th>}
-                      {type === "SALE" && <th className="px-4 py-3 text-right">IGTF</th>}
-                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">Base</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">Tasa %</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">IVA</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">IVA Ret.</th>
+                      {type === "PURCHASE" && <th className="px-4 py-3 text-right whitespace-nowrap">ISLR Ret.</th>}
+                      {type === "SALE" && <th className="px-4 py-3 text-right whitespace-nowrap">IGTF</th>}
+                      <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -424,7 +424,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                   title={row.counterpartName}>
                                 {row.counterpartName}
                               </td>
-                              <td className="px-4 py-3 font-mono text-xs">{row.counterpartRif}</td>
+                              <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{row.counterpartRif}</td>
                               <td className="px-4 py-3 font-mono text-xs">
                                 <div className="flex flex-col gap-0.5">
                                   <span>{row.invoiceNumber}</span>
@@ -455,23 +455,23 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-zinc-400">—</td>
-                              <td className="px-4 py-3 text-right font-mono">—</td>
-                              <td className="px-4 py-3 text-right font-mono">—</td>
-                              <td className="px-4 py-3 text-right font-mono">—</td>
-                              <td className="px-4 py-3 text-right text-orange-700">
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
+                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
+                              <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                                 <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" />
                               </td>
                               {type === "PURCHASE" && (
-                                <td className="px-4 py-3 text-right text-orange-700">
+                                <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                                   <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" />
                                 </td>
                               )}
                               {type === "SALE" && (
-                                <td className="px-4 py-3 text-right text-yellow-700">
+                                <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
                                   <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" />
                                 </td>
                               )}
-                              <td className="px-4 py-3 text-right font-semibold">
+                              <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
                                 {rowTotal > 0
                                   ? <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                                   : "—"}
@@ -487,7 +487,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 title={idx === 0 ? row.counterpartName : undefined}>
                               {idx === 0 ? row.counterpartName : ""}
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs">
+                            <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
                               {idx === 0 ? row.counterpartRif : ""}
                             </td>
                             <td className="px-4 py-3 font-mono text-xs">
@@ -528,27 +528,27 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 {TAX_LINE_LABELS[line.taxType] ?? line.taxType}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
                               <MoneyBadge amount={line.base} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                             </td>
-                            <td className="px-4 py-3 text-right font-mono">{line.rate}%</td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap">{line.rate}%</td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
                               <MoneyBadge amount={line.amount} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                             </td>
-                            <td className="px-4 py-3 text-right text-orange-700">
+                            <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                               {idx === 0 ? <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" /> : ""}
                             </td>
                             {type === "PURCHASE" && (
-                              <td className="px-4 py-3 text-right text-orange-700">
+                              <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                                 {idx === 0 ? <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" /> : ""}
                               </td>
                             )}
                             {type === "SALE" && (
-                              <td className="px-4 py-3 text-right text-yellow-700">
+                              <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
                                 {idx === 0 ? <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" /> : ""}
                               </td>
                             )}
-                            <td className="px-4 py-3 text-right font-semibold">
+                            <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
                               {idx === 0 && (
                                 <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                               )}
@@ -571,27 +571,27 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       </td>
                       <td colSpan={4} className="px-4 py-3" />
                       <td className="px-4 py-3" />{/* Impuesto col */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         <MoneyBadge amount={result.summary.totalBaseGeneral} currency="VES" />
                       </td>
                       <td className="px-4 py-3" />{/* Tasa% col */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
                       </td>
-                      <td className="px-4 py-3 text-right text-orange-700">
+                      <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                         <MoneyBadge amount={result.summary.totalIvaRetention} currency="VES" align="right" />
                       </td>
                       {type === "PURCHASE" && (
-                        <td className="px-4 py-3 text-right text-orange-700">
+                        <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
                           <MoneyBadge amount={result.summary.totalIslrRetention} currency="VES" align="right" />
                         </td>
                       )}
                       {type === "SALE" && (
-                        <td className="px-4 py-3 text-right text-yellow-700">
+                        <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
                           <MoneyBadge amount={result.summary.totalIgtf} currency="VES" align="right" />
                         </td>
                       )}
-                      <td className="px-4 py-3 text-right font-bold">
+                      <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
                         <MoneyBadge
                           amount={result.rows.reduce((acc, row) => {
                             const rt = row.taxLines.reduce(
