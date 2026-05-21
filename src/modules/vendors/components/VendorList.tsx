@@ -2,8 +2,11 @@
 // src/modules/vendors/components/VendorList.tsx
 
 import { useState, useTransition } from "react";
+import { PlusIcon } from "lucide-react";
 import { createVendorAction, updateVendorAction, deleteVendorAction } from "../actions/vendor.actions";
 import type { VendorRow } from "../services/VendorService";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 type Props = {
   companyId: string;
@@ -136,61 +139,78 @@ export function VendorList({ companyId, initialVendors, canWrite, canDelete }: P
       )}
 
       {vendors.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-gray-500">
-          No hay proveedores registrados.
-        </div>
+        <EmptyState
+          illustration="list"
+          title="No hay proveedores registrados."
+          description="Agrega tu primer proveedor para comenzar a registrar facturas de compra."
+          action={canWrite ? { label: "+ Nuevo proveedor", onClick: () => setShowCreate(true), Icon: PlusIcon } : undefined}
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Nombre</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Proveedor</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
                 <th className="px-4 py-3 text-center font-medium text-gray-600">C.E.</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
                 {canDelete && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {vendors.map(v => (
-                <tr key={v.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{v.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{v.rif ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{v.phone ?? "—"}</td>
-                  <td className="px-4 py-3 text-center">
-                    {canWrite ? (
-                      <input
-                        type="checkbox"
-                        checked={v.isSpecialContributor}
-                        onChange={() => handleToggleCE(v.id, v.isSpecialContributor)}
-                        disabled={isPending}
-                        aria-label="Contribuyente Especial"
-                        className="rounded border-gray-300 disabled:opacity-50 cursor-pointer"
-                        title="Contribuyente Especial — aplican retenciones IVA/ISLR"
-                      />
-                    ) : (
-                      v.isSpecialContributor ? (
-                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">C.E.</span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )
-                    )}
-                  </td>
-                  {canDelete && (
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDelete(v.id, v.name)}
-                        disabled={isPending}
-                        className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        Desactivar
-                      </button>
+              {vendors.map(v => {
+                const initials = v.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+                return (
+                  <tr key={v.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
+                          {initials}
+                        </span>
+                        <span className="font-medium text-gray-900">{v.name}</span>
+                      </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-4 py-3 text-gray-600">{v.rif ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{v.phone ?? "—"}</td>
+                    <td className="px-4 py-3 text-center">
+                      {canWrite ? (
+                        <input
+                          type="checkbox"
+                          checked={v.isSpecialContributor}
+                          onChange={() => handleToggleCE(v.id, v.isSpecialContributor)}
+                          disabled={isPending}
+                          aria-label="Contribuyente Especial"
+                          className="rounded border-gray-300 disabled:opacity-50 cursor-pointer"
+                          title="Contribuyente Especial — aplican retenciones IVA/ISLR"
+                        />
+                      ) : (
+                        v.isSpecialContributor ? (
+                          <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">C.E.</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status="ACTIVE" />
+                    </td>
+                    {canDelete && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleDelete(v.id, v.name)}
+                          disabled={isPending}
+                          className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          Desactivar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

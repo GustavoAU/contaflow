@@ -2,8 +2,11 @@
 // src/modules/vendors/components/CustomerList.tsx
 
 import { useState, useTransition } from "react";
+import { PlusIcon } from "lucide-react";
 import { createCustomerAction, deleteCustomerAction } from "../actions/customer.actions";
 import type { CustomerRow } from "../services/CustomerService";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 type Props = {
   companyId: string;
@@ -112,41 +115,58 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
       )}
 
       {customers.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-gray-500">
-          No hay clientes registrados.
-        </div>
+        <EmptyState
+          illustration="list"
+          title="No hay clientes registrados."
+          description="Agrega tu primer cliente para comenzar a emitir facturas de venta."
+          action={canWrite ? { label: "+ Nuevo cliente", onClick: () => setShowCreate(true), Icon: PlusIcon } : undefined}
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Nombre</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Cliente</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
                 {canDelete && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {customers.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.rif ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.phone ?? "—"}</td>
-                  {canDelete && (
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDelete(c.id, c.name)}
-                        disabled={isPending}
-                        className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        Desactivar
-                      </button>
+              {customers.map(c => {
+                const initials = c.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+                return (
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold shrink-0">
+                          {initials}
+                        </span>
+                        <span className="font-medium text-gray-900">{c.name}</span>
+                      </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-4 py-3 text-gray-600">{c.rif ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.phone ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status="ACTIVE" />
+                    </td>
+                    {canDelete && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleDelete(c.id, c.name)}
+                          disabled={isPending}
+                          className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          Desactivar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

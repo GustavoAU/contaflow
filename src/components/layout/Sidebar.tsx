@@ -113,14 +113,14 @@ function SidebarItem({
 
   if (disabled) {
     return (
-      <div className={cls} title={collapsed ? label : undefined}>
+      <div className={cls} title={label}>
         {inner}
       </div>
     );
   }
 
   return (
-    <NavLink href={href} className={cls} title={collapsed ? label : undefined}>
+    <NavLink href={href} className={cls} title={label}>
       {inner}
     </NavLink>
   );

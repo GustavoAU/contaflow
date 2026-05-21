@@ -3,10 +3,11 @@
 
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
-import { FileIcon, CheckCircleIcon, ArrowRightCircleIcon, XCircleIcon, type LucideIcon } from "lucide-react";
 import { approveOrderAction, convertOrderToInvoiceAction, cloneOrderAction } from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
 import { formatAmount, fmtDate } from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
 const fmtCurrency = (code: string, amount: string) =>
@@ -18,13 +19,6 @@ interface Props {
   canApprove: boolean;   // ACCOUNTANT+
   canOperate: boolean;   // ADMINISTRATIVE+
 }
-
-const STATUS_BADGE: Record<string, { label: string; cls: string; Icon: LucideIcon }> = {
-  DRAFT:     { label: "Borrador",   cls: "bg-gray-100 text-gray-700",    Icon: FileIcon },
-  APPROVED:  { label: "Aprobada",   cls: "bg-green-100 text-green-800",  Icon: CheckCircleIcon },
-  CONVERTED: { label: "Convertida", cls: "bg-blue-100 text-blue-800",    Icon: ArrowRightCircleIcon },
-  CANCELLED: { label: "Cancelada",  cls: "bg-gray-200 text-gray-500",    Icon: XCircleIcon },
-};
 
 const TYPE_BADGE: Record<string, string> = {
   PURCHASE: "bg-purple-100 text-purple-700",
@@ -145,7 +139,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
   }
 
   if (orders.length === 0) {
-    return <p className="text-sm text-gray-500 py-4">No hay órdenes registradas.</p>;
+    return <EmptyState illustration="invoices" title="No hay órdenes registradas." description="Las órdenes de compra y venta aprobadas aparecerán aquí." />;
   }
 
   return (
@@ -182,8 +176,6 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {orders.map((o) => {
-              const badge = STATUS_BADGE[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-700", Icon: FileIcon };
-              const BadgeIcon = badge.Icon;
               const today = new Date().toISOString().split("T")[0]!;
               const isExpired =
                 o.expectedDate &&
@@ -217,10 +209,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>
-                        <BadgeIcon className="h-3 w-3" aria-hidden />
-                        {badge.label}
-                      </span>
+                      <StatusBadge status={o.status} />
                       {o.approvedAt && (
                         <span className="text-xs text-zinc-400" title={`Aprobado por ${o.approvedBy ?? "—"}`}>
                           Aprobado {new Date(o.approvedAt).toLocaleDateString("es-VE")}
