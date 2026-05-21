@@ -374,13 +374,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       <th className="px-4 py-3 text-left whitespace-nowrap">N° Control</th>
                       <th className="px-4 py-3 text-left"></th>
                       <th className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">Base</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">Tasa %</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">IVA</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">IVA Ret.</th>
-                      {type === "PURCHASE" && <th className="px-4 py-3 text-right whitespace-nowrap">ISLR Ret.</th>}
-                      {type === "SALE" && <th className="px-4 py-3 text-right whitespace-nowrap">IGTF</th>}
-                      <th className="px-4 py-3 text-right whitespace-nowrap">Total</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">Base</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[5rem]">Tasa %</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">IVA</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">IVA Ret.</th>
+                      {type === "PURCHASE" && <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">ISLR Ret.</th>}
+                      {type === "SALE" && <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">IGTF</th>}
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[11rem]">Total</th>
                     </tr>
                   </thead>
                   <tbody>
