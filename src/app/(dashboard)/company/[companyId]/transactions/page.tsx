@@ -3,25 +3,12 @@ import { getTransactionsByCompanyAction } from "@/modules/accounting/actions/tra
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PlusIcon } from "lucide-react";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
-import { formatAmount } from "@/lib/format";
+import { TransactionList } from "@/modules/accounting/components/TransactionList";
 
 type Props = {
   params: Promise<{ companyId: string }>;
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  DIARIO: "Diario",
-  APERTURA: "Apertura",
-  AJUSTE: "Ajuste",
-  CIERRE: "Cierre",
-};
-
-const STATUS_COLORS: Record<string, "default" | "destructive"> = {
-  POSTED: "default",
-  VOIDED: "destructive",
 };
 
 export default async function TransactionsPage({ params }: Props) {
@@ -58,50 +45,7 @@ export default async function TransactionsPage({ params }: Props) {
 
       <ModuleTabs tabs={contaTabs} color="blue" />
 
-      {transactions.length === 0 ? (
-        <div className="text-muted-foreground py-12 text-center text-sm">
-          No hay asientos registrados. Crea el primero.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-zinc-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500">Número</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500">Fecha</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500">Descripción</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500">Tipo</th>
-                <th className="px-4 py-3 text-right font-medium text-zinc-500">Débito</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-500">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {transactions.map((tx) => (
-                  <tr key={tx.id} className="transition-colors hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-mono font-medium">
-                      <Link href={`/company/${companyId}/transactions/${tx.id}`} className="text-blue-600 hover:underline">
-                        {tx.number}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-600">
-                      {new Date(tx.date).toLocaleDateString("es-VE")}
-                    </td>
-                    <td className="max-w-xs truncate px-4 py-3">{tx.description}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-zinc-500">{TYPE_LABELS[tx.type]}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">{formatAmount(tx.totalDebit)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={STATUS_COLORS[tx.status]}>
-                        {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TransactionList companyId={companyId} transactions={transactions} />
     </div>
   );
 }

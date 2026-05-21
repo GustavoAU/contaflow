@@ -1,8 +1,8 @@
 "use client";
 // src/modules/vendors/components/CustomerList.tsx
 
-import { useState, useTransition } from "react";
-import { PlusIcon, TagIcon, Trash2Icon } from "lucide-react";
+import { useState, useTransition, useMemo } from "react";
+import { PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon } from "lucide-react";
 import { createCustomerAction, deleteCustomerAction } from "../actions/customer.actions";
 import { createCustomerGroupAction, deleteCustomerGroupAction } from "../actions/contact-group.actions";
 import type { CustomerRow } from "../services/CustomerService";
@@ -34,6 +34,18 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
   const [createGroupId, setCreateGroupId] = useState("");
 
   const [newGroupName, setNewGroupName] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filteredCustomers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.rif ?? "").toLowerCase().includes(q) ||
+        (c.code ?? "").toLowerCase().includes(q)
+    );
+  }, [customers, search]);
 
   function handleCreate() {
     setError(null);
@@ -223,6 +235,29 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
         <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
+      {/* Search */}
+      {customers.length > 0 && (
+        <div className="relative max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, RIF o código…"
+            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-8 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              aria-label="Limpiar"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {customers.length === 0 ? (
         <EmptyState
           illustration="list"
@@ -232,6 +267,11 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
         />
       ) : (
         <div className="overflow-hidden rounded-lg border">
+          {filteredCustomers.length === 0 && search ? (
+            <p className="py-8 text-center text-sm text-zinc-400">
+              No hay clientes que coincidan con &ldquo;{search}&rdquo;
+            </p>
+          ) : (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -245,7 +285,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {customers.map(c => {
+              {filteredCustomers.map(c => {
                 const initials = c.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
                 return (
                   <tr key={c.id} className="hover:bg-gray-50">
@@ -291,6 +331,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
               })}
             </tbody>
           </table>
+          )}
         </div>
       )}
     </div>
