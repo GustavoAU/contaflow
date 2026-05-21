@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { VendorService } from "@/modules/vendors/services/VendorService";
+import { VendorGroupService } from "@/modules/vendors/services/ContactGroupService";
 import { VendorList } from "@/modules/vendors/components/VendorList";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
@@ -21,7 +22,10 @@ export default async function VendorsPage({ params }: Props) {
   if (!member) redirect("/");
   if (!canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}`);
 
-  const vendors = await VendorService.list(companyId);
+  const [vendors, vendorGroups] = await Promise.all([
+    VendorService.list(companyId),
+    VendorGroupService.list(companyId),
+  ]);
 
   const canWrite  = canAccess(member.role, ROLES.WRITERS);
   const canDelete = canAccess(member.role, ROLES.ADMIN_ONLY);
@@ -47,6 +51,7 @@ export default async function VendorsPage({ params }: Props) {
       <VendorList
         companyId={companyId}
         initialVendors={vendors}
+        initialGroups={vendorGroups}
         canWrite={canWrite}
         canDelete={canDelete}
       />

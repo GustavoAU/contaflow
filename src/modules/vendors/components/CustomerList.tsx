@@ -2,22 +2,27 @@
 // src/modules/vendors/components/CustomerList.tsx
 
 import { useState, useTransition } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, TagIcon, Trash2Icon } from "lucide-react";
 import { createCustomerAction, deleteCustomerAction } from "../actions/customer.actions";
+import { createCustomerGroupAction, deleteCustomerGroupAction } from "../actions/contact-group.actions";
 import type { CustomerRow } from "../services/CustomerService";
+import type { ContactGroupRow } from "../services/ContactGroupService";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 type Props = {
   companyId: string;
   initialCustomers: CustomerRow[];
+  initialGroups: ContactGroupRow[];
   canWrite: boolean;
   canDelete: boolean;
 };
 
-export function CustomerList({ companyId, initialCustomers, canWrite, canDelete }: Props) {
+export function CustomerList({ companyId, initialCustomers, initialGroups, canWrite, canDelete }: Props) {
   const [customers, setCustomers] = useState(initialCustomers);
+  const [groups, setGroups] = useState(initialGroups);
   const [showCreate, setShowCreate] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,18 +30,27 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
   const [createRif, setCreateRif] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPhone, setCreatePhone] = useState("");
+  const [createCode, setCreateCode] = useState("");
+  const [createGroupId, setCreateGroupId] = useState("");
+
+  const [newGroupName, setNewGroupName] = useState("");
 
   function handleCreate() {
     setError(null);
     startTransition(async () => {
       const r = await createCustomerAction(companyId, {
-        name: createName, rif: createRif || undefined,
-        email: createEmail || undefined, phone: createPhone || undefined,
+        name: createName,
+        rif: createRif || undefined,
+        email: createEmail || undefined,
+        phone: createPhone || undefined,
+        code: createCode || undefined,
+        groupId: createGroupId || undefined,
       });
       if (!r.success) { setError(r.error); return; }
       setCustomers(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
       setShowCreate(false);
       setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone("");
+      setCreateCode(""); setCreateGroupId("");
     });
   }
 
@@ -50,19 +64,98 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
     });
   }
 
+  function handleCreateGroup() {
+    if (!newGroupName.trim()) return;
+    startTransition(async () => {
+      const r = await createCustomerGroupAction(companyId, newGroupName.trim());
+      if (!r.success) { setError(r.error); return; }
+      setGroups(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewGroupName("");
+    });
+  }
+
+  function handleDeleteGroup(groupId: string, name: string) {
+    if (!confirm(`¿Eliminar grupo "${name}"? Los clientes quedarán sin grupo.`)) return;
+    startTransition(async () => {
+      const r = await deleteCustomerGroupAction(companyId, groupId);
+      if (!r.success) { setError(r.error); return; }
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      setCustomers(prev => prev.map(c => c.groupId === groupId ? { ...c, groupId: null, group: null } : c));
+    });
+  }
+
   return (
     <div className="space-y-4">
-      {canWrite && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        {canWrite && (
           <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            onClick={() => setShowGroups(!showGroups)}
+            className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
           >
-            + Nuevo cliente
+            <TagIcon className="h-3.5 w-3.5" />
+            Grupos ({groups.length})
           </button>
+        )}
+        <div className="ml-auto">
+          {canWrite && (
+            <button
+              onClick={() => setShowCreate(!showCreate)}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              + Nuevo cliente
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Groups manager */}
+      {showGroups && canWrite && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+          <p className="text-sm font-medium text-zinc-700">Grupos de clientes</p>
+          {groups.length === 0 ? (
+            <p className="text-sm text-zinc-400">Sin grupos creados.</p>
+          ) : (
+            <ul className="divide-y divide-zinc-100 rounded border bg-white">
+              {groups.map(g => (
+                <li key={g.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span className="font-medium text-zinc-800">{g.name}</span>
+                  <span className="flex items-center gap-2 text-zinc-400">
+                    <span>{g._count?.members ?? 0} cli.</span>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteGroup(g.id, g.name)}
+                        disabled={isPending}
+                        className="text-red-400 hover:text-red-600 disabled:opacity-40"
+                        title="Eliminar grupo"
+                      >
+                        <Trash2Icon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <input
+              className="flex-1 rounded border px-2 py-1.5 text-sm"
+              placeholder="Nombre del grupo"
+              value={newGroupName}
+              onChange={e => setNewGroupName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleCreateGroup()}
+            />
+            <button
+              onClick={handleCreateGroup}
+              disabled={!newGroupName.trim() || isPending}
+              className="rounded bg-zinc-700 px-3 py-1 text-sm text-white disabled:opacity-50"
+            >
+              Agregar
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Create form */}
       {showCreate && canWrite && (
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 space-y-3">
           <p className="text-sm font-medium text-emerald-800">Nuevo cliente</p>
@@ -91,6 +184,22 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
               value={createPhone}
               onChange={e => setCreatePhone(e.target.value)}
             />
+            <input
+              className="rounded border px-2 py-1.5 text-sm"
+              placeholder="Código (ej: C-001)"
+              value={createCode}
+              onChange={e => setCreateCode(e.target.value)}
+            />
+            <select
+              className="rounded border px-2 py-1.5 text-sm text-zinc-700"
+              value={createGroupId}
+              onChange={e => setCreateGroupId(e.target.value)}
+            >
+              <option value="">Sin grupo</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
           </div>
           <div className="flex gap-2">
             <button
@@ -101,7 +210,7 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
               {isPending ? "Guardando…" : "Guardar"}
             </button>
             <button
-              onClick={() => { setShowCreate(false); setCreateName(""); setCreateRif(""); }}
+              onClick={() => { setShowCreate(false); setCreateName(""); setCreateRif(""); setCreateCode(""); setCreateGroupId(""); }}
               className="rounded border px-3 py-1 text-sm text-gray-600"
             >
               Cancelar
@@ -127,6 +236,7 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Cliente</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Código</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">RIF</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Teléfono</th>
@@ -144,8 +254,20 @@ export function CustomerList({ companyId, initialCustomers, canWrite, canDelete 
                         <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold shrink-0">
                           {initials}
                         </span>
-                        <span className="font-medium text-gray-900">{c.name}</span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-gray-900 block">{c.name}</span>
+                          {c.group && (
+                            <span className="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 mt-0.5">
+                              {c.group.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.code
+                        ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5">{c.code}</span>
+                        : <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{c.rif ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>

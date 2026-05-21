@@ -10,21 +10,30 @@ export type CustomerRow = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  code: string | null;
+  groupId: string | null;
+  group: { id: string; name: string } | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+const INCLUDE_GROUP = { group: { select: { id: true, name: true } } } as const;
 
 export const CustomerService = {
   async list(companyId: string): Promise<CustomerRow[]> {
     return prisma.customer.findMany({
       where: { companyId, deletedAt: null },
       orderBy: { name: "asc" },
+      include: INCLUDE_GROUP,
     });
   },
 
   async get(companyId: string, customerId: string): Promise<CustomerRow | null> {
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      include: INCLUDE_GROUP,
+    });
     // Post-fetch ownership check (ADR-004)
     if (!customer || customer.companyId !== companyId) return null;
     return customer;
@@ -32,14 +41,19 @@ export const CustomerService = {
 
   async create(companyId: string, data: CreateCustomerInput): Promise<CustomerRow> {
     return prisma.customer.create({
-      data: { companyId, ...data },
+      data: { companyId, ...data, groupId: data.groupId ?? null },
+      include: INCLUDE_GROUP,
     });
   },
 
   async update(companyId: string, customerId: string, data: UpdateCustomerInput): Promise<CustomerRow | null> {
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer || customer.companyId !== companyId || customer.deletedAt !== null) return null;
-    return prisma.customer.update({ where: { id: customerId }, data });
+    return prisma.customer.update({
+      where: { id: customerId },
+      data: { ...data, ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}) },
+      include: INCLUDE_GROUP,
+    });
   },
 
   async softDelete(companyId: string, customerId: string): Promise<{ deleted: boolean; linkedCount: number }> {
