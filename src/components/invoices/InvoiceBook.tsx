@@ -362,7 +362,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-separate border-spacing-0">
+                <table className="min-w-full text-sm border-separate border-spacing-0">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr className="[&>th]:border-b [&>th]:border-zinc-200">
                       <th className="px-4 py-3 text-left w-25 whitespace-nowrap">Fecha</th>
