@@ -38,7 +38,7 @@ export default async function CustomersPage({ params }: Props) {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl py-8 px-4 space-y-6">
+    <div className="mx-auto max-w-6xl py-8 px-4 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
         <p className="mt-1 text-sm text-gray-500">
