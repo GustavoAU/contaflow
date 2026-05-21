@@ -269,9 +269,9 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                         ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5">{c.code}</span>
                         : <span className="text-zinc-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.rif ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.rif ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.phone ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.phone ?? "—"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status="ACTIVE" />
                     </td>
