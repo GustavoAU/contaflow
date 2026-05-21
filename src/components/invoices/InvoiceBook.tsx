@@ -458,17 +458,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono">—</td>
                               <td className="px-4 py-3 text-right font-mono">—</td>
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                                Bs. {row.ivaRetentionAmount}
+                              <td className="px-4 py-3 text-right text-orange-700">
+                                <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" />
                               </td>
                               {type === "PURCHASE" && (
-                                <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                                  Bs. {row.islrRetentionAmount}
+                                <td className="px-4 py-3 text-right text-orange-700">
+                                  <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" />
                                 </td>
                               )}
                               {type === "SALE" && (
-                                <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
-                                  Bs. {row.igtfAmount}
+                                <td className="px-4 py-3 text-right text-yellow-700">
+                                  <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" />
                                 </td>
                               )}
                               <td className="px-4 py-3 text-right font-semibold">
@@ -535,17 +535,17 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                             <td className="px-4 py-3 text-right">
                               <MoneyBadge amount={line.amount} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                             </td>
-                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                              {idx === 0 ? `Bs. ${row.ivaRetentionAmount}` : ""}
+                            <td className="px-4 py-3 text-right text-orange-700">
+                              {idx === 0 ? <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" /> : ""}
                             </td>
                             {type === "PURCHASE" && (
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                                {idx === 0 ? `Bs. ${row.islrRetentionAmount}` : ""}
+                              <td className="px-4 py-3 text-right text-orange-700">
+                                {idx === 0 ? <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" /> : ""}
                               </td>
                             )}
                             {type === "SALE" && (
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
-                                {idx === 0 ? `Bs. ${row.igtfAmount}` : ""}
+                              <td className="px-4 py-3 text-right text-yellow-700">
+                                {idx === 0 ? <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" /> : ""}
                               </td>
                             )}
                             <td className="px-4 py-3 text-right font-semibold">
@@ -563,30 +563,32 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   </tbody>
 
                   {/* Totales */}
-                  <tfoot className="bg-zinc-50 font-semibold">
-                    <tr>
-                      <td colSpan={6} className="px-4 py-3 text-right text-xs text-zinc-500">
+                  <tfoot className="bg-zinc-50 font-semibold text-sm">
+                    <tr className="[&>td]:border-t-2 [&>td]:border-zinc-200">
+                      <td className="px-4 py-3" />
+                      <td className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-500 whitespace-nowrap">
                         TOTALES
                       </td>
-                      <td className="px-4 py-3"></td>{/* Impuesto col */}
+                      <td colSpan={4} className="px-4 py-3" />
+                      <td className="px-4 py-3" />{/* Impuesto col */}
                       <td className="px-4 py-3 text-right">
                         <MoneyBadge amount={result.summary.totalBaseGeneral} currency="VES" />
                       </td>
-                      <td className="px-4 py-3"></td>{/* Tasa% col */}
+                      <td className="px-4 py-3" />{/* Tasa% col */}
                       <td className="px-4 py-3 text-right">
                         <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
                       </td>
-                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                        Bs. {result.summary.totalIvaRetention}
+                      <td className="px-4 py-3 text-right text-orange-700">
+                        <MoneyBadge amount={result.summary.totalIvaRetention} currency="VES" align="right" />
                       </td>
                       {type === "PURCHASE" && (
-                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-orange-700">
-                          Bs. {result.summary.totalIslrRetention}
+                        <td className="px-4 py-3 text-right text-orange-700">
+                          <MoneyBadge amount={result.summary.totalIslrRetention} currency="VES" align="right" />
                         </td>
                       )}
                       {type === "SALE" && (
-                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap text-yellow-700">
-                          Bs. {result.summary.totalIgtf}
+                        <td className="px-4 py-3 text-right text-yellow-700">
+                          <MoneyBadge amount={result.summary.totalIgtf} currency="VES" align="right" />
                         </td>
                       )}
                       <td className="px-4 py-3 text-right font-bold">
