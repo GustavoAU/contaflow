@@ -466,9 +466,9 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {v.code
-                        ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5">{v.code}</span>
+                        ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5 whitespace-nowrap">{v.code}</span>
                         : <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.rif ?? "—"}</td>
