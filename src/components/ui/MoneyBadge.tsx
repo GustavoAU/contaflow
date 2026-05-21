@@ -118,7 +118,7 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
 
       {/* Amount + optional inline equivalent (Xero-style composite cell) */}
       <span className="inline-flex flex-col">
-        <span className="font-mono">{amountText}</span>
+        <span className="font-mono whitespace-nowrap">{amountText}</span>
         {equivLine && (
           <span className="text-[11px] leading-none text-zinc-400 mt-0.5">{equivLine}</span>
         )}
