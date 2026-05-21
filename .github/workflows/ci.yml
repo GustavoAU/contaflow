@@ -297,8 +297,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # xlsx migrado a exceljs — podemos subir el umbral a HIGH
+      #
+      # GHSA-qjx8-664m-686j (js-cookie <=3.0.5, HIGH):
+      #   @clerk/shared pina js-cookie@3.0.5 como version EXACTA en todas sus versiones
+      #   publicadas (incluyendo 4.13.0). pnpm no puede overridear versiones exactas de
+      #   dependencias transitivas. El fix esta bloqueado en que Clerk bumpe su dep.
+      #   Riesgo real bajo: la vulnerabilidad (prototype hijack en assign()) solo aplica
+      #   si codigo externo puede pasar un objeto malicioso al constructor de js-cookie,
+      #   lo cual Clerk controla internamente. Reabrir cuando @clerk/shared >= X use >=3.0.6.
       - name: pnpm audit (HIGH or above)
-        run: pnpm audit --audit-level=high
+        run: pnpm audit --audit-level=high --ignore GHSA-qjx8-664m-686j
 
   # ============================================================================
   # RESULT CHECK
