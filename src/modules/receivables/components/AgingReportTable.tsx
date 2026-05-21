@@ -82,7 +82,6 @@ export function AgingReportTable({ report, companyId }: Props) {
       : "No hay facturas de compra con saldo pendiente";
 
   const grandTotal   = parseFloat(report.grandTotalPendingVes);
-  const currentTotal = parseFloat(report.grandTotalCurrentVes);
   const overdueTotal = parseFloat(report.grandTotalOverdueVes);
   const overdurePct  = grandTotal > 0 ? Math.round((overdueTotal / grandTotal) * 100) : 0;
 
