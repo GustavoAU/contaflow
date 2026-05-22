@@ -20,6 +20,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findUnique: vi.fn() },
+    rolePermission: { findFirst: vi.fn() },
     invoice: {
       findFirst: vi.fn(),
       create: vi.fn(),
@@ -126,6 +127,7 @@ describe("createCreditNoteAction", () => {
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(
       MEMBER_ACCOUNTANT as never,
     );
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
     vi.mocked(InvoiceService.createCreditNote).mockResolvedValue(
       mockNcResult as never,
     );
@@ -180,11 +182,13 @@ describe("createCreditNoteAction", () => {
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(
       MEMBER_VIEWER as never,
     );
+    // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
     const result = await createCreditNoteAction(VALID_NC_INPUT);
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autorizado");
+    if (!result.success) expect(result.error).toContain("Facturación");
     expect(InvoiceService.createCreditNote).not.toHaveBeenCalled();
   });
 
@@ -235,6 +239,7 @@ describe("createDebitNoteAction", () => {
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(
       MEMBER_ACCOUNTANT as never,
     );
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
     vi.mocked(InvoiceService.createDebitNote).mockResolvedValue(
       mockNdResult as never,
     );
@@ -255,11 +260,13 @@ describe("createDebitNoteAction", () => {
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(
       MEMBER_VIEWER as never,
     );
+    // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
     const result = await createDebitNoteAction(VALID_ND_INPUT);
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autorizado");
+    if (!result.success) expect(result.error).toContain("Facturación");
     expect(InvoiceService.createDebitNote).not.toHaveBeenCalled();
   });
 

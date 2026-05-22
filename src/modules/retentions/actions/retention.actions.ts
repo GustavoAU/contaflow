@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
@@ -81,6 +82,9 @@ export async function createRetentionAction(
       where: { userId_companyId: { userId, companyId: data.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Facturación
+    if (!await hasModuleAccess(data.companyId, member.role, "invoicing"))
+      return { success: false, error: moduleAccessError("invoicing") };
     if (!canAccess(member.role, ROLES.ACCOUNTING))
       return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
@@ -256,6 +260,9 @@ export async function enterRetentionAction(
       where: { userId_companyId: { userId, companyId: data.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Facturación
+    if (!await hasModuleAccess(data.companyId, member.role, "invoicing"))
+      return { success: false, error: moduleAccessError("invoicing") };
     if (!canAccess(member.role, ROLES.ACCOUNTING))
       return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 

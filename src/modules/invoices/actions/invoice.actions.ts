@@ -10,6 +10,7 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
@@ -41,7 +42,10 @@ export async function createInvoiceAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares al módulo de Facturación
+    if (!await hasModuleAccess(parsed.data.companyId, member.role, "invoicing")) {
+      return { success: false as const, error: moduleAccessError("invoicing") };
+    }
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
@@ -385,7 +389,10 @@ export async function createCreditNoteAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares
+    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+      return { success: false as const, error: moduleAccessError("invoicing") };
+    }
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
@@ -430,7 +437,10 @@ export async function createDebitNoteAction(input: unknown) {
       select: { role: true },
     });
     if (!member) return { success: false as const, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares
+    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+      return { success: false as const, error: moduleAccessError("invoicing") };
+    }
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;

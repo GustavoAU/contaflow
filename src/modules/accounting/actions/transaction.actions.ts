@@ -12,6 +12,7 @@ import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
@@ -37,7 +38,10 @@ export async function createTransactionAction(
       where: { userId_companyId: { userId, companyId: input.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
+    if (!await hasModuleAccess(input.companyId, member.role, "accounting")) {
+      return { success: false, error: moduleAccessError("accounting") };
+    }
 
     const transaction = await TransactionService.createBalancedTransaction({
       ...input,
@@ -87,7 +91,12 @@ export async function voidTransactionAction(
       where: { userId_companyId: { userId, companyId: existing.companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
+    if (!await hasModuleAccess(existing.companyId, member.role, "accounting")) {
+      return { success: false, error: moduleAccessError("accounting") };
+    }
+    // Anular asiento requiere ADMIN_ONLY (más estricto que acceso al módulo)
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Anular asientos requiere rol Administrador o Propietario" };
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;

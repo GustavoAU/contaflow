@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
 import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
@@ -93,6 +94,9 @@ export async function createPayrollRunAction(
 ): Promise<Result<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
+  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede procesar nómina" };
 
@@ -138,6 +142,9 @@ export async function approvePayrollRunAction(
 ): Promise<Result<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
+  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede aprobar nómina" };
 
@@ -173,6 +180,9 @@ export async function cancelPayrollRunAction(
 ): Promise<Result<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
+  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
     return { success: false, error: "Solo el Administrador puede cancelar nómina" };
 

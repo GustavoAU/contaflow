@@ -24,6 +24,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    rolePermission: { findFirst: vi.fn() },
     invoice: { findFirst: vi.fn() },
     fiscalYearClose: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -74,6 +75,7 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.$transaction).mockImplementation(
@@ -99,11 +101,13 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
       { ...MEMBER, role: "VIEWER" } as never,
     );
+    // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
     const result = await createInvoiceAction(VALID_INPUT);
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autorizado");
+    if (!result.success) expect(result.error).toContain("Facturación");
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 

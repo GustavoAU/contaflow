@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 import {
@@ -72,6 +73,10 @@ export async function closeFiscalYearAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
+    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+      return { success: false, error: moduleAccessError("accounting") };
+    }
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo el Administrador puede cerrar el ejercicio económico." };
     }
@@ -129,6 +134,10 @@ export async function appropriateFiscalYearResultAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
+    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+      return { success: false, error: moduleAccessError("accounting") };
+    }
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return {
         success: false,
@@ -178,6 +187,10 @@ export async function updateFiscalConfigAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "No autorizado" };
+    // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
+    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+      return { success: false, error: moduleAccessError("accounting") };
+    }
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return {
         success: false,

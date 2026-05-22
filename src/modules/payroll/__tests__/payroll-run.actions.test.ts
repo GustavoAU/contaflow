@@ -18,6 +18,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    rolePermission: { findFirst: vi.fn() },
     payrollRun: { findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
@@ -150,6 +151,8 @@ describe("createPayrollRunAction", () => {
 
   it("denies VIEWER (NOM-C-09)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(VIEWER_MEMBER as never);
+    // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
     const result = await createPayrollRunAction(COMPANY_ID, VALID_INPUT);
     expect(result.success).toBe(false);
   });
