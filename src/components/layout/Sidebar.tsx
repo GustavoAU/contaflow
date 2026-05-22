@@ -89,7 +89,7 @@ function SidebarItem({
   disabled?: boolean;
 }) {
   const cls = cn(
-    "flex items-center gap-2.5 w-full px-2 py-[7px] rounded-md text-[13px] font-medium",
+    "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium",
     "transition-colors overflow-hidden whitespace-nowrap",
     collapsed && "justify-center",
     active
@@ -100,7 +100,7 @@ function SidebarItem({
 
   const inner = (
     <>
-      <Icon className="w-[15px] h-[15px] shrink-0" />
+      <Icon className="w-3.75 h-3.75 shrink-0" />
       {!collapsed && (
         <span className="overflow-hidden text-ellipsis flex-1">{label}</span>
       )}
@@ -136,7 +136,7 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       onClick={() => signOut({ redirectUrl: "/sign-in" })}
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
-        "flex items-center gap-2.5 w-full px-2 py-[7px] rounded-md text-[13px] font-medium",
+        "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium",
         "text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
         collapsed && "justify-center"
@@ -352,7 +352,7 @@ export function Sidebar({
       className={cn(
         "flex flex-col sticky top-0 h-screen bg-white border-r border-zinc-200",
         "transition-[width] duration-200 ease-in-out overflow-hidden shrink-0",
-        collapsed ? "w-14" : "w-[232px]"
+        collapsed ? "w-14" : "w-58"
       )}
     >
       {/* Logo + collapse toggle */}
@@ -403,7 +403,7 @@ export function Sidebar({
       <nav
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden py-1.5",
-          "[scrollbar-width:thin] [scrollbar-color:theme(colors.zinc.200)_transparent]"
+          "scrollbar-thin [scrollbar-color:var(--color-zinc-200)_transparent]"
         )}
         aria-label="Navegación principal"
       >

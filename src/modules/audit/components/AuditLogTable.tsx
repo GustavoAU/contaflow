@@ -294,10 +294,10 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
                       {row.action}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-[120px] truncate">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-30 truncate">
                     {row.entityId}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-[140px] truncate">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-35 truncate">
                     {row.userId}
                   </td>
                   <td className="px-4 py-3">
