@@ -289,6 +289,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **P-7** ✅ merged (GET /api/health — db + redis + qstash, ruta pública, force-dynamic)
 - **P-4** ✅ merged (Sentry.startSpan en 5 operaciones críticas: correlativo, GL posting, cierre ejercicio, apropiación, nómina, SENIAT transmit)
 - **P-8** ✅ merged (RUNBOOK.md — PITR Neon, PDF recovery, checklist mensual, RTO<4h / RPO<1h)
+- **P-3** ✅ merged (ThemeProvider + ThemeToggle — dark mode cicla light/dark/system — localStorage cf-theme + prefers-color-scheme)
+- **Q1-3** ✅ merged (useFormDraft hook — sessionStorage autosave 30s + AlertDialog restore en InvoiceForm)
+- **Q1-4** ✅ merged (ExportService portabilidad — employees/payrollRuns/inventoryItems/expenses + allHistory flag)
 
 **1983 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
 
