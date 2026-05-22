@@ -19,7 +19,7 @@ export async function createInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { companyId, accountId, cogsAccountId, ...rest } = input;
+  const { companyId, accountId, cogsAccountId, itemType, minimumStock, ...rest } = input;
 
   // CRITICAL-2: verificar que accountId y cogsAccountId pertenecen a la empresa
   if (accountId) {
@@ -41,6 +41,8 @@ export async function createInventoryItem(
         companyId,
         accountId: accountId ?? null,
         cogsAccountId: cogsAccountId ?? null,
+        itemType: itemType ?? "GOODS",
+        minimumStock: minimumStock != null ? new Decimal(minimumStock) : null,
         createdBy: userId,
         // baseUnit denorm — se establece al crear la unidad base via UomManager → InventoryUomService
         baseUnitName: "unidad",
@@ -76,7 +78,7 @@ export async function updateInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { itemId, companyId, accountId, cogsAccountId, ...rest } = input;
+  const { itemId, companyId, accountId, cogsAccountId, itemType, minimumStock, ...rest } = input;
 
   // CRITICAL-1: verificar que el ítem pertenece a la empresa
   const existing = await prisma.inventoryItem.findFirstOrThrow({
@@ -104,6 +106,8 @@ export async function updateInventoryItem(
         ...(rest.sku !== undefined && { sku: rest.sku }),
         ...(rest.name !== undefined && { name: rest.name }),
         ...(rest.description !== undefined && { description: rest.description }),
+        ...(itemType !== undefined && { itemType }),
+        ...(minimumStock !== undefined && { minimumStock: minimumStock != null ? new Decimal(minimumStock) : null }),
         ...(accountId !== undefined && { accountId: accountId ?? null }),
         ...(cogsAccountId !== undefined && { cogsAccountId: cogsAccountId ?? null }),
       },
@@ -141,6 +145,17 @@ export async function softDeleteInventoryItem(
     where: { id: itemId, companyId, deletedAt: null },
   });
 
+  // R-05 auditoría SENIAT: bloquear eliminación si el producto tiene movimientos POSTED
+  // para preservar trazabilidad del Libro Mayor y cumplir integridad referencial contable.
+  const postedCount = await prisma.inventoryMovement.count({
+    where: { itemId, companyId, status: "POSTED" },
+  });
+  if (postedCount > 0) {
+    throw new Error(
+      `No se puede eliminar "${itemId}": tiene ${postedCount} movimiento${postedCount !== 1 ? "s" : ""} contabilizado${postedCount !== 1 ? "s" : ""}. Solo se puede desactivar productos sin historial contable. (Auditoría SENIAT — integridad del Libro Mayor)`
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     const deleted = await tx.inventoryItem.update({
       where: { id: itemId },
@@ -172,12 +187,42 @@ export async function createDraftMovement(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { companyId, itemId, type, quantity, unitCost, unitId, invoiceId, ...rest } = input;
+  const { companyId, itemId, type, quantity, unitCost, unitId, invoiceId, counterpartAccountId, exchangeRateVes, ...rest } = input;
 
   // CRITICAL-1: verificar ownership del ítem
   const item = await prisma.inventoryItem.findFirstOrThrow({
     where: { id: itemId, companyId, deletedAt: null },
   });
+
+  // R-06 auditoría SENIAT: SERVICE no puede tener movimientos físicos de stock
+  // (NIIF para PYMES Sección 13 — servicios no son inventario tangible)
+  if (item.itemType === "SERVICE" && (type === "ENTRADA" || type === "SALIDA")) {
+    throw new Error(
+      `El producto "${item.name}" es un Servicio (intangible). Los servicios no tienen stock físico — solo se permiten Ajustes de corrección.`
+    );
+  }
+
+  // R-09 auditoría SENIAT: bloquear movimientos en períodos cerrados
+  const movDate = new Date(rest.date);
+  const movYear = movDate.getFullYear();
+  const movMonth = movDate.getMonth() + 1; // getMonth() es 0-based
+  const closedPeriod = await prisma.accountingPeriod.findFirst({
+    where: { companyId, status: "CLOSED", year: movYear, month: movMonth },
+    select: { year: true, month: true },
+  });
+  if (closedPeriod) {
+    throw new Error(
+      `No se pueden registrar movimientos en el período ${String(closedPeriod.month).padStart(2, "0")}/${closedPeriod.year} porque está CERRADO. Use una fecha en el período activo.`
+    );
+  }
+
+  // R-04 auditoría SENIAT: verificar ownership de cuenta contrapartida
+  if (counterpartAccountId) {
+    await prisma.account.findFirstOrThrow({
+      where: { id: counterpartAccountId, companyId },
+      select: { id: true },
+    });
+  }
 
   // Verificar idempotencyKey no duplicada
   const existing = await prisma.inventoryMovement.findUnique({
@@ -243,9 +288,11 @@ export async function createDraftMovement(
         quantityInUnit: quantityDecimal,               // cantidad tal como la ingresó el usuario
         conversionSnapshot,                            // snapshot inmutable del factor (ADR-018 D-3)
         invoiceId: invoiceId ?? null,
+        counterpartAccountId: counterpartAccountId ?? null,
+        exchangeRateVes: exchangeRateVes != null ? new Decimal(exchangeRateVes) : null,
         date: new Date(rest.date),
         idempotencyKey: rest.idempotencyKey,
-        reference: rest.reference ?? null,
+        reference: rest.reference,
         notes: rest.notes ?? null,
         createdBy: userId,
       },
@@ -359,6 +406,7 @@ export async function getItemMovements(companyId: string, itemId: string) {
       reference: true,
       notes: true,
       createdAt: true,
+      transactionId: true,  // R-12: link al asiento contable cuando POSTED
     },
     orderBy: { date: "desc" },
   });

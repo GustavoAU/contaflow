@@ -293,6 +293,7 @@ model Account {
   // Fase 28D: Inventario
   inventoryItems                   InventoryItem[]          @relation("InventoryItemAccount")
   inventoryItemsAsCogs             InventoryItem[]          @relation("CogsAccount")
+  inventoryMovementsAsCounterpart  InventoryMovement[]      @relation("InventoryMovementCounterpart")
   // Fase NOM-C: Cuentas contables de nómina
   payrollConfigsAsExpense          PayrollConfig[]          @relation("PayrollExpenseAccount")
   payrollConfigsAsPayable          PayrollConfig[]          @relation("PayrollPayableAccount")
@@ -943,6 +944,14 @@ model InflationAdjustment {
 
 // ─── Fase 28D: Módulo Inventario ─────────────────────────────────────────────
 
+// Tipo de producto — NIIF para PYMES Sección 13 (Inventarios aplica solo a activos tangibles)
+enum ItemType {
+  GOODS // Mercancía para reventa (default) — movimientos físicos permitidos
+  SERVICE // Servicio intangible — NO tiene stock físico; ENTRADA/SALIDA bloqueadas
+  RAW_MATERIAL // Materia prima — movimientos físicos permitidos
+  FINISHED_GOOD // Producto terminado — movimientos físicos permitidos
+}
+
 enum MovementType {
   ENTRADA // compra, recepción de producción, ajuste positivo
   SALIDA // venta, consumo, ajuste negativo
@@ -978,6 +987,7 @@ model InventoryItem {
   averageCost   Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
   stockQuantity Decimal             @default(0) @db.Decimal(19, 4) // existencia en unidad base
   minimumStock  Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
+  itemType      ItemType            @default(GOODS) // NIIF Sec.13 — SERVICE bloquea movimientos físicos
   accountId     String?
   account       Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
   cogsAccountId String?
@@ -1001,38 +1011,44 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id                 String                    @id @default(cuid())
-  companyId          String
-  company            Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  itemId             String
-  item               InventoryItem             @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  type               MovementType
-  status             MovementStatus            @default(DRAFT)
-  quantity           Decimal                   @db.Decimal(19, 4) // cantidad en UNIDAD BASE — siempre positivo
-  unitCost           Decimal                   @db.Decimal(19, 4) // costo por UNIDAD BASE (snapshot CPP)
-  totalCost          Decimal                   @db.Decimal(19, 4) // quantity × unitCost — almacenado
+  id                   String                    @id @default(cuid())
+  companyId            String
+  company              Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  itemId               String
+  item                 InventoryItem             @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  type                 MovementType
+  status               MovementStatus            @default(DRAFT)
+  quantity             Decimal                   @db.Decimal(19, 4) // cantidad en UNIDAD BASE — siempre positivo
+  unitCost             Decimal                   @db.Decimal(19, 4) // costo por UNIDAD BASE (snapshot CPP)
+  totalCost            Decimal                   @db.Decimal(19, 4) // quantity × unitCost — almacenado
   // Fase 35F: Unidades de Medida — ADR-018
-  unitId             String?
-  unit               InventoryItemUnit?        @relation(fields: [unitId], references: [id], onDelete: Restrict)
-  quantityInUnit     Decimal                   @db.Decimal(19, 4) // cantidad en la unidad del movimiento
-  conversionSnapshot Decimal                   @db.Decimal(19, 10) // factor inmutable al momento del movimiento — ADR-018 D-3
-  invoiceId          String?
-  invoice            Invoice?                  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  transactionId      String?                   @unique
-  transaction        Transaction?              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  reference          String?
-  notes              String?
-  date               DateTime
-  idempotencyKey     String                    @unique
-  createdAt          DateTime                  @default(now())
-  createdBy          String
-  postedAt           DateTime?
-  postedBy           String?
+  unitId               String?
+  unit                 InventoryItemUnit?        @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  quantityInUnit       Decimal                   @db.Decimal(19, 4) // cantidad en la unidad del movimiento
+  conversionSnapshot   Decimal                   @db.Decimal(19, 10) // factor inmutable al momento del movimiento — ADR-018 D-3
+  invoiceId            String?
+  invoice              Invoice?                  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  transactionId        String?                   @unique
+  transaction          Transaction?              @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  // R-04 auditoría SENIAT: cuenta contrapartida para completar el asiento (partida doble)
+  // ENTRADA: CR = Proveedores/Caja/Banco. AJUSTE: CR = Merma/Pérdida o DR = Sobrante
+  counterpartAccountId String?
+  counterpartAccount   Account?                  @relation("InventoryMovementCounterpart", fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  // R-02 auditoría SENIAT: tasa BCV histórica a la fecha del movimiento (Bs./$)
+  exchangeRateVes      Decimal?                  @db.Decimal(10, 4)
+  reference            String?
+  notes                String?
+  date                 DateTime
+  idempotencyKey       String                    @unique
+  createdAt            DateTime                  @default(now())
+  createdBy            String
+  postedAt             DateTime?
+  postedBy             String?
   // Fase 35G: Lot/Serial Tracking — ADR-021 D-4
-  lotLines           InventoryMovementLot[]
-  serialLines        InventoryMovementSerial[]
+  lotLines             InventoryMovementLot[]
+  serialLines          InventoryMovementSerial[]
   // Fase 37A: línea de factura que originó este movimiento
-  invoiceLine        InvoiceLine?
+  invoiceLine          InvoiceLine?
 
   @@index([companyId])
   @@index([companyId, itemId])

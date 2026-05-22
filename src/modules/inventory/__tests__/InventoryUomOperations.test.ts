@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
     inventoryItem: { findFirstOrThrow: vi.fn() },
     inventoryItemUnit: { findFirstOrThrow: vi.fn() },
     inventoryMovement: { findUnique: vi.fn(), findMany: vi.fn() },
+    accountingPeriod: { findFirst: vi.fn() },  // R-09: bloqueo períodos cerrados
     invoice: { findFirstOrThrow: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -73,6 +74,7 @@ const BASE = {
   type: "ENTRADA" as const,
   quantity: 5,
   unitCost: "100",
+  reference: "REF-TEST-001",  // R-03: referencia obligatoria (min 3 chars)
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440001",
 };
@@ -84,6 +86,7 @@ beforeEach(() => {
   vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue(makeItem() as never);
   vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValue(makeBoxUnit() as never);
   vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never); // R-09: no hay período cerrado
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
   );

@@ -18,13 +18,15 @@ export type InventoryItemRow = {
   unit: string;           // baseUnitName — solo lectura, gestionado vía UomManager
   stockQuantity: string;
   averageCost: string;
+  itemType: string;       // R-06: GOODS | SERVICE | RAW_MATERIAL | FINISHED_GOOD
+  minimumStock: string | null; // R-10: alerta bajo stock
   accountId: string | null;
   cogsAccountId: string | null;
   accountCode?: string | null;
   accountName?: string | null;
 };
 
-type AccountOption = { id: string; code: string; name: string };
+type AccountOption = { id: string; code: string; name: string; type: string };
 
 type Props = {
   items: InventoryItemRow[];
@@ -34,6 +36,20 @@ type Props = {
   canDelete: boolean;         // ADMIN_ONLY roles
   canManageUom?: boolean;     // ACCOUNTING roles — gestionar unidades de medida
   canViewHistory?: boolean;   // WRITERS y superior — default true
+};
+
+const ITEM_TYPE_BADGE: Record<string, string> = {
+  GOODS: "bg-blue-50 text-blue-700",
+  SERVICE: "bg-amber-50 text-amber-700",
+  RAW_MATERIAL: "bg-purple-50 text-purple-700",
+  FINISHED_GOOD: "bg-green-50 text-green-700",
+};
+
+const ITEM_TYPE_LABEL: Record<string, string> = {
+  GOODS: "Mercancía",
+  SERVICE: "Servicio",
+  RAW_MATERIAL: "Materia prima",
+  FINISHED_GOOD: "Prod. terminado",
 };
 
 export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete, canManageUom = false, canViewHistory = true }: Props) {
@@ -75,7 +91,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
   }
 
   // columnas totales según props
-  const totalCols = 7 + (canViewHistory ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
+  const totalCols = 8 + (canViewHistory ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <div className="space-y-3">
@@ -90,6 +106,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
               <tr>
                 <th className="px-4 py-3 text-left">SKU</th>
                 <th className="px-4 py-3 text-left">Nombre</th>
+                <th className="px-4 py-3 text-left">Tipo</th>
                 <th className="px-4 py-3 text-left">Unidad</th>
                 <th className="px-4 py-3 text-right">Stock</th>
                 <th className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
@@ -113,47 +130,75 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 const valor = stock * cpp;
                 const isEditing = editingId === item.id;
                 const isHistoryOpen = historyItemId === item.id;
+                const minStock = item.minimumStock ? parseFloat(item.minimumStock) : null;
+                const isBelowMin = minStock !== null && stock < minStock && item.itemType !== "SERVICE";
 
                 return (
                   <>
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{item.sku}</td>
+                    <tr key={item.id} className={`hover:bg-gray-50 ${isBelowMin ? "bg-amber-50/40" : ""}`}>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">{item.sku}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">
                         {item.name}
                         {item.description && (
                           <span className="ml-1 text-xs text-gray-400">— {item.description}</span>
                         )}
+                        {isBelowMin && (
+                          <span className="ml-2 text-xs text-amber-700 font-semibold">
+                            ⚠ Stock bajo (mín: {minStock})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${ITEM_TYPE_BADGE[item.itemType] ?? "bg-gray-100 text-gray-600"}`}>
+                          {ITEM_TYPE_LABEL[item.itemType] ?? item.itemType}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500">{item.unit}</td>
                       <td className="px-4 py-3 text-right font-mono">
-                        <span
-                          className={
-                            stock === 0
-                              ? "text-red-600 font-semibold"
-                              : stock < 5
-                                ? "text-yellow-600 font-semibold"
-                                : "text-gray-800"
-                          }
-                        >
-                          {stock.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
-                        </span>
+                        {item.itemType === "SERVICE" ? (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        ) : (
+                          <span
+                            className={
+                              stock === 0
+                                ? "text-red-600 font-semibold"
+                                : isBelowMin
+                                  ? "text-amber-600 font-semibold"
+                                  : "text-gray-800"
+                            }
+                          >
+                            {stock.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-700">
-                        {cpp.toLocaleString("es-VE", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 4,
-                        })}
+                        {item.itemType === "SERVICE" ? (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        ) : (
+                          cpp.toLocaleString("es-VE", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 4,
+                          })
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
-                        {valor.toLocaleString("es-VE", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {item.itemType === "SERVICE" ? (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        ) : (
+                          valor.toLocaleString("es-VE", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
-                        {item.accountCode
-                          ? `${item.accountCode} — ${item.accountName}`
-                          : <span className="text-yellow-600">Sin cuenta</span>}
+                        {item.itemType === "SERVICE" ? (
+                          <span className="text-gray-400">Sin cuenta (servicio)</span>
+                        ) : item.accountCode ? (
+                          `${item.accountCode} — ${item.accountName}`
+                        ) : (
+                          <span className="text-yellow-600">Sin cuenta</span>
+                        )}
                       </td>
                       {canManageUom && (
                         <td className="px-4 py-3 text-center">
@@ -221,6 +266,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                       <tr key={`history-${item.id}`}>
                         <td colSpan={totalCols} className="bg-indigo-50 px-6 py-4">
                           <ItemMovementHistory
+                            companyId={companyId}
                             itemName={item.name}
                             sku={item.sku}
                             stockQuantity={item.stockQuantity}
@@ -248,6 +294,8 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                               sku: item.sku,
                               name: item.name,
                               description: item.description,
+                              itemType: item.itemType,
+                              minimumStock: item.minimumStock,
                               accountId: item.accountId,
                               cogsAccountId: item.cogsAccountId,
                             }}

@@ -13,10 +13,17 @@ export const CreateMovementSchema = z.object({
   // Fase 35F Sub-fase B: si se especifica, quantity está en esta unidad y se convierte a base
   unitId: z.string().min(1).optional().nullable(),
   invoiceId: z.string().min(1).optional().nullable(),
-  reference: z.string().max(100).trim().optional().nullable(),
+  // R-03 auditoría SENIAT: referencia de documento fiscal (factura, guía, N° de acta)
+  reference: z.string().min(3, "La referencia debe tener al menos 3 caracteres").max(100).trim(),
   notes: z.string().max(500).trim().optional().nullable(),
   date: z.string().datetime(),
   idempotencyKey: z.string().uuid(),
+  // R-04 auditoría SENIAT: cuenta contrapartida para partida doble completa
+  // ENTRADA: CR Proveedores/Caja/Banco. AJUSTE: CR Merma/Pérdida o DR Sobrante.
+  // SALIDA: no requerida — el asiento Dr COGS / Cr Inventario es autosuficiente.
+  counterpartAccountId: z.string().min(1).optional().nullable(),
+  // R-02 auditoría SENIAT: tasa BCV histórica a la fecha del movimiento
+  exchangeRateVes: zMoneyAmount.optional().nullable(),
 });
 
 // Fase 35G: Lot/Serial Tracking — ADR-021 D-5b
