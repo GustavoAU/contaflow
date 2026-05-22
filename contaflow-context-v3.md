@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **PC-03 + PC-05 2026-05-22** ✅ merged — PC-03: `INVENTARIO_SIN_CUENTAS_GL` en `PendingTasksService` — alerta `severity:error` cuando ítems físicos (GOODS/RAW_MATERIAL/FINISHED_GOOD) no tienen `accountId` o `cogsAccountId`; previene movimientos DRAFT silenciosos. PC-05 ya estaba cubierto por `PERIODO_ABIERTO_VIEJO` (openedAt >30d). commit `dfb0aaf`. 1970 tests GREEN.
 - **OM-01 + OM-04 2026-05-22** ✅ merged — Inventario perpetuo auto-COGS: SALIDA (Dr COGS/Cr Inventario CPP via `autoPostMovementInTx`) + ENTRADA (reutiliza GL factura); LOT/SERIAL skip automático. AuditLog PDF firmado A4 landscape con react-pdf: SHA-256 contentHash en AuditLog (R-2), firma digital `DocumentSigningService` con degradación graceful, botón Exportar PDF en `AuditLogTable`. commit `96c241c`. 1967 tests GREEN.
 - **OM-05/06/08 2026-05-22** ✅ merged — Período cerrado bloquea facturas (OM-05) + alerta retenciones ISSUED en dashboard (OM-06) + FK inventoryItemId nullable en QuotationItem/OrderItem con validación cross-tenant (OM-08). commit `e9c1342`. 1959 tests GREEN.
 - **GAP-02/03/06 + RF-01/02/05/06 2026-05-22** ✅ merged — Órdenes vencidas en PendingTasks, GL split retención IVA (2205/2110), firma CPC seed, ENTRADA inventario en compras seed, enteramiento retenciones seed, fecha TESA-007 corregida, cuentas corrección monetaria. commits `769cbd9` y `4110c4f`.
@@ -60,7 +61,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1967 tests GREEN | 0 TS errors** (2026-05-22 post OM-01/OM-04)
+**1970 tests GREEN | 0 TS errors** (2026-05-22 post PC-03/PC-05)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
