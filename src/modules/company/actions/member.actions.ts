@@ -10,6 +10,7 @@ import prisma from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import * as MemberService from "../services/MemberService";
 import {
   AddMemberSchema,
@@ -149,10 +150,15 @@ export async function updateMemberRoleAction(
 
 export async function removeMemberAction(
   input: RemoveMemberInput
-): Promise<ActionResult<null>> {
+): Promise<ActionResult<null> | StepUpError> {
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Q2-3: Step-up — re-verificación con 2do factor para eliminar miembro
+    if (!has({ reverification: STEP_UP_CONFIG })) {
+      return reverificationError(STEP_UP_CONFIG);
+    }
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };

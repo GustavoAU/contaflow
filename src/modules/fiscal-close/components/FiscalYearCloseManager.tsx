@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -48,42 +50,58 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
   const [isPendingAppropriation, startAppropriation] = useTransition();
   const [localHistory, setLocalHistory] = useState(history);
 
+  // Q2-3: wrap con step-up — Clerk mostrará modal de re-verificación si es necesario
+  const closeFiscalYearWithStepUp = useReverification(closeFiscalYearAction);
+  const appropriateWithStepUp = useReverification(appropriateFiscalYearResultAction);
+
   function handleClose() {
     startClose(async () => {
-      const result = await closeFiscalYearAction({ companyId, year: yearToClose });
-      if (result.success) {
-        toast.success(
-          `Ejercicio ${yearToClose} cerrado. Resultado neto: ${Number(result.data.netResult) >= 0 ? "+" : ""}${result.data.netResult} Bs.`
-        );
-        setLocalHistory((prev) => [
-          {
-            id: result.data.fiscalYearCloseId,
-            year: yearToClose,
-            closedAt: new Date(),
-            closedBy: "",
-            totalRevenue: result.data.totalRevenue,
-            totalExpenses: result.data.totalExpenses,
-            netResult: result.data.netResult,
-            hasAppropriation: false,
-          },
-          ...prev,
-        ]);
-      } else {
-        toast.error(result.error);
+      try {
+        const result = await closeFiscalYearWithStepUp({ companyId, year: yearToClose });
+        if (!result) return; // cancelado por el usuario
+        if (result.success) {
+          toast.success(
+            `Ejercicio ${yearToClose} cerrado. Resultado neto: ${Number(result.data.netResult) >= 0 ? "+" : ""}${result.data.netResult} Bs.`
+          );
+          setLocalHistory((prev) => [
+            {
+              id: result.data.fiscalYearCloseId,
+              year: yearToClose,
+              closedAt: new Date(),
+              closedBy: "",
+              totalRevenue: result.data.totalRevenue,
+              totalExpenses: result.data.totalExpenses,
+              netResult: result.data.netResult,
+              hasAppropriation: false,
+            },
+            ...prev,
+          ]);
+        } else {
+          toast.error(result.error);
+        }
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return;
+        throw e;
       }
     });
   }
 
   function handleAppropriation(year: number) {
     startAppropriation(async () => {
-      const result = await appropriateFiscalYearResultAction({ companyId, year });
-      if (result.success) {
-        toast.success(`Asiento de apropiación del ejercicio ${year} registrado.`);
-        setLocalHistory((prev) =>
-          prev.map((r) => (r.year === year ? { ...r, hasAppropriation: true } : r))
-        );
-      } else {
-        toast.error(result.error);
+      try {
+        const result = await appropriateWithStepUp({ companyId, year });
+        if (!result) return;
+        if (result.success) {
+          toast.success(`Asiento de apropiación del ejercicio ${year} registrado.`);
+          setLocalHistory((prev) =>
+            prev.map((r) => (r.year === year ? { ...r, hasAppropriation: true } : r))
+          );
+        } else {
+          toast.error(result.error);
+        }
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return;
+        throw e;
       }
     });
   }

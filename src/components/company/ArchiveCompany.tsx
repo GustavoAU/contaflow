@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArchiveIcon, Loader2Icon } from "lucide-react";
+import { useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,22 +23,31 @@ type Props = {
   userId: string;
 };
 
-export function ArchiveCompany({ companyId, companyName, userId }: Props) {
+export function ArchiveCompany({ companyId, companyName, userId: _userId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
 
+  // Q2-3: wrap con step-up — Clerk mostrará modal de re-verificación si es necesario
+  const archiveWithStepUp = useReverification(archiveCompanyAction);
+
   function handleArchive() {
     startTransition(async () => {
-      const result = await archiveCompanyAction(companyId, userId);
+      try {
+        const result = await archiveWithStepUp(companyId);
 
-      if (result.success) {
-        toast.success(`Empresa "${companyName}" archivada correctamente`);
-        setOpen(false);
-        router.push("/dashboard");
-      } else {
-        toast.error(result.error);
-        setOpen(false);
+        if (!result) return; // cancelado por el usuario
+        if (result.success) {
+          toast.success(`Empresa "${companyName}" archivada correctamente`);
+          setOpen(false);
+          router.push("/dashboard");
+        } else {
+          toast.error(result.error);
+          setOpen(false);
+        }
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return;
+        throw e;
       }
     });
   }

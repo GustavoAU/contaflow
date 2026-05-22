@@ -54,7 +54,7 @@ const CONFIG_INPUT = {
 describe("fiscal-close actions — rate limiting (HIGH)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => true });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
   });
@@ -67,6 +67,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
@@ -80,6 +81,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await appropriateFiscalYearResultAction(APPROPRIATE_INPUT);
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
@@ -103,6 +105,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
   });
@@ -112,6 +115,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Administrador");
   });

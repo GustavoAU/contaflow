@@ -17,7 +17,7 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("@clerk/nextjs/server", () => ({
-  auth: vi.fn().mockResolvedValue({ userId: "actor-1" }),
+  auth: vi.fn().mockResolvedValue({ userId: "actor-1", has: () => true }),
 }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
@@ -239,6 +239,7 @@ describe("removeMemberAction", () => {
       targetUserId: "target-1",
     });
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(true);
     expect(MemberService.removeMember).toHaveBeenCalledWith(
       COMPANY_ID,
@@ -257,6 +258,7 @@ describe("removeMemberAction", () => {
       targetUserId: "target-1",
     });
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
   });
 
@@ -270,7 +272,8 @@ describe("removeMemberAction", () => {
       targetUserId: "actor-1",
     });
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
-    expect((result as { error: string }).error).toContain("eliminarte");
+    if (!result.success) expect(result.error).toContain("eliminarte");
   });
 });

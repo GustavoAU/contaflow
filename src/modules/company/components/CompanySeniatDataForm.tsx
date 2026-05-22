@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,28 +39,37 @@ export function CompanySeniatDataForm({ companyId, initialData }: Props) {
 
   const [isPending, startTransition] = useTransition();
 
+  // Q2-3: wrap con step-up — Clerk mostrará modal de re-verificación si es necesario
+  const updateSeniatWithStepUp = useReverification(updateCompanySeniatDataAction);
+
   function handleChange(field: keyof typeof form, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function handleSave() {
     startTransition(async () => {
-      const result = await updateCompanySeniatDataAction({
-        companyId,
-        name: form.name,
-        rif: form.rif || undefined,
-        address: form.address || undefined,
-        telefono: form.telefono || undefined,
-        email: form.email || undefined,
-        ciiu: form.ciiu || undefined,
-        actividad: form.actividad || undefined,
-        isSpecialContributor: form.isSpecialContributor,
-      });
+      try {
+        const result = await updateSeniatWithStepUp({
+          companyId,
+          name: form.name,
+          rif: form.rif || undefined,
+          address: form.address || undefined,
+          telefono: form.telefono || undefined,
+          email: form.email || undefined,
+          ciiu: form.ciiu || undefined,
+          actividad: form.actividad || undefined,
+          isSpecialContributor: form.isSpecialContributor,
+        });
 
-      if (result.success) {
-        toast.success("Datos fiscales actualizados correctamente");
-      } else {
-        toast.error(result.error);
+        if (!result) return; // cancelado por el usuario
+        if (result.success) {
+          toast.success("Datos fiscales actualizados correctamente");
+        } else {
+          toast.error(result.error);
+        }
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return;
+        throw e;
       }
     });
   }

@@ -20,6 +20,7 @@ import { CompanySeniatDataForm } from "@/modules/company/components/CompanySenia
 import { GLAccountsForm } from "@/modules/settings/components/GLAccountsForm";
 import { AccountantSignatureForm } from "@/modules/settings/components/AccountantSignatureForm";
 import { getAccountantConfigAction } from "@/modules/settings/actions/accountant-config.actions";
+import { ActiveSessionsPanel } from "@/modules/settings/components/ActiveSessionsPanel";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -214,6 +215,9 @@ export default async function SettingsPage({ params }: Props) {
           initialGrants={grants}
         />
       </div>
+
+      {/* ── Sesiones Activas — Q2-4 ──────────────────────────────────────── */}
+      <ActiveSessionsPanel />
 
       <ArchiveCompany companyId={companyId} companyName={company.name} userId={user.id} />
 

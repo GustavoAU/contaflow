@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { CompanyService } from "../services/CompanyService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -43,10 +44,15 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 
 export async function updateCompanySeniatDataAction(
   input: z.infer<typeof UpdateCompanySeniatSchema>
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Q2-3: Step-up — re-verificación con 2do factor para modificar datos fiscales SENIAT
+    if (!has({ reverification: STEP_UP_CONFIG })) {
+      return reverificationError(STEP_UP_CONFIG);
+    }
 
     const validated = UpdateCompanySeniatSchema.parse(input);
 
@@ -105,10 +111,15 @@ export async function createCompanyAction(
 export async function archiveCompanyAction(
   companyId: string,
   _userId?: string // kept for backward compat — ignored, uses auth() userId
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Q2-3: Step-up — re-verificación con 2do factor para archivar empresa
+    if (!has({ reverification: STEP_UP_CONFIG })) {
+      return reverificationError(STEP_UP_CONFIG);
+    }
 
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },

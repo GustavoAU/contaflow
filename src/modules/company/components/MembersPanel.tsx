@@ -3,6 +3,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { UserPlusIcon, Trash2Icon, Loader2Icon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +85,9 @@ export function MembersPanel({
   const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null);
   const [isRemoving, startRemoveTransition] = useTransition();
 
+  // Q2-3: wrap removeMember con step-up
+  const removeMemberWithStepUp = useReverification(removeMemberAction);
+
   const isManager = canManage(currentUserRole);
 
   // ─── Agregar ─────────────────────────────────────────────────────────────
@@ -130,18 +135,24 @@ export function MembersPanel({
   function handleConfirmRemove() {
     if (!removeTarget) return;
     startRemoveTransition(async () => {
-      const result = await removeMemberAction({
-        companyId,
-        targetUserId: removeTarget.userId,
-      });
-      if (!result.success) {
-        toast.error(result.error);
+      try {
+        const result = await removeMemberWithStepUp({
+          companyId,
+          targetUserId: removeTarget.userId,
+        });
+        if (!result) return; // cancelado
+        if (!result.success) {
+          toast.error(result.error);
+          setRemoveTarget(null);
+          return;
+        }
+        toast.success("Miembro eliminado.");
+        setMembers((prev) => prev.filter((m) => m.userId !== removeTarget.userId));
         setRemoveTarget(null);
-        return;
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return;
+        throw e;
       }
-      toast.success("Miembro eliminado.");
-      setMembers((prev) => prev.filter((m) => m.userId !== removeTarget.userId));
-      setRemoveTarget(null);
     });
   }
 

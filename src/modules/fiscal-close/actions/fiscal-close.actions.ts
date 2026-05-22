@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 import {
   CloseFiscalYearSchema,
@@ -50,15 +51,20 @@ export async function closeFiscalYearAction(
   totalExpenses: string;
   netResult: string;
   closingEntriesCount: number;
-}>> {
+}> | StepUpError> {
   const parsed = CloseFiscalYearSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Q2-3: Step-up — re-verificación con 2do factor para cierre de ejercicio
+    if (!has({ reverification: STEP_UP_CONFIG })) {
+      return reverificationError(STEP_UP_CONFIG);
+    }
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
@@ -112,15 +118,20 @@ export async function closeFiscalYearAction(
 // ─── Apropiación del resultado del ejercicio ───────────────────────────────────
 export async function appropriateFiscalYearResultAction(
   input: unknown
-): Promise<ActionResult<{ appropriationTransactionId: string }>> {
+): Promise<ActionResult<{ appropriationTransactionId: string }> | StepUpError> {
   const parsed = AppropriateResultSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
   try {
-    const { userId } = await auth();
+    const { userId, has } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Q2-3: Step-up — re-verificación con 2do factor para apropiación del resultado
+    if (!has({ reverification: STEP_UP_CONFIG })) {
+      return reverificationError(STEP_UP_CONFIG);
+    }
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };

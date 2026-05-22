@@ -102,7 +102,7 @@ describe("createCompanyAction", () => {
 describe("archiveCompanyAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1", has: () => true } as never);
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ADMIN" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ company: prisma.company, auditLog: prisma.auditLog })) as never
@@ -120,6 +120,7 @@ describe("archiveCompanyAction", () => {
 
     const result = await archiveCompanyAction("company-1", "user-1");
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(true);
   });
 
@@ -128,6 +129,7 @@ describe("archiveCompanyAction", () => {
 
     const result = await archiveCompanyAction("company-1", "user-1");
 
+    if ('clerk_error' in result) throw new Error('unexpected step-up');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("período contable abierto");
   });
