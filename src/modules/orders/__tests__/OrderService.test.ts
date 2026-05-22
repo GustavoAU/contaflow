@@ -278,7 +278,8 @@ describe("OrderService.convertOrderToInvoice", () => {
       INVOICE_DATA.date,
       USER_ID,
       "WARN",
-      expect.any(Object)
+      expect.any(Object),
+      expect.stringMatching(/PURCHASE|SALE/)  // OM-01: invoiceType
     );
   });
 

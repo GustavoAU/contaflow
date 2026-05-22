@@ -355,6 +355,7 @@ export const OrderService = {
       }
 
       // Fase 37C: crear InvoiceLines desde OrderItems
+      // OM-01: pasar invoiceType para crear ENTRADA (compra) o SALIDA (venta) según corresponda
       await createInvoiceLinesInTx(
         invoice.id,
         companyId,
@@ -362,7 +363,8 @@ export const OrderService = {
         invoiceData.date,
         userId,
         "WARN",
-        tx
+        tx,
+        invoiceType  // OM-01: "PURCHASE" → ENTRADA, "SALE" → SALIDA
       );
 
       // Mark order as CONVERTED

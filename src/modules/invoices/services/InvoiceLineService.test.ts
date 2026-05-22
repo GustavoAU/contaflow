@@ -367,4 +367,88 @@ describe("createInvoiceLinesInTx", () => {
 
     expect(executeRaw).toHaveBeenCalled();
   });
+
+  // ── OM-01: PURCHASE → ENTRADA ────────────────────────────────────────────────
+
+  it("OM-01: crea movimiento ENTRADA para factura de COMPRA", async () => {
+    const computed = computeLineTotals([
+      makeLine({
+        inventoryItemId: "item-1",
+        quantity: "10",
+        unitPriceVes: "200",
+        ivaRate: "GENERAL_16",
+        lineNumber: 1,
+      }),
+    ]);
+
+    const movCreate = vi.fn().mockResolvedValue({ id: "mov-1" });
+    const lineCreate = vi.fn().mockResolvedValue({ id: "line-1" });
+    const txMock = {
+      $executeRaw: vi.fn(),
+      inventoryItem: {
+        findFirstOrThrow: vi.fn().mockResolvedValue({
+          averageCost: new Decimal("150"),
+          sku: "SKU-001",
+          name: "Producto A",
+          baseUnitId: null,
+        }),
+      },
+      inventoryMovement: { create: movCreate },
+      invoiceLine: { create: lineCreate },
+    } as never;
+
+    await createInvoiceLinesInTx(
+      "invoice-1",
+      "company-1",
+      computed,
+      new Date("2026-05-06"),
+      "user-1",
+      "WARN",
+      txMock,
+      "PURCHASE"  // OM-01
+    );
+
+    // Movimiento debe ser ENTRADA
+    expect(movCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "ENTRADA",
+          status: "DRAFT",
+        }),
+      })
+    );
+
+    // unitCost debe ser el precio de la factura (200), no el CPP (150)
+    const callData = movCreate.mock.calls[0]?.[0]?.data;
+    expect(callData?.unitCost.toString()).toBe("200");
+  });
+
+  it("OM-01: COMPRA no llama SELECT FOR UPDATE (agrega stock, no lo reduce)", async () => {
+    const computed = computeLineTotals([
+      makeLine({ inventoryItemId: "item-1", quantity: "5", unitPriceVes: "100", lineNumber: 1 }),
+    ]);
+
+    const executeRaw = vi.fn();
+    const txMock = {
+      $executeRaw: executeRaw,
+      inventoryItem: {
+        findFirstOrThrow: vi.fn().mockResolvedValue({
+          averageCost: new Decimal("80"),
+          sku: "SKU",
+          name: "Item",
+          baseUnitId: null,
+        }),
+      },
+      inventoryMovement: { create: vi.fn().mockResolvedValue({ id: "mov-1" }) },
+      invoiceLine: { create: vi.fn().mockResolvedValue({ id: "line-1" }) },
+    } as never;
+
+    await createInvoiceLinesInTx(
+      "invoice-1", "company-1", computed, new Date("2026-05-06"), "user-1",
+      "WARN", txMock, "PURCHASE"
+    );
+
+    // No debe llamar SELECT FOR UPDATE para ENTRADA
+    expect(executeRaw).not.toHaveBeenCalled();
+  });
 });

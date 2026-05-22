@@ -101,4 +101,41 @@ export class AuditLogService {
     });
     return result.map((r) => r.entityName);
   }
+
+  // OM-04: listAll para export PDF — hasta 1000 registros, sin paginación
+  static async listAll(filters: Omit<AuditLogFilters, "page" | "pageSize">): Promise<AuditLogRow[]> {
+    const { companyId, entityName, userId, dateFrom, dateTo } = filters;
+
+    const where = {
+      companyId,
+      ...(entityName ? { entityName } : {}),
+      ...(userId ? { userId } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            createdAt: {
+              ...(dateFrom ? { gte: new Date(dateFrom + "T00:00:00.000Z") } : {}),
+              ...(dateTo ? { lte: new Date(dateTo + "T23:59:59.999Z") } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const rows = await prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 1000,  // límite de seguridad — no exportar volúmenes ilimitados
+      select: {
+        id: true,
+        entityId: true,
+        entityName: true,
+        action: true,
+        userId: true,
+        oldValue: true,
+        newValue: true,
+        createdAt: true,
+      },
+    });
+
+    return rows as AuditLogRow[];
+  }
 }

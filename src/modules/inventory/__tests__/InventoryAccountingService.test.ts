@@ -13,6 +13,7 @@ const mockItem = {
   stockQuantity: new Decimal("10.00"),
   accountId: "acc-inv",
   cogsAccountId: "acc-cogs",
+  trackingType: "NONE" as const,
   deletedAt: null,
 };
 
@@ -61,7 +62,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { postMovement, voidPostedMovement, getInventoryValuation } from "../services/InventoryAccountingService";
+import { postMovement, voidPostedMovement, getInventoryValuation, autoPostMovementInTx } from "../services/InventoryAccountingService";
 import prisma from "@/lib/prisma";
 
 const COMPANY_ID = "company-001";
@@ -293,5 +294,149 @@ describe("getInventoryValuation", () => {
     const result = await getInventoryValuation(COMPANY_ID);
     // 10×100 + 5×200 = 1000 + 1000 = 2000
     expect(result.totalValue.toString()).toBe("2000");
+  });
+});
+
+// ─── autoPostMovementInTx — OM-01 ─────────────────────────────────────────────
+
+describe("autoPostMovementInTx — OM-01: contabilización inline en factura", () => {
+  const makeAutoTx = (movement: ReturnType<typeof makeMockMovement>) => ({
+    inventoryMovement: {
+      findFirst: vi.fn().mockResolvedValue(movement),
+      update: vi.fn().mockResolvedValue({ ...movement, status: "POSTED" }),
+    },
+    inventoryItem: { update: vi.fn().mockResolvedValue({}) },
+    transaction: {
+      count: vi.fn().mockResolvedValue(3),
+      create: vi.fn().mockResolvedValue({ id: "tx-auto-001" }),
+    },
+  });
+
+  it("SALIDA — crea asiento Dr COGS / Cr Inventario y marca POSTED", async () => {
+    const movement = makeMockMovement({
+      type: "SALIDA",
+      quantity: new Decimal("5"),
+      unitCost: new Decimal("100"),
+      totalCost: new Decimal("500"),
+      item: { ...mockItem, trackingType: "NONE" } as never,
+    });
+    const tx = makeAutoTx(movement);
+
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, null);
+
+    // Debe crear transacción con Dr COGS / Cr Inventario
+    expect(tx.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entries: expect.objectContaining({
+            create: expect.arrayContaining([
+              expect.objectContaining({ accountId: "acc-cogs" }),
+              expect.objectContaining({ accountId: "acc-inv" }),
+            ]),
+          }),
+        }),
+      })
+    );
+
+    // Stock debe bajar
+    expect(tx.inventoryItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          stockQuantity: expect.any(Object), // Decimal
+        }),
+      })
+    );
+
+    // Movimiento debe marcarse POSTED
+    expect(tx.inventoryMovement.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "POSTED" }),
+      })
+    );
+  });
+
+  it("ENTRADA — reutiliza glTransactionId de la factura (no crea asiento nuevo)", async () => {
+    const movement = makeMockMovement({
+      type: "ENTRADA",
+      quantity: new Decimal("10"),
+      unitCost: new Decimal("120"),
+      totalCost: new Decimal("1200"),
+      item: { ...mockItem, trackingType: "NONE" } as never,
+    });
+    const tx = makeAutoTx(movement);
+
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, "invoice-tx-001");
+
+    // No debe crear nueva transacción GL (la factura ya tiene Dr Inventario)
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+
+    // Stock debe subir y CPP actualizarse
+    expect(tx.inventoryItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stockQuantity: expect.any(Object) }),
+      })
+    );
+
+    // Movimiento POSTED con el transactionId de la factura
+    expect(tx.inventoryMovement.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "POSTED",
+          transactionId: "invoice-tx-001",
+        }),
+      })
+    );
+  });
+
+  it("ENTRADA sin invoiceGLTransactionId → skip silencioso (movimiento queda DRAFT)", async () => {
+    const movement = makeMockMovement({
+      type: "ENTRADA",
+      item: { ...mockItem, trackingType: "NONE" } as never,
+    });
+    const tx = makeAutoTx(movement);
+
+    // invoiceGLTransactionId = null → no puede contabilizar ENTRADA sin GL de factura
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, null);
+
+    expect(tx.inventoryItem.update).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.update).not.toHaveBeenCalled();
+  });
+
+  it("LOT tracking → skip silencioso (requiere datos de lote)", async () => {
+    const movement = makeMockMovement({
+      type: "SALIDA",
+      item: { ...mockItem, trackingType: "LOT" } as never,
+    });
+    const tx = makeAutoTx(movement);
+
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, null);
+
+    expect(tx.inventoryItem.update).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.update).not.toHaveBeenCalled();
+  });
+
+  it("SALIDA sin cogsAccountId → skip silencioso (sin config GL)", async () => {
+    const movement = makeMockMovement({
+      type: "SALIDA",
+      item: { ...mockItem, cogsAccountId: null, trackingType: "NONE" } as never,
+    });
+    const tx = makeAutoTx(movement);
+
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, null);
+
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.update).not.toHaveBeenCalled();
+  });
+
+  it("movimiento no encontrado → skip silencioso", async () => {
+    const tx = {
+      inventoryMovement: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+      inventoryItem: { update: vi.fn() },
+      transaction: { count: vi.fn(), create: vi.fn() },
+    };
+
+    await autoPostMovementInTx(tx as never, "nonexistent", COMPANY_ID, USER_ID, null);
+
+    expect(tx.inventoryItem.update).not.toHaveBeenCalled();
   });
 });

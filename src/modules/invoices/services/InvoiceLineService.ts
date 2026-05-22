@@ -219,7 +219,14 @@ export async function validateStockForLines(
 }
 
 // ─── Crear InvoiceLines + InventoryMovements DRAFT en $transaction ────────────
-// Llamado desde InvoiceService.create() después de crear la Invoice
+// Llamado desde InvoiceService.create() después de crear la Invoice.
+//
+// OM-01: invoiceType determina el tipo de movimiento:
+//   SALE    → SALIDA  (unitCost = CPP actual del ítem — averageCost)
+//   PURCHASE → ENTRADA (unitCost = unitPriceVes de la línea — costo facturado)
+//
+// Los movimientos quedan en DRAFT; InvoiceService los contabiliza inline
+// mediante autoPostMovementInTx si el ítem es trackingType = NONE.
 export async function createInvoiceLinesInTx(
   invoiceId: string,
   companyId: string,
@@ -227,16 +234,20 @@ export async function createInvoiceLinesInTx(
   invoiceDate: Date,
   createdBy: string,
   stockLevel: StockControlLevel,
-  tx: Prisma.TransactionClient
+  tx: Prisma.TransactionClient,
+  invoiceType: "SALE" | "PURCHASE" = "SALE"  // OM-01: default SALE para compatibilidad
 ): Promise<void> {
   for (const c of computed) {
     const line = c.input;
     let inventoryMovementId: string | null = null;
 
     if (line.inventoryItemId) {
-      // ADR-024 D-2.3 paso 2: SELECT FOR UPDATE en path CONFIRM con stock insuficiente confirmado
-      // (para WARN también aplica — serializa el write en caso de concurrencia)
-      if (stockLevel === "CONFIRM" || stockLevel === "WARN") {
+      const isPurchase = invoiceType === "PURCHASE";
+
+      // SALIDA (venta): SELECT FOR UPDATE serializa el write de stock contra concurrencia.
+      // ENTRADA (compra): no remueve stock → lock no necesario para la validación de mínimo.
+      // ADR-024 D-2.3 paso 2.
+      if (!isPurchase && (stockLevel === "CONFIRM" || stockLevel === "WARN")) {
         await tx.$executeRaw`
           SELECT id FROM "InventoryItem"
           WHERE id = ${line.inventoryItemId} AND "companyId" = ${companyId}
@@ -244,7 +255,7 @@ export async function createInvoiceLinesInTx(
         `;
       }
 
-      // Leer item (post-lock) para obtener CPP vigente
+      // Leer item (post-lock para SALIDA; lectura directa para ENTRADA)
       const item = await tx.inventoryItem.findFirstOrThrow({
         where: { id: line.inventoryItemId, companyId },
         select: { averageCost: true, sku: true, name: true, baseUnitId: true },
@@ -262,7 +273,14 @@ export async function createInvoiceLinesInTx(
         conversionSnapshot = new Decimal(1);
       }
 
-      const unitCost = new Decimal(item.averageCost.toString());
+      // OM-01: unitCost por tipo de movimiento
+      // SALIDA  → CPP actual del ítem (averageCost)
+      // ENTRADA → precio facturado (unitPriceVes)
+      const unitCost = isPurchase
+        ? c.unitPriceVes                              // costo de compra
+        : new Decimal(item.averageCost.toString());   // CPP vigente para COGS
+
+      const movementType = isPurchase ? "ENTRADA" : "SALIDA";
 
       // Idempotency key: SHA256(invoiceId | lineNumber | itemId) — inmutable
       const idempotencyKey = createHash("sha256")
@@ -273,7 +291,7 @@ export async function createInvoiceLinesInTx(
         data: {
           companyId,
           itemId: line.inventoryItemId,
-          type: "SALIDA",
+          type: movementType,
           status: "DRAFT",
           quantity: quantityInBase,
           unitCost,

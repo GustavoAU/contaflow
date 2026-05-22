@@ -4,8 +4,8 @@
 // Tabla paginada de auditoría con filtros y diff oldValue↔newValue
 
 import { useState, useTransition, useCallback } from "react";
-import { Loader2Icon } from "lucide-react";
-import { listAuditLogsAction } from "../actions/audit.actions";
+import { Loader2Icon, FileDownIcon } from "lucide-react";
+import { listAuditLogsAction, exportAuditLogPDFAction } from "../actions/audit.actions";
 import type { AuditLogRow, AuditLogPage } from "../services/AuditLogService";
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -86,6 +86,10 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // OM-04: PDF export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+
   const fetchPage = useCallback(
     (page: number) => {
       startTransition(async () => {
@@ -112,6 +116,40 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
   function handleFilterSubmit(e: React.FormEvent) {
     e.preventDefault();
     fetchPage(1);
+  }
+
+  // OM-04: descarga PDF firmado del registro de auditoría
+  async function handleExportPDF() {
+    setIsExporting(true);
+    setExportMsg(null);
+    try {
+      const result = await exportAuditLogPDFAction(companyId, {
+        entityName: entityName || undefined,
+        userId: userId || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      if (!result.success) {
+        setExportMsg(`Error: ${result.error}`);
+        return;
+      }
+      // Descargar el PDF
+      const binary = atob(result.data.pdf);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportMsg(
+        `${result.data.rowCount} registros exportados. SHA-256: ${result.data.contentHash.slice(0, 16)}…${result.data.signed ? " ✓ Firmado" : " (sin firma)"}`
+      );
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   const totalPages = Math.ceil(data.total / data.pageSize);
@@ -190,7 +228,26 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
         >
           Limpiar
         </button>
+
+        {/* OM-04: Exportar PDF firmado */}
+        <button
+          type="button"
+          onClick={handleExportPDF}
+          disabled={isExporting}
+          aria-busy={isExporting}
+          className="ml-auto flex items-center gap-1.5 rounded border border-emerald-600 px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        >
+          {isExporting ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
+          {isExporting ? "Generando PDF..." : "Exportar PDF"}
+        </button>
       </form>
+
+      {/* OM-04: Mensaje post-exportación */}
+      {exportMsg && (
+        <div className={`rounded border px-4 py-2 text-xs font-mono ${exportMsg.startsWith("Error") ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+          {exportMsg}
+        </div>
+      )}
 
       {error && (
         <div className="rounded bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">

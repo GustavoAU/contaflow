@@ -4,6 +4,7 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
+import type { Prisma } from "@prisma/client";
 import type { PostMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
 import {
   resolveLotAllocations,
@@ -453,5 +454,130 @@ export async function getPendingMovements(companyId: string) {
     where: { companyId, status: "DRAFT" },
     include: { item: true },
     orderBy: { createdAt: "asc" },
+  });
+}
+
+// ─── autoPostMovementInTx: OM-01 — contabilización inline durante creación de factura ──
+//
+// Contabiliza un movimiento DRAFT dentro de la transacción ya abierta por InvoiceService.
+// Solo aplica a ítems con trackingType = NONE (LOT/SERIAL requieren datos adicionales → manual).
+//
+// SALIDA (factura de venta):  crea Dr COGS / Cr Inventario (CPP) en nuevo asiento.
+// ENTRADA (factura de compra): reutiliza la transacción GL de la factura (ya tiene Dr Inventario)
+//   → solo actualiza stock/CPP y marca el movimiento como POSTED.
+//
+// Si las cuentas de GL no están configuradas en el ítem, el movimiento queda en DRAFT
+// para contabilización manual — no lanza error (evita bloquear la factura).
+//
+// Invariante: se llama SIEMPRE dentro de una $transaction existente (no crea una nueva).
+export async function autoPostMovementInTx(
+  tx: Prisma.TransactionClient,
+  movementId: string,
+  companyId: string,
+  userId: string,
+  invoiceGLTransactionId: string | null  // para ENTRADA: transactionId del asiento de la factura
+): Promise<void> {
+  const movement = await tx.inventoryMovement.findFirst({
+    where: { id: movementId, companyId, status: "DRAFT" },
+    include: {
+      item: {
+        select: {
+          id: true,
+          name: true,
+          stockQuantity: true,
+          averageCost: true,
+          accountId: true,
+          cogsAccountId: true,
+          trackingType: true,
+        },
+      },
+    },
+  });
+
+  if (!movement) return; // movimiento no encontrado, ya posted, o IDOR → skip silencioso
+
+  const item = movement.item;
+
+  // Solo contabilizar ítems sin tracking (LOT/SERIAL requieren datos de lote → manual)
+  if (item.trackingType !== "NONE") return;
+
+  const qty = new Decimal(movement.quantity.toString());
+  const unitCost = new Decimal(movement.unitCost.toString());
+  const totalCost = new Decimal(movement.totalCost.toString());
+  const currentStock = new Decimal(item.stockQuantity.toString());
+  const currentAvgCost = new Decimal(item.averageCost.toString());
+
+  let newStock: Decimal;
+  let newAvgCost: Decimal;
+  let glTransactionId: string;
+
+  if (movement.type === "ENTRADA") {
+    // CPP: nuevo_avg = (stock × avg + qty × unitCost) / (stock + qty)
+    newStock = currentStock.plus(qty);
+    newAvgCost = newStock.isZero()
+      ? unitCost
+      : currentStock.mul(currentAvgCost).plus(qty.mul(unitCost)).div(newStock);
+
+    // Reutilizar GL de la factura (la factura ya tiene Dr Inventario / Cr Proveedores)
+    // Si no hay transactionId de factura, no podemos contabilizar → dejar en DRAFT
+    if (!invoiceGLTransactionId || !item.accountId) return;
+    glTransactionId = invoiceGLTransactionId;
+
+  } else {
+    // SALIDA / AJUSTE: stock baja (puede quedar negativo si WARN); CPP sin cambio
+    newStock = currentStock.minus(qty);
+    newAvgCost = currentAvgCost;
+
+    // Necesitamos accountId (Inventario) + cogsAccountId (COGS) del ítem
+    if (!item.cogsAccountId || !item.accountId) return; // sin config GL → dejar DRAFT
+
+    // Crear asiento Dr COGS / Cr Inventario
+    const txCount = await tx.transaction.count({ where: { companyId } });
+    const txNumber = `INV-${String(txCount + 1).padStart(6, "0")}`;
+
+    const journalTx = await tx.transaction.create({
+      data: {
+        companyId,
+        number: txNumber,
+        date: movement.date,
+        description: `COGS — Salida inventario ${item.name} × ${qty.toFixed(4)}`,
+        type: "DIARIO",
+        userId,
+        entries: {
+          create: [
+            {
+              accountId: item.cogsAccountId,
+              amount: totalCost,
+              description: `COGS venta — ${item.name}`,
+            },
+            {
+              accountId: item.accountId,
+              amount: totalCost.negated(),
+              description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.`,
+            },
+          ],
+        },
+      },
+    });
+    glTransactionId = journalTx.id;
+  }
+
+  // Actualizar stock del ítem
+  await tx.inventoryItem.update({
+    where: { id: item.id },
+    data: { stockQuantity: newStock, averageCost: newAvgCost },
+  });
+
+  // Marcar movimiento como POSTED
+  await tx.inventoryMovement.update({
+    where: { id: movementId },
+    data: {
+      status: "POSTED",
+      transactionId: glTransactionId,
+      postedAt: new Date(),
+      postedBy: userId,
+      unitCost,   // snapshot al momento de post
+      totalCost,
+    },
   });
 }

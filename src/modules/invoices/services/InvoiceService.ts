@@ -12,6 +12,7 @@ import {
   createInvoiceLinesInTx,
 } from "./InvoiceLineService";
 import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
+import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -334,14 +335,16 @@ export class InvoiceService {
           new Date(input.date),
           input.createdBy ?? "",
           stockLevel,
-          db
+          db,
+          input.type as "SALE" | "PURCHASE"  // OM-01: tipo de movimiento correcto
         );
       }
 
       // ─── GL auto-posting (ADR-026) ──────────────────────────────────────────
       // Solo si no se pasó transactionId explícito y la config GL está completa
+      let glTransactionId: string | null = null;
       if (!input.transactionId && settings && InvoiceGLPostingService.canPost(input.type as "SALE" | "PURCHASE", settings)) {
-        await InvoiceGLPostingService.postInvoice(
+        glTransactionId = await InvoiceGLPostingService.postInvoice(
           {
             id: invoice.id,
             type: input.type as "SALE" | "PURCHASE",
@@ -357,10 +360,35 @@ export class InvoiceService {
           input.createdBy ?? "",
           db
         );
-        // Re-fetch para incluir transactionId actualizado
-        return db.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { taxLines: true } });
       }
 
+      // ─── OM-01: Contabilización automática de movimientos de inventario ─────
+      // Para ítems con trackingType = NONE:
+      //   SALIDA (venta):   Dr COGS / Cr Inventario en nuevo asiento
+      //   ENTRADA (compra): reutiliza glTransactionId de la factura (Dr Inventario ya existe)
+      // Para LOT/SERIAL: el movimiento queda en DRAFT para contabilización manual.
+      if (hasLines) {
+        const draftMovements = await db.inventoryMovement.findMany({
+          where: { invoiceId: invoice.id, status: "DRAFT" },
+          select: { id: true, type: true },
+        });
+        for (const m of draftMovements) {
+          // ENTRADA solo si la factura tiene GL (para reutilizar Dr Inventario del asiento)
+          if (m.type === "ENTRADA" && !glTransactionId) continue;
+          await autoPostMovementInTx(
+            db,
+            m.id,
+            input.companyId,
+            input.createdBy ?? "",
+            m.type === "ENTRADA" ? glTransactionId : null
+          );
+        }
+      }
+
+      // Re-fetch para incluir transactionId actualizado (si GL posting ocurrió)
+      if (glTransactionId) {
+        return db.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { taxLines: true } });
+      }
       return invoice;
     };
 
