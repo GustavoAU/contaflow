@@ -94,6 +94,7 @@ export class InvoiceGLPostingService {
       if (config.ivaRetentionPayableAccountId) {
         const retenciones = await db.retencion.findMany({
           where: {
+            companyId,
             invoiceId: invoice.id,
             type: { in: ["IVA", "AMBAS"] },
             deletedAt: null,
