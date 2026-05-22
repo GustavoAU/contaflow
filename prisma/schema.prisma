@@ -315,6 +315,7 @@ model Account {
   companySettingsAsAP              CompanySettings[]        @relation("SettingsAPAccount")
   companySettingsAsSales           CompanySettings[]        @relation("SettingsSalesAccount")
   companySettingsAsPurchaseExpense CompanySettings[]        @relation("SettingsPurchaseExpenseAccount")
+  companySettingsAsInventory       CompanySettings[]        @relation("SettingsInventoryAccount")
   companySettingsAsIVADF           CompanySettings[]        @relation("SettingsIVADFAccount")
   companySettingsAsIVACF           CompanySettings[]        @relation("SettingsIVACFAccount")
   // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
@@ -2267,7 +2268,8 @@ model CompanySettings {
   arAccountId              String? // ASSET — Cuentas por Cobrar (facturas venta)
   apAccountId              String? // LIABILITY — Proveedores (facturas compra)
   salesAccountId           String? // REVENUE — ingreso por defecto (facturas venta)
-  purchaseExpenseAccountId String? // EXPENSE — gasto por defecto (facturas compra)
+  purchaseExpenseAccountId String? // EXPENSE — gasto por defecto (facturas compra) [inventario periódico / sin uso en perpetuo]
+  inventoryAccountId       String? // ASSET — Inventario de Mercancías (inventario perpetuo — Dr al registrar compra)
   ivaDFAccountId           String? // LIABILITY — IVA Débito Fiscal (facturas venta)
   ivaCFAccountId           String? // ASSET — IVA Crédito Fiscal (facturas compra)
   // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
@@ -2278,6 +2280,7 @@ model CompanySettings {
   apAccount              Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
   salesAccount           Account? @relation("SettingsSalesAccount", fields: [salesAccountId], references: [id], onDelete: Restrict)
   purchaseExpenseAccount Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
+  inventoryAccount       Account? @relation("SettingsInventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: Restrict)
   ivaDFAccount           Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
   ivaCFAccount           Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
   fxGainAccount          Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)

@@ -1,5 +1,7 @@
 // src/modules/invoices/__tests__/InvoiceGLPostingService.test.ts
 // Tests unitarios para causación automática de facturas al GL (ADR-026)
+// Error 3 dictamen SENIAT: ventas exentas incluyen "Exento Art. 9 LIVA" en descripción
+// Error 4 dictamen SENIAT: compras → Dr Inventario (ASSET) no Dr Gasto (EXPENSE)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Decimal } from "decimal.js";
 import { InvoiceGLPostingService } from "../services/InvoiceGLPostingService";
@@ -11,11 +13,12 @@ const USER_ID = "user-1";
 const TX_ID = "tx-gl-1";
 const INVOICE_ID = "inv-1";
 
-const FULL_SALE_CONFIG: InvoiceGLConfig = {
+const FULL_CONFIG: InvoiceGLConfig = {
   arAccountId: "acc-cxc",
   apAccountId: "acc-prov",
   salesAccountId: "acc-ventas",
-  purchaseExpenseAccountId: "acc-compras",
+  purchaseExpenseAccountId: "acc-gasto-legacy", // no usado en posting perpetuo
+  inventoryAccountId: "acc-inventario",         // ASSET 1115 — usado en COMPRA
   ivaDFAccountId: "acc-iva-df",
   ivaCFAccountId: "acc-iva-cf",
 };
@@ -65,37 +68,45 @@ function makeMockDb() {
   } as unknown as import("@prisma/client").Prisma.TransactionClient;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+// ─── Tests canPost ────────────────────────────────────────────────────────────
 
 describe("InvoiceGLPostingService.canPost()", () => {
   it("retorna true para SALE con config completa", () => {
-    expect(InvoiceGLPostingService.canPost("SALE", FULL_SALE_CONFIG)).toBe(true);
+    expect(InvoiceGLPostingService.canPost("SALE", FULL_CONFIG)).toBe(true);
   });
 
-  it("retorna true para PURCHASE con config completa", () => {
-    expect(InvoiceGLPostingService.canPost("PURCHASE", FULL_SALE_CONFIG)).toBe(true);
+  it("retorna true para PURCHASE con inventoryAccountId configurado", () => {
+    expect(InvoiceGLPostingService.canPost("PURCHASE", FULL_CONFIG)).toBe(true);
   });
 
   it("retorna false para SALE sin arAccountId", () => {
-    const config = { ...FULL_SALE_CONFIG, arAccountId: null };
+    const config = { ...FULL_CONFIG, arAccountId: null };
     expect(InvoiceGLPostingService.canPost("SALE", config)).toBe(false);
   });
 
   it("retorna false para SALE sin salesAccountId", () => {
-    const config = { ...FULL_SALE_CONFIG, salesAccountId: null };
+    const config = { ...FULL_CONFIG, salesAccountId: null };
     expect(InvoiceGLPostingService.canPost("SALE", config)).toBe(false);
   });
 
   it("retorna false para PURCHASE sin apAccountId", () => {
-    const config = { ...FULL_SALE_CONFIG, apAccountId: null };
+    const config = { ...FULL_CONFIG, apAccountId: null };
     expect(InvoiceGLPostingService.canPost("PURCHASE", config)).toBe(false);
   });
 
-  it("retorna false para PURCHASE sin purchaseExpenseAccountId", () => {
-    const config = { ...FULL_SALE_CONFIG, purchaseExpenseAccountId: null };
+  it("retorna false para PURCHASE sin inventoryAccountId (Error 4 dictamen SENIAT)", () => {
+    const config = { ...FULL_CONFIG, inventoryAccountId: null };
+    expect(InvoiceGLPostingService.canPost("PURCHASE", config)).toBe(false);
+  });
+
+  it("retorna false para PURCHASE aunque tenga purchaseExpenseAccountId (legacy no suficiente)", () => {
+    // purchaseExpenseAccountId es campo legacy — inventoryAccountId es el requerido ahora
+    const config = { ...FULL_CONFIG, inventoryAccountId: null, purchaseExpenseAccountId: "acc-gasto" };
     expect(InvoiceGLPostingService.canPost("PURCHASE", config)).toBe(false);
   });
 });
+
+// ─── Tests VENTA ──────────────────────────────────────────────────────────────
 
 describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
   let db: ReturnType<typeof makeMockDb>;
@@ -105,7 +116,7 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
   it("crea Transaction + 3 JournalEntries balanceadas (Dr CxC / Cr Ventas / Cr IVA-DF)", async () => {
     const txId = await InvoiceGLPostingService.postInvoice(
       SALE_INVOICE,
-      FULL_SALE_CONFIG,
+      FULL_CONFIG,
       COMPANY_ID,
       USER_ID,
       db
@@ -140,7 +151,7 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
   });
 
   it("vincula el asiento a la factura via invoice.update", async () => {
-    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
 
     expect(vi.mocked(db.invoice.update)).toHaveBeenCalledWith({
       where: { id: INVOICE_ID },
@@ -149,14 +160,14 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
   });
 
   it("número de transaction usa prefijo FAC-", async () => {
-    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((createCall.data as any).number).toBe("FAC-0001");
   });
 
   it("omite entrada IVA-DF cuando ivaTotal = 0 (factura EXENTA)", async () => {
-    await InvoiceGLPostingService.postInvoice(EXEMPT_INVOICE, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(EXEMPT_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,17 +183,37 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
     );
     expect(sum.abs().lessThan(new Decimal("0.01"))).toBe(true);
   });
+
+  // Error 3 dictamen SENIAT: ventas exentas deben documentar Art. 9 LIVA en descripción
+  it("Error 3 SENIAT: incluye 'Exento Art. 9 LIVA' en descripción de venta sin IVA", async () => {
+    await InvoiceGLPostingService.postInvoice(EXEMPT_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const desc = (createCall.data as any).description as string;
+    expect(desc).toContain("Exento Art. 9 LIVA");
+  });
+
+  it("NO incluye 'Exento Art. 9 LIVA' en venta con IVA normal", async () => {
+    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const desc = (createCall.data as any).description as string;
+    expect(desc).not.toContain("Exento Art. 9 LIVA");
+  });
 });
 
-describe("InvoiceGLPostingService.postInvoice() — COMPRA", () => {
+// ─── Tests COMPRA ─────────────────────────────────────────────────────────────
+
+describe("InvoiceGLPostingService.postInvoice() — COMPRA (inventario perpetuo)", () => {
   let db: ReturnType<typeof makeMockDb>;
 
   beforeEach(() => { db = makeMockDb(); });
 
-  it("crea Transaction + 3 JournalEntries balanceadas (Dr Gasto / Dr IVA-CF / Cr AP)", async () => {
+  // Error 4 dictamen SENIAT: compras deben ir a Dr Inventario (ASSET), no Dr Gasto
+  it("Error 4 SENIAT: Dr Inventario (ASSET 1115) / Dr IVA-CF / Cr Proveedores", async () => {
     const txId = await InvoiceGLPostingService.postInvoice(
       PURCHASE_INVOICE,
-      FULL_SALE_CONFIG,
+      FULL_CONFIG,
       COMPANY_ID,
       USER_ID,
       db
@@ -192,14 +223,15 @@ describe("InvoiceGLPostingService.postInvoice() — COMPRA", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal; description: string }>;
 
     expect(entries).toHaveLength(3);
 
-    // Dr Gasto = 200 (positivo)
-    const gastoEntry = entries.find((e) => e.accountId === "acc-compras");
-    expect(gastoEntry).toBeDefined();
-    expect(new Decimal(gastoEntry!.amount.toString()).toFixed(2)).toBe("200.00");
+    // Dr Inventario = 200 (positivo) — ASSET, no EXPENSE
+    const inventarioEntry = entries.find((e) => e.accountId === "acc-inventario");
+    expect(inventarioEntry).toBeDefined();
+    expect(new Decimal(inventarioEntry!.amount.toString()).toFixed(2)).toBe("200.00");
+    expect(inventarioEntry!.description).toContain("inventario");
 
     // Cr AP = -232 (negativo)
     const apEntry = entries.find((e) => e.accountId === "acc-prov");
@@ -211,18 +243,24 @@ describe("InvoiceGLPostingService.postInvoice() — COMPRA", () => {
     expect(ivaEntry).toBeDefined();
     expect(new Decimal(ivaEntry!.amount.toString()).toFixed(2)).toBe("32.00");
 
+    // El asiento NO usa purchaseExpenseAccountId (legacy)
+    const gastoEntry = entries.find((e) => e.accountId === "acc-gasto-legacy");
+    expect(gastoEntry).toBeUndefined();
+
     // Invariante: Σ = 0
     const sum = entries.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
     expect(sum.abs().lessThan(new Decimal("0.01"))).toBe(true);
   });
 
   it("número de transaction usa prefijo CMP-", async () => {
-    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((createCall.data as any).number).toBe("CMP-C-0001");
   });
 });
+
+// ─── Tests IVA adicional de lujo (31%) ───────────────────────────────────────
 
 describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
   it("VENTA con IVA_GENERAL 16% + IVA_ADICIONAL 15%: Dr CxC / Cr Ingresos / Cr IVA-DF balanceado", async () => {
@@ -242,7 +280,7 @@ describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
       ],
     };
 
-    const txId = await InvoiceGLPostingService.postInvoice(luxuryInvoice, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db);
+    const txId = await InvoiceGLPostingService.postInvoice(luxuryInvoice, FULL_CONFIG, COMPANY_ID, USER_ID, db);
     expect(txId).toBe(TX_ID);
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
@@ -264,6 +302,8 @@ describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
   });
 });
 
+// ─── Tests guarda semántica ───────────────────────────────────────────────────
+
 describe("InvoiceGLPostingService — guarda semántica", () => {
   it("lanza error si totalAmountVes es menor que el IVA total (dato corrupto)", async () => {
     const db = makeMockDb();
@@ -273,7 +313,7 @@ describe("InvoiceGLPostingService — guarda semántica", () => {
     };
 
     await expect(
-      InvoiceGLPostingService.postInvoice(badInvoice, FULL_SALE_CONFIG, COMPANY_ID, USER_ID, db)
+      InvoiceGLPostingService.postInvoice(badInvoice, FULL_CONFIG, COMPANY_ID, USER_ID, db)
     ).rejects.toThrow(/base negativa/);
 
     expect(vi.mocked(db.transaction.create)).not.toHaveBeenCalled();

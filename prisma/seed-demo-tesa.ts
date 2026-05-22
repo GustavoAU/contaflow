@@ -184,7 +184,8 @@ async function main() {
       arAccountId:              accounts["1305"],
       apAccountId:              accounts["2205"],
       salesAccountId:           accounts["4110"],
-      purchaseExpenseAccountId: accounts["5110"],
+      purchaseExpenseAccountId: accounts["5110"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:       accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
       ivaDFAccountId:           accounts["2105"],
       ivaCFAccountId:           accounts["1120"],
     },
@@ -193,7 +194,8 @@ async function main() {
       arAccountId:              accounts["1305"],
       apAccountId:              accounts["2205"],
       salesAccountId:           accounts["4110"],
-      purchaseExpenseAccountId: accounts["5110"],
+      purchaseExpenseAccountId: accounts["5110"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:       accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
       ivaDFAccountId:           accounts["2105"],
       ivaCFAccountId:           accounts["1120"],
     },
@@ -1416,6 +1418,7 @@ async function main() {
       select: {
         arAccountId: true, apAccountId: true,
         salesAccountId: true, purchaseExpenseAccountId: true,
+        inventoryAccountId: true,
         ivaDFAccountId: true, ivaCFAccountId: true,
       },
     });

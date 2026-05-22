@@ -257,6 +257,7 @@ export class InvoiceService {
           apAccountId: true,
           salesAccountId: true,
           purchaseExpenseAccountId: true,
+          inventoryAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
         },
