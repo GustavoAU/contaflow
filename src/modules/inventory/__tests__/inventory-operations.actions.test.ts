@@ -79,7 +79,9 @@ const BASE_ITEM_INPUT = {
   companyId: COMPANY_ID,
   sku: "PROD-001",
   name: "Producto Test",
-  unit: "unidad",
+  itemType: "GOODS" as const,
+  accountId: "acc-inv-001",       // R-01: cuentas obligatorias para GOODS
+  cogsAccountId: "acc-cogs-001",
 };
 
 const BASE_MOVEMENT_INPUT = {
@@ -88,6 +90,7 @@ const BASE_MOVEMENT_INPUT = {
   type: "ENTRADA" as const,
   quantity: 5,
   unitCost: "100",
+  reference: "FAC-2026-001",  // R-03: referencia obligatoria (min 3 chars)
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 };

@@ -7,17 +7,20 @@ import Decimal from "decimal.js";
 vi.mock("@/lib/prisma", () => ({
   default: {
     account: { findFirstOrThrow: vi.fn() },
+    accountingPeriod: { findFirst: vi.fn() },  // R-09: bloqueo períodos cerrados
     inventoryItem: {
       create: vi.fn(),
       update: vi.fn(),
       findFirstOrThrow: vi.fn(),
       findMany: vi.fn(),
+      count: vi.fn(),
     },
     inventoryMovement: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       findFirstOrThrow: vi.fn(),
       update: vi.fn(),
+      count: vi.fn(),
     },
     invoice: { findFirstOrThrow: vi.fn() },
     $transaction: vi.fn(),
@@ -84,6 +87,7 @@ beforeEach(() => {
   currentTx = makeTx();
 
   vi.mocked(prisma.account.findFirstOrThrow).mockResolvedValue({ id: "acc-inv" } as never);
+  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never); // R-09: no hay período cerrado
   vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue(makeItem() as never);
   vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.inventoryMovement.findFirstOrThrow).mockResolvedValue({
@@ -92,6 +96,7 @@ beforeEach(() => {
     companyId: COMPANY_ID,
   } as never);
   vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(0 as never);  // R-05: sin movimientos POSTED
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
   );
@@ -102,7 +107,7 @@ beforeEach(() => {
 describe("createInventoryItem", () => {
   it("crea un ítem con los datos correctos", async () => {
     const result = await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test" },
+      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test", itemType: "GOODS" },
       USER_ID
     );
     expect(result).toBeDefined();
@@ -120,7 +125,9 @@ describe("createInventoryItem", () => {
           companyId: COMPANY_ID,
           sku: "X",
           name: "Test",
+          itemType: "GOODS",
           accountId: "acc-other-company",
+          cogsAccountId: "acc-cogs",
         },
         USER_ID
       )
@@ -137,6 +144,7 @@ describe("createInventoryItem", () => {
           companyId: COMPANY_ID,
           sku: "X",
           name: "Test",
+          itemType: "GOODS",
           accountId: "acc-inv",
           cogsAccountId: "acc-other-company-cogs",
         },
@@ -145,9 +153,9 @@ describe("createInventoryItem", () => {
     ).rejects.toThrow("COGS account not found");
   });
 
-  it("no verifica accounts si no se proporcionan", async () => {
+  it("no verifica accounts si no se proporcionan (SERVICE)", async () => {
     await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas" },
+      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas", itemType: "SERVICE" },
       USER_ID
     );
     expect(vi.mocked(prisma.account.findFirstOrThrow)).not.toHaveBeenCalled();
@@ -192,6 +200,7 @@ describe("createDraftMovement", () => {
     type: "ENTRADA" as const,
     quantity: 5,
     unitCost: "120",
+    reference: "REF-TEST-001",  // R-03: referencia obligatoria (min 3 chars)
     date: new Date().toISOString(),
     idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
   };

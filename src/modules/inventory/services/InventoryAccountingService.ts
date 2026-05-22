@@ -101,22 +101,33 @@ export async function postMovement(
         // ── Generar asiento contable ──────────────────────────────────────────
         const totalCost = new Decimal(movement.totalCost);
 
-        // ENTRADA: Débito Inventario / Crédito (cta. destino — normalmente CxP o Efectivo)
-        // SALIDA:  Débito COGS / Crédito Inventario
-        // AJUSTE:  Débito/Crédito dependiendo de dirección — aquí tratamos como SALIDA
+        // ENTRADA: Débito Inventario / Crédito contrapartida (CxP/Caja si está configurada)
+        // SALIDA:  Débito COGS / Crédito Inventario (asiento autosuficiente)
+        // AJUSTE:  igual que SALIDA — Débito COGS / Crédito Inventario
+        //
+        // R-04 auditoría SENIAT: si counterpartAccountId está presente en el movimiento,
+        // se genera el asiento completo de partida doble (DR Inventario / CR contrapartida).
+        // Si no está presente (movimientos legacy o vinculados a factura que ya tiene su propio
+        // asiento via InvoiceGLPostingService), se crea solo el DR Inventario para actualizar
+        // el saldo del Libro Mayor de la cuenta de inventario.
+        const baseDesc = `${movement.type} inventario — ${item.name} × ${qty}`;
         const journalEntries =
           movement.type === "ENTRADA"
-            ? [
-                // Débito: Inventario (activo aumenta)
-                { accountId: item.accountId, amount: totalCost, description: `ENTRADA inventario — ${item.name} × ${qty}` },
-                // Crédito: COGS/contrapartida no requerida en ENTRADA standalone — omitir
-                // (el asiento de compra completo se genera via InvoiceService)
-              ]
+            ? movement.counterpartAccountId
+              ? [
+                  // Partida doble completa: Dr Inventario / Cr Contrapartida
+                  { accountId: item.accountId, amount: totalCost, description: `${baseDesc} — inventario` },
+                  { accountId: movement.counterpartAccountId, amount: totalCost.negated(), description: `${baseDesc} — contrapartida` },
+                ]
+              : [
+                  // Entrada standalone (ej. stock inicial): solo Dr Inventario
+                  // El Cr se genera vía InvoiceGLPostingService si hay factura asociada.
+                  { accountId: item.accountId, amount: totalCost, description: `${baseDesc} — inventario` },
+                ]
             : [
-                // Débito: COGS (gasto)
-                { accountId: item.cogsAccountId!, amount: totalCost, description: `COGS — Costo venta ${item.name} × ${qty}` },
-                // Crédito: Inventario (activo disminuye)
-                { accountId: item.accountId, amount: totalCost.negated(), description: `${movement.type} inventario — ${item.name} × ${qty}` },
+                // SALIDA / AJUSTE: Dr COGS / Cr Inventario (siempre balanceado)
+                { accountId: item.cogsAccountId!, amount: totalCost, description: `COGS — Costo ${movement.type.toLowerCase()} ${item.name} × ${qty}` },
+                { accountId: item.accountId, amount: totalCost.negated(), description: `${baseDesc}` },
               ];
 
         const journalTx = await tx.transaction.create({

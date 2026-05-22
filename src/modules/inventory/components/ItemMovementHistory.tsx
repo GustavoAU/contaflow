@@ -3,6 +3,9 @@
 // src/modules/inventory/components/ItemMovementHistory.tsx
 // Panel de historial de movimientos + CPP card para un ítem dado.
 // Se renderiza en un <tr> de ancho completo — el toggle vive en InventoryItemList.
+// R-12: link al asiento contable generado al contabilizar (status POSTED + transactionId)
+
+import Link from "next/link";
 
 export type MovementRow = {
   id: string;
@@ -14,9 +17,11 @@ export type MovementRow = {
   date: unknown;
   reference: string | null;
   notes: string | null;
+  transactionId: string | null; // R-12: ID del asiento generado al contabilizar
 };
 
 type Props = {
+  companyId: string;   // para construir el link al asiento contable (R-12)
   itemName: string;
   sku: string;
   stockQuantity: string;
@@ -47,6 +52,7 @@ function fmt(value: unknown, decimals = 2) {
 }
 
 export function ItemMovementHistory({
+  companyId,
   itemName,
   sku,
   stockQuantity,
@@ -119,6 +125,7 @@ export function ItemMovementHistory({
                   <th className="px-3 py-2 text-right">Costo unit.</th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-left">Referencia</th>
+                  <th className="px-3 py-2 text-center">Asiento</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -155,6 +162,20 @@ export function ItemMovementHistory({
                       </td>
                       <td className="px-3 py-2 text-gray-400 max-w-35 truncate">
                         {mov.reference ?? "—"}
+                      </td>
+                      {/* R-12: link al asiento contable — solo visible en POSTED */}
+                      <td className="px-3 py-2 text-center">
+                        {mov.status === "POSTED" && mov.transactionId ? (
+                          <Link
+                            href={`/company/${companyId}/transactions/${mov.transactionId}`}
+                            className="text-blue-600 hover:underline text-xs font-medium"
+                            title="Ver asiento contable"
+                          >
+                            Ver asiento →
+                          </Link>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </td>
                     </tr>
                   );

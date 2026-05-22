@@ -2,6 +2,11 @@
 
 // src/modules/inventory/components/MovementForm.tsx
 // Registro de movimientos físicos (ENTRADA / SALIDA / AJUSTE) — dominio ADMINISTRATIVE
+// Auditoría SENIAT:
+//   R-02: tasa BCV histórica obligatoria en ENTRADA
+//   R-03: referencia de documento obligatoria (min 3 chars)
+//   R-04: cuenta contrapartida para completar partida doble en ENTRADA/AJUSTE
+//   R-06: SERVICE bloquea ENTRADA/SALIDA (solo AJUSTE permitido)
 
 import { useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
@@ -14,6 +19,7 @@ type ItemOption = {
   unit: string;           // baseUnitName — para mostrar stock
   stockQuantity: string;
   averageCost: string;
+  itemType: string;       // R-06: para bloquear SERVICE
 };
 
 type UnitOption = {
@@ -24,9 +30,18 @@ type UnitOption = {
   isBase: boolean;
 };
 
+type AccountOption = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+};
+
 type Props = {
   companyId: string;
   items: ItemOption[];
+  counterpartAccounts: AccountOption[];  // R-04: cuentas para el otro lado del asiento
+  currentBcvRate?: string;               // R-02: tasa BCV actual para autocompletar
   onSuccess?: () => void;
 };
 
@@ -38,11 +53,18 @@ const MOVEMENT_TYPES = [
 
 type MovementType = (typeof MOVEMENT_TYPES)[number]["value"];
 
+// Cuentas de contrapartida relevantes por tipo de movimiento
+const COUNTERPART_HINT: Record<MovementType, string> = {
+  ENTRADA: "Seleccione la cuenta que origina la compra: Proveedores (CxP) si es a crédito, o Caja/Banco si fue al contado.",
+  SALIDA: "",   // SALIDA no necesita contrapartida — Dr COGS / Cr Inventario es autosuficiente
+  AJUSTE: "Seleccione la cuenta de ajuste: Mermas (gasto) para sobrantes/faltas, o la cuenta operativa correspondiente.",
+};
+
 const fieldClass =
   "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
-export function MovementForm({ companyId, items, onSuccess }: Props) {
+export function MovementForm({ companyId, items, counterpartAccounts, currentBcvRate, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isLoadingUnits, startLoadUnits] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +76,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
 
   const selectedItem = items.find((i) => i.id === selectedItemId);
   const selectedUnit = units.find((u) => u.id === selectedUnitId);
+  const isService = selectedItem?.itemType === "SERVICE";
 
   // Cargar unidades cuando cambia el ítem seleccionado
   useEffect(() => {
@@ -72,7 +95,6 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
           isBase: u.isBase,
         }));
         setUnits(mapped);
-        // Auto-seleccionar la unidad base
         const base = mapped.find((u) => u.isBase);
         setSelectedUnitId(base?.id ?? "");
       }
@@ -84,11 +106,20 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    // Bloquear SERVICE con ENTRADA/SALIDA
+    if (isService && movType !== "AJUSTE") {
+      setError(`Los productos de tipo Servicio no tienen stock físico. Solo se permiten Ajustes. (R-06 NIIF Sec.13)`);
+      return;
+    }
+
     const fd = new FormData(e.currentTarget);
 
-    // unitId: null si es la unidad base o si no hay unidades configuradas
     const unitIsBase = units.find((u) => u.id === selectedUnitId)?.isBase ?? true;
     const unitId = selectedUnitId && !unitIsBase ? selectedUnitId : null;
+
+    const counterpartAccountId = (fd.get("counterpartAccountId") as string) || null;
+    const exchangeRateVes = (fd.get("exchangeRateVes") as string) || null;
 
     const input = {
       companyId,
@@ -97,17 +128,19 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
       quantity: parseFloat(fd.get("quantity") as string),
       unitCost:
         movType === "ENTRADA" ? (fd.get("unitCost") as string) || undefined : undefined,
-      reference: (fd.get("reference") as string) || null,
+      reference: fd.get("reference") as string,
       notes: (fd.get("notes") as string) || null,
       date: new Date(fd.get("date") as string).toISOString(),
       idempotencyKey: crypto.randomUUID(),
       unitId: unitId ?? undefined,
+      counterpartAccountId: counterpartAccountId ?? undefined,
+      exchangeRateVes: exchangeRateVes ?? undefined,
     };
 
     startTransition(async () => {
       const r = await createMovementAction(input);
       if (r.success) {
-        setSuccess(`Movimiento registrado — ID: ${r.data}`);
+        setSuccess(`Movimiento registrado correctamente.`);
         (e.target as HTMLFormElement).reset();
         setSelectedItemId("");
         setMovType("ENTRADA");
@@ -122,6 +155,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
 
   const today = new Date().toISOString().split("T")[0];
   const hasAltUnits = units.length > 1;
+  const needsCounterpart = movType === "ENTRADA" || movType === "AJUSTE";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -172,39 +206,42 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
             <option value="">Seleccionar producto...</option>
             {items.map((item) => (
               <option key={item.id} value={item.id}>
-                [{item.sku}] {item.name} — Stock: {parseFloat(item.stockQuantity).toLocaleString("es-VE", { maximumFractionDigits: 2 })} {item.unit}
+                [{item.sku}] {item.name}
+                {item.itemType === "SERVICE" ? " 🔧 (Servicio)" : ""}
+                {" — "}Stock: {parseFloat(item.stockQuantity).toLocaleString("es-VE", { maximumFractionDigits: 2 })} {item.unit}
               </option>
             ))}
           </select>
 
-          {/* Info del ítem seleccionado */}
           {selectedItem && (
-            <div className="mt-2 rounded bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600">
-              Stock actual:{" "}
-              <span className="font-semibold text-gray-800">
-                {parseFloat(selectedItem.stockQuantity).toLocaleString("es-VE", {
-                  maximumFractionDigits: 2,
-                })}{" "}
-                {selectedItem.unit}
-              </span>
-              {" · "}
-              CPP vigente:{" "}
-              <span className="font-semibold text-gray-800">
-                {parseFloat(selectedItem.averageCost).toLocaleString("es-VE", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 4,
-                })}
-              </span>
-              {movType === "SALIDA" && (
-                <span className="ml-2 text-blue-600">
-                  — El costo unitario se tomará del CPP vigente automáticamente
-                </span>
+            <div className={`mt-2 rounded border px-3 py-2 text-xs ${
+              isService
+                ? "bg-amber-50 border-amber-200 text-amber-700"
+                : "bg-gray-50 border-gray-200 text-gray-600"
+            }`}>
+              {isService ? (
+                <>⚠️ <strong>Servicio:</strong> sin stock físico. Solo se permiten Ajustes de corrección.</>
+              ) : (
+                <>
+                  Stock actual: <span className="font-semibold text-gray-800">
+                    {parseFloat(selectedItem.stockQuantity).toLocaleString("es-VE", { maximumFractionDigits: 2 })} {selectedItem.unit}
+                  </span>
+                  {" · "}
+                  CPP vigente: <span className="font-semibold text-gray-800">
+                    {parseFloat(selectedItem.averageCost).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} Bs.
+                  </span>
+                  {movType === "SALIDA" && (
+                    <span className="ml-2 text-blue-600">
+                      — Costo unitario se toma del CPP vigente automáticamente
+                    </span>
+                  )}
+                </>
               )}
             </div>
           )}
         </div>
 
-        {/* Selector de unidad — solo si el ítem tiene unidades alternativas */}
+        {/* Selector de unidad */}
         {selectedItemId && hasAltUnits && (
           <div className="sm:col-span-2">
             <label className={labelClass}>Unidad de registro</label>
@@ -248,8 +285,7 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
           />
           {selectedItem && (
             <p className="mt-1 text-xs text-gray-500">
-              Unidad:{" "}
-              {selectedUnit ? `${selectedUnit.name} (${selectedUnit.abbreviation})` : selectedItem.unit}
+              Unidad: {selectedUnit ? `${selectedUnit.name} (${selectedUnit.abbreviation})` : selectedItem.unit}
             </p>
           )}
         </div>
@@ -287,16 +323,71 @@ export function MovementForm({ companyId, items, onSuccess }: Props) {
           />
         </div>
 
-        {/* Referencia */}
+        {/* R-02: Tasa BCV histórica */}
         <div>
-          <label className={labelClass}>Referencia</label>
+          <label className={labelClass}>
+            Tasa BCV (Bs./$) {movType === "ENTRADA" ? <span className="text-red-500">*</span> : <span className="text-gray-400 font-normal">(referencial)</span>}
+          </label>
+          <input
+            name="exchangeRateVes"
+            type="number"
+            step="0.0001"
+            min="0.0001"
+            required={movType === "ENTRADA"}
+            defaultValue={currentBcvRate ?? ""}
+            className={fieldClass}
+            placeholder="523.68"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Tasa BCV oficial a la fecha del movimiento. Se archiva permanentemente para trazabilidad.
+          </p>
+        </div>
+
+        {/* R-03: Referencia obligatoria */}
+        <div className="sm:col-span-2">
+          <label className={labelClass}>
+            Referencia de documento <span className="text-red-500">*</span>
+          </label>
           <input
             name="reference"
+            required
+            minLength={3}
             className={fieldClass}
-            placeholder="Nro. documento, guía, etc."
+            placeholder={
+              movType === "ENTRADA"
+                ? "Nro. factura de compra o guía de entrega (ej: F-001-2345)"
+                : movType === "SALIDA"
+                ? "Nro. orden de despacho o factura emitida (ej: FAC-2026-001)"
+                : "Nro. acta de ajuste de inventario (ej: ACTA-INV-001)"
+            }
             maxLength={100}
           />
+          <p className="mt-1 text-xs text-gray-400">
+            Código de Comercio Art. 32: cada movimiento debe respaldarse con un documento fuente identificable.
+          </p>
         </div>
+
+        {/* R-04: Cuenta contrapartida */}
+        {needsCounterpart && (
+          <div className="sm:col-span-2">
+            <label className={labelClass}>
+              Cuenta contrapartida <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="counterpartAccountId"
+              required={needsCounterpart}
+              className={fieldClass}
+            >
+              <option value="">— Seleccionar cuenta contrapartida —</option>
+              {counterpartAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} — {a.name} ({a.type === "LIABILITY" ? "Pasivo" : a.type === "ASSET" ? "Activo" : a.type === "EXPENSE" ? "Gasto" : a.type})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">{COUNTERPART_HINT[movType]}</p>
+          </div>
+        )}
 
         {/* Notas */}
         <div className="sm:col-span-2">

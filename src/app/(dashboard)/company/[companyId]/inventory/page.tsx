@@ -37,7 +37,7 @@ export default async function InventoryPage({ params }: Props) {
   const isAccounting = canAccess(role, ROLES.ACCOUNTING);   // OWNER, ADMIN, ACCOUNTANT
   const isAdminOnly = canAccess(role, ROLES.ADMIN_ONLY);    // OWNER, ADMIN
 
-  // Carga de datos según rol
+  // Carga de datos según rol — accounts incluye type para filtrar en formularios
   const [items, accounts] = await Promise.all([
     getInventoryItems(companyId),
     prisma.account.findMany({
@@ -52,7 +52,7 @@ export default async function InventoryPage({ params }: Props) {
     isAccounting ? getInventoryValuation(companyId) : null,
     isAccounting ? getDraftMovements(companyId) : null,
     isAccounting ? InventoryReportService.getStockSummary(companyId) : null,
-    isAccounting ? ExchangeRateService.getLatestRate(companyId, "USD") : null,
+    ExchangeRateService.getLatestRate(companyId, "USD"),  // BCV rate para R-02
   ]);
 
   // Serializar Decimals → string para los componentes cliente
@@ -64,12 +64,15 @@ export default async function InventoryPage({ params }: Props) {
     unit: item.baseUnitName,
     stockQuantity: item.stockQuantity.toString(),
     averageCost: item.averageCost.toString(),
+    itemType: item.itemType,          // R-06: tipo para badge y bloqueo SERVICE
+    minimumStock: item.minimumStock ? item.minimumStock.toString() : null,  // R-10
     accountId: item.accountId,
     cogsAccountId: item.cogsAccountId,
     accountCode: item.account?.code ?? null,
     accountName: item.account?.name ?? null,
   }));
 
+  // R-06: pasar itemType al form de movimientos para bloqueo SERVICE
   const itemsForMovement = serializedItems.map((i) => ({
     id: i.id,
     sku: i.sku,
@@ -77,6 +80,7 @@ export default async function InventoryPage({ params }: Props) {
     unit: i.unit,
     stockQuantity: i.stockQuantity,
     averageCost: i.averageCost,
+    itemType: i.itemType,
   }));
 
   const serializedPending: PendingMovement[] = (pending ?? []).map((mov) => ({
@@ -102,11 +106,19 @@ export default async function InventoryPage({ params }: Props) {
     },
   }));
 
+  // H-03: cuentas con type para que los formularios filtren por naturaleza contable
   const accountOptions = accounts.map((a) => ({
     id: a.id,
     code: a.code,
     name: a.name,
+    type: a.type,
   }));
+
+  // R-04: cuentas contrapartida para MovementForm (LIABILITY + ASSET + EXPENSE)
+  const counterpartAccounts = accountOptions;
+
+  // R-02: tasa BCV actual para autocompletar en MovementForm
+  const currentBcvRate = usdRate?.rate ? usdRate.rate.toString() : undefined;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
@@ -171,6 +183,7 @@ export default async function InventoryPage({ params }: Props) {
           {/* Nuevo producto */}
           <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-base font-semibold text-gray-800">Agregar producto</h2>
+            {/* H-03: accountOptions incluye type para filtrar ASSET/EXPENSE en el form */}
             <InventoryItemForm companyId={companyId} accounts={accountOptions} />
           </section>
 
@@ -188,7 +201,13 @@ export default async function InventoryPage({ params }: Props) {
                 Primero registra al menos un producto antes de registrar movimientos.
               </p>
             ) : (
-              <MovementForm companyId={companyId} items={itemsForMovement} />
+              // R-02: currentBcvRate | R-04: counterpartAccounts | R-06: itemType en items
+              <MovementForm
+                companyId={companyId}
+                items={itemsForMovement}
+                counterpartAccounts={counterpartAccounts}
+                currentBcvRate={currentBcvRate}
+              />
             )}
           </section>
         </>
@@ -202,6 +221,7 @@ export default async function InventoryPage({ params }: Props) {
             ({serializedItems.length})
           </span>
         </h2>
+        {/* H-03: accountOptions con type para filtrar en InventoryItemForm inline */}
         <InventoryItemList
           items={serializedItems}
           companyId={companyId}
