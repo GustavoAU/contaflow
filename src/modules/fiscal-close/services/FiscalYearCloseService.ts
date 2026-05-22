@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 
 export type FiscalYearCloseResult = {
   fiscalYearCloseId: string;
@@ -55,7 +56,16 @@ export class FiscalYearCloseService {
     ipAddress: string | null = null,
     userAgent: string | null = null
   ): Promise<FiscalYearCloseResult> {
-    return await prisma.$transaction(
+    return await Sentry.startSpan(
+      {
+        name: "fiscal_year.close",
+        op: "function.critical",
+        attributes: {
+          "contaflow.company_id": companyId,
+          "contaflow.fiscal_year": year,
+        },
+      },
+      () => prisma.$transaction(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Idempotencia: no permitir doble cierre ─────────────────────────
         const existing = await tx.fiscalYearClose.findUnique({
@@ -268,7 +278,7 @@ export class FiscalYearCloseService {
         };
       }),
       { isolationLevel: "Serializable" }
-    );
+    ));
   }
 
   /**
@@ -282,7 +292,16 @@ export class FiscalYearCloseService {
     ipAddress: string | null = null,
     userAgent: string | null = null
   ): Promise<{ appropriationTransactionId: string }> {
-    return await prisma.$transaction(
+    return await Sentry.startSpan(
+      {
+        name: "fiscal_year.appropriate",
+        op: "function.critical",
+        attributes: {
+          "contaflow.company_id": companyId,
+          "contaflow.fiscal_year": year,
+        },
+      },
+      () => prisma.$transaction(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Cargar el cierre del ejercicio ──────────────────────────────────
         const fiscalClose = await tx.fiscalYearClose.findUnique({
@@ -394,7 +413,7 @@ export class FiscalYearCloseService {
         return { appropriationTransactionId: appTx.id };
       }),
       { isolationLevel: "Serializable" }
-    );
+    ));
   }
 
   /**

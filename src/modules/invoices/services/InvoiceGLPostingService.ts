@@ -18,6 +18,7 @@
 
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 
 export interface InvoiceGLConfig {
   arAccountId: string | null;
@@ -51,6 +52,27 @@ export class InvoiceGLPostingService {
   }
 
   static async postInvoice(
+    invoice: InvoiceForGL,
+    config: InvoiceGLConfig,
+    companyId: string,
+    userId: string,
+    db: Prisma.TransactionClient
+  ): Promise<string> {
+    return await Sentry.startSpan(
+      {
+        name: "invoice.gl_post",
+        op: "db.transaction",
+        attributes: {
+          "contaflow.company_id": companyId,
+          "contaflow.invoice_type": invoice.type,
+          "contaflow.invoice_number": invoice.invoiceNumber,
+        },
+      },
+      async () => this._postInvoiceInner(invoice, config, companyId, userId, db)
+    );
+  }
+
+  private static async _postInvoiceInner(
     invoice: InvoiceForGL,
     config: InvoiceGLConfig,
     companyId: string,

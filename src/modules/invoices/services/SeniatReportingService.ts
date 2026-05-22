@@ -11,6 +11,7 @@
 import { Client as QStashClient } from "@upstash/qstash";
 import type { Invoice, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import * as Sentry from "@sentry/nextjs";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -143,43 +144,54 @@ export class SeniatReportingService {
    * Implementa idempotencia: si status=SENT, retorna sin re-transmitir.
    */
   static async transmit(submissionId: string): Promise<TransmitResult> {
-    const submission = await prisma.seniatSubmission.findUnique({
-      where: { id: submissionId },
-    });
-
-    if (!submission) {
-      return { success: false, error: "Submission no encontrada" };
-    }
-
-    // Idempotencia (ADR-019 MEDIUM finding): no retransmitir si ya fue enviada
-    if (submission.status === "SENT") {
-      return { success: true, referenceId: "already-sent" };
-    }
-
-    const payload = submission.payload as unknown as SeniatPayload;
-    const result = await httpAdapter.send(payload);
-
-    if (result.success) {
-      await prisma.seniatSubmission.update({
-        where: { id: submissionId },
-        data: {
-          status: "SENT",
-          sentAt: new Date(),
-          lastResponse: result as unknown as Prisma.InputJsonValue,
+    return await Sentry.startSpan(
+      {
+        name: "seniat.transmit",
+        op: "http.client",
+        attributes: {
+          "contaflow.submission_id": submissionId,
         },
-      });
-    } else {
-      const nextAttempts = submission.attempts + 1;
-      await prisma.seniatSubmission.update({
-        where: { id: submissionId },
-        data: {
-          status: nextAttempts >= 5 ? "FAILED" : "PENDING",
-          attempts: nextAttempts,
-          lastResponse: result as unknown as Prisma.InputJsonValue,
-        },
-      });
-    }
+      },
+      async () => {
+        const submission = await prisma.seniatSubmission.findUnique({
+          where: { id: submissionId },
+        });
 
-    return result;
+        if (!submission) {
+          return { success: false, error: "Submission no encontrada" };
+        }
+
+        // Idempotencia (ADR-019 MEDIUM finding): no retransmitir si ya fue enviada
+        if (submission.status === "SENT") {
+          return { success: true, referenceId: "already-sent" };
+        }
+
+        const payload = submission.payload as unknown as SeniatPayload;
+        const result = await httpAdapter.send(payload);
+
+        if (result.success) {
+          await prisma.seniatSubmission.update({
+            where: { id: submissionId },
+            data: {
+              status: "SENT",
+              sentAt: new Date(),
+              lastResponse: result as unknown as Prisma.InputJsonValue,
+            },
+          });
+        } else {
+          const nextAttempts = submission.attempts + 1;
+          await prisma.seniatSubmission.update({
+            where: { id: submissionId },
+            data: {
+              status: nextAttempts >= 5 ? "FAILED" : "PENDING",
+              attempts: nextAttempts,
+              lastResponse: result as unknown as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        return result;
+      }
+    );
   }
 }

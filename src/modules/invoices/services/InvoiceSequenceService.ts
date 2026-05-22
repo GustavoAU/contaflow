@@ -1,5 +1,6 @@
 // src/modules/invoices/services/InvoiceSequenceService.ts
 import { Prisma, InvoiceType } from "@prisma/client"
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Obtiene y reserva el siguiente número de control correlativo para una empresa
@@ -25,14 +26,26 @@ export async function getNextControlNumber(
   companyId: string,
   invoiceType: InvoiceType
 ): Promise<string> {
-  // Upsert + UPDATE atómico — patrón O(1) sin SELECT MAX()
-  const sequence = await tx.controlNumberSequence.upsert({
-    where: { companyId_invoiceType: { companyId, invoiceType } },
-    create: { companyId, invoiceType, lastNumber: 1 },
-    update: { lastNumber: { increment: 1 } },
-  })
+  return await Sentry.startSpan(
+    {
+      name: "correlativo.reserve",
+      op: "db.sequencer",
+      attributes: {
+        "contaflow.company_id": companyId,
+        "contaflow.invoice_type": invoiceType,
+      },
+    },
+    async () => {
+      // Upsert + UPDATE atómico — patrón O(1) sin SELECT MAX()
+      const sequence = await tx.controlNumberSequence.upsert({
+        where: { companyId_invoiceType: { companyId, invoiceType } },
+        create: { companyId, invoiceType, lastNumber: 1 },
+        update: { lastNumber: { increment: 1 } },
+      })
 
-  // Formato 00-XXXXXXXX con zero-padding a 8 dígitos
-  const padded = String(sequence.lastNumber).padStart(8, "0")
-  return `00-${padded}`
+      // Formato 00-XXXXXXXX con zero-padding a 8 dígitos
+      const padded = String(sequence.lastNumber).padStart(8, "0")
+      return `00-${padded}`
+    }
+  );
 }

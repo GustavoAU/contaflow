@@ -13,6 +13,7 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
+import * as Sentry from "@sentry/nextjs";
 import type {
   PayrollRunStatus,
   PayrollPaymentCurrency,
@@ -427,7 +428,16 @@ export const PayrollRunService = {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
+    return Sentry.startSpan(
+      {
+        name: "payroll_run.approve",
+        op: "db.transaction",
+        attributes: {
+          "contaflow.company_id": companyId,
+          "contaflow.payroll_run_id": runId,
+        },
+      },
+      () => prisma.$transaction(async (tx) => {
       // ── Mutex atómico: solo actualiza si status === 'DRAFT' (NOM-C-03) ──
       const updated = await tx.payrollRun.updateMany({
         where: { id: runId, companyId, status: "DRAFT" },
@@ -606,7 +616,7 @@ export const PayrollRunService = {
       });
 
       return serializeRun(approvedRun);
-    });
+    }));
   },
 
   // ── cancel — DRAFT → CANCELLED ────────────────────────────────────────────
