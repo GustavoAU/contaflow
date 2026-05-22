@@ -13,8 +13,9 @@ export type PendingTaskType =
   | "RETENCIONES_SIN_VINCULAR"
   | "EXTRACTO_SIN_CONCILIAR"
   | "STOCK_BAJO"
-  | "ORDENES_VENCIDAS"       // GAP-02: órdenes con fecha comprometida vencida
-  | "RETENCIONES_POR_ENTERAR"; // OM-06: retenciones emitidas no enteradas ante SENIAT
+  | "ORDENES_VENCIDAS"             // GAP-02: órdenes con fecha comprometida vencida
+  | "RETENCIONES_POR_ENTERAR"      // OM-06: retenciones emitidas no enteradas ante SENIAT
+  | "INVENTARIO_SIN_CUENTAS_GL";   // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -46,6 +47,7 @@ export const PendingTasksService = {
       stockBajoCount,
       ordenesVencidasCount,
       retencionesPorEntregarCount,
+      inventarioSinCuentasGLCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -127,6 +129,16 @@ export const PendingTasksService = {
           companyId,
           status: "ISSUED",
           deletedAt: null,
+        },
+      }),
+
+      // 9. PC-03: Ítems físicos con cuentas GL faltantes — autoPostMovementInTx queda en DRAFT silencioso
+      prisma.inventoryItem.count({
+        where: {
+          companyId,
+          deletedAt: null,
+          itemType: { in: ["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"] },
+          OR: [{ accountId: null }, { cogsAccountId: null }],
         },
       }),
     ]);
@@ -228,6 +240,19 @@ export const PendingTasksService = {
         description: `${retencionesPorEntregarCount} retención${pl ? "es" : ""} emitida${pl ? "s" : ""} pendiente${pl ? "s" : ""} de enteramiento. Multa Art. 11 Prov. 0049: hasta 200% del monto.`,
         count: retencionesPorEntregarCount,
         href: "/retentions",
+      });
+    }
+
+    // PC-03: Ítems físicos sin cuentas GL — los movimientos de inventario quedan en DRAFT sin post contable
+    if (inventarioSinCuentasGLCount > 0) {
+      const pl = inventarioSinCuentasGLCount > 1;
+      tasks.push({
+        type: "INVENTARIO_SIN_CUENTAS_GL",
+        severity: "error",
+        title: "Productos sin cuentas contables",
+        description: `${inventarioSinCuentasGLCount} producto${pl ? "s" : ""} físico${pl ? "s" : ""} no ${pl ? "tienen" : "tiene"} cuenta de Inventario y/o COGS asignada. Las ventas/compras de ${pl ? "estos productos" : "este producto"} no generarán asiento contable automático.`,
+        count: inventarioSinCuentasGLCount,
+        href: "/inventory",
       });
     }
 

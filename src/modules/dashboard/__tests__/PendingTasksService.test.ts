@@ -9,7 +9,8 @@ vi.mock("@/lib/prisma", () => ({
     fixedAsset: { count: vi.fn() },
     retencion: { count: vi.fn() },
     bankStatement: { count: vi.fn() },
-    order: { count: vi.fn() }, // GAP-02
+    order: { count: vi.fn() },           // GAP-02
+    inventoryItem: { count: vi.fn() },   // PC-03
     $queryRaw: vi.fn(),
   },
 }));
@@ -22,7 +23,8 @@ function mockAllZero() {
   vi.mocked(prisma.fixedAsset.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bankStatement.count).mockResolvedValue(0 as never);
-  vi.mocked(prisma.order.count).mockResolvedValue(0 as never); // GAP-02
+  vi.mocked(prisma.order.count).mockResolvedValue(0 as never);           // GAP-02
+  vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
 }
 
@@ -180,5 +182,39 @@ describe("PendingTasksService.getPendingTasks", () => {
         }),
       }),
     );
+  });
+
+  // PC-03: productos físicos sin cuentas GL
+  it("detecta ítems físicos sin cuenta GL (INVENTARIO_SIN_CUENTAS_GL) — severity error", async () => {
+    vi.mocked(prisma.inventoryItem.count).mockResolvedValue(3 as never);
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "INVENTARIO_SIN_CUENTAS_GL");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(3);
+    expect(task?.href).toBe("/inventory");
+    expect(task?.description).toContain("COGS");
+  });
+
+  it("INVENTARIO_SIN_CUENTAS_GL filtra solo ítems físicos con OR accountId/cogsAccountId null", async () => {
+    await PendingTasksService.getPendingTasks("company-1");
+    expect(vi.mocked(prisma.inventoryItem.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          deletedAt: null,
+          itemType: { in: ["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"] },
+          OR: expect.arrayContaining([
+            { accountId: null },
+            { cogsAccountId: null },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("no emite INVENTARIO_SIN_CUENTAS_GL cuando todos los productos tienen cuentas GL", async () => {
+    // mockAllZero ya pone inventoryItem.count = 0
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "INVENTARIO_SIN_CUENTAS_GL")).toBeUndefined();
   });
 });
