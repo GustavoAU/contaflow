@@ -216,8 +216,19 @@ async function main() {
   });
   console.log("  ✅ Salario Mínimo: Bs. 130 | UT: Bs. 43");
 
-  // ── 4. Período Abril 2026 ────────────────────────────────────────────────
-  console.log("\n📅 Período contable...");
+  // ── 4. Períodos contables: Marzo 2026 CLOSED + Abril 2026 OPEN ──────────
+  // PC-05 auditoría SENIAT: historial de períodos cerrados para continuidad contable
+  console.log("\n📅 Períodos contables...");
+  await prisma.accountingPeriod.upsert({
+    where: { companyId_year_month: { companyId: cId, year: 2026, month: 3 } },
+    update: {},
+    create: {
+      companyId: cId, year: 2026, month: 3, status: "CLOSED",
+      openedAt: dateOnly("2026-03-01"), openedBy: USER_ID,
+      closedAt: dateOnly("2026-04-01"), closedBy: USER_ID,
+    },
+  });
+  console.log("  ✅ Marzo 2026 (CLOSED)");
   const period = await prisma.accountingPeriod.upsert({
     where: { companyId_year_month: { companyId: cId, year: 2026, month: 4 } },
     update: {},
@@ -392,7 +403,6 @@ async function main() {
   });
   console.log(`  ✅ Lote L2026-001 — OXI-001 (20 unid, vence 2027-03-31)`);
   console.log(`  ✅ Lote L2026-002 — TEN-001 (12 unid, vence 2028-06-30)`);
-  void lotOxi; void lotTen;
 
   // ── 9c. Seriales (LAP-001 × 5 + SWT-001 × 4) ─────────────────────────────
   console.log("\n🔢 Números de serie...");
@@ -836,6 +846,144 @@ async function main() {
       data: { totalAmountVes: "259596.40", pendingAmount: "113013.95" },
     });
     console.log("  ✅ TESA-004 corregida: IVA_ADICIONAL eliminado, total=259,596.40, pendiente=113,013.95");
+  }
+
+  // ── 17b. SALIDA inventario — inventario perpetuo (PC-02 auditoría SENIAT) ─
+  // Genera asientos DR 5110 Costo de Ventas / CR 1115 Inventario por cada venta.
+  // La causación via InvoiceGLPostingService solo cubre AR/Ventas/IVA.
+  // El COGS lo genera el movimiento SALIDA (NIIF Sec.13.5 + VEN-NIF BA-2 — inventario perpetuo).
+  console.log("\n📦 SALIDA inventario (COGS — inventario perpetuo)...");
+  {
+    type SalidaDef = {
+      key: string; txNumber: string; itemKey: string; invoiceKey: string;
+      qty: string; unitCost: string; totalCost: string; date: Date; ref: string;
+      serialNumbers?: string[]; // SERIAL items: seriales específicos a marcar SOLD
+      lotKey?: "OXI" | "TEN"; // LOT items: referencia al lote
+    };
+
+    const salidaDefs: SalidaDef[] = [
+      // FAC-TESA-001: 2 laptops → COGS Bs. 739,986
+      { key: "tesa-salida-lap001-fac001", txNumber: "GL-COGS-FAC001",
+        itemKey: "LAP-001", invoiceKey: "TESA-001",
+        qty: "2", unitCost: "369993.0000", totalCost: "739986.0000",
+        date: d(3), ref: "FAC-TESA-001",
+        serialNumbers: ["SN-L14-2026-001", "SN-L14-2026-002"] },
+      // FAC-TESA-002: 5 oxímetros → COGS Bs. 66,410
+      { key: "tesa-salida-oxi001-fac002", txNumber: "GL-COGS-FAC002-OXI",
+        itemKey: "OXI-001", invoiceKey: "TESA-002",
+        qty: "5", unitCost: "13282.0000", totalCost: "66410.0000",
+        date: d(5), ref: "FAC-TESA-002", lotKey: "OXI" },
+      // FAC-TESA-002: 3 tensiómetros → COGS Bs. 68,307
+      { key: "tesa-salida-ten001-fac002", txNumber: "GL-COGS-FAC002-TEN",
+        itemKey: "TEN-001", invoiceKey: "TESA-002",
+        qty: "3", unitCost: "22769.0000", totalCost: "68307.0000",
+        date: d(5), ref: "FAC-TESA-002", lotKey: "TEN" },
+      // FAC-TESA-004: 2 smartwatches → COGS Bs. 218,200
+      { key: "tesa-salida-swt001-fac004", txNumber: "GL-COGS-FAC004",
+        itemKey: "SWT-001", invoiceKey: "TESA-004",
+        qty: "2", unitCost: "109100.0000", totalCost: "218200.0000",
+        date: d(10), ref: "FAC-TESA-004",
+        serialNumbers: ["SN-GW6-2026-001", "SN-GW6-2026-002"] },
+      // FAC-TESA-005: 1 laptop → COGS Bs. 369,993
+      { key: "tesa-salida-lap001-fac005", txNumber: "GL-COGS-FAC005-LAP",
+        itemKey: "LAP-001", invoiceKey: "TESA-005",
+        qty: "1", unitCost: "369993.0000", totalCost: "369993.0000",
+        date: d(12), ref: "FAC-TESA-005",
+        serialNumbers: ["SN-L14-2026-003"] },
+      // FAC-TESA-005: 10 kits suministros → COGS Bs. 14,230
+      { key: "tesa-salida-sumin001-fac005", txNumber: "GL-COGS-FAC005-SUMIN",
+        itemKey: "SUMIN-001", invoiceKey: "TESA-005",
+        qty: "10", unitCost: "1423.0000", totalCost: "14230.0000",
+        date: d(12), ref: "FAC-TESA-005" },
+      // FAC-TESA-006: 1 oxímetro → COGS Bs. 13,282
+      { key: "tesa-salida-oxi001-fac006", txNumber: "GL-COGS-FAC006",
+        itemKey: "OXI-001", invoiceKey: "TESA-006",
+        qty: "1", unitCost: "13282.0000", totalCost: "13282.0000",
+        date: d(15), ref: "FAC-TESA-006", lotKey: "OXI" },
+    ];
+
+    for (const salida of salidaDefs) {
+      const existingMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: salida.key } });
+      if (existingMov) {
+        console.log(`  ⏭️  SALIDA ${salida.key} ya existe`);
+        continue;
+      }
+
+      // GL: crear asiento COGS (DR 5110 / CR 1115) — idempotente por número de transacción
+      const existingTx = await prisma.transaction.findUnique({
+        where: { companyId_number: { companyId: cId, number: salida.txNumber } },
+      });
+      const cogsTx = existingTx ?? await prisma.transaction.create({
+        data: {
+          companyId: cId, number: salida.txNumber, date: salida.date,
+          periodId: period.id, userId: USER_ID, type: "DIARIO",
+          description: `COGS — Costo venta ${salida.itemKey} ×${salida.qty} | ${salida.ref}`,
+          entries: {
+            create: [
+              // DR 5110 Costo de Ventas (positivo = débito)
+              { accountId: accounts["5110"], amount: salida.totalCost,
+                description: `COGS ${salida.ref}` },
+              // CR 1115 Inventario de Mercancías (negativo = crédito)
+              { accountId: accounts["1115"], amount: `-${salida.totalCost}`,
+                description: `Inventario ${salida.ref}` },
+            ],
+          },
+        },
+      });
+
+      // Crear movimiento SALIDA como POSTED (vinculado al asiento GL)
+      const movement = await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items[salida.itemKey],
+          type: "SALIDA" as MovementType, status: "POSTED" as MovementStatus,
+          quantity: salida.qty, unitCost: salida.unitCost, totalCost: salida.totalCost,
+          quantityInUnit: salida.qty, conversionSnapshot: "1.0000000000",
+          invoiceId: saleIds[salida.invoiceKey],
+          transactionId: cogsTx.id,
+          reference: salida.ref,
+          date: salida.date, idempotencyKey: salida.key,
+          createdBy: USER_ID, postedAt: salida.date, postedBy: USER_ID,
+        },
+      });
+
+      // Decrementar stockQuantity del ítem (perpetuo)
+      await prisma.inventoryItem.update({
+        where: { id: items[salida.itemKey] },
+        data: { stockQuantity: { decrement: parseFloat(salida.qty) } },
+      });
+
+      // SERIAL tracking: marcar seriales específicos como SOLD
+      if (salida.serialNumbers && salida.serialNumbers.length > 0) {
+        for (const sn of salida.serialNumbers) {
+          const serial = await prisma.inventorySerial.findUnique({
+            where: { companyId_itemId_serialNumber: { companyId: cId, itemId: items[salida.itemKey], serialNumber: sn } },
+          });
+          if (serial && serial.status === "AVAILABLE") {
+            await prisma.inventorySerial.update({
+              where: { id: serial.id },
+              data: { status: "SOLD", soldAt: salida.date },
+            });
+            await prisma.inventoryMovementSerial.create({
+              data: { movementId: movement.id, serialId: serial.id },
+            });
+          }
+        }
+      }
+
+      // LOT tracking: decrementar quantityOnHand del lote y registrar allocación
+      if (salida.lotKey) {
+        const lot = salida.lotKey === "OXI" ? lotOxi : lotTen;
+        await prisma.inventoryLot.update({
+          where: { id: lot.id },
+          data: { quantityOnHand: { decrement: parseFloat(salida.qty) } },
+        });
+        await prisma.inventoryMovementLot.create({
+          data: { movementId: movement.id, lotId: lot.id, quantity: salida.qty },
+        });
+      }
+
+      console.log(`  ✅ SALIDA ${salida.itemKey} ×${salida.qty} — ${salida.ref} — COGS Bs. ${parseFloat(salida.totalCost).toLocaleString("es-VE")}`);
+    }
   }
 
   // ── 18. Facturas de Compra ────────────────────────────────────────────────
@@ -1408,6 +1556,39 @@ async function main() {
     }
   }
 
+  // ── 26c. Cleanup PC-01 auditoría SENIAT: asientos de COMPRA con DR incorrecto ──
+  // Si el seed corrió antes de que existiera inventoryAccountId en CompanySettings,
+  // las facturas de compra se causaron con DR a purchaseExpenseAccountId (5110).
+  // Detectamos y eliminamos esos asientos para que el paso 27 los re-cause con DR 1115.
+  console.log("\n🔧 Cleanup: asientos de compra incorrectos (DR 5110 → 1115)...");
+  {
+    const purchaseInvoicesWithTx = await prisma.invoice.findMany({
+      where: { companyId: cId, type: "PURCHASE", transactionId: { not: null } },
+      include: { transaction: { include: { entries: true } } },
+    });
+
+    let cleanedCount = 0;
+    for (const inv of purchaseInvoicesWithTx) {
+      if (!inv.transaction) continue;
+      // Buscar si hay un débito incorrecto a 5110 (Costo de Ventas)
+      const hasWrongDebit = inv.transaction.entries.some(
+        (e) => e.accountId === accounts["5110"] && parseFloat(e.amount.toString()) > 0
+      );
+      if (!hasWrongDebit) continue;
+      // Eliminar asiento incorrecto y resetear transactionId para re-causación
+      await prisma.journalEntry.deleteMany({ where: { transactionId: inv.transaction.id } });
+      await prisma.transaction.delete({ where: { id: inv.transaction.id } });
+      await prisma.invoice.update({ where: { id: inv.id }, data: { transactionId: null } });
+      cleanedCount++;
+      console.log(`  🔧 ${inv.invoiceNumber} — asiento incorrecto (DR 5110) eliminado → se re-causará con DR 1115`);
+    }
+    if (cleanedCount === 0) {
+      console.log("  ✅ Sin asientos de compra incorrectos");
+    } else {
+      console.log(`  ✅ ${cleanedCount} asiento(s) de compra corregido(s)`);
+    }
+  }
+
   // ── 27. Causación GL retroactiva (ADR-026) ───────────────────────────────
   // Postea al Libro Mayor las facturas creadas directamente en el seed
   // (que no pasaron por InvoiceService y quedaron con transactionId = null).
@@ -1472,7 +1653,7 @@ async function main() {
 ║  🆔 RIF: J-31645287-9 | isSpecialContributor: true            ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  📊 ${accountDefs.length} cuentas contables (ASSET/LIABILITY/EQUITY/REV/EXP)  ║
-║  📅 1 período OPEN (Abril 2026)                               ║
+║  📅 2 períodos: Marzo 2026 CLOSED + Abril 2026 OPEN           ║
 ║  💱 5 tasas BCV USD/VES + 5 EUR/VES                           ║
 ║  📈 3 tasas INPC (Ene–Mar 2026)                               ║
 ║  ⚖️  Salario Mín Bs. 130 | UT Bs. 43                          ║
