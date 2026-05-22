@@ -9,6 +9,7 @@ import { fmtVen } from "@/lib/fmt-ven";
 
 const TYPE_LABELS: Record<string, string> = {
   ASSET: "Activo",
+  CONTRA_ASSET: "Activo Contra", // cuentas reguladoras: Dep. Acumulada, Provisión CxC
   LIABILITY: "Pasivo",
   EQUITY: "Patrimonio",
   REVENUE: "Ingreso",

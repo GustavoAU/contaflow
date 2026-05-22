@@ -1,4 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
+import { redirect } from "next/navigation";
 import { getJournalAction } from "@/modules/accounting/actions/report.actions";
 import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
@@ -93,6 +94,22 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
 export default async function JournalPage({ params, searchParams }: Props) {
   const { companyId } = await params;
   const { from, to, q } = await searchParams;
+
+  // Error 1 SENIAT-dictamen: sin filtro el Libro Diario muestra TODOS los períodos
+  // incluyendo facturas de períodos anteriores (ej. TESA-007 enero 2026 = f.001 falso).
+  // Si no hay parámetros de fecha, redirigir al período ABIERTO automáticamente.
+  if (!from && !to) {
+    const periodsForRedirect = await getPeriodsAction(companyId);
+    if (periodsForRedirect.success) {
+      const open = periodsForRedirect.data.find((p) => p.status === "OPEN");
+      if (open) {
+        const mm = String(open.month).padStart(2, "0");
+        const lastDay = new Date(open.year, open.month, 0).getDate();
+        const dd = String(lastDay).padStart(2, "0");
+        redirect(`/company/${companyId}/reports/journal?from=${open.year}-${mm}-01&to=${open.year}-${mm}-${dd}`);
+      }
+    }
+  }
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;

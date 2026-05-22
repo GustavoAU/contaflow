@@ -276,9 +276,13 @@ export async function getLedgerAction(
                 : {}),
             },
           },
-          orderBy: {
-            transaction: { date: "asc" },
-          },
+          // Error 5 SENIAT-dictamen: desempate por número de transacción dentro del mismo día
+          // para que el saldo rodante no muestre valores intermedios negativos ilógicos.
+          // Format "T-2026-NNN" y "YYYY-MM-NNNNNN" son ambos lexicográficamente ordenables.
+          orderBy: [
+            { transaction: { date: "asc" } },
+            { transaction: { number: "asc" } },
+          ],
         },
       },
     });
