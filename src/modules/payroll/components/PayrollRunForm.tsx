@@ -150,6 +150,7 @@ export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, i
         <button
           type="submit"
           disabled={isPending}
+          aria-busy={isPending}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
         >
           {isPending && <Loader2Icon className="size-4 animate-spin" />}

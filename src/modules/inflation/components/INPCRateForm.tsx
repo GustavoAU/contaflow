@@ -88,6 +88,7 @@ export function INPCRateForm({ companyId, onSaved }: Props) {
       <button
         type="submit"
         disabled={isPending}
+        aria-busy={isPending}
         className="flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
       >
         {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}

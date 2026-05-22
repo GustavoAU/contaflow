@@ -61,6 +61,7 @@ export function InflationBaseForm({ companyId, currentBaseYear, currentBaseMonth
       <button
         type="submit"
         disabled={isPending}
+        aria-busy={isPending}
         className="rounded bg-gray-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
       >
         {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar Base"}
