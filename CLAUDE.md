@@ -31,6 +31,10 @@ No leer nada más hasta que el árbol lo indique.
 | ¿Errores Prisma al cliente? | Nunca raw. `P2002` → "Ya existe…" \| `P2003` → "Datos de referencia inválidos" |
 | ¿Zod 4 mensajes? | `{ error: "msg" }` — **NO** `{ errorMap: ... }` |
 | ¿`useTransition` vs `useActionState`? | `useTransition` para forms con Zod tipado (nuestro caso). `useActionState` solo para forms simples sin Zod |
+| ¿`useReverification` destructuring? | **NO array** → `const fn = useReverification(action)` (no `const [fn] = ...`) — @clerk/shared@4.12.2 |
+| ¿Sesiones con actividad (IP/device)? | `useUser().user.getSessions()` → `SessionWithActivitiesResource[]` (latestActivity + revoke). NO useSessionList |
+| ¿Step-up config centralizado? | `src/lib/step-up.ts` — STEP_UP_CONFIG + reverificationError + StepUpError |
+| ¿Tests con step-up actions? | Agregar `has: () => true` al mock de auth() + `if ('clerk_error' in result) throw` antes de `expect(result.success)` |
 
 ---
 
@@ -280,6 +284,8 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **PC-03 + PC-05** ✅ merged (INVENTARIO_SIN_CUENTAS_GL: alerta dashboard ítems físicos sin cuenta GL; PC-05 ya cubierto por PERIODO_ABIERTO_VIEJO — 1970 tests)
 - **P-1 (ADR-025)** ✅ merged (hasModuleAccess — grants granulares en invoice/transaction/fiscal-close/payroll/retention actions — 1983 tests)
 - **P-6** ✅ merged (SubmitButton + aria-busy en 13 formularios alto riesgo — sin tests nuevos)
+- **Q2-3** ✅ merged (2FA step-up: cierre ejercicio + eliminar miembro + datos SENIAT + archivar empresa — STEP_UP_CONFIG centralizado en step-up.ts — useReverification sin array destructuring)
+- **Q2-4** ✅ merged (ActiveSessionsPanel: user.getSessions() → SessionWithActivitiesResource → revoke() — en settings page)
 
 **1983 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
 
