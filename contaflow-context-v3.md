@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — main limpio. commit `bd51399`
+Ninguna — main limpio. commit `09dbab3`
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,8 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **Sprint P-4/P-7/P-8 2026-05-22** ✅ merged — P-7: GET /api/health (db+redis+qstash, ruta pública); P-4: Sentry.startSpan en 5 operaciones críticas (correlativo, GL posting, cierre ejercicio, apropiación, nómina, SENIAT transmit); P-8: RUNBOOK.md (PITR Neon, PDF recovery, checklist mensual, RTO<4h/RPO<1h). commits `a7d1417` + `09dbab3`. 1983 tests GREEN.
+- **Sprint Q2-3/Q2-4 2026-05-22** ✅ merged — Q2-3: 2FA step-up en cierre ejercicio + eliminar miembro + datos SENIAT + archivar empresa (STEP_UP_CONFIG centralizado en step-up.ts, useReverification sin array destructuring); Q2-4: ActiveSessionsPanel con user.getSessions() → SessionWithActivitiesResource → revoke(). 1983 tests GREEN.
 - **PC-03 + PC-05 2026-05-22** ✅ merged — PC-03: `INVENTARIO_SIN_CUENTAS_GL` en `PendingTasksService` — alerta `severity:error` cuando ítems físicos (GOODS/RAW_MATERIAL/FINISHED_GOOD) no tienen `accountId` o `cogsAccountId`; previene movimientos DRAFT silenciosos. PC-05 ya estaba cubierto por `PERIODO_ABIERTO_VIEJO` (openedAt >30d). commit `dfb0aaf`. 1970 tests GREEN.
 - **OM-01 + OM-04 2026-05-22** ✅ merged — Inventario perpetuo auto-COGS: SALIDA (Dr COGS/Cr Inventario CPP via `autoPostMovementInTx`) + ENTRADA (reutiliza GL factura); LOT/SERIAL skip automático. AuditLog PDF firmado A4 landscape con react-pdf: SHA-256 contentHash en AuditLog (R-2), firma digital `DocumentSigningService` con degradación graceful, botón Exportar PDF en `AuditLogTable`. commit `96c241c`. 1967 tests GREEN.
 - **OM-05/06/08 2026-05-22** ✅ merged — Período cerrado bloquea facturas (OM-05) + alerta retenciones ISSUED en dashboard (OM-06) + FK inventoryItemId nullable en QuotationItem/OrderItem con validación cross-tenant (OM-08). commit `e9c1342`. 1959 tests GREEN.
@@ -61,7 +63,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1970 tests GREEN | 0 TS errors** (2026-05-22 post PC-03/PC-05)
+**1983 tests GREEN | 0 TS errors** (2026-05-22 post sprint P-4/P-7/P-8)
 
 ### Deuda técnica
 - **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
