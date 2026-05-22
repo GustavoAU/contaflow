@@ -274,8 +274,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Sprint UX Fixes** ✅ (InvoiceBook: MoneyBadge en Ret./IGTF/TOTALES sticky; Transactions: formatAmount Débito)
 
 - **Auditoría SENIAT Inventario** ✅ merged (R-01/02/03/04/05/06/09/10/12 + H-03 — ItemType + contrapartida + períodos + link asiento — 1944 tests)
+- **GAP-02/03/06 + RF-01/02/05/06** ✅ merged (órdenes vencidas + GL split retención IVA 2205/2110 + firma CPC demo + ENTRADA inventario compras + enteramiento retenciones + fecha TESA-007 + cuentas corrección monetaria — 1949 tests)
+- **OM-05/06/08** ✅ merged (período CLOSED bloquea facturas + alerta RETENCIONES_POR_ENTERAR dashboard + FK inventoryItemId en QuotationItem/OrderItem con validación cross-tenant — 1959 tests)
 
-**1944 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-21)
+**1959 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
 
 ### middleware.ts
 
