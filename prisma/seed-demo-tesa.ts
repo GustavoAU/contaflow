@@ -147,8 +147,13 @@ async function main() {
     { code: "4110", name: "Ventas — Equipos y Tecnología", type: "REVENUE" },
     { code: "4115", name: "Ventas — Equipos Médicos", type: "REVENUE" },
     { code: "4120", name: "Servicios de Capacitación", type: "REVENUE" },
+    // PATRIMONIO — Corrección monetaria (VEN-NIF BA-5 / NIIF PYMES Sección 31)
+    { code: "3220", name: "Ajuste por Inflación Acumulado", type: "EQUITY" },
+    // INGRESOS — Corrección monetaria
+    { code: "4220", name: "Ganancia Monetaria por Inflación", type: "REVENUE" },
     // GASTOS
     { code: "5105", name: "Sueldos y Salarios", type: "EXPENSE" },
+    { code: "6110", name: "Pérdida Monetaria por Inflación", type: "EXPENSE" },
     { code: "5107", name: "Beneficios Sociales y Prestaciones", type: "EXPENSE" },
     { code: "5110", name: "Costo de Ventas", type: "EXPENSE" },
     { code: "5115", name: "Depreciación de Activos", type: "EXPENSE" },
@@ -802,10 +807,10 @@ async function main() {
       base: "13282.00", taxType: "IVA_REDUCIDO" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory,
       ivaRate: 8, ivaAmt: "1062.56", total: "14344.56", paymentStatus: "PAID" as InvoicePaymentStatus,
     },
-    // FAC-TESA-007: Venta anticipada vencida (enero 2026 — para anomalías detectadas por IA)
+    // FAC-TESA-007: Venta crédito 30 días — Distribuidora Orinoco (RF-05 fix: fecha Abril 2026)
     {
       invoiceNumber: "TESA-007", controlNumber: "00-00000007",
-      date: new Date("2026-01-10T12:00:00Z"), dueDate: new Date("2026-01-25T12:00:00Z"),
+      date: d(28), dueDate: new Date("2026-05-28T12:00:00Z"),
       counterpartName: "Distribuidora Orinoco Tech C.A.", counterpartRif: "J-32456789-1",
       customerId: customers["Distribuidora Orinoco Tech C.A."],
       base: "468500.00", taxType: "IVA_GENERAL" as TaxLineType, taxCategory: "GRAVADA" as TaxCategory,
@@ -1599,6 +1604,29 @@ async function main() {
     }
   }
 
+  // ── 26d. RF-05: corregir fecha de TESA-007 si fue creada con fecha enero 2026 ──
+  // La factura fue rediseñada con fecha Abril 2026; si en la DB existe con enero, corregirla.
+  {
+    const tesa007 = await prisma.invoice.findUnique({
+      where: { companyId_invoiceNumber_type: { companyId: cId, invoiceNumber: "TESA-007", type: "SALE" } },
+      include: { transaction: true },
+    });
+    if (tesa007 && tesa007.date < new Date("2026-04-01")) {
+      await prisma.invoice.update({
+        where: { id: tesa007.id },
+        data: { date: d(28), dueDate: new Date("2026-05-28T12:00:00Z") },
+      });
+      // Corregir fecha del asiento GL si ya fue causada
+      if (tesa007.transaction) {
+        await prisma.transaction.update({
+          where: { id: tesa007.transaction.id },
+          data: { date: d(28) },
+        });
+      }
+      console.log("  ✅ RF-05: TESA-007 fecha corregida de enero → 28/04/2026");
+    }
+  }
+
   // ── 27. Causación GL retroactiva (ADR-026) ───────────────────────────────
   // Postea al Libro Mayor las facturas creadas directamente en el seed
   // (que no pasaron por InvoiceService y quedaron con transactionId = null).
@@ -1611,6 +1639,7 @@ async function main() {
         salesAccountId: true, purchaseExpenseAccountId: true,
         inventoryAccountId: true,
         ivaDFAccountId: true, ivaCFAccountId: true,
+        ivaRetentionPayableAccountId: true, // GAP-03
       },
     });
     if (glSettings) {
@@ -1654,6 +1683,225 @@ async function main() {
     }
   }
 
+  // ── 28a. RF-01: ENTRADA inventario vinculada a facturas de COMPRA ───────────
+  // El SENIAT cruza Libro de Compras con Inventario — cada compra debe tener
+  // su movimiento de ENTRADA en el kardex, vinculado via invoiceId + transactionId.
+  // TCOMP-003 (servicios cloud) es SERVICE → sin movimiento físico.
+  console.log("\n📦 RF-01: ENTRADA inventario por facturas de compra...");
+  {
+    // Recuperar facturas de compra con su transactionId (post causación GL paso 27)
+    const compras = await prisma.invoice.findMany({
+      where: { companyId: cId, type: "PURCHASE", invoiceNumber: { in: ["TCOMP-001","TCOMP-002","TCOMP-004","TCOMP-005"] } },
+      select: { id: true, invoiceNumber: true, transactionId: true },
+    });
+    const compraById: Record<string, { id: string; transactionId: string | null }> = {};
+    for (const c of compras) compraById[c.invoiceNumber] = { id: c.id, transactionId: c.transactionId };
+
+    // ── TCOMP-001: 5 laptops LAP-001 (SERIAL) ──────────────────────────────
+    const lapMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-lap-tcomp001" } });
+    if (!lapMov) {
+      const comp = compraById["TCOMP-001"];
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items["LAP-001"], type: "ENTRADA", status: "POSTED",
+          quantity: "5", unitCost: "369995.00", totalCost: "1849975.00",
+          quantityInUnit: "5", conversionSnapshot: "1.0000000000",
+          invoiceId: comp?.id ?? null, transactionId: comp?.transactionId ?? null,
+          reference: "TCOMP-001 — Importaciones Global Tech", date: d(2),
+          idempotencyKey: "tesa-entrada-lap-tcomp001",
+          createdBy: USER_ID, postedAt: d(2), postedBy: USER_ID,
+        },
+      });
+      await prisma.inventoryItem.update({ where: { id: items["LAP-001"] }, data: { stockQuantity: { increment: 5 } } });
+      // Nuevos seriales para las 5 laptops recibidas
+      for (let i = 6; i <= 10; i++) {
+        const sn = `SN-L14-2026-00${i}`;
+        const exists = await prisma.inventorySerial.findUnique({ where: { companyId_itemId_serialNumber: { companyId: cId, itemId: items["LAP-001"], serialNumber: sn } } });
+        if (!exists) await prisma.inventorySerial.create({ data: { companyId: cId, itemId: items["LAP-001"], serialNumber: sn, status: "AVAILABLE", createdBy: USER_ID } });
+      }
+      console.log("  ✅ TCOMP-001 → ENTRADA LAP-001 × 5 (Bs. 1,849,975) + seriales SN-L14-2026-006..010");
+    } else {
+      console.log("  ⏭️  ENTRADA LAP-001 TCOMP-001 ya existe");
+    }
+
+    // ── TCOMP-002: 30 oxímetros OXI-001 + 20 tensiómetros TEN-001 (LOT) ───
+    const oxiMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-oxi-tcomp002" } });
+    if (!oxiMov) {
+      const comp = compraById["TCOMP-002"];
+      // 30 OXI-001 × 13,282 = 398,460 | 20 TEN-001 × 22,780 = 455,600 → total 854,060 = base TCOMP-002
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items["OXI-001"], type: "ENTRADA", status: "POSTED",
+          quantity: "30", unitCost: "13282.00", totalCost: "398460.00",
+          quantityInUnit: "30", conversionSnapshot: "1.0000000000",
+          invoiceId: comp?.id ?? null, transactionId: comp?.transactionId ?? null,
+          reference: "TCOMP-002 — Distribuidora Médica Andina", date: d(4),
+          idempotencyKey: "tesa-entrada-oxi-tcomp002",
+          createdBy: USER_ID, postedAt: d(4), postedBy: USER_ID,
+        },
+      });
+      await prisma.inventoryItem.update({ where: { id: items["OXI-001"] }, data: { stockQuantity: { increment: 30 } } });
+      // Nuevo lote de oxímetros L2026-003
+      const lotOxiNew = await prisma.inventoryLot.upsert({
+        where: { companyId_itemId_lotNumber: { companyId: cId, itemId: items["OXI-001"], lotNumber: "L2026-003" } },
+        update: {},
+        create: { companyId: cId, itemId: items["OXI-001"], lotNumber: "L2026-003", quantityOnHand: "30", expiresAt: dateOnly("2027-09-30"), notes: "TCOMP-002 — Médica Andina Abr 2026", createdBy: USER_ID },
+      });
+      await prisma.inventoryMovementLot.upsert({
+        where: { movementId_lotId: { movementId: (await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-oxi-tcomp002" } }))!.id, lotId: lotOxiNew.id } },
+        update: {},
+        create: { companyId: cId, itemId: items["OXI-001"], movementId: (await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-oxi-tcomp002" } }))!.id, lotId: lotOxiNew.id, quantity: "30", direction: "IN", createdBy: USER_ID },
+      });
+      console.log("  ✅ TCOMP-002 → ENTRADA OXI-001 × 30 (Bs. 398,460) lote L2026-003");
+    } else {
+      console.log("  ⏭️  ENTRADA OXI-001 TCOMP-002 ya existe");
+    }
+
+    const tenMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-ten-tcomp002" } });
+    if (!tenMov) {
+      const comp = compraById["TCOMP-002"];
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items["TEN-001"], type: "ENTRADA", status: "POSTED",
+          quantity: "20", unitCost: "22780.00", totalCost: "455600.00",
+          quantityInUnit: "20", conversionSnapshot: "1.0000000000",
+          invoiceId: comp?.id ?? null, transactionId: comp?.transactionId ?? null,
+          reference: "TCOMP-002 — Distribuidora Médica Andina", date: d(4),
+          idempotencyKey: "tesa-entrada-ten-tcomp002",
+          createdBy: USER_ID, postedAt: d(4), postedBy: USER_ID,
+        },
+      });
+      await prisma.inventoryItem.update({ where: { id: items["TEN-001"] }, data: { stockQuantity: { increment: 20 } } });
+      // Nuevo lote de tensiómetros L2026-004
+      const lotTenNew = await prisma.inventoryLot.upsert({
+        where: { companyId_itemId_lotNumber: { companyId: cId, itemId: items["TEN-001"], lotNumber: "L2026-004" } },
+        update: {},
+        create: { companyId: cId, itemId: items["TEN-001"], lotNumber: "L2026-004", quantityOnHand: "20", expiresAt: dateOnly("2028-12-31"), notes: "TCOMP-002 — Médica Andina Abr 2026", createdBy: USER_ID },
+      });
+      await prisma.inventoryMovementLot.upsert({
+        where: { movementId_lotId: { movementId: (await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-ten-tcomp002" } }))!.id, lotId: lotTenNew.id } },
+        update: {},
+        create: { companyId: cId, itemId: items["TEN-001"], movementId: (await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-ten-tcomp002" } }))!.id, lotId: lotTenNew.id, quantity: "20", direction: "IN", createdBy: USER_ID },
+      });
+      console.log("  ✅ TCOMP-002 → ENTRADA TEN-001 × 20 (Bs. 455,600) lote L2026-004");
+    } else {
+      console.log("  ⏭️  ENTRADA TEN-001 TCOMP-002 ya existe");
+    }
+
+    // ── TCOMP-004: 40 kits suministros SUMIN-001 (NONE) ──────────────────
+    const suminMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-sumin-tcomp004" } });
+    if (!suminMov) {
+      const comp = compraById["TCOMP-004"];
+      // 40 kits × 1,405.50 = 56,220 Bs (base factura TCOMP-004)
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items["SUMIN-001"], type: "ENTRADA", status: "POSTED",
+          quantity: "40", unitCost: "1405.50", totalCost: "56220.00",
+          quantityInUnit: "40", conversionSnapshot: "1.0000000000",
+          invoiceId: comp?.id ?? null, transactionId: comp?.transactionId ?? null,
+          reference: "TCOMP-004 — Papelería Caracas Norte", date: d(9),
+          idempotencyKey: "tesa-entrada-sumin-tcomp004",
+          createdBy: USER_ID, postedAt: d(9), postedBy: USER_ID,
+        },
+      });
+      await prisma.inventoryItem.update({ where: { id: items["SUMIN-001"] }, data: { stockQuantity: { increment: 40 } } });
+      console.log("  ✅ TCOMP-004 → ENTRADA SUMIN-001 × 40 kits (Bs. 56,220)");
+    } else {
+      console.log("  ⏭️  ENTRADA SUMIN-001 TCOMP-004 ya existe");
+    }
+
+    // ── TCOMP-005: 4 smartwatches SWT-001 (SERIAL) ──────────────────────
+    const swtMov = await prisma.inventoryMovement.findUnique({ where: { idempotencyKey: "tesa-entrada-swt-tcomp005" } });
+    if (!swtMov) {
+      const comp = compraById["TCOMP-005"];
+      // 4 × 109,100 = 436,400 Bs
+      await prisma.inventoryMovement.create({
+        data: {
+          companyId: cId, itemId: items["SWT-001"], type: "ENTRADA", status: "POSTED",
+          quantity: "4", unitCost: "109100.00", totalCost: "436400.00",
+          quantityInUnit: "4", conversionSnapshot: "1.0000000000",
+          invoiceId: comp?.id ?? null, transactionId: comp?.transactionId ?? null,
+          reference: "TCOMP-005 — Samsung Venezuela", date: d(11),
+          idempotencyKey: "tesa-entrada-swt-tcomp005",
+          createdBy: USER_ID, postedAt: d(11), postedBy: USER_ID,
+        },
+      });
+      await prisma.inventoryItem.update({ where: { id: items["SWT-001"] }, data: { stockQuantity: { increment: 4 } } });
+      // Nuevos seriales para los 4 smartwatches recibidos
+      for (let i = 5; i <= 8; i++) {
+        const sn = `SN-GW6-2026-00${i}`;
+        const exists = await prisma.inventorySerial.findUnique({ where: { companyId_itemId_serialNumber: { companyId: cId, itemId: items["SWT-001"], serialNumber: sn } } });
+        if (!exists) await prisma.inventorySerial.create({ data: { companyId: cId, itemId: items["SWT-001"], serialNumber: sn, status: "AVAILABLE", createdBy: USER_ID } });
+      }
+      console.log("  ✅ TCOMP-005 → ENTRADA SWT-001 × 4 (Bs. 436,400) + seriales SN-GW6-2026-005..008");
+    } else {
+      console.log("  ⏭️  ENTRADA SWT-001 TCOMP-005 ya existe");
+    }
+
+    console.log("  ℹ️  TCOMP-003 (Servicios Cloud): SERVICE → sin movimiento físico de inventario");
+  }
+
+  // ── 28b. RF-02: Enteramiento de retenciones ─────────────────────────────
+  // TESA como Contribuyente Especial debe enterar retenciones dentro de los plazos SENIAT.
+  // Creamos los asientos de enteramiento y marcamos las retenciones como ENTERADO.
+  console.log("\n💸 RF-02: Enteramiento de retenciones...");
+  {
+    // Recuperar retenciones por voucher
+    const retenciones = await prisma.retencion.findMany({
+      where: { companyId: cId, voucherNumber: { in: ["RIVA-2026-001","RIVA-2026-002","RIVA-2026-003","RISLR-2026-001"] } },
+      select: { id: true, voucherNumber: true, type: true, status: true, totalRetention: true, providerName: true },
+    });
+    const retByVoucher: Record<string, typeof retenciones[0]> = {};
+    for (const r of retenciones) retByVoucher[r.voucherNumber!] = r;
+
+    const enterDefs = [
+      // IVA retenciones — Dr 2110 Ret. IVA p.p. / Cr 1110 BNC
+      { voucher: "RIVA-2026-001", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RIVA-2026-001" },
+      { voucher: "RIVA-2026-002", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RIVA-2026-002" },
+      { voucher: "RIVA-2026-003", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(24), txKey: "ENT-RIVA-2026-003" },
+      // ISLR retención — Dr 2115 Ret. ISLR p.p. / Cr 1110 BNC
+      { voucher: "RISLR-2026-001", liabilityAccountId: accounts["2115"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RISLR-2026-001" },
+    ];
+
+    for (const ent of enterDefs) {
+      const ret = retByVoucher[ent.voucher];
+      if (!ret || ret.status === "ENTERADO") {
+        console.log(`  ⏭️  ${ent.voucher} ya enterada o no encontrada`);
+        continue;
+      }
+
+      const enterAmt = new Decimal(ret.totalRetention.toString());
+      // Contar enteramientos previos para el número de transacción
+      const enterCount = await prisma.retencion.count({ where: { companyId: cId, enteradoAt: { not: null } } });
+      const txNumber = `ENT-${ent.enterDate.getFullYear()}-${String(enterCount + 1).padStart(5, "0")}`;
+
+      // Verificar si ya existe el asiento (idempotencia)
+      const existingTx = await prisma.transaction.findFirst({ where: { companyId: cId, number: ent.txKey } });
+      let enterTx = existingTx;
+      if (!existingTx) {
+        enterTx = await prisma.transaction.create({
+          data: {
+            companyId: cId, number: ent.txKey, date: ent.enterDate, type: "DIARIO",
+            description: `Enteramiento ${ent.voucher} — ${ret.providerName}`,
+            periodId: period.id, userId: USER_ID,
+            entries: {
+              create: [
+                { accountId: ent.liabilityAccountId, amount: enterAmt.toString(),           description: `Enteramiento ${ent.voucher}` },
+                { accountId: ent.bankAccountId,       amount: enterAmt.negated().toString(), description: `Enteramiento ${ent.voucher}` },
+              ],
+            },
+          },
+        });
+      }
+
+      await prisma.retencion.update({
+        where: { id: ret.id },
+        data: { status: "ENTERADO", enteradoAt: ent.enterDate, enteradoBy: USER_ID, transactionId: enterTx!.id },
+      });
+      console.log(`  ✅ ${ent.voucher} — ${ret.providerName} enterada Bs. ${enterAmt.toFixed(2)} (${txNumber})`);
+    }
+  }
+
   // ── Resumen final ─────────────────────────────────────────────────────────
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
@@ -1662,7 +1910,7 @@ async function main() {
 ║  🏢 Empresa: Tecnología y Suministros Andina, C.A.            ║
 ║  🆔 RIF: J-31645287-9 | isSpecialContributor: true            ║
 ╠═══════════════════════════════════════════════════════════════╣
-║  📊 ${accountDefs.length} cuentas contables (ASSET/LIABILITY/EQUITY/REV/EXP)  ║
+║  📊 ${accountDefs.length} cuentas (+ 3220/4220/6110 corrección monetaria)    ║
 ║  📅 2 períodos: Marzo 2026 CLOSED + Abril 2026 OPEN           ║
 ║  💱 5 tasas BCV USD/VES + 5 EUR/VES                           ║
 ║  📈 3 tasas INPC (Ene–Mar 2026)                               ║
@@ -1670,7 +1918,7 @@ async function main() {
 ╠═══════════════════════════════════════════════════════════════╣
 ║  🏭 5 proveedores | 👥 6 clientes                             ║
 ║  📦 6 ítems inventario (SERIAL×2 + LOT×2 + NONE×2)           ║
-║  🔢 9 seriales LAP+SWT | 🗃️  2 lotes OXI+TEN                  ║
+║  🔢 13 seriales LAP(5+5)+SWT(4+4) | 🗃️  4 lotes OXI+TEN       ║
 ║  🖥️  2 activos fijos (servidor + camioneta)                   ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  👤 8 empleados + historial salarial (6 USD / 2 VES)          ║
@@ -1680,7 +1928,7 @@ async function main() {
 ╠═══════════════════════════════════════════════════════════════╣
 ║  🧾 7 facturas SALE (0%/8%/16%/31% IVA)                       ║
 ║  🛒 5 facturas PURCHASE                                       ║
-║  📋 4 retenciones (3 IVA 75% + 1 ISLR 5%)                    ║
+║  📋 4 retenciones ENTERADAS (3 IVA 75% + 1 ISLR 5%)           ║
 ║  💳 5 PaymentRecords (Zelle/PagoMóvil/Transf/Efectivo)        ║
 ║  🏦 IGTF 3% sobre pago Zelle $1,807.42                        ║
 ╠═══════════════════════════════════════════════════════════════╣
@@ -1689,7 +1937,7 @@ async function main() {
 ║  🛒 4 cotizaciones + 2 órdenes (SALE + PURCHASE)              ║
 ║  💸 4 gastos confirmados + 4 categorías                       ║
 ║  💼 Caja Chica Bs. 50,000 + 3 movimientos                     ║
-║  📒 4 asientos contables manuales                             ║
+║  📒 4 asientos manuales + 4 ENTRADAS compra + 4 enteramientos ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  PRÓXIMOS PASOS EN LA APP:                                    ║
 ║  1. Dashboard → KPIs TESA Abril 2026                          ║
