@@ -278,8 +278,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **OM-05/06/08** ✅ merged (período CLOSED bloquea facturas + alerta RETENCIONES_POR_ENTERAR dashboard + FK inventoryItemId en QuotationItem/OrderItem con validación cross-tenant — 1959 tests)
 - **OM-01 + OM-04** ✅ merged (inventario perpetuo auto-COGS: SALIDA Dr COGS/Cr Inventario CPP + ENTRADA reutiliza GL factura; AuditLog PDF firmado A4 landscape + SHA-256 R-2 + degradación graceful sin cert — 1967 tests)
 - **PC-03 + PC-05** ✅ merged (INVENTARIO_SIN_CUENTAS_GL: alerta dashboard ítems físicos sin cuenta GL; PC-05 ya cubierto por PERIODO_ABIERTO_VIEJO — 1970 tests)
+- **P-1 (ADR-025)** ✅ merged (hasModuleAccess — grants granulares en invoice/transaction/fiscal-close/payroll/retention actions — 1983 tests)
+- **P-6** ✅ merged (SubmitButton + aria-busy en 13 formularios alto riesgo — sin tests nuevos)
 
-**1970 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
+**1983 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
 
 ### middleware.ts
 
