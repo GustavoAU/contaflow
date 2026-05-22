@@ -4,7 +4,7 @@ import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createExportJobAction } from "../actions/export.actions";
 import { Button } from "@/components/ui/button";
-import { DownloadIcon, LoaderIcon } from "lucide-react";
+import { DownloadIcon, LoaderIcon, HistoryIcon } from "lucide-react";
 
 type Props = {
   companyId: string;
@@ -15,6 +15,7 @@ export function ExportForm({ companyId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [allHistory, setAllHistory] = useState(false);
 
   // Default: last 12 months
   const today = new Date();
@@ -36,7 +37,11 @@ export function ExportForm({ companyId }: Props) {
     setJobId(null);
 
     startTransition(async () => {
-      const result = await createExportJobAction({ companyId, dateFrom, dateTo });
+      const payload = allHistory
+        ? { companyId, allHistory: true }
+        : { companyId, allHistory: false, dateFrom, dateTo };
+
+      const result = await createExportJobAction(payload);
       if (!result.success) {
         setError(result.error);
         return;
@@ -48,41 +53,58 @@ export function ExportForm({ companyId }: Props) {
 
   return (
     <div className="rounded-lg border p-6 space-y-4">
-      <h2 className="font-semibold text-lg">Nueva exportación</h2>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-semibold text-lg">Nueva exportación</h2>
+
+        {/* Toggle: rango de fechas vs todo el historial */}
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allHistory}
+            onChange={(e) => setAllHistory(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 accent-primary"
+          />
+          <HistoryIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Todo el historial</span>
+        </label>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="dateFrom">
-              Desde
-            </label>
-            <input
-              id="dateFrom"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              required
-            />
+        {!allHistory && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="dateFrom">
+                Desde
+              </label>
+              <input
+                id="dateFrom"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="dateTo">
+                Hasta
+              </label>
+              <input
+                id="dateTo"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="dateTo">
-              Hasta
-            </label>
-            <input
-              id="dateTo"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              required
-            />
-          </div>
-        </div>
+        )}
 
         <p className="text-xs text-muted-foreground">
-          Rango máximo: 366 días. El ZIP incluye libros IVA, asientos contables,
-          retenciones, activos fijos y Forma 30.
+          {allHistory
+            ? "El ZIP incluirá todo el historial: libros IVA, asientos, retenciones, activos, Forma 30, empleados, nóminas, inventario y gastos."
+            : "Rango máximo: 366 días. El ZIP incluye libros IVA, asientos contables, retenciones, activos fijos, Forma 30, empleados, nóminas, inventario y gastos."}
         </p>
 
         {error && (
@@ -105,7 +127,7 @@ export function ExportForm({ companyId }: Props) {
           </div>
         )}
 
-        <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+        <Button type="submit" disabled={isPending} className="w-full sm:w-auto" aria-busy={isPending}>
           {isPending ? (
             <>
               <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -114,7 +136,7 @@ export function ExportForm({ companyId }: Props) {
           ) : (
             <>
               <DownloadIcon className="mr-2 h-4 w-4" />
-              Generar y descargar
+              {allHistory ? "Exportar todo el historial" : "Generar y descargar"}
             </>
           )}
         </Button>

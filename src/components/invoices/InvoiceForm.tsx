@@ -1,7 +1,8 @@
 // src/components/invoices/InvoiceForm.tsx
 "use client";
 
-import { useState, useTransition, useId, useRef, useEffect } from "react";
+import { useState, useTransition, useId, useRef, useEffect, useCallback } from "react";
+import { useFormDraft, DRAFT_AUTO_SAVE_MS } from "@/hooks/useFormDraft";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -137,6 +138,50 @@ export function InvoiceForm({
   const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
   const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
+
+  // ─── Autosave borrador (Q1-3) ────────────────────────────────────────────────
+  type InvoiceDraft = {
+    type: "SALE" | "PURCHASE";
+    currency: "VES" | "USD" | "EUR";
+    docType: string;
+    taxCategory: string;
+    counterpartName: string;
+    taxLines: TaxLine[];
+  };
+  const { draft, saveDraft, clearDraft } = useFormDraft<InvoiceDraft>(`invoice-new-${companyId}`);
+  const [showDraftAlert, setShowDraftAlert] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Detectar borrador al montar (solo si no hay datos OCR)
+  useEffect(() => {
+    if (draft) setShowDraftAlert(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // solo en montaje
+
+  // Autosave cada 30s cuando cambian los campos clave
+  const triggerAutoSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveDraft({ type, currency, docType, taxCategory, counterpartName, taxLines });
+    }, DRAFT_AUTO_SAVE_MS);
+  }, [type, currency, docType, taxCategory, counterpartName, taxLines, saveDraft]);
+
+  useEffect(() => {
+    triggerAutoSave();
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [triggerAutoSave]);
+
+  function restoreDraft() {
+    if (!draft) return;
+    setType(draft.state.type);
+    setCurrency(draft.state.currency);
+    setDocType(draft.state.docType);
+    setTaxCategory(draft.state.taxCategory);
+    prevCategoryRef.current = draft.state.taxCategory;
+    setCounterpartName(draft.state.counterpartName);
+    setTaxLines(draft.state.taxLines);
+    setShowDraftAlert(false);
+  }
 
   // ─── OCR pre-fill ────────────────────────────────────────────────────────────
   const [ocrLoaded, setOcrLoaded] = useState(false);
@@ -467,6 +512,7 @@ export function InvoiceForm({
       }
 
       if (result.success) {
+        clearDraft(); // borrador ya no necesario tras envío exitoso
         toast.success("Factura registrada correctamente");
         form.reset();
         setTaxLines([
@@ -1108,6 +1154,30 @@ export function InvoiceForm({
       </div>
 
       <Toaster richColors position="top-right" />
+
+      {/* AlertDialog — restaurar borrador guardado automáticamente */}
+      <AlertDialog open={showDraftAlert && !!draft && !ocrLoaded} onOpenChange={setShowDraftAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Restaurar borrador?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hay un borrador guardado{" "}
+              {draft
+                ? `el ${new Date(draft.savedAt).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
+                : ""}
+              {" "}con líneas de impuesto y datos de la contraparte. ¿Deseas continuar donde lo dejaste?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowDraftAlert(false); clearDraft(); }}>
+              Descartar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={restoreDraft}>
+              Restaurar borrador
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AlertDialog — confirmación cascada al cambiar a categoría sin IVA */}
       <AlertDialog open={showAlert} onOpenChange={setShowAlert}>

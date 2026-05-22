@@ -20,7 +20,10 @@ export async function createExportJobAction(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { companyId, dateFrom, dateTo } = parsed.data;
+  const { companyId, allHistory = false } = parsed.data;
+  // Si allHistory, usar ventana amplia (10 años) para los campos de BD
+  const dateFrom = parsed.data.dateFrom ?? new Date(new Date().getFullYear() - 10, 0, 1);
+  const dateTo   = parsed.data.dateTo   ?? new Date();
 
   try {
     const { userId } = await auth();
@@ -67,7 +70,7 @@ export async function createExportJobAction(
 
     try {
       // CRITICAL-2: todas las queries dentro del service reciben companyId explícito
-      const { data, sizeBytes } = await generateExportZip({ companyId, dateFrom, dateTo });
+      const { data, sizeBytes } = await generateExportZip({ companyId, dateFrom, dateTo, allHistory });
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24h
 

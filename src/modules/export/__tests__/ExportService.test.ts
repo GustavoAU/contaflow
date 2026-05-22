@@ -8,6 +8,10 @@ vi.mock("@/lib/prisma", () => ({
     transaction: { findMany: vi.fn() },
     retencion: { findMany: vi.fn() },
     fixedAsset: { findMany: vi.fn() },
+    employee: { findMany: vi.fn() },
+    payrollRun: { findMany: vi.fn() },
+    inventoryItem: { findMany: vi.fn() },
+    expense: { findMany: vi.fn() },
   },
 }));
 
@@ -114,6 +118,10 @@ beforeEach(() => {
   vi.mocked(prisma.transaction.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.fixedAsset.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.expense.findMany).mockResolvedValue([] as never);
   vi.mocked(DeclaracionIVAService.calculate).mockResolvedValue(makeForma30Result() as never);
 });
 

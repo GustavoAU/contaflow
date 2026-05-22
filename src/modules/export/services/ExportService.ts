@@ -6,6 +6,8 @@ export type ExportDataParams = {
   companyId: string;
   dateFrom: Date;
   dateTo: Date;
+  /** true = ignora el rango de fechas y exporta todo el historial (portabilidad) */
+  allHistory?: boolean;
 };
 
 // ─── CSV helpers ─────────────────────────────────────────────────────────────
@@ -331,6 +333,163 @@ async function fetchForma30(params: ExportDataParams) {
   return rows;
 }
 
+// ─── Operaciones (portabilidad total) ────────────────────────────────────────
+
+async function fetchEmployees(companyId: string) {
+  const rows = await prisma.employee.findMany({
+    where: { companyId },
+    select: {
+      firstName: true,
+      lastName: true,
+      cedulaType: true,
+      cedulaNumber: true,
+      contractType: true,
+      employeeRegime: true,
+      hireDate: true,
+      terminationDate: true,
+      status: true,
+      position: true,
+      department: true,
+      costCenter: true,
+      email: true,
+      phone: true,
+      bankName: true,
+      salaryHistory: {
+        orderBy: { effectiveFrom: "desc" },
+        take: 1,
+        select: { amount: true, effectiveFrom: true },
+      },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+  return rows.map((e) => ({
+    "Nombre": e.firstName,
+    "Apellido": e.lastName,
+    "Tipo Cédula": e.cedulaType,
+    "Cédula": e.cedulaNumber,
+    "Tipo Contrato": e.contractType,
+    "Régimen LOTTT": e.employeeRegime,
+    "Fecha Ingreso": formatDate(e.hireDate),
+    "Fecha Egreso": formatDate(e.terminationDate),
+    "Estado": e.status,
+    "Cargo": e.position,
+    "Departamento": e.department ?? "",
+    "Centro de Costo": e.costCenter ?? "",
+    "Email": e.email ?? "",
+    "Teléfono": e.phone ?? "",
+    "Banco": e.bankName ?? "",
+    "Salario Vigente": e.salaryHistory[0] ? String(e.salaryHistory[0].amount) : "",
+    "Vigencia Salario": e.salaryHistory[0] ? formatDate(e.salaryHistory[0].effectiveFrom) : "",
+  }));
+}
+
+async function fetchPayrollRuns(params: ExportDataParams) {
+  const where = params.allHistory
+    ? { companyId: params.companyId, status: "APPROVED" as const }
+    : {
+        companyId: params.companyId,
+        status: "APPROVED" as const,
+        periodStart: { gte: params.dateFrom, lte: params.dateTo },
+      };
+
+  const rows = await prisma.payrollRun.findMany({
+    where,
+    select: {
+      periodStart: true,
+      periodEnd: true,
+      totalEarnings: true,
+      totalDeductions: true,
+      totalNet: true,
+      employeeCount: true,
+      approvedAt: true,
+    },
+    orderBy: { periodStart: "asc" },
+  });
+  return rows.map((r) => ({
+    "Período Inicio": formatDate(r.periodStart),
+    "Período Fin": formatDate(r.periodEnd),
+    "Total Asignaciones": String(r.totalEarnings),
+    "Total Deducciones": String(r.totalDeductions),
+    "Total Neto": String(r.totalNet),
+    "Nro. Empleados": r.employeeCount,
+    "Aprobado En": r.approvedAt ? r.approvedAt.toISOString() : "",
+  }));
+}
+
+async function fetchInventoryItems(companyId: string) {
+  const rows = await prisma.inventoryItem.findMany({
+    where: { companyId, deletedAt: null },
+    select: {
+      name: true,
+      sku: true,
+      itemType: true,
+      stockQuantity: true,
+      baseUnitName: true,
+      baseUnitAbbr: true,
+      averageCost: true,
+      account: { select: { code: true, name: true } },
+      cogsAccount: { select: { code: true, name: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((i) => ({
+    "Nombre": i.name,
+    "SKU/Código": i.sku,
+    "Tipo": i.itemType,
+    "Stock": String(i.stockQuantity),
+    "UdM Base": `${i.baseUnitName} (${i.baseUnitAbbr})`,
+    "Costo Promedio": String(i.averageCost),
+    "Cta. Inventario": i.account ? `${i.account.code} ${i.account.name}` : "",
+    "Cta. COGS": i.cogsAccount ? `${i.cogsAccount.code} ${i.cogsAccount.name}` : "",
+  }));
+}
+
+async function fetchExpenses(params: ExportDataParams) {
+  const where = params.allHistory
+    ? { companyId: params.companyId, deletedAt: null }
+    : {
+        companyId: params.companyId,
+        deletedAt: null,
+        createdAt: { gte: params.dateFrom, lte: params.dateTo },
+      };
+
+  const rows = await prisma.expense.findMany({
+    where,
+    select: {
+      createdAt: true,
+      invoiceDate: true,
+      concept: true,
+      category: { select: { name: true } },
+      vendor: { select: { name: true } },
+      supplierName: true,
+      amount: true,
+      currency: true,
+      exchangeRate: true,
+      amountVes: true,
+      hasIva: true,
+      ivaAmount: true,
+      isDeductible: true,
+      invoiceNumber: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((e) => ({
+    "Fecha Registro": formatDate(e.createdAt),
+    "Fecha Factura Prov.": formatDate(e.invoiceDate),
+    "Concepto": e.concept,
+    "Categoría": e.category.name,
+    "Proveedor": e.vendor?.name ?? e.supplierName ?? "",
+    "Monto": String(e.amount),
+    "Moneda": e.currency,
+    "Tasa Cambio": e.exchangeRate ? String(e.exchangeRate) : "",
+    "Monto Bs.": String(e.amountVes),
+    "Tiene IVA": e.hasIva ? "SI" : "NO",
+    "IVA": e.ivaAmount ? String(e.ivaAmount) : "",
+    "Deducible ISLR": e.isDeductible ? "SI" : "NO",
+    "Nro. Factura": e.invoiceNumber ?? "",
+  }));
+}
+
 // ─── Main ZIP generator ───────────────────────────────────────────────────────
 
 export async function generateExportZip(
@@ -338,16 +497,22 @@ export async function generateExportZip(
 ): Promise<{ data: Buffer; sizeBytes: number }> {
   const zip = new JSZip();
 
-  const [invoices, transactions, retenciones, assets, forma30] =
+  // Fiscal + operaciones en paralelo — las funciones que no usan rango de fecha
+  // siempre exportan todo el historial (employees, inventory)
+  const [invoices, transactions, retenciones, assets, forma30, employees, payrollRuns, inventory, expenses] =
     await Promise.all([
       fetchInvoices(params),
       fetchTransactions(params),
       fetchRetenciones(params),
       fetchFixedAssets(params),
       fetchForma30(params),
+      fetchEmployees(params.companyId),
+      fetchPayrollRuns(params),
+      fetchInventoryItems(params.companyId),
+      fetchExpenses(params),
     ]);
 
-  // Libros IVA
+  // ── Libros IVA ────────────────────────────────────────────────────────────
   const ventas = invoices.filter((r) => r["Tipo"] === "SALE");
   const compras = invoices.filter((r) => r["Tipo"] === "PURCHASE");
   const libroVentas = toCsv(ventas);
@@ -356,40 +521,59 @@ export async function generateExportZip(
   if (libroVentas) zip.file("libros-iva/libro-ventas.csv", libroVentas);
   if (libroCompras) zip.file("libros-iva/libro-compras.csv", libroCompras);
 
-  // Asientos contables
+  // ── Asientos contables ────────────────────────────────────────────────────
   const txCsv = toCsv(transactions);
   if (txCsv) zip.file("asientos/asientos.csv", txCsv);
 
-  // Retenciones
+  // ── Retenciones ───────────────────────────────────────────────────────────
   const retCsv = toCsv(retenciones);
   if (retCsv) zip.file("retenciones/retenciones.csv", retCsv);
 
-  // Activos Fijos
+  // ── Activos Fijos ─────────────────────────────────────────────────────────
   const assetsCsv = toCsv(assets);
   if (assetsCsv) zip.file("activos-fijos/activos.csv", assetsCsv);
 
-  // Forma 30
+  // ── Forma 30 ──────────────────────────────────────────────────────────────
   const forma30Csv = toCsv(forma30);
   if (forma30Csv) zip.file("forma-30/forma30.csv", forma30Csv);
 
-  // README
-  const from = formatDate(params.dateFrom);
-  const to = formatDate(params.dateTo);
+  // ── Operaciones (portabilidad) ────────────────────────────────────────────
+  const empCsv = toCsv(employees);
+  if (empCsv) zip.file("nomina/empleados.csv", empCsv);
+
+  const nomCsv = toCsv(payrollRuns);
+  if (nomCsv) zip.file("nomina/nominas-aprobadas.csv", nomCsv);
+
+  const invCsv = toCsv(inventory);
+  if (invCsv) zip.file("inventario/items.csv", invCsv);
+
+  const expCsv = toCsv(expenses);
+  if (expCsv) zip.file("gastos/gastos.csv", expCsv);
+
+  // ── README ────────────────────────────────────────────────────────────────
+  const from = params.allHistory ? "todo-el-historial" : formatDate(params.dateFrom);
+  const to   = params.allHistory ? "" : formatDate(params.dateTo);
+  const periodo = params.allHistory ? "Todo el historial" : `${from} a ${to}`;
+
   zip.file(
     "LEEME.txt",
     [
-      "ContaFlow — Exportación Fiscal",
+      "ContaFlow — Exportación de Datos",
       `Empresa ID: ${params.companyId}`,
-      `Período: ${from} a ${to}`,
+      `Período: ${periodo}`,
       `Generado: ${new Date().toISOString()}`,
       "",
       "Contenido:",
-      "  libros-iva/libro-ventas.csv   — Libro de Ventas IVA",
-      "  libros-iva/libro-compras.csv  — Libro de Compras IVA",
-      "  asientos/asientos.csv         — Asientos Contables (Diario)",
-      "  retenciones/retenciones.csv   — Comprobantes de Retención",
-      "  activos-fijos/activos.csv     — Activos Fijos y Depreciación",
-      "  forma-30/forma30.csv          — Declaraciones IVA (Forma 30)",
+      "  libros-iva/libro-ventas.csv      — Libro de Ventas IVA",
+      "  libros-iva/libro-compras.csv     — Libro de Compras IVA",
+      "  asientos/asientos.csv            — Asientos Contables (Diario)",
+      "  retenciones/retenciones.csv      — Comprobantes de Retención",
+      "  activos-fijos/activos.csv        — Activos Fijos y Depreciación",
+      "  forma-30/forma30.csv             — Declaraciones IVA (Forma 30)",
+      "  nomina/empleados.csv             — Nómina: Empleados (historial completo)",
+      "  nomina/nominas-aprobadas.csv     — Nómina: Procesos Aprobados",
+      "  inventario/items.csv             — Inventario: Artículos (historial completo)",
+      "  gastos/gastos.csv                — Gastos Operativos",
     ].join("\n")
   );
 

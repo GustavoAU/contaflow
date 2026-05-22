@@ -17,6 +17,7 @@ import {
   PlusIcon,
   LayoutGrid,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
@@ -479,8 +480,9 @@ export function Sidebar({
         )}
       </nav>
 
-      {/* Footer: solo logout — siempre visible al fondo */}
-      <div className="px-2 py-2 border-t border-red-100 shrink-0">
+      {/* Footer: tema + logout — siempre visible al fondo */}
+      <div className="px-2 py-2 border-t border-sidebar-border shrink-0 space-y-1">
+        <ThemeToggle collapsed={collapsed} />
         <LogoutButton collapsed={collapsed} />
       </div>
     </aside>

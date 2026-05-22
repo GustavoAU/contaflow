@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { PWARegistration } from "@/components/pwa/PWARegistration";
 import { PageTransitionProvider } from "@/components/layout/PageTransitionProvider";
 import { PageTransitionBar } from "@/components/layout/PageTransitionBar";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -48,10 +49,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in">
       <html lang={locale}>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
-          <PageTransitionProvider>
-            <PageTransitionBar />
-            <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
-          </PageTransitionProvider>
+          <ThemeProvider>
+            <PageTransitionProvider>
+              <PageTransitionBar />
+              <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+            </PageTransitionProvider>
+          </ThemeProvider>
           <PWARegistration />
         </body>
       </html>
