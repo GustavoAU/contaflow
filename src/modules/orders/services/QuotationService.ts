@@ -14,6 +14,7 @@ export interface QuotationItemInput {
   quantity: string;   // Decimal string
   unitPrice: string;  // Decimal string
   taxRate: string;    // "0" | "8" | "16"
+  inventoryItemId?: string | null; // OM-08: FK opcional al catálogo de inventario
 }
 
 export interface CreateQuotationInput {
@@ -75,6 +76,7 @@ function computeTotals(items: QuotationItemInput[]) {
       unitPrice: price,
       taxRate: new Decimal(item.taxRate),
       totalPrice: base.add(tax),
+      inventoryItemId: item.inventoryItemId ?? null, // OM-08: thread through
     };
   });
 
@@ -169,6 +171,18 @@ export const QuotationService = {
     userId: string,
     input: CreateQuotationInput
   ): Promise<QuotationRow> {
+    // OM-08: validar que inventoryItemIds (si se especifican) pertenecen a la empresa
+    const itemIds = input.items.map((i) => i.inventoryItemId).filter(Boolean) as string[];
+    if (itemIds.length > 0) {
+      const found = await prisma.inventoryItem.findMany({
+        where: { id: { in: itemIds }, companyId, deletedAt: null },
+        select: { id: true },
+      });
+      if (found.length !== itemIds.length) {
+        throw new Error("Uno o más productos del catálogo no pertenecen a esta empresa");
+      }
+    }
+
     const number = await getNextQuotationNumber(companyId, input.type);
     const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
 
@@ -194,6 +208,7 @@ export const QuotationService = {
             unitPrice: c.unitPrice,
             taxRate: c.taxRate,
             totalPrice: c.totalPrice,
+            inventoryItemId: c.inventoryItemId, // OM-08
           })),
         },
       },
@@ -229,6 +244,18 @@ export const QuotationService = {
 
     let itemsComputed: ReturnType<typeof computeTotals>["computed"] | null = null;
     if (input.items && input.items.length > 0) {
+      // OM-08: validar que inventoryItemIds (si se especifican) pertenecen a la empresa
+      const itemIds = input.items.map((i) => i.inventoryItemId).filter(Boolean) as string[];
+      if (itemIds.length > 0) {
+        const found = await prisma.inventoryItem.findMany({
+          where: { id: { in: itemIds }, companyId, deletedAt: null },
+          select: { id: true },
+        });
+        if (found.length !== itemIds.length) {
+          throw new Error("Uno o más productos del catálogo no pertenecen a esta empresa");
+        }
+      }
+
       const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
       itemsComputed = computed;
       updates.subtotal = subtotal;
@@ -248,6 +275,7 @@ export const QuotationService = {
               unitPrice: c.unitPrice,
               taxRate: c.taxRate,
               totalPrice: c.totalPrice,
+              inventoryItemId: c.inventoryItemId, // OM-08: thread through
             })),
           };
         }

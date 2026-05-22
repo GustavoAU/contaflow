@@ -79,6 +79,7 @@ function computeTotals(items: QuotationItemInput[]) {
       unitPrice: price,
       taxRate: new Decimal(item.taxRate),
       totalPrice: base.add(tax),
+      inventoryItemId: item.inventoryItemId ?? null, // OM-08: thread through
     };
   });
 
@@ -195,6 +196,18 @@ export const OrderService = {
         throw new Error("Solo se puede crear una orden desde una cotización aprobada");
     }
 
+    // OM-08: validar que inventoryItemIds (si se especifican) pertenecen a la empresa
+    const itemIds = input.items.map((i) => i.inventoryItemId).filter(Boolean) as string[];
+    if (itemIds.length > 0) {
+      const found = await prisma.inventoryItem.findMany({
+        where: { id: { in: itemIds }, companyId, deletedAt: null },
+        select: { id: true },
+      });
+      if (found.length !== itemIds.length) {
+        throw new Error("Uno o más productos del catálogo no pertenecen a esta empresa");
+      }
+    }
+
     const number = await getNextOrderNumber(companyId, input.type);
     const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
 
@@ -221,6 +234,7 @@ export const OrderService = {
             unitPrice: c.unitPrice,
             taxRate: c.taxRate,
             totalPrice: c.totalPrice,
+            inventoryItemId: c.inventoryItemId, // OM-08
           })),
         },
       },

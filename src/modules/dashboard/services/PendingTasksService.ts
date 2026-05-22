@@ -13,7 +13,8 @@ export type PendingTaskType =
   | "RETENCIONES_SIN_VINCULAR"
   | "EXTRACTO_SIN_CONCILIAR"
   | "STOCK_BAJO"
-  | "ORDENES_VENCIDAS"; // GAP-02: órdenes con fecha comprometida vencida
+  | "ORDENES_VENCIDAS"       // GAP-02: órdenes con fecha comprometida vencida
+  | "RETENCIONES_POR_ENTERAR"; // OM-06: retenciones emitidas no enteradas ante SENIAT
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -44,6 +45,7 @@ export const PendingTasksService = {
       extractosSinConciliarCount,
       stockBajoCount,
       ordenesVencidasCount,
+      retencionesPorEntregarCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -116,6 +118,15 @@ export const PendingTasksService = {
           companyId,
           status: { in: ["DRAFT", "APPROVED"] },
           expectedDate: { lt: now },
+        },
+      }),
+
+      // 8. OM-06: Retenciones EMITIDAS no enteradas (Art. 11 Prov. 0049 — multa 200%)
+      prisma.retencion.count({
+        where: {
+          companyId,
+          status: "ISSUED",
+          deletedAt: null,
         },
       }),
     ]);
@@ -204,6 +215,19 @@ export const PendingTasksService = {
         description: `${ordenesVencidasCount} orden${pl ? "es" : ""} ${pl ? "tienen" : "tiene"} fecha comprometida vencida y aún no ${pl ? "han" : "ha"} sido convertida${pl ? "s" : ""} a factura.`,
         count: ordenesVencidasCount,
         href: "/orders",
+      });
+    }
+
+    // OM-06: Retenciones emitidas sin enterar (riesgo fiscal SENIAT Art. 11 Prov. 0049)
+    if (retencionesPorEntregarCount > 0) {
+      const pl = retencionesPorEntregarCount > 1;
+      tasks.push({
+        type: "RETENCIONES_POR_ENTERAR",
+        severity: "error",
+        title: "Retenciones sin enterar al SENIAT",
+        description: `${retencionesPorEntregarCount} retención${pl ? "es" : ""} emitida${pl ? "s" : ""} pendiente${pl ? "s" : ""} de enteramiento. Multa Art. 11 Prov. 0049: hasta 200% del monto.`,
+        count: retencionesPorEntregarCount,
+        href: "/retentions",
       });
     }
 

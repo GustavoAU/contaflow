@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
     invoiceTaxLine: { create: vi.fn() },
     invoiceLine: { create: vi.fn() },
     auditLog: { create: vi.fn() },
+    inventoryItem: { findMany: vi.fn() }, // OM-08
   },
 }));
 
@@ -334,5 +335,62 @@ describe("OrderService.convertOrderToInvoice", () => {
     vi.mocked(prisma.order.findMany).mockResolvedValue([] as never);
     const result = await OrderService.getOrders(COMPANY_ID);
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("OrderService — OM-08: inventoryItemId validation en createOrder", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+    );
+    vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
+    vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
+    vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
+  });
+
+  it("omite validación si no hay inventoryItemId en los ítems", async () => {
+    await OrderService.createOrder(COMPANY_ID, USER_ID, {
+      type: "PURCHASE",
+      counterpartName: "Proveedor",
+      items: [ITEM_INPUT],
+    });
+
+    expect(prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("lanza error si inventoryItemId no pertenece a la empresa (cross-tenant guard)", async () => {
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never); // 0 found ≠ 1 requested
+
+    await expect(
+      OrderService.createOrder(COMPANY_ID, USER_ID, {
+        type: "PURCHASE",
+        counterpartName: "Proveedor",
+        items: [{ ...ITEM_INPUT, inventoryItemId: "item-otro-empresa" }],
+      })
+    ).rejects.toThrow("no pertenecen a esta empresa");
+  });
+
+  it("permite crear orden con inventoryItemId válido de la empresa", async () => {
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue(
+      [{ id: "item-valid" }] as never
+    );
+
+    const result = await OrderService.createOrder(COMPANY_ID, USER_ID, {
+      type: "PURCHASE",
+      counterpartName: "Proveedor",
+      items: [{ ...ITEM_INPUT, inventoryItemId: "item-valid" }],
+    });
+
+    expect(result.number).toBe("OC-0001");
+    expect(prisma.inventoryItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: ["item-valid"] },
+          companyId: COMPANY_ID,
+          deletedAt: null,
+        }),
+      })
+    );
   });
 });

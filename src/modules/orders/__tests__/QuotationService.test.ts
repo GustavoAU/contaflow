@@ -15,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     quotationItem: { deleteMany: vi.fn() },
     auditLog: { create: vi.fn() },
+    inventoryItem: { findMany: vi.fn() }, // OM-08
   },
 }));
 
@@ -266,5 +267,65 @@ describe("QuotationService.updateQuotation — $transaction + AuditLog (MEDIUM)"
 
     expect(prisma.quotationItem.deleteMany).not.toHaveBeenCalled();
     expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("QuotationService — OM-08: inventoryItemId validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+    );
+    vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
+    vi.mocked(prisma.quotation.create).mockResolvedValue(makeQuotationDb() as never);
+  });
+
+  it("omite validación si no hay inventoryItemId en los ítems", async () => {
+    // ITEM_INPUT no tiene inventoryItemId → no se llama inventoryItem.findMany
+    await QuotationService.createQuotation(COMPANY_ID, USER_ID, {
+      type: "PURCHASE",
+      counterpartName: "Proveedor",
+      validUntil: new Date("2026-05-31"),
+      items: [ITEM_INPUT],
+    });
+
+    expect(prisma.inventoryItem.findMany).not.toHaveBeenCalled();
+  });
+
+  it("lanza error si inventoryItemId no pertenece a la empresa (OM-08 cross-tenant guard)", async () => {
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never); // 0 found ≠ 1 requested
+
+    await expect(
+      QuotationService.createQuotation(COMPANY_ID, USER_ID, {
+        type: "PURCHASE",
+        counterpartName: "Proveedor",
+        validUntil: new Date("2026-05-31"),
+        items: [{ ...ITEM_INPUT, inventoryItemId: "item-otro-empresa" }],
+      })
+    ).rejects.toThrow("no pertenecen a esta empresa");
+  });
+
+  it("permite crear cotización con inventoryItemId válido de la empresa", async () => {
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue(
+      [{ id: "item-valid" }] as never
+    );
+
+    const result = await QuotationService.createQuotation(COMPANY_ID, USER_ID, {
+      type: "PURCHASE",
+      counterpartName: "Proveedor",
+      validUntil: new Date("2026-05-31"),
+      items: [{ ...ITEM_INPUT, inventoryItemId: "item-valid" }],
+    });
+
+    expect(result.number).toBe("COT-0001");
+    expect(prisma.inventoryItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: ["item-valid"] },
+          companyId: COMPANY_ID,
+          deletedAt: null,
+        }),
+      })
+    );
   });
 });

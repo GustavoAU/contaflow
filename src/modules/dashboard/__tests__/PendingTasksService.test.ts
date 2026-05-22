@@ -69,7 +69,8 @@ describe("PendingTasksService.getPendingTasks", () => {
   });
 
   it("detecta retenciones sin vincular (RETENCIONES_SIN_VINCULAR) — severity warning", async () => {
-    vi.mocked(prisma.retencion.count).mockResolvedValue(5 as never);
+    // 1ª llamada = PENDING/sin factura (SIN_VINCULAR); 2ª = ISSUED (POR_ENTERAR) → 0
+    vi.mocked(prisma.retencion.count).mockResolvedValueOnce(5 as never);
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks).toHaveLength(1);
     expect(result.tasks[0].type).toBe("RETENCIONES_SIN_VINCULAR");
@@ -97,6 +98,28 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(result.tasks[0].count).toBe(2);
   });
 
+  it("detecta retenciones emitidas sin enterar (RETENCIONES_POR_ENTERAR) — OM-06 — severity error", async () => {
+    // 1ª llamada = PENDING/sin factura → 0; 2ª llamada = ISSUED (POR_ENTERAR) → 4
+    vi.mocked(prisma.retencion.count).mockResolvedValueOnce(0 as never).mockResolvedValueOnce(4 as never);
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "RETENCIONES_POR_ENTERAR");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(4);
+    expect(task?.href).toBe("/retentions");
+    expect(task?.description).toContain("200%");
+  });
+
+  it("RETENCIONES_POR_ENTERAR filtra status ISSUED y deletedAt null", async () => {
+    vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
+    await PendingTasksService.getPendingTasks("company-1");
+    const calls = vi.mocked(prisma.retencion.count).mock.calls;
+    // 2ª llamada debe tener status: "ISSUED"
+    expect(calls[1]?.[0]).toMatchObject({
+      where: expect.objectContaining({ status: "ISSUED", deletedAt: null }),
+    });
+  });
+
   it("ORDENES_VENCIDAS filtra solo DRAFT y APPROVED con expectedDate < now", async () => {
     vi.mocked(prisma.order.count).mockResolvedValue(1 as never);
     await PendingTasksService.getPendingTasks("company-1");
@@ -112,7 +135,8 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   it("acumula múltiples tareas y suma totalCount correctamente", async () => {
     vi.mocked(prisma.invoice.count).mockResolvedValue(2 as never);
-    vi.mocked(prisma.retencion.count).mockResolvedValue(3 as never);
+    // 1ª llamada = PENDING/sin factura; 2ª llamada = ISSUED → 0
+    vi.mocked(prisma.retencion.count).mockResolvedValueOnce(3 as never);
     vi.mocked(prisma.bankStatement.count).mockResolvedValue(1 as never);
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks).toHaveLength(3);

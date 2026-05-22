@@ -239,6 +239,21 @@ export class InvoiceService {
 
     // ─── Escrituras DB atomizadas + GL posting (ADR-026) ─────────────────────
     const doCreate = async (db: Prisma.TransactionClient) => {
+      // OM-05: bloquear fechas en períodos contables CERRADOS
+      // (misma guarda que R-09 en InventoryOperationsService)
+      const invoiceDate = new Date(input.date);
+      const invYear = invoiceDate.getFullYear();
+      const invMonth = invoiceDate.getMonth() + 1; // getMonth() es 0-based
+      const closedPeriod = await db.accountingPeriod.findFirst({
+        where: { companyId: input.companyId, status: "CLOSED", year: invYear, month: invMonth },
+        select: { year: true, month: true },
+      });
+      if (closedPeriod) {
+        throw new Error(
+          `No se puede registrar una factura en el período ${String(closedPeriod.month).padStart(2, "0")}/${closedPeriod.year} porque está CERRADO. Use una fecha en el período activo.`
+        );
+      }
+
       // Fase 16: obtener paymentTermDays para calcular dueDate
       const company = await db.company.findUnique({
         where: { id: input.companyId },

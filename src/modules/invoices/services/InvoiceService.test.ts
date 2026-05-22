@@ -19,6 +19,9 @@ vi.mock("@/lib/prisma", () => {
     companySettings: {
       findUnique: vi.fn().mockResolvedValue(null), // sin GL config → no auto-posting
     },
+    accountingPeriod: {
+      findFirst: vi.fn().mockResolvedValue(null), // OM-05: sin período cerrado por defecto
+    },
     $transaction: vi.fn().mockImplementation(
       (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)
     ),
@@ -153,6 +156,25 @@ describe("InvoiceService.create", () => {
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ paymentTermDays: 30 } as never);
 
     await expect(InvoiceService.create(BASE_INPUT)).rejects.toThrow("DB error");
+  });
+
+  it("OM-05: rechaza factura en período contable CERRADO", async () => {
+    // El período 2026-03 está cerrado
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
+      { year: 2026, month: 3 } as never
+    );
+
+    await expect(InvoiceService.create(BASE_INPUT)).rejects.toThrow(
+      "período 03/2026 porque está CERRADO"
+    );
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+  });
+
+  it("OM-05: permite factura cuando no hay período CERRADO", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+
+    await expect(InvoiceService.create(BASE_INPUT)).resolves.toBeDefined();
   });
 });
 

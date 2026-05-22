@@ -975,37 +975,40 @@ enum StockControlLevel {
 }
 
 model InventoryItem {
-  id            String              @id @default(cuid())
-  companyId     String
-  company       Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  sku           String
-  name          String
-  description   String?
+  id             String              @id @default(cuid())
+  companyId      String
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sku            String
+  name           String
+  description    String?
   // Denorm de la unidad base — sincronizado por InventoryUomService al crear/actualizar unidad base
-  baseUnitName  String // sincronizado con InventoryItemUnit.name donde isBase = true
-  baseUnitAbbr  String // sincronizado con InventoryItemUnit.abbreviation
-  baseUnitId    String?
-  baseUnit      InventoryItemUnit?  @relation("ItemBaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
-  averageCost   Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
-  stockQuantity Decimal             @default(0) @db.Decimal(19, 4) // existencia en unidad base
-  minimumStock  Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
-  itemType      ItemType            @default(GOODS) // NIIF Sec.13 — SERVICE bloquea movimientos físicos
-  accountId     String?
-  account       Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
-  cogsAccountId String?
-  cogsAccount   Account?            @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
-  deletedAt     DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  createdBy     String
+  baseUnitName   String // sincronizado con InventoryItemUnit.name donde isBase = true
+  baseUnitAbbr   String // sincronizado con InventoryItemUnit.abbreviation
+  baseUnitId     String?
+  baseUnit       InventoryItemUnit?  @relation("ItemBaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
+  averageCost    Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
+  stockQuantity  Decimal             @default(0) @db.Decimal(19, 4) // existencia en unidad base
+  minimumStock   Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
+  itemType       ItemType            @default(GOODS) // NIIF Sec.13 — SERVICE bloquea movimientos físicos
+  accountId      String?
+  account        Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  cogsAccountId  String?
+  cogsAccount    Account?            @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
+  deletedAt      DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  createdBy      String
   // Fase 35G: Lot/Serial Tracking — ADR-021 D-1
-  trackingType  TrackingType        @default(NONE)
-  movements     InventoryMovement[]
-  units         InventoryItemUnit[] @relation("ItemUnits")
-  lots          InventoryLot[]
-  serials       InventorySerial[]
+  trackingType   TrackingType        @default(NONE)
+  movements      InventoryMovement[]
+  units          InventoryItemUnit[] @relation("ItemUnits")
+  lots           InventoryLot[]
+  serials        InventorySerial[]
   // Fase 37A: líneas de factura que referenciaron este ítem
-  invoiceLines  InvoiceLine[]
+  invoiceLines   InvoiceLine[]
+  // OM-08: líneas de cotización y orden vinculadas al catálogo
+  quotationItems QuotationItem[]
+  orderItems     OrderItem[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -1358,18 +1361,21 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String  @id @default(cuid())
-  quotationId String
-  description String
-  unit        String
-  quantity    Decimal @db.Decimal(19, 4)
-  unitPrice   Decimal @db.Decimal(19, 4)
-  taxRate     Decimal @default(0) @db.Decimal(5, 2)
-  totalPrice  Decimal @db.Decimal(19, 4)
+  id              String  @id @default(cuid())
+  quotationId     String
+  inventoryItemId String? // OM-08: FK opcional al catálogo de productos
+  description     String
+  unit            String
+  quantity        Decimal @db.Decimal(19, 4)
+  unitPrice       Decimal @db.Decimal(19, 4)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  totalPrice      Decimal @db.Decimal(19, 4)
 
-  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
 
   @@index([quotationId])
+  @@index([inventoryItemId])
 }
 
 model Order {
@@ -1538,18 +1544,21 @@ model PayrollConfig {
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  description String
-  unit        String
-  quantity    Decimal @db.Decimal(19, 4)
-  unitPrice   Decimal @db.Decimal(19, 4)
-  taxRate     Decimal @default(0) @db.Decimal(5, 2)
-  totalPrice  Decimal @db.Decimal(19, 4)
+  id              String  @id @default(cuid())
+  orderId         String
+  inventoryItemId String? // OM-08: FK opcional al catálogo de productos
+  description     String
+  unit            String
+  quantity        Decimal @db.Decimal(19, 4)
+  unitPrice       Decimal @db.Decimal(19, 4)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  totalPrice      Decimal @db.Decimal(19, 4)
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([inventoryItemId])
 }
 
 // ─── Fase NOM-B: Empleados, Conceptos, Feriados y Tipos de Ausencia ──────────
