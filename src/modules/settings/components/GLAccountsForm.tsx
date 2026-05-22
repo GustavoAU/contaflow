@@ -31,6 +31,7 @@ type Props = {
     inventoryAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
+    ivaRetentionPayableAccountId: string | null; // GAP-03
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
   };
@@ -89,6 +90,7 @@ export function GLAccountsForm({
   const [inventoryAccountId, setInventoryAccountId] = useState(initialConfig.inventoryAccountId ?? NONE);
   const [ivaDFAccountId, setIvaDFAccountId] = useState(initialConfig.ivaDFAccountId ?? NONE);
   const [ivaCFAccountId, setIvaCFAccountId] = useState(initialConfig.ivaCFAccountId ?? NONE);
+  const [ivaRetentionPayableAccountId, setIvaRetentionPayableAccountId] = useState(initialConfig.ivaRetentionPayableAccountId ?? NONE); // GAP-03
   const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
   const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
@@ -122,6 +124,7 @@ export function GLAccountsForm({
         inventoryAccountId: toNull(inventoryAccountId),
         ivaDFAccountId: toNull(ivaDFAccountId),
         ivaCFAccountId: toNull(ivaCFAccountId),
+        ivaRetentionPayableAccountId: toNull(ivaRetentionPayableAccountId), // GAP-03
         fxGainAccountId: toNull(fxGainAccountId),
         fxLossAccountId: toNull(fxLossAccountId),
       });
@@ -222,7 +225,7 @@ export function GLAccountsForm({
           <AccountSelect
             id="apAccountId"
             label="Cuentas por Pagar (CxP)"
-            hint="PASIVO — Cr al registrar compra"
+            hint="PASIVO — Cr al registrar compra (neto si hay retención)"
             value={apAccountId}
             onChange={setApAccountId}
             accounts={liabilityAccounts}
@@ -234,6 +237,17 @@ export function GLAccountsForm({
             value={ivaCFAccountId}
             onChange={setIvaCFAccountId}
             accounts={assetAccounts}
+          />
+        </div>
+        {/* GAP-03: cuenta de retenciones IVA por pagar (opcional) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <AccountSelect
+            id="ivaRetentionPayableAccountId"
+            label="Retenciones IVA por Pagar"
+            hint="PASIVO — Cr retención IVA al registrar compra con agente de retención (opcional)"
+            value={ivaRetentionPayableAccountId}
+            onChange={setIvaRetentionPayableAccountId}
+            accounts={liabilityAccounts}
           />
         </div>
       </div>

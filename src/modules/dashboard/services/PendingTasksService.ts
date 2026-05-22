@@ -12,7 +12,8 @@ export type PendingTaskType =
   | "ACTIVOS_SIN_DEPRECIAR"
   | "RETENCIONES_SIN_VINCULAR"
   | "EXTRACTO_SIN_CONCILIAR"
-  | "STOCK_BAJO";
+  | "STOCK_BAJO"
+  | "ORDENES_VENCIDAS"; // GAP-02: órdenes con fecha comprometida vencida
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -42,6 +43,7 @@ export const PendingTasksService = {
       retencionesSinVincularCount,
       extractosSinConciliarCount,
       stockBajoCount,
+      ordenesVencidasCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -107,6 +109,15 @@ export const PendingTasksService = {
           AND "minimumStock" IS NOT NULL
           AND "stockQuantity" < "minimumStock"
       `.then(([r]) => Number(r.count)),
+
+      // 7. GAP-02: Órdenes activas con fecha comprometida vencida
+      prisma.order.count({
+        where: {
+          companyId,
+          status: { in: ["DRAFT", "APPROVED"] },
+          expectedDate: { lt: now },
+        },
+      }),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -180,6 +191,19 @@ export const PendingTasksService = {
         description: `${extractosSinConciliarCount} extracto${pl ? "s" : ""} bancario${pl ? "s" : ""} sin conciliar hace más de 30 días.`,
         count: extractosSinConciliarCount,
         href: "/bank-reconciliation",
+      });
+    }
+
+    // GAP-02: Órdenes con fecha comprometida vencida
+    if (ordenesVencidasCount > 0) {
+      const pl = ordenesVencidasCount > 1;
+      tasks.push({
+        type: "ORDENES_VENCIDAS",
+        severity: "warning",
+        title: "Órdenes vencidas sin convertir",
+        description: `${ordenesVencidasCount} orden${pl ? "es" : ""} ${pl ? "tienen" : "tiene"} fecha comprometida vencida y aún no ${pl ? "han" : "ha"} sido convertida${pl ? "s" : ""} a factura.`,
+        count: ordenesVencidasCount,
+        href: "/orders",
       });
     }
 

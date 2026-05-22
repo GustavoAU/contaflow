@@ -24,6 +24,7 @@ const SaveGLConfigSchema = z.object({
   inventoryAccountId: z.string().nullable(),
   ivaDFAccountId: z.string().nullable(),
   ivaCFAccountId: z.string().nullable(),
+  ivaRetentionPayableAccountId: z.string().nullable(), // GAP-03
   fxGainAccountId: z.string().nullable(),
   fxLossAccountId: z.string().nullable(),
 });
@@ -38,6 +39,7 @@ export async function getGLConfigAction(companyId: string): Promise<
     inventoryAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
+    ivaRetentionPayableAccountId: string | null; // GAP-03
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
     unbookedCount: number;
@@ -64,6 +66,7 @@ export async function getGLConfigAction(companyId: string): Promise<
           inventoryAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
+          ivaRetentionPayableAccountId: true, // GAP-03
           fxGainAccountId: true,
           fxLossAccountId: true,
         },
@@ -88,6 +91,7 @@ export async function getGLConfigAction(companyId: string): Promise<
         inventoryAccountId: settings?.inventoryAccountId ?? null,
         ivaDFAccountId: settings?.ivaDFAccountId ?? null,
         ivaCFAccountId: settings?.ivaCFAccountId ?? null,
+        ivaRetentionPayableAccountId: settings?.ivaRetentionPayableAccountId ?? null, // GAP-03
         fxGainAccountId: settings?.fxGainAccountId ?? null,
         fxLossAccountId: settings?.fxLossAccountId ?? null,
         unbookedCount,
@@ -191,6 +195,7 @@ export async function postUnbookedInvoicesAction(
         inventoryAccountId: true,
         ivaDFAccountId: true,
         ivaCFAccountId: true,
+        ivaRetentionPayableAccountId: true, // GAP-03
       },
     });
 

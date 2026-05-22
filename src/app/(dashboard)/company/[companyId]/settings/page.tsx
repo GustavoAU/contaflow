@@ -156,6 +156,7 @@ export default async function SettingsPage({ params }: Props) {
               inventoryAccountId: glConfig?.inventoryAccountId ?? null,
               ivaDFAccountId: glConfig?.ivaDFAccountId ?? null,
               ivaCFAccountId: glConfig?.ivaCFAccountId ?? null,
+              ivaRetentionPayableAccountId: glConfig?.ivaRetentionPayableAccountId ?? null, // GAP-03
               fxGainAccountId: glConfig?.fxGainAccountId ?? null,
               fxLossAccountId: glConfig?.fxLossAccountId ?? null,
             }}

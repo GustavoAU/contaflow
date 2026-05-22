@@ -21,6 +21,7 @@ const FULL_CONFIG: InvoiceGLConfig = {
   inventoryAccountId: "acc-inventario",         // ASSET 1115 — usado en COMPRA
   ivaDFAccountId: "acc-iva-df",
   ivaCFAccountId: "acc-iva-cf",
+  ivaRetentionPayableAccountId: null,           // GAP-03: sin retención por defecto
 };
 
 const SALE_INVOICE: InvoiceForGL = {
@@ -317,5 +318,109 @@ describe("InvoiceGLPostingService — guarda semántica", () => {
     ).rejects.toThrow(/base negativa/);
 
     expect(vi.mocked(db.transaction.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Tests GAP-03: Retención IVA split en GL compra ──────────────────────────
+
+describe("InvoiceGLPostingService — GAP-03 retención IVA split", () => {
+  // Factura compra: base 200 + IVA 32 = total 232
+  // Retención IVA 75%: 32 × 0.75 = 24
+  // Esperado GL: Dr Inventario 200 | Dr IVA-CF 32 | Cr Proveedor -208 | Cr Ret.IVA -24
+  const RET_ACCOUNT_ID = "acc-ret-iva";
+
+  function makeDbWithRetenciones(ivaRetention: string) {
+    return {
+      transaction: {
+        create: vi.fn().mockResolvedValue({ id: TX_ID }),
+      },
+      invoice: {
+        update: vi.fn().mockResolvedValue({ id: INVOICE_ID, transactionId: TX_ID }),
+      },
+      retencion: {
+        findMany: vi.fn().mockResolvedValue([{ ivaRetention: new Decimal(ivaRetention) }]),
+      },
+    } as unknown as import("@prisma/client").Prisma.TransactionClient;
+  }
+
+  it("split Cr Proveedor / Cr Ret.IVA cuando ivaRetentionPayableAccountId configurado y retención existe", async () => {
+    const configWithRet: InvoiceGLConfig = {
+      ...FULL_CONFIG,
+      ivaRetentionPayableAccountId: RET_ACCOUNT_ID,
+    };
+    const db = makeDbWithRetenciones("24.00");
+
+    await InvoiceGLPostingService.postInvoice(
+      PURCHASE_INVOICE, // total 232, IVA 32, base 200
+      configWithRet,
+      COMPANY_ID,
+      USER_ID,
+      db
+    );
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+
+    // Debe haber 4 líneas: Dr Inventario + Dr IVA-CF + Cr Proveedores(neto) + Cr Ret.IVA
+    expect(entries).toHaveLength(4);
+
+    // Dr Inventario = 200
+    const invEntry = entries.find((e) => e.accountId === "acc-inventario");
+    expect(new Decimal(invEntry!.amount.toString()).toFixed(2)).toBe("200.00");
+
+    // Dr IVA-CF = 32
+    const cfEntry = entries.find((e) => e.accountId === "acc-iva-cf");
+    expect(new Decimal(cfEntry!.amount.toString()).toFixed(2)).toBe("32.00");
+
+    // Cr Proveedor = -(232 - 24) = -208
+    const apEntry = entries.find((e) => e.accountId === "acc-prov");
+    expect(new Decimal(apEntry!.amount.toString()).toFixed(2)).toBe("-208.00");
+
+    // Cr Ret.IVA = -24
+    const retEntry = entries.find((e) => e.accountId === RET_ACCOUNT_ID);
+    expect(new Decimal(retEntry!.amount.toString()).toFixed(2)).toBe("-24.00");
+
+    // Invariante: Σ = 0
+    const sum = entries.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
+    expect(sum.abs().lessThan(new Decimal("0.01"))).toBe(true);
+  });
+
+  it("sin retención: comportamiento normal (Cr Proveedor = total completo)", async () => {
+    const configWithRet: InvoiceGLConfig = {
+      ...FULL_CONFIG,
+      ivaRetentionPayableAccountId: RET_ACCOUNT_ID,
+    };
+    // retención = 0 → no split
+    const db = makeDbWithRetenciones("0.00");
+
+    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, configWithRet, COMPANY_ID, USER_ID, db);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+
+    // Solo 3 entradas — sin split
+    expect(entries).toHaveLength(3);
+
+    // Cr Proveedor = total completo -232
+    const apEntry = entries.find((e) => e.accountId === "acc-prov");
+    expect(new Decimal(apEntry!.amount.toString()).toFixed(2)).toBe("-232.00");
+
+    expect(entries.find((e) => e.accountId === RET_ACCOUNT_ID)).toBeUndefined();
+  });
+
+  it("sin ivaRetentionPayableAccountId: nunca consulta retenciones", async () => {
+    // FULL_CONFIG tiene ivaRetentionPayableAccountId: null
+    const db = makeMockDb();
+    // makeMockDb() no tiene retencion.findMany → si se llama, lanzaría error
+    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+
+    // Sin retención config → Cr Proveedor = total completo
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const apEntry = entries.find((e) => e.accountId === "acc-prov");
+    expect(new Decimal(apEntry!.amount.toString()).toFixed(2)).toBe("-232.00");
   });
 });

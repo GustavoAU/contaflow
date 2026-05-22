@@ -260,6 +260,7 @@ export class InvoiceService {
           inventoryAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
+          ivaRetentionPayableAccountId: true, // GAP-03
         },
       });
 

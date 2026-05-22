@@ -181,23 +181,33 @@ async function main() {
   await prisma.companySettings.upsert({
     where: { companyId: cId },
     update: {
-      arAccountId:              accounts["1305"],
-      apAccountId:              accounts["2205"],
-      salesAccountId:           accounts["4110"],
-      purchaseExpenseAccountId: accounts["5110"], // legacy periódico — no usado en causación perpetua
-      inventoryAccountId:       accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
-      ivaDFAccountId:           accounts["2105"],
-      ivaCFAccountId:           accounts["1120"],
+      arAccountId:                   accounts["1305"],
+      apAccountId:                   accounts["2205"],
+      salesAccountId:                accounts["4110"],
+      purchaseExpenseAccountId:      accounts["5110"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:            accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
+      ivaDFAccountId:                accounts["2105"],
+      ivaCFAccountId:                accounts["1120"],
+      ivaRetentionPayableAccountId:  accounts["2110"], // GAP-03: split retención IVA en GL compra
+      // GAP-06: datos del Contador Público Colegiado para firma en reportes
+      accountantName:      "Sofía Hernández",
+      accountantTitle:     "Contador Público Colegiado",
+      accountantCpcNumber: "CPC-45231",
     },
     create: {
-      companyId:                cId,
-      arAccountId:              accounts["1305"],
-      apAccountId:              accounts["2205"],
-      salesAccountId:           accounts["4110"],
-      purchaseExpenseAccountId: accounts["5110"], // legacy periódico — no usado en causación perpetua
-      inventoryAccountId:       accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
-      ivaDFAccountId:           accounts["2105"],
-      ivaCFAccountId:           accounts["1120"],
+      companyId:                     cId,
+      arAccountId:                   accounts["1305"],
+      apAccountId:                   accounts["2205"],
+      salesAccountId:                accounts["4110"],
+      purchaseExpenseAccountId:      accounts["5110"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:            accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
+      ivaDFAccountId:                accounts["2105"],
+      ivaCFAccountId:                accounts["1120"],
+      ivaRetentionPayableAccountId:  accounts["2110"], // GAP-03: split retención IVA en GL compra
+      // GAP-06: datos del Contador Público Colegiado para firma en reportes
+      accountantName:      "Sofía Hernández",
+      accountantTitle:     "Contador Público Colegiado",
+      accountantCpcNumber: "CPC-45231",
     },
   });
   console.log("  ✅ GL mapping configurado");

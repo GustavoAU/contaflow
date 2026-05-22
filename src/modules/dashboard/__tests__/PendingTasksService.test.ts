@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
     fixedAsset: { count: vi.fn() },
     retencion: { count: vi.fn() },
     bankStatement: { count: vi.fn() },
+    order: { count: vi.fn() }, // GAP-02
     $queryRaw: vi.fn(),
   },
 }));
@@ -21,6 +22,7 @@ function mockAllZero() {
   vi.mocked(prisma.fixedAsset.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bankStatement.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.order.count).mockResolvedValue(0 as never); // GAP-02
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
 }
 
@@ -83,6 +85,29 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(result.tasks[0].type).toBe("EXTRACTO_SIN_CONCILIAR");
     expect(result.tasks[0].severity).toBe("info");
     expect(result.tasks[0].href).toBe("/bank-reconciliation");
+  });
+
+  it("detecta órdenes con fecha vencida (ORDENES_VENCIDAS) — GAP-02 — severity warning", async () => {
+    vi.mocked(prisma.order.count).mockResolvedValue(2 as never);
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks).toHaveLength(1);
+    expect(result.tasks[0].type).toBe("ORDENES_VENCIDAS");
+    expect(result.tasks[0].severity).toBe("warning");
+    expect(result.tasks[0].href).toBe("/orders");
+    expect(result.tasks[0].count).toBe(2);
+  });
+
+  it("ORDENES_VENCIDAS filtra solo DRAFT y APPROVED con expectedDate < now", async () => {
+    vi.mocked(prisma.order.count).mockResolvedValue(1 as never);
+    await PendingTasksService.getPendingTasks("company-1");
+    expect(vi.mocked(prisma.order.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ["DRAFT", "APPROVED"] },
+          expectedDate: expect.objectContaining({ lt: expect.any(Date) }),
+        }),
+      }),
+    );
   });
 
   it("acumula múltiples tareas y suma totalCount correctamente", async () => {

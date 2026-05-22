@@ -5,10 +5,14 @@
 //
 // VENTA:  Dr CxC (total) | Cr Ingresos (base) + Cr IVA-DF (iva)
 //         Si ivaTotal = 0: desc incluye "Exento Art. 9 LIVA" (Error 3 dictamen SENIAT)
-// COMPRA: Dr Inventario (base) + Dr IVA-CF (iva) | Cr Proveedores (total)
+// COMPRA: Dr Inventario (base) + Dr IVA-CF (iva) | Cr Proveedores (neto) [+ Cr Ret.IVA si aplica]
 //         inventoryAccountId → ASSET 1115 (inventario perpetuo — Error 4 dictamen SENIAT)
 //         InventoryAccountingService.postMovement(SALIDA) se encarga del Dr COGS / Cr Inventario
 //         cuando la mercancía se vende, completando el ciclo perpetuo.
+//         GAP-03: si ivaRetentionPayableAccountId está configurado y existen retenciones IVA
+//         vinculadas a la factura, el Cr a Proveedores se fracciona:
+//           Cr Proveedores = total - Σ ivaRetention   (lo que efectivamente se paga al proveedor)
+//           Cr Ret.IVA p.p. = Σ ivaRetention          (obligación por enterar al SENIAT)
 //
 // Invariante: Σ entries = 0 (totalAmountVes = Σ base + Σ iva por diseño de InvoiceService)
 
@@ -23,6 +27,7 @@ export interface InvoiceGLConfig {
   inventoryAccountId: string | null;       // ASSET — Inventario de Mercancías (inventario perpetuo)
   ivaDFAccountId: string | null;
   ivaCFAccountId: string | null;
+  ivaRetentionPayableAccountId: string | null; // LIABILITY — Retenciones IVA p.p. (GAP-03)
 }
 
 export interface InvoiceForGL {
@@ -81,14 +86,44 @@ export class InvoiceGLPostingService {
       }
     } else {
       // COMPRA — inventario perpetuo (Error 4 dictamen SENIAT):
-      // Dr Inventario (base) | Dr IVA-CF (iva) | Cr CxP (total)
+      // Dr Inventario (base) | Dr IVA-CF (iva) | Cr CxP (total neto) [+ Cr Ret.IVA p.p. si GAP-03]
       // El asiento Dr COGS / Cr Inventario ocurre en InventoryAccountingService.postMovement(SALIDA)
+
+      // GAP-03: Consultar retenciones IVA vinculadas para fraccionar el Cr a Proveedores
+      let ivaRetentionTotal = new Decimal(0);
+      if (config.ivaRetentionPayableAccountId) {
+        const retenciones = await db.retencion.findMany({
+          where: {
+            invoiceId: invoice.id,
+            type: { in: ["IVA", "AMBAS"] },
+            deletedAt: null,
+          },
+          select: { ivaRetention: true },
+        });
+        ivaRetentionTotal = retenciones.reduce(
+          (s, r) => s.plus(new Decimal(r.ivaRetention.toString())),
+          new Decimal(0)
+        );
+      }
+
+      const apAmount = ivaRetentionTotal.greaterThan(0)
+        ? total.minus(ivaRetentionTotal) // lo que efectivamente se paga al proveedor
+        : total;
+
       entries = [
         { accountId: config.inventoryAccountId!, amount: baseTotal, description: `${desc} — inventario` },
-        { accountId: config.apAccountId!, amount: total.negated(), description: `${desc} — CxP` },
+        { accountId: config.apAccountId!, amount: apAmount.negated(), description: `${desc} — CxP` },
       ];
       if (ivaTotal.greaterThan(0)) {
         entries.push({ accountId: config.ivaCFAccountId!, amount: ivaTotal, description: `${desc} — IVA crédito fiscal` });
+      }
+      // GAP-03: Cr separado para Retenciones IVA por Pagar (2110)
+      if (ivaRetentionTotal.greaterThan(0) && config.ivaRetentionPayableAccountId) {
+        entries.push({
+          accountId: config.ivaRetentionPayableAccountId,
+          amount: ivaRetentionTotal.negated(),
+          description: `${desc} — retención IVA por pagar`,
+        });
       }
     }
 
