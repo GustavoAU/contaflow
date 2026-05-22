@@ -286,6 +286,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **P-6** ✅ merged (SubmitButton + aria-busy en 13 formularios alto riesgo — sin tests nuevos)
 - **Q2-3** ✅ merged (2FA step-up: cierre ejercicio + eliminar miembro + datos SENIAT + archivar empresa — STEP_UP_CONFIG centralizado en step-up.ts — useReverification sin array destructuring)
 - **Q2-4** ✅ merged (ActiveSessionsPanel: user.getSessions() → SessionWithActivitiesResource → revoke() — en settings page)
+- **P-7** ✅ merged (GET /api/health — db + redis + qstash, ruta pública, force-dynamic)
+- **P-4** ✅ merged (Sentry.startSpan en 5 operaciones críticas: correlativo, GL posting, cierre ejercicio, apropiación, nómina, SENIAT transmit)
+- **P-8** ✅ merged (RUNBOOK.md — PITR Neon, PDF recovery, checklist mensual, RTO<4h / RPO<1h)
 
 **1983 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
 
