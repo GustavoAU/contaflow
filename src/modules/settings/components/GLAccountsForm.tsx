@@ -28,6 +28,7 @@ type Props = {
     apAccountId: string | null;
     salesAccountId: string | null;
     purchaseExpenseAccountId: string | null;
+    inventoryAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
     fxGainAccountId: string | null;
@@ -85,9 +86,7 @@ export function GLAccountsForm({
   const [arAccountId, setArAccountId] = useState(initialConfig.arAccountId ?? NONE);
   const [apAccountId, setApAccountId] = useState(initialConfig.apAccountId ?? NONE);
   const [salesAccountId, setSalesAccountId] = useState(initialConfig.salesAccountId ?? NONE);
-  const [purchaseExpenseAccountId, setPurchaseExpenseAccountId] = useState(
-    initialConfig.purchaseExpenseAccountId ?? NONE
-  );
+  const [inventoryAccountId, setInventoryAccountId] = useState(initialConfig.inventoryAccountId ?? NONE);
   const [ivaDFAccountId, setIvaDFAccountId] = useState(initialConfig.ivaDFAccountId ?? NONE);
   const [ivaCFAccountId, setIvaCFAccountId] = useState(initialConfig.ivaCFAccountId ?? NONE);
   const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
@@ -106,8 +105,9 @@ export function GLAccountsForm({
 
   const saleConfigComplete =
     arAccountId !== NONE && salesAccountId !== NONE && ivaDFAccountId !== NONE;
+  // COMPRA usa inventoryAccountId (ASSET 1115) — método inventario perpetuo
   const purchaseConfigComplete =
-    apAccountId !== NONE && purchaseExpenseAccountId !== NONE && ivaCFAccountId !== NONE;
+    apAccountId !== NONE && inventoryAccountId !== NONE && ivaCFAccountId !== NONE;
   const anyConfigComplete = saleConfigComplete || purchaseConfigComplete;
 
   function handleSave(e: React.FormEvent) {
@@ -118,7 +118,8 @@ export function GLAccountsForm({
         arAccountId: toNull(arAccountId),
         apAccountId: toNull(apAccountId),
         salesAccountId: toNull(salesAccountId),
-        purchaseExpenseAccountId: toNull(purchaseExpenseAccountId),
+        purchaseExpenseAccountId: null, // legacy periódico — no usado en causación perpetua
+        inventoryAccountId: toNull(inventoryAccountId),
         ivaDFAccountId: toNull(ivaDFAccountId),
         ivaCFAccountId: toNull(ivaCFAccountId),
         fxGainAccountId: toNull(fxGainAccountId),
@@ -211,12 +212,12 @@ export function GLAccountsForm({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <AccountSelect
-            id="purchaseExpenseAccountId"
-            label="Gasto / Costo de Compras"
-            hint="GASTO — Dr al registrar compra"
-            value={purchaseExpenseAccountId}
-            onChange={setPurchaseExpenseAccountId}
-            accounts={expenseAccounts}
+            id="inventoryAccountId"
+            label="Inventario de Mercancías"
+            hint="ACTIVO — Dr al registrar compra (inventario perpetuo)"
+            value={inventoryAccountId}
+            onChange={setInventoryAccountId}
+            accounts={assetAccounts}
           />
           <AccountSelect
             id="apAccountId"

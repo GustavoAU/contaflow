@@ -3,8 +3,12 @@
 //
 // Convención JournalEntry: positivo = Débito, negativo = Crédito
 //
-// VENTA:  Dr CxC (totalAmountVes) | Cr Ingresos (base) + Cr IVA-DF (iva)
-// COMPRA: Dr Gasto (base) + Dr IVA-CF (iva) | Cr Proveedores (totalAmountVes)
+// VENTA:  Dr CxC (total) | Cr Ingresos (base) + Cr IVA-DF (iva)
+//         Si ivaTotal = 0: desc incluye "Exento Art. 9 LIVA" (Error 3 dictamen SENIAT)
+// COMPRA: Dr Inventario (base) + Dr IVA-CF (iva) | Cr Proveedores (total)
+//         inventoryAccountId → ASSET 1115 (inventario perpetuo — Error 4 dictamen SENIAT)
+//         InventoryAccountingService.postMovement(SALIDA) se encarga del Dr COGS / Cr Inventario
+//         cuando la mercancía se vende, completando el ciclo perpetuo.
 //
 // Invariante: Σ entries = 0 (totalAmountVes = Σ base + Σ iva por diseño de InvoiceService)
 
@@ -15,7 +19,8 @@ export interface InvoiceGLConfig {
   arAccountId: string | null;
   apAccountId: string | null;
   salesAccountId: string | null;
-  purchaseExpenseAccountId: string | null;
+  purchaseExpenseAccountId: string | null; // legacy — inventario periódico (no usado en posting)
+  inventoryAccountId: string | null;       // ASSET — Inventario de Mercancías (inventario perpetuo)
   ivaDFAccountId: string | null;
   ivaCFAccountId: string | null;
 }
@@ -36,7 +41,8 @@ export class InvoiceGLPostingService {
     if (invoiceType === "SALE") {
       return !!(config.arAccountId && config.salesAccountId && config.ivaDFAccountId);
     }
-    return !!(config.apAccountId && config.purchaseExpenseAccountId && config.ivaCFAccountId);
+    // COMPRA: requiere inventoryAccountId (ASSET 1115) en lugar de purchaseExpenseAccountId
+    return !!(config.apAccountId && config.inventoryAccountId && config.ivaCFAccountId);
   }
 
   static async postInvoice(
@@ -55,7 +61,13 @@ export class InvoiceGLPostingService {
     // doblar la base cuando hay múltiples líneas sobre el mismo monto gravable.
     const baseTotal = total.minus(ivaTotal);
 
-    const desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
+    let desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
+
+    // Error 3 dictamen SENIAT: ventas sin IVA deben documentar la base legal
+    // de la exención en la descripción del asiento para trazabilidad fiscal.
+    if (invoice.type === "SALE" && ivaTotal.isZero()) {
+      desc += " — Exento Art. 9 LIVA";
+    }
 
     let entries: Array<{ accountId: string; amount: Decimal; description: string }>;
 
@@ -68,8 +80,11 @@ export class InvoiceGLPostingService {
         entries.push({ accountId: config.ivaDFAccountId!, amount: ivaTotal.negated(), description: `${desc} — IVA débito fiscal` });
       }
     } else {
+      // COMPRA — inventario perpetuo (Error 4 dictamen SENIAT):
+      // Dr Inventario (base) | Dr IVA-CF (iva) | Cr CxP (total)
+      // El asiento Dr COGS / Cr Inventario ocurre en InventoryAccountingService.postMovement(SALIDA)
       entries = [
-        { accountId: config.purchaseExpenseAccountId!, amount: baseTotal, description: `${desc} — gasto/costo` },
+        { accountId: config.inventoryAccountId!, amount: baseTotal, description: `${desc} — inventario` },
         { accountId: config.apAccountId!, amount: total.negated(), description: `${desc} — CxP` },
       ];
       if (ivaTotal.greaterThan(0)) {

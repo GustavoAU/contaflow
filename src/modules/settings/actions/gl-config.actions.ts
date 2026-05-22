@@ -21,6 +21,7 @@ const SaveGLConfigSchema = z.object({
   apAccountId: z.string().nullable(),
   salesAccountId: z.string().nullable(),
   purchaseExpenseAccountId: z.string().nullable(),
+  inventoryAccountId: z.string().nullable(),
   ivaDFAccountId: z.string().nullable(),
   ivaCFAccountId: z.string().nullable(),
   fxGainAccountId: z.string().nullable(),
@@ -34,6 +35,7 @@ export async function getGLConfigAction(companyId: string): Promise<
     apAccountId: string | null;
     salesAccountId: string | null;
     purchaseExpenseAccountId: string | null;
+    inventoryAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
     fxGainAccountId: string | null;
@@ -59,6 +61,7 @@ export async function getGLConfigAction(companyId: string): Promise<
           apAccountId: true,
           salesAccountId: true,
           purchaseExpenseAccountId: true,
+          inventoryAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
           fxGainAccountId: true,
@@ -82,6 +85,7 @@ export async function getGLConfigAction(companyId: string): Promise<
         apAccountId: settings?.apAccountId ?? null,
         salesAccountId: settings?.salesAccountId ?? null,
         purchaseExpenseAccountId: settings?.purchaseExpenseAccountId ?? null,
+        inventoryAccountId: settings?.inventoryAccountId ?? null,
         ivaDFAccountId: settings?.ivaDFAccountId ?? null,
         ivaCFAccountId: settings?.ivaCFAccountId ?? null,
         fxGainAccountId: settings?.fxGainAccountId ?? null,
@@ -184,6 +188,7 @@ export async function postUnbookedInvoicesAction(
         apAccountId: true,
         salesAccountId: true,
         purchaseExpenseAccountId: true,
+        inventoryAccountId: true,
         ivaDFAccountId: true,
         ivaCFAccountId: true,
       },
