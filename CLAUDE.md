@@ -273,7 +273,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Sprint UX Grupo 3** ✅ (código + grupos en Clientes/Proveedores — ADR-028 — código libre, sin auto-gen)
 - **Sprint UX Fixes** ✅ (InvoiceBook: MoneyBadge en Ret./IGTF/TOTALES sticky; Transactions: formatAmount Débito)
 
-**1941 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-21)
+- **Auditoría SENIAT Inventario** ✅ merged (R-01/02/03/04/05/06/09/10/12 + H-03 — ItemType + contrapartida + períodos + link asiento — 1944 tests)
+
+**1944 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-21)
 
 ### middleware.ts
 
