@@ -59,7 +59,7 @@ export function PendingTasksWidget({ companyId, data }: Props) {
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-600">{task.description}</p>
               </div>
-              <span className="shrink-0 text-xs text-zinc-400">→</span>
+              <span className="shrink-0 text-xs text-zinc-400" aria-hidden>→</span>
             </Link>
           );
         })}

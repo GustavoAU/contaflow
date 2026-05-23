@@ -144,7 +144,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
       <div className="mb-5 flex items-center gap-2 text-xs text-zinc-400">
         {(["upload", "map", "balances"] as const).map((s, i) => (
           <span key={s} className="flex items-center gap-1">
-            {i > 0 && <span className="mx-1">→</span>}
+            {i > 0 && <span className="mx-1" aria-hidden>→</span>}
             <span
               className={
                 step === s

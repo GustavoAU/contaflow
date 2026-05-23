@@ -260,12 +260,12 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
             <tr>
-              <th className="px-4 py-3 text-left">Fecha / Hora</th>
-              <th className="px-4 py-3 text-left">Entidad</th>
-              <th className="px-4 py-3 text-left">Acción</th>
-              <th className="px-4 py-3 text-left">ID Entidad</th>
-              <th className="px-4 py-3 text-left">Usuario</th>
-              <th className="px-4 py-3 text-left">Cambios</th>
+              <th scope="col" className="px-4 py-3 text-left">Fecha / Hora</th>
+              <th scope="col" className="px-4 py-3 text-left">Entidad</th>
+              <th scope="col" className="px-4 py-3 text-left">Acción</th>
+              <th scope="col" className="px-4 py-3 text-left">ID Entidad</th>
+              <th scope="col" className="px-4 py-3 text-left">Usuario</th>
+              <th scope="col" className="px-4 py-3 text-left">Cambios</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

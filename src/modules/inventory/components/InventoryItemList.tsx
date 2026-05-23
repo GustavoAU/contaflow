@@ -5,6 +5,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { XCircleIcon, AlertTriangleIcon } from "lucide-react";
 import { softDeleteInventoryItemAction, getItemMovementsAction } from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
@@ -158,15 +159,16 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                         {item.itemType === "SERVICE" ? (
                           <span className="text-gray-400 text-xs">N/A</span>
                         ) : (
-                          <span
-                            className={
-                              stock === 0
-                                ? "text-red-600 font-semibold"
-                                : isBelowMin
-                                  ? "text-amber-600 font-semibold"
-                                  : "text-gray-800"
-                            }
-                          >
+                          /* Q2-5: icono + color — doble indicador daltonismo (WCAG 1.4.1) */
+                          <span className={`inline-flex items-center gap-1 ${
+                            stock === 0
+                              ? "text-red-600 font-semibold"
+                              : isBelowMin
+                                ? "text-amber-600 font-semibold"
+                                : "text-gray-800"
+                          }`}>
+                            {stock === 0 && <XCircleIcon className="h-3.5 w-3.5 shrink-0" aria-label="Sin stock" />}
+                            {stock > 0 && isBelowMin && <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" aria-label="Stock bajo" />}
                             {stock.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
                           </span>
                         )}

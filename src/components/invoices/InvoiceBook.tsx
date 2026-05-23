@@ -365,22 +365,22 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 <table className="min-w-full text-sm border-separate border-spacing-0">
                   <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                     <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                      <th className="px-4 py-3 text-left w-25 whitespace-nowrap">Fecha</th>
-                      <th className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
+                      <th scope="col" className="px-4 py-3 text-left w-25 whitespace-nowrap">Fecha</th>
+                      <th scope="col" className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
                         {type === "PURCHASE" ? "Proveedor" : "Cliente"}
                       </th>
-                      <th className="px-4 py-3 text-left whitespace-nowrap">RIF</th>
-                      <th className="px-4 py-3 text-left whitespace-nowrap">N° Factura</th>
-                      <th className="px-4 py-3 text-left whitespace-nowrap">N° Control</th>
-                      <th className="px-4 py-3 text-left"></th>
-                      <th className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Base</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-20">Tasa %</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA Ret.</th>
-                      {type === "PURCHASE" && <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">ISLR Ret.</th>}
-                      {type === "SALE" && <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">IGTF</th>}
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Total</th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">RIF</th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">N° Factura</th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">N° Control</th>
+                      <th scope="col" className="px-4 py-3 text-left"></th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
+                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">Base</th>
+                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-20">Tasa %</th>
+                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA</th>
+                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA Ret.</th>
+                      {type === "PURCHASE" && <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">ISLR Ret.</th>}
+                      {type === "SALE" && <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IGTF</th>}
+                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">Total</th>
                     </tr>
                   </thead>
                   <tbody>

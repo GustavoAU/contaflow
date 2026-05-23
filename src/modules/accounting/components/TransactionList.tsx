@@ -149,12 +149,12 @@ export function TransactionList({ companyId, transactions }: Props) {
             <table className="min-w-full text-sm border-separate border-spacing-0">
               <thead className="bg-zinc-50">
                 <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Número</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Fecha</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 min-w-50">Descripción</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Tipo</th>
-                  <th className="px-4 py-3 text-right font-medium text-zinc-500 whitespace-nowrap min-w-44">Débito</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Status</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Número</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Fecha</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 min-w-50">Descripción</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Tipo</th>
+                  <th scope="col" className="px-4 py-3 text-right font-medium text-zinc-500 whitespace-nowrap min-w-44">Débito</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>

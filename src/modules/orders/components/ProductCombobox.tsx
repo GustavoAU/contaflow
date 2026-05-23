@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { searchInventoryItemsAction } from "@/modules/inventory/actions/inventory-operations.actions";
+import { XCircleIcon, AlertTriangleIcon, CheckCircleIcon } from "lucide-react";
 import Decimal from "decimal.js";
 
 interface InventoryHit {
@@ -79,11 +80,12 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
     onChange(hit.name, hit.baseUnitAbbr, hit.stockQuantity);
   }
 
-  const stockColor = (qty: string) => {
+  // Q2-5: color + icono — doble indicador para daltonismo (WCAG 1.4.1)
+  const stockBadge = (qty: string): { cls: string; Icon: React.ElementType; label: string } => {
     const n = new Decimal(qty);
-    if (n.lte(0)) return "bg-red-100 text-red-700";
-    if (n.lte(5)) return "bg-amber-100 text-amber-700";
-    return "bg-green-100 text-green-700";
+    if (n.lte(0)) return { cls: "bg-red-100 text-red-700", Icon: XCircleIcon, label: "Sin stock" };
+    if (n.lte(5)) return { cls: "bg-amber-100 text-amber-700", Icon: AlertTriangleIcon, label: "Stock bajo" };
+    return { cls: "bg-green-100 text-green-700", Icon: CheckCircleIcon, label: "Disponible" };
   };
 
   return (
@@ -109,9 +111,15 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
                 <span className="font-medium text-gray-900">{hit.name}</span>
                 <span className="ml-1 text-gray-400">({hit.sku})</span>
               </span>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono ${stockColor(hit.stockQuantity)}`}>
-                {new Decimal(hit.stockQuantity).toFixed(2)} {hit.baseUnitAbbr}
-              </span>
+              {(() => {
+                const { cls, Icon, label } = stockBadge(hit.stockQuantity);
+                return (
+                  <span className={`shrink-0 flex items-center gap-1 rounded-full px-2 py-0.5 font-mono ${cls}`}>
+                    <Icon className="h-3 w-3 shrink-0" aria-label={label} />
+                    {new Decimal(hit.stockQuantity).toFixed(2)} {hit.baseUnitAbbr}
+                  </span>
+                );
+              })()}
             </li>
           ))}
         </ul>
