@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — main limpio. commit `defcc80`
+Ninguna — main limpio. commit `43f63a0`
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **P-U2 2026-05-23** ✅ merged — Portal del Empleado: `/employee/[token]` público (sin Clerk), JWT HMAC-SHA256 30 días (sin deps externas), `generatePortalTokenAction` (ADMIN_ONLY + cross-tenant guard), `EmployeePortalTokenButton` copy-to-clipboard, layout mínimo con datos empleado + últimas 12 nóminas desglosadas + vacaciones + préstamo activo (barra progreso aria). commit `43f63a0`. 2002 tests GREEN.
 - **P-F1 + P-R3 + P-R4 2026-05-23** ✅ merged — P-F1: FloatingAIAssistant (botón violet bottom-right + panel slide-in + badge anomalías + chip contextual + getAnomalySummaryAction + 5 tests); P-R3: 6 WCAG A/AA landing (skip link, focus-visible, nav aria-label, table scope, VideoModal foco, MobileNav dialog); P-R4: daltonismo stock badges (XCircle/AlertTriangle/CheckCircle en ProductCombobox+InventoryItemList), scope=col InvoiceBook/TransactionList/AuditLogTable, aria-hidden flechas decorativas. commits `032e27a` + `7e4664c` + `0478786`. 1988 tests GREEN.
 - **P-R1 + P-R2 + Loading 2026-05-23** ✅ merged — P-R1: `fiscalKey(companyId,userId)` composite rate-limit key (10/min) en Z-1 (facturas×6, retenciones×2, IGTF×1); P-R2: `experimental.serverActions.allowedOrigins` en next.config.ts (localhost + NEXT_PUBLIC_APP_URL + VERCEL_URL, CSRF HIGH-2 ADR-025); 50 `loading.tsx` skeletons en todas las rutas dashboard + `PageTransitionBar` NProgress-style + Tailwind canonical classes (select/InvoiceBook/AIAssistantChat). commit `defcc80`. 1983 tests GREEN.
 - **Sprint P-3/Q1-3/Q1-4 2026-05-22** ✅ merged — P-3: ThemeProvider+ThemeToggle dark mode cicla light/dark/system (localStorage cf-theme + prefers-color-scheme); Q1-3: useFormDraft hook sessionStorage autosave 30s + AlertDialog restore en InvoiceForm; Q1-4: ExportService portabilidad completa (employees/payrollRuns/inventoryItems/expenses + allHistory flag + ZIP nomina/inventario/gastos). commit `c1c9fc9`. 1983 tests GREEN.
@@ -66,7 +67,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1988 tests GREEN | 0 TS errors** (2026-05-23 post P-F1/P-R3/P-R4)
+**2002 tests GREEN | 0 TS errors** (2026-05-23 post P-U2)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
