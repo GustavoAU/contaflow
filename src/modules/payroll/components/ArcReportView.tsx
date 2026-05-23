@@ -1,4 +1,4 @@
-// src/modules/payroll/components/ArcReportView.tsx
+﻿// src/modules/payroll/components/ArcReportView.tsx
 // Fase NOM-E: Vista del ARC/ISLR anual por empleado.
 "use client";
 
@@ -62,7 +62,7 @@ export function ArcReportView({ companyId, employees }: Props) {
           <select
             value={employeeId}
             onChange={(e) => { setEmployeeId(e.target.value); setData(null); }}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[220px]"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-55"
           >
             {employees.length === 0 && <option value="">Sin empleados activos</option>}
             {employees.map((emp) => (

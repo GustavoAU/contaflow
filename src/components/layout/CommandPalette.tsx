@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Search, ArrowRight } from "lucide-react";
@@ -131,7 +131,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd className="shrink-0 rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 not-italic">
+          <kbd className="shrink-0 rounded bg-zinc-700 px-1.5 py-0.5 text-10 font-mono text-zinc-400 not-italic">
             Esc
           </kbd>
         </div>
@@ -145,7 +145,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
           ) : (
             Object.entries(grouped).map(([group, items]) => (
               <div key={group}>
-                <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+                <p className="px-4 pb-1 pt-2 text-10 font-semibold uppercase tracking-widest text-zinc-500">
                   {group}
                 </p>
                 {items.map(item => (
@@ -175,7 +175,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
         </div>
 
         {/* Footer hint bar */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-700 px-4 py-2 text-[10px] text-zinc-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-700 px-4 py-2 text-10 text-zinc-500">
           <span>
             <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono not-italic">↑↓</kbd> navegar
           </span>

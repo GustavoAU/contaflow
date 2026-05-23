@@ -110,7 +110,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           Registrar pago
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-110">
         <DialogHeader>
           <DialogTitle>Registrar Pago</DialogTitle>
           <DialogDescription>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 // src/modules/accounting/components/TransactionList.tsx
 
 import { useState, useMemo } from "react";
@@ -65,7 +65,7 @@ export function TransactionList({ companyId, transactions }: Props) {
       {/* ─── Barra de filtros ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Búsqueda */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative flex-1 min-w-50 max-w-xs">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
@@ -151,7 +151,7 @@ export function TransactionList({ companyId, transactions }: Props) {
                 <tr className="[&>th]:border-b [&>th]:border-zinc-200">
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Número</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Fecha</th>
-                  <th className="px-4 py-3 text-left font-medium text-zinc-500 min-w-[200px]">Descripción</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500 min-w-50">Descripción</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Tipo</th>
                   <th className="px-4 py-3 text-right font-medium text-zinc-500 whitespace-nowrap min-w-44">Débito</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Status</th>

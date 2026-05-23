@@ -1,4 +1,4 @@
-// src/app/error.tsx
+﻿// src/app/error.tsx
 // Error boundary para errores en el árbol de componentes del dashboard.
 // Captura en Sentry con digest para correlacionar con logs del servidor.
 "use client";
@@ -29,7 +29,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 px-4 text-center">
+    <div className="flex min-h-100 flex-col items-center justify-center gap-4 px-4 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
         <AlertTriangle className="h-6 w-6 text-red-500" />
       </div>

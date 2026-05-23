@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+﻿import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,9 +99,9 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
 
     tooltipContent = (
       <>
-        <p className="text-zinc-400 text-[10px] leading-none mb-0.5">Tasa aplicada</p>
+        <p className="text-zinc-400 text-10 leading-none mb-0.5">Tasa aplicada</p>
         <p className="font-medium">{rateLabel}</p>
-        <p className="text-zinc-400 text-[10px] leading-none mt-1.5 mb-0.5">Equivalente</p>
+        <p className="text-zinc-400 text-10 leading-none mt-1.5 mb-0.5">Equivalente</p>
         <p className="font-medium">{equiv}</p>
       </>
     );
@@ -120,7 +120,7 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
       <span className="inline-flex flex-col">
         <span className="font-mono whitespace-nowrap">{amountText}</span>
         {equivLine && (
-          <span className="text-[11px] leading-none text-zinc-400 mt-0.5">{equivLine}</span>
+          <span className="text-11 leading-none text-zinc-400 mt-0.5">{equivLine}</span>
         )}
       </span>
 
@@ -132,7 +132,7 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
             "pointer-events-none absolute z-50 mb-2",
             align === "right" ? "right-0 bottom-full" : "left-0 bottom-full",
             "w-max max-w-70 rounded-lg bg-zinc-900 px-3 py-2",
-            "text-[11px] leading-snug text-white shadow-xl",
+            "text-11 leading-snug text-white shadow-xl",
             // Show after 120 ms on hover, hide instantly on mouse-out
             "opacity-0 transition-opacity duration-100",
             "group-hover/mb:opacity-100 group-hover/mb:delay-[120ms]"

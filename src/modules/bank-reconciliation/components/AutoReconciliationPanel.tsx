@@ -349,7 +349,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
                 {extracted.rows.slice(0, 10).map((row, i) => (
                   <tr key={i} className="hover:bg-zinc-50">
                     <td className="px-3 py-2 font-mono text-zinc-600">{row.date}</td>
-                    <td className="max-w-[200px] truncate px-3 py-2 text-zinc-800">{row.description}</td>
+                    <td className="max-w-50 truncate px-3 py-2 text-zinc-800">{row.description}</td>
                     <td className="px-3 py-2 font-mono text-zinc-500">{row.reference ?? "—"}</td>
                     <td className="px-3 py-2 text-right font-mono text-red-600">
                       {row.debit ? fmtAmount(row.debit) : "—"}

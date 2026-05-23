@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // src/components/invoices/CreditDebitNotesPanel.tsx
 // Panel lazy-loaded que muestra las NC/ND vinculadas a una FACTURA original.
@@ -93,13 +93,13 @@ export function CreditDebitNotesPanel({ companyId, invoiceId }: Props) {
             return (
               <tr key={note.id} className={note.paymentStatus === "VOIDED" ? "opacity-50" : ""}>
                 <td className="py-1.5">
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${docInfo.color}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-10 font-bold ${docInfo.color}`}>
                     {docInfo.label}
                   </span>
                 </td>
                 <td className="py-1.5 font-mono">{note.invoiceNumber}</td>
                 <td className="py-1.5">{note.date}</td>
-                <td className="py-1.5 max-w-[200px] truncate">{note.counterpartName}</td>
+                <td className="py-1.5 max-w-50 truncate">{note.counterpartName}</td>
                 <td className="py-1.5 text-right font-mono">{fmt(note.totalAmountVes)}</td>
                 <td className="py-1.5">{STATUS_LABELS[note.paymentStatus] ?? note.paymentStatus}</td>
               </tr>

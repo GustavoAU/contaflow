@@ -68,7 +68,7 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
               placeholder="Ej. 1500.00"
               required
               inputMode="decimal"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-[15px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               style={{ fontVariantNumeric: "tabular-nums" }}
             />
           </div>
@@ -87,7 +87,7 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
               placeholder="Ej. 3200.00"
               required
               inputMode="decimal"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-[15px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               style={{ fontVariantNumeric: "tabular-nums" }}
             />
           </div>

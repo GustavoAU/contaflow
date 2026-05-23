@@ -128,11 +128,11 @@ function StockTab({
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   {item.isLowStock ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-10 font-bold text-red-700">
                       Bajo stock
                     </span>
                   ) : (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-10 font-bold text-emerald-700">
                       OK
                     </span>
                   )}
@@ -324,7 +324,7 @@ function MovementsTab({
                   <tr key={mov.id} className="hover:bg-zinc-50">
                     <td className="px-4 py-2.5 font-mono text-xs">{mov.date}</td>
                     <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${typeInfo.color}`}>
+                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-10 font-bold ${typeInfo.color}`}>
                         {typeInfo.icon}{typeInfo.label}
                       </span>
                     </td>
@@ -335,11 +335,11 @@ function MovementsTab({
                     <td className="px-4 py-2.5 text-right font-mono">{fmtQty(mov.quantity)}</td>
                     <td className="px-4 py-2.5 text-right font-mono">{fmtBs(mov.unitCost)}</td>
                     <td className="px-4 py-2.5 text-right font-mono font-semibold">{fmtBs(mov.totalCost)}</td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-500 max-w-[150px] truncate">
+                    <td className="px-4 py-2.5 text-xs text-zinc-500 max-w-37\.5 truncate">
                       {mov.reference ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${statusInfo.color}`}>
+                      <span className={`rounded px-2 py-0.5 text-10 font-bold ${statusInfo.color}`}>
                         {statusInfo.label}
                       </span>
                     </td>

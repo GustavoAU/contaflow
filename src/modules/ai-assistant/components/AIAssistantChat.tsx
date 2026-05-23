@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 // src/modules/ai-assistant/components/AIAssistantChat.tsx
 
 import { useState, useRef, useTransition, useEffect } from "react";
@@ -261,7 +261,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
           </button>
         </div>
 
-        <p className="mt-2 text-center text-[10px] text-zinc-400">
+        <p className="mt-2 text-center text-10 text-zinc-400">
           ContaFlow IA puede cometer errores. Verifica siempre con tu contador.
         </p>
       </div>

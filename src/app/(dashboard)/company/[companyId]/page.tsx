@@ -1,4 +1,4 @@
-// src/app/(dashboard)/company/[companyId]/page.tsx
+﻿// src/app/(dashboard)/company/[companyId]/page.tsx
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fmtBs } from "@/lib/fmt-ven";
@@ -163,7 +163,7 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
               >
                 <Icon className={`h-5 w-5 ${link.color}`} />
                 <span className="text-center text-xs text-zinc-500">{link.label}</span>
-                <span className="rounded bg-zinc-100 px-1 text-[9px] text-zinc-400">Pronto</span>
+                <span className="rounded bg-zinc-100 px-1 text-9 text-zinc-400">Pronto</span>
               </div>
             );
           }

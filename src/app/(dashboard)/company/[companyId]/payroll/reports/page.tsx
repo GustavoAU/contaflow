@@ -1,4 +1,4 @@
-// src/app/(dashboard)/company/[companyId]/payroll/reports/page.tsx
+﻿// src/app/(dashboard)/company/[companyId]/payroll/reports/page.tsx
 // Fase NOM-E: Hub de Reportes Legales de Nómina
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -87,7 +87,7 @@ export default async function PayrollReportsPage({ params }: Props) {
           >
             <div className="flex items-start justify-between gap-2 mb-2">
               <p className="font-semibold text-zinc-900">{report.title}</p>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_MAP[report.color]}`}>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${BADGE_MAP[report.color]}`}>
                 {report.badge}
               </span>
             </div>

@@ -430,7 +430,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                   <span>{row.invoiceNumber}</span>
                                   {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
                                     row.relatedDocNumber && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-10 font-medium text-amber-800">
                                         &#8594; Factura {row.relatedDocNumber}
                                       </span>
                                     )}
@@ -496,7 +496,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                   <span>{row.invoiceNumber}</span>
                                   {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
                                     row.relatedDocNumber && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-10 font-medium text-amber-800">
                                         &#8594; Factura {row.relatedDocNumber}
                                       </span>
                                     )}

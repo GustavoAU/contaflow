@@ -1,4 +1,4 @@
-// src/components/invoices/InvoiceForm.tsx
+﻿// src/components/invoices/InvoiceForm.tsx
 "use client";
 
 import { useState, useTransition, useId, useRef, useEffect, useCallback } from "react";
@@ -867,7 +867,7 @@ export function InvoiceForm({
                   <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
                     Línea {idx + 1}
                     {line.luxuryGroupId && (
-                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 uppercase">
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
                         Bloque suntuario
                       </span>
                     )}
@@ -944,7 +944,7 @@ export function InvoiceForm({
                     <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600">
                       Base Imponible
                       {line.luxuryGroupId && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 uppercase">
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
                           Vinculado
                         </span>
                       )}

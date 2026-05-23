@@ -220,7 +220,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
                 {idx === 0 && <label className={labelCls}>Cantidad</label>}
                 <input type="number" min="0.0001" step="0.0001" className={inputCls} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} required />
                 {type === "SALE" && item.stockQuantity !== null && (
-                  <p className={`mt-0.5 text-[10px] font-mono ${parseFloat(item.stockQuantity) <= 0 ? "text-red-600" : parseFloat(item.stockQuantity) <= 5 ? "text-amber-600" : "text-green-700"}`}>
+                  <p className={`mt-0.5 text-10 font-mono ${parseFloat(item.stockQuantity) <= 0 ? "text-red-600" : parseFloat(item.stockQuantity) <= 5 ? "text-amber-600" : "text-green-700"}`}>
                     Stock: {parseFloat(item.stockQuantity).toFixed(2)}
                   </p>
                 )}

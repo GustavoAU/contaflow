@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
@@ -61,7 +61,7 @@ function PeriodBadge({
 
       <span
         className={cn(
-          "text-[13px] font-medium whitespace-nowrap",
+          "text-13 font-medium whitespace-nowrap",
           period.isStale ? "text-amber-300" : "text-emerald-300"
         )}
         title={period.isStale
@@ -77,7 +77,7 @@ function PeriodBadge({
       {period.isStale && (
         <Link
           href={`/company/${companyId}/periods`}
-          className="hidden xl:flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0"
+          className="hidden xl:flex items-center gap-1 text-11 font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0"
           title="Ir a gestión de períodos"
         >
           Cerrar
@@ -162,12 +162,12 @@ export function TopbarInner({
         {companyName && companyId && (
           <div className="flex items-center gap-2 min-w-0">
             <CompanyAvatar id={companyId} name={companyName} size="xs" />
-            <span className="truncate text-[14px] font-semibold text-white leading-tight max-w-40 lg:max-w-52" title={companyName}>
+            <span className="truncate text-sm font-semibold text-white leading-tight max-w-40 lg:max-w-52" title={companyName}>
               {companyName}
             </span>
             <span
               className={cn(
-                "hidden lg:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                "hidden lg:inline-flex text-10 font-bold px-2 py-0.5 rounded-full border shrink-0",
                 ROLE_STYLES[userRole]
               )}
             >
@@ -203,7 +203,7 @@ export function TopbarInner({
         >
           <Search className="h-3.5 w-3.5" aria-hidden />
           <span>Buscar</span>
-          <kbd className="rounded bg-slate-600 px-1 py-0.5 text-[10px] font-mono not-italic">
+          <kbd className="rounded bg-slate-600 px-1 py-0.5 text-10 font-mono not-italic">
             Ctrl+/
           </kbd>
         </button>

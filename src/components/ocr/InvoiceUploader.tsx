@@ -1,4 +1,4 @@
-// src/components/ocr/InvoiceUploader.tsx
+﻿// src/components/ocr/InvoiceUploader.tsx
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
@@ -434,7 +434,7 @@ export function InvoiceUploader({ companyId }: Props) {
                   style={{ transitionDelay: "800ms" }}
                 >
                   <SparklesIcon className="h-3 w-3 text-zinc-400" aria-hidden />
-                  <span className="text-[10px] text-zinc-400">
+                  <span className="text-10 text-zinc-400">
                     Extraído con Gemini Vision · precisión estimada ~95%
                   </span>
                 </div>
@@ -464,7 +464,7 @@ export function InvoiceUploader({ companyId }: Props) {
 
           {/* State 0/1: idle or uploading — empty state */}
           {(scanPhase === "idle" || scanPhase === "uploading") && (
-            <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-lg border border-dashed bg-white p-8 text-center">
+            <div className="flex h-full min-h-60 flex-col items-center justify-center rounded-lg border border-dashed bg-white p-8 text-center">
               <ScanIcon className="mb-3 h-10 w-10 text-zinc-300" aria-hidden />
               <p className="font-medium text-zinc-500">Los datos extraídos aparecerán aquí</p>
               <p className="mt-1 text-xs text-zinc-400">

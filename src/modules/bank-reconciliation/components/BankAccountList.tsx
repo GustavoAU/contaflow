@@ -255,7 +255,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                     </span>
                   </td>
                   <td
-                    className="px-4 py-3 text-right font-mono text-[15px]"
+                    className="px-4 py-3 text-right font-mono text-15"
                     style={{ fontVariantNumeric: "tabular-nums" }}
                   >
                     {account.lastClosingBalance

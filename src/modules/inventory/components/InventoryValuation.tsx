@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // src/modules/inventory/components/InventoryValuation.tsx
 // Widget de valoración del inventario a CPP — dominio ACCOUNTANT / WRITERS
@@ -125,7 +125,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                       <div className="flex items-center gap-1.5">
                         {item.name}
                         {item.trackingType && item.trackingType !== "NONE" && (
-                          <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700">
+                          <span className="rounded bg-purple-100 px-1.5 py-0.5 text-10 font-semibold text-purple-700">
                             {item.trackingType === "LOT" ? "Lote" : "Serie"}
                           </span>
                         )}
@@ -152,7 +152,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                           })}
                         </div>
                         {rateNum && rateNum > 0 && (
-                          <div className="text-[11px] text-zinc-400">
+                          <div className="text-11 text-zinc-400">
                             ≈ ${(item.cpp / rateNum).toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,

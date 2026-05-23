@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
@@ -118,7 +118,7 @@ function RateTicker({ label, rate, dark = false }: { label: string; rate: RateWi
       className="flex items-center gap-1 cursor-default"
       title={`${label}/VES al ${dateDisplay}${formattedDelta ? ` · variación: ${formattedDelta} Bs.` : ""}`}
     >
-      <span className={dark ? "font-medium text-slate-400 text-[11px]" : "font-medium text-zinc-400 text-[11px]"}>{label}</span>
+      <span className={dark ? "font-medium text-slate-400 text-11" : "font-medium text-zinc-400 text-11"}>{label}</span>
       <span className={cn(
         "font-mono font-semibold tabular-nums",
         dark ? "text-slate-100" : "text-zinc-800"
@@ -127,7 +127,7 @@ function RateTicker({ label, rate, dark = false }: { label: string; rate: RateWi
       </span>
       {formattedDelta && (
         <span className={cn(
-          "font-mono text-[10px] tabular-nums",
+          "font-mono text-10 tabular-nums",
           dark
             ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-500")
             : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")

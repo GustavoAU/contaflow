@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { SunIcon, MoonIcon, MonitorIcon } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
@@ -39,7 +39,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
       onClick={handleClick}
       title={`Tema: ${LABELS[theme]}. Clic para cambiar.`}
       aria-label={`Cambiar tema (actual: ${LABELS[theme]})`}
-      className="flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors overflow-hidden whitespace-nowrap"
+      className="flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors overflow-hidden whitespace-nowrap"
     >
       <Icon className="w-3.75 h-3.75 shrink-0" />
       {!collapsed && <span>{LABELS[theme]}</span>}

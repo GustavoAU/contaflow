@@ -77,7 +77,7 @@ export function NotificationBell({ companyId }: Props) {
         <Bell className="h-5 w-5" />
         {totalCount > 0 && (
           <span
-            className={`absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ${badgeColor}`}
+            className={`absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-10 font-bold text-white ${badgeColor}`}
           >
             {totalCount > 9 ? "9+" : totalCount}
           </span>

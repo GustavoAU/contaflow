@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -89,7 +89,7 @@ function SidebarItem({
   disabled?: boolean;
 }) {
   const cls = cn(
-    "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium",
+    "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
     "transition-colors overflow-hidden whitespace-nowrap",
     collapsed && "justify-center",
     active
@@ -105,7 +105,7 @@ function SidebarItem({
         <span className="overflow-hidden text-ellipsis flex-1">{label}</span>
       )}
       {!collapsed && badge && (
-        <span className="ml-auto text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
+        <span className="ml-auto text-10 font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
           {badge}
         </span>
       )}
@@ -136,13 +136,13 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       onClick={() => signOut({ redirectUrl: "/sign-in" })}
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
-        "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium",
+        "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
         "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
         collapsed && "justify-center"
       )}
     >
-      <LogOut className="w-[15px] h-[15px] shrink-0" />
+      <LogOut className="w-3.75 h-3.75 shrink-0" />
       {!collapsed && <span>Cerrar sesión</span>}
     </button>
   );
@@ -211,7 +211,7 @@ function CompanySwitcher({
         <CompanyAvatar id={current.id} name={current.name} size="sm" />
         {!collapsed && (
           <>
-            <span className="flex-1 text-[13px] font-semibold text-zinc-800 dark:text-zinc-100 truncate leading-tight min-w-0">
+            <span className="flex-1 text-13 font-semibold text-zinc-800 dark:text-zinc-100 truncate leading-tight min-w-0">
               {current.name}
             </span>
             <ChevronDown
@@ -238,7 +238,7 @@ function CompanySwitcher({
             }}
             className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl dark:shadow-black/40 py-1.5 overflow-hidden"
           >
-            <p className="px-3 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[1px] text-zinc-400 dark:text-zinc-500">
+            <p className="px-3 pb-1 pt-0.5 text-10 font-bold uppercase tracking-1px text-zinc-400 dark:text-zinc-500">
               Mis Empresas
             </p>
 
@@ -255,10 +255,10 @@ function CompanySwitcher({
               >
                 <CompanyAvatar id={co.id} name={co.name} size="xs" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
+                  <p className="text-13 font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
                     {co.name}
                   </p>
-                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{ROLE_LABELS[co.role]}</p>
+                  <p className="text-11 text-zinc-400 dark:text-zinc-500">{ROLE_LABELS[co.role]}</p>
                 </div>
                 {co.id === currentCompanyId && (
                   <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -270,14 +270,14 @@ function CompanySwitcher({
 
             <button
               onClick={() => goTo("/company/new")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <PlusIcon className="w-3.5 h-3.5 shrink-0" />
               Agregar empresa
             </button>
             <button
               onClick={() => goTo("/dashboard")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               Ver todas las empresas
@@ -362,7 +362,7 @@ export function Sidebar({
       <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <Link
           href="/dashboard"
-          className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-[14px] shrink-0 shadow-[0_2px_8px_rgba(59,130,246,.3)] hover:bg-blue-600 transition-colors"
+          className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-sm shrink-0 shadow-blue-glow hover:bg-blue-600 transition-colors"
           title="ContaFlow"
         >
           ⚡
@@ -371,7 +371,7 @@ export function Sidebar({
         {!collapsed && (
           <Link
             href="/dashboard"
-            className="font-extrabold text-[15px] text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap overflow-hidden hover:opacity-80 transition-opacity"
+            className="font-extrabold text-15 text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap overflow-hidden hover:opacity-80 transition-opacity"
           >
             Conta<span className="text-blue-500">Flow</span>
           </Link>
@@ -436,7 +436,7 @@ export function Sidebar({
                 <button
                   onClick={() => toggleSection(section.group)}
                   aria-expanded={isSectionOpen}
-                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-[0.85px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                 >
                   <span>{section.group}</span>
                   <ChevronDown

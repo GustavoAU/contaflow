@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
@@ -187,7 +187,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 ))}
               </select>
             )}
-            <p className="mt-1 text-[11px] text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
+            <p className="mt-1 text-11 text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
           </div>
           <div>
             <label className={labelClass}>Gasto depreciación *</label>
@@ -208,7 +208,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 ))}
               </select>
             )}
-            <p className="mt-1 text-[11px] text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
+            <p className="mt-1 text-11 text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
           </div>
           <div>
             <label className={labelClass}>Dep. acumulada *</label>
@@ -229,7 +229,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 ))}
               </select>
             )}
-            <p className="mt-1 text-[11px] text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
+            <p className="mt-1 text-11 text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
           </div>
         </div>
       </fieldset>

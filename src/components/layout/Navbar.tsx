@@ -1,4 +1,4 @@
-// src/components/layout/Navbar.tsx
+﻿// src/components/layout/Navbar.tsx
 "use client";
 
 import Link from "next/link";
@@ -139,7 +139,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                     <div key={section.group}>
                       {/* Separador de sección */}
                       {sIdx > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
-                      <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      <p className="px-3 pt-1.5 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-400">
                         {section.group}
                       </p>
                       {section.items.map((navItem) => {
@@ -154,7 +154,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                                 <Icon className="h-4 w-4" />
                                 {navItem.label}
                               </span>
-                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
+                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-10 font-medium text-zinc-500 dark:bg-zinc-800">
                                 Pronto
                               </span>
                             </div>
@@ -232,7 +232,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                 {(sIdx > 0 || primary.length > 0) && (
                   <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
                 )}
-                <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                <p className="px-3 pt-1 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-400">
                   {section.group}
                 </p>
                 {section.items.map((navItem) => {
@@ -247,7 +247,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                           <Icon className="h-4 w-4" />
                           {navItem.label}
                         </span>
-                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800">
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-10 font-medium text-zinc-500 dark:bg-zinc-800">
                           Pronto
                         </span>
                       </div>
