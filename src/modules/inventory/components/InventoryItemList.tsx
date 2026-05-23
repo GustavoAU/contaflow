@@ -105,22 +105,22 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
               <tr>
-                <th className="px-4 py-3 text-left">SKU</th>
-                <th className="px-4 py-3 text-left">Nombre</th>
-                <th className="px-4 py-3 text-left">Tipo</th>
-                <th className="px-4 py-3 text-left">Unidad</th>
-                <th className="px-4 py-3 text-right">Stock</th>
-                <th className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
-                <th className="px-4 py-3 text-right">Valor en libros</th>
-                <th className="px-4 py-3 text-left">Cta. Inventario</th>
+                <th scope="col" className="px-4 py-3 text-left">SKU</th>
+                <th scope="col" className="px-4 py-3 text-left">Nombre</th>
+                <th scope="col" className="px-4 py-3 text-left">Tipo</th>
+                <th scope="col" className="px-4 py-3 text-left">Unidad</th>
+                <th scope="col" className="px-4 py-3 text-right">Stock</th>
+                <th scope="col" className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
+                <th scope="col" className="px-4 py-3 text-right">Valor en libros</th>
+                <th scope="col" className="px-4 py-3 text-left">Cta. Inventario</th>
                 {canManageUom && (
-                  <th className="px-4 py-3 text-center">Unidades</th>
+                  <th scope="col" className="px-4 py-3 text-center">Unidades</th>
                 )}
                 {canViewHistory && (
-                  <th className="px-4 py-3 text-center">Historial</th>
+                  <th scope="col" className="px-4 py-3 text-center">Historial</th>
                 )}
                 {(canEdit || canDelete) && (
-                  <th className="px-4 py-3 text-center">Acciones</th>
+                  <th scope="col" className="px-4 py-3 text-center">Acciones</th>
                 )}
               </tr>
             </thead>

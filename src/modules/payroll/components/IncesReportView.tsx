@@ -84,11 +84,11 @@ export function IncesReportView({ companyId }: Props) {
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
-                      <th className="px-4 py-2 text-left">Empleado</th>
-                      <th className="px-4 py-2 text-left">Cédula</th>
-                      <th className="px-4 py-2 text-right">Salario Trim.</th>
-                      <th className="px-4 py-2 text-right">INCES Obrero (2%)</th>
-                      <th className="px-4 py-2 text-right">Utilidades año</th>
+                      <th scope="col" className="px-4 py-2 text-left">Empleado</th>
+                      <th scope="col" className="px-4 py-2 text-left">Cédula</th>
+                      <th scope="col" className="px-4 py-2 text-right">Salario Trim.</th>
+                      <th scope="col" className="px-4 py-2 text-right">INCES Obrero (2%)</th>
+                      <th scope="col" className="px-4 py-2 text-right">Utilidades año</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">

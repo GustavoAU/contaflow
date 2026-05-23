@@ -242,12 +242,12 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 uppercase font-semibold">
               <tr>
-                <th className="px-3 py-2 text-left">Nombre</th>
-                <th className="px-3 py-2 text-left">Abrev.</th>
-                <th className="px-3 py-2 text-right">Factor</th>
-                <th className="px-3 py-2 text-center">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left">Nombre</th>
+                <th scope="col" className="px-3 py-2 text-left">Abrev.</th>
+                <th scope="col" className="px-3 py-2 text-right">Factor</th>
+                <th scope="col" className="px-3 py-2 text-center">Tipo</th>
                 {(canManage || canDelete) && (
-                  <th className="px-3 py-2 text-center">Acciones</th>
+                  <th scope="col" className="px-3 py-2 text-center">Acciones</th>
                 )}
               </tr>
             </thead>

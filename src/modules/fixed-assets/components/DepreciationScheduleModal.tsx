@@ -70,11 +70,11 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-white text-xs font-semibold text-gray-500 uppercase border-b">
                 <tr>
-                  <th className="py-2 text-left">Período</th>
-                  <th className="py-2 text-right">Cuota</th>
-                  <th className="py-2 text-right">Acumulado</th>
-                  <th className="py-2 text-right">Valor Libros</th>
-                  <th className="py-2 text-center">Estado</th>
+                  <th scope="col" className="py-2 text-left">Período</th>
+                  <th scope="col" className="py-2 text-right">Cuota</th>
+                  <th scope="col" className="py-2 text-right">Acumulado</th>
+                  <th scope="col" className="py-2 text-right">Valor Libros</th>
+                  <th scope="col" className="py-2 text-center">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

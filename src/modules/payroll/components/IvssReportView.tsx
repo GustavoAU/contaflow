@@ -109,13 +109,13 @@ export function IvssReportView({ companyId }: Props) {
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
-                      <th className="px-4 py-2 text-left">Empleado</th>
-                      <th className="px-4 py-2 text-left">Cédula</th>
-                      <th className="px-4 py-2 text-right">Semanas</th>
-                      <th className="px-4 py-2 text-right">Salario Base</th>
-                      <th className="px-4 py-2 text-right">IVSS Obrero (4%)</th>
-                      <th className="px-4 py-2 text-right">IVSS Patronal (9%)</th>
-                      <th className="px-4 py-2 text-right font-semibold">Total IVSS</th>
+                      <th scope="col" className="px-4 py-2 text-left">Empleado</th>
+                      <th scope="col" className="px-4 py-2 text-left">Cédula</th>
+                      <th scope="col" className="px-4 py-2 text-right">Semanas</th>
+                      <th scope="col" className="px-4 py-2 text-right">Salario Base</th>
+                      <th scope="col" className="px-4 py-2 text-right">IVSS Obrero (4%)</th>
+                      <th scope="col" className="px-4 py-2 text-right">IVSS Patronal (9%)</th>
+                      <th scope="col" className="px-4 py-2 text-right font-semibold">Total IVSS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">

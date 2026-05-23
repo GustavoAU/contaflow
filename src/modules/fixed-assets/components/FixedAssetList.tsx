@@ -207,14 +207,14 @@ export function FixedAssetList({ assets, companyId }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase">
               <tr>
-                <th className="px-4 py-3 text-left">Nombre</th>
-                <th className="px-4 py-3 text-left">Método</th>
-                <th className="px-4 py-3 text-right">Costo</th>
-                <th className="px-4 py-3 text-right">Dep. Acumulada</th>
-                <th className="px-4 py-3 text-right">Valor en Libros</th>
-                <th className="px-4 py-3 text-left">Último Período</th>
-                <th className="px-4 py-3 text-center">Estado</th>
-                <th className="px-4 py-3 text-center">Acciones</th>
+                <th scope="col" className="px-4 py-3 text-left">Nombre</th>
+                <th scope="col" className="px-4 py-3 text-left">Método</th>
+                <th scope="col" className="px-4 py-3 text-right">Costo</th>
+                <th scope="col" className="px-4 py-3 text-right">Dep. Acumulada</th>
+                <th scope="col" className="px-4 py-3 text-right">Valor en Libros</th>
+                <th scope="col" className="px-4 py-3 text-left">Último Período</th>
+                <th scope="col" className="px-4 py-3 text-center">Estado</th>
+                <th scope="col" className="px-4 py-3 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

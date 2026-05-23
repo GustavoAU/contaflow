@@ -72,11 +72,11 @@ export default function ConceptList({ companyId, initial, canWrite }: Props) {
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Código</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Nombre</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tipo</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Estado</th>
-                {canWrite && <th className="px-4 py-2" />}
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Código</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Nombre</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tipo</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Estado</th>
+                {canWrite && <th scope="col" className="px-4 py-2" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

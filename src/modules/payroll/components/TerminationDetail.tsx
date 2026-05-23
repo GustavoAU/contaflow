@@ -110,9 +110,9 @@ export default function TerminationDetail({ companyId, termination: initial, emp
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Concepto</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Días</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Monto</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Concepto</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Días</th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Monto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">

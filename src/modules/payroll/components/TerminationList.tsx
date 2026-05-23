@@ -49,12 +49,12 @@ export default function TerminationList({ companyId, terminations, employeeNames
       <table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Causa</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Fecha egreso</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600">Total neto</th>
-            <th className="px-4 py-3" />
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Causa</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Fecha egreso</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
+            <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Total neto</th>
+            <th scope="col" className="px-4 py-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white">

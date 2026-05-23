@@ -80,11 +80,11 @@ export default function BenefitBalancePanel({
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Días</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Saldo acum.</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Días</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Saldo acum.</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
@@ -171,10 +171,10 @@ export default function BenefitBalancePanel({
               <table className="min-w-full divide-y divide-gray-200 text-xs">
                 <thead className="bg-amber-50">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">Fecha</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">Motivo</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">Notas</th>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Fecha</th>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Motivo</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
+                    <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Notas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">

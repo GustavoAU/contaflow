@@ -94,13 +94,13 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Año</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Días vac.</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Días bono</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Monto vac.</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Monto bono</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Año</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días vac.</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días bono</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto vac.</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto bono</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

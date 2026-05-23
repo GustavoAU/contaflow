@@ -83,10 +83,10 @@ export default function LegalThresholdsPanel({
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50">
                 <tr>
-                  <th className="text-left px-4 py-2">Vigente desde</th>
-                  <th className="text-right px-4 py-2">Valor (Bs)</th>
-                  <th className="text-left px-4 py-2">Notas</th>
-                  {isAdmin && <th className="px-4 py-2" />}
+                  <th scope="col" className="text-left px-4 py-2">Vigente desde</th>
+                  <th scope="col" className="text-right px-4 py-2">Valor (Bs)</th>
+                  <th scope="col" className="text-left px-4 py-2">Notas</th>
+                  {isAdmin && <th scope="col" className="px-4 py-2" />}
                 </tr>
               </thead>
               <tbody>

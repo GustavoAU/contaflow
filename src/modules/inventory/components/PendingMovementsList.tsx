@@ -126,15 +126,15 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
                 <tr>
-                  <th className="px-4 py-3 text-left">Producto</th>
-                  <th className="px-4 py-3 text-center">Tipo</th>
-                  <th className="px-4 py-3 text-right">Cantidad</th>
-                  <th className="px-4 py-3 text-right">Costo Unit.</th>
-                  <th className="px-4 py-3 text-right">Total</th>
-                  <th className="px-4 py-3 text-left">Fecha</th>
-                  <th className="px-4 py-3 text-left">Referencia</th>
-                  <th className="px-4 py-3 text-left">Cuentas</th>
-                  {canPost && <th className="px-4 py-3 text-center">Acciones</th>}
+                  <th scope="col" className="px-4 py-3 text-left">Producto</th>
+                  <th scope="col" className="px-4 py-3 text-center">Tipo</th>
+                  <th scope="col" className="px-4 py-3 text-right">Cantidad</th>
+                  <th scope="col" className="px-4 py-3 text-right">Costo Unit.</th>
+                  <th scope="col" className="px-4 py-3 text-right">Total</th>
+                  <th scope="col" className="px-4 py-3 text-left">Fecha</th>
+                  <th scope="col" className="px-4 py-3 text-left">Referencia</th>
+                  <th scope="col" className="px-4 py-3 text-left">Cuentas</th>
+                  {canPost && <th scope="col" className="px-4 py-3 text-center">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

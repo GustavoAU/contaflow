@@ -59,13 +59,13 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Año fiscal</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Días base</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Días calc.</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Meses</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Salario prom.</th>
-                <th className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Año fiscal</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días base</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días calc.</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Meses</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Salario prom.</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

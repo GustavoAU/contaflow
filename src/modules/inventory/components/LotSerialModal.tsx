@@ -309,10 +309,10 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500">
                         <tr>
-                          <th className="px-3 py-2 text-left">Lote</th>
-                          <th className="px-3 py-2 text-left">Vence</th>
-                          <th className="px-3 py-2 text-right">Disponible</th>
-                          <th className="px-3 py-2 text-right">Asignar</th>
+                          <th scope="col" className="px-3 py-2 text-left">Lote</th>
+                          <th scope="col" className="px-3 py-2 text-left">Vence</th>
+                          <th scope="col" className="px-3 py-2 text-right">Disponible</th>
+                          <th scope="col" className="px-3 py-2 text-right">Asignar</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">

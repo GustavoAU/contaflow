@@ -118,14 +118,14 @@ export function ItemMovementHistory({
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500">
                 <tr>
-                  <th className="px-3 py-2 text-left">Fecha</th>
-                  <th className="px-3 py-2 text-left">Tipo</th>
-                  <th className="px-3 py-2 text-left">Estado</th>
-                  <th className="px-3 py-2 text-right">Cantidad</th>
-                  <th className="px-3 py-2 text-right">Costo unit.</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                  <th className="px-3 py-2 text-left">Referencia</th>
-                  <th className="px-3 py-2 text-center">Asiento</th>
+                  <th scope="col" className="px-3 py-2 text-left">Fecha</th>
+                  <th scope="col" className="px-3 py-2 text-left">Tipo</th>
+                  <th scope="col" className="px-3 py-2 text-left">Estado</th>
+                  <th scope="col" className="px-3 py-2 text-right">Cantidad</th>
+                  <th scope="col" className="px-3 py-2 text-right">Costo unit.</th>
+                  <th scope="col" className="px-3 py-2 text-right">Total</th>
+                  <th scope="col" className="px-3 py-2 text-left">Referencia</th>
+                  <th scope="col" className="px-3 py-2 text-center">Asiento</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

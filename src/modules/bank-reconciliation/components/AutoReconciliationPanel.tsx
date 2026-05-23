@@ -337,12 +337,12 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
             <table className="w-full text-xs">
               <thead className="border-b bg-zinc-50 text-left text-zinc-500">
                 <tr>
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Descripción</th>
-                  <th className="px-3 py-2">Referencia</th>
-                  <th className="px-3 py-2 text-right">Débito</th>
-                  <th className="px-3 py-2 text-right">Crédito</th>
-                  <th className="px-3 py-2 text-right">Saldo</th>
+                  <th scope="col" className="px-3 py-2">Fecha</th>
+                  <th scope="col" className="px-3 py-2">Descripción</th>
+                  <th scope="col" className="px-3 py-2">Referencia</th>
+                  <th scope="col" className="px-3 py-2 text-right">Débito</th>
+                  <th scope="col" className="px-3 py-2 text-right">Crédito</th>
+                  <th scope="col" className="px-3 py-2 text-right">Saldo</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

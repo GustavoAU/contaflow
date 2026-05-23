@@ -129,11 +129,11 @@ export default function SalaryHistoryPanel({
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
                   Vigente desde
                 </th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Monto</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Moneda</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500">Monto</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Moneda</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

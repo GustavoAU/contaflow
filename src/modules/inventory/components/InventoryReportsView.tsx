@@ -88,14 +88,14 @@ function StockTab({
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-xs text-zinc-500">
             <tr>
-              <th className="px-4 py-2 text-left font-medium">SKU</th>
-              <th className="px-4 py-2 text-left font-medium">Producto</th>
-              <th className="px-4 py-2 text-left font-medium">Unidad</th>
-              <th className="px-4 py-2 text-right font-medium">Stock actual</th>
-              <th className="px-4 py-2 text-right font-medium">Mínimo</th>
-              <th className="px-4 py-2 text-right font-medium">CPP (Bs.)</th>
-              <th className="px-4 py-2 text-right font-medium">Valor total (Bs.)</th>
-              <th className="px-4 py-2 text-center font-medium">Estado</th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">SKU</th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">Producto</th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">Unidad</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">Stock actual</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">Mínimo</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">CPP (Bs.)</th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">Valor total (Bs.)</th>
+              <th scope="col" className="px-4 py-2 text-center font-medium">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -299,14 +299,14 @@ function MovementsTab({
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-xs text-zinc-500">
               <tr>
-                <th className="px-4 py-2 text-left font-medium">Fecha</th>
-                <th className="px-4 py-2 text-left font-medium">Tipo</th>
-                <th className="px-4 py-2 text-left font-medium">Producto</th>
-                <th className="px-4 py-2 text-right font-medium">Cantidad</th>
-                <th className="px-4 py-2 text-right font-medium">C. Unit. (Bs.)</th>
-                <th className="px-4 py-2 text-right font-medium">Total (Bs.)</th>
-                <th className="px-4 py-2 text-left font-medium">Referencia</th>
-                <th className="px-4 py-2 text-center font-medium">Estado</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Fecha</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Tipo</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Producto</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Cantidad</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">C. Unit. (Bs.)</th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">Total (Bs.)</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">Referencia</th>
+                <th scope="col" className="px-4 py-2 text-center font-medium">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">

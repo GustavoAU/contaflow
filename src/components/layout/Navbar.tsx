@@ -139,7 +139,8 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                     <div key={section.group}>
                       {/* Separador de sección */}
                       {sIdx > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
-                      <p className="px-3 pt-1.5 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-400">
+                      {/* WCAG 1.4.3: text-zinc-600 (7.4:1) */}
+                      <p className="px-3 pt-1.5 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                         {section.group}
                       </p>
                       {section.items.map((navItem) => {
@@ -232,7 +233,8 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                 {(sIdx > 0 || primary.length > 0) && (
                   <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
                 )}
-                <p className="px-3 pt-1 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-400">
+                {/* WCAG 1.4.3: text-zinc-600 (7.4:1) */}
+                <p className="px-3 pt-1 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   {section.group}
                 </p>
                 {section.items.map((navItem) => {

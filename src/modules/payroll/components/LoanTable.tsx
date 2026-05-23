@@ -91,13 +91,13 @@ export default function LoanTable({ companyId, initialLoans, employees, isAdmin 
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
               <tr>
-                <th className="px-4 py-3 text-left">Empleado</th>
-                <th className="px-4 py-3 text-right">Monto Total</th>
-                <th className="px-4 py-3 text-center">Cuotas</th>
-                <th className="px-4 py-3 text-right">Cuota</th>
-                <th className="px-4 py-3 text-right">Saldo Restante</th>
-                <th className="px-4 py-3 text-center">Estado</th>
-                {isAdmin && <th className="px-4 py-3" />}
+                <th scope="col" className="px-4 py-3 text-left">Empleado</th>
+                <th scope="col" className="px-4 py-3 text-right">Monto Total</th>
+                <th scope="col" className="px-4 py-3 text-center">Cuotas</th>
+                <th scope="col" className="px-4 py-3 text-right">Cuota</th>
+                <th scope="col" className="px-4 py-3 text-right">Saldo Restante</th>
+                <th scope="col" className="px-4 py-3 text-center">Estado</th>
+                {isAdmin && <th scope="col" className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody>

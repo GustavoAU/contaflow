@@ -229,12 +229,12 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
           <table className="w-full text-sm">
             <thead className="border-b bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-500">
               <tr>
-                <th className="px-4 py-3 text-left">Nombre</th>
-                <th className="px-4 py-3 text-left">Banco</th>
-                <th className="px-4 py-3 text-left">Moneda</th>
-                <th className="px-4 py-3 text-right">Último balance</th>
-                <th className="px-4 py-3 text-left">Última fecha</th>
-                <th className="px-4 py-3 text-left">Acciones</th>
+                <th scope="col" className="px-4 py-3 text-left">Nombre</th>
+                <th scope="col" className="px-4 py-3 text-left">Banco</th>
+                <th scope="col" className="px-4 py-3 text-left">Moneda</th>
+                <th scope="col" className="px-4 py-3 text-right">Último balance</th>
+                <th scope="col" className="px-4 py-3 text-left">Última fecha</th>
+                <th scope="col" className="px-4 py-3 text-left">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y">

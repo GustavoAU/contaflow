@@ -97,15 +97,15 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
               <tr>
-                <th className="px-4 py-3 text-left">SKU</th>
-                <th className="px-4 py-3 text-left">Producto</th>
-                <th className="px-4 py-3 text-left">Unidad</th>
-                <th className="px-4 py-3 text-right">Stock</th>
-                <th className="px-4 py-3 text-right">
+                <th scope="col" className="px-4 py-3 text-left">SKU</th>
+                <th scope="col" className="px-4 py-3 text-left">Producto</th>
+                <th scope="col" className="px-4 py-3 text-left">Unidad</th>
+                <th scope="col" className="px-4 py-3 text-right">Stock</th>
+                <th scope="col" className="px-4 py-3 text-right">
                   CPP{rateNum ? " (Bs. / USD)" : " (Bs.)"}
                 </th>
-                <th className="px-4 py-3 text-right">Valor (Bs.)</th>
-                <th className="px-4 py-3 text-right">% del total</th>
+                <th scope="col" className="px-4 py-3 text-right">Valor (Bs.)</th>
+                <th scope="col" className="px-4 py-3 text-right">% del total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

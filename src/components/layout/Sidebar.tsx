@@ -238,7 +238,8 @@ function CompanySwitcher({
             }}
             className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl dark:shadow-black/40 py-1.5 overflow-hidden"
           >
-            <p className="px-3 pb-1 pt-0.5 text-10 font-bold uppercase tracking-1px text-zinc-400 dark:text-zinc-500">
+            {/* WCAG 1.4.3: text-zinc-600 (7.4:1) — text-zinc-400 fallaría (2.55:1) */}
+            <p className="px-3 pb-1 pt-0.5 text-10 font-bold uppercase tracking-1px text-zinc-600 dark:text-zinc-400">
               Mis Empresas
             </p>
 
@@ -258,7 +259,8 @@ function CompanySwitcher({
                   <p className="text-13 font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
                     {co.name}
                   </p>
-                  <p className="text-11 text-zinc-400 dark:text-zinc-500">{ROLE_LABELS[co.role]}</p>
+                  {/* WCAG 1.4.3: text-zinc-500 (4.7:1 ✅ vs 2.55:1 de text-zinc-400) */}
+                  <p className="text-11 text-zinc-500 dark:text-zinc-400">{ROLE_LABELS[co.role]}</p>
                 </div>
                 {co.id === currentCompanyId && (
                   <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -432,11 +434,12 @@ export function Sidebar({
           return (
             <div key={section.group} className="px-2">
               <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1.5" />
+              {/* WCAG 1.4.3: text-zinc-600 (7.4:1) — text-zinc-400 falla (2.55:1) */}
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(section.group)}
                   aria-expanded={isSectionOpen}
-                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                 >
                   <span>{section.group}</span>
                   <ChevronDown

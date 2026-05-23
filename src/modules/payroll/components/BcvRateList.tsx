@@ -27,11 +27,11 @@ export default function BcvRateList({ rates }: Props) {
       <table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Año</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Mes</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600">Tasa anual (%)</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Tipo</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Fuente</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Año</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Mes</th>
+            <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Tasa anual (%)</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Tipo</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Fuente</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white">

@@ -52,13 +52,13 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
       <table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Cédula</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Cargo</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Contrato</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Salario actual</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-            <th className="px-4 py-3" />
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Cédula</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Cargo</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Contrato</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Salario actual</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
+            <th scope="col" className="px-4 py-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white">
