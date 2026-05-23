@@ -93,8 +93,8 @@ function SidebarItem({
     "transition-colors overflow-hidden whitespace-nowrap",
     collapsed && "justify-center",
     active
-      ? "bg-blue-50 text-blue-600 font-semibold"
-      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
+      ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold"
+      : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100",
     disabled && "pointer-events-none opacity-40"
   );
 
@@ -105,7 +105,7 @@ function SidebarItem({
         <span className="overflow-hidden text-ellipsis flex-1">{label}</span>
       )}
       {!collapsed && badge && (
-        <span className="ml-auto text-[10px] font-bold bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full shrink-0">
+        <span className="ml-auto text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
           {badge}
         </span>
       )}
@@ -137,7 +137,7 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
         "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-[13px] font-medium",
-        "text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors",
+        "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
         collapsed && "justify-center"
       )}
@@ -196,7 +196,7 @@ function CompanySwitcher({
   if (!current) return null;
 
   return (
-    <div data-co-sw className="px-2 py-2 border-b border-zinc-100 shrink-0">
+    <div data-co-sw className="px-2 py-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
       <button
         ref={btnRef}
         onClick={handleToggle}
@@ -204,19 +204,19 @@ function CompanySwitcher({
         aria-label="Cambiar empresa"
         className={cn(
           "flex items-center gap-2 w-full rounded-md px-1.5 py-1.5",
-          "hover:bg-zinc-100 transition-colors text-left",
+          "hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left",
           collapsed && "justify-center"
         )}
       >
         <CompanyAvatar id={current.id} name={current.name} size="sm" />
         {!collapsed && (
           <>
-            <span className="flex-1 text-[13px] font-semibold text-zinc-800 truncate leading-tight min-w-0">
+            <span className="flex-1 text-[13px] font-semibold text-zinc-800 dark:text-zinc-100 truncate leading-tight min-w-0">
               {current.name}
             </span>
             <ChevronDown
               className={cn(
-                "w-3.5 h-3.5 text-zinc-400 shrink-0 transition-transform duration-150",
+                "w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 shrink-0 transition-transform duration-150",
                 open && "rotate-180"
               )}
             />
@@ -236,9 +236,9 @@ function CompanySwitcher({
               width: Math.max(dropPos.width, 228),
               zIndex: 9999,
             }}
-            className="bg-white border border-zinc-200 rounded-xl shadow-xl py-1.5 overflow-hidden"
+            className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl dark:shadow-black/40 py-1.5 overflow-hidden"
           >
-            <p className="px-3 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[1px] text-zinc-400">
+            <p className="px-3 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[1px] text-zinc-400 dark:text-zinc-500">
               Mis Empresas
             </p>
 
@@ -248,15 +248,17 @@ function CompanySwitcher({
                 onClick={() => goTo(`/company/${co.id}`)}
                 className={cn(
                   "flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors",
-                  co.id === currentCompanyId ? "bg-blue-50" : "hover:bg-zinc-50"
+                  co.id === currentCompanyId
+                    ? "bg-blue-50 dark:bg-blue-900/30"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 )}
               >
                 <CompanyAvatar id={co.id} name={co.name} size="xs" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-zinc-800 truncate leading-tight">
+                  <p className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
                     {co.name}
                   </p>
-                  <p className="text-[11px] text-zinc-400">{ROLE_LABELS[co.role]}</p>
+                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{ROLE_LABELS[co.role]}</p>
                 </div>
                 {co.id === currentCompanyId && (
                   <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -264,18 +266,18 @@ function CompanySwitcher({
               </button>
             ))}
 
-            <div className="h-px bg-zinc-100 my-1" />
+            <div className="h-px bg-zinc-100 dark:bg-zinc-700 my-1" />
 
             <button
               onClick={() => goTo("/company/new")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 hover:bg-zinc-50 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <PlusIcon className="w-3.5 h-3.5 shrink-0" />
               Agregar empresa
             </button>
             <button
               onClick={() => goTo("/dashboard")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 hover:bg-zinc-50 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               Ver todas las empresas
@@ -350,13 +352,14 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex flex-col sticky top-0 h-screen bg-white border-r border-zinc-200",
+        "flex flex-col sticky top-0 h-screen",
+        "bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800",
         "transition-[width] duration-200 ease-in-out overflow-hidden shrink-0",
         collapsed ? "w-14" : "w-58"
       )}
     >
       {/* Logo + collapse toggle */}
-      <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 shrink-0">
+      <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <Link
           href="/dashboard"
           className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-[14px] shrink-0 shadow-[0_2px_8px_rgba(59,130,246,.3)] hover:bg-blue-600 transition-colors"
@@ -368,7 +371,7 @@ export function Sidebar({
         {!collapsed && (
           <Link
             href="/dashboard"
-            className="font-extrabold text-[15px] tracking-tight whitespace-nowrap overflow-hidden hover:opacity-80 transition-opacity"
+            className="font-extrabold text-[15px] text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap overflow-hidden hover:opacity-80 transition-opacity"
           >
             Conta<span className="text-blue-500">Flow</span>
           </Link>
@@ -379,14 +382,15 @@ export function Sidebar({
           title={collapsed ? "Expandir menú" : "Colapsar menú"}
           aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
           className={cn(
-            "w-6 h-6 rounded-md border border-zinc-200 bg-zinc-50 grid place-items-center",
-            "hover:bg-zinc-100 transition-colors shrink-0",
+            "w-6 h-6 rounded-md border border-zinc-200 dark:border-zinc-700",
+            "bg-zinc-50 dark:bg-zinc-800 grid place-items-center",
+            "hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0",
             !collapsed && "ml-auto"
           )}
         >
           {collapsed
-            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-            : <ChevronLeft  className="w-3.5 h-3.5 text-zinc-500" />}
+            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
+            : <ChevronLeft  className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />}
         </button>
       </div>
 
@@ -403,7 +407,8 @@ export function Sidebar({
       <nav
         className={cn(
           "flex-1 overflow-y-auto overflow-x-hidden py-1.5",
-          "scrollbar-thin [scrollbar-color:var(--color-zinc-200)_transparent]"
+          "scrollbar-thin [scrollbar-color:var(--color-zinc-200)_transparent]",
+          "dark:[scrollbar-color:var(--color-zinc-700)_transparent]"
         )}
         aria-label="Navegación principal"
       >
@@ -426,12 +431,12 @@ export function Sidebar({
           const isSectionOpen = !collapsedSections.has(section.group);
           return (
             <div key={section.group} className="px-2">
-              <div className="h-px bg-zinc-100 mx-1 my-1.5" />
+              <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1.5" />
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(section.group)}
                   aria-expanded={isSectionOpen}
-                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-[0.85px] text-zinc-400 hover:text-zinc-600 transition-colors"
+                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-[0.85px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                 >
                   <span>{section.group}</span>
                   <ChevronDown
@@ -461,7 +466,7 @@ export function Sidebar({
         {/* Configuración + Auditoría — siguen al último ítem del nav */}
         {companyId && (
           <div className="px-2">
-            <div className="h-px bg-zinc-100 mx-1 my-1.5" />
+            <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1.5" />
             <SidebarItem
               href={`/company/${companyId}/settings`}
               Icon={Settings}

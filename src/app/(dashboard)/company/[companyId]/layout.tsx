@@ -48,7 +48,7 @@ export default async function CompanyLayout({ children, params }: Props) {
     : null;
 
   return (
-    <div className="flex min-h-screen bg-zinc-50">
+    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {/* Skip-to-content — WCAG 2.4.1: bypass blocks */}
       <a
         href="#main-content"
