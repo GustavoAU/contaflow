@@ -800,3 +800,81 @@
   .roiCard { padding: 28px 20px; }
   .roiBreakdown { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ─── Accesibilidad — WCAG 2.4.7 (AA): Focus Visible ─────────────────────── */
+/* Skip link: visible al recibir foco con teclado */
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.skipLink:focus-visible {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--lnd-blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  text-decoration: none;
+}
+
+/* Anillos de foco para todos los elementos interactivos de la landing */
+.btnPill:focus-visible,
+.btnLg:focus-visible,
+.btnGhost:focus-visible,
+.btnLgGhost:focus-visible,
+.btnPc:focus-visible,
+.btnPcHl:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 3px;
+}
+
+/* Nav links y logo */
+.navLinks a:focus-visible,
+.logo:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Play button del VideoModal */
+.videoCard:focus-visible {
+  outline: 2px solid var(--lnd-blue-l);
+  outline-offset: 4px;
+  border-radius: var(--lnd-r);
+}
+
+/* Cierre modal de video */
+.vClose:focus-visible {
+  outline: 2px solid oklch(0.75 0.12 258);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Footer links */
+.ftLinks a:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Screenshot lightbox trigger */
+.screenshotTrigger:focus-visible,
+.screenshotFrame button:focus-visible,
+.screenshotFrame a:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 4px;
+  border-radius: var(--lnd-r-sm);
+}

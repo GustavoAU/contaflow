@@ -177,6 +177,14 @@ export default async function LandingPage() {
       className={`${styles.landing} ${plusJakarta.className}`}
       style={{ minHeight: "100vh" }}
     >
+      {/* Skip-to-content — WCAG 2.4.1 (A): Bypass Blocks */}
+      <a
+        href="#main-content"
+        className={styles.skipLink}
+      >
+        Saltar al contenido
+      </a>
+
       <LandingClient />
 
       {/* ── Navbar ────────────────────────────────────────────────────────── */}
@@ -188,7 +196,8 @@ export default async function LandingPage() {
               <span className={styles.logoName}>ContaFlow</span>
             </Link>
 
-            <nav className={styles.navLinks}>
+            {/* aria-label distingue esta nav de la mobile nav — WCAG 1.3.1 */}
+            <nav aria-label="Navegación principal" className={styles.navLinks}>
               <Link href="#funcionalidades">Funcionalidades</Link>
               <Link href="#precios">Precios</Link>
             </nav>
@@ -214,7 +223,7 @@ export default async function LandingPage() {
         </div>
       </header>
 
-      <main>
+      <main id="main-content">
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className={styles.hero}>
@@ -531,9 +540,10 @@ export default async function LandingPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Característica</th>
+                    {/* scope="col" — WCAG 1.3.1 (A): relación semántica cabecera-columna */}
+                    <th scope="col">Característica</th>
                     {PLANS.map((p) => (
-                      <th key={p.key} className={p.highlighted ? styles.thHi : undefined}>
+                      <th key={p.key} scope="col" className={p.highlighted ? styles.thHi : undefined}>
                         {p.name}
                       </th>
                     ))}
