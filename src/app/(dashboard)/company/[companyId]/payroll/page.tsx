@@ -13,6 +13,7 @@ import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigSe
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import PayrollWizard from "@/modules/payroll/components/PayrollWizard";
 import PayrollConfigSummary from "@/modules/payroll/components/PayrollConfigSummary";
+import { NavigationCard } from "@/components/ui/NavigationCard";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -153,7 +154,7 @@ export default async function PayrollPage({ params }: Props) {
           <div className="grid grid-cols-2 gap-3">
             {/* Empleados — NOM-B disponible */}
             {canReadEmployees ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/employees`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -163,7 +164,7 @@ export default async function PayrollPage({ params }: Props) {
                     ? `${activeEmployeeCount} empleado${activeEmployeeCount !== 1 ? "s" : ""} activo${activeEmployeeCount !== 1 ? "s" : ""}`
                     : "Gestión de empleados y contratos"}
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Empleados</p>
@@ -173,7 +174,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Conceptos — NOM-B disponible para ACCOUNTING */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/concepts`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -181,7 +182,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Catálogo de asignaciones y deducciones
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Conceptos</p>
@@ -191,7 +192,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Cálculo de Nómina — NOM-C */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/runs`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -211,7 +212,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Motor quincenal/mensual + recibo PDF
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Cálculo de Nómina</p>
@@ -221,7 +222,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Prestaciones Sociales — NOM-D */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/benefits`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -241,7 +242,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Garantía trimestral + intereses BCV
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Prestaciones Sociales</p>
@@ -251,7 +252,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Vacaciones — NOM-D */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/vacations`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -266,7 +267,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Registro y bono vacacional (Art. 190–192 LOTTT)
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Vacaciones</p>
@@ -276,7 +277,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Utilidades — NOM-D */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/profit-sharing`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -295,7 +296,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Cálculo anual/fraccionado (Art. 131–132 LOTTT)
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Utilidades</p>
@@ -305,7 +306,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Liquidaciones Finales — NOM-D */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/terminations`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -313,7 +314,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Cálculo de egreso LOTTT
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Liquidaciones Finales</p>
@@ -322,7 +323,7 @@ export default async function PayrollPage({ params }: Props) {
             )}
 
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/reports`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -330,7 +331,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   IVSS, INCES, Banavih, ARC/ISLR
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Reportes Legales</p>
@@ -340,7 +341,7 @@ export default async function PayrollPage({ params }: Props) {
 
             {/* Préstamos a Empleados */}
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
-              <Link
+              <NavigationCard
                 href={`/company/${companyId}/payroll/loans`}
                 className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
               >
@@ -359,7 +360,7 @@ export default async function PayrollPage({ params }: Props) {
                 <p className="mt-0.5 text-xs text-gray-500">
                   Descuento automático en nómina
                 </p>
-              </Link>
+              </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
                 <p className="font-medium text-gray-700">Préstamos</p>
@@ -368,7 +369,7 @@ export default async function PayrollPage({ params }: Props) {
             )}
 
             {/* Topes Legales — Ítem 72 */}
-            <Link
+            <NavigationCard
               href={`/company/${companyId}/payroll/legal-thresholds`}
               className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
             >
@@ -376,7 +377,7 @@ export default async function PayrollPage({ params }: Props) {
               <p className="mt-0.5 text-xs text-gray-500">
                 Salario mínimo y Unidad Tributaria por decreto
               </p>
-            </Link>
+            </NavigationCard>
           </div>
         </section>
       )}

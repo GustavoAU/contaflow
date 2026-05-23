@@ -1,10 +1,11 @@
-﻿// src/app/(dashboard)/company/[companyId]/payroll/reports/page.tsx
+// src/app/(dashboard)/company/[companyId]/payroll/reports/page.tsx
 // Fase NOM-E: Hub de Reportes Legales de Nómina
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { NavigationCard } from "@/components/ui/NavigationCard";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -40,16 +41,16 @@ const REPORTS = [
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  blue: "border-blue-100 bg-blue-50 hover:bg-blue-100",
+  blue:    "border-blue-100 bg-blue-50 hover:bg-blue-100",
   emerald: "border-emerald-100 bg-emerald-50 hover:bg-emerald-100",
-  violet: "border-violet-100 bg-violet-50 hover:bg-violet-100",
-  amber: "border-amber-100 bg-amber-50 hover:bg-amber-100",
+  violet:  "border-violet-100 bg-violet-50 hover:bg-violet-100",
+  amber:   "border-amber-100 bg-amber-50 hover:bg-amber-100",
 };
 const BADGE_MAP: Record<string, string> = {
-  blue: "bg-blue-100 text-blue-700",
+  blue:    "bg-blue-100 text-blue-700",
   emerald: "bg-emerald-100 text-emerald-700",
-  violet: "bg-violet-100 text-violet-700",
-  amber: "bg-amber-100 text-amber-700",
+  violet:  "bg-violet-100 text-violet-700",
+  amber:   "bg-amber-100 text-amber-700",
 };
 
 export default async function PayrollReportsPage({ params }: Props) {
@@ -80,7 +81,7 @@ export default async function PayrollReportsPage({ params }: Props) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {REPORTS.map((report) => (
-          <Link
+          <NavigationCard
             key={report.slug}
             href={`/company/${companyId}/payroll/reports/${report.slug}`}
             className={`rounded-xl border p-5 transition-colors ${COLOR_MAP[report.color]}`}
@@ -92,7 +93,7 @@ export default async function PayrollReportsPage({ params }: Props) {
               </span>
             </div>
             <p className="text-sm text-zinc-600">{report.description}</p>
-          </Link>
+          </NavigationCard>
         ))}
       </div>
 

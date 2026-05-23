@@ -1,7 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
-import Link from "next/link";
 import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon } from "lucide-react";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
+import { NavigationCard } from "@/components/ui/NavigationCard";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -62,10 +62,10 @@ export default async function ReportsPage({ params }: Props) {
         {reports.map((report) => {
           const Icon = report.icon;
           return (
-            <Link
+            <NavigationCard
               key={report.href}
               href={report.href}
-              className="group rounded-lg border bg-white p-6 transition-all hover:border-blue-500 hover:shadow-sm"
+              className="group rounded-lg border bg-white p-6 transition-all hover:border-blue-500 hover:shadow-sm dark:bg-zinc-950"
             >
               <div className="flex items-start gap-4">
                 <div className="rounded-md bg-blue-50 p-2 transition-colors group-hover:bg-blue-100">
@@ -76,7 +76,7 @@ export default async function ReportsPage({ params }: Props) {
                   <p className="text-muted-foreground mt-1 text-sm">{report.description}</p>
                 </div>
               </div>
-            </Link>
+            </NavigationCard>
           );
         })}
       </div>
