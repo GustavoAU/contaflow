@@ -1,15 +1,19 @@
 ﻿"use client";
 // src/modules/inventory/components/InventoryReportsView.tsx
-// Panel de reportes de inventario — tabs: Existencias | Movimientos
+// Panel de reportes de inventario — tabs: Existencias | Movimientos | Rotación y Ventas
 // Roles: OWNER, ADMIN, ACCOUNTANT
 
 import { useState, useTransition } from "react";
-import { RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon } from "lucide-react";
+import {
+  RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon,
+  ChevronUp, ChevronDown, ChevronsUpDown,
+} from "lucide-react";
 import {
   getStockSummaryAction,
   getMovementReportAction,
+  getRotationReportAction,
 } from "../actions/inventory-reports.actions";
-import type { StockSummary, MovementReportItem } from "../services/InventoryReportService";
+import type { StockSummary, MovementReportItem, RotationReportItem } from "../services/InventoryReportService";
 
 type Props = {
   companyId: string;
@@ -17,7 +21,7 @@ type Props = {
   itemOptions: { id: string; sku: string; name: string }[];
 };
 
-type Tab = "stock" | "movements";
+type Tab = "stock" | "movements" | "rotation";
 
 const MOVEMENT_TYPE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   ENTRADA: { label: "Entrada", color: "bg-emerald-100 text-emerald-700", icon: <TrendingUp className="h-3 w-3" /> },
@@ -360,6 +364,250 @@ function MovementsTab({
   );
 }
 
+// ─── Tab: Rotación y Ventas ───────────────────────────────────────────────────
+
+type SortKey = "name" | "unitsSold" | "revenueVes" | "stockQuantity" | "daysSinceMovement";
+type SortDir = "asc" | "desc";
+
+function DaysIndicator({ days }: { days: number | null }) {
+  if (days === null) {
+    return <span className="text-xs text-zinc-400">Sin mvto.</span>;
+  }
+  const color =
+    days < 30  ? "bg-emerald-100 text-emerald-700" :
+    days < 90  ? "bg-amber-100 text-amber-700"     :
+                 "bg-red-100 text-red-700";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${
+        days < 30 ? "bg-emerald-500" : days < 90 ? "bg-amber-500" : "bg-red-500"
+      }`} />
+      {days}d
+    </span>
+  );
+}
+
+function SortIcon({ col, current, dir }: { col: SortKey; current: SortKey; dir: SortDir }) {
+  if (col !== current) return <ChevronsUpDown className="ml-1 inline h-3 w-3 text-zinc-300" />;
+  return dir === "asc"
+    ? <ChevronUp className="ml-1 inline h-3 w-3 text-blue-500" />
+    : <ChevronDown className="ml-1 inline h-3 w-3 text-blue-500" />;
+}
+
+function RotationTab({ companyId }: { companyId: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstOfYear = today.slice(0, 4) + "-01-01";
+
+  const [from, setFrom] = useState(firstOfYear);
+  const [to, setTo]     = useState(today);
+  const [rows, setRows] = useState<RotationReportItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("revenueVes");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [isPending, startTransition] = useTransition();
+
+  function handleSearch() {
+    setError(null);
+    startTransition(async () => {
+      const r = await getRotationReportAction(companyId, from, to);
+      if (r.success) {
+        setRows(r.data);
+      } else {
+        setError(r.error);
+        setRows(null);
+      }
+    });
+  }
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const sorted = rows
+    ? [...rows].sort((a, b) => {
+        let va: number, vb: number;
+        if (sortKey === "name") {
+          const cmp = a.name.localeCompare(b.name, "es");
+          return sortDir === "asc" ? cmp : -cmp;
+        }
+        if (sortKey === "daysSinceMovement") {
+          // null (sin movimiento) va al final siempre
+          if (a.daysSinceMovement === null && b.daysSinceMovement === null) return 0;
+          if (a.daysSinceMovement === null) return 1;
+          if (b.daysSinceMovement === null) return -1;
+          va = a.daysSinceMovement;
+          vb = b.daysSinceMovement;
+        } else {
+          va = parseFloat(a[sortKey] as string);
+          vb = parseFloat(b[sortKey] as string);
+        }
+        return sortDir === "asc" ? va - vb : vb - va;
+      })
+    : null;
+
+  // Totales del período
+  const totals = rows
+    ? rows.reduce(
+        (acc, r) => ({
+          unitsSold: acc.unitsSold + parseFloat(r.unitsSold),
+          revenueVes: acc.revenueVes + parseFloat(r.revenueVes),
+        }),
+        { unitsSold: 0, revenueVes: 0 }
+      )
+    : null;
+
+  function th(label: string, key: SortKey, align: "left" | "right" = "right") {
+    return (
+      <th
+        scope="col"
+        className={`cursor-pointer select-none px-4 py-2 text-${align} text-xs font-medium hover:text-zinc-700`}
+        onClick={() => handleSort(key)}
+      >
+        {label}
+        <SortIcon col={key} current={sortKey} dir={sortDir} />
+      </th>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros */}
+      <div className="rounded-lg border bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600">Desde</label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600">Hasta</label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleSearch}
+            disabled={isPending}
+            className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isPending
+              ? <><Loader2Icon className="h-3.5 w-3.5 animate-spin" /> Calculando...</>
+              : "Calcular"
+            }
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-zinc-400">
+          Ventas basadas en facturas emitidas (tipo SALE). Haz clic en cualquier columna para ordenar.
+        </p>
+      </div>
+
+      {error && (
+        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+      )}
+
+      {/* Tabla */}
+      {sorted !== null && (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <p className="text-sm font-semibold text-zinc-800">
+              Rotación y ventas
+              <span className="ml-2 text-xs font-normal text-zinc-400">
+                {from} → {to} · {sorted.length} producto{sorted.length !== 1 ? "s" : ""}
+              </span>
+            </p>
+            {totals && (
+              <div className="flex gap-4 text-xs text-zinc-500">
+                <span>
+                  Total vendido:{" "}
+                  <span className="font-mono font-semibold text-zinc-800">
+                    {totals.unitsSold.toLocaleString("es-VE", { maximumFractionDigits: 2 })} uds
+                  </span>
+                </span>
+                <span>
+                  Ingresos:{" "}
+                  <span className="font-mono font-semibold text-emerald-700">
+                    Bs. {totals.revenueVes.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 text-xs text-zinc-500">
+              <tr>
+                {th("Producto", "name", "left")}
+                {th("Unid. vendidas", "unitsSold")}
+                {th("Ingresos Bs.", "revenueVes")}
+                {th("Stock actual", "stockQuantity")}
+                {th("Días sin mvto.", "daysSinceMovement")}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-xs text-zinc-400">
+                    Sin productos en el catálogo
+                  </td>
+                </tr>
+              )}
+              {sorted.map((item) => (
+                <tr key={item.id} className="hover:bg-zinc-50">
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-zinc-900">{item.name}</p>
+                    <p className="text-xs text-zinc-400">{item.sku} · {item.unit}</p>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {parseFloat(item.unitsSold) === 0 ? (
+                      <span className="text-zinc-300">—</span>
+                    ) : (
+                      parseFloat(item.unitsSold).toLocaleString("es-VE", { maximumFractionDigits: 2 })
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {parseFloat(item.revenueVes) === 0 ? (
+                      <span className="text-zinc-300">—</span>
+                    ) : (
+                      <span className="font-semibold text-emerald-700">
+                        {parseFloat(item.revenueVes).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono text-zinc-600">
+                    {parseFloat(item.stockQuantity).toLocaleString("es-VE", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <DaysIndicator days={item.daysSinceMovement} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {sorted === null && !isPending && (
+        <p className="text-center text-sm text-zinc-400">
+          Selecciona un rango de fechas y presiona Calcular.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function InventoryReportsView({ companyId, initialStock, itemOptions }: Props) {
@@ -378,7 +626,7 @@ export function InventoryReportsView({ companyId, initialStock, itemOptions }: P
     <div className="space-y-4">
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border bg-zinc-50 p-1 w-fit">
-        {(["stock", "movements"] as Tab[]).map((t) => (
+        {(["stock", "movements", "rotation"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -389,7 +637,7 @@ export function InventoryReportsView({ companyId, initialStock, itemOptions }: P
                 : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            {t === "stock" ? "Existencias" : "Movimientos"}
+            {t === "stock" ? "Existencias" : t === "movements" ? "Movimientos" : "Rotación y Ventas"}
           </button>
         ))}
       </div>
@@ -399,6 +647,9 @@ export function InventoryReportsView({ companyId, initialStock, itemOptions }: P
       )}
       {tab === "movements" && (
         <MovementsTab companyId={companyId} itemOptions={itemOptions} />
+      )}
+      {tab === "rotation" && (
+        <RotationTab companyId={companyId} />
       )}
     </div>
   );
