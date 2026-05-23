@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import {
   RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon,
-  ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronUp, ChevronDown, ChevronsUpDown, BarChart2, TableIcon,
 } from "lucide-react";
 import {
   getStockSummaryAction,
@@ -14,6 +14,7 @@ import {
   getRotationReportAction,
 } from "../actions/inventory-reports.actions";
 import type { StockSummary, MovementReportItem, RotationReportItem } from "../services/InventoryReportService";
+import { TopProductsChart } from "./TopProductsChart";
 
 type Props = {
   companyId: string;
@@ -404,6 +405,7 @@ function RotationTab({ companyId }: { companyId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("revenueVes");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [chartMetric, setChartMetric] = useState<"revenueVes" | "unitsSold">("revenueVes");
   const [isPending, startTransition] = useTransition();
 
   function handleSearch() {
@@ -518,14 +520,54 @@ function RotationTab({ companyId }: { companyId: string }) {
         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
       )}
 
+      {/* Gráfica top 10 */}
+      {sorted !== null && sorted.some((r) => parseFloat(r[chartMetric]) > 0) && (
+        <div className="rounded-lg border bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-800">Top 10 productos</p>
+              <p className="text-xs text-zinc-400">{from} → {to}</p>
+            </div>
+            {/* Selector de métrica */}
+            <div className="flex gap-1 rounded-lg border bg-zinc-50 p-1">
+              <button
+                type="button"
+                onClick={() => setChartMetric("revenueVes")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  chartMetric === "revenueVes"
+                    ? "bg-white shadow-sm text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                Ingresos Bs.
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMetric("unitsSold")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  chartMetric === "unitsSold"
+                    ? "bg-white shadow-sm text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                <TableIcon className="h-3.5 w-3.5" />
+                Unidades
+              </button>
+            </div>
+          </div>
+          <TopProductsChart data={sorted} metric={chartMetric} />
+        </div>
+      )}
+
       {/* Tabla */}
       {sorted !== null && (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <p className="text-sm font-semibold text-zinc-800">
-              Rotación y ventas
+              Detalle completo
               <span className="ml-2 text-xs font-normal text-zinc-400">
-                {from} → {to} · {sorted.length} producto{sorted.length !== 1 ? "s" : ""}
+                {sorted.length} producto{sorted.length !== 1 ? "s" : ""}
               </span>
             </p>
             {totals && (
