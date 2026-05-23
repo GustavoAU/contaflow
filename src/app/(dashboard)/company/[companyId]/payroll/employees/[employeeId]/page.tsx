@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import SalaryHistoryPanel from "@/modules/payroll/components/SalaryHistoryPanel";
+import { EmployeePortalTokenButton } from "@/modules/payroll/components/EmployeePortalTokenButton";
 
 interface Props {
   params: Promise<{ companyId: string; employeeId: string }>;
@@ -127,6 +128,23 @@ export default async function EmployeeDetailPage({ params }: Props) {
           </div>
         )}
       </dl>
+
+      {/* Portal del empleado — solo ADMIN puede generar el enlace */}
+      {canWrite && (
+        <div className="rounded-lg border bg-indigo-50 p-5">
+          <p className="mb-2 text-sm font-medium text-indigo-800">
+            Enlace de autoservicio para el empleado
+          </p>
+          <p className="mb-3 text-xs text-indigo-600">
+            Genera un enlace seguro con validez de 30 días. El empleado puede ver sus recibos de pago, vacaciones y préstamos sin necesitar cuenta en la plataforma.
+          </p>
+          <EmployeePortalTokenButton
+            companyId={companyId}
+            employeeId={emp.id}
+            employeeName={emp.fullName}
+          />
+        </div>
+      )}
 
       {/* Historial de salarios */}
       <SalaryHistoryPanel

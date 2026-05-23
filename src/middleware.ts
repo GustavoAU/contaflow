@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   "/api/webhook/(.*)",
   "/api/webhooks/(.*)",
+  "/employee/(.*)",  // Portal del Empleado — acceso por token JWT sin Clerk
 ]);
 
 function buildCsp(nonce: string): string {
