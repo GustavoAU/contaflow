@@ -19,10 +19,30 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
 ];
 
+// Orígenes permitidos para Server Actions (CSRF HIGH-2 — ADR-025).
+// Same-origin siempre permitido automáticamente por Next.js.
+// Aquí añadimos el dominio de producción y previews de Vercel de forma explícita.
+const allowedOrigins = [
+  "localhost:3000",
+  // Producción: definir NEXT_PUBLIC_APP_URL=https://tu-dominio.com en Vercel
+  ...(process.env.NEXT_PUBLIC_APP_URL
+    ? [process.env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, "").split("/")[0]]
+    : []),
+  // Previews de Vercel (VERCEL_URL = sha-xxx.vercel.app sin scheme)
+  ...(process.env.VERCEL_URL ? [process.env.VERCEL_URL] : []),
+];
+
 const nextConfig: NextConfig = {
   reactCompiler: true,
   // Standalone output para Docker: copia solo las dependencias necesarias al contenedor
   output: process.env.DOCKER_BUILD === "1" ? "standalone" : undefined,
+  experimental: {
+    // Server Actions: solo los orígenes explícitamente listados pueden invocarlas (CSRF — ADR-025)
+    serverActions: {
+      allowedOrigins,
+      bodySizeLimit: "10mb", // máximo para uploads de PDF/imagen en OCR y firma digital
+    },
+  },
   async headers() {
     return [
       {

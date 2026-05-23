@@ -375,7 +375,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                       <th className="px-4 py-3 text-left"></th>
                       <th className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
                       <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Base</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-[5rem]">Tasa %</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap min-w-20">Tasa %</th>
                       <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA</th>
                       <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA Ret.</th>
                       {type === "PURCHASE" && <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">ISLR Ret.</th>}

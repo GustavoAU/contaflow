@@ -12,12 +12,31 @@ const redis = process.env.UPSTASH_REDIS_REST_URL
 // Exported for use in server-side cache (e.g. RIF lookup cache)
 export { redis };
 
+/**
+ * Construye el identifier compuesto para mutaciones fiscales.
+ *
+ * Cada (empresa × usuario) tiene su propia ventana de 10/min,
+ * evitando que usuarios en múltiples empresas compartan cuota
+ * y que un usuario acapare la cuota global de la empresa.
+ *
+ * Uso:  checkRateLimit(fiscalKey(companyId, userId), limiters.fiscal)
+ *
+ * Migración incremental: las acciones que todavía no reciben companyId
+ * en el punto del rate-limit siguen usando solo userId — deuda técnica
+ * documentada en DECISIONS.md.
+ */
+export function fiscalKey(companyId: string, userId: string): string {
+  return `${companyId}:${userId}`;
+}
+
 export const limiters = {
-  // Mutaciones fiscales: facturas, retenciones, IGTF, cuentas — 30 por minuto por usuario
+  // Mutaciones fiscales: facturas, retenciones, IGTF, cuentas
+  // 10/min por (empresa × usuario) — previene doble-submit y spam fiscal
+  // Clave: fiscalKey(companyId, userId) — ver helper arriba
   fiscal: redis
     ? new Ratelimit({
         redis,
-        limiter: Ratelimit.slidingWindow(30, "1 m"),
+        limiter: Ratelimit.slidingWindow(10, "1 m"),
         prefix: "rl:fiscal",
       })
     : null,

@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -34,7 +34,7 @@ export async function createInvoiceAction(input: unknown) {
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error };
 
     const member = await prisma.companyMember.findFirst({
@@ -243,7 +243,7 @@ export async function exportInvoiceVoucherPDFAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes excedido" };
 
     const membership = await prisma.companyMember.findFirst({
@@ -321,7 +321,7 @@ export async function exportInvoiceXMLAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
     const membership = await prisma.companyMember.findFirst({
@@ -370,17 +370,18 @@ export async function exportInvoiceXMLAction(
 
 // ─── Crear Nota de Crédito ─────────────────────────────────────────────────────
 export async function createCreditNoteAction(input: unknown) {
+  // Parse primero para disponer de companyId en el rate-limit composite (Z-1)
+  const parsed = CreateCreditDebitNoteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false as const, error: parsed.error.issues[0].message };
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
-
-    const parsed = CreateCreditDebitNoteSchema.safeParse(input);
-    if (!parsed.success) {
-      return { success: false as const, error: parsed.error.issues[0].message };
-    }
 
     const companyId = parsed.data.companyId;
 
@@ -418,17 +419,18 @@ export async function createCreditNoteAction(input: unknown) {
 
 // ─── Crear Nota de Débito ──────────────────────────────────────────────────────
 export async function createDebitNoteAction(input: unknown) {
+  // Parse primero para disponer de companyId en el rate-limit composite (Z-1)
+  const parsed = CreateCreditDebitNoteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false as const, error: parsed.error.issues[0].message };
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
-
-    const parsed = CreateCreditDebitNoteSchema.safeParse(input);
-    if (!parsed.success) {
-      return { success: false as const, error: parsed.error.issues[0].message };
-    }
 
     const companyId = parsed.data.companyId;
 
@@ -603,7 +605,7 @@ export async function getInvoiceBookAction(input: unknown) {
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
 
     const member = await prisma.companyMember.findFirst({

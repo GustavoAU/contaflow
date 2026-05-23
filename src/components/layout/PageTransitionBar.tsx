@@ -1,55 +1,68 @@
 "use client";
 
-import { useEffect, useState, startTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { usePageTransition } from "./PageTransitionProvider";
 
-// §4 ui-patterns: Level 2 (300ms–1s) → barra; Level 3 (>1s) → overlay
+/**
+ * Barra de progreso estilo NProgress en la parte superior de la página.
+ *
+ * Fases:
+ *  "growing"    → aparece al instante, animación de 0 % → 85 % en 5 s
+ *  "completing" → salta a 100 % en 250 ms cuando la navegación termina
+ *  "fading"     → desaparece con opacidad 0 en 300 ms
+ *  null         → desmontada
+ */
+type Phase = "growing" | "completing" | "fading";
+
 export function PageTransitionBar() {
   const { isPending } = usePageTransition();
-  const [showBar, setShowBar] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
+  const [phase, setPhase] = useState<Phase | null>(null);
 
   useEffect(() => {
-    if (!isPending) {
-      startTransition(() => {
-        setShowBar(false);
-        setShowOverlay(false);
-      });
+    if (isPending) {
+      // Mostrar inmediatamente — sin delay
+      setPhase("growing");
       return;
     }
-    const barTimer = setTimeout(() => setShowBar(true), 300);
-    const overlayTimer = setTimeout(() => setShowOverlay(true), 1000);
+
+    // Navegación completa: completar la barra y desvanecerla
+    setPhase((prev) => (prev === null ? null : "completing"));
+
+    const t1 = setTimeout(
+      () => setPhase((p) => (p === "completing" ? "fading" : p)),
+      250
+    );
+    const t2 = setTimeout(
+      () => setPhase((p) => (p === "fading" ? null : p)),
+      550
+    );
+
     return () => {
-      clearTimeout(barTimer);
-      clearTimeout(overlayTimer);
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
   }, [isPending]);
 
-  if (!showBar && !showOverlay) return null;
+  if (phase === null) return null;
 
   return (
-    <>
-      <div
-        className="fixed top-0 left-0 right-0 z-50 h-1 bg-primary animate-pulse"
-        role="progressbar"
-        aria-label="Cargando página"
-        aria-busy="true"
-      />
-      {showOverlay && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-            <p
-              className="text-sm text-zinc-700 dark:text-zinc-300"
-              role="status"
-              aria-live="polite"
-            >
-              Cargando…
-            </p>
-          </div>
-        </div>
-      )}
-    </>
+    <div
+      aria-hidden
+      role="progressbar"
+      aria-label="Cargando página"
+      className={[
+        // Base
+        "pointer-events-none fixed left-0 top-0 z-9999 h-0.5 bg-blue-500",
+        "shadow-progress-glow",
+        // Fase growing: animación CSS de 0 % a 85 %
+        phase === "growing" && "animate-[progress-grow_5s_cubic-bezier(0.05,0.8,0.5,1)_forwards]",
+        // Fase completing: salto inmediato al 100 %
+        phase === "completing" && "w-full! transition-[width] duration-200",
+        // Fase fading: desvanece
+        phase === "fading" && "w-full! opacity-0 transition-opacity duration-300",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    />
   );
 }

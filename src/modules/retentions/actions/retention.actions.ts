@@ -8,7 +8,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
-import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
+import { checkRateLimit, fiscalKey, limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import type { Retencion } from "@prisma/client";
 import {
@@ -75,7 +75,7 @@ export async function createRetentionAction(
 
     const { ipAddress, userAgent } = await getIpAndUa();
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
     const member = await prisma.companyMember.findUnique({
@@ -266,7 +266,7 @@ export async function enterRetentionAction(
     if (!canAccess(member.role, ROLES.ACCOUNTING))
       return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
     const { ipAddress, userAgent } = await getIpAndUa();

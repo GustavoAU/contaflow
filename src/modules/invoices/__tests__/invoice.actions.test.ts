@@ -14,6 +14,7 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: vi.fn((companyId: string, userId: string) => `${companyId}:${userId}`),
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma-rls", () => ({

@@ -30,6 +30,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: vi.fn((companyId: string, userId: string) => `${companyId}:${userId}`),
   limiters: { fiscal: {}, ocr: {} },
 }));
 

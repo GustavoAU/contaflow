@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -63,7 +63,7 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
-    const rl = await checkRateLimit(userId, limiters.fiscal); // rate limit by authenticated userId
+    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
     const member = await prisma.companyMember.findUnique({

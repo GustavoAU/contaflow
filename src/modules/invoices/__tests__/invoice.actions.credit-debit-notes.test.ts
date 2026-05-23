@@ -15,6 +15,7 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: vi.fn((companyId: string, userId: string) => `${companyId}:${userId}`),
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma", () => ({

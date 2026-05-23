@@ -150,7 +150,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
               </div>
             )}
 
-            <div className={`max-w-[80%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
+            <div className={`max-w-4/5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
               {msg.imagePreview && (
                 <img
                   src={msg.imagePreview}

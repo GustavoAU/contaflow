@@ -30,6 +30,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: vi.fn((companyId: string, userId: string) => `${companyId}:${userId}`),
   limiters: { fiscal: {}, ocr: {} },
 }));
 
@@ -645,7 +646,7 @@ describe("exportInvoiceXMLAction", () => {
 
     await exportInvoiceXMLAction("inv-1", "company-1");
 
-    expect(checkRateLimit).toHaveBeenCalledWith("user-1", expect.anything());
+    expect(checkRateLimit).toHaveBeenCalledWith("company-1:user-1", expect.anything());
   });
 
   it("retorna error genérico si SeniatXMLService.generate lanza excepción", async () => {
