@@ -10,6 +10,7 @@ import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { getCompanyGrants } from "@/lib/get-company-grants";
 import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
+import { FloatingAIAssistant } from "@/modules/ai-assistant/components/FloatingAIAssistant";
 import type { UserRole } from "@/lib/nav-items";
 
 type Props = {
@@ -30,6 +31,7 @@ export default async function CompanyLayout({ children, params }: Props) {
   Sentry.setTag("userRole", company.role);
 
   const showNotifications = canAccess(company.role, ROLES.ACCOUNTING);
+  const showAIAssistant = canAccess(company.role, ROLES.ACCOUNTING);
 
   const grantsSet = await getCompanyGrants(companyId);
   const rolePrefix = `${company.role}:`;
@@ -86,6 +88,11 @@ export default async function CompanyLayout({ children, params }: Props) {
       </div>
 
       <Toaster richColors position="top-right" />
+
+      {/* Asistente IA flotante — solo para roles Contador o superior */}
+      {showAIAssistant && (
+        <FloatingAIAssistant companyId={companyId} companyName={company.name} />
+      )}
     </div>
   );
 }

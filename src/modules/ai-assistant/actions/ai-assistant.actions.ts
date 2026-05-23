@@ -180,3 +180,38 @@ export async function sendMessageAction(
 
   return { success: true, reply, isAuditMode };
 }
+
+// ─── Resumen de anomalías (para badge del botón flotante) ─────────────────────
+// No llama a Gemini — solo ejecuta el detector y retorna los contadores.
+// Sin rate limit porque es solo lectura y barata en tiempo.
+
+export type AnomalySummaryResult =
+  | { success: true; critical: number; high: number; medium: number }
+  | { success: false; error: string };
+
+export async function getAnomalySummaryAction(companyId: string): Promise<AnomalySummaryResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autenticado" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+  });
+  if (!member) return { success: false, error: "Sin acceso" };
+
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
+    return { success: false, error: "Rol insuficiente" };
+  }
+
+  try {
+    const report = await FiscalAnomalyDetectorService.detect(companyId);
+    return {
+      success: true,
+      critical: report.totalCritical,
+      high: report.totalHigh,
+      medium: report.totalMedium,
+    };
+  } catch {
+    // Si el detector falla (DB timeout, etc.) no bloquea la UI
+    return { success: true, critical: 0, high: 0, medium: 0 };
+  }
+}

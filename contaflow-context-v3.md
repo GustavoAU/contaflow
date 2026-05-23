@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-Ninguna — main limpio. commit `c1c9fc9`
+Ninguna — main limpio. commit `defcc80`
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **P-R1 + P-R2 + Loading 2026-05-23** ✅ merged — P-R1: `fiscalKey(companyId,userId)` composite rate-limit key (10/min) en Z-1 (facturas×6, retenciones×2, IGTF×1); P-R2: `experimental.serverActions.allowedOrigins` en next.config.ts (localhost + NEXT_PUBLIC_APP_URL + VERCEL_URL, CSRF HIGH-2 ADR-025); 50 `loading.tsx` skeletons en todas las rutas dashboard + `PageTransitionBar` NProgress-style + Tailwind canonical classes (select/InvoiceBook/AIAssistantChat). commit `defcc80`. 1983 tests GREEN.
 - **Sprint P-3/Q1-3/Q1-4 2026-05-22** ✅ merged — P-3: ThemeProvider+ThemeToggle dark mode cicla light/dark/system (localStorage cf-theme + prefers-color-scheme); Q1-3: useFormDraft hook sessionStorage autosave 30s + AlertDialog restore en InvoiceForm; Q1-4: ExportService portabilidad completa (employees/payrollRuns/inventoryItems/expenses + allHistory flag + ZIP nomina/inventario/gastos). commit `c1c9fc9`. 1983 tests GREEN.
 - **Sprint P-4/P-7/P-8 2026-05-22** ✅ merged — P-7: GET /api/health (db+redis+qstash, ruta pública); P-4: Sentry.startSpan en 5 operaciones críticas (correlativo, GL posting, cierre ejercicio, apropiación, nómina, SENIAT transmit); P-8: RUNBOOK.md (PITR Neon, PDF recovery, checklist mensual, RTO<4h/RPO<1h). commits `a7d1417` + `09dbab3`. 1983 tests GREEN.
 - **Sprint Q2-3/Q2-4 2026-05-22** ✅ merged — Q2-3: 2FA step-up en cierre ejercicio + eliminar miembro + datos SENIAT + archivar empresa (STEP_UP_CONFIG centralizado en step-up.ts, useReverification sin array destructuring); Q2-4: ActiveSessionsPanel con user.getSessions() → SessionWithActivitiesResource → revoke(). 1983 tests GREEN.
@@ -64,10 +65,9 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
 ### Tests / CI
-**1983 tests GREEN | 0 TS errors** (2026-05-22 post sprint P-3/Q1-3/Q1-4)
+**1983 tests GREEN | 0 TS errors** (2026-05-23 post P-R1/P-R2 + loading skeletons)
 
 ### Deuda técnica
-- **allowedOrigins** en `next.config.ts` — pendiente cuando se defina dominio de producción (CSRF HIGH-2 de audit ADR-025)
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
 - Action-level grant enforcement — grants actuales afectan solo nav/UI; action guards usan `canAccess()` puro (documentado en ADR-025 como post-lanzamiento)
 - Rotar `UPSTASH_REDIS_REST_TOKEN` en Upstash dashboard (pendiente acción del usuario)

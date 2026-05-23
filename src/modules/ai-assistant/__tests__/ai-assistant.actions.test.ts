@@ -32,7 +32,7 @@ vi.mock("../services/FiscalAnomalyDetectorService", () => ({
 }));
 
 import prisma from "@/lib/prisma";
-import { sendMessageAction } from "../actions/ai-assistant.actions";
+import { sendMessageAction, getAnomalySummaryAction } from "../actions/ai-assistant.actions";
 
 const COMPANY_ID = "company-test";
 const USER_ID = "user-test";
@@ -170,5 +170,64 @@ describe("sendMessageAction", () => {
     const result = await sendMessageAction(COMPANY_ID, "¿cuánto IVA?");
     expect(result.success).toBe(true);
     if (result.success) expect(result.reply).toBe("Respuesta del asistente");
+  });
+});
+
+// ─── getAnomalySummaryAction ───────────────────────────────────────────────────
+describe("getAnomalySummaryAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuth();
+    setupMember();
+    mockDetect.mockResolvedValue({
+      companyId: COMPANY_ID,
+      detectedAt: new Date(),
+      anomalies: [],
+      totalCritical: 2,
+      totalHigh: 1,
+      totalMedium: 3,
+      clean: false,
+    });
+  });
+
+  it("devuelve contadores de anomalías para ACCOUNTANT", async () => {
+    const result = await getAnomalySummaryAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.critical).toBe(2);
+    expect(result.high).toBe(1);
+    expect(result.medium).toBe(3);
+    expect(mockDetect).toHaveBeenCalledWith(COMPANY_ID);
+  });
+
+  it("retorna error si no hay userId", async () => {
+    setupAuth(null);
+    const result = await getAnomalySummaryAction(COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autenticado");
+  });
+
+  it("retorna error si usuario no es miembro", async () => {
+    setupNoMember();
+    const result = await getAnomalySummaryAction(COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Sin acceso");
+  });
+
+  it("retorna error si rol es VIEWER", async () => {
+    setupMember("VIEWER");
+    const result = await getAnomalySummaryAction(COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Rol insuficiente");
+  });
+
+  it("degradación graceful si detector lanza excepción — retorna ceros", async () => {
+    mockDetect.mockRejectedValueOnce(new Error("DB timeout"));
+    const result = await getAnomalySummaryAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.critical).toBe(0);
+    expect(result.high).toBe(0);
+    expect(result.medium).toBe(0);
   });
 });
