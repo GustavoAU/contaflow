@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhook/(.*)",
   "/api/webhooks/(.*)",
   "/employee/(.*)",  // Portal del Empleado — acceso por token JWT sin Clerk
+  "/api/cron/(.*)",  // Vercel Cron Jobs — autenticados por CRON_SECRET, no por Clerk
 ]);
 
 function buildCsp(nonce: string): string {
