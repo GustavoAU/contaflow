@@ -33,13 +33,13 @@ export function LandingDespachos() {
       <div className={`${styles.despInner} ${styles.wrap}`}>
 
         <div className={styles.despHead}>
-          <p className={styles.despEyebrow}>Multi-empresa y roles</p>
+          <p className={styles.despEyebrow}>Para despachos contables</p>
           <h2 className={styles.despH2}>
-            Un solo login.<br />Todas tus empresas.
+            Un solo login.<br />Todos tus clientes.
           </h2>
           <p className={styles.despSubtitle}>
-            Agrega múltiples empresas a tu cuenta y asigna roles específicos
-            a cada miembro de tu equipo. Cada quien ve solo lo que necesita.
+            ContaFlow está diseñado para despachos. Gestiona los RIFs de tus clientes
+            desde una sola cuenta, con roles diferenciados para cada miembro de tu equipo.
           </p>
         </div>
 
@@ -59,8 +59,8 @@ export function LandingDespachos() {
           {[
             {
               icon: "🏢",
-              title: "Sin límite de empresas",
-              desc: "Agrega todas las empresas que administras. Sin cuentas adicionales ni costos extra.",
+              title: "Multi-empresa desde un solo login",
+              desc: "Gestiona los RIFs de tus clientes desde una sola cuenta. Plan despacho disponible con descuento por volumen.",
             },
             {
               icon: "🔐",
@@ -98,7 +98,13 @@ export function LandingDespachos() {
           <Link href="/sign-up" className={styles.btnPill}>
             Probar gratis 14 días
           </Link>
-          <p className={styles.despCtaSub}>Sin tarjeta de crédito · Cancela cuando quieras</p>
+          <a
+            href="mailto:info@contaflow.app?subject=Plan%20despacho%20multi-empresa"
+            className={styles.btnGhost}
+          >
+            Consultar plan despacho →
+          </a>
+          <p className={styles.despCtaSub}>Sin tarjeta de crédito · Descuento por volumen para despachos</p>
         </div>
 
       </div>

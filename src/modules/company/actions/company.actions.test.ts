@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     companyMember: {
       findUnique: vi.fn(),
+      count: vi.fn(),
     },
     accountingPeriod: {
       findFirst: vi.fn(),
@@ -62,6 +63,7 @@ describe("createCompanyAction", () => {
   });
 
   it("crea una empresa correctamente", async () => {
+    vi.mocked(prisma.companyMember.count).mockResolvedValue(0);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.company.create).mockResolvedValue(mockCompany as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -76,6 +78,7 @@ describe("createCompanyAction", () => {
   });
 
   it("retorna error si el nombre es muy corto", async () => {
+    // Zod falla antes del count — no necesita mock
     const result = await createCompanyAction({
       name: "A",
       userId: "user-1",
@@ -85,7 +88,20 @@ describe("createCompanyAction", () => {
     if (!result.success) expect(result.error).toContain("2 caracteres");
   });
 
+  it("rechaza si el usuario ya tiene 1 empresa activa (límite del plan)", async () => {
+    vi.mocked(prisma.companyMember.count).mockResolvedValue(1);
+
+    const result = await createCompanyAction({
+      name: "Segunda Empresa C.A.",
+      userId: "user-1",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("1 empresa");
+  });
+
   it("retorna error si el RIF ya existe", async () => {
+    vi.mocked(prisma.companyMember.count).mockResolvedValue(0);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
 
     const result = await createCompanyAction({

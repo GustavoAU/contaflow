@@ -59,9 +59,9 @@ const FEATURES: {
   {
     icon: BuildingIcon,
     iconColor: "blue",
-    title: "Multi-empresa y Roles",
+    title: "Roles y Equipo Ilimitados",
     description:
-      "Gestiona varias empresas desde una sola cuenta. Roles diferenciados: Propietario, Admin, Contador, Administrativo, SENIAT.",
+      "Usuarios ilimitados sin costo extra. Roles diferenciados: Propietario, Admin, Contador, Administrativo y SENIAT. Ideal para equipos de cualquier tamaño.",
   },
   {
     icon: ShieldCheckIcon,
@@ -88,7 +88,8 @@ const PLANS = [
     priceSub: null,
     description: "Acceso completo sin tarjeta de crédito.",
     features: [
-      { text: "Todas las funcionalidades incluidas", gold: false },
+      { text: "1 empresa (RIF) incluida", gold: false },
+      { text: "Todas las funcionalidades", gold: false },
       { text: "Hasta 3 usuarios", gold: false },
       { text: "Soporte por email", gold: false },
     ],
@@ -106,7 +107,8 @@ const PLANS = [
     priceSub: null,
     description: "Sin compromisos, cancela cuando quieras.",
     features: [
-      { text: "Todas las funcionalidades incluidas", gold: false },
+      { text: "1 empresa (RIF) incluida", gold: false },
+      { text: "Facturas, nómina e inventario ilimitados", gold: false },
       { text: "Usuarios ilimitados", gold: false },
       { text: "Soporte por email", gold: false },
     ],
@@ -124,7 +126,8 @@ const PLANS = [
     priceSub: "$47/mes — 2 meses gratis incluidos",
     description: "Equivale a 2 meses gratis respecto al plan mensual.",
     features: [
-      { text: "Todo lo del plan mensual", gold: false },
+      { text: "1 empresa (RIF) incluida", gold: false },
+      { text: "Facturas, nómina e inventario ilimitados", gold: false },
       { text: "Ahorra $143 al año", gold: false },
       { text: "Soporte prioritario", gold: false },
     ],
@@ -140,9 +143,9 @@ const PLANS = [
     price: "$19",
     period: "/mes · año 1",
     priceSub: "Año 2+: $47/mes · facturado anualmente",
-    description: `Primeras ${EARLY_ADOPTER_SLOTS_TOTAL} empresas. Solo quedan ${SLOTS_LEFT} slots.`,
+    description: `Oferta para los primeros ${EARLY_ADOPTER_SLOTS_TOTAL} clientes. Solo quedan ${SLOTS_LEFT} cupos.`,
     features: [
-      { text: "Todo lo del plan anual", gold: false },
+      { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Sesión de onboarding 1.5h (videollamada)", gold: false },
       { text: "Chat prioritario el primer mes", gold: true },
       { text: "Precio especial bloqueado para siempre", gold: true },
@@ -157,6 +160,7 @@ const PLANS = [
 
 type ComparisonValue = boolean | string;
 const COMPARISON_ROWS: { label: string; values: ComparisonValue[] }[] = [
+  { label: "Empresas (RIF) incluidas",      values: ["1",       "1",          "1",           "1"] },
   { label: "Todos los módulos incluidos",   values: [true,      true,         true,          true] },
   { label: "Usuarios",                      values: ["3",       "Ilimitados", "Ilimitados",  "Ilimitados"] },
   { label: "Período",                       values: ["14 días", "Mensual",    "Anual",       "Año 1"] },
@@ -574,6 +578,12 @@ export default async function LandingPage() {
             <p className={styles.priceNote}>
               Los precios están en dólares estadounidenses (USD). El pago se procesa en USDT
               (Tether) a través de NOWPayments.
+            </p>
+            <p className={styles.priceNote} style={{ marginTop: "0.75rem" }}>
+              ¿Eres contador independiente o despacho con múltiples RIFs?{" "}
+              <a href="mailto:info@contaflow.app" style={{ color: "var(--c-blue)", textDecoration: "underline" }}>
+                Contáctanos para planes multi-empresa con descuento por volumen.
+              </a>
             </p>
           </div>
         </div>

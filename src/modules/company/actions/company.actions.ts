@@ -83,12 +83,30 @@ export async function updateCompanySeniatDataAction(
 
 // ─── Crear empresa ────────────────────────────────────────────────────────────
 
+/**
+ * Límite de empresas por usuario en el plan base.
+ * Billing P-2: incrementar según plan suscrito cuando se integre Stripe/NOWPayments.
+ */
+const COMPANY_LIMIT_PER_USER = 1;
+
 export async function createCompanyAction(
   input: z.infer<typeof CreateCompanySchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+
+    // Límite del plan: 1 empresa (RIF) por usuario. Billing P-2 lo ampliará.
+    const ownedCount = await prisma.companyMember.count({
+      where: { userId, role: "OWNER", company: { status: { not: "ARCHIVED" } } },
+    });
+    if (ownedCount >= COMPANY_LIMIT_PER_USER) {
+      return {
+        success: false,
+        error:
+          "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
+      };
+    }
 
     const validated = CreateCompanySchema.parse(input);
     const company = await CompanyService.createCompany(
