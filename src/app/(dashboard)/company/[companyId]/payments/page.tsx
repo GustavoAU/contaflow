@@ -6,6 +6,7 @@ import { ChevronLeftIcon } from "lucide-react";
 import { listPaymentsAction } from "@/modules/payments/actions/payment.actions";
 import { PaymentForm } from "@/modules/payments/components/PaymentForm";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "@/modules/payments/schemas/payment.schema";
+import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -34,6 +35,11 @@ export default async function PaymentsPage({ params }: Props) {
   const result = await listPaymentsAction(companyId);
   const payments = result.success ? result.data : [];
 
+  const pagosTabs = [
+    { label: "Medios de Pago",      href: `/company/${companyId}/payments` },
+    { label: "Distribución A/P",    href: `/company/${companyId}/payments/batches` },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -44,21 +50,13 @@ export default async function PaymentsPage({ params }: Props) {
           <ChevronLeftIcon className="h-4 w-4" />
           Dashboard
         </Link>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Medios de Pago</h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              PagoMóvil, Zelle, Cashea y otros medios digitales
-            </p>
-          </div>
-          <Link
-            href={`/company/${companyId}/payments/batches`}
-            className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
-          >
-            Distribución A/P (Lotes)
-          </Link>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight">Pagos</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Medios de pago digitales y distribución de pagos a proveedores
+        </p>
       </div>
+
+      <ModuleTabs tabs={pagosTabs} color="blue" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Formulario */}
