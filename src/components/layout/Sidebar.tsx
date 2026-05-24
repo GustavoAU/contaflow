@@ -93,6 +93,8 @@ function SidebarItem({
   const cls = cn(
     "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
     "transition-colors overflow-hidden whitespace-nowrap",
+    // WCAG 2.4.7: indicador de foco visible en todos los enlaces de navegación
+    "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
     collapsed && "justify-center",
     active
       ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold"
@@ -141,6 +143,8 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
         "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
         "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
+        // WCAG 2.4.7: indicador de foco visible
+        "outline-none focus-visible:ring-2 focus-visible:ring-red-400/70 focus-visible:ring-offset-1",
         collapsed && "justify-center"
       )}
     >
@@ -207,6 +211,8 @@ function CompanySwitcher({
         className={cn(
           "flex items-center gap-2 w-full rounded-md px-1.5 py-1.5",
           "hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left",
+          // WCAG 2.4.7: indicador de foco visible en el trigger del switcher
+          "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
           collapsed && "justify-center"
         )}
       >
@@ -251,6 +257,7 @@ function CompanySwitcher({
                 onClick={() => goTo(`/company/${co.id}`)}
                 className={cn(
                   "flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors",
+                  "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset",
                   co.id === currentCompanyId
                     ? "bg-blue-50 dark:bg-blue-900/30"
                     : "hover:bg-zinc-50 dark:hover:bg-zinc-700"
@@ -274,14 +281,14 @@ function CompanySwitcher({
 
             <button
               onClick={() => goTo("/company/new")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset"
             >
               <PlusIcon className="w-3.5 h-3.5 shrink-0" />
               Agregar empresa
             </button>
             <button
               onClick={() => goTo("/dashboard")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset"
             >
               <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
               Ver todas las empresas
@@ -371,7 +378,7 @@ export function Sidebar({
       <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <Link
           href="/dashboard"
-          className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-sm shrink-0 shadow-blue-glow hover:bg-blue-600 transition-colors"
+          className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-sm shrink-0 shadow-blue-glow hover:bg-blue-600 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1"
           title="ContaFlow"
         >
           ⚡
@@ -394,6 +401,8 @@ export function Sidebar({
             "w-6 h-6 rounded-md border border-zinc-200 dark:border-zinc-700",
             "bg-zinc-50 dark:bg-zinc-800 grid place-items-center",
             "hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0",
+            // WCAG 2.4.7: foco visible en el control de colapso del sidebar
+            "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70",
             !collapsed && "ml-auto"
           )}
         >
@@ -446,7 +455,7 @@ export function Sidebar({
                 <button
                   onClick={() => toggleSection(section.group)}
                   aria-expanded={isSectionOpen}
-                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 rounded-sm"
                 >
                   <span>{section.group}</span>
                   <ChevronDown

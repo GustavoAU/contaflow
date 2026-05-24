@@ -77,7 +77,7 @@ function PeriodBadge({
       {period.isStale && (
         <Link
           href={`/company/${companyId}/periods`}
-          className="hidden xl:flex items-center gap-1 text-11 font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0"
+          className="hidden xl:flex items-center gap-1 text-11 font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
           title="Ir a gestión de períodos"
         >
           Cerrar
@@ -196,7 +196,7 @@ export function TopbarInner({
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="hidden md:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
+          className="hidden md:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300 hover:text-slate-200 hover:border-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
           title="Abrir paleta de comandos"
           aria-label="Abrir paleta de comandos"
           aria-keyshortcuts="Control+/"

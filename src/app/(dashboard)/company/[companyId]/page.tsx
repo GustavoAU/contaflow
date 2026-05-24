@@ -163,7 +163,8 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
               >
                 <Icon className={`h-5 w-5 ${link.color}`} />
                 <span className="text-center text-xs text-zinc-500">{link.label}</span>
-                <span className="rounded bg-zinc-100 px-1 text-9 text-zinc-400">Pronto</span>
+                {/* WCAG 1.4.3: text-zinc-600 (7.4:1 sobre zinc-100) reemplaza text-zinc-400 (2.55:1) */}
+                <span className="rounded bg-zinc-100 px-1 text-9 text-zinc-600">Pronto</span>
               </div>
             );
           }
@@ -171,7 +172,7 @@ function QuickAccess({ role, companyId }: { role: UserRole; companyId: string })
             <Link
               key={link.label}
               href={link.href}
-              className="flex flex-col items-center gap-1.5 rounded-lg border bg-white p-3 transition-colors hover:bg-blue-50 hover:border-blue-200"
+              className="flex flex-col items-center gap-1.5 rounded-lg border bg-white p-3 transition-colors hover:bg-blue-50 hover:border-blue-200 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1"
             >
               <Icon className={`h-5 w-5 ${link.color}`} />
               <span className="text-center text-xs text-zinc-600">{link.label}</span>
