@@ -61,6 +61,8 @@ const sampleInvoice = {
   currency: "VES",
   exchangeRateId: null,
   exchangeRate: null,
+  // seniatStatus: campo añadido en Sprint Cegid para badge SENIAT en Libro de Ventas
+  seniatStatus: null as null,
   taxLines: [
     {
       id: "line-1",

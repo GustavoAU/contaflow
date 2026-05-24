@@ -51,7 +51,7 @@ export default async function ClientPortalPage({ params }: Props) {
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { name: true, rif: true, email: true, phone: true },
+    select: { name: true, rif: true, email: true, telefono: true },
   });
   if (!company) notFound();
 
@@ -113,9 +113,9 @@ export default async function ClientPortalPage({ params }: Props) {
       <div className="rounded-lg border bg-white p-5 shadow-sm">
         <p className="text-xs text-gray-400">Proveedor de servicios</p>
         <p className="mt-0.5 text-base font-semibold text-gray-900">{company.name}</p>
-        {company.rif   && <p className="text-sm text-gray-500">RIF: {company.rif}</p>}
-        {company.email && <p className="text-sm text-gray-500">Email: {company.email}</p>}
-        {company.phone && <p className="text-sm text-gray-500">Tel.: {company.phone}</p>}
+        {company.rif      && <p className="text-sm text-gray-500">RIF: {company.rif}</p>}
+        {company.email    && <p className="text-sm text-gray-500">Email: {company.email}</p>}
+        {company.telefono && <p className="text-sm text-gray-500">Tel.: {company.telefono}</p>}
       </div>
 
       {/* Datos del cliente */}
