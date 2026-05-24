@@ -18,7 +18,9 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { ViewModeToggle } from "@/components/layout/ViewModeToggle";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
+import type { ViewMode } from "@/lib/view-mode";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import type { LucideIcon } from "lucide-react";
@@ -298,6 +300,7 @@ type SidebarProps = {
   userRole?: UserRole;
   grantedModules?: string[];
   companies?: CompanyEntry[];
+  viewMode?: ViewMode;
 };
 
 export function Sidebar({
@@ -305,6 +308,7 @@ export function Sidebar({
   userRole = "ACCOUNTANT",
   grantedModules,
   companies = [],
+  viewMode = "sistema",
 }: SidebarProps) {
   const pathname = usePathname();
 
@@ -343,8 +347,11 @@ export function Sidebar({
 
   const grants = new Set(grantedModules ?? []);
   const { primary, sections } = companyId
-    ? getNavItems(userRole, companyId, grants)
+    ? getNavItems(userRole, companyId, grants, viewMode)
     : { primary: [], sections: [] };
+
+  // El toggle solo es relevante para OWNER/ADMIN (los únicos que pueden cambiar de modo)
+  const canToggleMode = userRole === "OWNER" || userRole === "ADMIN";
 
   const isActive = (href: string) =>
     href === `/company/${companyId}`
@@ -488,8 +495,11 @@ export function Sidebar({
         )}
       </nav>
 
-      {/* Footer: tema + logout — siempre visible al fondo */}
+      {/* Footer: modo · tema · logout — siempre visible al fondo */}
       <div className="px-2 py-2 border-t border-sidebar-border shrink-0 space-y-1">
+        {canToggleMode && (
+          <ViewModeToggle current={viewMode} collapsed={collapsed} />
+        )}
         <ThemeToggle collapsed={collapsed} />
         <LogoutButton collapsed={collapsed} />
       </div>

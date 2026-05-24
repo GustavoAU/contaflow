@@ -12,6 +12,7 @@ import { getCompanyGrants } from "@/lib/get-company-grants";
 import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
 import { FloatingAIAssistant } from "@/modules/ai-assistant/components/FloatingAIAssistant";
 import type { UserRole } from "@/lib/nav-items";
+import { getViewMode } from "@/lib/view-mode";
 
 type Props = {
   children: React.ReactNode;
@@ -37,7 +38,10 @@ export default async function CompanyLayout({ children, params }: Props) {
   const rolePrefix = `${company.role}:`;
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
 
-  const periodResult = await getActivePeriodAction(companyId);
+  const [periodResult, viewMode] = await Promise.all([
+    getActivePeriodAction(companyId),
+    getViewMode(),
+  ]);
   // eslint-disable-next-line react-hooks/purity -- Server Component: no re-renders, Date.now() es seguro aquí
   const nowMs = Date.now();
   const activePeriod = periodResult.success && periodResult.data
@@ -65,6 +69,7 @@ export default async function CompanyLayout({ children, params }: Props) {
         userRole={company.role}
         grantedModules={grantedModules}
         companies={companies.map((c) => ({ id: c.id, name: c.name, role: c.role }))}
+        viewMode={viewMode}
       />
 
       {/* Columna principal */}

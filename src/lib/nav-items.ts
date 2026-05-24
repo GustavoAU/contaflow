@@ -247,6 +247,51 @@ function buildAdministrativeNav(companyId: string, grants: Set<string>): NavConf
   };
 }
 
+// ─── Gerente / Propietario (vista simplificada sin contabilidad) ──────────────
+//
+// Solo ítems operativos y financieros — sin asientos, plan de cuentas, libros
+// IVA, retenciones, etc. El objetivo es que el dueño de empresa vea lo que le
+// importa sin la complejidad del módulo contable.
+// El usuario puede volver a "Modo Sistema" en cualquier momento desde el sidebar.
+
+function buildGerenteNav(companyId: string): NavConfig {
+  const p = (path: string) => `/company/${companyId}${path}`;
+  return {
+    primary: [
+      item("Dashboard",  p(""),           LayoutDashboard),
+      item("Analítica",  p("/analytics"), LineChart),
+    ],
+    sections: [
+      {
+        group: "Mi Empresa",
+        items: [
+          item("Facturas",         p("/invoices"),   ReceiptText),
+          item("Compras y Ventas", p("/orders"),     ShoppingCartIcon),
+          item("Inventario",       p("/inventory"),  PackageIcon),
+          item("Nómina",           p("/payroll"),    UsersIcon),
+        ],
+      },
+      {
+        group: "Finanzas",
+        items: [
+          item("Pagos",              p("/payments"),             WalletIcon),
+          item("Cuentas × Cobrar",   p("/receivables"),          TrendingUpIcon),
+          item("Cuentas × Pagar",    p("/payables"),             ReceiptIcon),
+          item("Conciliación",       p("/bank-reconciliation"),  LandmarkIcon),
+          item("Caja Chica",         p("/cajachica"),            PiggyBank),
+        ],
+      },
+      {
+        group: "Contactos",
+        items: [
+          item("Clientes",    p("/customers"), UserCheck),
+          item("Proveedores", p("/vendors"),   Truck),
+        ],
+      },
+    ],
+  };
+}
+
 // ─── Nav auditor SENIAT (ADR-019 D-3) ────────────────────────────────────────
 
 function buildSeniatAuditNav(companyId: string): NavConfig {
@@ -275,10 +320,21 @@ function buildSeniatAuditNav(companyId: string): NavConfig {
  * VIEWER recibe la misma nav que ACCOUNTANT — las restricciones de escritura
  * se aplican en los Server Actions (Fase 28C).
  *
- * @param grants - Set de strings "ROLE:module" proveniente de RolePermission.
- *                 Solo afecta a ADMINISTRATIVE (los demás ya tienen su nav completa).
+ * @param grants    - Set de strings "ROLE:module" proveniente de RolePermission.
+ *                    Solo afecta a ADMINISTRATIVE (los demás ya tienen su nav completa).
+ * @param viewMode  - "gerente" activa la nav simplificada para OWNER/ADMIN.
+ *                    Solo aplica a esos roles; el resto ignora el parámetro.
  */
-export function getNavItems(role: UserRole, companyId: string, grants: Set<string> = new Set()): NavConfig {
+export function getNavItems(
+  role: UserRole,
+  companyId: string,
+  grants: Set<string> = new Set(),
+  viewMode: "sistema" | "gerente" = "sistema"
+): NavConfig {
+  // Modo Gerencial: OWNER/ADMIN ven solo los ítems operativos y financieros.
+  if (viewMode === "gerente" && (role === "OWNER" || role === "ADMIN")) {
+    return buildGerenteNav(companyId);
+  }
   switch (role) {
     case "OWNER":
     case "ADMIN":
