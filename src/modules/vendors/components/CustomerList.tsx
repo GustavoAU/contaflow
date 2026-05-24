@@ -9,6 +9,7 @@ import type { CustomerRow } from "../services/CustomerService";
 import type { ContactGroupRow } from "../services/ContactGroupService";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ClientPortalTokenButton } from "./ClientPortalTokenButton";
 
 type Props = {
   companyId: string;
@@ -446,7 +447,14 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                     </td>
                     {canWrite && (
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-3 flex-wrap">
+                          {canDelete && (
+                            <ClientPortalTokenButton
+                              companyId={companyId}
+                              customerId={c.id}
+                              customerName={c.name}
+                            />
+                          )}
                           <button
                             onClick={() => handleStartEdit(c)}
                             disabled={isPending}
