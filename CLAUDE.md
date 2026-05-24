@@ -293,7 +293,14 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Q1-3** ✅ merged (useFormDraft hook — sessionStorage autosave 30s + AlertDialog restore en InvoiceForm)
 - **Q1-4** ✅ merged (ExportService portabilidad — employees/payrollRuns/inventoryItems/expenses + allHistory flag)
 
-**1983 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-22)
+**Sprint Cegid** ✅ (4 features contra Cegid):
+- **Modo Gerencial** ✅ (OWNER/ADMIN toggle sidebar simplificado — cookie cf-view-mode — ViewModeToggle — buildGerenteNav)
+- **SENIAT badge** ✅ (seniatStatus en InvoiceBookRow — badge PENDING/SENT/FAILED en Libro de Ventas)
+- **Portal Empleado** ✅ (ya existía — /employee/[token] — JWT — EmployeePortalTokenButton — employee-portal-jwt.ts)
+- **Portal Cliente** ✅ (CxC pendiente + historial pagos — /client-portal/[token] — ClientPortalTokenButton — 8 tests)
+- **WCAG AA** ✅ (focus-visible:ring en sidebar/topbar/ViewModeToggle — contraste "Pronto" text-zinc-400→text-zinc-600)
+
+**2023 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-24)
 
 ### middleware.ts
 
