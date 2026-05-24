@@ -51,6 +51,29 @@ const TAX_LINE_LABELS: Record<string, string> = {
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
+// ─── Badge estado SENIAT (PA-121) ─────────────────────────────────────────────
+
+type SeniatStatus = "PENDING" | "SENT" | "FAILED";
+
+const SENIAT_BADGE: Record<SeniatStatus, { label: string; title: string; className: string }> = {
+  SENT:    { label: "SENIAT ✓", title: "Transmitido al SENIAT",        className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  PENDING: { label: "SENIAT ◌", title: "Pendiente de transmisión",     className: "bg-amber-50 text-amber-700 border border-amber-200" },
+  FAILED:  { label: "SENIAT ✗", title: "Error en transmisión SENIAT",  className: "bg-red-50 text-red-700 border border-red-200" },
+};
+
+function SeniatBadge({ status }: { status: SeniatStatus }) {
+  const cfg = SENIAT_BADGE[status];
+  return (
+    <span
+      title={cfg.title}
+      aria-label={cfg.title}
+      className={`rounded px-1.5 py-0.5 text-10 font-semibold whitespace-nowrap ${cfg.className}`}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
 export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", activePeriodMonth, activePeriodYear }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isPendingPDF, startTransitionPDF] = useTransition();
@@ -440,7 +463,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                 {row.controlNumber ?? "—"}
                               </td>
                               <td className="px-4 py-3">
-                                <div className="flex gap-1">
+                                <div className="flex flex-wrap gap-1 items-center">
                                   <button
                                     type="button"
                                     onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
@@ -452,6 +475,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
                                   </button>
                                   {ncNdButton}
+                                  {type === "SALE" && row.seniatStatus && (
+                                    <SeniatBadge status={row.seniatStatus} />
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-zinc-400">—</td>
@@ -508,7 +534,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                             </td>
                             <td className="px-4 py-3">
                               {idx === 0 && (
-                                <div className="flex gap-1">
+                                <div className="flex flex-wrap gap-1 items-center">
                                   <button
                                     type="button"
                                     onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
@@ -520,6 +546,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
                                   </button>
                                   {ncNdButton}
+                                  {type === "SALE" && row.seniatStatus && (
+                                    <SeniatBadge status={row.seniatStatus} />
+                                  )}
                                 </div>
                               )}
                             </td>

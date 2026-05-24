@@ -74,6 +74,8 @@ export type InvoiceBookRow = {
   exchangeRateId: string | null;
   exchangeRate: InvoiceBookExchangeRate | null;
   taxLines: InvoiceTaxLineSerialized[];
+  /** Estado de transmisión SENIAT (PA-121) — solo para facturas SALE; null si no aplica */
+  seniatStatus: "PENDING" | "SENT" | "FAILED" | null;
 };
 
 export type InvoiceBookSummary = {
@@ -550,6 +552,7 @@ export class InvoiceService {
       currency: inv.currency,
       exchangeRateId: inv.exchangeRateId,
       exchangeRate: null, // paginated book view doesn't include rate details
+      seniatStatus: null, // paginated view omits SENIAT status
       taxLines: inv.taxLines.map((line) => ({
         id: line.id,
         taxType: line.taxType,
@@ -916,7 +919,7 @@ export class InvoiceService {
         date: { gte: startDate, lt: endDate },
         deletedAt: null,
       },
-      include: { taxLines: true, retenciones: { where: { deletedAt: null } }, exchangeRate: true },
+      include: { taxLines: true, retenciones: { where: { deletedAt: null } }, exchangeRate: true, seniatSubmission: { select: { status: true } } },
       orderBy: { date: "asc" },
     });
 
@@ -971,6 +974,7 @@ export class InvoiceService {
           amount: line.amount.toFixed(2),
           description: line.description ?? null,
         })),
+        seniatStatus: (inv.seniatSubmission?.status ?? null) as "PENDING" | "SENT" | "FAILED" | null,
       };
     });
 
