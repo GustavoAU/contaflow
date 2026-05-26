@@ -1146,7 +1146,14 @@ export function InvoiceForm({
             </div>
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full">
+          {/* Q3-6: aria-keyshortcuts documenta Ctrl+S / Ctrl+Enter para usuarios de teclado */}
+          <Button
+            type="submit"
+            disabled={isPending}
+            aria-busy={isPending}
+            aria-keyshortcuts="Control+s Control+Enter"
+            className="w-full"
+          >
             {isPending && <Loader2Icon className="animate-spin" />}
             {isPending ? "Guardando..." : "Registrar Factura"}
           </Button>

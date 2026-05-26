@@ -10,6 +10,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { UserButton } from "@clerk/nextjs";
 import { AlertTriangle, CheckCircle2, ArrowRight, Search } from "lucide-react";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
+import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 
 // ─── Role label / badge ───────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export function TopbarInner({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const paletteOpenRef = useRef(false);
+  const { navigate } = usePageTransition();
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
@@ -122,6 +124,15 @@ export function TopbarInner({
   useEffect(() => { paletteOpenRef.current = paletteOpen; }, [paletteOpen]);
 
   useEffect(() => {
+    // Q3-6: helpers para validar si el foco está en un campo de escritura
+    function isTypingTarget(el: Element | null): boolean {
+      if (!el) return false;
+      const tag = el.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return true;
+      if ((el as HTMLElement).isContentEditable) return true;
+      return false;
+    }
+
     function handler(e: KeyboardEvent) {
       const ctrl = e.ctrlKey || e.metaKey;
 
@@ -147,12 +158,37 @@ export function TopbarInner({
           e.preventDefault();
           submit.click();
         }
+        return;
+      }
+
+      // Ctrl+S → guardar borrador (mismo efecto que Ctrl+Enter)
+      // aria-keyshortcuts="Control+s" documentado en botones submit de formularios fiscales
+      if (ctrl && e.key === "s" && !paletteOpenRef.current) {
+        const active = document.activeElement;
+        const form = active?.closest("form") ?? document.querySelector("form");
+        const submit = form?.querySelector<HTMLButtonElement>('button[type="submit"]:not([disabled])');
+        if (submit) {
+          e.preventDefault();
+          submit.click();
+        }
+        return;
+      }
+
+      // Q3-6: "n" → nueva factura (solo si no se está escribiendo en un campo)
+      // aria-keyshortcuts="n" — shortcut de teclado global para creación rápida
+      if (e.key === "n" && !ctrl && !e.altKey && !paletteOpenRef.current) {
+        if (isTypingTarget(document.activeElement)) return;
+        if (companyId) {
+          e.preventDefault();
+          navigate(`/company/${companyId}/invoices/new`);
+        }
+        return;
       }
     }
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []); // empty deps — paletteOpenRef handles currency without re-registering
+  }, [companyId, navigate]); // navigate es estable (useCallback), companyId raramente cambia
 
   return (
     <>
@@ -191,6 +227,21 @@ export function TopbarInner({
 
         {/* Spacer empuja derecha */}
         <div className="flex-1" />
+
+        {/* Q3-6: Pill de atajo "n" para nueva factura — visible en md+ */}
+        {companyId && (
+          <button
+            type="button"
+            onClick={() => navigate(`/company/${companyId}/invoices/new`)}
+            className="hidden lg:flex items-center gap-1.5 rounded-md border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-slate-300 hover:text-slate-200 hover:border-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
+            title="Nueva factura"
+            aria-label="Nueva factura"
+            aria-keyshortcuts="n"
+          >
+            <span>Nueva factura</span>
+            <kbd className="rounded bg-slate-600 px-1 py-0.5 text-10 font-mono not-italic">N</kbd>
+          </button>
+        )}
 
         {/* Command palette trigger */}
         <button
