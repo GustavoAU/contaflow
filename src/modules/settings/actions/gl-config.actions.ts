@@ -27,6 +27,7 @@ const SaveGLConfigSchema = z.object({
   ivaRetentionPayableAccountId: z.string().nullable(), // GAP-03
   fxGainAccountId: z.string().nullable(),
   fxLossAccountId: z.string().nullable(),
+  igtfPayableAccountId: z.string().nullable(), // ADR-030 — IGTF por pagar (PASIVO 2115)
 });
 
 // ─── Leer config GL actual ─────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export async function getGLConfigAction(companyId: string): Promise<
     ivaRetentionPayableAccountId: string | null; // GAP-03
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
+    igtfPayableAccountId: string | null; // ADR-030
     unbookedCount: number;
   }>
 > {
@@ -69,6 +71,7 @@ export async function getGLConfigAction(companyId: string): Promise<
           ivaRetentionPayableAccountId: true, // GAP-03
           fxGainAccountId: true,
           fxLossAccountId: true,
+          igtfPayableAccountId: true, // ADR-030
         },
       }),
       prisma.invoice.count({
@@ -94,6 +97,7 @@ export async function getGLConfigAction(companyId: string): Promise<
         ivaRetentionPayableAccountId: settings?.ivaRetentionPayableAccountId ?? null, // GAP-03
         fxGainAccountId: settings?.fxGainAccountId ?? null,
         fxLossAccountId: settings?.fxLossAccountId ?? null,
+        igtfPayableAccountId: settings?.igtfPayableAccountId ?? null, // ADR-030
         unbookedCount,
       },
     };

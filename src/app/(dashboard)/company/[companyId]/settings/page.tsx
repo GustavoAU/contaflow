@@ -230,6 +230,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                   ivaRetentionPayableAccountId:      glConfig?.ivaRetentionPayableAccountId ?? null, // GAP-03
                   fxGainAccountId:                   glConfig?.fxGainAccountId ?? null,
                   fxLossAccountId:                   glConfig?.fxLossAccountId ?? null,
+                  igtfPayableAccountId:              glConfig?.igtfPayableAccountId ?? null, // ADR-030
                 }}
                 initialUnbookedCount={glConfig?.unbookedCount ?? 0}
               />
