@@ -39,6 +39,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [bankAccountId, setBankAccountId] = useState("");
 
+  // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%)
+  const [ivaRetentionAmount, setIvaRetentionAmount] = useState("");
+
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
   const [method, setMethod] = useState<PaymentMethodType>("PAGOMOVIL");
@@ -138,6 +141,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setCommissionPct("3.50");
     setCasheaIgtf(false);
     setBankAccountId("");
+    setIvaRetentionAmount("");
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -192,6 +196,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       // ADR-030: incluir bankAccountId si se seleccionó
       if (bankAccountId) {
         payload.bankAccountId = bankAccountId;
+      }
+
+      // Riesgo-6: IVA retenido por cliente CE (Prov. 0049) — solo si se ingresó
+      if (ivaRetentionAmount && parseFloat(ivaRetentionAmount) > 0) {
+        payload.ivaRetentionAmount = ivaRetentionAmount;
       }
 
       const result = await createPaymentAction(payload);
@@ -480,6 +489,29 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
           </select>
         )}
       </div>
+
+      {/* Riesgo-6: IVA retenido por cliente CE (Prov. 0049) — solo visible si hay bankAccount */}
+      {bankAccountId && (
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-zinc-700">
+            IVA retenido por el cliente
+            <span className="ml-1 text-xs font-normal text-zinc-400">(Prov. 0049 — solo CE) — opcional</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={ivaRetentionAmount}
+            onChange={(e) => setIvaRetentionAmount(e.target.value)}
+            className="block w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <p className="text-xs text-zinc-400">
+            Si el cliente es Contribuyente Especial y retuvo el IVA (75%/100%), ingrese el monto retenido en Bs.
+            El asiento será Dr. Banco + Dr. IVA Ret. x Cobrar = Cr. CxC.
+          </p>
+        </div>
+      )}
 
       {/* Feedback */}
       {error && (

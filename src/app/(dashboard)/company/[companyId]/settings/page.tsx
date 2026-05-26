@@ -228,7 +228,8 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                   inventoryAccountId:                glConfig?.inventoryAccountId ?? null,
                   ivaDFAccountId:                    glConfig?.ivaDFAccountId ?? null,
                   ivaCFAccountId:                    glConfig?.ivaCFAccountId ?? null,
-                  ivaRetentionPayableAccountId:      glConfig?.ivaRetentionPayableAccountId ?? null, // GAP-03
+                  ivaRetentionPayableAccountId:      glConfig?.ivaRetentionPayableAccountId ?? null,    // GAP-03
+                  ivaRetentionReceivableAccountId:   glConfig?.ivaRetentionReceivableAccountId ?? null, // Riesgo-6
                   fxGainAccountId:                   glConfig?.fxGainAccountId ?? null,
                   fxLossAccountId:                   glConfig?.fxLossAccountId ?? null,
                   igtfPayableAccountId:              glConfig?.igtfPayableAccountId ?? null, // ADR-030

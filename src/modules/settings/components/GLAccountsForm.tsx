@@ -36,6 +36,7 @@ type Props = {
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
     igtfPayableAccountId: string | null; // ADR-030
+    ivaRetentionReceivableAccountId: string | null; // Riesgo-6 audit
   };
   initialUnbookedCount: number;
 };
@@ -97,6 +98,7 @@ export function GLAccountsForm({
   const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
   const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
   const [igtfPayableAccountId, setIgtfPayableAccountId] = useState(initialConfig.igtfPayableAccountId ?? NONE); // ADR-030
+  const [ivaRetentionReceivableAccountId, setIvaRetentionReceivableAccountId] = useState(initialConfig.ivaRetentionReceivableAccountId ?? NONE); // Riesgo-6
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
 
   const [isSaving, startSave] = useTransition();
@@ -132,6 +134,7 @@ export function GLAccountsForm({
         fxGainAccountId: toNull(fxGainAccountId),
         fxLossAccountId: toNull(fxLossAccountId),
         igtfPayableAccountId: toNull(igtfPayableAccountId), // ADR-030
+        ivaRetentionReceivableAccountId: toNull(ivaRetentionReceivableAccountId), // Riesgo-6
       });
       if (result.success) {
         toast.success("Configuración del Libro Mayor guardada.");
@@ -256,6 +259,41 @@ export function GLAccountsForm({
           />
         </div>
       </div>
+
+      {/* ── IVA Retenido por Cobrar (Riesgo-6 / Prov. 0049) ──────────────────── */}
+      {isSpecialContributor && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">IVA Retenido en Cobros</h3>
+            <span className="text-xs text-zinc-400">(Prov. 0049 — Agente de Retención CE)</span>
+            {ivaRetentionReceivableAccountId !== NONE ? (
+              <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                Activo
+              </span>
+            ) : (
+              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 font-medium">
+                ⚠️ Recomendado — Contribuyente Especial
+              </span>
+            )}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Cuando un cliente CE retiene el IVA (75%/100%), el cobro recibido es menor al total facturado.
+            Configure esta cuenta para que el asiento sea{" "}
+            <span className="font-medium">Dr. Banco (neto) + Dr. IVA Ret. x Cobrar = Cr. CxC (total)</span>.
+            La cuenta debe ser de tipo <span className="font-medium">ACTIVO</span> (cuenta 1135 o equivalente).
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <AccountSelect
+              id="ivaRetentionReceivableAccountId"
+              label="IVA Retenido por Cobrar"
+              hint="ACTIVO — Dr IVA retenido al cobrar de un cliente CE (Prov. 0049)"
+              value={ivaRetentionReceivableAccountId}
+              onChange={setIvaRetentionReceivableAccountId}
+              accounts={assetAccounts}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Pagos en Divisas — IGTF (ADR-030) ───────────────────────────────── */}
       <div className="space-y-4">

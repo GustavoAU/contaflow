@@ -45,10 +45,12 @@ enum TransactionStatus {
 }
 
 enum TransactionType {
-  DIARIO // Operaciones normales
+  DIARIO // Operaciones normales manuales
   APERTURA // Inicio del periodo
   AJUSTE // Correcciones al cierre
   CIERRE // Cierre del periodo
+  COBRO // GL auto-posting de cobro CxC (ADR-030 audit Riesgo-9 Art.33 COT)
+  PAGO // GL auto-posting de pago CxP / lote A/P (ADR-030 audit Riesgo-9 Art.33 COT)
 }
 
 enum RetentionType {
@@ -334,6 +336,7 @@ model Account {
   cajaCajaMovements                    CajaCajaMovement[]       @relation("CajaCajaExpenseAccount")
   // ADR-030: cuenta IGTF por Pagar en configuración GL
   companySettingsAsIGTFPayable         CompanySettings[]        @relation("SettingsIGTFPayableAccount")
+  companySettingsAsIVARetReceivable    CompanySettings[]        @relation("SettingsIVARetentionReceivableAccount")
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -631,46 +634,49 @@ model ExchangeRate {
 
 // Registro de pagos por medio de pago digital (PagoMóvil, Zelle, Cashea, etc.)
 model PaymentRecord {
-  id               String              @id @default(cuid())
-  companyId        String
-  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  invoiceId        String?
-  invoice          Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  method           PaymentMethod
-  amountVes        Decimal             @db.Decimal(19, 4) // siempre en VES
-  currency         Currency            @default(VES) // moneda del pago original
-  amountOriginal   Decimal?            @db.Decimal(19, 4) // monto en moneda original (Zelle USD)
-  exchangeRateId   String?
-  exchangeRate     ExchangeRate?       @relation(fields: [exchangeRateId], references: [id])
+  id                 String              @id @default(cuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoiceId          String?
+  invoice            Invoice?            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  method             PaymentMethod
+  amountVes          Decimal             @db.Decimal(19, 4) // siempre en VES
+  currency           Currency            @default(VES) // moneda del pago original
+  amountOriginal     Decimal?            @db.Decimal(19, 4) // monto en moneda original (Zelle USD)
+  exchangeRateId     String?
+  exchangeRate       ExchangeRate?       @relation(fields: [exchangeRateId], references: [id])
   // PagoMóvil / Transferencia
-  referenceNumber  String?
-  originBank       String?
-  destBank         String?
+  referenceNumber    String?
+  originBank         String?
+  destBank           String?
   // PagoMóvil — trazabilidad bancaria (#1/#16 — 20260525)
-  senderPhone      String? // teléfono del emisor
-  destPhone        String? // teléfono del receptor
+  senderPhone        String? // teléfono del emisor
+  destPhone          String? // teléfono del receptor
   // Cashea
-  commissionPct    Decimal?            @db.Decimal(5, 2)
-  commissionAmount Decimal?            @db.Decimal(19, 4)
+  commissionPct      Decimal?            @db.Decimal(5, 2)
+  commissionAmount   Decimal?            @db.Decimal(19, 4)
   // IGTF (Zelle & Cashea USD)
-  igtfAmount       Decimal?            @db.Decimal(19, 4)
-  date             DateTime
-  notes            String?
+  igtfAmount         Decimal?            @db.Decimal(19, 4)
+  // Riesgo-6 auditoría: IVA retenido por el cliente CE (Prov. 0049 75%/100%)
+  // amountVes = cash neto recibido; ivaRetentionAmount = IVA retenido → Dr. IVA Ret. x Cobrar
+  ivaRetentionAmount Decimal?            @default(0) @db.Decimal(19, 4)
+  date               DateTime
+  notes              String?
   // Anulación (#14 — 20260525)
-  deletedAt        DateTime?
-  voidReason       String?
-  createdAt        DateTime            @default(now())
-  createdBy        String
+  deletedAt          DateTime?
+  voidReason         String?
+  createdAt          DateTime            @default(now())
+  createdBy          String
   // Fase 17B: conciliación bancaria
-  bankTransactions BankTransaction[]
+  bankTransactions   BankTransaction[]
   // ADR-029: Adjuntos de comprobante de pago
-  attachments      PaymentAttachment[]
+  attachments        PaymentAttachment[]
   // ADR-030: FK a cuenta bancaria para GL auto-posting (nullable — degradación graceful)
-  bankAccountId    String?
-  bankAccount      BankAccount?        @relation("PaymentRecordBankAccount", fields: [bankAccountId], references: [id], onDelete: Restrict)
+  bankAccountId      String?
+  bankAccount        BankAccount?        @relation("PaymentRecordBankAccount", fields: [bankAccountId], references: [id], onDelete: Restrict)
   // ADR-030: FK al Transaction generado por GL auto-posting (null hasta que se genere el asiento)
-  glTransactionId  String?             @unique
-  glTransaction    Transaction?        @relation("PaymentRecordGLTransaction", fields: [glTransactionId], references: [id], onDelete: Restrict)
+  glTransactionId    String?             @unique
+  glTransaction      Transaction?        @relation("PaymentRecordGLTransaction", fields: [glTransactionId], references: [id], onDelete: Restrict)
 
   @@index([companyId])
   @@index([invoiceId])
@@ -2324,31 +2330,33 @@ model CompanySettings {
   stockControlLevel StockControlLevel @default(WARN)
 
   // ADR-026: Cuentas contables para causación automática de facturas
-  arAccountId                  String? // ASSET — Cuentas por Cobrar (facturas venta)
-  apAccountId                  String? // LIABILITY — Proveedores (facturas compra)
-  salesAccountId               String? // REVENUE — ingreso por defecto (facturas venta)
-  purchaseExpenseAccountId     String? // EXPENSE — gasto por defecto (facturas compra) [inventario periódico / sin uso en perpetuo]
-  inventoryAccountId           String? // ASSET — Inventario de Mercancías (inventario perpetuo — Dr al registrar compra)
-  ivaDFAccountId               String? // LIABILITY — IVA Débito Fiscal (facturas venta)
-  ivaCFAccountId               String? // ASSET — IVA Crédito Fiscal (facturas compra)
-  ivaRetentionPayableAccountId String? // LIABILITY — Retenciones IVA por Pagar (GAP-03: split retención en GL compra)
+  arAccountId                     String? // ASSET — Cuentas por Cobrar (facturas venta)
+  apAccountId                     String? // LIABILITY — Proveedores (facturas compra)
+  salesAccountId                  String? // REVENUE — ingreso por defecto (facturas venta)
+  purchaseExpenseAccountId        String? // EXPENSE — gasto por defecto (facturas compra) [inventario periódico / sin uso en perpetuo]
+  inventoryAccountId              String? // ASSET — Inventario de Mercancías (inventario perpetuo — Dr al registrar compra)
+  ivaDFAccountId                  String? // LIABILITY — IVA Débito Fiscal (facturas venta)
+  ivaCFAccountId                  String? // ASSET — IVA Crédito Fiscal (facturas compra)
+  ivaRetentionPayableAccountId    String? // LIABILITY — Retenciones IVA por Pagar (GAP-03: split retención en GL compra)
+  ivaRetentionReceivableAccountId String? // ASSET — IVA Retenido por Cobrar (Riesgo-6 audit: Dr al cobrar factura a CE que retiene)
   // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
-  fxGainAccountId              String? // REVENUE — Ganancia por diferencial cambiario
-  fxLossAccountId              String? // EXPENSE — Pérdida por diferencial cambiario
+  fxGainAccountId                 String? // REVENUE — Ganancia por diferencial cambiario
+  fxLossAccountId                 String? // EXPENSE — Pérdida por diferencial cambiario
 
-  arAccount                  Account? @relation("SettingsARAccount", fields: [arAccountId], references: [id], onDelete: Restrict)
-  apAccount                  Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
-  salesAccount               Account? @relation("SettingsSalesAccount", fields: [salesAccountId], references: [id], onDelete: Restrict)
-  purchaseExpenseAccount     Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
-  inventoryAccount           Account? @relation("SettingsInventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: Restrict)
-  ivaDFAccount               Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
-  ivaCFAccount               Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
-  ivaRetentionPayableAccount Account? @relation("SettingsIVARetentionPayableAccount", fields: [ivaRetentionPayableAccountId], references: [id], onDelete: Restrict)
-  fxGainAccount              Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)
-  fxLossAccount              Account? @relation("SettingsFxLossAccount", fields: [fxLossAccountId], references: [id], onDelete: Restrict)
+  arAccount                     Account? @relation("SettingsARAccount", fields: [arAccountId], references: [id], onDelete: Restrict)
+  apAccount                     Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
+  salesAccount                  Account? @relation("SettingsSalesAccount", fields: [salesAccountId], references: [id], onDelete: Restrict)
+  purchaseExpenseAccount        Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
+  inventoryAccount              Account? @relation("SettingsInventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: Restrict)
+  ivaDFAccount                  Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
+  ivaCFAccount                  Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
+  ivaRetentionPayableAccount    Account? @relation("SettingsIVARetentionPayableAccount", fields: [ivaRetentionPayableAccountId], references: [id], onDelete: Restrict)
+  ivaRetentionReceivableAccount Account? @relation("SettingsIVARetentionReceivableAccount", fields: [ivaRetentionReceivableAccountId], references: [id], onDelete: Restrict)
+  fxGainAccount                 Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)
+  fxLossAccount                 Account? @relation("SettingsFxLossAccount", fields: [fxLossAccountId], references: [id], onDelete: Restrict)
   // ADR-030: cuenta IGTF por Pagar — distinta de IVA DF (cuenta 2115 o similar en PUC venezolano)
-  igtfPayableAccountId       String?
-  igtfPayableAccount         Account? @relation("SettingsIGTFPayableAccount", fields: [igtfPayableAccountId], references: [id], onDelete: Restrict)
+  igtfPayableAccountId          String?
+  igtfPayableAccount            Account? @relation("SettingsIGTFPayableAccount", fields: [igtfPayableAccountId], references: [id], onDelete: Restrict)
 
   // Bloque B Item 2: Firma del Contador Público Colegiado (CPC) para reportes
   accountantName      String? // Nombre completo del CPC

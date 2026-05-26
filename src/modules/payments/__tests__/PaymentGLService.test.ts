@@ -84,7 +84,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
     );
 
     expect(result.journalEntriesCount).toBe(2);
@@ -118,7 +118,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID, fxGainAccountId: null, fxLossAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
     );
 
     expect(result.journalEntriesCount).toBe(4);
@@ -152,7 +152,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
     );
 
     // Solo 2 líneas (sin IGTF)
@@ -181,7 +181,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
       ),
     ).rejects.toThrow("La cuenta bancaria no pertenece a esta empresa");
   });
@@ -201,7 +201,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
       ),
     ).rejects.toThrow("No hay período contable abierto");
   });
@@ -218,7 +218,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
     );
 
     expect(vi.mocked(tx.paymentRecord.update)).toHaveBeenCalledWith(
@@ -426,7 +426,7 @@ describe("R-5: PaymentGLService — Decimal.js en todos los cálculos", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
@@ -437,5 +437,162 @@ describe("R-5: PaymentGLService — Decimal.js en todos los cálculos", () => {
       expect(entry.amount).toBeInstanceOf(Decimal);
       expect(typeof entry.amount).not.toBe("number");
     }
+  });
+});
+
+// ─── Riesgo-9 (Art. 33 COT): tipo COBRO / PAGO ──────────────────────────────
+
+describe("Riesgo-9 — type COBRO en cobros y PAGO en pagos", () => {
+  it("postPaymentRecordGL crea Transaction con type=COBRO", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1000.00"),
+        igtfAmount: null,
+        context: BASE_CONTEXT,
+      },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+    );
+
+    const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
+    const data = (createCall as { data: { type: string } }).data;
+    expect(data.type).toBe("COBRO");
+  });
+
+  it("postPaymentBatchGL crea Transaction con type=PAGO", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentBatchGL(
+      tx,
+      {
+        paymentBatchId: PAYMENT_BATCH_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        lines: [{ invoiceId: "inv-1", amountVes: new Decimal("500.00"), igtfAmount: null }],
+        context: BASE_CONTEXT,
+      },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+    );
+
+    const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
+    const data = (createCall as { data: { type: string } }).data;
+    expect(data.type).toBe("PAGO");
+  });
+});
+
+// ─── Riesgo-6 (Prov. 0049): IVA retenido por cliente CE ─────────────────────
+
+const IVA_RET_RECEIVABLE_ID = "iva-ret-recv-1";
+
+describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
+  it("con ivaRetentionAmount y cuenta configurada — crea 3 líneas: Dr.Banco + Dr.IVARet = Cr.CxC", async () => {
+    const tx = makeTxMock();
+    const amountVes = new Decimal("850.00");   // neto recibido
+    const ivaRet = new Decimal("150.00");       // IVA retenido (75% del 16%)
+    // Total factura = 850 + 150 = 1000
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes,
+        igtfAmount: null,
+        ivaRetentionAmount: ivaRet,
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: IVA_RET_RECEIVABLE_ID,
+      },
+    );
+
+    const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
+    const entries = (createCall as { data: { entries: { create: { accountId: string; amount: Decimal }[] } } }).data.entries.create;
+
+    // 3 líneas: Dr. Banco + Dr. IVA Ret. x Cobrar + Cr. CxC
+    expect(entries).toHaveLength(3);
+
+    const bankEntry = entries.find((e) => e.accountId === GL_ACCOUNT_ID && e.amount.greaterThan(0));
+    const ivaRetEntry = entries.find((e) => e.accountId === IVA_RET_RECEIVABLE_ID);
+    const cxcEntry = entries.find((e) => e.accountId === AR_ACCOUNT_ID);
+
+    expect(bankEntry).toBeDefined();
+    expect(ivaRetEntry).toBeDefined();
+    expect(cxcEntry).toBeDefined();
+
+    // Dr. Banco = amountVes (neto)
+    expect(bankEntry!.amount.toFixed(2)).toBe("850.00");
+    // Dr. IVA Ret. x Cobrar = ivaRetentionAmount
+    expect(ivaRetEntry!.amount.toFixed(2)).toBe("150.00");
+    // Cr. CxC = amountVes + ivaRetentionAmount (total factura) — negativo
+    expect(cxcEntry!.amount.toFixed(2)).toBe("-1000.00");
+
+    // Partida doble: sum = 0
+    const sum = entries.reduce((acc, e) => acc.plus(e.amount), new Decimal(0));
+    expect(sum.toNumber()).toBe(0);
+  });
+
+  it("sin ivaRetentionAmount — comportamiento estándar (2 líneas)", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1000.00"),
+        igtfAmount: null,
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: IVA_RET_RECEIVABLE_ID, // configurada pero sin retención
+      },
+    );
+
+    const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+
+    // Sin retención → 2 líneas estándar
+    expect(entries).toHaveLength(2);
+  });
+
+  it("con ivaRetentionAmount pero sin cuenta configurada — usa 2 líneas estándar (no rompe)", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("850.00"),
+        igtfAmount: null,
+        ivaRetentionAmount: new Decimal("150.00"),
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null, // no configurada
+      },
+    );
+
+    const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+
+    // Sin cuenta → 2 líneas (Dr. Banco 850 + Cr. CxC 850)
+    expect(entries).toHaveLength(2);
   });
 });

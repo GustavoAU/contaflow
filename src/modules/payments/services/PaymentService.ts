@@ -43,6 +43,8 @@ type CreatePaymentData = {
   commissionPct?: Decimal;
   commissionAmount?: Decimal;
   igtfAmount?: Decimal;
+  // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%)
+  ivaRetentionAmount?: Decimal;
   date: Date;
   notes?: string;
   createdBy: string;
@@ -125,6 +127,7 @@ export class PaymentService {
         commissionPct: input.commissionPct,
         commissionAmount: input.commissionAmount,
         igtfAmount: input.igtfAmount,
+        ivaRetentionAmount: input.ivaRetentionAmount,
         date: input.date,
         notes: input.notes,
         createdBy: input.createdBy,
