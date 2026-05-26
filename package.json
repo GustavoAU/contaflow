@@ -62,7 +62,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "@types/xlsx": "^0.0.35",
+    "@types/xlsx": "^0.0.36",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.7",
     "babel-plugin-react-compiler": "1.0.0",
