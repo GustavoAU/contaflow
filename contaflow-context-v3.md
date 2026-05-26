@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` (Fase 38 mergeada)
+**Ninguna** — branch `main` (Q3-1 mergeado 2026-05-26)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,8 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **Q3-1 2026-05-26** ✅ merged — Gestión Documental: vista unificada facturas+retenciones, PDF on-demand, JWT share links 7d para auditorías SENIAT (DOC_SHARE_SECRET, endpoint /api/doc/[token] público, AuditLog DOC_SHARED R-6, cross-tenant guard ADR-004, nav "Documentos" bajo Contabilidad). commit `c68a714`. 2063 tests GREEN.
+- **Auditoría GL pagos (Riesgo-6 + Riesgo-9) 2026-05-26** ✅ merged — TransactionType COBRO/PAGO + IVA Ret x Cobrar GL + ivaRetentionReceivableAccountId. 2049 tests GREEN.
 - **Q2-6 2026-05-23** ✅ merged — WCAG audit dashboard: 1.4.3 contraste text-zinc-400→text-zinc-600/500 (Sidebar cabeceras + Navbar secciones), 1.3.1 scope="col" en 29 archivos (payroll×15, bank-reconciliation×3, fixed-assets×2, inventory×7, orders×2). commit `4e5bb20`. 2014 tests GREEN.
 - **Q1-1 2026-05-23** ✅ merged — Notificaciones email diarias: EmailService (Resend REST fetch nativo, sin dep), NotificationEmailService digest HTML por empresa (tasks error/warning, emails admins via Clerk API), Vercel Cron 0 12 * * * → GET /api/cron/daily-notifications (CRON_SECRET guard, maxDuration 60s). commit `14984bb`. 2014 tests GREEN.
 - **Deploy checklist 2026-05-23** ✅ — .env.example (Vercel SaaS completo), .env.enterprise.example (5 vars añadidas), DEPLOYMENT.md (10-sección smoke test + rollback + vars críticas). commit `95f5c08`.

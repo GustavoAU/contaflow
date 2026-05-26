@@ -302,7 +302,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Auditoría GL pagos (Riesgo-6 + Riesgo-9)** ✅ merged (TransactionType COBRO/PAGO + IVA Ret x Cobrar GL + ivaRetentionReceivableAccountId — 2049 tests)
 
-**2049 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
+**Q3-1 Gestión Documental** ✅ merged (vista unificada facturas+retenciones + PDF on-demand + JWT share links 7d + /api/doc/[token] público + AuditLog DOC_SHARED + nav "Documentos" — 2063 tests)
+
+**2063 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
 
 ### middleware.ts
 
