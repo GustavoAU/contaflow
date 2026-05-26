@@ -241,6 +241,9 @@ model Company {
   // Permisos granulares por rol (grants adicionales al rol base)
   rolePermissions           RolePermission[]
   employeeLoans             EmployeeLoan[]
+  // Q3-3: Presupuestos y proyecciones
+  budgets                   Budget[]
+  budgetLines               BudgetLine[]
 }
 
 model CompanyMember {
@@ -339,6 +342,8 @@ model Account {
   // ADR-030: cuenta IGTF por Pagar en configuración GL
   companySettingsAsIGTFPayable         CompanySettings[]        @relation("SettingsIGTFPayableAccount")
   companySettingsAsIVARetReceivable    CompanySettings[]        @relation("SettingsIVARetentionReceivableAccount")
+  // Q3-3: Presupuestos
+  budgetLines                          BudgetLine[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -2238,6 +2243,49 @@ model ContactNote {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([companyId, entityType, entityId])
+  @@index([companyId])
+}
+
+// ─── Q3-3: Presupuestos y Proyecciones ────────────────────────────────────────
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+/// Presupuesto anual por empresa. Un presupuesto por año (unicidad companyId+periodYear+name).
+model Budget {
+  id         String       @id @default(cuid())
+  companyId  String
+  periodYear Int
+  name       String       @default("Presupuesto Anual")
+  status     BudgetStatus @default(DRAFT)
+  createdBy  String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines   BudgetLine[]
+
+  @@unique([companyId, periodYear, name])
+  @@index([companyId])
+}
+
+/// Línea de presupuesto: importe anual por cuenta contable.
+model BudgetLine {
+  id        String  @id @default(cuid())
+  budgetId  String
+  companyId String
+  accountId String
+  amount    Decimal @db.Decimal(19, 4)
+  notes     String? @db.Text
+
+  budget  Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([budgetId, accountId])
   @@index([companyId])
 }
 
