@@ -15,7 +15,8 @@ export type PendingTaskType =
   | "STOCK_BAJO"
   | "ORDENES_VENCIDAS"             // GAP-02: órdenes con fecha comprometida vencida
   | "RETENCIONES_POR_ENTERAR"      // OM-06: retenciones emitidas no enteradas ante SENIAT
-  | "INVENTARIO_SIN_CUENTAS_GL";   // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
+  | "INVENTARIO_SIN_CUENTAS_GL"    // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
+  | "IGTF_PAGOS_SIN_REGISTRAR";    // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -35,6 +36,7 @@ export const PendingTasksService = {
   async getPendingTasks(companyId: string): Promise<PendingTasksData> {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1; // 1-indexed
 
@@ -48,6 +50,8 @@ export const PendingTasksService = {
       ordenesVencidasCount,
       retencionesPorEntregarCount,
       inventarioSinCuentasGLCount,
+      companyInfo,
+      igtfPagosSinRegistrarCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -141,6 +145,23 @@ export const PendingTasksService = {
           OR: [{ accountId: null }, { cogsAccountId: null }],
         },
       }),
+
+      // 10. isSpecialContributor — para condicionar la alerta IGTF
+      prisma.company.findFirst({
+        where: { id: companyId },
+        select: { isSpecialContributor: true },
+      }),
+
+      // 11. ADR-030 audit: pagos en divisa con igtfAmount = 0 en los últimos 90 días
+      // (solo relevante para CE — se filtra abajo)
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) AS count FROM "PaymentRecord"
+        WHERE "companyId" = ${companyId}
+          AND "currency" != 'VES'
+          AND "igtfAmount" = 0
+          AND "deletedAt" IS NULL
+          AND "createdAt" >= ${ninetyDaysAgo}
+      `.then(([r]) => Number(r.count)),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -253,6 +274,19 @@ export const PendingTasksService = {
         description: `${inventarioSinCuentasGLCount} producto${pl ? "s" : ""} físico${pl ? "s" : ""} no ${pl ? "tienen" : "tiene"} cuenta de Inventario y/o COGS asignada. Las ventas/compras de ${pl ? "estos productos" : "este producto"} no generarán asiento contable automático.`,
         count: inventarioSinCuentasGLCount,
         href: "/inventory",
+      });
+    }
+
+    // ADR-030 audit: CE con pagos en divisa sin IGTF — Ley IGTF Art. 4 núm. 3 + Providencia SNAT/2022/000013
+    if (companyInfo?.isSpecialContributor && igtfPagosSinRegistrarCount > 0) {
+      const pl = igtfPagosSinRegistrarCount > 1;
+      tasks.push({
+        type: "IGTF_PAGOS_SIN_REGISTRAR",
+        severity: "error",
+        title: "Cobros en divisas sin IGTF registrado",
+        description: `${igtfPagosSinRegistrarCount} cobro${pl ? "s" : ""} en divisas de los últimos 90 días ${pl ? "no tienen" : "no tiene"} IGTF registrado. Como Contribuyente Especial, debe percibir y enterar el 3% IGTF (Ley IGTF Art. 4 — multa 100%–300% del tributo omitido).`,
+        count: igtfPagosSinRegistrarCount,
+        href: "/payments",
       });
     }
 

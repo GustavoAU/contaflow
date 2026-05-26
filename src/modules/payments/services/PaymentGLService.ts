@@ -26,6 +26,10 @@ export type PaymentRecordGLInput = {
   bankAccountId: string; // BankAccount.id — verificado que pertenece a companyId
   amountVes: Decimal;
   igtfAmount: Decimal | null;
+  // NIC 21 / VEN-NIF BA-5 — diferencial cambiario al cobro (Fix auditoría ADR-030)
+  invoiceId?: string;        // para leer la tasa de la factura original
+  amountOriginal?: Decimal;  // monto en divisa (USD/EUR)
+  currency?: string;         // "USD" | "EUR" | "VES"
   context: GLPostingContext;
 };
 
@@ -38,6 +42,15 @@ export type PaymentBatchGLInput = {
     igtfAmount: Decimal | null;
   }>;
   context: GLPostingContext;
+};
+
+// Tipo interno para datos enriquecidos de línea
+type BatchLineEnriched = {
+  invoiceId: string;
+  amountVes: Decimal;
+  igtfAmount: Decimal | null;
+  invoiceNumber: string | null;   // Fix 4: descripción enriquecida en asiento
+  counterpartName: string | null;
 };
 
 export type GLPostingResult = {
@@ -101,7 +114,12 @@ export class PaymentGLService {
   static async postPaymentRecordGL(
     tx: Prisma.TransactionClient,
     input: PaymentRecordGLInput,
-    settings: { arAccountId: string; igtfPayableAccountId: string | null },
+    settings: {
+      arAccountId: string;
+      igtfPayableAccountId: string | null;
+      fxGainAccountId: string | null; // NIC 21
+      fxLossAccountId: string | null; // NIC 21
+    },
   ): Promise<GLPostingResult> {
     const { companyId, date, createdBy, description, ipAddress, userAgent } =
       input.context;
@@ -134,37 +152,100 @@ export class PaymentGLService {
       ? new Decimal(input.igtfAmount.toString())
       : null;
 
+    // Descripción enriquecida para asientos en divisa (Rec 2 auditoría ADR-030)
+    let richDescription = description;
+    if (input.currency && input.currency !== "VES" && input.amountOriginal) {
+      const impliedRate = amountVes.dividedBy(input.amountOriginal).toDecimalPlaces(2);
+      richDescription = `${description} | ${input.currency} ${input.amountOriginal.toFixed(2)} × Bs.${impliedRate} (BCV) = Bs.${amountVes.toFixed(2)}`;
+      if (igtfAmount && igtfAmount.greaterThan(0)) {
+        richDescription += ` | IGTF Bs.${igtfAmount.toFixed(2)}`;
+      }
+    }
+
     const entries: { accountId: string; amount: Decimal; description: string }[] =
       [];
 
-    // Dr. Banco
+    // ── Diferencial cambiario NIC 21 / VEN-NIF BA-5 ──────────────────────────
+    // La CxC fue causada a la tasa del día de la factura.
+    // Si la tasa cambió al cobrar, la CxC se extingue a la tasa original
+    // y la diferencia se reconoce como Ganancia o Pérdida Cambiaria.
+    let cxcCreditAmount = amountVes; // default: sin diferencial (VES o sin datos)
+    let fxDiff = new Decimal(0);
+
+    const fxApplies =
+      input.currency &&
+      input.currency !== "VES" &&
+      input.amountOriginal &&
+      input.invoiceId &&
+      settings.fxGainAccountId &&
+      settings.fxLossAccountId;
+
+    if (fxApplies && input.invoiceId && input.amountOriginal) {
+      const inv = await tx.invoice.findFirst({
+        where: { id: input.invoiceId, companyId },
+        select: { exchangeRate: { select: { rate: true } } },
+      });
+      if (inv?.exchangeRate) {
+        const invoiceRate = new Decimal(inv.exchangeRate.rate.toString());
+        const invoiceAmountVes = new Decimal(input.amountOriginal.toString()).times(invoiceRate);
+        fxDiff = amountVes.minus(invoiceAmountVes);
+
+        // Solo ajustar si la diferencia es significativa (> 0.01 Bs.)
+        if (fxDiff.abs().greaterThan("0.01")) {
+          cxcCreditAmount = invoiceAmountVes; // Cr. CxC a tasa de la factura
+        } else {
+          fxDiff = new Decimal(0); // diferencia insignificante — tratar como sin diferencial
+        }
+      }
+    }
+
+    // Dr. Banco (monto total recibido en VES, incluye IGTF si aplica)
     entries.push({
       accountId: bankAcc.accountId,
       amount: amountVes, // positivo = Débito
-      description: description,
+      description: richDescription,
     });
-    // Cr. CxC
+    // Cr. CxC (a la tasa de la factura original; si VES o sin datos → amountVes)
     entries.push({
       accountId: settings.arAccountId,
-      amount: amountVes.negated(), // negativo = Crédito
-      description: description,
+      amount: cxcCreditAmount.negated(), // negativo = Crédito
+      description: richDescription,
     });
+
+    // Diferencial cambiario (NIC 21) — solo si hay diff significativo y cuentas configuradas
+    if (fxDiff.abs().greaterThan("0.01")) {
+      if (fxDiff.greaterThan(0)) {
+        // Ganancia cambiaria: VES cobrados > VES causados → Cr. Ganancia Cambiaria
+        entries.push({
+          accountId: settings.fxGainAccountId!,
+          amount: fxDiff.negated(), // Crédito
+          description: `${richDescription} — Ganancia cambiaria NIC 21`,
+        });
+      } else {
+        // Pérdida cambiaria: VES cobrados < VES causados → Dr. Pérdida Cambiaria
+        entries.push({
+          accountId: settings.fxLossAccountId!,
+          amount: fxDiff.abs(), // Débito
+          description: `${richDescription} — Pérdida cambiaria NIC 21`,
+        });
+      }
+    }
 
     let igtfSkipped = false;
 
     if (igtfAmount && igtfAmount.greaterThan(0)) {
       if (settings.igtfPayableAccountId) {
-        // Dr. Banco (IGTF)
+        // Dr. Banco (IGTF percibido del cliente — ya incluido en amountVes)
         entries.push({
           accountId: bankAcc.accountId,
           amount: igtfAmount,
-          description: `${description} — IGTF`,
+          description: `${richDescription} — IGTF`,
         });
         // Cr. IGTF por pagar
         entries.push({
           accountId: settings.igtfPayableAccountId,
           amount: igtfAmount.negated(),
-          description: `${description} — IGTF`,
+          description: `${richDescription} — IGTF`,
         });
       } else {
         igtfSkipped = true;
@@ -282,28 +363,52 @@ export class PaymentGLService {
 
     const number = await generateTxNumber(tx, companyId, date);
 
+    // Fix 4 (auditoría ADR-030): enriquecer líneas con datos de la factura (proveedor + número)
+    const invoiceDataMap = new Map<string, { invoiceNumber: string | null; counterpartName: string | null }>();
+    const invoiceIds = input.lines.map((l) => l.invoiceId);
+    const invoiceRows = await tx.invoice.findMany({
+      where: { id: { in: invoiceIds }, companyId },
+      select: { id: true, invoiceNumber: true, counterpartName: true },
+    });
+    for (const row of invoiceRows) {
+      invoiceDataMap.set(row.id, { invoiceNumber: row.invoiceNumber, counterpartName: row.counterpartName });
+    }
+
+    const enrichedLines: BatchLineEnriched[] = input.lines.map((l) => ({
+      ...l,
+      invoiceNumber: invoiceDataMap.get(l.invoiceId)?.invoiceNumber ?? null,
+      counterpartName: invoiceDataMap.get(l.invoiceId)?.counterpartName ?? null,
+    }));
+
     // Construir todas las JournalEntries del batch (un asiento por batch, no por línea)
     const entries: { accountId: string; amount: Decimal; description: string }[] =
       [];
     let igtfSkipped = false;
 
-    for (const line of input.lines) {
+    for (const line of enrichedLines) {
       const amountVes = new Decimal(line.amountVes.toString());
       const igtfAmount = line.igtfAmount
         ? new Decimal(line.igtfAmount.toString())
         : null;
 
+      // Descripción enriquecida por línea: Proveedor — Factura Nro. (Art. 91 COT)
+      const lineDesc = line.counterpartName && line.invoiceNumber
+        ? `${description} | ${line.counterpartName} — ${line.invoiceNumber}`
+        : line.counterpartName
+          ? `${description} | ${line.counterpartName}`
+          : description;
+
       // Dr. CxP (apAccountId)
       entries.push({
         accountId: settings.apAccountId,
         amount: amountVes, // positivo = Débito
-        description,
+        description: lineDesc,
       });
       // Cr. Banco
       entries.push({
         accountId: bankAcc.accountId,
         amount: amountVes.negated(), // negativo = Crédito
-        description,
+        description: lineDesc,
       });
 
       if (igtfAmount && igtfAmount.greaterThan(0)) {
@@ -312,13 +417,13 @@ export class PaymentGLService {
           entries.push({
             accountId: settings.igtfPayableAccountId,
             amount: igtfAmount,
-            description: `${description} — IGTF`,
+            description: `${lineDesc} — IGTF`,
           });
           // Cr. Banco (salida adicional)
           entries.push({
             accountId: bankAcc.accountId,
             amount: igtfAmount.negated(),
-            description: `${description} — IGTF`,
+            description: `${lineDesc} — IGTF`,
           });
         } else {
           igtfSkipped = true;

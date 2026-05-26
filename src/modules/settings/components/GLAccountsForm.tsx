@@ -23,6 +23,7 @@ type Account = { id: string; code: string; name: string; type: string };
 type Props = {
   companyId: string;
   allAccounts: Account[];
+  isSpecialContributor: boolean; // ADR-030 audit fix: CE debe configurar IGTF payable
   initialConfig: {
     arAccountId: string | null;
     apAccountId: string | null;
@@ -82,6 +83,7 @@ function AccountSelect({
 export function GLAccountsForm({
   companyId,
   allAccounts,
+  isSpecialContributor,
   initialConfig,
   initialUnbookedCount,
 }: Props) {
@@ -264,12 +266,24 @@ export function GLAccountsForm({
             <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
               Activo
             </span>
+          ) : isSpecialContributor ? (
+            <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 font-medium">
+              ⚠️ Requerido — Contribuyente Especial
+            </span>
           ) : (
             <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 rounded px-2 py-0.5">
               Opcional
             </span>
           )}
         </div>
+        {isSpecialContributor && igtfPayableAccountId === NONE && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <strong>Atención:</strong> Esta empresa es Contribuyente Especial. Bajo la Ley IGTF
+            (Art. 4 núm. 3) y la Providencia SNAT/2022/000013, debe actuar como agente de
+            percepción del 3% IGTF en todos los cobros en divisas. Configure esta cuenta para que
+            los asientos GL reflejen correctamente el pasivo IGTF por enterar al SENIAT.
+          </div>
+        )}
         <p className="text-muted-foreground text-xs">
           Si se configura, cada cobro en divisas generará automáticamente el asiento{" "}
           <span className="font-medium">Dr. Banco / Cr. CxC / Cr. IGTF por Pagar</span>.

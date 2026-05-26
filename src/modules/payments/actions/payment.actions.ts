@@ -107,7 +107,12 @@ export async function createPaymentAction(
           if (d.bankAccountId && d.invoiceId) {
             const settings = await (tx as typeof prisma).companySettings.findUnique({
               where: { companyId: d.companyId },
-              select: { arAccountId: true, igtfPayableAccountId: true },
+              select: {
+                arAccountId: true,
+                igtfPayableAccountId: true,
+                fxGainAccountId: true,   // NIC 21 diferencial cambiario
+                fxLossAccountId: true,
+              },
             });
             if (settings?.arAccountId) {
               await PaymentGLService.postPaymentRecordGL(
@@ -117,6 +122,9 @@ export async function createPaymentAction(
                   bankAccountId: d.bankAccountId,
                   amountVes: new Decimal(d.amountVes),
                   igtfAmount: computedIgtf ?? null,
+                  invoiceId: d.invoiceId,
+                  amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
+                  currency: d.currency,
                   context: {
                     companyId: d.companyId,
                     date: dateObj,
@@ -126,7 +134,12 @@ export async function createPaymentAction(
                     userAgent,
                   },
                 },
-                { arAccountId: settings.arAccountId, igtfPayableAccountId: settings.igtfPayableAccountId },
+                {
+                  arAccountId: settings.arAccountId,
+                  igtfPayableAccountId: settings.igtfPayableAccountId,
+                  fxGainAccountId: settings.fxGainAccountId,
+                  fxLossAccountId: settings.fxLossAccountId,
+                },
               );
             }
           }

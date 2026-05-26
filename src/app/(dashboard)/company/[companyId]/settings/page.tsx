@@ -219,6 +219,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               <GLAccountsForm
                 companyId={companyId}
                 allAccounts={allAccounts}
+                isSpecialContributor={company.isSpecialContributor}
                 initialConfig={{
                   arAccountId:                       glConfig?.arAccountId ?? null,
                   apAccountId:                       glConfig?.apAccountId ?? null,
