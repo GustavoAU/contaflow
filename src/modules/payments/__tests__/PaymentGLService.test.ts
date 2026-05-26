@@ -57,6 +57,12 @@ function makeTxMock(overrides: Partial<typeof import("@/lib/prisma")["default"]>
       findFirst: vi.fn().mockResolvedValue({ glTransactionId: null }),
       update: vi.fn().mockResolvedValue({}),
     },
+    // Fix 2: postPaymentRecordGL consulta invoice para diferencial cambiario NIC 21
+    // Fix 4: postPaymentBatchGL consulta invoices para descripción enriquecida
+    invoice: {
+      findFirst: vi.fn().mockResolvedValue(null),   // sin tasa de factura por defecto
+      findMany: vi.fn().mockResolvedValue([]),       // batch: sin datos de factura por defecto
+    },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     ...overrides,
   } as unknown as Prisma.TransactionClient;
@@ -78,7 +84,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
     );
 
     expect(result.journalEntriesCount).toBe(2);
@@ -112,7 +118,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID, fxGainAccountId: null, fxLossAccountId: null },
     );
 
     expect(result.journalEntriesCount).toBe(4);
@@ -146,7 +152,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
     );
 
     // Solo 2 líneas (sin IGTF)
@@ -175,7 +181,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
       ),
     ).rejects.toThrow("La cuenta bancaria no pertenece a esta empresa");
   });
@@ -195,7 +201,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
       ),
     ).rejects.toThrow("No hay período contable abierto");
   });
@@ -212,7 +218,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
     );
 
     expect(vi.mocked(tx.paymentRecord.update)).toHaveBeenCalledWith(
@@ -420,7 +426,7 @@ describe("R-5: PaymentGLService — Decimal.js en todos los cálculos", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null },
+      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null },
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];

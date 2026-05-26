@@ -11,6 +11,7 @@ vi.mock("@/lib/prisma", () => ({
     bankStatement: { count: vi.fn() },
     order: { count: vi.fn() },           // GAP-02
     inventoryItem: { count: vi.fn() },   // PC-03
+    company: { findFirst: vi.fn() },     // ADR-030 audit: isSpecialContributor
     $queryRaw: vi.fn(),
   },
 }));
@@ -25,6 +26,8 @@ function mockAllZero() {
   vi.mocked(prisma.bankStatement.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.order.count).mockResolvedValue(0 as never);           // GAP-02
   vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
+  vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
+  // $queryRaw se usa 2 veces: stockBajo (raw SQL) e igtfPagosSinRegistrar (raw SQL)
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
 }
 
@@ -216,5 +219,34 @@ describe("PendingTasksService.getPendingTasks", () => {
     // mockAllZero ya pone inventoryItem.count = 0
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "INVENTARIO_SIN_CUENTAS_GL")).toBeUndefined();
+  });
+
+  // ADR-030 audit: IGTF_PAGOS_SIN_REGISTRAR — solo para Contribuyentes Especiales
+  it("detecta cobros en divisa sin IGTF para CE (IGTF_PAGOS_SIN_REGISTRAR) — severity error", async () => {
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
+    // 1ª llamada $queryRaw = stockBajo (0), 2ª = igtfPagosSinRegistrar (5)
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(5) }] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "IGTF_PAGOS_SIN_REGISTRAR");
+
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(5);
+    expect(task?.href).toBe("/payments");
+    expect(task?.description).toContain("IGTF");
+    expect(task?.description).toContain("3%");
+  });
+
+  it("NO emite IGTF_PAGOS_SIN_REGISTRAR para empresa no CE aunque haya pagos en divisa", async () => {
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(10) }] as never); // 10 pagos sin IGTF — no CE → no alert
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "IGTF_PAGOS_SIN_REGISTRAR")).toBeUndefined();
   });
 });
