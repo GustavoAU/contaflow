@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SearchIcon, XIcon, Settings2Icon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { SearchIcon, XIcon, Settings2Icon, AlertCircleIcon } from "lucide-react";
 import { CompanyAvatar } from "./CompanyAvatar";
 import type { UserRole } from "@/lib/nav-items";
 
@@ -36,6 +37,7 @@ export type CompanyWithPeriod = {
 
 export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
   const [query, setQuery] = useState("");
+  const router = useRouter();
 
   const filtered = query.trim()
     ? companies.filter(
@@ -121,7 +123,19 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
                         )}
                       </span>
                     ) : (
-                      <span className="text-11 text-zinc-400">Sin período</span>
+                      /* Botón en lugar de Link anidado — evita <a> dentro de <a> */
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(`/company/${company.id}/periods`);
+                        }}
+                        className="inline-flex items-center gap-1 text-11 font-medium text-amber-600 hover:text-amber-700 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400 rounded"
+                      >
+                        <AlertCircleIcon className="h-3 w-3 shrink-0" aria-hidden />
+                        Sin período · Crear →
+                      </button>
                     )}
                   </div>
                 </Link>

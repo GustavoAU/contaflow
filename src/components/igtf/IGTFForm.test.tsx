@@ -46,7 +46,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Vista previa/i)).toBeTruthy();
-      expect(screen.getByText("1030.00")).toBeTruthy();
+      expect(screen.getByText("1.030,00")).toBeTruthy();
     });
   });
 
@@ -81,7 +81,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Vista previa/i)).toBeTruthy();
-      expect(screen.getByText("1030.00")).toBeTruthy();
+      expect(screen.getByText("1.030,00")).toBeTruthy();
     });
   });
 

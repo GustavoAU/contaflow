@@ -25,6 +25,8 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: { findFirst: vi.fn() },
     company: { findFirst: vi.fn() },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
+    paymentAttachment: { findFirst: vi.fn() },
+    companySettings: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -32,9 +34,15 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("../services/PaymentService", () => ({
   PaymentService: { create: vi.fn(), list: vi.fn() },
 }));
+vi.mock("../services/PaymentGLService", () => ({
+  PaymentGLService: {
+    postPaymentRecordGL: vi.fn(),
+    reversePaymentRecordGL: vi.fn(),
+  },
+}));
 
 import prisma from "@/lib/prisma";
-import { createPaymentAction, listPaymentsAction } from "../actions/payment.actions";
+import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -48,6 +56,8 @@ const VALID_INPUT = {
   amountVes: "1160.00",
   currency: "VES" as const,
   date: "2026-03-10",
+  referenceNumber: "REF-001",       // TRANSFERENCIA requiere referencia (#2)
+  notes: "Concepto de prueba",      // obligatorio desde #12
 };
 
 const MOCK_PAYMENT = {
@@ -150,6 +160,7 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     amountOriginal: "1807.42",
     invoiceId: "invoice-1",
     date: "2026-04-03",
+    notes: "Pago Zelle prueba",     // obligatorio desde #12
   };
 
   beforeEach(() => {
@@ -283,5 +294,84 @@ describe("listPaymentsAction — IDOR guard", () => {
         where: expect.objectContaining({ companyId: COMPANY_ID, userId: USER_ID }),
       }),
     );
+  });
+});
+
+// ─── analyzeReceiptAction — ADR-030 D-4 ──────────────────────────────────────
+describe("analyzeReceiptAction — seguridad y degradación graceful", () => {
+  const ATTACHMENT_ID = "attach-1";
+  const MOCK_ATTACHMENT = {
+    blobUrl: "https://blob.example.com/receipt.jpg",
+    mimeType: "image/jpeg",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.paymentAttachment.findFirst).mockResolvedValue(MOCK_ATTACHMENT as never);
+    // GEMINI_API_KEY no configurado por defecto en tests
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  it("retorna { success: false } si no hay sesión autenticada", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna { success: false } si rate limit OCR está agotado", async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: false });
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
+  });
+
+  it("retorna { success: false } si el usuario no es miembro (IDOR)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("retorna { success: false } para rol VIEWER", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
+      { ...MEMBER, role: "VIEWER" } as never,
+    );
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna { success: false } si attachmentId no pertenece a la empresa (ADR-004)", async () => {
+    vi.mocked(prisma.paymentAttachment.findFirst).mockResolvedValue(null as never);
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("Comprobante no encontrado");
+  });
+
+  it("retorna { success: false } con mensaje amigable si GEMINI_API_KEY no está configurado", async () => {
+    delete process.env.GEMINI_API_KEY;
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("análisis con IA no está disponible");
+    }
+    // NUNCA exponer detalles técnicos al cliente
+    if (!result.success) expect(result.error).not.toContain("GEMINI_API_KEY");
   });
 });

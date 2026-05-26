@@ -680,19 +680,19 @@ receivable.actions.test.ts:
 - [x] BLOQUEANTE 3 resuelto: nuevo modelo `InvoicePayment` separado de `PaymentRecord`
 - [x] BLOQUEANTE 4 resuelto: NOTA_CREDITO netea via `relatedDocNumber`
 - [x] BLOQUEANTE 5 resuelto: FACTURA + NOTA_DEBITO suman; REPORTE_Z excluido
-- [ ] Enum `InvoicePaymentStatus` creado
-- [ ] `paymentTermDays` añadido a `Company`
-- [ ] `dueDate`, `totalAmountVes`, `pendingAmount`, `paymentStatus` añadidos a `Invoice`
-- [ ] Modelo `InvoicePayment` creado con `idempotencyKey` + `deletedAt`
-- [ ] Índices compuestos en Invoice para aging queries
-- [ ] `classifyAgingBucket` como pure function aislada
-- [ ] Guard `FiscalYearClose` en `recordPaymentAction` y `cancelPaymentAction`
-- [ ] IGTF en `recordPayment` si divisa != VES
-- [ ] `pendingAmount` inicial = `totalAmountVes - ivaRetentionAmount - islrRetentionAmount`
-- [ ] Rate limiting `limiters.fiscal` en todas las actions
-- [ ] AuditLog dentro del mismo `$transaction` en `recordPayment` y `cancelPayment`
-- [ ] PDF aging report con `@react-pdf/renderer`
-- [ ] Tests: todos en verde antes de continuar
+- [x] Enum `InvoicePaymentStatus` creado
+- [x] `paymentTermDays` añadido a `Company`
+- [x] `dueDate`, `totalAmountVes`, `pendingAmount`, `paymentStatus` añadidos a `Invoice`
+- [x] Modelo `InvoicePayment` creado con `idempotencyKey` + `deletedAt`
+- [x] Índices compuestos en Invoice para aging queries
+- [x] `classifyAgingBucket` como pure function aislada (en ReceivableService.ts)
+- [x] Guard `FiscalYearClose` en `recordPaymentAction` y `cancelPaymentAction`
+- [x] IGTF en `recordPayment` si divisa != VES
+- [x] `pendingAmount` inicial = `totalAmountVes - ivaRetentionAmount - islrRetentionAmount`
+- [x] Rate limiting `limiters.fiscal` en todas las actions
+- [x] AuditLog dentro del mismo `$transaction` en `recordPayment` y `cancelPayment`
+- [x] PDF aging report con `@react-pdf/renderer` — `AgingReportPDFService.ts` + `exportAgingReportPDF.actions.ts` + `ExportAgingPDFButton.tsx` — CxC y CxP, A4 landscape, tarjetas por bucket, totales, tabla detalle, footer con paginación
+- [x] Tests: todos en verde antes de continuar (merged a main — ver CLAUDE.md)
 
 ---
 
@@ -971,17 +971,17 @@ banking.actions.test.ts:
 - [x] Rate limiting limiters.fiscal en todas las actions de banking
 - [x] matchedPaymentId FK real mantenida — decisión registrada como DECIDIDO
 - [x] Estrategia de renombramiento uploadedAt→importedAt con columna legacy transitoria
-- [ ] ADD COLUMN accountNumber en BankAccount
-- [ ] ADD COLUMN closingBalance en BankAccount
-- [ ] ADD COLUMN deletedAt en BankAccount
-- [ ] ADD COLUMN importedAt + importedBy en BankStatement (columnas legacy conservadas)
-- [ ] ADD COLUMN deletedAt en BankStatement
-- [ ] ADD COLUMN isReconciled en BankTransaction
-- [ ] ADD COLUMN deletedAt en BankTransaction
-- [ ] Migración `add_banking_reconciliation_v2` ejecutada y verificada
-- [ ] BankingService implementado con todos los métodos del contrato
-- [ ] CsvParserService implementado con parseBankCsv + validateCsvBalance
-- [ ] Tests: todos en verde antes de continuar
+- [x] ADD COLUMN accountNumber en BankAccount
+- [x] ADD COLUMN closingBalance en BankAccount
+- [x] ADD COLUMN deletedAt en BankAccount
+- [x] ADD COLUMN importedAt + importedBy en BankStatement (columnas legacy conservadas)
+- [x] ADD COLUMN deletedAt en BankStatement
+- [x] ADD COLUMN isReconciled en BankTransaction
+- [x] ADD COLUMN deletedAt en BankTransaction
+- [x] Migración `20260331200000_fase17_bank_reconciliation` ejecutada y verificada
+- [x] BankingService implementado con todos los métodos del contrato
+- [x] CsvParserService implementado con parseBankCsv + validateCsvBalance
+- [x] Tests: todos en verde antes de continuar (merged a main — ver CLAUDE.md)
 
 ---
 
@@ -1409,14 +1409,14 @@ invoice.actions.test.ts (NC/ND additions):
 - [x] Migración nullable — 0 filas afectadas, no backfill, rollback seguro
 - [x] TransactionType.AJUSTE para asiento compensador — sin nuevo enum (YAGNI)
 - [x] AuditLog x2 dentro del mismo $transaction (NC/ND creation + pendingAmount update)
-- [ ] Migración `feat_23c_nc_nd_self_relation` ejecutada y verificada
-- [ ] createCreditNote implementado en InvoiceService.ts
-- [ ] createDebitNote implementado en InvoiceService.ts
-- [ ] getCreditDebitNotes implementado en InvoiceService.ts
-- [ ] CreateCreditDebitNoteSchema implementado en invoice.schema.ts
-- [ ] createCreditNoteAction implementado en invoice.actions.ts
-- [ ] createDebitNoteAction implementado en invoice.actions.ts
-- [ ] Tests: todos en verde antes de continuar
+- [x] Migración `feat_23c_nc_nd_self_relation` ejecutada y verificada (`prisma/migrations/20260412_feat_23c_nc_nd_self_relation`)
+- [x] createCreditNote implementado en InvoiceService.ts
+- [x] createDebitNote implementado en InvoiceService.ts
+- [x] getCreditDebitNotes implementado en InvoiceService.ts
+- [x] CreateCreditDebitNoteSchema implementado en invoice.schema.ts
+- [x] createCreditNoteAction implementado en invoice.actions.ts
+- [x] createDebitNoteAction implementado en invoice.actions.ts
+- [x] Tests: todos en verde antes de continuar (merged a main — ver CLAUDE.md)
 
 ---
 
@@ -1791,10 +1791,10 @@ paymentBatch.actions.test.ts:
 - [x] `lines.max(100)` en Zod — límite de seguridad para timeout Neon 30s
 - [x] InvoicePayment idempotencia: `idempotencyKey = "batch:{batchId}:line:{lineId}"`
 - [x] Análisis de riesgo de migración documentado
-- [ ] Migración `20260505_fase36c_payment_batch` ejecutada y verificada
-- [ ] `PaymentBatch` y `PaymentBatchLine` agregados a `prisma/schema.prisma`
-- [ ] Relaciones inversas agregadas en `Company`, `Invoice`, `BankTransaction`
-- [ ] `PaymentBatchService` implementado con todos los métodos del contrato
-- [ ] `paymentBatch.schema.ts` implementado
-- [ ] Actions `createBatchAction`, `applyBatchAction`, `voidBatchAction`, `listBatchesAction` implementadas
-- [ ] Tests: todos en verde antes de continuar
+- [x] Migración `20260505_fase36c_payment_batch` ejecutada y verificada
+- [x] `PaymentBatch` y `PaymentBatchLine` agregados a `prisma/schema.prisma`
+- [x] Relaciones inversas agregadas en `Company`, `Invoice`, `BankTransaction`
+- [x] `PaymentBatchService` implementado con todos los métodos del contrato
+- [x] `paymentBatch.schema.ts` implementado
+- [x] Actions `createBatchAction`, `applyBatchAction`, `voidBatchAction`, `listBatchesAction` implementadas
+- [x] Tests: todos en verde antes de continuar (1727 tests GREEN — merged a main)

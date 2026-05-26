@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { createIGTFAction } from "@/modules/igtf/actions/igtf.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   companyId: string;
@@ -111,15 +112,15 @@ export function IGTFForm({ companyId, userId, isSpecialContributor }: Props) {
               </p>
               <div className="flex justify-between">
                 <span className="text-zinc-600">Monto base:</span>
-                <span className="font-mono">{preview.amount}</span>
+                <span className="font-mono">{fmtVen(preview.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-600">IGTF ({IGTF_RATE}%):</span>
-                <span className="font-mono text-orange-700">{preview.igtfAmount}</span>
+                <span className="font-mono text-orange-700">{fmtVen(preview.igtfAmount)}</span>
               </div>
               <div className="mt-1 flex justify-between border-t pt-1">
                 <span className="font-semibold text-orange-800">Total a pagar:</span>
-                <span className="font-mono font-bold text-orange-800">{preview.total}</span>
+                <span className="font-mono font-bold text-orange-800">{fmtVen(preview.total)}</span>
               </div>
             </div>
           )}

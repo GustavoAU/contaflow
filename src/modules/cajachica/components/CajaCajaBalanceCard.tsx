@@ -23,6 +23,13 @@ const STATUS_COLOR: Record<string, string> = {
 export function CajaCajaBalanceCard({ caja }: Props) {
   const percent = caja.percentUsed;
   const barColor = percent >= 90 ? "bg-red-500" : percent >= 70 ? "bg-amber-400" : "bg-emerald-500";
+  // Solo rojo cuando hubo depósito y se agotó el saldo; sin depósito = neutro
+  const availableColor =
+    Number(caja.totalDeposited) === 0
+      ? "text-zinc-600 dark:text-zinc-400"
+      : Number(caja.availableBalance) <= 0
+      ? "text-red-600"
+      : "text-emerald-600";
 
   return (
     <div className="rounded-xl border bg-white p-5 shadow-sm dark:bg-zinc-950 space-y-4">
@@ -60,11 +67,7 @@ export function CajaCajaBalanceCard({ caja }: Props) {
         </div>
         <div>
           <p className="text-xs text-zinc-500">Disponible</p>
-          <p
-            className={`text-sm font-semibold ${
-              Number(caja.availableBalance) <= 0 ? "text-red-600" : "text-emerald-600"
-            }`}
-          >
+          <p className={`text-sm font-semibold ${availableColor}`}>
             <MoneyBadge amount={caja.availableBalance} currency={caja.currency} />
           </p>
         </div>

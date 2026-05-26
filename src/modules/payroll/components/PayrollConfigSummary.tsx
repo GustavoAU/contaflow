@@ -4,6 +4,22 @@
 
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
 
+function formatRelative(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const secs = Math.floor(diff / 1000);
+  const mins = Math.floor(secs / 60);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(months / 12);
+  if (secs < 60) return "hace un momento";
+  if (mins < 60) return `hace ${mins} minuto${mins === 1 ? "" : "s"}`;
+  if (hours < 24) return `hace ${hours} hora${hours === 1 ? "" : "s"}`;
+  if (days < 30) return `hace ${days} día${days === 1 ? "" : "s"}`;
+  if (months < 12) return `hace ${months} mes${months === 1 ? "" : "es"}`;
+  return `hace ${years} año${years === 1 ? "" : "s"}`;
+}
+
 const SIZE_LABELS: Record<string, string> = {
   SMALL: "< 20 empleados",
   MEDIUM: "20–100 empleados",
@@ -74,8 +90,8 @@ export default function PayrollConfigSummary({ cfg }: { cfg: PayrollConfigRow })
       </div>
       <div className="col-span-2 border-t pt-2">
         <dt className="text-xs text-gray-400">Última actualización</dt>
-        <dd className="mt-0.5 text-xs text-gray-500">
-          {new Date(cfg.updatedAt).toLocaleString("es-VE")}
+        <dd className="mt-0.5 text-xs text-gray-500" title={new Date(cfg.updatedAt).toLocaleString("es-VE")}>
+          {formatRelative(cfg.updatedAt)}
         </dd>
       </div>
     </dl>

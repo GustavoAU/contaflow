@@ -14,11 +14,15 @@ export type PaymentRecordSummary = {
   referenceNumber: string | null;
   originBank: string | null;
   destBank: string | null;
+  senderPhone: string | null;
+  destPhone: string | null;
   commissionPct: string | null;
   commissionAmount: string | null;
   igtfAmount: string | null;
   date: Date;
   notes: string | null;
+  deletedAt: Date | null;
+  voidReason: string | null;
   createdAt: Date;
   createdBy: string;
 };
@@ -34,12 +38,16 @@ type CreatePaymentData = {
   referenceNumber?: string;
   originBank?: string;
   destBank?: string;
+  senderPhone?: string;
+  destPhone?: string;
   commissionPct?: Decimal;
   commissionAmount?: Decimal;
   igtfAmount?: Decimal;
   date: Date;
   notes?: string;
   createdBy: string;
+  // ADR-030: FK opcional para GL auto-posting
+  bankAccountId?: string;
 };
 
 function serialize(r: {
@@ -54,11 +62,15 @@ function serialize(r: {
   referenceNumber: string | null;
   originBank: string | null;
   destBank: string | null;
+  senderPhone: string | null;
+  destPhone: string | null;
   commissionPct: Decimal | null;
   commissionAmount: Decimal | null;
   igtfAmount: Decimal | null;
   date: Date;
   notes: string | null;
+  deletedAt: Date | null;
+  voidReason: string | null;
   createdAt: Date;
   createdBy: string;
 }): PaymentRecordSummary {
@@ -74,11 +86,15 @@ function serialize(r: {
     referenceNumber: r.referenceNumber,
     originBank: r.originBank,
     destBank: r.destBank,
+    senderPhone: r.senderPhone,
+    destPhone: r.destPhone,
     commissionPct: r.commissionPct?.toString() ?? null,
     commissionAmount: r.commissionAmount?.toString() ?? null,
     igtfAmount: r.igtfAmount?.toString() ?? null,
     date: r.date,
     notes: r.notes,
+    deletedAt: r.deletedAt,
+    voidReason: r.voidReason,
     createdAt: r.createdAt,
     createdBy: r.createdBy,
   };
@@ -104,27 +120,47 @@ export class PaymentService {
         referenceNumber: input.referenceNumber,
         originBank: input.originBank,
         destBank: input.destBank,
+        senderPhone: input.senderPhone,
+        destPhone: input.destPhone,
         commissionPct: input.commissionPct,
         commissionAmount: input.commissionAmount,
         igtfAmount: input.igtfAmount,
         date: input.date,
         notes: input.notes,
         createdBy: input.createdBy,
+        bankAccountId: input.bankAccountId,
       },
     });
     return serialize(record);
   }
 
   /**
-   * Lista los pagos de una empresa ordenados por fecha descendente.
+   * Lista los pagos no anulados de una empresa ordenados por fecha descendente.
    */
   static async list(companyId: string, limit = 50): Promise<PaymentRecordSummary[]> {
     const records = await prisma.paymentRecord.findMany({
-      where: { companyId },
+      where: { companyId, deletedAt: null },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: limit,
     });
     return records.map(serialize);
+  }
+
+  /**
+   * Anula un pago: soft-delete + motivo. #14
+   */
+  static async void(
+    tx: typeof prisma,
+    paymentId: string,
+    companyId: string,
+    voidReason: string,
+  ): Promise<PaymentRecordSummary> {
+    const now = new Date();
+    const record = await tx.paymentRecord.update({
+      where: { id: paymentId, companyId },
+      data: { deletedAt: now, voidReason },
+    });
+    return serialize(record);
   }
 
   /**

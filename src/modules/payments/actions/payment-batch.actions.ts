@@ -85,6 +85,7 @@ export async function createPaymentBatchAction(
       idempotencyKey: d.idempotencyKey,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+      bankAccountId: d.bankAccountId ?? null, // ADR-030
       lines: d.lines.map((l) => ({
         invoiceId: l.invoiceId,
         amountVes: new Decimal(l.amountVes),
