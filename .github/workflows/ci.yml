@@ -29,13 +29,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup pnpm (corepack)
-        run: corepack enable pnpm
+          cache: pnpm
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
@@ -96,13 +99,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup pnpm (corepack)
-        run: corepack enable pnpm
+          cache: pnpm
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
@@ -285,12 +291,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup pnpm (corepack)
-        run: corepack enable pnpm
+          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
