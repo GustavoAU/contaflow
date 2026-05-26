@@ -58,7 +58,7 @@ export default async function ReportsPage({ params }: Props) {
 
       <ModuleTabs tabs={contaTabs} color="blue" />
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reports.map((report) => {
           const Icon = report.icon;
           return (

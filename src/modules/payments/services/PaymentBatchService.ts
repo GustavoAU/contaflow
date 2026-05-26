@@ -1,12 +1,15 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import { PaymentMethod, Currency, PaymentBatchStatus } from "@prisma/client";
+import { PaymentGLService } from "./PaymentGLService";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type BatchLineSummary = {
   id: string;
   invoiceId: string;
+  invoiceNumber: string | null;  // #6 — mostrar número legible en lugar de ID
+  counterpartName: string | null;
   amountVes: string;
   amountOriginal: string | null;
   igtfAmount: string | null;
@@ -67,6 +70,8 @@ export type CreateBatchInput = {
   lines: CreateBatchLineInput[];
   ipAddress?: string | null;
   userAgent?: string | null;
+  // ADR-030: FK opcional a BankAccount para GL auto-posting en applyBatch()
+  bankAccountId?: string | null;
 };
 
 export type ApplyBatchInput = {
@@ -129,6 +134,7 @@ function serializeBatch(
       amountOriginal: Decimal | null;
       igtfAmount: Decimal | null;
       notes: string | null;
+      invoice?: { invoiceNumber: string | null; counterpartName: string | null } | null;
     }[];
   }
 ): PaymentBatchSummary {
@@ -158,6 +164,8 @@ function serializeBatch(
     lines: batch.lines.map((l) => ({
       id: l.id,
       invoiceId: l.invoiceId,
+      invoiceNumber: l.invoice?.invoiceNumber ?? null,
+      counterpartName: l.invoice?.counterpartName ?? null,
       amountVes: l.amountVes.toString(),
       amountOriginal: l.amountOriginal?.toString() ?? null,
       igtfAmount: l.igtfAmount?.toString() ?? null,
@@ -253,6 +261,7 @@ export class PaymentBatchService {
             notes: input.notes ?? null,
             createdBy: input.createdBy,
             idempotencyKey: input.idempotencyKey,
+            bankAccountId: input.bankAccountId ?? null, // ADR-030
             lines: {
               create: linesWithIgtf.map((l) => ({
                 invoiceId: l.invoiceId,
@@ -263,7 +272,7 @@ export class PaymentBatchService {
               })),
             },
           },
-          include: { lines: true },
+          include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
         });
       } catch (err) {
         // FINDING-3: P2002 en idempotencyKey → mensaje de negocio (ADR-022 D-10)
@@ -319,7 +328,7 @@ export class PaymentBatchService {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
               where: { id: input.batchId, companyId: input.companyId },
-              include: { lines: true },
+              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
             if (batch.status !== "DRAFT") {
@@ -398,8 +407,39 @@ export class PaymentBatchService {
             const applied = await tx.paymentBatch.update({
               where: { id: batch.id },
               data: { status: "APPLIED" },
-              include: { lines: true },
+              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
+
+            // ADR-030: GL auto-posting — solo si bankAccountId + apAccountId configurados
+            if (batch.bankAccountId) {
+              const settings = await tx.companySettings.findUnique({
+                where: { companyId: input.companyId },
+                select: { apAccountId: true, igtfPayableAccountId: true },
+              });
+              if (settings?.apAccountId) {
+                await PaymentGLService.postPaymentBatchGL(
+                  tx,
+                  {
+                    paymentBatchId: batch.id,
+                    bankAccountId: batch.bankAccountId,
+                    lines: batch.lines.map((l) => ({
+                      invoiceId: l.invoiceId,
+                      amountVes: new Decimal(l.amountVes.toString()),
+                      igtfAmount: l.igtfAmount ? new Decimal(l.igtfAmount.toString()) : null,
+                    })),
+                    context: {
+                      companyId: input.companyId,
+                      date: batch.date,
+                      createdBy: input.userId,
+                      description: `Pago lote ${batch.id.slice(-8)} — ${batch.method}`,
+                      ipAddress: input.ipAddress ?? null,
+                      userAgent: input.userAgent ?? null,
+                    },
+                  },
+                  { apAccountId: settings.apAccountId, igtfPayableAccountId: settings.igtfPayableAccountId },
+                );
+              }
+            }
 
             await tx.auditLog.create({
               data: {
@@ -456,7 +496,7 @@ export class PaymentBatchService {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
               where: { id: input.batchId, companyId: input.companyId },
-              include: { lines: true },
+              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
             if (batch.status !== "APPLIED") {
@@ -507,6 +547,16 @@ export class PaymentBatchService {
               }
             }
 
+            // ADR-030: revertir asiento GL si existe
+            await PaymentGLService.reversePaymentBatchGL(tx, batch.id, input.companyId, input.userId, {
+              companyId: input.companyId,
+              date: now,
+              createdBy: input.userId,
+              description: `Anulación lote — ${input.voidReason}`,
+              ipAddress: input.ipAddress ?? null,
+              userAgent: input.userAgent ?? null,
+            });
+
             // Marcar batch VOID
             const voided = await tx.paymentBatch.update({
               where: { id: batch.id },
@@ -517,7 +567,7 @@ export class PaymentBatchService {
                 voidedBy: input.userId,
                 deletedAt: now,
               },
-              include: { lines: true },
+              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
 
             await tx.auditLog.create({
@@ -595,7 +645,7 @@ export class PaymentBatchService {
   static async getById(batchId: string, companyId: string): Promise<PaymentBatchSummary | null> {
     const batch = await prisma.paymentBatch.findFirst({
       where: { id: batchId, companyId },
-      include: { lines: true },
+      include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
     });
     return batch ? serializeBatch(batch) : null;
   }
@@ -611,7 +661,7 @@ export class PaymentBatchService {
     const take = limit + 1;
     const batches = await prisma.paymentBatch.findMany({
       where: { companyId, deletedAt: null },
-      include: { lines: true },
+      include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

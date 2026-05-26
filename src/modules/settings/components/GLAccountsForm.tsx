@@ -34,6 +34,7 @@ type Props = {
     ivaRetentionPayableAccountId: string | null; // GAP-03
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
+    igtfPayableAccountId: string | null; // ADR-030
   };
   initialUnbookedCount: number;
 };
@@ -93,6 +94,7 @@ export function GLAccountsForm({
   const [ivaRetentionPayableAccountId, setIvaRetentionPayableAccountId] = useState(initialConfig.ivaRetentionPayableAccountId ?? NONE); // GAP-03
   const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
   const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
+  const [igtfPayableAccountId, setIgtfPayableAccountId] = useState(initialConfig.igtfPayableAccountId ?? NONE); // ADR-030
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
 
   const [isSaving, startSave] = useTransition();
@@ -127,6 +129,7 @@ export function GLAccountsForm({
         ivaRetentionPayableAccountId: toNull(ivaRetentionPayableAccountId), // GAP-03
         fxGainAccountId: toNull(fxGainAccountId),
         fxLossAccountId: toNull(fxLossAccountId),
+        igtfPayableAccountId: toNull(igtfPayableAccountId), // ADR-030
       });
       if (result.success) {
         toast.success("Configuración del Libro Mayor guardada.");
@@ -247,6 +250,38 @@ export function GLAccountsForm({
             hint="PASIVO — Cr retención IVA al registrar compra con agente de retención (opcional)"
             value={ivaRetentionPayableAccountId}
             onChange={setIvaRetentionPayableAccountId}
+            accounts={liabilityAccounts}
+          />
+        </div>
+      </div>
+
+      {/* ── Pagos en Divisas — IGTF (ADR-030) ───────────────────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">Pagos en Divisas (IGTF)</h3>
+          <span className="text-xs text-zinc-400">(ADR-030 · GL auto-posting)</span>
+          {igtfPayableAccountId !== NONE ? (
+            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+              Activo
+            </span>
+          ) : (
+            <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 rounded px-2 py-0.5">
+              Opcional
+            </span>
+          )}
+        </div>
+        <p className="text-muted-foreground text-xs">
+          Si se configura, cada cobro en divisas generará automáticamente el asiento{" "}
+          <span className="font-medium">Dr. Banco / Cr. CxC / Cr. IGTF por Pagar</span>.
+          La cuenta debe ser de tipo <span className="font-medium">PASIVO</span> (cuenta 2115 o equivalente).
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <AccountSelect
+            id="igtfPayableAccountId"
+            label="IGTF por Pagar"
+            hint="PASIVO — Cr IGTF 3% causado en cobros en divisas (opcional)"
+            value={igtfPayableAccountId}
+            onChange={setIgtfPayableAccountId}
             accounts={liabilityAccounts}
           />
         </div>

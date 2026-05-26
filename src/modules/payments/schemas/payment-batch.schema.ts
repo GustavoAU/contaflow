@@ -79,6 +79,8 @@ export const CreateBatchSchema = z
     lines: z
       .array(BatchLineInputSchema)
       .min(1, { error: "El lote debe tener al menos una línea" }),
+    // ADR-030: FK opcional a BankAccount para GL auto-posting en applyBatch()
+    bankAccountId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.method === "PAGOMOVIL" && !data.referenceNumber?.trim()) {

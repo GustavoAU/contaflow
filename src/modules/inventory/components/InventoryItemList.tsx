@@ -5,11 +5,18 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { XCircleIcon, AlertTriangleIcon } from "lucide-react";
+import { XCircleIcon, AlertTriangleIcon, MoreHorizontal, Pencil, Trash2, History } from "lucide-react";
 import { softDeleteInventoryItemAction, getItemMovementsAction } from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
 import { UomManager } from "./UomManager";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 export type InventoryItemRow = {
   id: string;
@@ -91,8 +98,10 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
     });
   }
 
-  // columnas totales según props
-  const totalCols = 8 + (canViewHistory ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
+  // La columna Historial sólo aparece cuando el rol no tiene dropdown de acciones;
+  // en ese caso "Ver historial" está dentro del menú ⋮.
+  const showHistorialCol = canViewHistory && !(canEdit || canDelete);
+  const totalCols = 8 + (showHistorialCol ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <div className="space-y-3">
@@ -116,11 +125,11 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 {canManageUom && (
                   <th scope="col" className="px-4 py-3 text-center">Unidades</th>
                 )}
-                {canViewHistory && (
+                {showHistorialCol && (
                   <th scope="col" className="px-4 py-3 text-center">Historial</th>
                 )}
                 {(canEdit || canDelete) && (
-                  <th scope="col" className="px-4 py-3 text-center">Acciones</th>
+                  <th scope="col" className="px-4 py-3 text-right w-14"></th>
                 )}
               </tr>
             </thead>
@@ -138,15 +147,17 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                   <>
                     <tr key={item.id} className={`hover:bg-gray-50 ${isBelowMin ? "bg-amber-50/40" : ""}`}>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">{item.sku}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {item.name}
+                      <td className="px-4 py-3 max-w-55">
+                        <p className="font-medium text-gray-900 truncate" title={item.name}>
+                          {item.name}
+                        </p>
                         {item.description && (
-                          <span className="ml-1 text-xs text-gray-400">— {item.description}</span>
+                          <p className="text-xs text-gray-400 truncate">{item.description}</p>
                         )}
                         {isBelowMin && (
-                          <span className="ml-2 text-xs text-amber-700 font-semibold">
+                          <p className="text-xs text-amber-700 font-semibold mt-0.5">
                             ⚠ Stock bajo (mín: {minStock})
-                          </span>
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -212,7 +223,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                           </button>
                         </td>
                       )}
-                      {canViewHistory && (
+                      {showHistorialCol && (
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => handleToggleHistory(item)}
@@ -224,26 +235,44 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                         </td>
                       )}
                       {(canEdit || canDelete) && (
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-3">
-                            {canEdit && (
+                        <td className="px-4 py-2 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                               <button
-                                onClick={() => setEditingId(isEditing ? null : item.id)}
-                                className="text-xs text-blue-600 hover:underline"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                                aria-label="Acciones del producto"
                               >
-                                {isEditing ? "Cancelar" : "Editar"}
+                                <MoreHorizontal className="h-4 w-4" />
                               </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => handleDelete(item.id, item.name)}
-                                disabled={isPendingDelete}
-                                className="text-xs text-red-600 hover:underline disabled:opacity-40"
-                              >
-                                Eliminar
-                              </button>
-                            )}
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {canEdit && (
+                                <DropdownMenuItem onClick={() => setEditingId(isEditing ? null : item.id)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  {isEditing ? "Cancelar edición" : "Editar producto"}
+                                </DropdownMenuItem>
+                              )}
+                              {canViewHistory && (
+                                <DropdownMenuItem onClick={() => handleToggleHistory(item)}>
+                                  <History className="h-3.5 w-3.5" />
+                                  {isHistoryOpen ? "Ocultar historial" : "Ver historial"}
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:bg-red-50 focus:text-red-600"
+                                    onClick={() => handleDelete(item.id, item.name)}
+                                    disabled={isPendingDelete}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Eliminar
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       )}
                     </tr>

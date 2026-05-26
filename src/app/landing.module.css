@@ -224,7 +224,6 @@
 .videoThumbBg {
   position: absolute; inset: 0;
   background: linear-gradient(135deg, var(--lnd-hero-3) 0%, var(--lnd-hero-2) 100%);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
 }
 .videoThumbBg::before {
   content: ''; position: absolute; inset: 0;
@@ -553,7 +552,7 @@
   font-size: clamp(32px, 4vw, 52px); font-weight: 800;
   letter-spacing: -1.8px; color: #fff; margin-bottom: 18px;
 }
-.cta p { font-size: 17px; color: oklch(0.74 0.05 258); max-width: 460px; margin: 0 auto 44px; line-height: 1.7; }
+.cta p { font-size: 17px; color: oklch(0.74 0.05 258); max-width: 540px; margin: 0 auto 44px; line-height: 1.7; }
 
 /* ─── Footer ─── */
 .footer {
@@ -877,4 +876,176 @@
   outline: 2px solid var(--lnd-blue);
   outline-offset: 4px;
   border-radius: var(--lnd-r-sm);
+}
+
+/* ─── Mini dashboard mockup (video card thumbnail) ─── */
+
+/* Contenedor raíz — ocupa todo el videoThumbBg, fade de bordes */
+.vtMockup {
+  position: absolute; inset: 0;
+  display: flex; gap: 6px;
+  padding: 10px 10px 8px;
+  overflow: hidden;
+  mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, black 22%, transparent 88%);
+  -webkit-mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, black 22%, transparent 88%);
+}
+
+/* Sidebar strip */
+.vtSb {
+  width: 34px; flex-shrink: 0;
+  background: oklch(0.115 0.05 258);
+  border-radius: 5px;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 6px 5px;
+}
+.vtSbLogo {
+  width: 18px; height: 18px;
+  background: oklch(0.50 0.25 258 / 0.75);
+  border-radius: 3px;
+  align-self: center; flex-shrink: 0;
+  margin-bottom: 4px;
+}
+.vtSbItem {
+  height: 11px; border-radius: 3px;
+  background: oklch(1 0 0 / 0.08);
+}
+.vtSbActive { background: oklch(0.50 0.25 258 / 0.55); }
+
+/* Main panel */
+.vtMain {
+  flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0;
+}
+
+/* Topbar row */
+.vtTopbar {
+  height: 17px;
+  background: oklch(0.145 0.05 258);
+  border-radius: 4px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 6px;
+}
+.vtTopbarPill {
+  height: 6px; border-radius: 3px;
+  background: oklch(1 0 0 / 0.15);
+}
+.vtTopbarDot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: oklch(1 0 0 / 0.12);
+  margin-left: auto; flex-shrink: 0;
+}
+.vtPlLg { flex: 3; }
+.vtPlSm { width: 16px; }
+.vtPlXs { width: 10px; }
+
+/* KPI cards */
+.vtKpis {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+}
+.vtKpi {
+  border-radius: 5px;
+  background: oklch(0.145 0.05 258);
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; overflow: hidden;
+}
+.vtKpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.vtKpiBlue::before  { background: oklch(0.50 0.25 258); }
+.vtKpiGreen::before { background: oklch(0.65 0.18 145); }
+.vtKpiRed::before   { background: oklch(0.60 0.20 25); }
+.vtKpiGold::before  { background: oklch(0.75 0.13 72); }
+.vtKpiLbl {
+  height: 4px; border-radius: 2px;
+  background: oklch(1 0 0 / 0.18); width: 75%;
+}
+.vtKpiVal {
+  height: 8px; border-radius: 2px;
+  background: oklch(1 0 0 / 0.50); width: 55%;
+}
+
+/* Table rows */
+.vtTable {
+  display: flex; flex-direction: column; gap: 2px; flex: 1;
+}
+.vtTrow {
+  display: flex; gap: 4px; align-items: center;
+  padding: 3px 6px; border-radius: 3px;
+}
+.vtTrowHd { background: oklch(0.145 0.05 258); }
+.vtTcell {
+  height: 5px; border-radius: 2px;
+  background: oklch(1 0 0 / 0.10);
+}
+.vtTcellMain { flex: 3; }
+.vtTcellSub  { flex: 2; }
+.vtTcellBadge {
+  flex: 1; height: 7px; border-radius: 4px;
+}
+.vtBadgeGreen { background: oklch(0.65 0.18 145 / 0.50); }
+.vtBadgeAmber { background: oklch(0.75 0.13 72  / 0.50); }
+
+/* Brand overlay — centrado sobre el mockup */
+.vtOverlay {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse 55% 45% at 50% 52%, oklch(0.095 0.04 258 / 0.72) 0%, transparent 70%);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 7px;
+}
+
+/* ─── Video modal — estado Próximamente ─── */
+
+.vComing {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; padding: 28px;
+  text-align: center;
+  background: var(--lnd-hero);
+}
+.vComing::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 65% 60% at 50% 50%, oklch(0.50 0.25 258 / 0.12) 0%, transparent 70%);
+}
+
+.vComingChip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid oklch(0.50 0.25 258 / 0.40);
+  color: var(--lnd-blue-l);
+  font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 999px;
+  letter-spacing: 0.2px;
+}
+.vComingTitle {
+  position: relative;
+  font-size: 22px; font-weight: 800;
+  color: oklch(0.92 0.007 258);
+  letter-spacing: -0.5px; margin: 0;
+}
+.vComingSub {
+  position: relative;
+  font-size: 14px;
+  color: oklch(0.56 0.04 258);
+  max-width: 360px; line-height: 1.65; margin: 0;
+}
+.vComingBtn {
+  position: relative;
+  font-size: 14px; font-weight: 700; line-height: 1;
+  color: #fff; background: var(--lnd-blue);
+  border: none; padding: 0 24px; height: 46px;
+  border-radius: var(--lnd-r-sm); cursor: pointer;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 20px var(--lnd-blue-glow);
+  transition: background .15s, box-shadow .15s, transform .12s;
+}
+.vComingBtn:hover {
+  background: var(--lnd-blue-d);
+  box-shadow: 0 6px 28px oklch(0.50 0.25 258 / 0.5);
+  transform: translateY(-1px);
+}
+.vComingBtn:focus-visible {
+  outline: 2px solid var(--lnd-blue-l);
+  outline-offset: 3px;
 }

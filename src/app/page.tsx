@@ -294,20 +294,15 @@ export default async function LandingPage() {
               { val: <><span>6</span> módulos</>, desc: "Todo en una sola plataforma", delay: "" },
               { val: <>PA <span>121</span></>, desc: "100% conforme a SENIAT", delay: styles.d1 },
               { val: <><span>14</span> días</>, desc: "Prueba gratis, sin tarjeta", delay: styles.d2 },
-              { val: <>USDT <span>+</span></>, desc: "Pago seguro en crypto", delay: styles.d3, tip: "Tether (USDT) es una stablecoin anclada al dólar. Pagas con crypto, sin banco intermediario." },
-            ].map(({ val, desc, delay, tip }) => (
+              { val: <>Bs. <span>+</span> $</>, desc: "Multi-moneda · VES y USD", delay: styles.d3 },
+            ].map(({ val, desc, delay }) => (
               <div
                 key={desc}
                 className={`${styles.stat} ${styles.reveal} ${delay}`}
                 data-reveal
               >
                 <div className={styles.statVal}>{val}</div>
-                <div
-                  className={`${styles.statDesc}${tip ? ` ${styles.usdtTip}` : ""}`}
-                  {...(tip ? { "data-tip": tip } : {})}
-                >
-                  {desc}
-                </div>
+                <div className={styles.statDesc}>{desc}</div>
               </div>
             ))}
           </div>
@@ -639,7 +634,7 @@ export default async function LandingPage() {
                 <span className={styles.ftBadge}>✓ SENIAT PA 121</span>
                 <span className={styles.ftBadge}>✓ VEN-NIF</span>
                 <span className={styles.ftBadge}>✓ LOTTT</span>
-                <span className={styles.ftBadge}>🔒 Seguro</span>
+                <span className={styles.ftBadge}>SSL seguro</span>
               </div>
             </div>
 

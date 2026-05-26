@@ -16,6 +16,7 @@ import {
 } from "@/modules/retentions/actions/retention.actions";
 import { RetentionCalculator } from "@/modules/retentions/services/RetentionCalculator";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
+import { fmtVen } from "@/lib/fmt-ven";
 
 type Props = {
   companyId: string;
@@ -407,11 +408,11 @@ export function RetentionForm({ companyId, userId }: Props) {
                 <>
                   <div className="flex justify-between">
                     <span className="text-zinc-600">IVA (16%):</span>
-                    <span className="font-mono">{preview.ivaAmount}</span>
+                    <span className="font-mono">{fmtVen(preview.ivaAmount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-600">Retención IVA ({ivaRetentionPct}%):</span>
-                    <span className="font-mono">{preview.ivaRetention}</span>
+                    <span className="font-mono">{fmtVen(preview.ivaRetention)}</span>
                   </div>
                 </>
               )}
@@ -420,7 +421,7 @@ export function RetentionForm({ companyId, userId }: Props) {
                   <span className="text-zinc-600">
                     Retención ISLR ({preview.islrRetentionPct}%):
                   </span>
-                  <span className="font-mono">{preview.islrAmount}</span>
+                  <span className="font-mono">{fmtVen(preview.islrAmount)}</span>
                 </div>
               )}
               {preview.incesAmount && (
@@ -428,7 +429,7 @@ export function RetentionForm({ companyId, userId }: Props) {
                   <span className="text-zinc-600">
                     INCES ({preview.incesRetentionPct}%):
                   </span>
-                  <span className="font-mono">{preview.incesAmount}</span>
+                  <span className="font-mono">{fmtVen(preview.incesAmount)}</span>
                 </div>
               )}
               {preview.fatAmount && (
@@ -436,12 +437,12 @@ export function RetentionForm({ companyId, userId }: Props) {
                   <span className="text-zinc-600">
                     FAT ({preview.fatRetentionPct}%):
                   </span>
-                  <span className="font-mono">{preview.fatAmount}</span>
+                  <span className="font-mono">{fmtVen(preview.fatAmount)}</span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t pt-1">
                 <span className="font-semibold text-blue-800">Total a retener:</span>
-                <span className="font-mono font-bold text-blue-800">{preview.totalRetention}</span>
+                <span className="font-mono font-bold text-blue-800">{fmtVen(preview.totalRetention)}</span>
               </div>
             </div>
           )}

@@ -23,6 +23,7 @@ Resuelve 5 CVEs HIGH: CSRF bypass en Server Actions (null origin), HTTP request 
 Migración cubre 7 archivos: `ImportService.ts`, `ImportService.test.ts`, `AccountsImporter.tsx`, `JournalExportButton.tsx`, `LedgerExportButton.tsx`, `InvoiceBook.tsx`, `PayrollRunDetail.tsx`.
 
 **Notas de integración con Next.js:**
+
 - Webpack fallback en `next.config.ts`: `{ fs: false, path: false, child_process: false, net: false, tls: false }`
 - `import type ExcelJS from "exceljs"` para tipos; `import("exceljs")` dinámico en runtime
 - El tipo `Buffer` de exceljs difiere del Node.js moderno → usar `buffer as unknown as Parameters<typeof wb.xlsx.load>[0]`
@@ -73,7 +74,9 @@ En `src/app/(dashboard)/layout.tsx`, fire-and-forget para despertar el pool ante
 ```typescript
 // Fire-and-forget — no bloquea render del layout. Corre solo en servidor.
 // Reduce probabilidad de cold start cuando el usuario llega a un formulario fiscal.
-void prisma.$queryRaw`SELECT 1`.catch(() => { /* silencioso */ });
+void prisma.$queryRaw`SELECT 1`.catch(() => {
+  /* silencioso */
+});
 ```
 
 **Fix 3 — `connectionTimeoutMillis` explícito en `pg.Pool`**
@@ -83,9 +86,9 @@ En `src/lib/prisma.ts`:
 ```typescript
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 10_000,  // cubre cold start de Neon (default de pg es 0 = infinito)
-  idleTimeoutMillis: 20_000,        // libera conexiones idle rápido — Neon cobra por conexión activa
-  max: 5,                           // Neon free tier: 5 conexiones simultáneas
+  connectionTimeoutMillis: 10_000, // cubre cold start de Neon (default de pg es 0 = infinito)
+  idleTimeoutMillis: 20_000, // libera conexiones idle rápido — Neon cobra por conexión activa
+  max: 5, // Neon free tier: 5 conexiones simultáneas
 });
 ```
 
@@ -94,7 +97,7 @@ const pool = new Pool({
 Si Neon cae durante una transacción `Serializable` con correlativo y el usuario reintenta, puede colisionar el `@@unique`. Capturar explícitamente en cualquier action que genere correlativo:
 
 ```typescript
-} catch (e) {
+ catch (e) {
   if (isPrismaError(e, "P2002") && (e.meta?.target as string[])?.includes("controlNumber")) {
     return { error: "Error transitorio — intenta de nuevo. El documento no fue creado." };
   }
@@ -111,6 +114,7 @@ Si Neon cae durante una transacción `Serializable` con correlativo y el usuario
 **Ventaja:** serializa solo las transacciones que compiten por el mismo correlativo en lugar de todo el snapshot — menor contención bajo carga alta.
 
 **Requisitos técnicos:**
+
 - Requiere `tx.$executeRaw` (Prisma no tiene soporte nativo)
 - Compatible con PgBouncer transaction mode (advisory xact locks se liberan al finalizar la transacción)
 

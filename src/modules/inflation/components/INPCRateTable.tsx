@@ -1,5 +1,7 @@
 "use client";
 
+import { fmtVen } from "@/lib/fmt-ven";
+
 const MONTHS = [
   "","Enero","Febrero","Marzo","Abril","Mayo","Junio",
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
@@ -45,7 +47,7 @@ export function INPCRateTable({ rates }: Props) {
                 {MONTHS[r.month]} {r.year}
               </td>
               <td className="px-4 py-3 text-right font-mono text-gray-800">
-                {r.indexValue}
+                {fmtVen(r.indexValue, 2)}
               </td>
               <td className="px-4 py-3 text-gray-500">{r.source ?? "BCV"}</td>
               <td className="px-4 py-3 text-gray-400 text-xs">

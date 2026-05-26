@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { MoneyBadge } from "@/components/ui/MoneyBadge";
+import { ExportAgingPDFButton } from "./ExportAgingPDFButton";
 import type { AgingReport, AgingBucket } from "../services/ReceivableService";
 
 type Props = {
@@ -137,9 +138,16 @@ export function AgingReportTable({ report, companyId }: Props) {
               <MoneyBadge amount={report.grandTotalOverdueVes} currency="VES" />
             </span>
           </div>
-          <span className="text-zinc-400 text-xs ml-auto">
+          <span className="text-zinc-400 text-xs">
             Corte: {formatDate(report.asOf)}
           </span>
+          <div className="ml-auto">
+            <ExportAgingPDFButton
+              companyId={companyId}
+              reportType={report.type}
+              asOf={report.asOf}
+            />
+          </div>
         </div>
 
         {/* Barra de proporción corriente vs vencido */}

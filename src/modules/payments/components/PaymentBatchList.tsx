@@ -213,7 +213,12 @@ function BatchRow({
               <tbody className="divide-y divide-zinc-200">
                 {batch.lines.map((l) => (
                   <tr key={l.id}>
-                    <td className="py-1 font-mono text-zinc-600">{l.invoiceId.slice(0, 12)}…</td>
+                    <td className="py-1 font-mono text-zinc-600">
+                      {l.invoiceNumber ?? l.invoiceId.slice(0, 12) + "…"}
+                      {l.counterpartName && (
+                        <span className="ml-1 text-zinc-400">({l.counterpartName})</span>
+                      )}
+                    </td>
                     <td className="py-1 text-right font-mono font-semibold">
                       {fmtVes(l.amountVes)}
                     </td>
@@ -247,8 +252,8 @@ export function PaymentBatchList({ companyId, batches, onVoided }: Props) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-white">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border bg-white">
+      <table className="w-full min-w-[700px] text-sm">
         <thead className="border-b bg-zinc-50 text-xs font-medium uppercase text-zinc-500">
           <tr>
             <th className="w-8 px-3 py-3" />

@@ -67,8 +67,8 @@ const BATCH_SUMMARY = {
   createdBy: USER_ID,
   idempotencyKey: "idem-key-1",
   lines: [
-    { id: "line-1", invoiceId: "inv-a", amountVes: "150000.0000", amountOriginal: null, igtfAmount: null, notes: null },
-    { id: "line-2", invoiceId: "inv-b", amountVes: "350000.0000", amountOriginal: null, igtfAmount: null, notes: null },
+    { id: "line-1", invoiceId: "inv-a", invoiceNumber: "TCOMP-001", counterpartName: "Proveedor A", amountVes: "150000.0000", amountOriginal: null, igtfAmount: null, notes: null },
+    { id: "line-2", invoiceId: "inv-b", invoiceNumber: "TCOMP-002", counterpartName: "Proveedor B", amountVes: "350000.0000", amountOriginal: null, igtfAmount: null, notes: null },
   ],
 };
 

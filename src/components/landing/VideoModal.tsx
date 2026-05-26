@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Play, ArrowRight } from "lucide-react";
 import styles from "@/app/landing.module.css";
 
 export function VideoModal() {
@@ -45,8 +46,70 @@ export function VideoModal() {
         type="button"
       >
         <div className={styles.videoThumbBg}>
-          <span className={styles.vtBrand}>⚡ ContaFlow</span>
-          <span className={styles.vtSub}>Sistema Contable Venezolano</span>
+          {/* Mini dashboard mockup — aria-hidden, puramente decorativo */}
+          <div className={styles.vtMockup} aria-hidden="true">
+            {/* Sidebar strip */}
+            <div className={styles.vtSb}>
+              <div className={styles.vtSbLogo} />
+              <div className={`${styles.vtSbItem} ${styles.vtSbActive}`} />
+              <div className={styles.vtSbItem} />
+              <div className={styles.vtSbItem} />
+              <div className={styles.vtSbItem} />
+              <div className={styles.vtSbItem} />
+            </div>
+            {/* Main panel */}
+            <div className={styles.vtMain}>
+              {/* Topbar */}
+              <div className={styles.vtTopbar}>
+                <div className={`${styles.vtTopbarPill} ${styles.vtPlLg}`} />
+                <div className={`${styles.vtTopbarPill} ${styles.vtPlSm}`} />
+                <div className={`${styles.vtTopbarPill} ${styles.vtPlXs}`} />
+                <div className={styles.vtTopbarDot} />
+              </div>
+              {/* KPI cards */}
+              <div className={styles.vtKpis}>
+                <div className={`${styles.vtKpi} ${styles.vtKpiBlue}`}>
+                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                </div>
+                <div className={`${styles.vtKpi} ${styles.vtKpiGreen}`}>
+                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                </div>
+                <div className={`${styles.vtKpi} ${styles.vtKpiRed}`}>
+                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                </div>
+                <div className={`${styles.vtKpi} ${styles.vtKpiGold}`}>
+                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                </div>
+              </div>
+              {/* Table rows */}
+              <div className={styles.vtTable}>
+                {([
+                  { type: "header" },
+                  { type: "green" },
+                  { type: "amber" },
+                  { type: "green" },
+                  { type: "green" },
+                ] as const).map((row, i) => (
+                  <div
+                    key={i}
+                    className={`${styles.vtTrow} ${row.type === "header" ? styles.vtTrowHd : ""}`}
+                  >
+                    <div className={`${styles.vtTcell} ${styles.vtTcellMain}`} />
+                    <div className={`${styles.vtTcell} ${styles.vtTcellSub}`} />
+                    <div className={`${styles.vtTcell} ${styles.vtTcellBadge} ${
+                      row.type === "green" ? styles.vtBadgeGreen :
+                      row.type === "amber" ? styles.vtBadgeAmber : ""
+                    }`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Brand overlay — legible sobre el mockup */}
+          <div className={styles.vtOverlay}>
+            <span className={styles.vtBrand}>⚡ ContaFlow</span>
+            <span className={styles.vtSub}>Sistema Contable Venezolano</span>
+          </div>
         </div>
         <div className={styles.playBtn}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -81,14 +144,32 @@ export function VideoModal() {
               </button>
             </div>
             <div className={styles.vPlayer}>
-              {/* Replace with: <iframe id="vFrame" src="YOUR_VIDEO_EMBED_URL" allowFullScreen /> */}
-              <div className={styles.vPlaceholder}>
-                <div className={styles.vPlaceholderIcon}>🎬</div>
-                <div className={styles.vPlaceholderText}>
-                  <strong>Demo próximamente disponible</strong>
-                  Reemplaza este bloque con la URL de tu video.<br />
-                  Compatible con YouTube, Vimeo o Loom.
+              {/*
+                Cuando el video esté listo, reemplazar el div .vComing con:
+                <iframe
+                  src="URL_DEL_VIDEO"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full border-0"
+                />
+              */}
+              <div className={styles.vComing}>
+                <div className={styles.vComingChip}>
+                  <Play size={12} aria-hidden />
+                  Próximamente
                 </div>
+                <h3 className={styles.vComingTitle}>Demo del sistema</h3>
+                <p className={styles.vComingSub}>
+                  Estamos preparando el video de demostración.<br />
+                  Mientras tanto, crea tu cuenta gratis y explora la plataforma.
+                </p>
+                <a
+                  href="/sign-up"
+                  className={styles.vComingBtn}
+                  onClick={close}
+                >
+                  Crear cuenta gratis — 14 días
+                  <ArrowRight size={13} aria-hidden />
+                </a>
               </div>
             </div>
           </div>
