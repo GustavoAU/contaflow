@@ -300,7 +300,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - **Portal Cliente** ✅ (CxC pendiente + historial pagos — /client-portal/[token] — ClientPortalTokenButton — 8 tests)
 - **WCAG AA** ✅ (focus-visible:ring en sidebar/topbar/ViewModeToggle — contraste "Pronto" text-zinc-400→text-zinc-600)
 
-**2023 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-24)
+**Auditoría GL pagos (Riesgo-6 + Riesgo-9)** ✅ merged (TransactionType COBRO/PAGO + IVA Ret x Cobrar GL + ivaRetentionReceivableAccountId — 2049 tests)
+
+**2049 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
 
 ### middleware.ts
 
