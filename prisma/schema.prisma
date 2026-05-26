@@ -134,6 +134,8 @@ model Company {
   createdAt                 DateTime                 @default(now())
   updatedAt                 DateTime                 @updatedAt
   rif                       String?                  @unique // RIF para Venezuela
+  // Q3-5 Multi-país: ISO 3166-1 alpha-3 — fuente de verdad en src/lib/tax-config.ts
+  country                   String                   @default("VEN")
   address                   String?
   members                   CompanyMember[]
   accounts                  Account[]
