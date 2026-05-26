@@ -78,6 +78,7 @@ export async function createPaymentAction(
             commissionPct: d.commissionPct ? new Decimal(d.commissionPct) : undefined,
             commissionAmount: d.commissionAmount ? new Decimal(d.commissionAmount) : undefined,
             igtfAmount: computedIgtf,
+            ivaRetentionAmount: d.ivaRetentionAmount ? new Decimal(d.ivaRetentionAmount) : undefined,
             date: dateObj,
             notes: d.notes,
             createdBy: userId, // always use authenticated userId
@@ -110,8 +111,9 @@ export async function createPaymentAction(
               select: {
                 arAccountId: true,
                 igtfPayableAccountId: true,
-                fxGainAccountId: true,   // NIC 21 diferencial cambiario
+                fxGainAccountId: true,                  // NIC 21 diferencial cambiario
                 fxLossAccountId: true,
+                ivaRetentionReceivableAccountId: true,  // Riesgo-6 audit
               },
             });
             if (settings?.arAccountId) {
@@ -125,6 +127,7 @@ export async function createPaymentAction(
                   invoiceId: d.invoiceId,
                   amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
                   currency: d.currency,
+                  ivaRetentionAmount: d.ivaRetentionAmount ? new Decimal(d.ivaRetentionAmount) : undefined,
                   context: {
                     companyId: d.companyId,
                     date: dateObj,
@@ -139,6 +142,7 @@ export async function createPaymentAction(
                   igtfPayableAccountId: settings.igtfPayableAccountId,
                   fxGainAccountId: settings.fxGainAccountId,
                   fxLossAccountId: settings.fxLossAccountId,
+                  ivaRetentionReceivableAccountId: settings.ivaRetentionReceivableAccountId,
                 },
               );
             }

@@ -30,6 +30,9 @@ export type PaymentRecordGLInput = {
   invoiceId?: string;        // para leer la tasa de la factura original
   amountOriginal?: Decimal;  // monto en divisa (USD/EUR)
   currency?: string;         // "USD" | "EUR" | "VES"
+  // Riesgo-6 auditoría: IVA retenido por el cliente CE (Prov. 0049 75%/100%)
+  // Dr. IVA Ret. x Cobrar = ivaRetentionAmount | Cr. CxC = amountVes + ivaRetentionAmount
+  ivaRetentionAmount?: Decimal;
   context: GLPostingContext;
 };
 
@@ -119,6 +122,7 @@ export class PaymentGLService {
       igtfPayableAccountId: string | null;
       fxGainAccountId: string | null; // NIC 21
       fxLossAccountId: string | null; // NIC 21
+      ivaRetentionReceivableAccountId: string | null; // Riesgo-6: IVA retenido x cobrar
     },
   ): Promise<GLPostingResult> {
     const { companyId, date, createdBy, description, ipAddress, userAgent } =
@@ -165,14 +169,27 @@ export class PaymentGLService {
     const entries: { accountId: string; amount: Decimal; description: string }[] =
       [];
 
+    // ── IVA Retenido por Cobrar (Riesgo-6 / Prov. 0049) ─────────────────────
+    // Si el cliente CE retiene el IVA (75%/100%), el cobro neto es menor al total.
+    // Asiento: Dr. Banco (neto) + Dr. IVA Ret. x Cobrar = Cr. CxC (total factura).
+    // Nota: cuando hay retención IVA saltamos diferencial cambiario (complejidad).
+    const ivaRet = input.ivaRetentionAmount
+      ? new Decimal(input.ivaRetentionAmount.toString())
+      : new Decimal(0);
+    const hasIvaRetention =
+      ivaRet.greaterThan(0) &&
+      !!settings.ivaRetentionReceivableAccountId;
+
     // ── Diferencial cambiario NIC 21 / VEN-NIF BA-5 ──────────────────────────
     // La CxC fue causada a la tasa del día de la factura.
     // Si la tasa cambió al cobrar, la CxC se extingue a la tasa original
     // y la diferencia se reconoce como Ganancia o Pérdida Cambiaria.
+    // Saltamos diferencial si hay retención IVA (combinación compleja).
     let cxcCreditAmount = amountVes; // default: sin diferencial (VES o sin datos)
     let fxDiff = new Decimal(0);
 
     const fxApplies =
+      !hasIvaRetention && // Riesgo-6: no mezclar retención IVA con FX diff
       input.currency &&
       input.currency !== "VES" &&
       input.amountOriginal &&
@@ -199,13 +216,28 @@ export class PaymentGLService {
       }
     }
 
-    // Dr. Banco (monto total recibido en VES, incluye IGTF si aplica)
+    // Si hay retención IVA, la CxC se cancela por el total (neto + retenido)
+    if (hasIvaRetention) {
+      cxcCreditAmount = amountVes.plus(ivaRet);
+    }
+
+    // Dr. Banco (monto neto recibido en VES)
     entries.push({
       accountId: bankAcc.accountId,
       amount: amountVes, // positivo = Débito
       description: richDescription,
     });
-    // Cr. CxC (a la tasa de la factura original; si VES o sin datos → amountVes)
+
+    // Dr. IVA Retenido por Cobrar (si aplica Riesgo-6)
+    if (hasIvaRetention) {
+      entries.push({
+        accountId: settings.ivaRetentionReceivableAccountId!,
+        amount: ivaRet, // Débito
+        description: `${richDescription} — IVA retenido (Prov. 0049)`,
+      });
+    }
+
+    // Cr. CxC (a la tasa de la factura original; si VES o sin datos → amountVes; si retención → total)
     entries.push({
       accountId: settings.arAccountId,
       amount: cxcCreditAmount.negated(), // negativo = Crédito
@@ -253,6 +285,7 @@ export class PaymentGLService {
     }
 
     // Crear Transaction + JournalEntries + actualizar PaymentRecord
+    // Riesgo-9 (Art. 33 COT): tipo COBRO para identificación correcta en Libro Diario
     const txRecord = await tx.transaction.create({
       data: {
         number,
@@ -260,7 +293,7 @@ export class PaymentGLService {
         userId: createdBy,
         description,
         date,
-        type: "DIARIO",
+        type: "COBRO",
         status: "POSTED",
         periodId: period.id,
         entries: {
@@ -432,6 +465,7 @@ export class PaymentGLService {
     }
 
     // Crear Transaction + JournalEntries + actualizar PaymentBatch
+    // Riesgo-9 (Art. 33 COT): tipo PAGO para identificación correcta en Libro Diario
     const txRecord = await tx.transaction.create({
       data: {
         number,
@@ -439,7 +473,7 @@ export class PaymentGLService {
         userId: createdBy,
         description,
         date,
-        type: "DIARIO",
+        type: "PAGO",
         status: "POSTED",
         periodId: period.id,
         entries: {
@@ -545,6 +579,7 @@ export class PaymentGLService {
     const reverseDesc = `Reverso — ${originalTx.description}`;
 
     // Crear asiento de reverso (cada línea invierte su signo)
+    // Riesgo-9: preservar tipo COBRO del asiento original
     const reverseTx = await tx.transaction.create({
       data: {
         number,
@@ -552,7 +587,7 @@ export class PaymentGLService {
         userId: voidedBy,
         description: reverseDesc,
         date: context.date,
-        type: "DIARIO",
+        type: "COBRO",
         status: "POSTED",
         periodId: period.id,
         entries: {
@@ -626,6 +661,7 @@ export class PaymentGLService {
     const number = await generateTxNumber(tx, companyId, context.date);
     const reverseDesc = `Reverso — ${originalTx.description}`;
 
+    // Riesgo-9: preservar tipo PAGO del asiento original
     const reverseTx = await tx.transaction.create({
       data: {
         number,
@@ -633,7 +669,7 @@ export class PaymentGLService {
         userId: voidedBy,
         description: reverseDesc,
         date: context.date,
-        type: "DIARIO",
+        type: "PAGO",
         status: "POSTED",
         periodId: period.id,
         entries: {

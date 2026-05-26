@@ -68,6 +68,22 @@ export const CreatePaymentSchema = z
     createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId
     // ADR-030: FK opcional a BankAccount para GL auto-posting
     bankAccountId: z.string().optional(),
+    // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%) — opcional
+    ivaRetentionAmount: z
+      .string()
+      .refine(
+        (v) => {
+          if (!v) return true;
+          try {
+            const d = new Decimal(v);
+            return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
+          } catch {
+            return false;
+          }
+        },
+        { error: "IVA retenido fuera del rango permitido" }
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (data.method === "PAGOMOVIL") {

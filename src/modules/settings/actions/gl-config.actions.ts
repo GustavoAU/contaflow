@@ -24,7 +24,8 @@ const SaveGLConfigSchema = z.object({
   inventoryAccountId: z.string().nullable(),
   ivaDFAccountId: z.string().nullable(),
   ivaCFAccountId: z.string().nullable(),
-  ivaRetentionPayableAccountId: z.string().nullable(), // GAP-03
+  ivaRetentionPayableAccountId: z.string().nullable(),        // GAP-03
+  ivaRetentionReceivableAccountId: z.string().nullable(),     // Riesgo-6 audit: IVA ret x cobrar
   fxGainAccountId: z.string().nullable(),
   fxLossAccountId: z.string().nullable(),
   igtfPayableAccountId: z.string().nullable(), // ADR-030 — IGTF por pagar (PASIVO 2115)
@@ -40,7 +41,8 @@ export async function getGLConfigAction(companyId: string): Promise<
     inventoryAccountId: string | null;
     ivaDFAccountId: string | null;
     ivaCFAccountId: string | null;
-    ivaRetentionPayableAccountId: string | null; // GAP-03
+    ivaRetentionPayableAccountId: string | null;    // GAP-03
+    ivaRetentionReceivableAccountId: string | null; // Riesgo-6
     fxGainAccountId: string | null;
     fxLossAccountId: string | null;
     igtfPayableAccountId: string | null; // ADR-030
@@ -68,7 +70,8 @@ export async function getGLConfigAction(companyId: string): Promise<
           inventoryAccountId: true,
           ivaDFAccountId: true,
           ivaCFAccountId: true,
-          ivaRetentionPayableAccountId: true, // GAP-03
+          ivaRetentionPayableAccountId: true,    // GAP-03
+          ivaRetentionReceivableAccountId: true, // Riesgo-6
           fxGainAccountId: true,
           fxLossAccountId: true,
           igtfPayableAccountId: true, // ADR-030
@@ -94,7 +97,8 @@ export async function getGLConfigAction(companyId: string): Promise<
         inventoryAccountId: settings?.inventoryAccountId ?? null,
         ivaDFAccountId: settings?.ivaDFAccountId ?? null,
         ivaCFAccountId: settings?.ivaCFAccountId ?? null,
-        ivaRetentionPayableAccountId: settings?.ivaRetentionPayableAccountId ?? null, // GAP-03
+        ivaRetentionPayableAccountId: settings?.ivaRetentionPayableAccountId ?? null,    // GAP-03
+        ivaRetentionReceivableAccountId: settings?.ivaRetentionReceivableAccountId ?? null, // Riesgo-6
         fxGainAccountId: settings?.fxGainAccountId ?? null,
         fxLossAccountId: settings?.fxLossAccountId ?? null,
         igtfPayableAccountId: settings?.igtfPayableAccountId ?? null, // ADR-030
