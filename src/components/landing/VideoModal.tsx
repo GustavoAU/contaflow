@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { Play, ArrowRight } from "lucide-react";
 import styles from "@/app/landing.module.css";
 
@@ -162,14 +163,14 @@ export function VideoModal() {
                   Estamos preparando el video de demostración.<br />
                   Mientras tanto, crea tu cuenta gratis y explora la plataforma.
                 </p>
-                <a
+                <Link
                   href="/sign-up"
                   className={styles.vComingBtn}
                   onClick={close}
                 >
                   Crear cuenta gratis — 14 días
                   <ArrowRight size={13} aria-hidden />
-                </a>
+                </Link>
               </div>
             </div>
           </div>
