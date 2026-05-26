@@ -69,11 +69,13 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 60** ✅ merged — hard-lock VOID en períodos cerrados
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
-### Completadas recientes (Fase 38)
+### Completadas recientes (Fase 38 + Auditoría GL)
+- **Auditoría GL Riesgo-6+9 2026-05-26** ✅ merged — Riesgo-9 (Art. 33 COT): `TransactionType.COBRO`/`PAGO` (postPaymentRecordGL→COBRO, postPaymentBatchGL→PAGO, reversals preservan tipo). Riesgo-6 (Prov. 0049): `PaymentRecord.ivaRetentionAmount` + `CompanySettings.ivaRetentionReceivableAccountId` (ACTIVO); GL: Dr.Banco(neto)+Dr.IVARetxCobrar=Cr.CxC(total); GLAccountsForm sección CE; PaymentForm campo opcional. Migración `20260526_cobropago_ivaretention`. 2049 tests GREEN.
+- **Auditoría GL Fixes 1-4 2026-05-26** ✅ merged — Fix1: badge CE requerido en GLAccountsForm; Fix2: diferencial cambiario NIC 21 (Dr/Cr fxGain/fxLoss) en postPaymentRecordGL; Fix3: alerta `IGTF_PAGOS_SIN_REGISTRAR` en PendingTasksService (CE+90d); Fix4: descripción enriquecida asientos (`USD X × Bs.YYY = Bs.ZZZ | IGTF`; batch: `Proveedor — Factura Nro.`). 2044→2049 tests.
 - **Fase 38 2026-05-26** ✅ merged — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030). `PaymentGLService` (postPaymentRecordGL/Batch + reversePaymentRecordGL/Batch), migración `20260526_payment_gl_bankaccount` (bankAccountId+glTransactionId+igtfPayableAccountId nullable), selector bankAccountId en PaymentForm+PaymentBatchForm, AnalyzeReceiptButton (Gemini 2.0 Flash OCR), CompanySettings UI `igtfPayableAccountId`. 2042 tests GREEN.
 
 ### Tests / CI
-**2042 tests GREEN | 0 TS errors** (2026-05-26)
+**2049 tests GREEN | 0 TS errors** (2026-05-26)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
