@@ -47,6 +47,7 @@ import {
   SparklesIcon,
   Share2,
   PiggyBank,
+  FolderOpenIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -112,6 +113,7 @@ function buildOwnerAdminNav(companyId: string): NavConfig {
           item("Plan de Cuentas",  p("/accounts"),              BookOpen),
           item("Conciliación",     p("/bank-reconciliation"),   LandmarkIcon),
           item("Activos Fijos",    p("/fixed-assets"),          Building2),
+          item("Documentos",       p("/documents"),             FolderOpenIcon),
           item("Reportes",         p("/reports"),               BarChart3),
           item("Exportar Datos",   p("/export"),                ArchiveIcon),
         ],
@@ -162,6 +164,7 @@ function buildAccountantNav(companyId: string): NavConfig {
           item("Plan de Cuentas",  p("/accounts"),             BookOpen),
           item("Conciliación",     p("/bank-reconciliation"),  LandmarkIcon),
           item("Activos Fijos",    p("/fixed-assets"),         Building2),
+          item("Documentos",       p("/documents"),            FolderOpenIcon),
           item("Reportes",         p("/reports"),              BarChart3),
           item("Exportar Datos",   p("/export"),               ArchiveIcon),
         ],
