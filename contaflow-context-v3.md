@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` (Q3-1 mergeado 2026-05-26)
+**Ninguna** — branch `main` (Q3-2 mergeado 2026-05-26)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -77,7 +77,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Fase 38 2026-05-26** ✅ merged — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030). `PaymentGLService` (postPaymentRecordGL/Batch + reversePaymentRecordGL/Batch), migración `20260526_payment_gl_bankaccount` (bankAccountId+glTransactionId+igtfPayableAccountId nullable), selector bankAccountId en PaymentForm+PaymentBatchForm, AnalyzeReceiptButton (Gemini 2.0 Flash OCR), CompanySettings UI `igtfPayableAccountId`. 2042 tests GREEN.
 
 ### Tests / CI
-**2049 tests GREEN | 0 TS errors** (2026-05-26)
+**2086 tests GREEN | 0 TS errors** (2026-05-26)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
