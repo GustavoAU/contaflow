@@ -6,9 +6,11 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CustomerService, type CustomerRow } from "../services/CustomerService";
+import { ContactNoteService, type ContactNoteRow } from "../services/ContactNoteService";
 import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
+  ContactNoteSchema,
   type CreateCustomerInput,
   type UpdateCustomerInput,
 } from "../schemas/vendor.schemas";
@@ -117,6 +119,55 @@ export async function deleteCustomerAction(
   const result = await CustomerService.softDelete(companyId, customerId);
   if (!result.deleted) return { success: false, error: "Cliente no encontrado o ya eliminado" };
   return { success: true, data: { linkedCount: result.linkedCount } };
+}
+
+// ── Contact notes (historial de interacciones) ─────────────────────────────
+
+export async function listContactNotesAction(
+  companyId: string,
+  customerId: string,
+): Promise<Result<ContactNoteRow[]>> {
+  const { allowed } = await resolveAccounting(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+  const data = await ContactNoteService.list(companyId, "CUSTOMER", customerId);
+  return { success: true, data };
+}
+
+export async function addContactNoteAction(
+  companyId: string,
+  customerId: string,
+  input: unknown,
+): Promise<Result<ContactNoteRow>> {
+  const { userId, allowed } = await resolveWriters(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
+
+  const parsed = ContactNoteSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  // Verificar que el cliente pertenece a esta empresa (ADR-004)
+  const customer = await CustomerService.get(companyId, customerId);
+  if (!customer) return { success: false, error: "Cliente no encontrado" };
+
+  const data = await ContactNoteService.create(companyId, "CUSTOMER", customerId, parsed.data.content, userId);
+  return { success: true, data };
+}
+
+export async function deleteContactNoteAction(
+  companyId: string,
+  noteId: string,
+): Promise<Result<true>> {
+  const { userId, allowed } = await resolveWriters(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
+
+  const deleted = await ContactNoteService.delete(companyId, noteId);
+  if (!deleted) return { success: false, error: "Nota no encontrada" };
+  return { success: true, data: true };
 }
 
 // ── Link customer to invoice (WRITERS+, rate-limited, IDOR guard) ──────────

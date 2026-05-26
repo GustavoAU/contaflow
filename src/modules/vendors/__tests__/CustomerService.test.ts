@@ -15,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
       update: vi.fn(),
       findUnique: vi.fn(),
+      groupBy: vi.fn(),
     },
   },
 }));
@@ -30,6 +31,8 @@ beforeEach(() => vi.clearAllMocks());
 describe("CustomerService.list", () => {
   it("filtra por companyId y deletedAt null", async () => {
     vi.mocked(prisma.customer.findMany).mockResolvedValue([base] as never);
+    // Q3-2: groupBy para lastInvoiceDate por cliente
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([] as never);
     await CustomerService.list("c1");
     expect(prisma.customer.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { companyId: "c1", deletedAt: null } }),
