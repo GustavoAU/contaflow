@@ -371,7 +371,8 @@ export function Sidebar({
         "flex flex-col sticky top-0 h-screen",
         "bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800",
         "transition-[width] duration-200 ease-in-out overflow-hidden shrink-0",
-        collapsed ? "w-14" : "w-58"
+        // Q3-4 Mobile-first: fuerza icon-only en pantallas < sm (390px usable sin overflow)
+        collapsed ? "w-14" : "w-14 sm:w-58"
       )}
     >
       {/* Logo + collapse toggle */}

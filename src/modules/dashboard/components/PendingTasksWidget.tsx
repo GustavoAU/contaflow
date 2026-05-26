@@ -44,14 +44,15 @@ export function PendingTasksWidget({ companyId, data }: Props) {
           const style = SEVERITY_STYLES[task.severity];
           const Icon = style.icon;
           return (
+            // Q3-4 Mobile-first: min-h-[52px] garantiza tap target ≥44px (WCAG 2.5.8)
             <Link
               key={task.type}
               href={`/company/${companyId}${task.href}`}
-              className={`flex items-start gap-3 rounded-lg border px-4 py-3 transition-opacity hover:opacity-80 ${style.bg}`}
+              className={`flex items-center gap-3 rounded-lg border px-4 py-3 min-h-[52px] transition-opacity hover:opacity-80 active:opacity-70 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 ${style.bg}`}
             >
-              <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${style.icon_class}`} />
+              <Icon className={`h-5 w-5 shrink-0 ${style.icon_class}`} />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-zinc-800">{task.title}</p>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${style.badge}`}>
                     {task.count}
@@ -59,7 +60,11 @@ export function PendingTasksWidget({ companyId, data }: Props) {
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-600">{task.description}</p>
               </div>
-              <span className="shrink-0 text-xs text-zinc-400" aria-hidden>→</span>
+              <span className="shrink-0 text-zinc-400" aria-hidden>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
             </Link>
           );
         })}

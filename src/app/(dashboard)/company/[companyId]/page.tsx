@@ -31,6 +31,9 @@ import { getP2034CountersAction } from "@/modules/analytics/actions/p2034-counte
 import { P2034Widget } from "@/modules/analytics/components/P2034Widget";
 import { PaymentSuccessToast } from "@/components/billing/PaymentSuccessToast";
 import { FiscalDeadlineWidget } from "@/modules/dashboard/components/FiscalDeadlineWidget";
+import { ManagerApprovalInbox } from "@/modules/dashboard/components/ManagerApprovalInbox";
+import { getPayrollRunsAction } from "@/modules/payroll/actions/payroll-run.actions";
+import { listBudgetsAction } from "@/modules/budgets/actions/budget.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -209,14 +212,24 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   // Fetch pending tasks for ACCOUNTING+ roles (non-blocking — falls back gracefully)
   const pendingTasksResult = showKpis ? await getPendingTasksAction(companyId) : null;
 
-  // Fetch vacation alerts for ADMIN+ roles only
+  // Fetch vacation alerts + payroll drafts + budgets for ADMIN+ roles only
   const isAdmin = canAccess(role, ROLES.ADMIN_ONLY);
-  const [vacationAlertsResult, p2034Result] = await Promise.all([
+  const [vacationAlertsResult, p2034Result, payrollRunsResult, budgetsResult] = await Promise.all([
     isAdmin ? getVacationAlertsAction(companyId) : Promise.resolve(null),
     isAdmin ? getP2034CountersAction(companyId) : Promise.resolve(null),
+    // Q3-4 ManagerApprovalInbox: corridas de nómina DRAFT para aprobación del gerente
+    isAdmin ? getPayrollRunsAction(companyId) : Promise.resolve(null),
+    isAdmin ? listBudgetsAction(companyId) : Promise.resolve(null),
   ]);
   const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
   const p2034Data = p2034Result?.success ? p2034Result.data : [];
+  // Q3-4: approvalInboxData — corridas DRAFT + presupuestos DRAFT
+  const draftPayrollRuns = payrollRunsResult?.success
+    ? payrollRunsResult.data.filter((r) => r.status === "DRAFT")
+    : [];
+  const draftBudgetsCount = budgetsResult?.success
+    ? budgetsResult.data.filter((b) => b.status === "DRAFT").length
+    : 0;
 
   const openDays = m.activePeriod
     // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
@@ -237,7 +250,8 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       <PaymentSuccessToast payment={payment} />
 
       {/* ─── Encabezado ─────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Q3-4: flex-col en mobile, flex-row a partir de sm */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight truncate">{company.name}</h1>
@@ -259,7 +273,8 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
           </div>
           {company.rif && <p className="text-muted-foreground mt-0.5 text-sm">RIF: {company.rif}</p>}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Q3-4: flex-wrap para que los botones apilen si no caben en mobile */}
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {/* Guía de configuración — visible para OWNER/ADMIN */}
           {(role === "OWNER" || role === "ADMIN") && (
             <SetupWizardTrigger
@@ -412,7 +427,8 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                     <p className={`text-sm font-medium ${netPositive ? "text-green-700" : "text-red-700"}`}>
                       Utilidad Neta del Período
                     </p>
-                    <p className={`mt-1 text-4xl font-extrabold tracking-tight ${netPositive ? "text-green-700" : "text-red-700"}`}>
+                    {/* Q3-4: text-2xl en mobile, text-4xl en sm+ */}
+                    <p className={`mt-1 text-2xl sm:text-4xl font-extrabold tracking-tight ${netPositive ? "text-green-700" : "text-red-700"}`}>
                       {fmtBs(m.netIncome)}
                     </p>
                     <p className={`mt-2 text-xs ${netPositive ? "text-green-600" : "text-red-600"}`}>
@@ -428,40 +444,41 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
             );
           })()}
 
-          {/* Fila de métricas de balance — contexto financiero */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-white p-5">
+          {/* Fila de métricas de balance — Q3-4: 2 cols en mobile, 4 en lg */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            {/* Q3-4: p-3 en mobile, p-5 en sm+ | text-base en mobile, text-xl en sm+ */}
+            <div className="rounded-lg border bg-white p-3 sm:p-5">
               <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Ingresos</p>
-                <TrendingUpIcon className="h-4 w-4 text-green-500" />
+                <p className="text-muted-foreground text-xs sm:text-sm">Ingresos</p>
+                <TrendingUpIcon className="h-4 w-4 text-green-500 shrink-0" />
               </div>
-              <p className="mt-2 text-xl font-bold text-green-600">{fmtBs(m.totalRevenue)}</p>
-              <p className="text-muted-foreground mt-1 text-xs">acumulado del período</p>
+              <p className="mt-1.5 sm:mt-2 text-base sm:text-xl font-bold text-green-600 truncate">{fmtBs(m.totalRevenue)}</p>
+              <p className="text-muted-foreground mt-1 text-xs hidden sm:block">acumulado del período</p>
             </div>
 
-            <div className="rounded-lg border bg-white p-5">
+            <div className="rounded-lg border bg-white p-3 sm:p-5">
               <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Gastos</p>
-                <TrendingDownIcon className="h-4 w-4 text-red-500" />
+                <p className="text-muted-foreground text-xs sm:text-sm">Gastos</p>
+                <TrendingDownIcon className="h-4 w-4 text-red-500 shrink-0" />
               </div>
-              <p className="mt-2 text-xl font-bold text-red-600">{fmtBs(m.totalExpenses)}</p>
-              <p className="text-muted-foreground mt-1 text-xs">acumulado del período</p>
+              <p className="mt-1.5 sm:mt-2 text-base sm:text-xl font-bold text-red-600 truncate">{fmtBs(m.totalExpenses)}</p>
+              <p className="text-muted-foreground mt-1 text-xs hidden sm:block">acumulado del período</p>
             </div>
 
-            <div className="rounded-lg border bg-white p-5">
+            <div className="rounded-lg border bg-white p-3 sm:p-5">
               <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Total Activos</p>
-                <ScaleIcon className="h-4 w-4 text-blue-500" />
+                <p className="text-muted-foreground text-xs sm:text-sm">Total Activos</p>
+                <ScaleIcon className="h-4 w-4 text-blue-500 shrink-0" />
               </div>
-              <p className="mt-2 text-xl font-bold">{fmtBs(m.totalAssets)}</p>
+              <p className="mt-1.5 sm:mt-2 text-base sm:text-xl font-bold truncate">{fmtBs(m.totalAssets)}</p>
             </div>
 
-            <div className="rounded-lg border bg-white p-5">
+            <div className="rounded-lg border bg-white p-3 sm:p-5">
               <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-sm">Total Pasivos</p>
-                <ScaleIcon className="h-4 w-4 text-zinc-400" />
+                <p className="text-muted-foreground text-xs sm:text-sm">Total Pasivos</p>
+                <ScaleIcon className="h-4 w-4 text-zinc-400 shrink-0" />
               </div>
-              <p className="mt-2 text-xl font-bold">{fmtBs(m.totalLiabilities)}</p>
+              <p className="mt-1.5 sm:mt-2 text-base sm:text-xl font-bold truncate">{fmtBs(m.totalLiabilities)}</p>
             </div>
           </div>
 
@@ -551,6 +568,14 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       {/* ─── Tareas pendientes IA (OWNER, ADMIN, ACCOUNTANT) ────────────── */}
       {showKpis && pendingTasksResult?.success && pendingTasksResult.data.tasks.length > 0 && (
         <PendingTasksWidget companyId={companyId} data={pendingTasksResult.data} />
+      )}
+
+      {/* ─── Aprobaciones pendientes — Gerente en móvil (Q3-4) ──────────── */}
+      {isAdmin && (
+        <ManagerApprovalInbox
+          companyId={companyId}
+          data={{ draftPayrollRuns, draftBudgetsCount }}
+        />
       )}
 
       {/* ─── Conflictos de concurrencia P2034 (OWNER, ADMIN) ────────────── */}
