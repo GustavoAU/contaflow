@@ -137,6 +137,9 @@ export const NotificationEmailService = {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     // 1. Obtener todas las empresas activas (con al menos un miembro OWNER/ADMIN)
+    // ADR-004-EXCEPTION: cron job cross-company — sendDailyDigests opera sobre TODAS las
+    // empresas activas por diseño. No existe un companyId de contexto aquí porque el digest
+    // se envía desde /api/cron/daily-notifications, que no está scoped a una empresa concreta.
     const companies = await prisma.company.findMany({
       where: { status: "ACTIVE" },
       select: {
