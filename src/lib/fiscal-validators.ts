@@ -1,14 +1,19 @@
 // src/lib/fiscal-validators.ts
-// Validadores fiscales venezolanos compartidos (VEN-NIF)
+// Q3-5: Actualizado para importar desde tax-config.ts (fuente de verdad).
+// Mantiene los mismos exports para compatibilidad con código existente.
+
+export {
+  VEN_RIF_REGEX,
+  VEN_CONTROL_NUMBER_REGEX as CONTROL_NUMBER_REGEX,
+} from "./tax-config";
+
+// Re-export VEN_RIF_REGEX también bajo el nombre corto que usan algunos módulos
+import { VEN_RIF_REGEX } from "./tax-config";
 
 /**
- * Regex canónica para RIF venezolano.
- * Prefijos: J=Jurídica, V=Natural, E=Extranjero, G=Gobierno, C=Comunal, P=Pasaporte
- * Dígito verificador obligatorio — formato: J-12345678-9 o J-123456789
- * Case-insensitive para tolerancia de entrada.
+ * Valida un RIF venezolano.
+ * @deprecated Importar desde tax-config: getFiscalConfig(country).taxIdRegex
  */
-export const VEN_RIF_REGEX = /^[JVEGCP]-\d{8}-?\d$/i;
-
 export function validateVenezuelanRif(rif: string): boolean {
   return VEN_RIF_REGEX.test(rif);
 }
@@ -19,10 +24,3 @@ export function validateVenezuelanRif(rif: string): boolean {
  * Usar: z.string().refine(v => new Decimal(v).abs().lte(MAX_INVOICE_AMOUNT))
  */
 export const MAX_INVOICE_AMOUNT = "9999999999.9999";
-
-/**
- * Regex para Nº de Control SENIAT (Providencia 0071, Art. 14).
- * Formato: XX-XXXXXXXX — 2 dígitos, guión, 8 dígitos (ej. 00-00000001)
- * Obligatorio en facturas de compra.
- */
-export const CONTROL_NUMBER_REGEX = /^\d{2}-\d{8}$/;
