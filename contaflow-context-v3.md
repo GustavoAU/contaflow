@@ -9,13 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Fase 38** — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030) — branch `feat/fase-38-payment-gl-causacion`
-- Migración `20260526_payment_gl_bankaccount` ✅ aplicada en Neon
-- `PaymentGLService` ✅ (postPaymentRecordGL / postPaymentBatchGL / reversePaymentRecordGL / reversePaymentBatchGL)
-- Integración en `PaymentService` + `PaymentBatchService` ✅
-- `analyzeReceiptAction` ✅ (Gemini 2.0 Flash, rate limit OCR 10/min)
-- UI: selector bankAccountId en PaymentForm + PaymentBatchForm + AnalyzeReceiptButton ✅
-- **Pendiente**: tests PaymentGLService + analyzeReceiptAction
+**Ninguna** — branch `main` (Fase 38 mergeada)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -75,8 +69,11 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Ítem 60** ✅ merged — hard-lock VOID en períodos cerrados
 - **Ítem 72** ✅ implementado — UI histórico de topes legales (migración `20260507_item72_legal_thresholds` aplicada en Neon ✅)
 
+### Completadas recientes (Fase 38)
+- **Fase 38 2026-05-26** ✅ merged — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030). `PaymentGLService` (postPaymentRecordGL/Batch + reversePaymentRecordGL/Batch), migración `20260526_payment_gl_bankaccount` (bankAccountId+glTransactionId+igtfPayableAccountId nullable), selector bankAccountId en PaymentForm+PaymentBatchForm, AnalyzeReceiptButton (Gemini 2.0 Flash OCR), CompanySettings UI `igtfPayableAccountId`. 2042 tests GREEN.
+
 ### Tests / CI
-**2023 tests GREEN | 0 TS errors** (2026-05-26 Fase 38 en progreso)
+**2042 tests GREEN | 0 TS errors** (2026-05-26)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente
