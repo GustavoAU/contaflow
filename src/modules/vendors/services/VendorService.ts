@@ -1,6 +1,6 @@
 // src/modules/vendors/services/VendorService.ts
 import prisma from "@/lib/prisma";
-import type { CreateVendorInput, UpdateVendorInput } from "../schemas/vendor.schemas";
+import type { CreateVendorInput, UpdateVendorInput, ContactCategory } from "../schemas/vendor.schemas";
 
 export type VendorRow = {
   id: string;
@@ -14,6 +14,8 @@ export type VendorRow = {
   code: string | null;
   groupId: string | null;
   group: { id: string; name: string } | null;
+  notes: string | null;
+  category: ContactCategory;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -27,7 +29,7 @@ export const VendorService = {
       where: { companyId, deletedAt: null },
       orderBy: { name: "asc" },
       include: INCLUDE_GROUP,
-    });
+    }) as Promise<VendorRow[]>;
   },
 
   async get(companyId: string, vendorId: string): Promise<VendorRow | null> {
@@ -37,14 +39,20 @@ export const VendorService = {
     });
     // Post-fetch ownership check (ADR-004)
     if (!vendor || vendor.companyId !== companyId) return null;
-    return vendor;
+    return vendor as VendorRow;
   },
 
   async create(companyId: string, data: CreateVendorInput): Promise<VendorRow> {
     return prisma.vendor.create({
-      data: { companyId, ...data, groupId: data.groupId ?? null },
+      data: {
+        companyId,
+        ...data,
+        groupId: data.groupId ?? null,
+        category: data.category ?? "REGULAR",
+        notes: data.notes ?? null,
+      },
       include: INCLUDE_GROUP,
-    });
+    }) as Promise<VendorRow>;
   },
 
   async update(companyId: string, vendorId: string, data: UpdateVendorInput): Promise<VendorRow | null> {
@@ -52,9 +60,13 @@ export const VendorService = {
     if (!vendor || vendor.companyId !== companyId || vendor.deletedAt !== null) return null;
     return prisma.vendor.update({
       where: { id: vendorId },
-      data: { ...data, ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}) },
+      data: {
+        ...data,
+        ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}),
+        ...(data.notes !== undefined ? { notes: data.notes ?? null } : {}),
+      },
       include: INCLUDE_GROUP,
-    });
+    }) as Promise<VendorRow>;
   },
 
   async softDelete(companyId: string, vendorId: string): Promise<{ deleted: boolean; linkedCount: number }> {

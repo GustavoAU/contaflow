@@ -16,7 +16,8 @@ export type PendingTaskType =
   | "ORDENES_VENCIDAS"             // GAP-02: órdenes con fecha comprometida vencida
   | "RETENCIONES_POR_ENTERAR"      // OM-06: retenciones emitidas no enteradas ante SENIAT
   | "INVENTARIO_SIN_CUENTAS_GL"    // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
-  | "IGTF_PAGOS_SIN_REGISTRAR";    // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
+  | "IGTF_PAGOS_SIN_REGISTRAR"     // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
+  | "CLIENTES_INACTIVOS";          // Q3-2: clientes con historial de facturas pero sin actividad en 90+ días
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -52,6 +53,7 @@ export const PendingTasksService = {
       inventarioSinCuentasGLCount,
       companyInfo,
       igtfPagosSinRegistrarCount,
+      clientesInactivosCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -161,6 +163,27 @@ export const PendingTasksService = {
           AND "igtfAmount" = 0
           AND "deletedAt" IS NULL
           AND "createdAt" >= ${ninetyDaysAgo}
+      `.then(([r]) => Number(r.count)),
+
+      // 12. Q3-2: Clientes con historial de facturas pero sin actividad en 90+ días
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(DISTINCT c.id) AS count
+        FROM "Customer" c
+        WHERE c."companyId" = ${companyId}
+          AND c."deletedAt" IS NULL
+          AND EXISTS (
+            SELECT 1 FROM "Invoice" i
+            WHERE i."customerId" = c.id
+              AND i."companyId" = ${companyId}
+              AND i."deletedAt" IS NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "Invoice" i2
+            WHERE i2."customerId" = c.id
+              AND i2."companyId" = ${companyId}
+              AND i2."deletedAt" IS NULL
+              AND i2."date" >= ${ninetyDaysAgo}
+          )
       `.then(([r]) => Number(r.count)),
     ]);
 
@@ -287,6 +310,19 @@ export const PendingTasksService = {
         description: `${igtfPagosSinRegistrarCount} cobro${pl ? "s" : ""} en divisas de los últimos 90 días ${pl ? "no tienen" : "no tiene"} IGTF registrado. Como Contribuyente Especial, debe percibir y enterar el 3% IGTF (Ley IGTF Art. 4 — multa 100%–300% del tributo omitido).`,
         count: igtfPagosSinRegistrarCount,
         href: "/payments",
+      });
+    }
+
+    // Q3-2: Clientes inactivos — sin factura en 90+ días (con historial previo)
+    if (clientesInactivosCount > 0) {
+      const pl = clientesInactivosCount > 1;
+      tasks.push({
+        type: "CLIENTES_INACTIVOS",
+        severity: "info",
+        title: `Cliente${pl ? "s" : ""} sin actividad reciente`,
+        description: `${clientesInactivosCount} cliente${pl ? "s" : ""} no ${pl ? "han" : "ha"} generado facturas en más de 90 días. Considera hacer seguimiento para retener la relación comercial.`,
+        count: clientesInactivosCount,
+        href: "/customers",
       });
     }
 

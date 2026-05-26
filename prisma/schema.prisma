@@ -210,6 +210,8 @@ model Company {
   // ADR-028: Grupos de contactos
   vendorGroups              VendorGroup[]
   customerGroups            CustomerGroup[]
+  // Q3-2: CRM básico — notas de interacción
+  contactNotes              ContactNote[]
   // Fase 35H: PA-121 Outbox
   seniatSubmissions         SeniatSubmission[]
   // Fase 35I: Firma Digital
@@ -2153,20 +2155,23 @@ model VendorGroup {
 }
 
 model Vendor {
-  id                   String    @id @default(cuid())
+  id                   String          @id @default(cuid())
   companyId            String
   name                 String
   rif                  String?
   email                String?
   phone                String?
   address              String?
-  isSpecialContributor Boolean   @default(false) // Contribuyente Especial — determina si aplican retenciones IVA/ISLR
+  isSpecialContributor Boolean         @default(false) // Contribuyente Especial — determina si aplican retenciones IVA/ISLR
   // ADR-028: código de referencia + grupo
   code                 String?
   groupId              String?
+  // Q3-2: CRM básico
+  notes                String?         @db.Text
+  category             ContactCategory @default(REGULAR)
   deletedAt            DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   company  Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   group    VendorGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -2194,7 +2199,7 @@ model CustomerGroup {
 }
 
 model Customer {
-  id        String    @id @default(cuid())
+  id        String          @id @default(cuid())
   companyId String
   name      String
   rif       String?
@@ -2204,9 +2209,12 @@ model Customer {
   // ADR-028: código de referencia + grupo
   code      String?
   groupId   String?
+  // Q3-2: CRM básico
+  notes     String?         @db.Text
+  category  ContactCategory @default(REGULAR)
   deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   group    CustomerGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -2217,12 +2225,35 @@ model Customer {
   @@index([companyId, deletedAt])
 }
 
+// Q3-2: Historial de interacciones por cliente/proveedor
+model ContactNote {
+  id         String   @id @default(cuid())
+  companyId  String
+  entityType String // 'CUSTOMER' | 'VENDOR'
+  entityId   String
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+  createdBy  String // Clerk userId
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId])
+}
+
 // ─── PA-121 Outbox (ADR-019 D-1) ─────────────────────────────────────────────
 
 enum SubmissionStatus {
   PENDING
   SENT
   FAILED
+}
+
+// Q3-2: CRM básico — categoría de contacto
+enum ContactCategory {
+  LEAD
+  REGULAR
+  VIP
 }
 
 model SeniatSubmission {

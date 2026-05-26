@@ -6,9 +6,11 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { VendorService, type VendorRow } from "../services/VendorService";
+import { ContactNoteService, type ContactNoteRow } from "../services/ContactNoteService";
 import {
   CreateVendorSchema,
   UpdateVendorSchema,
+  ContactNoteSchema,
   type CreateVendorInput,
   type UpdateVendorInput,
 } from "../schemas/vendor.schemas";
@@ -117,6 +119,55 @@ export async function deleteVendorAction(
   const result = await VendorService.softDelete(companyId, vendorId);
   if (!result.deleted) return { success: false, error: "Proveedor no encontrado o ya eliminado" };
   return { success: true, data: { linkedCount: result.linkedCount } };
+}
+
+// ── Contact notes (historial de interacciones) ─────────────────────────────
+
+export async function listVendorNotesAction(
+  companyId: string,
+  vendorId: string,
+): Promise<Result<ContactNoteRow[]>> {
+  const { allowed } = await resolveAccounting(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+  const data = await ContactNoteService.list(companyId, "VENDOR", vendorId);
+  return { success: true, data };
+}
+
+export async function addVendorNoteAction(
+  companyId: string,
+  vendorId: string,
+  input: unknown,
+): Promise<Result<ContactNoteRow>> {
+  const { userId, allowed } = await resolveWriters(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
+
+  const parsed = ContactNoteSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  // Verificar que el proveedor pertenece a esta empresa (ADR-004)
+  const vendor = await VendorService.get(companyId, vendorId);
+  if (!vendor) return { success: false, error: "Proveedor no encontrado" };
+
+  const data = await ContactNoteService.create(companyId, "VENDOR", vendorId, parsed.data.content, userId);
+  return { success: true, data };
+}
+
+export async function deleteVendorNoteAction(
+  companyId: string,
+  noteId: string,
+): Promise<Result<true>> {
+  const { userId, allowed } = await resolveWriters(companyId);
+  if (!allowed) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
+
+  const deleted = await ContactNoteService.delete(companyId, noteId);
+  if (!deleted) return { success: false, error: "Nota no encontrada" };
+  return { success: true, data: true };
 }
 
 // ── Link vendor to invoice (WRITERS+, rate-limited, IDOR guard) ────────────
