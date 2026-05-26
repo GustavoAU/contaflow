@@ -21,7 +21,7 @@ import {
   PackageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { SetupWizardTrigger } from "@/components/onboarding/SetupWizardTrigger";
 import { ROLE_LABELS, canAccess, ROLES } from "@/lib/auth-helpers";
 import type { UserRole } from "@/lib/nav-items";
 import { getPendingTasksAction } from "@/modules/dashboard/actions/pending-tasks.actions";
@@ -259,7 +259,19 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
           </div>
           {company.rif && <p className="text-muted-foreground mt-0.5 text-sm">RIF: {company.rif}</p>}
         </div>
-        <DashboardCTA role={role} companyId={companyId} />
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Guía de configuración — visible para OWNER/ADMIN */}
+          {(role === "OWNER" || role === "ADMIN") && (
+            <SetupWizardTrigger
+              companyId={companyId}
+              companyName={company.name}
+              companyRif={company.rif ?? null}
+              hasAccounts={m.totalAccounts > 0}
+              hasPeriod={!!m.activePeriod}
+            />
+          )}
+          <DashboardCTA role={role} companyId={companyId} />
+        </div>
       </div>
 
       {/* ─── Alerta: sin período abierto (solo contable) ─────────────────── */}
@@ -544,9 +556,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       {/* ─── Conflictos de concurrencia P2034 (OWNER, ADMIN) ────────────── */}
       {isAdmin && <P2034Widget data={p2034Data} />}
 
-      {m.totalAccounts === 0 && showAccountingMetrics && (
-        <OnboardingWizard companyId={companyId} companyName={company.name} />
-      )}
+      {/* SetupWizard auto-open se maneja dentro de SetupWizardTrigger (arriba, en el header) */}
     </div>
   );
 }
