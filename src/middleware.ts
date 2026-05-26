@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks/(.*)",
   "/employee/(.*)",      // Portal del Empleado — acceso por token JWT sin Clerk
   "/client-portal/(.*)", // Portal del Cliente — acceso por token JWT sin Clerk
+  "/api/doc/(.*)",   // Q3-1: Documentos compartidos — autenticados por DOC_SHARE_SECRET JWT
   "/api/cron/(.*)",  // Vercel Cron Jobs — autenticados por CRON_SECRET, no por Clerk
 ]);
 
