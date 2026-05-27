@@ -314,6 +314,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Q3-6 Keyboard Navigation** ✅ merged (useGlobalShortcuts hook + isTypingTarget document.activeElement + N→nueva factura + Ctrl+S→submit form + InvoiceForm aria-busy+aria-keyshortcuts + TopbarInner pill button — 2153 tests)
 
+**Q2-1 AI Asistente como feature central** ✅ merged (/ai-assistant/page.tsx enriquecida: header+badges+banner crítico+capability chips+chat full-height; FloatingAIAssistant: pulse animate-ping en crítico + callout primera visita localStorage cf-ai-tip-shown — 2153 tests)
+
+**Q2-5 Daltonismo badges stock** ✅ merged (WCAG 1.4.1: XCircleIcon+CheckCircle2Icon en InventoryReportsView Estado col + KPI Bajo stock; XCircleIcon+CheckCircle2Icon en InventoryValuation KPI Stock agotado — 2153 tests)
+
 **2153 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
 
 ### middleware.ts
