@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -8,7 +7,7 @@ import { BcvRateWidget } from "@/components/layout/BcvRateWidget";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { UserButton } from "@clerk/nextjs";
-import { AlertTriangle, CheckCircle2, ArrowRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 
@@ -32,63 +31,6 @@ const ROLE_STYLES: Record<UserRole, string> = {
   SENIAT:         "bg-red-500/20    text-red-300    border-red-500/30",
 };
 
-// ─── Period badge ─────────────────────────────────────────────────────────────
-
-const MONTHS_SHORT = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-
-function PeriodBadge({
-  companyId,
-  period,
-}: {
-  companyId: string;
-  period: { year: number; month: number; daysOpen: number; isStale: boolean };
-}) {
-  const monthLabel = `${MONTHS_SHORT[period.month - 1]} ${period.year}`;
-  const daysLabel  = period.daysOpen === 0
-    ? "abierto hoy"
-    : period.daysOpen === 1
-      ? "1 día abierto"
-      : `${period.daysOpen} días abierto`;
-
-  const daysShort = period.daysOpen === 0 ? "hoy" : `${period.daysOpen}d`;
-
-  return (
-    <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-      {period.isStale ? (
-        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden />
-      ) : (
-        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden />
-      )}
-
-      <span
-        className={cn(
-          "text-13 font-medium whitespace-nowrap",
-          period.isStale ? "text-amber-300" : "text-emerald-300"
-        )}
-        title={period.isStale
-          ? `Período ${monthLabel} — ${daysLabel} (se recomienda cerrar)`
-          : `Período ${monthLabel} al día`}
-      >
-        {monthLabel}
-        {period.isStale && (
-          <span className="text-amber-400/80 font-normal"> · {daysShort}</span>
-        )}
-      </span>
-
-      {period.isStale && (
-        <Link
-          href={`/company/${companyId}/periods`}
-          className="hidden xl:flex items-center gap-1 text-11 font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-amber-300 rounded px-2 py-0.5 transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
-          title="Ir a gestión de períodos"
-        >
-          Cerrar
-          <ArrowRight className="w-3 h-3" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
 // ─── TopbarInner ──────────────────────────────────────────────────────────────
 
 type TopbarInnerProps = {
@@ -97,6 +39,7 @@ type TopbarInnerProps = {
   userRole?: UserRole;
   grantedModules?: string[];
   notificationSlot?: React.ReactNode;
+  /** @deprecated — ya no se muestra en el header; el layout sigue pasándolo por compatibilidad */
   activePeriod?: { year: number; month: number; daysOpen: number; isStale: boolean } | null;
 };
 
@@ -106,7 +49,7 @@ export function TopbarInner({
   userRole = "ACCOUNTANT",
   grantedModules,
   notificationSlot,
-  activePeriod,
+  activePeriod: _activePeriod, // recibido por compatibilidad, no usado en header
 }: TopbarInnerProps) {
   const grants = new Set(grantedModules ?? []);
   const { primary: navPrimary, sections: navSections } = companyId
@@ -215,33 +158,8 @@ export function TopbarInner({
         {/* Sin empresa: spacer */}
         {!companyName && <div className="flex-1" />}
 
-        {/* Separador vertical */}
-        {companyName && activePeriod && (
-          <div className="w-px h-5 bg-slate-600 shrink-0" aria-hidden />
-        )}
-
-        {/* Período activo */}
-        {activePeriod && companyId && (
-          <PeriodBadge companyId={companyId} period={activePeriod} />
-        )}
-
         {/* Spacer empuja derecha */}
         <div className="flex-1" />
-
-        {/* Q3-6: Pill de atajo "n" para nueva factura — visible en md+ */}
-        {companyId && (
-          <button
-            type="button"
-            onClick={() => navigate(`/company/${companyId}/invoices/new`)}
-            className="hidden lg:flex items-center gap-1.5 rounded-md border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-slate-300 hover:text-slate-200 hover:border-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
-            title="Nueva factura"
-            aria-label="Nueva factura"
-            aria-keyshortcuts="n"
-          >
-            <span>Nueva factura</span>
-            <kbd className="rounded bg-slate-600 px-1 py-0.5 text-10 font-mono not-italic">N</kbd>
-          </button>
-        )}
 
         {/* Command palette trigger */}
         <button

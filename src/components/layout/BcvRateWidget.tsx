@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
-import { useState, useEffect, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
+import { useState, useEffect, useTransition, useRef } from "react";
+import { RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   fetchBcvRateAction,
@@ -12,11 +12,46 @@ import {
 
 type Props = { companyId: string; variant?: "light" | "dark" };
 
+// ─── Formato helpers ───────────────────────────────────────────────────────────
+
+function fmtRate(rate: string) {
+  return parseFloat(rate).toLocaleString("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function fmtDelta(delta: string | null | undefined) {
+  if (!delta) return null;
+  const n = parseFloat(delta);
+  if (n === 0) return null;
+  const abs = Math.abs(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return { text: `${n > 0 ? "+" : "−"}${abs}`, up: n > 0 };
+}
+
+function formatDate(d: Date | string): string {
+  try {
+    const iso = typeof d === "string" ? d : d.toISOString();
+    const [year, month, day] = iso.split("T")[0]!.split("-").map(Number);
+    return new Date(Date.UTC(year!, month! - 1, day!)).toLocaleDateString("es-VE", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+  } catch {
+    return String(d);
+  }
+}
+
+// ─── BcvRateWidget ─────────────────────────────────────────────────────────────
+// Pill compacto (solo USD) con hover/focus tooltip que muestra USD + EUR + refresh.
+
 export function BcvRateWidget({ companyId, variant = "light" }: Props) {
   const [usd, setUsd] = useState<RateWithDelta | null>(null);
   const [eur, setEur] = useState<RateWithDelta | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   async function loadRates() {
     const res = await getLatestRatesWithDeltaAction(companyId);
@@ -31,24 +66,31 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
     void loadRates();
   }, [companyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleRefresh() {
-    setError(null);
+  // Cerrar tooltip al hacer click fuera
+  useEffect(() => {
+    if (!showTooltip) return;
+    function onOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowTooltip(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [showTooltip]);
+
+  function handleRefresh(e: React.MouseEvent) {
+    e.stopPropagation();
     startTransition(async () => {
       const [resUsd, resEur] = await Promise.all([
         fetchBcvRateAction(companyId),
         fetchBcvEurRateAction(companyId),
       ]);
-      if (!resUsd.success) {
-        setError(resEur.success ? "Sin conexión BCV (USD)" : "Sin conexión BCV");
-        return;
+      if (resUsd.success) {
+        const usdDelta = usd
+          ? (parseFloat(resUsd.data.rate) - parseFloat(usd.rate)).toFixed(4)
+          : null;
+        setUsd({ ...resUsd.data, delta: usdDelta });
       }
-      // Actualizar estado directamente con la data retornada por la action
-      // (evita un segundo round-trip a BD que puede devolver datos stale)
-      const usdDelta = usd
-        ? (parseFloat(resUsd.data.rate) - parseFloat(usd.rate)).toFixed(4)
-        : null;
-      setUsd({ ...resUsd.data, delta: usdDelta });
-
       if (resEur.success) {
         const eurDelta = eur
           ? (parseFloat(resEur.data.rate) - parseFloat(eur.rate)).toFixed(4)
@@ -58,94 +100,131 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
     });
   }
 
-  if (!usd && !eur) return null;
+  if (!usd) return null;
 
   const isDark = variant === "dark";
+  const usdDelta = fmtDelta(usd.delta);
 
   return (
-    <div className="hidden items-center gap-1 md:flex">
-      <div className={cn(
-        "flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs",
-        isDark
-          ? "border-slate-600 bg-slate-700/60"
-          : "border-zinc-200 bg-zinc-50"
-      )}>
-        {usd && <RateTicker label="USD" rate={usd} dark={isDark} />}
-        {usd && eur && <span className={isDark ? "text-slate-500" : "text-zinc-300"}>|</span>}
-        {eur && <RateTicker label="EUR" rate={eur} dark={isDark} />}
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={isPending}
-          title="Actualizar tasas BCV"
+    <div ref={containerRef} className="relative hidden md:block">
+      {/* ── Pill compacto ───────────────────────────────────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setShowTooltip((v) => !v)}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={(e) => {
+          // Solo ocultar si no va hacia el tooltip
+          const related = e.relatedTarget as Node | null;
+          if (!containerRef.current?.contains(related)) setShowTooltip(false);
+        }}
+        aria-label="Ver tasas BCV"
+        aria-expanded={showTooltip}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors outline-none",
+          "focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1",
+          isDark
+            ? "border-slate-600 bg-slate-700/50 hover:border-slate-500 focus-visible:ring-offset-slate-800"
+            : "border-zinc-200 bg-zinc-50 hover:border-zinc-300 focus-visible:ring-offset-white"
+        )}
+      >
+        {/* Label BCV */}
+        <span className={cn("text-10 font-semibold", isDark ? "text-slate-400" : "text-zinc-400")}>
+          BCV
+        </span>
+
+        {/* USD rate */}
+        <span className={cn("font-mono font-semibold tabular-nums text-xs", isDark ? "text-slate-100" : "text-zinc-800")}>
+          {fmtRate(usd.rate)}
+        </span>
+
+        {/* Delta arrow (solo si hay variación) */}
+        {usdDelta && (
+          <span className={cn(
+            "flex items-center text-10 tabular-nums font-mono",
+            usdDelta.up
+              ? (isDark ? "text-emerald-400" : "text-emerald-600")
+              : (isDark ? "text-red-400" : "text-red-500")
+          )}>
+            {usdDelta.up
+              ? <TrendingUp className="h-2.5 w-2.5" aria-hidden />
+              : <TrendingDown className="h-2.5 w-2.5" aria-hidden />
+            }
+          </span>
+        )}
+      </button>
+
+      {/* ── Tooltip con detalle completo ─────────────────────────────────────── */}
+      {showTooltip && (
+        <div
+          role="tooltip"
           className={cn(
-            "ml-0.5 rounded p-0.5 transition-colors disabled:cursor-wait",
+            "absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border shadow-xl",
+            "animate-in fade-in slide-in-from-top-1 duration-150",
             isDark
-              ? "text-slate-400 hover:text-blue-400"
-              : "text-zinc-400 hover:text-blue-600"
+              ? "border-slate-600 bg-slate-800 text-slate-200"
+              : "border-zinc-200 bg-white text-zinc-800"
           )}
-          aria-label="Actualizar tasas BCV"
         >
-          <RefreshCw className={`h-3 w-3 ${isPending ? "animate-spin" : ""}`} />
-        </button>
-      </div>
-      {error && (
-        <span className={cn("text-xs", isDark ? "text-red-400" : "text-red-500")}>{error}</span>
+          <div className="px-3 py-2.5 space-y-2">
+            {/* Fecha */}
+            <p className={cn("text-10 font-medium", isDark ? "text-slate-500" : "text-zinc-400")}>
+              Tasas BCV al {formatDate(usd.date)}
+            </p>
+
+            {/* USD row */}
+            <TooltipRateRow label="USD" rate={usd} dark={isDark} />
+
+            {/* EUR row */}
+            {eur && <TooltipRateRow label="EUR" rate={eur} dark={isDark} />}
+
+            {/* Divider + refresh */}
+            <div className={cn("border-t pt-2 flex items-center justify-end", isDark ? "border-slate-700" : "border-zinc-100")}>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={isPending}
+                className={cn(
+                  "flex items-center gap-1 rounded px-2 py-1 text-10 font-medium transition-colors disabled:cursor-wait",
+                  isDark
+                    ? "text-slate-400 hover:text-blue-400 hover:bg-slate-700"
+                    : "text-zinc-400 hover:text-blue-600 hover:bg-zinc-50"
+                )}
+              >
+                <RefreshCw className={cn("h-3 w-3", isPending && "animate-spin")} />
+                Actualizar tasas
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function RateTicker({ label, rate, dark = false }: { label: string; rate: RateWithDelta; dark?: boolean }) {
-  const delta = rate.delta ? parseFloat(rate.delta) : null;
-  const isUp = delta !== null && delta > 0;
-  const isDown = delta !== null && delta < 0;
+// ─── Fila de tasa en el tooltip ────────────────────────────────────────────────
 
-  const dateDisplay = formatDate(rate.date);
-  const rawRate = parseFloat(rate.rate);
-  const formattedRate = rawRate.toLocaleString("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-  const absDelta = delta !== null ? Math.abs(delta) : null;
-  const formattedDelta = absDelta !== null
-    ? `${isUp ? "+" : "−"}${absDelta.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : null;
-
+function TooltipRateRow({ label, rate, dark }: { label: string; rate: RateWithDelta; dark: boolean }) {
+  const delta = fmtDelta(rate.delta);
   return (
-    <span
-      className="flex items-center gap-1 cursor-default"
-      title={`${label}/VES al ${dateDisplay}${formattedDelta ? ` · variación: ${formattedDelta} Bs.` : ""}`}
-    >
-      <span className={dark ? "font-medium text-slate-400 text-11" : "font-medium text-zinc-400 text-11"}>{label}</span>
-      <span className={cn(
-        "font-mono font-semibold tabular-nums",
-        dark ? "text-slate-100" : "text-zinc-800"
-      )}>
-        Bs.&nbsp;{formattedRate}
+    <div className="flex items-center justify-between gap-2">
+      <span className={cn("text-xs font-semibold", dark ? "text-slate-300" : "text-zinc-600")}>
+        {label}/VES
       </span>
-      {formattedDelta && (
-        <span className={cn(
-          "font-mono text-10 tabular-nums",
-          dark
-            ? (isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-slate-500")
-            : (isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-zinc-400")
-        )}>
-          {formattedDelta}
+      <div className="flex items-center gap-1.5">
+        <span className={cn("font-mono font-bold tabular-nums text-sm", dark ? "text-white" : "text-zinc-900")}>
+          Bs. {fmtRate(rate.rate)}
         </span>
-      )}
-    </span>
+        {delta && (
+          <span className={cn(
+            "font-mono text-10 tabular-nums",
+            delta.up
+              ? (dark ? "text-emerald-400" : "text-emerald-600")
+              : (dark ? "text-red-400" : "text-red-500")
+          )}>
+            {delta.text}
+          </span>
+        )}
+      </div>
+    </div>
   );
-}
-
-function formatDate(d: Date | string): string {
-  try {
-    const iso = typeof d === "string" ? d : d.toISOString();
-    const [year, month, day] = iso.split("T")[0]!.split("-").map(Number);
-    const date = new Date(Date.UTC(year!, month! - 1, day!));
-    return date.toLocaleDateString("es-VE", { day: "numeric", month: "short", timeZone: "UTC" });
-  } catch {
-    return String(d);
-  }
 }
