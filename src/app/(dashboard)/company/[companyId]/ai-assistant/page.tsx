@@ -117,7 +117,7 @@ export default async function AIAssistantPage({ params }: Props) {
             </p>
             <p className="mt-0.5 text-xs text-red-700 dark:text-red-400">
               Escribe{" "}
-              <code className="rounded bg-red-100 px-1 py-0.5 text-[10px] dark:bg-red-900">
+              <code className="rounded bg-red-100 px-1 py-0.5 text-10 dark:bg-red-900">
                 Auditar el período actual
               </code>{" "}
               en el chat para ver el informe completo.
@@ -139,7 +139,7 @@ export default async function AIAssistantPage({ params }: Props) {
             <p className="text-xs font-semibold leading-tight text-zinc-700 dark:text-zinc-300">
               {label}
             </p>
-            <p className="text-[10px] leading-snug text-zinc-400 dark:text-zinc-500">{hint}</p>
+            <p className="text-10 leading-snug text-zinc-400 dark:text-zinc-500">{hint}</p>
           </div>
         ))}
       </div>

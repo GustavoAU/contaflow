@@ -99,6 +99,22 @@ export async function postMonthlyDepreciationAction(
       };
     }
 
+    // Guard: período mensual cerrado (R-3 — CLAUDE.md)
+    const periodClosed = await prisma.accountingPeriod.findFirst({
+      where: {
+        companyId: parsed.data.companyId,
+        year:      parsed.data.year,
+        month:     parsed.data.month,
+        status:    "CLOSED",
+      },
+    });
+    if (periodClosed) {
+      return {
+        success: false,
+        error: `El período ${parsed.data.year}/${String(parsed.data.month).padStart(2, "0")} está cerrado.`,
+      };
+    }
+
     const result = await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
         FixedAssetService.postMonthlyDepreciation(
@@ -284,6 +300,13 @@ export async function catchUpAssetDepreciationAction(
       };
     }
 
+    // Pre-cargar períodos cerrados para respetar R-3 (no calcular depreciación en meses bloqueados)
+    const closedPeriods = await prisma.accountingPeriod.findMany({
+      where: { companyId: parsed.data.companyId, status: "CLOSED" },
+      select: { year: true, month: true },
+    });
+    const closedSet = new Set(closedPeriods.map((p) => `${p.year}-${p.month}`));
+
     let curYear = startYear;
     let curMonth = startMonth;
     let processed = 0;
@@ -294,6 +317,13 @@ export async function catchUpAssetDepreciationAction(
     while (curYear < nowYear || (curYear === nowYear && curMonth <= nowMonth)) {
       const y = curYear;
       const m = curMonth;
+      // Avanzar cursor antes del continue para no entrar en loop infinito
+      curMonth++;
+      if (curMonth > 12) { curMonth = 1; curYear++; }
+
+      // Saltar períodos cerrados (R-3 — CLAUDE.md)
+      if (closedSet.has(`${y}-${m}`)) { skipped++; continue; }
+
       try {
         const result = await prisma.$transaction(async (tx) =>
           withCompanyContext(parsed.data.companyId, tx, async (tx) =>
@@ -307,9 +337,6 @@ export async function catchUpAssetDepreciationAction(
         if (msg.includes("totalmente depreciado") || msg.includes("FULLY_DEPRECIATED")) break;
         errors.push(`${y}/${String(m).padStart(2, "0")}: ${msg}`);
       }
-
-      curMonth++;
-      if (curMonth > 12) { curMonth = 1; curYear++; }
     }
 
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
@@ -345,6 +372,13 @@ export async function catchUpAllAssetsDepreciationAction(
       where: { companyId: parsed.data.companyId, status: "ACTIVE", deletedAt: null },
     });
 
+    // Pre-cargar períodos cerrados para respetar R-3 (una sola query para todos los activos)
+    const closedPeriodsAll = await prisma.accountingPeriod.findMany({
+      where: { companyId: parsed.data.companyId, status: "CLOSED" },
+      select: { year: true, month: true },
+    });
+    const closedSetAll = new Set(closedPeriodsAll.map((p) => `${p.year}-${p.month}`));
+
     let totalProcessed = 0;
     let totalSkipped = 0;
     const assetErrors: Record<string, string[]> = {};
@@ -361,6 +395,13 @@ export async function catchUpAllAssetsDepreciationAction(
       while (curYear < nowYear || (curYear === nowYear && curMonth <= nowMonth)) {
         const y = curYear;
         const m = curMonth;
+        // Avanzar cursor antes del continue para no entrar en loop infinito
+        curMonth++;
+        if (curMonth > 12) { curMonth = 1; curYear++; }
+
+        // Saltar períodos cerrados (R-3 — CLAUDE.md)
+        if (closedSetAll.has(`${y}-${m}`)) { totalSkipped++; continue; }
+
         try {
           const result = await prisma.$transaction(async (tx) =>
             withCompanyContext(parsed.data.companyId, tx, async (tx) =>
@@ -375,9 +416,6 @@ export async function catchUpAllAssetsDepreciationAction(
           if (!assetErrors[asset.name]) assetErrors[asset.name] = [];
           assetErrors[asset.name]!.push(`${y}/${String(m).padStart(2, "0")}: ${msg}`);
         }
-
-        curMonth++;
-        if (curMonth > 12) { curMonth = 1; curYear++; }
       }
     }
 

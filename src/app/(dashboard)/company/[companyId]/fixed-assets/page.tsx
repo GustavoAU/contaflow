@@ -22,7 +22,7 @@ export default async function FixedAssetsPage({ params }: Props) {
   const [assets, accounts] = await Promise.all([
     FixedAssetService.getSummary(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET"] } },
+      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE"] } },
       select: { id: true, code: true, name: true, type: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),
@@ -56,7 +56,11 @@ export default async function FixedAssetsPage({ params }: Props) {
           Activos registrados
           <span className="ml-2 text-sm font-normal text-gray-500">({assets.length})</span>
         </h2>
-        <FixedAssetList assets={serializedAssets as never} companyId={companyId} />
+        <FixedAssetList
+          assets={serializedAssets as never}
+          companyId={companyId}
+          accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
+        />
       </section>
     </div>
   );
