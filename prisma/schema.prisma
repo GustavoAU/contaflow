@@ -247,6 +247,9 @@ model Company {
   // Q3-3: Presupuestos y proyecciones
   budgets                    Budget[]
   budgetLines                BudgetLine[]
+  // Fase 39: Facturación Digital PA-102 (ADR-031)
+  digitalInvoiceProvider     DigitalInvoiceProviderType  @default(NONE)
+  digitalInvoiceApiKeyEnc    String? // AES-256-GCM — nunca exponer al cliente
 }
 
 model CompanyMember {
@@ -580,6 +583,11 @@ model Invoice {
   paymentBatchLines   PaymentBatchLine[]
   // Fase 37A: Líneas de detalle de factura
   lines               InvoiceLine[]
+  // Fase 39: Facturación Digital PA-102 (ADR-031)
+  controlNumberSource ControlNumberSource  @default(INTERNAL)
+  qrCodeData          String? // URL o base64 del QR del proveedor
+  providerReferenceId String? // ID de la imprenta para reconciliación
+  isContingency       Boolean              @default(false)
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
@@ -2753,6 +2761,19 @@ enum CajaCajaReimbursementStatus {
   DRAFT
   POSTED
   VOIDED
+}
+
+// ─── Fase 39: Facturación Digital PA-102 (ADR-031) ───────────────────────────
+
+enum DigitalInvoiceProviderType {
+  NONE // Esquema antiguo — correlativo interno
+  HKA // The Factory HKA
+}
+
+enum ControlNumberSource {
+  INTERNAL // Generado por ContaFlow (esquema pre-PA-102)
+  HKA // Generado por The Factory HKA
+  CONTINGENCY // Emitido en contingencia (proveedor no disponible)
 }
 
 model CajaCaja {
