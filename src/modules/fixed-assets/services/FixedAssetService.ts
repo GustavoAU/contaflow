@@ -12,6 +12,21 @@ type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction"
 
 // ─── Tipos de salida ────────────────────────────────────────────────────────────
 
+/**
+ * FU-03: Fila de conciliación GL vs. Módulo por cuenta de Depreciación Acumulada.
+ * difference > 0 → GL tiene más que el módulo (asiento manual de más)
+ * difference < 0 → módulo registra más que el GL (entry sin transacción)
+ */
+export type GLReconciliationRow = {
+  accDepreciationAccountId: string;
+  accountCode:  string;
+  accountName:  string;
+  moduleTotal:  Decimal;  // suma accumulatedDepreciation del módulo (no-DISPOSED)
+  glTotal:      Decimal;  // saldo crédito neto en GL (no-VOIDED)
+  difference:   Decimal;  // glTotal − moduleTotal  (0 = cuadrado)
+  assetCount:   number;   // activos no-DISPOSED en este grupo
+};
+
 export type DepreciationCalculation = {
   amount: Decimal;           // cuota del período
   accumulated: Decimal;      // depreciación acumulada al final del período
@@ -533,6 +548,97 @@ export class FixedAssetService {
       projected,
       posted: postedEntries,
     };
+  }
+
+  /**
+   * FU-03: Conciliación GL vs. Módulo de Activos Fijos.
+   *
+   * Compara la depreciación acumulada registrada en el módulo (DepreciationEntry)
+   * contra el saldo neto crédito en las cuentas CONTRA_ASSET del Libro Mayor,
+   * excluyendo asientos anulados (VOIDED) — misma convención que PeriodSnapshotService.
+   *
+   * Detecta:
+   *  - Asientos manuales que aumentan/reducen la cuenta sin pasar por el módulo
+   *  - DepreciationEntries sin transacción contable asociada
+   */
+  static async getGLReconciliation(companyId: string): Promise<GLReconciliationRow[]> {
+    const prisma = (await import("@/lib/prisma")).default;
+
+    // 1. Activos no-DISPOSED agrupados por cuenta de Dep. Acumulada
+    const assets = await prisma.fixedAsset.findMany({
+      where: { companyId, status: { not: "DISPOSED" }, deletedAt: null },
+      select: {
+        accDepreciationAccountId: true,
+        entries: {
+          orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
+          take: 1,
+          select: { accumulatedDepreciation: true },
+        },
+      },
+    });
+
+    if (assets.length === 0) return [];
+
+    // 2. Agrupar por cuenta — suma depreciación acumulada del módulo
+    const moduleGroups = new Map<string, { total: Decimal; count: number }>();
+    for (const a of assets) {
+      const existing = moduleGroups.get(a.accDepreciationAccountId) ?? {
+        total: new Decimal(0),
+        count: 0,
+      };
+      const lastEntry = a.entries[0];
+      const accDep = lastEntry
+        ? new Decimal(lastEntry.accumulatedDepreciation.toString())
+        : new Decimal(0);
+      moduleGroups.set(a.accDepreciationAccountId, {
+        total: existing.total.plus(accDep),
+        count: existing.count + 1,
+      });
+    }
+
+    const accountIds = [...moduleGroups.keys()];
+
+    // 3. Saldo neto GL (solo transacciones no-VOIDED) — igual que PeriodSnapshotService
+    const jeLines = await prisma.journalEntry.findMany({
+      where: {
+        accountId: { in: accountIds },
+        transaction: { companyId, status: { not: "VOIDED" } },
+      },
+      select: { accountId: true, amount: true },
+    });
+
+    const glSums = new Map<string, Decimal>();
+    for (const je of jeLines) {
+      const prev = glSums.get(je.accountId) ?? new Decimal(0);
+      glSums.set(je.accountId, prev.plus(new Decimal(je.amount.toString())));
+    }
+
+    // 4. Metadatos de cuentas para la UI
+    const accounts = await prisma.account.findMany({
+      where: { id: { in: accountIds }, companyId },
+      select: { id: true, code: true, name: true },
+    });
+    const accMap = new Map(accounts.map((a) => [a.id, a]));
+
+    // 5. Resultado: CONTRA_ASSET tiene saldo crédito natural → negado para positivo
+    const result: GLReconciliationRow[] = [];
+    for (const [accId, { total: moduleTotal, count }] of moduleGroups) {
+      const netJE   = glSums.get(accId) ?? new Decimal(0);
+      const glTotal = netJE.negated();                        // crédito = positivo
+      const difference = glTotal.minus(moduleTotal);
+      const acc     = accMap.get(accId);
+      result.push({
+        accDepreciationAccountId: accId,
+        accountCode:  acc?.code ?? accId,
+        accountName:  acc?.name ?? "—",
+        moduleTotal,
+        glTotal,
+        difference,
+        assetCount: count,
+      });
+    }
+
+    return result.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
   }
 
   /**

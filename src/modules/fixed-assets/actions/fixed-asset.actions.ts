@@ -554,3 +554,51 @@ export async function postFixedAssetINPCRestatementAction(
     return { success: false, error: mapPrismaError(error) };
   }
 }
+
+// ─── Conciliación GL vs. Módulo (FU-03) ───────────────────────────────────────
+
+export type GLReconciliationResultRow = {
+  accDepreciationAccountId: string;
+  accountCode:  string;
+  accountName:  string;
+  moduleTotal:  string;   // Decimal → string (toFixed 2)
+  glTotal:      string;
+  difference:   string;
+  assetCount:   number;
+};
+
+export async function getFixedAssetGLReconciliationAction(
+  companyId: string,
+): Promise<ActionResult<GLReconciliationResultRow[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
+    const rows = await FixedAssetService.getGLReconciliation(companyId);
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        accDepreciationAccountId: r.accDepreciationAccountId,
+        accountCode: r.accountCode,
+        accountName: r.accountName,
+        moduleTotal: r.moduleTotal.toFixed(2),
+        glTotal:     r.glTotal.toFixed(2),
+        difference:  r.difference.toFixed(2),
+        assetCount:  r.assetCount,
+      })),
+    };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
+  }
+}

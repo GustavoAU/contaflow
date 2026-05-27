@@ -40,6 +40,7 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
       getSummary: vi.fn().mockResolvedValue([]),
       getSchedule: vi.fn().mockResolvedValue({ asset: {}, projected: [], posted: [] }),
       postINPCRestatement: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, totalAdjustment: { toFixed: () => "1200.00" } }),
+      getGLReconciliation: vi.fn().mockResolvedValue([]),
     },
   };
 });
@@ -58,6 +59,7 @@ import {
   disposeFixedAssetAction,
   getFixedAssetsAction,
   postFixedAssetINPCRestatementAction,
+  getFixedAssetGLReconciliationAction,
 } from "./fixed-asset.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -295,6 +297,82 @@ describe("postFixedAssetINPCRestatementAction", () => {
       expect(r.data.processed).toBe(3);
       expect(r.data.skipped).toBe(1);
       expect(r.data.totalAdjustment).toBe("2500.00");
+    }
+  });
+});
+
+// ─── getFixedAssetGLReconciliationAction ──────────────────────────────────────
+
+describe("getFixedAssetGLReconciliationAction", () => {
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si no hay membresía", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("acceso denegado");
+  });
+
+  it("VIEWER no puede ejecutar la conciliación", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
+  });
+
+  it("happy path — sin activos: retorna array vacío", async () => {
+    vi.mocked(FixedAssetService.getGLReconciliation).mockResolvedValue([]);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual([]);
+  });
+
+  it("happy path — retorna filas serializadas con difference cuadrado", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(FixedAssetService.getGLReconciliation).mockResolvedValue([
+      {
+        accDepreciationAccountId: "acc-contra",
+        accountCode:  "1.5.1",
+        accountName:  "Dep. Acumulada Vehículos",
+        moduleTotal:  new Decimal("1500.00"),
+        glTotal:      new Decimal("1500.00"),
+        difference:   new Decimal("0.00"),
+        assetCount:   2,
+      },
+    ] as never);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toHaveLength(1);
+      expect(r.data[0]!.moduleTotal).toBe("1500.00");
+      expect(r.data[0]!.glTotal).toBe("1500.00");
+      expect(r.data[0]!.difference).toBe("0.00");
+      expect(r.data[0]!.assetCount).toBe(2);
+    }
+  });
+
+  it("happy path — detecta diferencia GL vs. módulo", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(FixedAssetService.getGLReconciliation).mockResolvedValue([
+      {
+        accDepreciationAccountId: "acc-contra",
+        accountCode:  "1.5.1",
+        accountName:  "Dep. Acumulada",
+        moduleTotal:  new Decimal("1000.00"),
+        glTotal:      new Decimal("1250.00"),
+        difference:   new Decimal("250.00"),
+        assetCount:   1,
+      },
+    ] as never);
+    const r = await getFixedAssetGLReconciliationAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data[0]!.difference).toBe("250.00");
     }
   });
 });
