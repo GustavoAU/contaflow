@@ -45,8 +45,9 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
 
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember: { findFirst: vi.fn().mockResolvedValue(mockMember) },
-    $transaction: mockTransaction,
+    companyMember:    { findFirst: vi.fn().mockResolvedValue(mockMember) },
+    accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
+    $transaction:     mockTransaction,
   },
 }));
 
@@ -80,6 +81,8 @@ beforeEach(() => {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMember as never);
   vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({})) as never);
   vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
+  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([]);
 });
 
 // ─── createFixedAssetAction ───────────────────────────────────────────────────
@@ -148,6 +151,13 @@ describe("postMonthlyDepreciationAction", () => {
 
   it("retorna error si año cerrado", async () => {
     vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(true);
+    const r = await postMonthlyDepreciationAction(DEPR_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("cerrado");
+  });
+
+  it("retorna error si el período mensual está cerrado (R-3)", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
     const r = await postMonthlyDepreciationAction(DEPR_INPUT);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("cerrado");

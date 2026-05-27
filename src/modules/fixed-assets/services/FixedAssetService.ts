@@ -239,7 +239,9 @@ export class FixedAssetService {
     // Generar asiento contable de depreciación
     const transactionCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `DEP-${year}${String(month).padStart(2, "0")}-${String(transactionCount + 1).padStart(4, "0")}`;
-    const periodDate = new Date(year, month - 1, 1);
+    // VEN-NIF 16 párr. 55: el asiento se registra en el último día del mes depreciado.
+    // new Date(year, month, 0) → día 0 del mes siguiente = último día del mes actual.
+    const periodDate = new Date(year, month, 0);
 
     const journalTx = await tx.transaction.create({
       data: {
