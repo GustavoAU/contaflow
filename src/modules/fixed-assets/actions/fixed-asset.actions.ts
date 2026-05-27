@@ -291,7 +291,7 @@ const MONTH_NAMES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","O
 
 export async function catchUpAssetDepreciationAction(
   input: unknown,
-): Promise<ActionResult<{ processed: number; skipped: number; errors: string[]; noPeriods?: boolean; nextPeriodLabel?: string }>> {
+): Promise<ActionResult<{ processed: number; skipped: number; errors: string[]; noPeriods?: boolean; nextPeriodLabel?: string; closedYearCount?: number }>> {
   const parsed = CatchUpAssetSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -331,18 +331,27 @@ export async function catchUpAssetDepreciationAction(
       };
     }
 
-    // Pre-cargar períodos cerrados para respetar R-3 (no calcular depreciación en meses bloqueados)
+    // Pre-cargar períodos mensuales cerrados (R-3)
     const closedPeriods = await prisma.accountingPeriod.findMany({
       where: { companyId: parsed.data.companyId, status: "CLOSED" },
       select: { year: true, month: true },
     });
     const closedSet = new Set(closedPeriods.map((p) => `${p.year}-${p.month}`));
 
+    // F2/VEN-NIF 8: pre-cargar ejercicios fiscales cerrados
+    const closedFiscalYears = await prisma.fiscalYearClose.findMany({
+      where: { companyId: parsed.data.companyId },
+      select: { year: true },
+    });
+    const closedYearSet = new Set(closedFiscalYears.map((y) => y.year));
+
     let curYear = startYear;
     let curMonth = startMonth;
     let processed = 0;
     let skipped = 0;
     const errors: string[] = [];
+    // Períodos pendientes en ejercicios cerrados → un solo asiento VEN-NIF 8
+    const closedYearPending: { year: number; month: number }[] = [];
 
     // Cada mes en su propio $transaction — evita timeout en activos con muchos períodos
     while (curYear < nowYear || (curYear === nowYear && curMonth <= nowMonth)) {
@@ -352,8 +361,18 @@ export async function catchUpAssetDepreciationAction(
       curMonth++;
       if (curMonth > 12) { curMonth = 1; curYear++; }
 
-      // Saltar períodos cerrados (R-3 — CLAUDE.md)
+      // Saltar períodos mensuales cerrados (R-3 — CLAUDE.md)
       if (closedSet.has(`${y}-${m}`)) { skipped++; continue; }
+
+      // VEN-NIF 8: ejercicio fiscal cerrado → acumular para un solo asiento correctivo
+      if (closedYearSet.has(y)) {
+        const existing = await prisma.depreciationEntry.findUnique({
+          where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: parsed.data.assetId, periodYear: y, periodMonth: m } },
+        });
+        if (!existing) closedYearPending.push({ year: y, month: m });
+        else skipped++;
+        continue;
+      }
 
       try {
         const result = await prisma.$transaction(async (tx) =>
@@ -370,8 +389,31 @@ export async function catchUpAssetDepreciationAction(
       }
     }
 
+    // VEN-NIF 8: un asiento consolidado para todos los períodos de ejercicios cerrados
+    let closedYearCount = 0;
+    if (closedYearPending.length > 0) {
+      try {
+        const result = await prisma.$transaction(async (tx) =>
+          withCompanyContext(parsed.data.companyId, tx, async (tx) =>
+            FixedAssetService.postClosedYearCatchUpDepreciation(
+              parsed.data.assetId,
+              parsed.data.companyId,
+              closedYearPending,
+              userId,
+              tx,
+            )
+          )
+        );
+        closedYearCount = result.processed;
+        processed += result.processed;
+        skipped += (closedYearPending.length - result.processed);
+      } catch (e) {
+        errors.push(`VEN-NIF 8 ajuste: ${e instanceof Error ? e.message : "Error desconocido"}`);
+      }
+    }
+
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
-    return { success: true, data: { processed, skipped, errors } };
+    return { success: true, data: { processed, skipped, errors, closedYearCount } };
   } catch (error) {
     return { success: false, error: mapPrismaError(error) };
   }
@@ -403,12 +445,19 @@ export async function catchUpAllAssetsDepreciationAction(
       where: { companyId: parsed.data.companyId, status: "ACTIVE", deletedAt: null },
     });
 
-    // Pre-cargar períodos cerrados para respetar R-3 (una sola query para todos los activos)
+    // Pre-cargar períodos mensuales cerrados R-3 (una sola query para todos los activos)
     const closedPeriodsAll = await prisma.accountingPeriod.findMany({
       where: { companyId: parsed.data.companyId, status: "CLOSED" },
       select: { year: true, month: true },
     });
     const closedSetAll = new Set(closedPeriodsAll.map((p) => `${p.year}-${p.month}`));
+
+    // F2/VEN-NIF 8: ejercicios fiscales cerrados
+    const closedFiscalYearsAll = await prisma.fiscalYearClose.findMany({
+      where: { companyId: parsed.data.companyId },
+      select: { year: true },
+    });
+    const closedYearSetAll = new Set(closedFiscalYearsAll.map((y) => y.year));
 
     let totalProcessed = 0;
     let totalSkipped = 0;
@@ -422,6 +471,7 @@ export async function catchUpAllAssetsDepreciationAction(
 
       let curYear = startYear;
       let curMonth = startMonth;
+      const closedYearPendingAsset: { year: number; month: number }[] = [];
 
       while (curYear < nowYear || (curYear === nowYear && curMonth <= nowMonth)) {
         const y = curYear;
@@ -430,8 +480,18 @@ export async function catchUpAllAssetsDepreciationAction(
         curMonth++;
         if (curMonth > 12) { curMonth = 1; curYear++; }
 
-        // Saltar períodos cerrados (R-3 — CLAUDE.md)
+        // Saltar períodos mensuales cerrados (R-3 — CLAUDE.md)
         if (closedSetAll.has(`${y}-${m}`)) { totalSkipped++; continue; }
+
+        // VEN-NIF 8: ejercicio fiscal cerrado → acumular para asiento consolidado
+        if (closedYearSetAll.has(y)) {
+          const existing = await prisma.depreciationEntry.findUnique({
+            where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: asset.id, periodYear: y, periodMonth: m } },
+          });
+          if (!existing) closedYearPendingAsset.push({ year: y, month: m });
+          else totalSkipped++;
+          continue;
+        }
 
         try {
           const result = await prisma.$transaction(async (tx) =>
@@ -446,6 +506,28 @@ export async function catchUpAllAssetsDepreciationAction(
           if (msg.includes("totalmente depreciado") || msg.includes("FULLY_DEPRECIATED")) break;
           if (!assetErrors[asset.name]) assetErrors[asset.name] = [];
           assetErrors[asset.name]!.push(`${y}/${String(m).padStart(2, "0")}: ${msg}`);
+        }
+      }
+
+      // VEN-NIF 8: asiento consolidado por activo con períodos de ejercicios cerrados
+      if (closedYearPendingAsset.length > 0) {
+        try {
+          const result = await prisma.$transaction(async (tx) =>
+            withCompanyContext(parsed.data.companyId, tx, async (tx) =>
+              FixedAssetService.postClosedYearCatchUpDepreciation(
+                asset.id,
+                parsed.data.companyId,
+                closedYearPendingAsset,
+                userId,
+                tx,
+              )
+            )
+          );
+          totalProcessed += result.processed;
+          totalSkipped += (closedYearPendingAsset.length - result.processed);
+        } catch (e) {
+          if (!assetErrors[asset.name]) assetErrors[asset.name] = [];
+          assetErrors[asset.name]!.push(`VEN-NIF 8: ${e instanceof Error ? e.message : "Error desconocido"}`);
         }
       }
     }

@@ -5,10 +5,17 @@
 
 import { Decimal } from "decimal.js";
 import type { PrismaClient, DepreciationMethod, FixedAsset } from "@prisma/client";
-import type { CreateFixedAssetInput, DisposeFixedAssetInput, PostINPCRestatementInput } from "../schemas/fixed-asset.schema";
+import type {
+  CreateFixedAssetInput,
+  DisposeFixedAssetInput,
+  PostINPCRestatementInput,
+} from "../schemas/fixed-asset.schema";
 import { computeAssetRestatement, buildInpcMap } from "./FixedAssetINPCService";
 
-type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+type Tx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 // ─── Tipos de salida ────────────────────────────────────────────────────────────
 
@@ -19,18 +26,18 @@ type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction"
  */
 export type GLReconciliationRow = {
   accDepreciationAccountId: string;
-  accountCode:  string;
-  accountName:  string;
-  moduleTotal:  Decimal;  // suma accumulatedDepreciation del módulo (no-DISPOSED)
-  glTotal:      Decimal;  // saldo crédito neto en GL (no-VOIDED)
-  difference:   Decimal;  // glTotal − moduleTotal  (0 = cuadrado)
-  assetCount:   number;   // activos no-DISPOSED en este grupo
+  accountCode: string;
+  accountName: string;
+  moduleTotal: Decimal; // suma accumulatedDepreciation del módulo (no-DISPOSED)
+  glTotal: Decimal; // saldo crédito neto en GL (no-VOIDED)
+  difference: Decimal; // glTotal − moduleTotal  (0 = cuadrado)
+  assetCount: number; // activos no-DISPOSED en este grupo
 };
 
 export type DepreciationCalculation = {
-  amount: Decimal;           // cuota del período
-  accumulated: Decimal;      // depreciación acumulada al final del período
-  bookValue: Decimal;        // valor en libros = costo − acumulada
+  amount: Decimal; // cuota del período
+  accumulated: Decimal; // depreciación acumulada al final del período
+  bookValue: Decimal; // valor en libros = costo − acumulada
 };
 
 export type DepreciationScheduleRow = {
@@ -54,10 +61,10 @@ export type FixedAssetSummary = {
   accumulatedDepreciation: Decimal;
   lastEntryDate: { year: number; month: number } | null;
   // FC-02 campos legales
-  serialNumber:  string | null;
-  internalCode:  string | null;
+  serialNumber: string | null;
+  internalCode: string | null;
   invoiceNumber: string | null;
-  providerRif:   string | null;
+  providerRif: string | null;
 };
 
 // ─── Helpers de cálculo (pure functions — testables) ───────────────────────────
@@ -70,9 +77,12 @@ export type FixedAssetSummary = {
  * @param unitsThisPeriod unidades usadas este período (solo UNIDADES_PRODUCCION)
  */
 export function calcMonthlyDepreciation(
-  asset: Pick<FixedAsset, "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits">,
-  month1: number,         // mes ordinal desde inicio (1-based)
-  unitsThisPeriod = 0,
+  asset: Pick<
+    FixedAsset,
+    "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits"
+  >,
+  month1: number, // mes ordinal desde inicio (1-based)
+  unitsThisPeriod = 0
 ): Decimal {
   const cost = new Decimal(asset.acquisitionCost.toString());
   const residual = new Decimal(asset.residualValue.toString());
@@ -80,7 +90,7 @@ export function calcMonthlyDepreciation(
   const n = asset.usefulLifeMonths;
 
   if (depreciable.lessThanOrEqualTo(0)) return new Decimal(0);
-  if (month1 > n) return new Decimal(0);  // totalmente depreciado
+  if (month1 > n) return new Decimal(0); // totalmente depreciado
 
   switch (asset.depreciationMethod as DepreciationMethod) {
     case "LINEA_RECTA":
@@ -106,10 +116,13 @@ export function calcMonthlyDepreciation(
  * Calcula depreciación para un mes dado, dado un acumulado previo.
  */
 export function calcDepreciationForPeriod(
-  asset: Pick<FixedAsset, "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits">,
+  asset: Pick<
+    FixedAsset,
+    "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits"
+  >,
   month1: number,
   previousAccumulated: Decimal,
-  unitsThisPeriod = 0,
+  unitsThisPeriod = 0
 ): DepreciationCalculation {
   const cost = new Decimal(asset.acquisitionCost.toString());
   const residual = new Decimal(asset.residualValue.toString());
@@ -133,14 +146,25 @@ export function calcDepreciationForPeriod(
  * Genera la tabla completa de cuotas proyectadas (sin BD).
  */
 export function generateDepreciationSchedule(
-  asset: Pick<FixedAsset, "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits" | "acquisitionDate">,
+  asset: Pick<
+    FixedAsset,
+    | "acquisitionCost"
+    | "residualValue"
+    | "usefulLifeMonths"
+    | "depreciationMethod"
+    | "totalUnits"
+    | "acquisitionDate"
+  >
 ): DepreciationScheduleRow[] {
   const rows: DepreciationScheduleRow[] = [];
   let accumulated = new Decimal(0);
   const startDate = new Date(asset.acquisitionDate);
   let year = startDate.getUTCFullYear();
   let month = startDate.getUTCMonth() + 2; // depreciar desde el mes siguiente a la adquisición (UTC)
-  if (month > 12) { month = 1; year++; }
+  if (month > 12) {
+    month = 1;
+    year++;
+  }
 
   for (let m = 1; m <= asset.usefulLifeMonths; m++) {
     const calc = calcDepreciationForPeriod(asset, m, accumulated);
@@ -148,7 +172,10 @@ export function generateDepreciationSchedule(
     accumulated = calc.accumulated;
     rows.push({ year, month, ...calc });
     month++;
-    if (month > 12) { month = 1; year++; }
+    if (month > 12) {
+      month = 1;
+      year++;
+    }
   }
   return rows;
 }
@@ -174,14 +201,14 @@ export class FixedAssetService {
         usefulLifeMonths: input.usefulLifeMonths,
         depreciationMethod: input.depreciationMethod,
         totalUnits: input.totalUnits,
-        location:         input.location ?? null,
-        responsible:      input.responsible ?? null,
+        location: input.location ?? null,
+        responsible: input.responsible ?? null,
         // FC-02 campos legales SENIAT
-        invoiceNumber:    input.invoiceNumber ?? null,
-        providerRif:      input.providerRif ?? null,
-        serialNumber:     input.serialNumber ?? null,
+        invoiceNumber: input.invoiceNumber ?? null,
+        providerRif: input.providerRif ?? null,
+        serialNumber: input.serialNumber ?? null,
         serviceStartDate: input.serviceStartDate ?? null,
-        internalCode:     input.internalCode ?? null,
+        internalCode: input.internalCode ?? null,
         createdBy: userId,
       },
     });
@@ -217,14 +244,23 @@ export class FixedAssetService {
     month: number,
     userId: string,
     tx: Tx,
-    unitsThisPeriod = 0,
+    unitsThisPeriod = 0
   ): Promise<{ entry: { id: string; amount: Decimal }; created: boolean }> {
     // Idempotencia: si ya existe la entrada, retornar
     const existing = await tx.depreciationEntry.findUnique({
-      where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: assetId, periodYear: year, periodMonth: month } },
+      where: {
+        fixedAssetId_periodYear_periodMonth: {
+          fixedAssetId: assetId,
+          periodYear: year,
+          periodMonth: month,
+        },
+      },
     });
     if (existing) {
-      return { entry: { id: existing.id, amount: new Decimal(existing.amount.toString()) }, created: false };
+      return {
+        entry: { id: existing.id, amount: new Decimal(existing.amount.toString()) },
+        created: false,
+      };
     }
 
     const asset = await tx.fixedAsset.findFirstOrThrow({
@@ -317,6 +353,116 @@ export class FixedAssetService {
   }
 
   /**
+   * VEN-NIF 8 / IAS 8: Catch-up consolidado para períodos de ejercicios fiscales CERRADOS.
+   *
+   * Genera UN único asiento GL con fecha de hoy (período corriente) que agrupa la
+   * depreciación de TODOS los períodos pendientes de ejercicios ya cerrados.
+   * Cada período recibe su propio DepreciationEntry individual (visible en la tabla de
+   * depreciación del activo), pero todos quedan vinculados al mismo transactionId.
+   *
+   * Justificación: no se pueden retroactuar asientos en ejercicios declarados al SENIAT
+   * (Art. 32 CComercio). El error no-material se reconoce en el período corriente (IAS 8 §42).
+   *
+   * @param periods  Períodos pendientes (ya ordenados cronológicamente, ya filtrados sin existing entry)
+   */
+  static async postClosedYearCatchUpDepreciation(
+    assetId:   string,
+    companyId: string,
+    periods:   { year: number; month: number }[],
+    userId:    string,
+    tx:        Tx,
+  ): Promise<{ processed: number }> {
+    if (periods.length === 0) return { processed: 0 };
+
+    const asset = await tx.fixedAsset.findFirstOrThrow({ where: { id: assetId, companyId } });
+
+    // Acumulado ya persistido en BD
+    const prevAgg = await tx.depreciationEntry.aggregate({
+      where: { fixedAssetId: assetId },
+      _sum: { amount: true },
+    });
+    let runningAccumulated = new Decimal(prevAgg._sum.amount?.toString() ?? "0");
+
+    const acqDate  = new Date(asset.acquisitionDate);
+    const acqYear  = acqDate.getUTCFullYear();
+    const acqMonth = acqDate.getUTCMonth() + 1;
+
+    type EntryCalc = { year: number; month: number; amount: Decimal; accumulated: Decimal; bookValue: Decimal };
+    const entryCalcs: EntryCalc[] = [];
+    let totalAmount = new Decimal(0);
+
+    for (const { year: y, month: m } of periods) {
+      const month1 = (y - acqYear) * 12 + (m - acqMonth);
+      if (month1 <= 0) continue;
+
+      const calc = calcDepreciationForPeriod(asset, month1, runningAccumulated, 0);
+      if (calc.amount.equals(0)) break; // totalmente depreciado
+
+      entryCalcs.push({ year: y, month: m, amount: calc.amount, accumulated: calc.accumulated, bookValue: calc.bookValue });
+      runningAccumulated = calc.accumulated;
+      totalAmount = totalAmount.plus(calc.amount);
+    }
+
+    if (entryCalcs.length === 0 || totalAmount.equals(0)) return { processed: 0 };
+
+    // Ejercicios involucrados para la descripción del asiento
+    const years = [...new Set(entryCalcs.map((e) => e.year))].sort().join(", ");
+    const today = new Date();
+    // txNumber único: por construcción (un solo catch-up VEN-NIF8 por activo por mes corriente)
+    const txNumber = `DEP-VNF8-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}-${assetId.slice(-8).toUpperCase()}`;
+
+    const glTx = await tx.transaction.create({
+      data: {
+        companyId,
+        number:      txNumber,
+        date:        today,
+        description: `Ajuste depreciación ejercicios anteriores (${years}) — VEN-NIF 8 / ${asset.name}`,
+        type:        "AJUSTE",
+        userId,
+        entries: {
+          create: [
+            {
+              accountId:   asset.depreciationAccountId,
+              amount:      totalAmount,
+              description: `Dep. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
+            },
+            {
+              accountId:   asset.accDepreciationAccountId,
+              amount:      totalAmount.negated(),
+              description: `Dep. Acum. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
+            },
+          ],
+        },
+      },
+    });
+
+    // DepreciationEntry individual por período (la tabla de depreciación los muestra correctamente)
+    for (const e of entryCalcs) {
+      await tx.depreciationEntry.create({
+        data: {
+          companyId,
+          fixedAssetId:           assetId,
+          periodYear:             e.year,
+          periodMonth:            e.month,
+          amount:                 e.amount,
+          accumulatedDepreciation: e.accumulated,
+          bookValue:              e.bookValue,
+          transactionId:          glTx.id, // todos vinculados al mismo asiento GL
+          postedAt:               new Date(),
+        },
+      });
+    }
+
+    // Verificar si el activo quedó totalmente depreciado
+    const lastCalc = entryCalcs[entryCalcs.length - 1]!;
+    if (lastCalc.bookValue.lessThanOrEqualTo(new Decimal("0.01"))) {
+      await tx.fixedAsset.update({ where: { id: assetId }, data: { status: "FULLY_DEPRECIATED" } });
+    }
+
+    return { processed: entryCalcs.length };
+  }
+
+  /**
    * Calcula depreciación mensual para TODOS los activos ACTIVE de una empresa.
    * Retorna sumario de activos procesados y errores.
    */
@@ -325,7 +471,7 @@ export class FixedAssetService {
     year: number,
     month: number,
     userId: string,
-    tx: Tx,
+    tx: Tx
   ): Promise<{ processed: number; skipped: number; errors: string[] }> {
     const assets = await tx.fixedAsset.findMany({
       where: { companyId, status: "ACTIVE", deletedAt: null },
@@ -338,7 +484,12 @@ export class FixedAssetService {
     for (const asset of assets) {
       try {
         const result = await FixedAssetService.postDepreciation(
-          asset.id, companyId, year, month, userId, tx,
+          asset.id,
+          companyId,
+          year,
+          month,
+          userId,
+          tx
         );
         if (result.created) processed++;
         else skipped++;
@@ -376,19 +527,19 @@ export class FixedAssetService {
       _sum: { amount: true },
     });
     const accumulated = new Decimal(prevEntries._sum.amount?.toString() ?? "0");
-    const cost        = new Decimal(asset.acquisitionCost.toString());
-    const bookValue   = cost.minus(accumulated);
-    const proceeds    = new Decimal(input.saleProceeds ?? "0");
+    const cost = new Decimal(asset.acquisitionCost.toString());
+    const bookValue = cost.minus(accumulated);
+    const proceeds = new Decimal(input.saleProceeds ?? "0");
 
     // IVA Débito Fiscal (Art. 3 LIVA): solo si es venta y el usuario lo activó
     const applyIva = input.applyIva === true && input.reason === "SALE";
-    const ivaRate  = applyIva ? new Decimal(input.ivaRate ?? "0.16") : new Decimal("0");
+    const ivaRate = applyIva ? new Decimal(input.ivaRate ?? "0.16") : new Decimal("0");
     const ivaAmount = applyIva
       ? proceeds.times(ivaRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
       : new Decimal("0");
     // El banco recibe el precio TOTAL (con IVA); la ganancia/pérdida se calcula sobre el precio NETO
     const totalReceivable = proceeds.plus(ivaAmount);
-    const gainLoss        = proceeds.minus(bookValue); // + ganancia, − pérdida (sobre precio neto)
+    const gainLoss = proceeds.minus(bookValue); // + ganancia, − pérdida (sobre precio neto)
 
     // Número único por construcción: un activo solo puede darse de baja una vez
     // (status === "DISPOSED" guard arriba). Elimina race condition de count()+1 (Fix #4).
@@ -406,8 +557,8 @@ export class FixedAssetService {
     // 1. DEBE: Dep. Acumulada (revertir créditos de períodos anteriores)
     if (accumulated.greaterThan(new Decimal("0.001"))) {
       glEntries.push({
-        accountId:   asset.accDepreciationAccountId,
-        amount:      accumulated,
+        accountId: asset.accDepreciationAccountId,
+        amount: accumulated,
         description: `Baja activo — dep. acum.: ${label}`,
       });
     }
@@ -415,8 +566,8 @@ export class FixedAssetService {
     // 2. DEBE: Banco / CxC — importe total cobrado (precio + IVA si aplica)
     if (proceeds.greaterThan(new Decimal("0.001")) && input.proceedsAccountId) {
       glEntries.push({
-        accountId:   input.proceedsAccountId,
-        amount:      totalReceivable,   // precio neto + IVA (o solo precio neto si no aplica IVA)
+        accountId: input.proceedsAccountId,
+        amount: totalReceivable, // precio neto + IVA (o solo precio neto si no aplica IVA)
         description: `Baja activo — cobro venta${applyIva ? " (inc. IVA)" : ""}: ${label}`,
       });
     }
@@ -424,16 +575,16 @@ export class FixedAssetService {
     // 2b. HABER: IVA Débito Fiscal (Art. 3 LIVA) — solo si venta con IVA activado
     if (applyIva && ivaAmount.greaterThan(new Decimal("0.001")) && input.ivaDFAccountId) {
       glEntries.push({
-        accountId:   input.ivaDFAccountId,
-        amount:      ivaAmount.negated(), // negativo = crédito
+        accountId: input.ivaDFAccountId,
+        amount: ivaAmount.negated(), // negativo = crédito
         description: `Baja activo — IVA DF 16% venta: ${label}`,
       });
     }
 
     // 3. HABER: Eliminar costo histórico del activo del balance
     glEntries.push({
-      accountId:   asset.assetAccountId,
-      amount:      cost.negated(),   // negativo = crédito
+      accountId: asset.assetAccountId,
+      amount: cost.negated(), // negativo = crédito
       description: `Baja activo — costo histórico: ${label}`,
     });
 
@@ -445,19 +596,19 @@ export class FixedAssetService {
     const glAccountId = input.gainLossAccountId ?? asset.depreciationAccountId;
     if (gainLoss.abs().greaterThan(new Decimal("0.01"))) {
       glEntries.push({
-        accountId:   glAccountId,
-        amount:      gainLoss.negated(),
+        accountId: glAccountId,
+        amount: gainLoss.negated(),
         description: `Baja activo — ${gainLoss.greaterThan(0) ? "ganancia" : "pérdida"}: ${label}`,
       });
     }
 
     await tx.transaction.create({
       data: {
-        companyId:   input.companyId,
-        number:      txNumber,
-        date:        input.disposalDate,
+        companyId: input.companyId,
+        number: txNumber,
+        date: input.disposalDate,
         description: `Baja de activo: ${label}${input.notes ? ` — ${input.notes}` : ""}`,
-        type:        "AJUSTE",
+        type: "AJUSTE",
         userId,
         entries: { create: glEntries },
       },
@@ -465,23 +616,23 @@ export class FixedAssetService {
 
     await tx.fixedAsset.update({
       where: { id: input.assetId },
-      data:  { status: "DISPOSED" },
+      data: { status: "DISPOSED" },
     });
 
     await tx.auditLog.create({
       data: {
-        companyId:  input.companyId,
-        entityId:   input.assetId,
+        companyId: input.companyId,
+        entityId: input.assetId,
         entityName: "FixedAsset",
-        action:     "UPDATE",
+        action: "UPDATE",
         userId,
         newValue: {
-          status:       "DISPOSED",
-          reason:       input.reason,
+          status: "DISPOSED",
+          reason: input.reason,
           disposalDate: input.disposalDate,
-          proceeds:     input.saleProceeds,
-          gainLoss:     gainLoss.toFixed(2),
-          notes:        input.notes,
+          proceeds: input.saleProceeds,
+          gainLoss: gainLoss.toFixed(2),
+          notes: input.notes,
         },
       },
     });
@@ -491,7 +642,9 @@ export class FixedAssetService {
    * Listado de activos con resumen de valor en libros.
    */
   static async getSummary(companyId: string): Promise<FixedAssetSummary[]> {
-    const assets = await (await import("@/lib/prisma")).default.fixedAsset.findMany({
+    const assets = await (
+      await import("@/lib/prisma")
+    ).default.fixedAsset.findMany({
       where: { companyId, deletedAt: null },
       include: {
         entries: {
@@ -520,12 +673,14 @@ export class FixedAssetService {
         status: a.status,
         bookValue: cost.minus(accumulated),
         accumulatedDepreciation: accumulated,
-        lastEntryDate: lastEntry ? { year: lastEntry.periodYear, month: lastEntry.periodMonth } : null,
+        lastEntryDate: lastEntry
+          ? { year: lastEntry.periodYear, month: lastEntry.periodMonth }
+          : null,
         // FC-02 campos legales
-        serialNumber:  a.serialNumber  ?? null,
-        internalCode:  a.internalCode  ?? null,
+        serialNumber: a.serialNumber ?? null,
+        internalCode: a.internalCode ?? null,
         invoiceNumber: a.invoiceNumber ?? null,
-        providerRif:   a.providerRif   ?? null,
+        providerRif: a.providerRif ?? null,
       };
     });
   }
@@ -536,7 +691,8 @@ export class FixedAssetService {
   static async getSchedule(assetId: string, companyId: string) {
     const prisma = (await import("@/lib/prisma")).default;
     const asset = await prisma.fixedAsset.findFirstOrThrow({ where: { id: assetId, companyId } });
-    const postedEntries = await prisma.depreciationEntry.findMany({ // ADR-004-EXCEPTION: scoped via fixedAssetId FK — asset ya validado con companyId arriba
+    const postedEntries = await prisma.depreciationEntry.findMany({
+      // ADR-004-EXCEPTION: scoped via fixedAssetId FK — asset ya validado con companyId arriba
       where: { fixedAssetId: assetId },
       orderBy: [{ periodYear: "asc" }, { periodMonth: "asc" }],
     });
@@ -623,14 +779,14 @@ export class FixedAssetService {
     // 5. Resultado: CONTRA_ASSET tiene saldo crédito natural → negado para positivo
     const result: GLReconciliationRow[] = [];
     for (const [accId, { total: moduleTotal, count }] of moduleGroups) {
-      const netJE   = glSums.get(accId) ?? new Decimal(0);
-      const glTotal = netJE.negated();                        // crédito = positivo
+      const netJE = glSums.get(accId) ?? new Decimal(0);
+      const glTotal = netJE.negated(); // crédito = positivo
       const difference = glTotal.minus(moduleTotal);
-      const acc     = accMap.get(accId);
+      const acc = accMap.get(accId);
       result.push({
         accDepreciationAccountId: accId,
-        accountCode:  acc?.code ?? accId,
-        accountName:  acc?.name ?? "—",
+        accountCode: acc?.code ?? accId,
+        accountName: acc?.name ?? "—",
         moduleTotal,
         glTotal,
         difference,
@@ -652,7 +808,7 @@ export class FixedAssetService {
   static async postINPCRestatement(
     input: PostINPCRestatementInput,
     userId: string,
-    tx: Tx,
+    tx: Tx
   ): Promise<{ processed: number; skipped: number; totalAdjustment: Decimal }> {
     const { companyId, periodYear, periodMonth, patrimonioAccountId } = input;
 
@@ -662,14 +818,14 @@ export class FixedAssetService {
     });
     if (!periodRate) {
       throw new Error(
-        `No hay índice INPC cargado para ${periodYear}/${String(periodMonth).padStart(2, "0")}. Cárgalo en el módulo de Inflación.`,
+        `No hay índice INPC cargado para ${periodYear}/${String(periodMonth).padStart(2, "0")}. Cárgalo en el módulo de Inflación.`
       );
     }
 
     // 2. Obtener todos los índices disponibles para armar el mapa
     const allRates = await tx.iNPCRate.findMany({ where: { companyId } });
     const inpcMap = buildInpcMap(
-      allRates.map((r) => ({ year: r.year, month: r.month, indexValue: r.indexValue.toString() })),
+      allRates.map((r) => ({ year: r.year, month: r.month, indexValue: r.indexValue.toString() }))
     );
 
     // 3. Activos activos con cuentas vinculadas
@@ -678,8 +834,8 @@ export class FixedAssetService {
     });
 
     const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
-    let processed   = 0;
-    let skipped     = 0;
+    let processed = 0;
+    let skipped = 0;
     let totalAdjust = new Decimal(0);
 
     for (const asset of assets) {
@@ -687,7 +843,11 @@ export class FixedAssetService {
         asset.acquisitionDate,
         asset.acquisitionCost.toString(),
         inpcMap,
-        { year: periodRate.year, month: periodRate.month, indexValue: periodRate.indexValue.toString() },
+        {
+          year: periodRate.year,
+          month: periodRate.month,
+          indexValue: periodRate.indexValue.toString(),
+        }
       );
 
       if (!restatement || restatement.acqRateMissing) {
@@ -703,14 +863,14 @@ export class FixedAssetService {
 
       // DEBE: Activo (ajuste al costo histórico)
       glEntries.push({
-        accountId:   asset.assetAccountId,
-        amount:      adjustment,                // positivo = débito
+        accountId: asset.assetAccountId,
+        amount: adjustment, // positivo = débito
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
       });
       // HABER: Actualización de Patrimonio
       glEntries.push({
-        accountId:   patrimonioAccountId,
-        amount:      adjustment.negated(),      // negativo = crédito
+        accountId: patrimonioAccountId,
+        amount: adjustment.negated(), // negativo = crédito
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
       });
 
@@ -722,31 +882,33 @@ export class FixedAssetService {
       return { processed: 0, skipped, totalAdjustment: new Decimal(0) };
     }
 
-    const txCount  = await tx.transaction.count({ where: { companyId } });
+    const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INF-AF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
 
     await tx.transaction.create({
       data: {
         companyId,
-        number:      txNumber,
-        date:        new Date(periodYear, periodMonth, 0), // último día del mes
+        number: txNumber,
+        date: new Date(periodYear, periodMonth, 0), // último día del mes
         description: `Reajuste por Inflación INPC — Activos Fijos ${periodYear}/${String(periodMonth).padStart(2, "0")} (Art. 173 ISLR)`,
-        type:        "AJUSTE",
+        type: "AJUSTE",
         userId,
-        entries:     { create: glEntries },
+        entries: { create: glEntries },
       },
     });
 
     await tx.auditLog.create({
       data: {
         companyId,
-        entityId:   companyId,
+        entityId: companyId,
         entityName: "FixedAssetINPCRestatement",
-        action:     "CREATE",
+        action: "CREATE",
         userId,
         newValue: {
-          periodYear, periodMonth,
-          processed, skipped,
+          periodYear,
+          periodMonth,
+          processed,
+          skipped,
           totalAdjustment: totalAdjust.toFixed(2),
           txNumber,
         },

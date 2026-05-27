@@ -36,11 +36,36 @@ function findBestMatch(pool: AccountOption[], keywords: string[]): string {
   return bestId;
 }
 
+type AssetInput = {
+  companyId: string;
+  name: string;
+  description: string | null;
+  assetAccountId: string;
+  depreciationAccountId: string;
+  accDepreciationAccountId: string;
+  acquisitionDate: Date;
+  acquisitionCost: string;
+  residualValue: string;
+  usefulLifeMonths: number;
+  depreciationMethod: "LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION";
+  totalUnits: number | null;
+  location: string | null;
+  responsible: string | null;
+  invoiceNumber: string | null;
+  providerRif: string | null;
+  serialNumber: string | null;
+  serviceStartDate: Date | null;
+  internalCode: string | null;
+};
+
 export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION">("LINEA_RECTA");
   const [showLegal, setShowLegal] = useState(false);
+  // FC-03: warn if SENIAT deductibility fields are missing
+  const [showLegalWarning, setShowLegalWarning] = useState(false);
+  const [pendingInput, setPendingInput] = useState<AssetInput | null>(null);
 
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
@@ -56,12 +81,24 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
     findBestMatch(contraAssetAccounts, ["acumul", "depreci", "amortiz"])
   );
 
+  function doSubmit(input: AssetInput) {
+    startTransition(async () => {
+      const r = await createFixedAssetAction(input);
+      if (r.success) {
+        onSuccess?.(r.data);
+      } else {
+        setError(r.error);
+      }
+    });
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setShowLegalWarning(false);
     const fd = new FormData(e.currentTarget);
 
-    const input = {
+    const input: AssetInput = {
       companyId,
       name: fd.get("name") as string,
       description: (fd.get("description") as string) || null,
@@ -86,14 +123,15 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       internalCode:     (fd.get("internalCode") as string) || null,
     };
 
-    startTransition(async () => {
-      const r = await createFixedAssetAction(input);
-      if (r.success) {
-        onSuccess?.(r.data);
-      } else {
-        setError(r.error);
-      }
-    });
+    // FC-03: si faltan ambos campos de deducibilidad SENIAT, advertir antes de guardar
+    if (!input.invoiceNumber && !input.providerRif) {
+      setPendingInput(input);
+      setShowLegalWarning(true);
+      setShowLegal(true); // expande la sección para que el usuario pueda completarla
+      return;
+    }
+
+    doSubmit(input);
   }
 
   const fieldClass = "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -319,6 +357,42 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           </div>
         )}
       </div>
+
+      {/* FC-03 — advertencia deducibilidad SENIAT */}
+      {showLegalWarning && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm"
+        >
+          <p className="font-semibold text-amber-900 mb-1">
+            ⚠️ Datos SENIAT incompletos — riesgo de rechazo fiscal
+          </p>
+          <p className="text-xs text-amber-800 mb-3">
+            Sin <strong>Nro. de Factura de Compra</strong> y <strong>RIF del Proveedor</strong>,
+            este activo puede no ser deducible a efectos del ISLR (Art. 76 LISLR). El SENIAT puede
+            objetar la deducción en una fiscalización.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLegalWarning(false);
+                if (pendingInput) doSubmit(pendingInput);
+              }}
+              className="rounded bg-amber-200 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-300"
+            >
+              Continuar sin datos SENIAT
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLegalWarning(false)}
+              className="rounded border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100"
+            >
+              Completar datos primero
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end gap-3">
         {onCancel && (

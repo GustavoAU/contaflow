@@ -121,13 +121,16 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
     startCatchUp(async () => {
       const r = await catchUpAssetDepreciationAction({ assetId, companyId });
       if (r.success) {
-        const { processed, skipped, errors, noPeriods, nextPeriodLabel } = r.data;
+        const { processed, skipped, errors, noPeriods, nextPeriodLabel, closedYearCount } = r.data;
         if (noPeriods) {
           toast.info(`"${assetName}": aún no tiene períodos depreciables. El primer período será ${nextPeriodLabel}.`);
         } else if (processed === 0 && skipped > 0) {
           toast.info(`"${assetName}" ya está al día — ${skipped} período${skipped !== 1 ? "s" : ""} ya registrado${skipped !== 1 ? "s" : ""}.`);
         } else if (processed > 0) {
-          toast.success(`"${assetName}": ${processed} período${processed !== 1 ? "s" : ""} calculado${processed !== 1 ? "s" : ""}${skipped > 0 ? `, ${skipped} ya existían` : ""}.`);
+          const vennif8Note = closedYearCount && closedYearCount > 0
+            ? ` (incluye ${closedYearCount} período${closedYearCount !== 1 ? "s" : ""} de ejercicios cerrados — ajuste VEN-NIF 8)`
+            : "";
+          toast.success(`"${assetName}": ${processed} período${processed !== 1 ? "s" : ""} calculado${processed !== 1 ? "s" : ""}${skipped > 0 ? `, ${skipped} ya existían` : ""}${vennif8Note}.`);
         }
         if (errors.length > 0) {
           toast.warning(`${errors.length} advertencia${errors.length !== 1 ? "s" : ""}: ${errors[0]}`);
@@ -264,6 +267,7 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           <button
             onClick={handleCatchUpAll}
             disabled={isPendingCatchUpAll}
+            title="Calcula y registra todos los períodos pendientes de cada activo activo, desde su último período registrado hasta el mes actual. Ejercicios fiscales cerrados se consolidan en un único asiento correctivo (VEN-NIF 8)."
             className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {isPendingCatchUpAll ? (
@@ -561,7 +565,8 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                         {a.status === "ACTIVE" && (
                           <button
                             onClick={() => handleDispose(a)}
-                            className="whitespace-nowrap text-xs text-red-600 hover:underline"
+                            title="Acción irreversible — genera asiento de baja en el Libro Diario"
+                            className="whitespace-nowrap rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-700"
                           >
                             Dar de baja
                           </button>
