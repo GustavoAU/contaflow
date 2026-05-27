@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` (Q3-2 mergeado 2026-05-26)
+**Ninguna** — branch `main` (Q3-6 mergeado 2026-05-26)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,11 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **Q3-6 2026-05-26** ✅ merged — Keyboard Navigation: `useGlobalShortcuts` hook (ShortcutConfig + isTypingTarget usa `document.activeElement`) + N→nueva factura + Ctrl+S→submit form + TopbarInner pill button [N] + InvoiceForm `aria-busy`+`aria-keyshortcuts` + `ariaKeyShortcut` util. 16 tests Vitest jsdom. 2153 tests GREEN.
+- **Q3-5 2026-05-26** ✅ merged — Arquitectura Multi-País: `tax-config.ts` (FiscalConfig/TaxRates/CountryCode/FISCAL_CONFIGS/getFiscalConfig/VEN_*) + `fiscal-provider.ts` (FiscalProvider interface + VenezuelaFiscalProvider + FiscalProviderFactory) + `fiscal-validators.ts` re-exports VEN_RIF_REGEX/CONTROL_NUMBER_REGEX + Company.country migration `20260526_company_country`. 27 tests. 2137 tests GREEN.
+- **Q3-4 2026-05-26** ✅ merged — Mobile-First: sidebar `w-14 sm:w-58` (fuerza icon-only <640px) + dashboard responsive 390px (`flex-col→sm:flex-row`, `grid-cols-2 sm:grid-cols-4`, métricas `p-3 sm:p-5`) + `ManagerApprovalInbox` (nóminas DRAFT + presupuestos DRAFT, minHeight 64px WCAG 2.5.8) + PendingTasksWidget tap targets `min-h-[52px]`. 2110 tests GREEN.
+- **Q3-3 2026-05-26** ✅ merged — Presupuestos y Proyecciones: Budget+BudgetLine+BudgetStatus enum + BudgetService.compareWithActual (journalEntry.groupBy real vs presupuestado) + CashFlowProjectionService 4 buckets (Vencido/0-30d/31-60d/61-90d) + budget.actions.ts + BudgetList/BudgetDetail/CashFlowWidget UI + /budgets page + WalletCardsIcon nav. 24 tests. Migración `20260526_budgets`. 2110 tests GREEN.
+- **Q3-2 2026-05-26** ✅ merged — CRM básico: ContactCategory LEAD/REGULAR/VIP + ContactNote historial interacciones + CLIENTES_INACTIVOS dashboard. 2086 tests GREEN.
 - **Q3-1 2026-05-26** ✅ merged — Gestión Documental: vista unificada facturas+retenciones, PDF on-demand, JWT share links 7d para auditorías SENIAT (DOC_SHARE_SECRET, endpoint /api/doc/[token] público, AuditLog DOC_SHARED R-6, cross-tenant guard ADR-004, nav "Documentos" bajo Contabilidad). commit `c68a714`. 2063 tests GREEN.
 - **Auditoría GL pagos (Riesgo-6 + Riesgo-9) 2026-05-26** ✅ merged — TransactionType COBRO/PAGO + IVA Ret x Cobrar GL + ivaRetentionReceivableAccountId. 2049 tests GREEN.
 - **Q2-6 2026-05-23** ✅ merged — WCAG audit dashboard: 1.4.3 contraste text-zinc-400→text-zinc-600/500 (Sidebar cabeceras + Navbar secciones), 1.3.1 scope="col" en 29 archivos (payroll×15, bank-reconciliation×3, fixed-assets×2, inventory×7, orders×2). commit `4e5bb20`. 2014 tests GREEN.
@@ -77,7 +82,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Fase 38 2026-05-26** ✅ merged — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030). `PaymentGLService` (postPaymentRecordGL/Batch + reversePaymentRecordGL/Batch), migración `20260526_payment_gl_bankaccount` (bankAccountId+glTransactionId+igtfPayableAccountId nullable), selector bankAccountId en PaymentForm+PaymentBatchForm, AnalyzeReceiptButton (Gemini 2.0 Flash OCR), CompanySettings UI `igtfPayableAccountId`. 2042 tests GREEN.
 
 ### Tests / CI
-**2086 tests GREEN | 0 TS errors** (2026-05-26)
+**2153 tests GREEN | 0 TS errors** (2026-05-26)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente

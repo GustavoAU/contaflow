@@ -306,7 +306,15 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Q3-2 CRM básico** ✅ merged (ContactCategory LEAD/REGULAR/VIP + notas + ContactNote historial interacciones + CLIENTES_INACTIVOS dashboard — 2086 tests)
 
-**2086 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
+**Q3-3 Presupuestos y Proyecciones** ✅ merged (Budget+BudgetLine+BudgetStatus + BudgetService compareWithActual + CashFlowProjectionService 4 buckets + budget.actions + BudgetList/Detail/CashFlowWidget + /budgets page + WalletCardsIcon nav — 2110 tests)
+
+**Q3-4 Mobile-First** ✅ merged (sidebar w-14 sm:w-58 + dashboard responsive 390px grid cols-2 + ManagerApprovalInbox + PendingTasksWidget min-h-[52px] WCAG 2.5.8 tap targets — 2110 tests)
+
+**Q3-5 Arquitectura Multi-País** ✅ merged (tax-config.ts FiscalConfig/TaxRates/CountryCode + fiscal-provider.ts VenezuelaFiscalProvider + FiscalProviderFactory + fiscal-validators re-exports + Company.country migration — 2137 tests)
+
+**Q3-6 Keyboard Navigation** ✅ merged (useGlobalShortcuts hook + isTypingTarget document.activeElement + N→nueva factura + Ctrl+S→submit form + InvoiceForm aria-busy+aria-keyshortcuts + TopbarInner pill button — 2153 tests)
+
+**2153 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
 
 ### middleware.ts
 
