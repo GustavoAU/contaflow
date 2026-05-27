@@ -154,6 +154,36 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
+    // Guard R-3: año fiscal cerrado
+    const disposalYear = parsed.data.disposalDate.getFullYear();
+    const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
+      parsed.data.companyId,
+      disposalYear,
+    );
+    if (yearClosed) {
+      return {
+        success: false,
+        error: `El ejercicio económico ${disposalYear} está cerrado. No se puede dar de baja un activo en un ejercicio cerrado.`,
+      };
+    }
+
+    // Guard R-3: período mensual cerrado
+    const disposalMonth = parsed.data.disposalDate.getMonth() + 1;
+    const periodClosed = await prisma.accountingPeriod.findFirst({
+      where: {
+        companyId: parsed.data.companyId,
+        year:      disposalYear,
+        month:     disposalMonth,
+        status:    "CLOSED",
+      },
+    });
+    if (periodClosed) {
+      return {
+        success: false,
+        error: `El período ${disposalYear}/${String(disposalMonth).padStart(2, "0")} está cerrado.`,
+      };
+    }
+
     await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
         FixedAssetService.dispose(parsed.data, userId, tx)
