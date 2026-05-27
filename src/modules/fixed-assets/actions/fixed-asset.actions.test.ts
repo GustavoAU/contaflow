@@ -204,6 +204,20 @@ describe("disposeFixedAssetAction", () => {
     if (!r.success) expect(r.error).toContain("administrador");
   });
 
+  it("retorna error si el año fiscal está cerrado (R-3)", async () => {
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(true);
+    const r = await disposeFixedAssetAction(DISPOSE_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("cerrado");
+  });
+
+  it("retorna error si el período mensual está cerrado (R-3)", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    const r = await disposeFixedAssetAction(DISPOSE_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("cerrado");
+  });
+
   it("happy path: da de baja correctamente", async () => {
     vi.mocked(FixedAssetService.dispose).mockResolvedValue(undefined);
     const r = await disposeFixedAssetAction(DISPOSE_INPUT);
