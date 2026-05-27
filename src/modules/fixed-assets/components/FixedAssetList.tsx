@@ -7,7 +7,9 @@ import {
   postMonthlyDepreciationAction,
   catchUpAssetDepreciationAction,
   catchUpAllAssetsDepreciationAction,
+  postFixedAssetINPCRestatementAction,
 } from "../actions/fixed-asset.actions";
+import type { InpcRateSimple } from "../services/FixedAssetINPCService";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
 import { DisposeAssetModal, type AccountOption } from "./DisposeAssetModal";
 import { formatAmount } from "@/lib/format";
@@ -38,13 +40,29 @@ function getMonthsRemaining(a: FixedAssetSummary): number | null {
   return Math.max(0, a.usefulLifeMonths - monthsDepreciated);
 }
 
-type Props = {
-  assets:    FixedAssetSummary[];
-  companyId: string;
-  accounts:  AccountOption[];
+// Extensión del summary con campos calculados server-side (serialized)
+type AssetRow = FixedAssetSummary & {
+  acquisitionCost:         string;
+  residualValue:           string;
+  bookValue:               string;
+  accumulatedDepreciation: string;
+  // FC-01 INPC
+  inpcFactor:              string | null;
+  inpcReexpressedValue:    string | null;
+  inpcAdjustment:          string | null;
+  inpcCurrentPeriod:       string | null;
+  inpcAcqRateMissing:      boolean;
 };
 
-export function FixedAssetList({ assets, companyId, accounts }: Props) {
+type Props = {
+  assets:         AssetRow[];
+  companyId:      string;
+  accounts:       AccountOption[];
+  inpcRates:      InpcRateSimple[];   // para el selector del panel INPC
+  ivaDFAccountId: string | null;      // IVA DF configurado en CompanySettings
+};
+
+export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAccountId }: Props) {
   const [isPendingDepr, startDepr] = useTransition();
   const [deprYear, setDeprYear] = useState(new Date().getFullYear());
   const [deprMonth, setDeprMonth] = useState(new Date().getMonth() + 1);
@@ -54,6 +72,16 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
   const [isPendingCatchUp, startCatchUp] = useTransition();
   const [isPendingCatchUpAll, startCatchUpAll] = useTransition();
   const [catchUpResult, setCatchUpResult] = useState<string | null>(null);
+
+  // FC-01 INPC panel
+  const latestRate    = inpcRates[0] ?? null;
+  const [inpcYear,  setInpcYear]  = useState(latestRate?.year  ?? new Date().getFullYear());
+  const [inpcMonth, setInpcMonth] = useState(latestRate?.month ?? new Date().getMonth() + 1);
+  const [inpcPatrimonioAccId, setInpcPatrimonioAccId] = useState("");
+  const [inpcResult, setInpcResult] = useState<string | null>(null);
+  const [isPendingINPC, startINPC] = useTransition();
+
+  const equityAccounts = accounts.filter((a) => a.type === "EQUITY");
 
   function handlePostDepreciation() {
     startDepr(async () => {
@@ -134,6 +162,33 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
     });
   }
 
+  function handleINPCRestatement() {
+    if (!inpcPatrimonioAccId) {
+      toast.error("Selecciona la cuenta de Actualización de Patrimonio.");
+      return;
+    }
+    setInpcResult(null);
+    startINPC(async () => {
+      const r = await postFixedAssetINPCRestatementAction({
+        companyId,
+        periodYear:          inpcYear,
+        periodMonth:         inpcMonth,
+        patrimonioAccountId: inpcPatrimonioAccId,
+      });
+      if (r.success) {
+        const { processed, skipped, totalAdjustment } = r.data;
+        if (processed === 0) {
+          toast.info("No hay ajuste INPC pendiente (todos los activos ya ajustados o sin índice de adquisición).");
+        } else {
+          toast.success(`Reajuste INPC ${inpcYear}/${String(inpcMonth).padStart(2, "0")}: ${processed} activo${processed !== 1 ? "s" : ""} ajustado${processed !== 1 ? "s" : ""}.`);
+        }
+        setInpcResult(`${processed} ajustados · ${skipped} omitidos · Total Bs. ${totalAdjustment}`);
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
   const MONTHS = [
     "Enero","Febrero","Marzo","Abril","Mayo","Junio",
     "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
@@ -200,6 +255,83 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
         )}
       </div>
 
+      {/* FC-01: Panel Reajuste por Inflación INPC (Art. 173 ISLR) */}
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-emerald-800">Reajuste por Inflación INPC</span>
+          <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-800">Art. 173 ISLR</span>
+          {latestRate === null && (
+            <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+              ⚠ No hay tasas INPC registradas
+            </span>
+          )}
+        </div>
+        {latestRate !== null ? (
+          <>
+            <p className="text-xs text-emerald-700">
+              Último índice disponible: {MONTHS[latestRate.month - 1]} {latestRate.year} — los valores reexpresados aparecen en la columna &quot;Valor Reexpresado&quot; de la tabla.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Año del ajuste</label>
+                <input
+                  type="number"
+                  value={inpcYear}
+                  onChange={(e) => setInpcYear(parseInt(e.target.value))}
+                  className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                  min={2020}
+                  max={2100}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mes</label>
+                <select
+                  value={inpcMonth}
+                  onChange={(e) => setInpcMonth(parseInt(e.target.value))}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm"
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i + 1} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cuenta Actualización de Patrimonio *</label>
+                <select
+                  value={inpcPatrimonioAccId}
+                  onChange={(e) => setInpcPatrimonioAccId(e.target.value)}
+                  className="min-w-48 rounded border border-gray-300 px-2 py-1 text-sm"
+                >
+                  <option value="">Seleccionar cuenta EQUITY…</option>
+                  {equityAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={handleINPCRestatement}
+                disabled={isPendingINPC || !inpcPatrimonioAccId}
+                className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {isPendingINPC ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Calculando...
+                  </span>
+                ) : "Generar Reajuste INPC"}
+              </button>
+            </div>
+            {inpcResult && (
+              <p className="text-xs font-medium text-emerald-700">{inpcResult}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">
+            Para calcular el reajuste INPC, primero registra las tasas del índice en Configuración → Tasas INPC.
+          </p>
+        )}
+      </div>
+
       {/* Tabla de activos */}
       {assets.length === 0 ? (
         <p className="text-center text-sm text-gray-500 py-8">No hay activos fijos registrados.</p>
@@ -213,6 +345,7 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                 <th scope="col" className="px-4 py-3 text-right">Costo</th>
                 <th scope="col" className="px-4 py-3 text-right">Dep. Acumulada</th>
                 <th scope="col" className="px-4 py-3 text-right">Valor en Libros</th>
+                <th scope="col" className="px-4 py-3 text-right">Valor Reexpresado</th>
                 <th scope="col" className="px-4 py-3 text-left">Último Período</th>
                 <th scope="col" className="px-4 py-3 text-center">Estado</th>
                 <th scope="col" className="px-4 py-3 text-center">Acciones</th>
@@ -243,6 +376,22 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
                       {formatAmount(String(a.bookValue))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-xs">
+                      {a.inpcAcqRateMissing ? (
+                        <span className="text-amber-600" title="No hay índice INPC para el mes de adquisición">
+                          Sin índice
+                        </span>
+                      ) : a.inpcReexpressedValue ? (
+                        <span
+                          className="font-medium text-emerald-700"
+                          title={`Factor: ×${a.inpcFactor} | Ajuste: Bs. ${a.inpcAdjustment} | Período INPC: ${a.inpcCurrentPeriod}`}
+                        >
+                          {formatAmount(a.inpcReexpressedValue)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {a.lastEntryDate
@@ -326,6 +475,7 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
           }}
           companyId={companyId}
           accounts={accounts}
+          ivaDFAccountId={ivaDFAccountId}
           onClose={() => setDisposeAsset(null)}
         />
       )}

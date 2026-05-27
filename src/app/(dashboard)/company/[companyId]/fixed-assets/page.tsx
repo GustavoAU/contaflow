@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { FixedAssetService } from "@/modules/fixed-assets/services/FixedAssetService";
 import { FixedAssetList } from "@/modules/fixed-assets/components/FixedAssetList";
 import { FixedAssetFormPanel } from "@/modules/fixed-assets/components/FixedAssetFormPanel";
+import { buildInpcMap, computeAssetRestatement } from "@/modules/fixed-assets/services/FixedAssetINPCService";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -19,27 +20,58 @@ export default async function FixedAssetsPage({ params }: Props) {
   });
   if (!member) redirect("/");
 
-  const [assets, accounts] = await Promise.all([
+  const [assets, accounts, inpcRatesRaw, settings] = await Promise.all([
     FixedAssetService.getSummary(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE"] } },
+      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY"] } },
       select: { id: true, code: true, name: true, type: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),
+    prisma.iNPCRate.findMany({
+      where: { companyId },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    }),
+    prisma.companySettings.findUnique({
+      where: { companyId },
+      select: { ivaDFAccountId: true },
+    }),
   ]);
 
-  const serializedAssets = assets.map((a) => ({
-    ...a,
-    acquisitionCost:          a.acquisitionCost.toFixed(2),
-    residualValue:            a.residualValue.toFixed(2),
-    bookValue:                a.bookValue.toFixed(2),
-    accumulatedDepreciation:  a.accumulatedDepreciation.toFixed(2),
-    // FC-02 campos legales (string | null — no necesitan serialización adicional)
-    serialNumber:  a.serialNumber,
-    internalCode:  a.internalCode,
-    invoiceNumber: a.invoiceNumber,
-    providerRif:   a.providerRif,
+  // FC-01: construir mapa INPC y calcular reexpresión server-side
+  const inpcRates = inpcRatesRaw.map((r) => ({
+    year:       r.year,
+    month:      r.month,
+    indexValue: r.indexValue.toString(),
   }));
+  const latestRate = inpcRates[0] ?? null;
+  const inpcMap    = buildInpcMap(inpcRates);
+
+  const serializedAssets = assets.map((a) => {
+    const restatement = computeAssetRestatement(
+      a.acquisitionDate,
+      a.acquisitionCost.toFixed(2),
+      inpcMap,
+      latestRate,
+    );
+    return {
+      ...a,
+      acquisitionCost:          a.acquisitionCost.toFixed(2),
+      residualValue:            a.residualValue.toFixed(2),
+      bookValue:                a.bookValue.toFixed(2),
+      accumulatedDepreciation:  a.accumulatedDepreciation.toFixed(2),
+      // FC-02 campos legales
+      serialNumber:  a.serialNumber,
+      internalCode:  a.internalCode,
+      invoiceNumber: a.invoiceNumber,
+      providerRif:   a.providerRif,
+      // FC-01 INPC reexpresión (calculado server-side)
+      inpcFactor:           restatement?.factor           ?? null,
+      inpcReexpressedValue: restatement?.reexpressedValue ?? null,
+      inpcAdjustment:       restatement?.adjustment       ?? null,
+      inpcCurrentPeriod:    restatement?.currentPeriod    ?? null,
+      inpcAcqRateMissing:   restatement?.acqRateMissing   ?? false,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -65,6 +97,8 @@ export default async function FixedAssetsPage({ params }: Props) {
           assets={serializedAssets as never}
           companyId={companyId}
           accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
+          inpcRates={inpcRates}
+          ivaDFAccountId={settings?.ivaDFAccountId ?? null}
         />
       </section>
     </div>

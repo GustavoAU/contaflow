@@ -17,6 +17,7 @@ import {
   DisposeFixedAssetSchema,
   CatchUpAssetSchema,
   CatchUpAllAssetsSchema,
+  PostINPCRestatementSchema,
 } from "../schemas/fixed-asset.schema";
 import { generateDepreciationSchedule } from "../services/FixedAssetService";
 
@@ -483,6 +484,72 @@ export async function previewDepreciationScheduleAction(input: {
     });
 
     return { success: true, data: schedule };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
+  }
+}
+
+// ─── Reajuste por Inflación INPC — Activos Fijos (FC-01 / Art. 173 ISLR) ──────
+
+export async function postFixedAssetINPCRestatementAction(
+  input: unknown,
+): Promise<ActionResult<{ processed: number; skipped: number; totalAdjustment: string }>> {
+  const parsed = PostINPCRestatementSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
+
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: parsed.data.companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
+    // Guard R-3: año fiscal cerrado
+    const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
+      parsed.data.companyId,
+      parsed.data.periodYear,
+    );
+    if (yearClosed)
+      return { success: false, error: `El ejercicio económico ${parsed.data.periodYear} está cerrado.` };
+
+    // Guard R-3: período mensual cerrado
+    const periodClosed = await prisma.accountingPeriod.findFirst({
+      where: {
+        companyId: parsed.data.companyId,
+        year:      parsed.data.periodYear,
+        month:     parsed.data.periodMonth,
+        status:    "CLOSED",
+      },
+    });
+    if (periodClosed)
+      return {
+        success: false,
+        error: `El período ${parsed.data.periodYear}/${String(parsed.data.periodMonth).padStart(2, "0")} está cerrado.`,
+      };
+
+    const result = await prisma.$transaction(async (tx) =>
+      withCompanyContext(parsed.data.companyId, tx, async (tx) =>
+        FixedAssetService.postINPCRestatement(parsed.data, userId, tx),
+      ),
+    );
+
+    revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
+    return {
+      success: true,
+      data: {
+        processed:       result.processed,
+        skipped:         result.skipped,
+        totalAdjustment: result.totalAdjustment.toFixed(2),
+      },
+    };
   } catch (error) {
     return { success: false, error: mapPrismaError(error) };
   }

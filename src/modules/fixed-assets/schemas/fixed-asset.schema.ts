@@ -73,6 +73,22 @@ export const DisposeFixedAssetSchema = z.object({
   /** Cuenta Ganancia (REVENUE) o Pérdida (EXPENSE) por baja — obligatoria cuando |gainLoss| > 0 */
   gainLossAccountId: z.string().optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+  /** IVA Débito Fiscal en venta del activo (Art. 3 LIVA) */
+  applyIva:        z.boolean().default(false),
+  ivaRate:         zMoneyAmount.default("0.16"),
+  ivaDFAccountId:  z.string().optional().nullable(),
 });
 
 export type DisposeFixedAssetInput = z.infer<typeof DisposeFixedAssetSchema>;
+
+// ─── Reajuste por Inflación INPC (FC-01 / Art. 173 ISLR) ──────────────────────
+
+export const PostINPCRestatementSchema = z.object({
+  companyId:            z.string().min(1),
+  periodYear:           z.number().int().min(2000).max(2100),
+  periodMonth:          z.number().int().min(1).max(12),
+  /** Cuenta de Actualización de Patrimonio (tipo EQUITY) donde se acredita el ajuste */
+  patrimonioAccountId:  z.string().min(1, "Cuenta de Actualización de Patrimonio requerida"),
+});
+
+export type PostINPCRestatementInput = z.infer<typeof PostINPCRestatementSchema>;
