@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import {
   RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon,
   ChevronUp, ChevronDown, ChevronsUpDown, BarChart2, TableIcon,
+  XCircleIcon, CheckCircle2Icon,
 } from "lucide-react";
 import {
   getStockSummaryAction,
@@ -68,9 +69,11 @@ function StockTab({
             Bs. {fmtBs(data.totalInventoryValue)}
           </p>
         </div>
+        {/* Q2-5: icono secundario — doble indicador para daltonismo (WCAG 1.4.1) */}
         <div className={`rounded-lg border p-4 ${data.lowStockCount > 0 ? "bg-red-50 border-red-200" : "bg-white"}`}>
           <p className="text-xs text-zinc-500">Bajo stock</p>
-          <p className={`mt-1 text-2xl font-bold ${data.lowStockCount > 0 ? "text-red-600" : "text-zinc-400"}`}>
+          <p className={`mt-1 flex items-center gap-1.5 text-2xl font-bold ${data.lowStockCount > 0 ? "text-red-600" : "text-zinc-400"}`}>
+            {data.lowStockCount > 0 && <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />}
             {data.lowStockCount}
           </p>
         </div>
@@ -132,12 +135,15 @@ function StockTab({
                   {fmtBs(item.totalValue)}
                 </td>
                 <td className="px-4 py-2.5 text-center">
+                  {/* Q2-5: icono + texto — doble indicador daltonismo (WCAG 1.4.1) */}
                   {item.isLowStock ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-10 font-bold text-red-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-10 font-bold text-red-700">
+                      <XCircleIcon className="h-3 w-3 shrink-0" aria-hidden />
                       Bajo stock
                     </span>
                   ) : (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-10 font-bold text-emerald-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-10 font-bold text-emerald-700">
+                      <CheckCircle2Icon className="h-3 w-3 shrink-0" aria-hidden />
                       OK
                     </span>
                   )}

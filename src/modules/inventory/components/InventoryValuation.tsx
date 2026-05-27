@@ -3,6 +3,8 @@
 // src/modules/inventory/components/InventoryValuation.tsx
 // Widget de valoración del inventario a CPP — dominio ACCOUNTANT / WRITERS
 
+import { XCircleIcon, CheckCircle2Icon } from "lucide-react";
+
 export type ValuationItem = {
   id: string;
   sku: string;
@@ -65,11 +67,16 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
               : "border-green-200 bg-green-50"
           }`}
         >
+          {/* Q2-5: icono + texto — doble indicador para daltonismo (WCAG 1.4.1) */}
           <p
-            className={`text-xs font-medium uppercase tracking-wide ${
+            className={`flex items-center gap-1 text-xs font-medium uppercase tracking-wide ${
               zeroStockCount > 0 ? "text-red-600" : "text-green-600"
             }`}
           >
+            {zeroStockCount > 0
+              ? <XCircleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              : <CheckCircle2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            }
             Stock agotado
           </p>
           <p
