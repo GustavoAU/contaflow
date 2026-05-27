@@ -89,7 +89,7 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
                       <td className="py-1.5 text-right font-mono text-gray-800">
                         {formatAmount(Number(row.amount))}
                       </td>
-                      <td className="py-1.5 text-right font-mono text-orange-700">
+                      <td className="py-1.5 text-right font-mono text-gray-600">
                         {formatAmount(Number(row.accumulated))}
                       </td>
                       <td className="py-1.5 text-right font-mono font-semibold text-gray-900">
