@@ -8,6 +8,8 @@ import {
   catchUpAssetDepreciationAction,
   catchUpAllAssetsDepreciationAction,
   postFixedAssetINPCRestatementAction,
+  getFixedAssetGLReconciliationAction,
+  type GLReconciliationResultRow,
 } from "../actions/fixed-asset.actions";
 import type { InpcRateSimple } from "../services/FixedAssetINPCService";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
@@ -82,6 +84,10 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
   const [isPendingINPC, startINPC] = useTransition();
 
   const equityAccounts = accounts.filter((a) => a.type === "EQUITY");
+
+  // FU-03: Conciliación GL
+  const [glReconResult,   setGlReconResult]   = useState<GLReconciliationResultRow[] | null>(null);
+  const [isPendingGLRecon, startGLRecon]       = useTransition();
 
   function handlePostDepreciation() {
     startDepr(async () => {
@@ -183,6 +189,24 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           toast.success(`Reajuste INPC ${inpcYear}/${String(inpcMonth).padStart(2, "0")}: ${processed} activo${processed !== 1 ? "s" : ""} ajustado${processed !== 1 ? "s" : ""}.`);
         }
         setInpcResult(`${processed} ajustados · ${skipped} omitidos · Total Bs. ${totalAdjustment}`);
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  function handleGLReconciliation() {
+    setGlReconResult(null);
+    startGLRecon(async () => {
+      const r = await getFixedAssetGLReconciliationAction(companyId);
+      if (r.success) {
+        setGlReconResult(r.data);
+        const discrepancies = r.data.filter((row) => Math.abs(parseFloat(row.difference)) >= 0.01);
+        if (discrepancies.length === 0) {
+          toast.success(`Conciliación GL: ${r.data.length} cuenta${r.data.length !== 1 ? "s" : ""} cuadrada${r.data.length !== 1 ? "s" : ""} ✓`);
+        } else {
+          toast.warning(`${discrepancies.length} cuenta${discrepancies.length !== 1 ? "s" : ""} con diferencia GL. Revise el detalle abajo.`);
+        }
       } else {
         toast.error(r.error);
       }
@@ -329,6 +353,104 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           <p className="text-xs text-gray-500">
             Para calcular el reajuste INPC, primero registra las tasas del índice en Configuración → Tasas INPC.
           </p>
+        )}
+      </div>
+
+      {/* FU-03: Panel Conciliación GL vs. Módulo */}
+      <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-violet-800">Conciliación GL vs. Módulo</span>
+            <span className="rounded-full bg-violet-200 px-2 py-0.5 text-xs font-medium text-violet-800">Auditoría</span>
+          </div>
+          <button
+            onClick={handleGLReconciliation}
+            disabled={isPendingGLRecon}
+            className="rounded bg-violet-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {isPendingGLRecon ? (
+              <span className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Verificando...
+              </span>
+            ) : "Verificar conciliación"}
+          </button>
+        </div>
+        <p className="text-xs text-violet-700">
+          Compara los saldos de depreciación acumulada del módulo contra el Libro Mayor GL.
+          Detecta asientos manuales o inconsistencias en las cuentas contables.
+        </p>
+        {glReconResult !== null && (
+          glReconResult.length === 0 ? (
+            <p className="text-xs font-medium text-emerald-700">✓ Sin activos registrados — nada que conciliar.</p>
+          ) : (
+            <div className="overflow-x-auto rounded border border-violet-200">
+              <table className="w-full text-xs">
+                <thead className="bg-violet-100">
+                  <tr className="text-xs font-semibold uppercase text-violet-700">
+                    <th className="px-3 py-2 text-left">Cuenta Dep. Acumulada</th>
+                    <th className="px-3 py-2 text-right">Módulo</th>
+                    <th className="px-3 py-2 text-right">GL</th>
+                    <th className="px-3 py-2 text-right">Diferencia</th>
+                    <th className="px-3 py-2 text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-violet-100">
+                  {glReconResult.map((r) => {
+                    const diff = parseFloat(r.difference);
+                    const isBalanced = Math.abs(diff) < 0.01;
+                    const isMinor    = !isBalanced && Math.abs(diff) < 1;
+                    return (
+                      <tr key={r.accDepreciationAccountId} className="bg-white hover:bg-violet-50/40">
+                        <td className="px-3 py-2 text-gray-800">
+                          <span className="font-medium">{r.accountCode}</span>
+                          <span className="ml-1 text-gray-500">{r.accountName}</span>
+                          <span className="ml-1 text-gray-400">
+                            ({r.assetCount} activo{r.assetCount !== 1 ? "s" : ""})
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-gray-700">
+                          {formatAmount(r.moduleTotal)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-gray-700">
+                          {formatAmount(r.glTotal)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-mono font-semibold tabular-nums ${
+                          isBalanced ? "text-emerald-600" : isMinor ? "text-amber-600" : "text-red-600"
+                        }`}>
+                          {isBalanced ? "0.00" : formatAmount(r.difference)}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {isBalanced ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">✓ Cuadrado</span>
+                          ) : isMinor ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">⚠ Menor</span>
+                          ) : (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">✗ Descuadrado</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {glReconResult.length > 0 && (() => {
+                  const bad = glReconResult.filter((r) => Math.abs(parseFloat(r.difference)) >= 0.01);
+                  return (
+                    <tfoot>
+                      <tr className="border-t-2 border-violet-200 bg-violet-50">
+                        <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-violet-700">
+                          {bad.length === 0
+                            ? "✓ Todas las cuentas cuadran con el GL"
+                            : `⚠ ${bad.length} cuenta${bad.length !== 1 ? "s" : ""} con diferencia — revise asientos manuales`}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  );
+                })()}
+              </table>
+            </div>
+          )
         )}
       </div>
 
