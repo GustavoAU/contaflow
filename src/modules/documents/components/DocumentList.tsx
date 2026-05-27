@@ -189,13 +189,16 @@ export function DocumentList({ companyId, initialItems, initialTotal }: Props) {
           />
         </div>
 
-        {/* Tipo */}
-        <Select value={docType} onValueChange={setDocType}>
+        {/* Tipo — Radix SelectItem no acepta value=""; usar sentinel "ALL" */}
+        <Select
+          value={docType || "ALL"}
+          onValueChange={(v) => setDocType(v === "ALL" ? "" : v)}
+        >
           <SelectTrigger className="w-52">
             <SelectValue placeholder="Todos los tipos" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos los tipos</SelectItem>
+            <SelectItem value="ALL">Todos los tipos</SelectItem>
             <SelectItem value="FACTURA_VENTA">Facturas de Venta</SelectItem>
             <SelectItem value="FACTURA_COMPRA">Facturas de Compra</SelectItem>
             <SelectItem value="RETENCION_IVA">Retenciones IVA</SelectItem>

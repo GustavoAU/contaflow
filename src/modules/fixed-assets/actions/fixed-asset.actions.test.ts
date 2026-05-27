@@ -178,10 +178,13 @@ describe("postMonthlyDepreciationAction", () => {
 
 describe("disposeFixedAssetAction", () => {
   const DISPOSE_INPUT = {
-    assetId: "asset-001",
-    companyId: "company-001",
-    disposalDate: new Date("2026-04-01"),
-    saleProceeds: "0",
+    assetId:           "asset-001",
+    companyId:         "company-001",
+    disposalDate:      new Date("2026-04-01"),
+    reason:            "OBSOLETE" as const,
+    saleProceeds:      "0",
+    proceedsAccountId: null,
+    gainLossAccountId: null,
   };
 
   it("solo ADMIN puede dar de baja activos", async () => {

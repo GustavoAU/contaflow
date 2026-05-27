@@ -125,7 +125,7 @@ function ContactNoteTimeline({ companyId, customerId, canWrite }: NoteTimelinePr
           <li key={n.id} className="group flex items-start gap-2 rounded bg-zinc-50 border border-zinc-100 px-2.5 py-1.5">
             <StickyNoteIcon className="size-3 text-zinc-400 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-zinc-700 break-words">{n.content}</p>
+              <p className="text-xs text-zinc-700 wrap-break-word">{n.content}</p>
               <p className="text-10 text-zinc-400 mt-0.5">
                 {new Date(n.createdAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
               </p>

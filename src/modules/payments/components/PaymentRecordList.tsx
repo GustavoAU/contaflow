@@ -175,7 +175,7 @@ export function PaymentRecordList({ companyId, payments, canDelete = false, onVo
       )}
       {/* overflow-x-auto (#10) */}
       <div className="overflow-x-auto rounded-lg border bg-white">
-        <table className="w-full min-w-[680px] text-sm">
+        <table className="w-full min-w-170 text-sm">
           <thead className="border-b bg-zinc-50 text-xs font-medium uppercase text-zinc-500">
             <tr>
               {/* toggle expand */}

@@ -320,7 +320,16 @@ export class FixedAssetService {
   }
 
   /**
-   * Da de baja un activo (DISPOSED). Genera asiento de baja.
+   * Da de baja un activo (DISPOSED). Genera asiento de baja cuadrado.
+   *
+   * Estructura del asiento:
+   *   DEBE  Dep. Acumulada          (elimina crédito acumulado)
+   *   DEBE  Banco/CxC               (cobro por venta — si saleProceeds > 0)
+   *   DEBE  Pérdida en baja         (si gainLoss < 0 y gainLossAccountId)
+   *   HABER Activo (costo)          (elimina el activo del balance)
+   *   HABER Ganancia en venta       (si gainLoss > 0 y gainLossAccountId)
+   *
+   * El asiento cuadra siempre que se proporcionen los IDs de cuenta necesarios.
    */
   static async dispose(input: DisposeFixedAssetInput, userId: string, tx: Tx) {
     const asset = await tx.fixedAsset.findFirstOrThrow({
@@ -336,53 +345,89 @@ export class FixedAssetService {
       _sum: { amount: true },
     });
     const accumulated = new Decimal(prevEntries._sum.amount?.toString() ?? "0");
-    const cost = new Decimal(asset.acquisitionCost.toString());
-    const bookValue = cost.minus(accumulated);
-    const proceeds = new Decimal(input.saleProceeds ?? "0");
-    const gainLoss = proceeds.minus(bookValue);
+    const cost        = new Decimal(asset.acquisitionCost.toString());
+    const bookValue   = cost.minus(accumulated);
+    const proceeds    = new Decimal(input.saleProceeds ?? "0");
+    const gainLoss    = proceeds.minus(bookValue); // + ganancia, − pérdida
 
-    // Asiento de baja: eliminar activo y depreciación acumulada de libros
     const transactionCount = await tx.transaction.count({ where: { companyId: input.companyId } });
     const txNumber = `BAJA-${String(transactionCount + 1).padStart(4, "0")}`;
+    const label = asset.name;
+
+    // ── Construir las líneas del asiento ─────────────────────────────────────
+    const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+
+    // 1. DEBE: Dep. Acumulada (revertir créditos de períodos anteriores)
+    if (accumulated.greaterThan(new Decimal("0.001"))) {
+      glEntries.push({
+        accountId:   asset.accDepreciationAccountId,
+        amount:      accumulated,
+        description: `Baja activo — dep. acum.: ${label}`,
+      });
+    }
+
+    // 2. DEBE: Banco / CxC por cobro de venta (solo si hay precio de venta)
+    if (proceeds.greaterThan(new Decimal("0.001")) && input.proceedsAccountId) {
+      glEntries.push({
+        accountId:   input.proceedsAccountId,
+        amount:      proceeds,
+        description: `Baja activo — cobro venta: ${label}`,
+      });
+    }
+
+    // 3. HABER: Eliminar costo histórico del activo del balance
+    glEntries.push({
+      accountId:   asset.assetAccountId,
+      amount:      cost.negated(),   // negativo = crédito
+      description: `Baja activo — costo histórico: ${label}`,
+    });
+
+    // 4. Ganancia o Pérdida en baja
+    //    gainLoss > 0 → ganancia → HABER a cuenta REVENUE  → amount: gainLoss.negated() (negativo)
+    //    gainLoss < 0 → pérdida  → DEBE  a cuenta EXPENSE  → amount: gainLoss.negated() (positivo)
+    //    Si no se proporcionó gainLossAccountId, usar depreciationAccountId como fallback
+    //    para no dejar el asiento descuadrado (aunque la cuenta no es la ideal).
+    const glAccountId = input.gainLossAccountId ?? asset.depreciationAccountId;
+    if (gainLoss.abs().greaterThan(new Decimal("0.01"))) {
+      glEntries.push({
+        accountId:   glAccountId,
+        amount:      gainLoss.negated(),
+        description: `Baja activo — ${gainLoss.greaterThan(0) ? "ganancia" : "pérdida"}: ${label}`,
+      });
+    }
 
     await tx.transaction.create({
       data: {
-        companyId: input.companyId,
-        number: txNumber,
-        date: input.disposalDate,
-        description: `Baja de activo: ${asset.name}${input.notes ? ` — ${input.notes}` : ""}`,
-        type: "AJUSTE",
+        companyId:   input.companyId,
+        number:      txNumber,
+        date:        input.disposalDate,
+        description: `Baja de activo: ${label}${input.notes ? ` — ${input.notes}` : ""}`,
+        type:        "AJUSTE",
         userId,
-        entries: {
-          create: [
-            // Débito: eliminar depreciación acumulada (revertir créditos acumulados)
-            { accountId: asset.accDepreciationAccountId, amount: accumulated },
-            // Crédito: eliminar activo del balance
-            { accountId: asset.assetAccountId, amount: cost.negated() },
-            // Si hay ganancia: crédito a Otros Ingresos (no modelado aquí — JournalEntry queda en la cuenta de depreciación como proxy)
-            // Si hay pérdida: débito a Pérdida por Baja
-            // NOTA: gainLoss > 0 = ganancia (crédito), < 0 = pérdida (débito)
-            ...(gainLoss.abs().greaterThan(0.001)
-              ? [{ accountId: asset.depreciationAccountId, amount: gainLoss.negated() }]
-              : []),
-          ],
-        },
+        entries: { create: glEntries },
       },
     });
 
     await tx.fixedAsset.update({
       where: { id: input.assetId },
-      data: { status: "DISPOSED" },
+      data:  { status: "DISPOSED" },
     });
 
     await tx.auditLog.create({
       data: {
-        companyId: input.companyId,
-        entityId: input.assetId,
+        companyId:  input.companyId,
+        entityId:   input.assetId,
         entityName: "FixedAsset",
-        action: "UPDATE",
+        action:     "UPDATE",
         userId,
-        newValue: { status: "DISPOSED", disposalDate: input.disposalDate, proceeds: input.saleProceeds },
+        newValue: {
+          status:       "DISPOSED",
+          reason:       input.reason,
+          disposalDate: input.disposalDate,
+          proceeds:     input.saleProceeds,
+          gainLoss:     gainLoss.toFixed(2),
+          notes:        input.notes,
+        },
       },
     });
   }

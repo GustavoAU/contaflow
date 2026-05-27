@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import type { FixedAssetSummary } from "../services/FixedAssetService";
 import {
   postMonthlyDepreciationAction,
-  disposeFixedAssetAction,
   catchUpAssetDepreciationAction,
   catchUpAllAssetsDepreciationAction,
 } from "../actions/fixed-asset.actions";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
+import { DisposeAssetModal, type AccountOption } from "./DisposeAssetModal";
 import { formatAmount } from "@/lib/format";
 
 const METHOD_LABELS: Record<string, string> = {
@@ -39,17 +39,18 @@ function getMonthsRemaining(a: FixedAssetSummary): number | null {
 }
 
 type Props = {
-  assets: FixedAssetSummary[];
+  assets:    FixedAssetSummary[];
   companyId: string;
+  accounts:  AccountOption[];
 };
 
-export function FixedAssetList({ assets, companyId }: Props) {
+export function FixedAssetList({ assets, companyId, accounts }: Props) {
   const [isPendingDepr, startDepr] = useTransition();
   const [deprYear, setDeprYear] = useState(new Date().getFullYear());
   const [deprMonth, setDeprMonth] = useState(new Date().getMonth() + 1);
   const [deprResult, setDeprResult] = useState<string | null>(null);
   const [scheduleAssetId, setScheduleAssetId] = useState<string | null>(null);
-  const [isPendingDispose, startDispose] = useTransition();
+  const [disposeAsset, setDisposeAsset] = useState<FixedAssetSummary | null>(null);
   const [isPendingCatchUp, startCatchUp] = useTransition();
   const [isPendingCatchUpAll, startCatchUpAll] = useTransition();
   const [catchUpResult, setCatchUpResult] = useState<string | null>(null);
@@ -67,18 +68,8 @@ export function FixedAssetList({ assets, companyId }: Props) {
     });
   }
 
-  function handleDispose(assetId: string, assetName: string) {
-    if (!confirm(`¿Dar de baja el activo "${assetName}"? Esta acción generará un asiento contable de baja.`)) return;
-    startDispose(async () => {
-      const r = await disposeFixedAssetAction({
-        assetId,
-        companyId,
-        disposalDate: new Date(),
-        saleProceeds: "0",
-      });
-      if (r.success) toast.success(`Activo "${assetName}" dado de baja correctamente`);
-      else toast.error(r.error);
-    });
+  function handleDispose(asset: FixedAssetSummary) {
+    setDisposeAsset(asset);
   }
 
   function handleCatchUpAsset(assetId: string, assetName: string) {
@@ -280,9 +271,8 @@ export function FixedAssetList({ assets, companyId }: Props) {
                         )}
                         {a.status === "ACTIVE" && (
                           <button
-                            onClick={() => handleDispose(a.id, a.name)}
-                            disabled={isPendingDispose}
-                            className="text-xs text-red-600 hover:underline disabled:opacity-40"
+                            onClick={() => handleDispose(a)}
+                            className="text-xs text-red-600 hover:underline"
                           >
                             Dar de baja
                           </button>
@@ -303,6 +293,22 @@ export function FixedAssetList({ assets, companyId }: Props) {
           assetId={scheduleAssetId}
           companyId={companyId}
           onClose={() => setScheduleAssetId(null)}
+        />
+      )}
+
+      {/* Modal dar de baja */}
+      {disposeAsset && (
+        <DisposeAssetModal
+          asset={{
+            id:                      disposeAsset.id,
+            name:                    disposeAsset.name,
+            acquisitionCost:         String(disposeAsset.acquisitionCost),
+            accumulatedDepreciation: String(disposeAsset.accumulatedDepreciation),
+            bookValue:               String(disposeAsset.bookValue),
+          }}
+          companyId={companyId}
+          accounts={accounts}
+          onClose={() => setDisposeAsset(null)}
         />
       )}
     </div>

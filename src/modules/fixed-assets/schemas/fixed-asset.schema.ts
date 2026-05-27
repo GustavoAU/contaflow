@@ -47,11 +47,25 @@ export const CatchUpAllAssetsSchema = z.object({
 
 export type CatchUpAllAssetsInput = z.infer<typeof CatchUpAllAssetsSchema>;
 
+export const DISPOSAL_REASONS = {
+  OBSOLETE: "Obsolescencia / Descarte",
+  SALE:     "Venta del activo",
+  LOSS:     "Pérdida total / Siniestro",
+  DONATION: "Donación",
+} as const;
+
+export type DisposalReason = keyof typeof DISPOSAL_REASONS;
+
 export const DisposeFixedAssetSchema = z.object({
-  assetId: z.string().min(1),
+  assetId:   z.string().min(1),
   companyId: z.string().min(1),
   disposalDate: z.coerce.date({ error: "Fecha de baja requerida" }),
+  reason: z.enum(["SALE", "LOSS", "OBSOLETE", "DONATION"]),
   saleProceeds: zMoneyAmount.default("0"),
+  /** Cuenta Banco/CxC — obligatoria cuando saleProceeds > 0 */
+  proceedsAccountId: z.string().optional().nullable(),
+  /** Cuenta Ganancia (REVENUE) o Pérdida (EXPENSE) por baja — obligatoria cuando |gainLoss| > 0 */
+  gainLossAccountId: z.string().optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
 

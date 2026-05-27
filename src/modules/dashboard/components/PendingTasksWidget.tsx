@@ -48,7 +48,7 @@ export function PendingTasksWidget({ companyId, data }: Props) {
             <Link
               key={task.type}
               href={`/company/${companyId}${task.href}`}
-              className={`flex items-center gap-3 rounded-lg border px-4 py-3 min-h-[52px] transition-opacity hover:opacity-80 active:opacity-70 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 ${style.bg}`}
+              className={`flex items-center gap-3 rounded-lg border px-4 py-3 min-h-13 transition-opacity hover:opacity-80 active:opacity-70 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 ${style.bg}`}
             >
               <Icon className={`h-5 w-5 shrink-0 ${style.icon_class}`} />
               <div className="flex-1 min-w-0">
