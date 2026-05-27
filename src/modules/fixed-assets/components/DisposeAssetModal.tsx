@@ -24,10 +24,12 @@ export type AssetInfo = {
 };
 
 type Props = {
-  asset:     AssetInfo;
-  companyId: string;
-  accounts:  AccountOption[];
-  onClose:   () => void;
+  asset:          AssetInfo;
+  companyId:      string;
+  accounts:       AccountOption[];
+  /** FA-3: Cuenta IVA Débito Fiscal configurada en CompanySettings (Art. 3 LIVA) */
+  ivaDFAccountId: string | null;
+  onClose:        () => void;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -47,13 +49,14 @@ const REASON_OPTS = Object.entries(DISPOSAL_REASONS).map(([value, label]) => ({
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props) {
+export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, onClose }: Props) {
   const [reason,         setReason]   = useState<DisposalReason>("OBSOLETE");
   const [disposalDate,   setDate]     = useState(todayISO);
   const [proceeds,       setProceeds] = useState("0");
   const [proceedsAccId,  setProAcc]   = useState("");
   const [glAccId,        setGlAccId]  = useState("");
   const [notes,          setNotes]    = useState("");
+  const [applyIva,       setApplyIva] = useState(false);
   const [formError,      setFormError] = useState<string | null>(null);
   const [isPending,      startT]      = useTransition();
 
@@ -66,16 +69,22 @@ export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props
   const accDep     = parseFloat(asset.accumulatedDepreciation)  || 0;
   const bookVal    = parseFloat(asset.bookValue)                || 0;
   const procNum    = reason === "SALE" ? (parseFloat(proceeds) || 0) : 0;
-  const gainLoss   = procNum - bookVal;          // + ganancia, − pérdida
+  const gainLoss   = procNum - bookVal;          // + ganancia, − pérdida (sobre precio neto s/IVA)
   const isGain     = gainLoss > 0.01;
   const isLoss     = gainLoss < -0.01;
   const hasGainLoss = isGain || isLoss;
 
-  // DEBE/HABER totales para el preview
+  // FA-3: IVA en venta de activo (Art. 3 LIVA) — solo si hay precio y cuenta DF configurada
+  const canApplyIva     = reason === "SALE" && procNum > 0.001 && ivaDFAccountId !== null;
+  const effectiveIva    = applyIva && canApplyIva;
+  const ivaAmount       = effectiveIva ? Math.round(procNum * 0.16 * 100) / 100 : 0;
+  const totalReceivable = procNum + ivaAmount;
+
+  // DEBE/HABER totales para el preview (con IVA: banco recibe proceeds+iva; HABER incluye IVA DF)
   const debeTotal  = (accDep > 0.001 ? accDep : 0)
-                   + (procNum > 0.001 ? procNum : 0)
+                   + (totalReceivable > 0.001 ? totalReceivable : 0)
                    + (isLoss ? Math.abs(gainLoss) : 0);
-  const haberTotal = cost + (isGain ? gainLoss : 0);
+  const haberTotal = cost + (isGain ? gainLoss : 0) + (effectiveIva ? ivaAmount : 0);
   const isBalanced = Math.abs(debeTotal - haberTotal) < 0.02;
 
   // ── Validación ────────────────────────────────────────────────────────────
@@ -106,6 +115,9 @@ export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props
         proceedsAccountId: proceedsAccId || null,
         gainLossAccountId: glAccId || null,
         notes:             notes || null,
+        applyIva:          effectiveIva,
+        ivaRate:           "0.16",
+        ivaDFAccountId:    effectiveIva ? ivaDFAccountId : null,
       });
       if (r.success) {
         toast.success(`"${asset.name}" dado de baja correctamente.`);
@@ -215,6 +227,29 @@ export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props
             </div>
           )}
 
+          {/* FA-3: IVA Débito Fiscal en venta de activo (Art. 3 LIVA) */}
+          {canApplyIva && (
+            <div className="flex items-start gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <input
+                type="checkbox"
+                id="apply-iva-fa3"
+                checked={applyIva}
+                onChange={(e) => setApplyIva(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-emerald-600"
+              />
+              <div>
+                <label htmlFor="apply-iva-fa3" className="text-sm font-medium text-gray-800 cursor-pointer">
+                  Aplicar IVA 16% sobre precio de venta (Art. 3 LIVA)
+                </label>
+                {effectiveIva && (
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    IVA Débito Fiscal: Bs. {fmt(ivaAmount)} · Total a cobrar: Bs. {fmt(totalReceivable)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Cuenta de cobro — solo si hay precio > 0 */}
           {reason === "SALE" && procNum > 0.001 && (
             <div>
@@ -278,11 +313,20 @@ export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
-                {procNum > 0.001 && (
+                {totalReceivable > 0.001 && (
                   <tr>
-                    <td className="py-1 text-gray-600">Banco / CxC (cobro)</td>
-                    <td className="py-1 text-right text-gray-900 tabular-nums">{fmt(procNum)}</td>
+                    <td className="py-1 text-gray-600">
+                      Banco / CxC (cobro){effectiveIva ? " + IVA" : ""}
+                    </td>
+                    <td className="py-1 text-right text-gray-900 tabular-nums">{fmt(totalReceivable)}</td>
                     <td className="py-1 text-right text-gray-400">—</td>
+                  </tr>
+                )}
+                {effectiveIva && ivaAmount > 0.001 && (
+                  <tr>
+                    <td className="py-1 text-emerald-700">IVA Débito Fiscal (16%)</td>
+                    <td className="py-1 text-right text-gray-400">—</td>
+                    <td className="py-1 text-right text-emerald-700 tabular-nums">{fmt(ivaAmount)}</td>
                   </tr>
                 )}
                 {isLoss && (
@@ -321,6 +365,14 @@ export function DisposeAssetModal({ asset, companyId, accounts, onClose }: Props
               </tfoot>
             </table>
           </div>
+
+          {/* FA-3: Advertencia Libro de Ventas */}
+          {effectiveIva && (
+            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              ⚠ Esta venta generará IVA Débito Fiscal que <strong>debe aparecer en el Libro de Ventas</strong>{" "}
+              del período. Verifíquelo en el módulo de Declaraciones antes de cerrar el mes.
+            </div>
+          )}
 
           {/* Notas */}
           <div>

@@ -39,6 +39,7 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
       dispose: vi.fn().mockResolvedValue(undefined),
       getSummary: vi.fn().mockResolvedValue([]),
       getSchedule: vi.fn().mockResolvedValue({ asset: {}, projected: [], posted: [] }),
+      postINPCRestatement: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, totalAdjustment: { toFixed: () => "1200.00" } }),
     },
   };
 });
@@ -56,6 +57,7 @@ import {
   postMonthlyDepreciationAction,
   disposeFixedAssetAction,
   getFixedAssetsAction,
+  postFixedAssetINPCRestatementAction,
 } from "./fixed-asset.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -228,6 +230,72 @@ describe("disposeFixedAssetAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: null } as never);
     const r = await disposeFixedAssetAction(DISPOSE_INPUT);
     expect(r.success).toBe(false);
+  });
+});
+
+// ─── postFixedAssetINPCRestatementAction ──────────────────────────────────────
+
+describe("postFixedAssetINPCRestatementAction", () => {
+  const INPC_INPUT = {
+    companyId:           "company-001",
+    periodYear:          2026,
+    periodMonth:         3,
+    patrimonioAccountId: "acc-patrimonio",
+  };
+
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si no hay membresía", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("acceso denegado");
+  });
+
+  it("VIEWER no puede generar reajuste INPC", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
+  });
+
+  it("retorna error si el año fiscal está cerrado (R-3)", async () => {
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(true);
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("cerrado");
+  });
+
+  it("retorna error si el período mensual está cerrado (R-3)", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("cerrado");
+  });
+
+  it("retorna error si input inválido (Zod)", async () => {
+    const r = await postFixedAssetINPCRestatementAction({ companyId: "", periodYear: 2026, periodMonth: 3 });
+    expect(r.success).toBe(false);
+  });
+
+  it("happy path: retorna resumen de activos ajustados", async () => {
+    vi.mocked(FixedAssetService.postINPCRestatement).mockResolvedValue({
+      processed: 3,
+      skipped: 1,
+      totalAdjustment: { toFixed: () => "2500.00" } as never,
+    });
+    const r = await postFixedAssetINPCRestatementAction(INPC_INPUT);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.processed).toBe(3);
+      expect(r.data.skipped).toBe(1);
+      expect(r.data.totalAdjustment).toBe("2500.00");
+    }
   });
 });
 

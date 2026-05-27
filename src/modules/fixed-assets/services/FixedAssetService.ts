@@ -5,7 +5,8 @@
 
 import { Decimal } from "decimal.js";
 import type { PrismaClient, DepreciationMethod, FixedAsset } from "@prisma/client";
-import type { CreateFixedAssetInput, DisposeFixedAssetInput } from "../schemas/fixed-asset.schema";
+import type { CreateFixedAssetInput, DisposeFixedAssetInput, PostINPCRestatementInput } from "../schemas/fixed-asset.schema";
+import { computeAssetRestatement, buildInpcMap } from "./FixedAssetINPCService";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
@@ -363,7 +364,16 @@ export class FixedAssetService {
     const cost        = new Decimal(asset.acquisitionCost.toString());
     const bookValue   = cost.minus(accumulated);
     const proceeds    = new Decimal(input.saleProceeds ?? "0");
-    const gainLoss    = proceeds.minus(bookValue); // + ganancia, − pérdida
+
+    // IVA Débito Fiscal (Art. 3 LIVA): solo si es venta y el usuario lo activó
+    const applyIva = input.applyIva === true && input.reason === "SALE";
+    const ivaRate  = applyIva ? new Decimal(input.ivaRate ?? "0.16") : new Decimal("0");
+    const ivaAmount = applyIva
+      ? proceeds.times(ivaRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      : new Decimal("0");
+    // El banco recibe el precio TOTAL (con IVA); la ganancia/pérdida se calcula sobre el precio NETO
+    const totalReceivable = proceeds.plus(ivaAmount);
+    const gainLoss        = proceeds.minus(bookValue); // + ganancia, − pérdida (sobre precio neto)
 
     // Número único por construcción: un activo solo puede darse de baja una vez
     // (status === "DISPOSED" guard arriba). Elimina race condition de count()+1 (Fix #4).
@@ -387,12 +397,21 @@ export class FixedAssetService {
       });
     }
 
-    // 2. DEBE: Banco / CxC por cobro de venta (solo si hay precio de venta)
+    // 2. DEBE: Banco / CxC — importe total cobrado (precio + IVA si aplica)
     if (proceeds.greaterThan(new Decimal("0.001")) && input.proceedsAccountId) {
       glEntries.push({
         accountId:   input.proceedsAccountId,
-        amount:      proceeds,
-        description: `Baja activo — cobro venta: ${label}`,
+        amount:      totalReceivable,   // precio neto + IVA (o solo precio neto si no aplica IVA)
+        description: `Baja activo — cobro venta${applyIva ? " (inc. IVA)" : ""}: ${label}`,
+      });
+    }
+
+    // 2b. HABER: IVA Débito Fiscal (Art. 3 LIVA) — solo si venta con IVA activado
+    if (applyIva && ivaAmount.greaterThan(new Decimal("0.001")) && input.ivaDFAccountId) {
+      glEntries.push({
+        accountId:   input.ivaDFAccountId,
+        amount:      ivaAmount.negated(), // negativo = crédito
+        description: `Baja activo — IVA DF 16% venta: ${label}`,
       });
     }
 
@@ -514,5 +533,120 @@ export class FixedAssetService {
       projected,
       posted: postedEntries,
     };
+  }
+
+  /**
+   * Genera el asiento de Reajuste Regular por Inflación INPC para todos los activos ACTIVE.
+   * Art. 173 ISLR: costo reexpresado = costo × (INPC_periodo / INPC_adquisicion)
+   * Asiento: DEBE Cuenta Activo / HABER Cuenta Actualización de Patrimonio
+   *
+   * @param input.periodYear/periodMonth    período INPC objetivo (debe estar cargado)
+   * @param input.patrimonioAccountId       cuenta EQUITY de Actualización de Patrimonio
+   */
+  static async postINPCRestatement(
+    input: PostINPCRestatementInput,
+    userId: string,
+    tx: Tx,
+  ): Promise<{ processed: number; skipped: number; totalAdjustment: Decimal }> {
+    const { companyId, periodYear, periodMonth, patrimonioAccountId } = input;
+
+    // 1. Obtener el índice INPC del período objetivo
+    const periodRate = await tx.iNPCRate.findUnique({
+      where: { companyId_year_month: { companyId, year: periodYear, month: periodMonth } },
+    });
+    if (!periodRate) {
+      throw new Error(
+        `No hay índice INPC cargado para ${periodYear}/${String(periodMonth).padStart(2, "0")}. Cárgalo en el módulo de Inflación.`,
+      );
+    }
+
+    // 2. Obtener todos los índices disponibles para armar el mapa
+    const allRates = await tx.iNPCRate.findMany({ where: { companyId } });
+    const inpcMap = buildInpcMap(
+      allRates.map((r) => ({ year: r.year, month: r.month, indexValue: r.indexValue.toString() })),
+    );
+
+    // 3. Activos activos con cuentas vinculadas
+    const assets = await tx.fixedAsset.findMany({
+      where: { companyId, status: "ACTIVE", deletedAt: null },
+    });
+
+    const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+    let processed   = 0;
+    let skipped     = 0;
+    let totalAdjust = new Decimal(0);
+
+    for (const asset of assets) {
+      const restatement = computeAssetRestatement(
+        asset.acquisitionDate,
+        asset.acquisitionCost.toString(),
+        inpcMap,
+        { year: periodRate.year, month: periodRate.month, indexValue: periodRate.indexValue.toString() },
+      );
+
+      if (!restatement || restatement.acqRateMissing) {
+        skipped++;
+        continue;
+      }
+
+      const adjustment = new Decimal(restatement.adjustment);
+      if (adjustment.abs().lessThan(new Decimal("0.01"))) {
+        skipped++;
+        continue;
+      }
+
+      // DEBE: Activo (ajuste al costo histórico)
+      glEntries.push({
+        accountId:   asset.assetAccountId,
+        amount:      adjustment,                // positivo = débito
+        description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
+      });
+      // HABER: Actualización de Patrimonio
+      glEntries.push({
+        accountId:   patrimonioAccountId,
+        amount:      adjustment.negated(),      // negativo = crédito
+        description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
+      });
+
+      totalAdjust = totalAdjust.plus(adjustment);
+      processed++;
+    }
+
+    if (glEntries.length === 0) {
+      return { processed: 0, skipped, totalAdjustment: new Decimal(0) };
+    }
+
+    const txCount  = await tx.transaction.count({ where: { companyId } });
+    const txNumber = `INF-AF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
+
+    await tx.transaction.create({
+      data: {
+        companyId,
+        number:      txNumber,
+        date:        new Date(periodYear, periodMonth, 0), // último día del mes
+        description: `Reajuste por Inflación INPC — Activos Fijos ${periodYear}/${String(periodMonth).padStart(2, "0")} (Art. 173 ISLR)`,
+        type:        "AJUSTE",
+        userId,
+        entries:     { create: glEntries },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId,
+        entityId:   companyId,
+        entityName: "FixedAssetINPCRestatement",
+        action:     "CREATE",
+        userId,
+        newValue: {
+          periodYear, periodMonth,
+          processed, skipped,
+          totalAdjustment: totalAdjust.toFixed(2),
+          txNumber,
+        },
+      },
+    });
+
+    return { processed, skipped, totalAdjustment: totalAdjust };
   }
 }
