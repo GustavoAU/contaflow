@@ -736,3 +736,56 @@ export async function getFixedAssetINPCHistoryAction(
     return { success: false, error: mapPrismaError(error) };
   }
 }
+
+// ─── N4: Importar desde Compras — lista gastos CONFIRMED para pre-llenar formulario ─
+
+export type ExpenseForAssetImport = {
+  id:            string;
+  concept:       string;
+  amount:        string;   // Decimal → string
+  currency:      string;
+  invoiceNumber: string | null;
+  invoiceDate:   string | null;  // ISO date
+  vendorName:    string | null;
+  vendorRif:     string | null;
+};
+
+export async function getExpensesForAssetImportAction(
+  companyId: string,
+): Promise<ActionResult<ExpenseForAssetImport[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
+    const expenses = await prisma.expense.findMany({
+      where: { companyId, status: "CONFIRMED", deletedAt: null },
+      include: { vendor: { select: { name: true, rif: true } } },
+      orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+      take: 50,
+    });
+
+    return {
+      success: true,
+      data: expenses.map((e) => ({
+        id:            e.id,
+        concept:       e.concept,
+        amount:        e.amount.toFixed(2),
+        currency:      e.currency,
+        invoiceNumber: e.invoiceNumber ?? null,
+        invoiceDate:   e.invoiceDate ? e.invoiceDate.toISOString().slice(0, 10) : null,
+        vendorName:    e.vendor?.name ?? e.supplierName ?? null,
+        vendorRif:     e.vendor?.rif ?? null,
+      })),
+    };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
+  }
+}

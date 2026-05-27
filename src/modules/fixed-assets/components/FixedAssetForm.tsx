@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import { useState, useTransition } from "react";
-import { Loader2Icon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { createFixedAssetAction } from "../actions/fixed-asset.actions";
+import { Loader2Icon, ChevronDownIcon, ChevronRightIcon, PackageSearchIcon } from "lucide-react";
+import { createFixedAssetAction, getExpensesForAssetImportAction } from "../actions/fixed-asset.actions";
+import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
 
@@ -70,6 +71,18 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const [pendingInput, setPendingInput] = useState<AssetInput | null>(null);
   // N2: moneda de adquisición
   const [acquisitionCurrency, setAcquisitionCurrency] = useState<"VES" | "USD" | "EUR">("VES");
+  // N4: pre-fillable controlled fields
+  const [assetNameVal, setAssetNameVal] = useState("");
+  const [descriptionVal, setDescriptionVal] = useState("");
+  const [acquisitionDateVal, setAcquisitionDateVal] = useState("");
+  const [acquisitionCostVal, setAcquisitionCostVal] = useState("");
+  const [invoiceNumberVal, setInvoiceNumberVal] = useState("");
+  const [providerRifVal, setProviderRifVal] = useState("");
+  // N4: import from expense
+  const [showExpenseImport, setShowExpenseImport] = useState(false);
+  const [expenseList, setExpenseList] = useState<ExpenseForAssetImport[]>([]);
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  const [selectedExpenseId, setSelectedExpenseId] = useState("");
 
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
@@ -94,6 +107,35 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         setError(r.error);
       }
     });
+  }
+
+  // N4: load expenses and toggle import panel
+  async function handleToggleExpenseImport() {
+    const opening = !showExpenseImport;
+    setShowExpenseImport(opening);
+    if (opening && expenseList.length === 0 && !expenseLoading) {
+      setExpenseLoading(true);
+      const res = await getExpensesForAssetImportAction(companyId);
+      setExpenseLoading(false);
+      if (res.success) setExpenseList(res.data);
+    }
+  }
+
+  // N4: pre-fill form when expense is selected
+  function handleExpenseSelect(expenseId: string) {
+    setSelectedExpenseId(expenseId);
+    const exp = expenseList.find((e) => e.id === expenseId);
+    if (!exp) return;
+    setAcquisitionCostVal(exp.amount);
+    if (exp.invoiceDate) setAcquisitionDateVal(exp.invoiceDate);
+    if (exp.invoiceNumber) setInvoiceNumberVal(exp.invoiceNumber);
+    if (exp.vendorRif) setProviderRifVal(exp.vendorRif);
+    if (exp.concept && !assetNameVal) setAssetNameVal(exp.concept);
+    if (exp.concept && !descriptionVal) setDescriptionVal(exp.concept);
+    const cur = exp.currency as "VES" | "USD" | "EUR";
+    if (cur === "VES" || cur === "USD" || cur === "EUR") setAcquisitionCurrency(cur);
+    // Expand legal section so user sees the pre-filled SENIAT fields
+    setShowLegal(true);
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -151,16 +193,87 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         </div>
       )}
 
+      {/* N4: Importar desde Gasto confirmado */}
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50/40">
+        <button
+          type="button"
+          onClick={handleToggleExpenseImport}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50/60"
+        >
+          <span className="flex items-center gap-2">
+            {showExpenseImport ? (
+              <ChevronDownIcon className="h-4 w-4 shrink-0" />
+            ) : (
+              <PackageSearchIcon className="h-4 w-4 shrink-0" />
+            )}
+            Importar desde Gasto confirmado
+            <span className="text-xs font-normal text-emerald-600">(pre-llena datos desde Compras)</span>
+          </span>
+          {!showExpenseImport && <span className="text-xs font-normal text-emerald-500">clic para expandir</span>}
+        </button>
+
+        {showExpenseImport && (
+          <div className="border-t border-emerald-100 px-4 pb-4 pt-3">
+            {expenseLoading ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+                Cargando gastos confirmados…
+              </div>
+            ) : expenseList.length === 0 ? (
+              <p className="text-sm text-emerald-700">
+                No hay gastos confirmados disponibles. Confirma un gasto en el módulo de Gastos primero.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label className={labelClass}>Seleccionar gasto a importar</label>
+                <select
+                  value={selectedExpenseId}
+                  onChange={(e) => handleExpenseSelect(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="">— Seleccionar gasto —</option>
+                  {expenseList.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.invoiceDate ? `[${e.invoiceDate}] ` : ""}
+                      {e.concept} — {e.currency} {e.amount}
+                      {e.vendorName ? ` | ${e.vendorName}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedExpenseId && (
+                  <p className="text-xs text-emerald-700">
+                    ✓ Datos importados. Revisa y ajusta los campos antes de guardar.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Datos básicos */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className={labelClass}>Nombre del activo *</label>
-          <input name="name" required className={fieldClass} placeholder="Ej: Vehículo Toyota Hilux 2026" />
+          <input
+            name="name"
+            required
+            className={fieldClass}
+            placeholder="Ej: Vehículo Toyota Hilux 2026"
+            value={assetNameVal}
+            onChange={(e) => setAssetNameVal(e.target.value)}
+          />
         </div>
 
         <div className="sm:col-span-2">
           <label className={labelClass}>Descripción</label>
-          <input name="description" className={fieldClass} placeholder="Descripción opcional" />
+          <input
+            name="description"
+            className={fieldClass}
+            placeholder="Descripción opcional"
+            value={descriptionVal}
+            onChange={(e) => setDescriptionVal(e.target.value)}
+          />
         </div>
 
         <div>
@@ -175,7 +288,14 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
 
         <div>
           <label className={labelClass}>Fecha de adquisición *</label>
-          <input name="acquisitionDate" type="date" required className={fieldClass} />
+          <input
+            name="acquisitionDate"
+            type="date"
+            required
+            className={fieldClass}
+            value={acquisitionDateVal}
+            onChange={(e) => setAcquisitionDateVal(e.target.value)}
+          />
         </div>
 
         <div>
@@ -195,7 +315,17 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           <label className={labelClass}>
             Costo de adquisición <span className="font-normal text-zinc-400">({acquisitionCurrency})</span> *
           </label>
-          <input name="acquisitionCost" type="number" step="0.01" min="0.01" required className={fieldClass} placeholder="0.00" />
+          <input
+            name="acquisitionCost"
+            type="number"
+            step="0.01"
+            min="0.01"
+            required
+            className={fieldClass}
+            placeholder="0.00"
+            value={acquisitionCostVal}
+            onChange={(e) => setAcquisitionCostVal(e.target.value)}
+          />
         </div>
 
         {acquisitionCurrency !== "VES" && (
@@ -346,6 +476,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   className={fieldClass}
                   placeholder="Ej: 00-000123"
                   maxLength={50}
+                  value={invoiceNumberVal}
+                  onChange={(e) => setInvoiceNumberVal(e.target.value)}
                 />
                 <p className="mt-1 text-11 text-zinc-400">Cruce con Libro de Compras IVA</p>
               </div>
@@ -357,6 +489,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   className={fieldClass}
                   placeholder="Ej: J-12345678-9"
                   maxLength={20}
+                  value={providerRifVal}
+                  onChange={(e) => setProviderRifVal(e.target.value)}
                 />
                 <p className="mt-1 text-11 text-zinc-400">Verificación retenciones ISLR/IVA</p>
               </div>
