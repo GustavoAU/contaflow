@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { toast } from "sonner";
 import type { FixedAssetSummary } from "../services/FixedAssetService";
 import {
@@ -94,6 +94,30 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
   const [, startInpcHistory] = useTransition();
 
   const equityAccounts = accounts.filter((a) => a.type === "EQUITY");
+
+  // N5: detectar salto de período — la fecha más temprana "siguiente esperada" de activos activos
+  const minGapPeriod = useMemo(() => {
+    let minYear = Infinity;
+    let minMonth = Infinity;
+    for (const a of assets) {
+      if (a.status !== "ACTIVE") continue;
+      if (!a.lastEntryDate) continue;
+      let nextM = a.lastEntryDate.month + 1;
+      let nextY = a.lastEntryDate.year;
+      if (nextM > 12) { nextM = 1; nextY++; }
+      if (nextY < minYear || (nextY === minYear && nextM < minMonth)) {
+        minYear = nextY;
+        minMonth = nextM;
+      }
+    }
+    if (minYear === Infinity) return null;
+    return { year: minYear, month: minMonth };
+  }, [assets]);
+
+  const hasSkipWarning = minGapPeriod !== null && (
+    deprYear > minGapPeriod.year ||
+    (deprYear === minGapPeriod.year && deprMonth > minGapPeriod.month)
+  );
 
   // FU-03: Conciliación GL
   const [glReconResult,   setGlReconResult]   = useState<GLReconciliationResultRow[] | null>(null);
@@ -283,6 +307,19 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
         </button>
         {deprResult && (
           <p className="text-xs text-blue-700">{deprResult}</p>
+        )}
+        {/* N5: advertencia si el período seleccionado saltea meses sin registrar */}
+        {hasSkipWarning && minGapPeriod && (
+          <div
+            role="alert"
+            className="w-full rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+          >
+            <span className="font-semibold">⚠ Salto de período detectado</span>
+            {" "}— El período seleccionado ({MONTHS[deprMonth - 1]} {deprYear}) adelanta meses sin cubrir desde{" "}
+            <strong>{MONTHS[minGapPeriod.month - 1]} {minGapPeriod.year}</strong>.
+            Calculando este período creará una brecha en el historial. Usa{" "}
+            <strong>«Calcular todos al día»</strong> para rellenar los períodos intermedios de forma automática.
+          </div>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -492,6 +529,7 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                 <th scope="col" className="px-4 py-3 text-right">Costo</th>
                 <th scope="col" className="px-4 py-3 text-right">Dep. Acumulada</th>
                 <th scope="col" className="px-4 py-3 text-right">Valor en Libros</th>
+                <th scope="col" className="px-4 py-3 text-right">Factor INPC</th>
                 <th scope="col" className="px-4 py-3 text-right">Valor Reexpresado</th>
                 <th scope="col" className="px-4 py-3 text-left">Último Período</th>
                 <th scope="col" className="px-4 py-3 text-center">Estado</th>
@@ -532,6 +570,19 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                     <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
                       {formatAmount(String(a.bookValue))}
                     </td>
+                    {/* N6: Factor INPC visible */}
+                    <td className="px-4 py-3 text-right font-mono text-xs">
+                      {a.inpcFactor && a.inpcReexpressedValue && !a.inpcAcqRateMissing ? (
+                        <span
+                          className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-700"
+                          title={`Período INPC: ${a.inpcCurrentPeriod}`}
+                        >
+                          ×{a.inpcFactor}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-mono text-xs">
                       {a.inpcAcqRateMissing ? (
                         <span className="text-amber-600" title="No hay índice INPC para el mes de adquisición">
@@ -540,7 +591,7 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                       ) : a.inpcReexpressedValue ? (
                         <span
                           className="font-medium text-emerald-700"
-                          title={`Factor: ×${a.inpcFactor} | Ajuste: Bs. ${a.inpcAdjustment} | Período INPC: ${a.inpcCurrentPeriod}`}
+                          title={`Ajuste: Bs. ${a.inpcAdjustment}`}
                         >
                           {formatAmount(a.inpcReexpressedValue)}
                         </span>
