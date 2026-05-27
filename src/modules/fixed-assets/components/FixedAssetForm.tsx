@@ -45,6 +45,8 @@ type AssetInput = {
   accDepreciationAccountId: string;
   acquisitionDate: Date;
   acquisitionCost: string;
+  acquisitionCurrency: "VES" | "USD" | "EUR";
+  bcvRateAtAcquisition: string | null;
   residualValue: string;
   usefulLifeMonths: number;
   depreciationMethod: "LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION";
@@ -66,6 +68,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   // FC-03: warn if SENIAT deductibility fields are missing
   const [showLegalWarning, setShowLegalWarning] = useState(false);
   const [pendingInput, setPendingInput] = useState<AssetInput | null>(null);
+  // N2: moneda de adquisición
+  const [acquisitionCurrency, setAcquisitionCurrency] = useState<"VES" | "USD" | "EUR">("VES");
 
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
@@ -107,6 +111,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       accDepreciationAccountId,
       acquisitionDate: new Date(fd.get("acquisitionDate") as string),
       acquisitionCost: fd.get("acquisitionCost") as string,
+      acquisitionCurrency,
+      bcvRateAtAcquisition: (fd.get("bcvRateAtAcquisition") as string) || null,
       residualValue: (fd.get("residualValue") as string) || "0",
       usefulLifeMonths: parseInt(fd.get("usefulLifeMonths") as string),
       depreciationMethod: method,
@@ -173,9 +179,41 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         </div>
 
         <div>
-          <label className={labelClass}>Costo de adquisición <span className="font-normal text-zinc-400">(Bs.)</span> *</label>
+          <label className={labelClass}>Moneda de adquisición</label>
+          <select
+            value={acquisitionCurrency}
+            onChange={(e) => setAcquisitionCurrency(e.target.value as "VES" | "USD" | "EUR")}
+            className={fieldClass}
+          >
+            <option value="VES">VES — Bolívar Soberano</option>
+            <option value="USD">USD — Dólar Americano</option>
+            <option value="EUR">EUR — Euro</option>
+          </select>
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            Costo de adquisición <span className="font-normal text-zinc-400">({acquisitionCurrency})</span> *
+          </label>
           <input name="acquisitionCost" type="number" step="0.01" min="0.01" required className={fieldClass} placeholder="0.00" />
         </div>
+
+        {acquisitionCurrency !== "VES" && (
+          <div className="sm:col-span-2">
+            <label className={labelClass}>
+              Tasa BCV a la fecha de adquisición <span className="font-normal text-zinc-400">(Bs./{acquisitionCurrency})</span>
+            </label>
+            <input
+              name="bcvRateAtAcquisition"
+              type="number" step="0.0001" min="0.0001"
+              className={fieldClass}
+              placeholder="Ej: 36.50"
+            />
+            <p className="mt-1 text-xs text-zinc-400">
+              Tasa de cambio BCV vigente al día de la compra. Permite calcular el costo histórico en VES para el Libro de Activos Fijos SENIAT.
+            </p>
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>Valor residual <span className="font-normal text-zinc-400">(Bs.)</span></label>

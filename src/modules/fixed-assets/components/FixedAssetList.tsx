@@ -54,6 +54,8 @@ type AssetRow = FixedAssetSummary & {
   inpcAdjustment:          string | null;
   inpcCurrentPeriod:       string | null;
   inpcAcqRateMissing:      boolean;
+  // N2: moneda adquisición (override Decimal → string)
+  bcvRateAtAcquisition:    string | null;
 };
 
 type Props = {
@@ -495,7 +497,15 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                     </td>
                     <td className="px-4 py-3 text-gray-600">{METHOD_LABELS[a.depreciationMethod] ?? a.depreciationMethod}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-800">
-                      {formatAmount(String(a.acquisitionCost))}
+                      <span>{formatAmount(String(a.acquisitionCost))}</span>
+                      {a.acquisitionCurrency !== "VES" && (
+                        <span
+                          className="ml-1.5 rounded bg-blue-100 px-1 py-0.5 text-10 font-semibold text-blue-700"
+                          title={a.bcvRateAtAcquisition ? `Tasa BCV: ${a.bcvRateAtAcquisition} Bs./${a.acquisitionCurrency}` : `Adquirido en ${a.acquisitionCurrency}`}
+                        >
+                          {a.acquisitionCurrency}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-gray-600">
                       {formatAmount(String(a.accumulatedDepreciation))}

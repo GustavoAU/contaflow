@@ -11,6 +11,9 @@ export const CreateFixedAssetSchema = z.object({
   accDepreciationAccountId: z.string().min(1, "Cuenta de depreciación acumulada requerida"),
   acquisitionDate: z.coerce.date({ error: "Fecha de adquisición requerida" }),
   acquisitionCost: zMoneyPositive,
+  // N2: moneda de adquisición y tasa BCV histórica
+  acquisitionCurrency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+  bcvRateAtAcquisition: zMoneyAmount.optional().nullable(), // tasa BCV a la fecha de compra
   residualValue: zMoneyAmount.default("0"),
   usefulLifeMonths: z
     .number({ error: "Vida útil requerida" })
