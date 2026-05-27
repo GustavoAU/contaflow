@@ -22,6 +22,12 @@ export const CreateFixedAssetSchema = z.object({
   // Ítem 40
   location:    z.string().max(200).optional().nullable(),
   responsible: z.string().max(150).optional().nullable(),
+  // FC-02: campos legales SENIAT (Art. 76 ISLR / Art. 91 Código de Comercio)
+  invoiceNumber:    z.string().max(50).optional().nullable(),
+  providerRif:      z.string().max(20).optional().nullable(),
+  serialNumber:     z.string().max(100).optional().nullable(),
+  serviceStartDate: z.coerce.date().optional().nullable(),
+  internalCode:     z.string().max(50).optional().nullable(),
 });
 
 export type CreateFixedAssetInput = z.infer<typeof CreateFixedAssetSchema>;

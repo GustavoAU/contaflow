@@ -30,10 +30,15 @@ export default async function FixedAssetsPage({ params }: Props) {
 
   const serializedAssets = assets.map((a) => ({
     ...a,
-    acquisitionCost: a.acquisitionCost.toFixed(2),
-    residualValue: a.residualValue.toFixed(2),
-    bookValue: a.bookValue.toFixed(2),
-    accumulatedDepreciation: a.accumulatedDepreciation.toFixed(2),
+    acquisitionCost:          a.acquisitionCost.toFixed(2),
+    residualValue:            a.residualValue.toFixed(2),
+    bookValue:                a.bookValue.toFixed(2),
+    accumulatedDepreciation:  a.accumulatedDepreciation.toFixed(2),
+    // FC-02 campos legales (string | null — no necesitan serialización adicional)
+    serialNumber:  a.serialNumber,
+    internalCode:  a.internalCode,
+    invoiceNumber: a.invoiceNumber,
+    providerRif:   a.providerRif,
   }));
 
   return (

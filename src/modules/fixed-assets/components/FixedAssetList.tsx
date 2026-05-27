@@ -59,8 +59,18 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
     startDepr(async () => {
       const r = await postMonthlyDepreciationAction({ companyId, year: deprYear, month: deprMonth });
       if (r.success) {
+        const { processed, skipped, errors } = r.data;
+        const periodLabel = `${deprYear}/${String(deprMonth).padStart(2, "0")}`;
+        if (processed === 0 && skipped > 0) {
+          // FU-01: mensaje explícito cuando el período ya fue calculado
+          toast.info(`El período ${periodLabel} ya fue calculado para todos los activos (${skipped} período${skipped !== 1 ? "s" : ""} existente${skipped !== 1 ? "s" : ""}). No se generaron nuevos asientos.`);
+        } else if (processed > 0) {
+          toast.success(`Depreciación ${periodLabel}: ${processed} activo${processed !== 1 ? "s" : ""} calculado${processed !== 1 ? "s" : ""}.`);
+        } else {
+          toast.info(`No hay activos activos que depreciar en ${periodLabel}.`);
+        }
         setDeprResult(
-          `Depreciación ${deprYear}/${String(deprMonth).padStart(2, "0")}: ${r.data.processed} procesados, ${r.data.skipped} ya calculados${r.data.errors.length ? `, ${r.data.errors.length} errores` : ""}.`,
+          `${periodLabel}: ${processed} procesados, ${skipped} ya existían${errors.length ? `, ${errors.length} errores` : ""}.`,
         );
       } else {
         toast.error(r.error);
@@ -215,12 +225,20 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                 const showAlert = monthsLeft !== null && monthsLeft <= 3;
                 return (
                   <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{a.name}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{a.name}</p>
+                      {(a.internalCode || a.serialNumber) && (
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {a.internalCode && <span className="mr-2">#{a.internalCode}</span>}
+                          {a.serialNumber && <span>S/N: {a.serialNumber}</span>}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{METHOD_LABELS[a.depreciationMethod] ?? a.depreciationMethod}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-800">
                       {formatAmount(String(a.acquisitionCost))}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-orange-700">
+                    <td className="px-4 py-3 text-right font-mono text-gray-600">
                       {formatAmount(String(a.accumulatedDepreciation))}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
@@ -253,10 +271,10 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
                         <button
                           onClick={() => setScheduleAssetId(a.id)}
-                          className="text-xs text-blue-600 hover:underline"
+                          className="whitespace-nowrap text-xs text-blue-600 hover:underline"
                         >
                           Tabla
                         </button>
@@ -264,7 +282,7 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                           <button
                             onClick={() => handleCatchUpAsset(a.id, a.name)}
                             disabled={isPendingCatchUp}
-                            className="text-xs text-indigo-600 hover:underline disabled:opacity-40"
+                            className="whitespace-nowrap text-xs text-indigo-600 hover:underline disabled:opacity-40"
                           >
                             Poner al día
                           </button>
@@ -272,7 +290,7 @@ export function FixedAssetList({ assets, companyId, accounts }: Props) {
                         {a.status === "ACTIVE" && (
                           <button
                             onClick={() => handleDispose(a)}
-                            className="text-xs text-red-600 hover:underline"
+                            className="whitespace-nowrap text-xs text-red-600 hover:underline"
                           >
                             Dar de baja
                           </button>
