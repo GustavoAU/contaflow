@@ -65,6 +65,9 @@ export type FixedAssetSummary = {
   internalCode: string | null;
   invoiceNumber: string | null;
   providerRif: string | null;
+  // N2: moneda de adquisición y tasa BCV histórica
+  acquisitionCurrency: string;
+  bcvRateAtAcquisition: Decimal | null;
 };
 
 // ─── Helpers de cálculo (pure functions — testables) ───────────────────────────
@@ -209,6 +212,9 @@ export class FixedAssetService {
         serialNumber: input.serialNumber ?? null,
         serviceStartDate: input.serviceStartDate ?? null,
         internalCode: input.internalCode ?? null,
+        // N2: moneda de adquisición y tasa BCV histórica
+        acquisitionCurrency: input.acquisitionCurrency ?? "VES",
+        bcvRateAtAcquisition: input.bcvRateAtAcquisition ? new Decimal(input.bcvRateAtAcquisition) : null,
         createdBy: userId,
       },
     });
@@ -701,6 +707,11 @@ export class FixedAssetService {
         internalCode: a.internalCode ?? null,
         invoiceNumber: a.invoiceNumber ?? null,
         providerRif: a.providerRif ?? null,
+        // N2: moneda de adquisición y tasa BCV histórica
+        acquisitionCurrency: a.acquisitionCurrency,
+        bcvRateAtAcquisition: a.bcvRateAtAcquisition
+          ? new Decimal(a.bcvRateAtAcquisition.toString())
+          : null,
       };
     });
   }

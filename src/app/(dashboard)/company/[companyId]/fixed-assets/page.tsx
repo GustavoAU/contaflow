@@ -70,6 +70,8 @@ export default async function FixedAssetsPage({ params }: Props) {
       inpcAdjustment:       restatement?.adjustment       ?? null,
       inpcCurrentPeriod:    restatement?.currentPeriod    ?? null,
       inpcAcqRateMissing:   restatement?.acqRateMissing   ?? false,
+      // N2: serializar Decimal → string
+      bcvRateAtAcquisition: a.bcvRateAtAcquisition?.toFixed(4) ?? null,
     };
   });
 

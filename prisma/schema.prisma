@@ -906,6 +906,8 @@ model FixedAsset {
   // Datos del activo
   acquisitionDate          DateTime            @db.Date
   acquisitionCost          Decimal             @db.Decimal(19, 4)
+  acquisitionCurrency      Currency            @default(VES) // N2: moneda original de adquisicion
+  bcvRateAtAcquisition     Decimal?            @db.Decimal(19, 4) // N2: tasa BCV a la fecha de adquisicion
   residualValue            Decimal             @default(0) @db.Decimal(19, 4)
   usefulLifeMonths         Int // vida útil en meses
   depreciationMethod       DepreciationMethod  @default(LINEA_RECTA)
