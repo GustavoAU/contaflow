@@ -916,6 +916,12 @@ model FixedAsset {
   // Localización y responsable (Ítem 40)
   location                 String?
   responsible              String?
+  // Campos legales SENIAT — FC-02 (Art. 76 ISLR / Art. 91 Código de Comercio)
+  invoiceNumber            String? // Nro. Factura de Compra — cruce Libro IVA Compras
+  providerRif              String? // RIF del Proveedor — verificación retenciones
+  serialNumber             String? // Nro. Serial / Placa del bien — identificación unívoca
+  serviceStartDate         DateTime?           @db.Date // Fecha de Puesta en Servicio (puede diferir de compra)
+  internalCode             String? // Nro. Inventario Interno
   // Soft delete (tabla con relevancia contable — ADR-005)
   deletedAt                DateTime?
   createdAt                DateTime            @default(now())

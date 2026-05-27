@@ -37,6 +37,11 @@ export type FixedAssetSummary = {
   bookValue: Decimal;
   accumulatedDepreciation: Decimal;
   lastEntryDate: { year: number; month: number } | null;
+  // FC-02 campos legales
+  serialNumber:  string | null;
+  internalCode:  string | null;
+  invoiceNumber: string | null;
+  providerRif:   string | null;
 };
 
 // ─── Helpers de cálculo (pure functions — testables) ───────────────────────────
@@ -153,8 +158,14 @@ export class FixedAssetService {
         usefulLifeMonths: input.usefulLifeMonths,
         depreciationMethod: input.depreciationMethod,
         totalUnits: input.totalUnits,
-        location: input.location ?? null,
-        responsible: input.responsible ?? null,
+        location:         input.location ?? null,
+        responsible:      input.responsible ?? null,
+        // FC-02 campos legales SENIAT
+        invoiceNumber:    input.invoiceNumber ?? null,
+        providerRif:      input.providerRif ?? null,
+        serialNumber:     input.serialNumber ?? null,
+        serviceStartDate: input.serviceStartDate ?? null,
+        internalCode:     input.internalCode ?? null,
         createdBy: userId,
       },
     });
@@ -476,6 +487,11 @@ export class FixedAssetService {
         bookValue: cost.minus(accumulated),
         accumulatedDepreciation: accumulated,
         lastEntryDate: lastEntry ? { year: lastEntry.periodYear, month: lastEntry.periodMonth } : null,
+        // FC-02 campos legales
+        serialNumber:  a.serialNumber  ?? null,
+        internalCode:  a.internalCode  ?? null,
+        invoiceNumber: a.invoiceNumber ?? null,
+        providerRif:   a.providerRif   ?? null,
       };
     });
   }

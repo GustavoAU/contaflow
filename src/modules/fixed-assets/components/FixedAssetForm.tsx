@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useTransition } from "react";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { createFixedAssetAction } from "../actions/fixed-asset.actions";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
@@ -40,6 +40,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"LINEA_RECTA" | "SUMA_DIGITOS" | "UNIDADES_PRODUCCION">("LINEA_RECTA");
+  const [showLegal, setShowLegal] = useState(false);
 
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
@@ -77,6 +78,12 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         : null,
       location:    (fd.get("location") as string) || null,
       responsible: (fd.get("responsible") as string) || null,
+      // FC-02 campos legales
+      invoiceNumber:    (fd.get("invoiceNumber") as string) || null,
+      providerRif:      (fd.get("providerRif") as string) || null,
+      serialNumber:     (fd.get("serialNumber") as string) || null,
+      serviceStartDate: fd.get("serviceStartDate") ? new Date(fd.get("serviceStartDate") as string) : null,
+      internalCode:     (fd.get("internalCode") as string) || null,
     };
 
     startTransition(async () => {
@@ -233,6 +240,85 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           </div>
         </div>
       </fieldset>
+
+      {/* FC-02 — Datos Legales SENIAT (colapsable) */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50/40">
+        <button
+          type="button"
+          onClick={() => setShowLegal((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50/60"
+        >
+          <span className="flex items-center gap-2">
+            {showLegal ? (
+              <ChevronDownIcon className="h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronRightIcon className="h-4 w-4 shrink-0" />
+            )}
+            Datos Legales / SENIAT
+            <span className="text-xs font-normal text-amber-600">(Art. 76 ISLR — requerido para Libro de Activos Fijos)</span>
+          </span>
+          {!showLegal && <span className="text-xs font-normal text-amber-500">clic para expandir</span>}
+        </button>
+
+        {showLegal && (
+          <div className="border-t border-amber-100 px-4 pb-4 pt-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Nro. Factura de Compra</label>
+                <input
+                  name="invoiceNumber"
+                  className={fieldClass}
+                  placeholder="Ej: 00-000123"
+                  maxLength={50}
+                />
+                <p className="mt-1 text-11 text-zinc-400">Cruce con Libro de Compras IVA</p>
+              </div>
+
+              <div>
+                <label className={labelClass}>RIF del Proveedor</label>
+                <input
+                  name="providerRif"
+                  className={fieldClass}
+                  placeholder="Ej: J-12345678-9"
+                  maxLength={20}
+                />
+                <p className="mt-1 text-11 text-zinc-400">Verificación retenciones ISLR/IVA</p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Nro. Serial / Placa del bien</label>
+                <input
+                  name="serialNumber"
+                  className={fieldClass}
+                  placeholder="Ej: VIN/placa/serial de fabricación"
+                  maxLength={100}
+                />
+                <p className="mt-1 text-11 text-zinc-400">Identificación unívoca del activo físico</p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Nro. Inventario Interno</label>
+                <input
+                  name="internalCode"
+                  className={fieldClass}
+                  placeholder="Ej: AF-2026-001"
+                  maxLength={50}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass}>Fecha de Puesta en Servicio</label>
+                <input
+                  name="serviceStartDate"
+                  type="date"
+                  className={fieldClass}
+                />
+                <p className="mt-1 text-11 text-zinc-400">Puede diferir de la fecha de adquisición</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex justify-end gap-3">
         {onCancel && (
