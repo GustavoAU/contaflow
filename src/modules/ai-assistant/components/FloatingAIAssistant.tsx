@@ -4,6 +4,8 @@
 // Botón flotante persistent + panel lateral con ContaFlow IA.
 // - Badge rojo/ámbar si FiscalAnomalyDetectorService detecta anomalías.
 // - Sugerencia contextual al abrir cuando hay anomalías críticas o altas.
+// - Pulse animation (animate-ping) cuando hay anomalías críticas.
+// - Callout de primera visita (localStorage cf-ai-tip-shown) cuando hay anomalías.
 // - Accesible: focus-trap manual, aria-expanded, role="dialog".
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -26,6 +28,7 @@ type AnomalyState =
 export function FloatingAIAssistant({ companyId, companyName }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [anomaly, setAnomaly] = useState<AnomalyState>({ status: "loading" });
+  const [showTip, setShowTip] = useState(false);
   const [, startTransition] = useTransition();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -47,6 +50,30 @@ export function FloatingAIAssistant({ companyId, companyName }: Props) {
       }
     });
   }, [companyId]);
+
+  // ─── Callout de primera visita ───────────────────────────────────────────────
+  // Muestra un tooltip sobre el botón durante 6s cuando hay anomalías y el
+  // usuario no lo ha visto antes. Se marca visto en localStorage para no repetir.
+  useEffect(() => {
+    if (anomaly.status !== "critical" && anomaly.status !== "high") return;
+    try {
+      if (localStorage.getItem("cf-ai-tip-shown")) return;
+    } catch {
+      return; // localStorage no disponible (SSR, cookies bloqueadas)
+    }
+    const show = setTimeout(() => {
+      setShowTip(true);
+      try { localStorage.setItem("cf-ai-tip-shown", "1"); } catch { /* noop */ }
+    }, 1800);
+    return () => clearTimeout(show);
+  }, [anomaly.status]);
+
+  // Auto-ocultar el tip después de 6 segundos
+  useEffect(() => {
+    if (!showTip) return;
+    const hide = setTimeout(() => setShowTip(false), 6000);
+    return () => clearTimeout(hide);
+  }, [showTip]);
 
   // ─── Keyboard: Escape cierra el panel ────────────────────────────────────────
   useEffect(() => {
@@ -114,7 +141,7 @@ export function FloatingAIAssistant({ companyId, companyName }: Props) {
           "fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-2xl outline-none",
           "transition-transform duration-300 ease-in-out",
           "dark:bg-zinc-900",
-          "sm:w-[420px]",
+          "sm:w-105",
           isOpen ? "translate-x-0" : "translate-x-full",
         ]
           .filter(Boolean)
@@ -164,40 +191,69 @@ export function FloatingAIAssistant({ companyId, companyName }: Props) {
       </div>
 
       {/* ── Botón flotante ──────────────────────────────────────────────────── */}
-      <button
-        ref={triggerRef}
-        onClick={() => setIsOpen((v) => !v)}
-        aria-expanded={isOpen}
-        aria-haspopup="dialog"
-        aria-label="Abrir asistente ContaFlow IA"
-        className={[
-          "fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center",
-          "rounded-full bg-violet-600 text-white shadow-lg",
-          "transition-all duration-200",
-          "hover:scale-110 hover:bg-violet-700 hover:shadow-xl",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2",
-          "active:scale-95",
-          isOpen && "scale-90 bg-violet-700",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <SparklesIcon className="h-6 w-6" aria-hidden />
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
 
-        {/* Badge de anomalías */}
-        {badgeCount > 0 && !isOpen && (
-          <span
-            aria-label={`${badgeCount} anomalía${badgeCount > 1 ? "s" : ""} detectada${badgeCount > 1 ? "s" : ""}`}
-            className={[
-              "absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center",
-              "rounded-full text-xs font-bold text-white ring-2 ring-white",
-              badgeColor,
-            ].join(" ")}
+        {/* Callout de primera visita */}
+        {showTip && !isOpen && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="relative animate-in slide-in-from-bottom-2 fade-in duration-300 flex items-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-xs text-white shadow-xl dark:bg-zinc-800"
           >
-            {badgeCount > 9 ? "9+" : badgeCount}
-          </span>
+            <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-violet-400" aria-hidden />
+            <span>
+              {anomaly.status === "critical"
+                ? "Hay anomalías críticas — pregúntame"
+                : "Anomalías detectadas — pregúntame"}
+            </span>
+            {/* flecha apuntando abajo */}
+            <span className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 bg-zinc-900 dark:bg-zinc-800" aria-hidden />
+          </div>
         )}
-      </button>
+
+        <button
+          ref={triggerRef}
+          onClick={() => { setIsOpen((v) => !v); setShowTip(false); }}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          aria-label="Abrir asistente ContaFlow IA"
+          className={[
+            "relative flex h-14 w-14 items-center justify-center",
+            "rounded-full bg-violet-600 text-white shadow-lg",
+            "transition-all duration-200",
+            "hover:scale-110 hover:bg-violet-700 hover:shadow-xl",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2",
+            "active:scale-95",
+            isOpen && "scale-90 bg-violet-700",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <SparklesIcon className="h-6 w-6" aria-hidden />
+
+          {/* Pulse ring para anomalías críticas (atrae atención) */}
+          {anomaly.status === "critical" && !isOpen && (
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-full bg-violet-600 opacity-75 animate-ping"
+            />
+          )}
+
+          {/* Badge de anomalías */}
+          {badgeCount > 0 && !isOpen && (
+            <span
+              aria-label={`${badgeCount} anomalía${badgeCount > 1 ? "s" : ""} detectada${badgeCount > 1 ? "s" : ""}`}
+              className={[
+                "absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center",
+                "rounded-full text-xs font-bold text-white ring-2 ring-white",
+                badgeColor,
+              ].join(" ")}
+            >
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+        </button>
+      </div>
     </>
   );
 }
