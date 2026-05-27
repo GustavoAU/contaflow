@@ -684,3 +684,55 @@ export async function getFixedAssetGLReconciliationAction(
     return { success: false, error: mapPrismaError(error) };
   }
 }
+
+// ─── N3: Historial INPC por activo ────────────────────────────────────────────
+
+export type INPCRestatementHistoryRow = {
+  id:                string;
+  assetId:           string;
+  assetName:         string;
+  inpcPeriodYear:    number;
+  inpcPeriodMonth:   number;
+  factor:            string;
+  adjustmentAmount:  string;
+  previousBookValue: string;
+  newRestatedValue:  string;
+  createdAt:         string;
+};
+
+export async function getFixedAssetINPCHistoryAction(
+  companyId: string,
+  assetId?: string,
+): Promise<ActionResult<INPCRestatementHistoryRow[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
+    const rows = await FixedAssetService.getINPCRestatementHistory(companyId, assetId);
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        id:                r.id,
+        assetId:           r.assetId,
+        assetName:         r.assetName,
+        inpcPeriodYear:    r.inpcPeriodYear,
+        inpcPeriodMonth:   r.inpcPeriodMonth,
+        factor:            r.factor.toFixed(6),
+        adjustmentAmount:  r.adjustmentAmount.toFixed(2),
+        previousBookValue: r.previousBookValue.toFixed(2),
+        newRestatedValue:  r.newRestatedValue.toFixed(2),
+        createdAt:         r.createdAt.toISOString(),
+      })),
+    };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
+  }
+}

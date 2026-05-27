@@ -41,6 +41,7 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
       getSchedule: vi.fn().mockResolvedValue({ asset: {}, projected: [], posted: [] }),
       postINPCRestatement: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, totalAdjustment: { toFixed: () => "1200.00" } }),
       getGLReconciliation: vi.fn().mockResolvedValue([]),
+      getINPCRestatementHistory: vi.fn().mockResolvedValue([]),
     },
   };
 });
@@ -60,6 +61,7 @@ import {
   getFixedAssetsAction,
   postFixedAssetINPCRestatementAction,
   getFixedAssetGLReconciliationAction,
+  getFixedAssetINPCHistoryAction,
 } from "./fixed-asset.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -404,6 +406,59 @@ describe("getFixedAssetGLReconciliationAction", () => {
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data[0]!.difference).toBe("250.00");
+    }
+  });
+});
+
+// ─── getFixedAssetINPCHistoryAction (N3) ─────────────────────────────────────
+
+describe("getFixedAssetINPCHistoryAction", () => {
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await getFixedAssetINPCHistoryAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("VIEWER no puede acceder al historial INPC", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await getFixedAssetINPCHistoryAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
+  });
+
+  it("happy path — sin historial: retorna array vacío", async () => {
+    vi.mocked(FixedAssetService.getINPCRestatementHistory).mockResolvedValue([]);
+    const r = await getFixedAssetINPCHistoryAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual([]);
+  });
+
+  it("happy path — retorna filas serializadas correctamente", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(FixedAssetService.getINPCRestatementHistory).mockResolvedValue([
+      {
+        id:                "restatement-001",
+        assetId:           "asset-001",
+        assetName:         "Vehículo Toyota",
+        inpcPeriodYear:    2026,
+        inpcPeriodMonth:   3,
+        factor:            new Decimal("1.524300"),
+        adjustmentAmount:  new Decimal("3000.00"),
+        previousBookValue: new Decimal("20000.00"),
+        newRestatedValue:  new Decimal("23000.00"),
+        equityAccountId:   "acc-patrimonio",
+        transactionId:     "tx-001-asset-001",
+        createdAt:         new Date("2026-03-31T12:00:00Z"),
+      },
+    ] as never);
+    const r = await getFixedAssetINPCHistoryAction("company-001", "asset-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toHaveLength(1);
+      expect(r.data[0]!.assetName).toBe("Vehículo Toyota");
+      expect(r.data[0]!.adjustmentAmount).toBe("3000.00");
+      expect(r.data[0]!.factor).toBe("1.524300");
     }
   });
 });

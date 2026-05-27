@@ -864,12 +864,33 @@ export class FixedAssetService {
       where: { companyId, status: "ACTIVE", deletedAt: null },
     });
 
+    // N3: pre-cargar reajustes ya registrados para este período (idempotencia)
+    const existingRestatements = await tx.fixedAssetINPCRestatement.findMany({
+      where: { companyId, inpcPeriodYear: periodYear, inpcPeriodMonth: periodMonth },
+      select: { assetId: true },
+    });
+    const alreadyRestatementSet = new Set(existingRestatements.map((r) => r.assetId));
+
     const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+    // N3: datos para los registros históricos por activo
+    const restatementRecords: {
+      assetId: string;
+      factor: Decimal;
+      adjustmentAmount: Decimal;
+      previousBookValue: Decimal;
+      newRestatedValue: Decimal;
+    }[] = [];
     let processed = 0;
     let skipped = 0;
     let totalAdjust = new Decimal(0);
 
     for (const asset of assets) {
+      // N3: saltar si ya fue procesado en este período
+      if (alreadyRestatementSet.has(asset.id)) {
+        skipped++;
+        continue;
+      }
+
       const restatement = computeAssetRestatement(
         asset.acquisitionDate,
         asset.acquisitionCost.toString(),
@@ -892,6 +913,10 @@ export class FixedAssetService {
         continue;
       }
 
+      const previousBookValue = new Decimal(asset.acquisitionCost.toString());
+      const newRestatedValue  = previousBookValue.plus(adjustment);
+      const factor            = new Decimal(restatement.factor);
+
       // DEBE: Activo (ajuste al costo histórico)
       glEntries.push({
         accountId: asset.assetAccountId,
@@ -905,6 +930,7 @@ export class FixedAssetService {
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
       });
 
+      restatementRecords.push({ assetId: asset.id, factor, adjustmentAmount: adjustment, previousBookValue, newRestatedValue });
       totalAdjust = totalAdjust.plus(adjustment);
       processed++;
     }
@@ -916,7 +942,7 @@ export class FixedAssetService {
     const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INF-AF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
 
-    await tx.transaction.create({
+    const createdTx = await tx.transaction.create({
       data: {
         companyId,
         number: txNumber,
@@ -926,6 +952,25 @@ export class FixedAssetService {
         userId,
         entries: { create: glEntries },
       },
+    });
+
+    // N3: crear registros históricos de reajuste INPC por activo
+    await tx.fixedAssetINPCRestatement.createMany({
+      data: restatementRecords.map((r) => ({
+        id:                `${r.assetId}-${periodYear}-${periodMonth}-${Date.now()}`,
+        companyId,
+        assetId:           r.assetId,
+        inpcPeriodYear:    periodYear,
+        inpcPeriodMonth:   periodMonth,
+        factor:            r.factor,
+        adjustmentAmount:  r.adjustmentAmount,
+        previousBookValue: r.previousBookValue,
+        newRestatedValue:  r.newRestatedValue,
+        equityAccountId:   patrimonioAccountId,
+        transactionId:     `${createdTx.id}-${r.assetId}`,
+        userId,
+      })),
+      skipDuplicates: true,
     });
 
     await tx.auditLog.create({
@@ -947,5 +992,34 @@ export class FixedAssetService {
     });
 
     return { processed, skipped, totalAdjustment: totalAdjust };
+  }
+
+  /**
+   * N3: Historial de reajustes INPC para un activo (o toda la empresa).
+   */
+  static async getINPCRestatementHistory(
+    companyId: string,
+    assetId?: string,
+  ) {
+    const prismaClient = (await import("@/lib/prisma")).default;
+    const records = await prismaClient.fixedAssetINPCRestatement.findMany({
+      where: { companyId, ...(assetId ? { assetId } : {}) },
+      include: { asset: { select: { name: true } } },
+      orderBy: [{ inpcPeriodYear: "desc" }, { inpcPeriodMonth: "desc" }],
+    });
+    return records.map((r) => ({
+      id:                r.id,
+      assetId:           r.assetId,
+      assetName:         r.asset.name,
+      inpcPeriodYear:    r.inpcPeriodYear,
+      inpcPeriodMonth:   r.inpcPeriodMonth,
+      factor:            new Decimal(r.factor.toString()),
+      adjustmentAmount:  new Decimal(r.adjustmentAmount.toString()),
+      previousBookValue: new Decimal(r.previousBookValue.toString()),
+      newRestatedValue:  new Decimal(r.newRestatedValue.toString()),
+      equityAccountId:   r.equityAccountId,
+      transactionId:     r.transactionId,
+      createdAt:         r.createdAt,
+    }));
   }
 }

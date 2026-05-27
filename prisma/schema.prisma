@@ -127,125 +127,126 @@ enum InvoicePaymentStatus {
 }
 
 model Company {
-  id                        String                   @id @default(cuid())
-  name                      String
-  transactions              Transaction[]
-  periods                   AccountingPeriod[]
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  rif                       String?                  @unique // RIF para Venezuela
+  id                         String                      @id @default(cuid())
+  name                       String
+  transactions               Transaction[]
+  periods                    AccountingPeriod[]
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  rif                        String?                     @unique // RIF para Venezuela
   // Q3-5 Multi-país: ISO 3166-1 alpha-3 — fuente de verdad en src/lib/tax-config.ts
-  country                   String                   @default("VEN")
-  address                   String?
-  members                   CompanyMember[]
-  accounts                  Account[]
-  status                    CompanyStatus            @default(ACTIVE)
-  plan                      CompanyPlan              @default(FREE)
-  isSpecialContributor      Boolean                  @default(false)
+  country                    String                      @default("VEN")
+  address                    String?
+  members                    CompanyMember[]
+  accounts                   Account[]
+  status                     CompanyStatus               @default(ACTIVE)
+  plan                       CompanyPlan                 @default(FREE)
+  isSpecialContributor       Boolean                     @default(false)
   // Datos SENIAT — PA-121 (Forma 30, Libro Mayor, reportes fiscales)
-  telefono                  String?
-  email                     String?
-  ciiu                      String?
-  actividad                 String?
-  retenciones               Retencion[]
-  igtfTransactions          IGTFTransaction[]
-  invoices                  Invoice[]
-  controlNumberSequences    ControlNumberSequence[]
-  retentionSequences        RetentionSequence[]
-  exchangeRates             ExchangeRate[]
-  paymentRecords            PaymentRecord[]
+  telefono                   String?
+  email                      String?
+  ciiu                       String?
+  actividad                  String?
+  retenciones                Retencion[]
+  igtfTransactions           IGTFTransaction[]
+  invoices                   Invoice[]
+  controlNumberSequences     ControlNumberSequence[]
+  retentionSequences         RetentionSequence[]
+  exchangeRates              ExchangeRate[]
+  paymentRecords             PaymentRecord[]
   // ADR-029: Adjuntos de comprobante de pago
-  paymentAttachments        PaymentAttachment[]
+  paymentAttachments         PaymentAttachment[]
   // Fase 16: Cartera CxC/CxP
-  paymentTermDays           Int                      @default(30)
-  invoicePayments           InvoicePayment[]
+  paymentTermDays            Int                         @default(30)
+  invoicePayments            InvoicePayment[]
   // Fase 17: Conciliación Bancaria
-  bankAccounts              BankAccount[]
+  bankAccounts               BankAccount[]
   // Fase 13D: companyId desnormalizado en BankTransaction para RLS
-  bankTransactions          BankTransaction[]        @relation("BankTransactionCompany")
+  bankTransactions           BankTransaction[]           @relation("BankTransactionCompany")
   // Fase 15: Cierre de ejercicio económico
-  resultAccountId           String?
-  resultAccount             Account?                 @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
-  retainedEarningsAccountId String?
-  retainedEarningsAccount   Account?                 @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
-  fiscalYearCloses          FiscalYearClose[]
+  resultAccountId            String?
+  resultAccount              Account?                    @relation("ResultAccount", fields: [resultAccountId], references: [id], onDelete: Restrict)
+  retainedEarningsAccountId  String?
+  retainedEarningsAccount    Account?                    @relation("RetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id], onDelete: Restrict)
+  fiscalYearCloses           FiscalYearClose[]
   // Fase 13C Bloque 3: Snapshots de saldos por período
-  periodSnapshots           PeriodSnapshot[]
+  periodSnapshots            PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssets               FixedAsset[]
+  fixedAssets                FixedAsset[]
+  fixedAssetINPCRestatements FixedAssetINPCRestatement[] // N3
   // Fase 22: Ajuste por Inflación (INPC / VEN-NIF 3)
-  inflationBaseYear         Int?
-  inflationBaseMonth        Int?
-  inpcRates                 INPCRate[]
-  inflationAdjustments      InflationAdjustment[]
+  inflationBaseYear          Int?
+  inflationBaseMonth         Int?
+  inpcRates                  INPCRate[]
+  inflationAdjustments       InflationAdjustment[]
   // Fase 30: Exportación Masiva
-  exportJobs                ExportJob[]
+  exportJobs                 ExportJob[]
   // Fase 28D: Inventario
-  inventoryItems            InventoryItem[]
-  inventoryMovements        InventoryMovement[]
+  inventoryItems             InventoryItem[]
+  inventoryMovements         InventoryMovement[]
   // Fase 28: Compras y Ventas
-  quotations                Quotation[]
-  orders                    Order[]
-  orderNumberSequences      OrderNumberSequence[]
+  quotations                 Quotation[]
+  orders                     Order[]
+  orderNumberSequences       OrderNumberSequence[]
   // Fase NOM-A: Configuración de Nómina
-  payrollConfig             PayrollConfig?
+  payrollConfig              PayrollConfig?
   // Ítem 72: Histórico de topes legales (salario mínimo, UT)
-  legalThresholds           LegalThreshold[]
+  legalThresholds            LegalThreshold[]
   // Fase NOM-B: Empleados y Conceptos
-  employees                 Employee[]
-  payrollConcepts           PayrollConcept[]
-  publicHolidays            PublicHoliday[]
-  absenceTypes              AbsenceType[]
+  employees                  Employee[]
+  payrollConcepts            PayrollConcept[]
+  publicHolidays             PublicHoliday[]
+  absenceTypes               AbsenceType[]
   // Fase NOM-C: Motor de Cálculo de Nómina
-  payrollRuns               PayrollRun[]
+  payrollRuns                PayrollRun[]
   // Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación
-  bcvBenefitRates           BcvBenefitRate[]
-  benefitBalances           BenefitBalance[]
-  benefitAccrualLines       BenefitAccrualLine[]
-  benefitAdvances           BenefitAdvance[]
-  vacationRecords           VacationRecord[]
-  profitSharingRecords      ProfitSharingRecord[]
-  terminations              Termination[]
+  bcvBenefitRates            BcvBenefitRate[]
+  benefitBalances            BenefitBalance[]
+  benefitAccrualLines        BenefitAccrualLine[]
+  benefitAdvances            BenefitAdvance[]
+  vacationRecords            VacationRecord[]
+  profitSharingRecords       ProfitSharingRecord[]
+  terminations               Termination[]
   // Fase 35A: Vendor / Customer
-  vendors                   Vendor[]
-  customers                 Customer[]
+  vendors                    Vendor[]
+  customers                  Customer[]
   // ADR-028: Grupos de contactos
-  vendorGroups              VendorGroup[]
-  customerGroups            CustomerGroup[]
+  vendorGroups               VendorGroup[]
+  customerGroups             CustomerGroup[]
   // Q3-2: CRM básico — notas de interacción
-  contactNotes              ContactNote[]
+  contactNotes               ContactNote[]
   // Fase 35H: PA-121 Outbox
-  seniatSubmissions         SeniatSubmission[]
+  seniatSubmissions          SeniatSubmission[]
   // Fase 35I: Firma Digital
-  certificate               CompanyCertificate?
+  certificate                CompanyCertificate?
   // Fase 35F: Unidades de Medida Múltiples
-  inventoryItemUnits        InventoryItemUnit[]
+  inventoryItemUnits         InventoryItemUnit[]
   // Fase 35G: Lot/Serial Tracking
-  inventoryLots             InventoryLot[]
-  inventorySerials          InventorySerial[]
+  inventoryLots              InventoryLot[]
+  inventorySerials           InventorySerial[]
   // Fase 36C: Distribución de Pagos A/P
-  paymentBatches            PaymentBatch[]
+  paymentBatches             PaymentBatch[]
   // Sprint 3: Suscripciones y Facturación
-  subscription              Subscription?
-  referredSubscriptions     Subscription[]           @relation("SubscriptionReferral")
+  subscription               Subscription?
+  referredSubscriptions      Subscription[]              @relation("SubscriptionReferral")
   // Fase 37A: configuración operacional de empresa
-  settings                  CompanySettings?
+  settings                   CompanySettings?
   // Fase 37A: líneas de factura (para multi-tenant IDOR check)
-  invoiceLines              InvoiceLine[]
+  invoiceLines               InvoiceLine[]
   // Fase 37B: Módulo Gastos
-  expenses                  Expense[]
-  expenseCategories         ExpenseCategory[]
+  expenses                   Expense[]
+  expenseCategories          ExpenseCategory[]
   // Fase 36D: Distribución de Ingresos Multidestinatario (ADR-023)
-  incomeDistributions       IncomeDistribution[]     @relation("IncomeDistributions")
-  incomeDistributionLines   IncomeDistributionLine[] @relation("IncomeDistributionRecipients")
+  incomeDistributions        IncomeDistribution[]        @relation("IncomeDistributions")
+  incomeDistributionLines    IncomeDistributionLine[]    @relation("IncomeDistributionRecipients")
   // Fase 35D: Caja Chica (Fondo Fijo)
-  cajaCajas                 CajaCaja[]
+  cajaCajas                  CajaCaja[]
   // Permisos granulares por rol (grants adicionales al rol base)
-  rolePermissions           RolePermission[]
-  employeeLoans             EmployeeLoan[]
+  rolePermissions            RolePermission[]
+  employeeLoans              EmployeeLoan[]
   // Q3-3: Presupuestos y proyecciones
-  budgets                   Budget[]
-  budgetLines               BudgetLine[]
+  budgets                    Budget[]
+  budgetLines                BudgetLine[]
 }
 
 model CompanyMember {
@@ -891,30 +892,30 @@ enum FixedAssetStatus {
 }
 
 model FixedAsset {
-  id                       String              @id @default(cuid())
+  id                       String                      @id @default(cuid())
   companyId                String
-  company                  Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company                  Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name                     String
   description              String?
   // Cuentas contables vinculadas
   assetAccountId           String // → Account tipo ASSET
-  assetAccount             Account             @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
+  assetAccount             Account                     @relation("FixedAssetAccount", fields: [assetAccountId], references: [id], onDelete: Restrict)
   depreciationAccountId    String // → Account tipo EXPENSE (gasto depreciación)
-  depreciationAccount      Account             @relation("DepreciationExpenseAccount", fields: [depreciationAccountId], references: [id], onDelete: Restrict)
+  depreciationAccount      Account                     @relation("DepreciationExpenseAccount", fields: [depreciationAccountId], references: [id], onDelete: Restrict)
   accDepreciationAccountId String // → Account tipo ASSET crédito (depreciación acumulada)
-  accDepreciationAccount   Account             @relation("AccumulatedDepreciationAccount", fields: [accDepreciationAccountId], references: [id], onDelete: Restrict)
+  accDepreciationAccount   Account                     @relation("AccumulatedDepreciationAccount", fields: [accDepreciationAccountId], references: [id], onDelete: Restrict)
   // Datos del activo
-  acquisitionDate          DateTime            @db.Date
-  acquisitionCost          Decimal             @db.Decimal(19, 4)
-  acquisitionCurrency      Currency            @default(VES) // N2: moneda original de adquisicion
-  bcvRateAtAcquisition     Decimal?            @db.Decimal(19, 4) // N2: tasa BCV a la fecha de adquisicion
-  residualValue            Decimal             @default(0) @db.Decimal(19, 4)
+  acquisitionDate          DateTime                    @db.Date
+  acquisitionCost          Decimal                     @db.Decimal(19, 4)
+  acquisitionCurrency      Currency                    @default(VES) // N2: moneda original de adquisicion
+  bcvRateAtAcquisition     Decimal?                    @db.Decimal(19, 4) // N2: tasa BCV a la fecha de adquisicion
+  residualValue            Decimal                     @default(0) @db.Decimal(19, 4)
   usefulLifeMonths         Int // vida útil en meses
-  depreciationMethod       DepreciationMethod  @default(LINEA_RECTA)
-  status                   FixedAssetStatus    @default(ACTIVE)
+  depreciationMethod       DepreciationMethod          @default(LINEA_RECTA)
+  status                   FixedAssetStatus            @default(ACTIVE)
   // Solo para UNIDADES_PRODUCCION
   totalUnits               Int?
-  unitsUsed                Int                 @default(0)
+  unitsUsed                Int                         @default(0)
   // Localización y responsable (Ítem 40)
   location                 String?
   responsible              String?
@@ -922,17 +923,41 @@ model FixedAsset {
   invoiceNumber            String? // Nro. Factura de Compra — cruce Libro IVA Compras
   providerRif              String? // RIF del Proveedor — verificación retenciones
   serialNumber             String? // Nro. Serial / Placa del bien — identificación unívoca
-  serviceStartDate         DateTime?           @db.Date // Fecha de Puesta en Servicio (puede diferir de compra)
+  serviceStartDate         DateTime?                   @db.Date // Fecha de Puesta en Servicio (puede diferir de compra)
   internalCode             String? // Nro. Inventario Interno
   // Soft delete (tabla con relevancia contable — ADR-005)
   deletedAt                DateTime?
-  createdAt                DateTime            @default(now())
+  createdAt                DateTime                    @default(now())
   createdBy                String
-  updatedAt                DateTime            @updatedAt
+  updatedAt                DateTime                    @updatedAt
   entries                  DepreciationEntry[]
+  inpcRestatements         FixedAssetINPCRestatement[]
 
   @@index([companyId])
   @@index([companyId, status])
+}
+
+// N3: Historial persistente de reajustes INPC por activo (Art. 173 ISLR)
+model FixedAssetINPCRestatement {
+  id                String     @id @default(cuid())
+  companyId         String
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  assetId           String
+  asset             FixedAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  inpcPeriodYear    Int
+  inpcPeriodMonth   Int
+  factor            Decimal    @db.Decimal(19, 10)
+  adjustmentAmount  Decimal    @db.Decimal(19, 4)
+  previousBookValue Decimal    @db.Decimal(19, 4)
+  newRestatedValue  Decimal    @db.Decimal(19, 4)
+  equityAccountId   String
+  transactionId     String     @unique
+  userId            String
+  createdAt         DateTime   @default(now())
+
+  @@unique([assetId, inpcPeriodYear, inpcPeriodMonth])
+  @@index([companyId])
+  @@index([assetId])
 }
 
 model DepreciationEntry {

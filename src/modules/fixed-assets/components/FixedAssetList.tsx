@@ -9,7 +9,9 @@ import {
   catchUpAllAssetsDepreciationAction,
   postFixedAssetINPCRestatementAction,
   getFixedAssetGLReconciliationAction,
+  getFixedAssetINPCHistoryAction,
   type GLReconciliationResultRow,
+  type INPCRestatementHistoryRow,
 } from "../actions/fixed-asset.actions";
 import type { InpcRateSimple } from "../services/FixedAssetINPCService";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
@@ -85,6 +87,12 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
   const [inpcResult, setInpcResult] = useState<string | null>(null);
   const [isPendingINPC, startINPC] = useTransition();
 
+  // N3: historial INPC modal
+  const [inpcHistoryAsset, setInpcHistoryAsset] = useState<{ id: string; name: string } | null>(null);
+  const [inpcHistoryRows, setInpcHistoryRows] = useState<INPCRestatementHistoryRow[]>([]);
+  const [inpcHistoryLoading, setInpcHistoryLoading] = useState(false);
+  const [, startInpcHistory] = useTransition();
+
   const equityAccounts = accounts.filter((a) => a.type === "EQUITY");
 
   // FU-03: Conciliación GL
@@ -116,6 +124,17 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
 
   function handleDispose(asset: FixedAssetSummary) {
     setDisposeAsset(asset);
+  }
+
+  function handleShowINPCHistory(asset: FixedAssetSummary) {
+    setInpcHistoryAsset({ id: asset.id, name: asset.name });
+    setInpcHistoryRows([]);
+    setInpcHistoryLoading(true);
+    startInpcHistory(async () => {
+      const r = await getFixedAssetINPCHistoryAction(companyId, asset.id);
+      if (r.success) setInpcHistoryRows(r.data);
+      setInpcHistoryLoading(false);
+    });
   }
 
   function handleCatchUpAsset(assetId: string, assetName: string) {
@@ -563,6 +582,13 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
                         >
                           Tabla
                         </button>
+                        <button
+                          onClick={() => handleShowINPCHistory(a)}
+                          className="whitespace-nowrap text-xs text-emerald-600 hover:underline"
+                          title="Ver historial de reajustes INPC registrados para este activo"
+                        >
+                          INPC
+                        </button>
                         {a.status === "ACTIVE" && (
                           <button
                             onClick={() => handleCatchUpAsset(a.id, a.name)}
@@ -616,6 +642,76 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           ivaDFAccountId={ivaDFAccountId}
           onClose={() => setDisposeAsset(null)}
         />
+      )}
+
+      {/* N3: Modal historial INPC */}
+      {inpcHistoryAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Historial Reajustes INPC</h2>
+                <p className="text-sm text-gray-500 truncate max-w-xs">{inpcHistoryAsset.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInpcHistoryAsset(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4 shrink-0"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4">
+              {inpcHistoryLoading && (
+                <p className="text-sm text-gray-500 text-center py-8">Cargando...</p>
+              )}
+              {!inpcHistoryLoading && inpcHistoryRows.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  Sin reajustes INPC registrados para este activo.<br />
+                  <span className="text-xs">Usa el panel &quot;Reajuste INPC&quot; para generar el primer reajuste.</span>
+                </p>
+              )}
+              {!inpcHistoryLoading && inpcHistoryRows.length > 0 && (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white text-xs font-semibold text-gray-500 uppercase border-b">
+                    <tr>
+                      <th className="py-2 text-left">Período</th>
+                      <th className="py-2 text-right">Factor</th>
+                      <th className="py-2 text-right">Ajuste Bs.</th>
+                      <th className="py-2 text-right">Valor Reexpresado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {inpcHistoryRows.map((r) => (
+                      <tr key={r.id} className="hover:bg-gray-50">
+                        <td className="py-1.5 text-gray-700">
+                          {MONTHS[r.inpcPeriodMonth - 1]} {r.inpcPeriodYear}
+                        </td>
+                        <td className="py-1.5 text-right font-mono text-gray-600">×{r.factor}</td>
+                        <td className="py-1.5 text-right font-mono text-emerald-700">
+                          {formatAmount(r.adjustmentAmount)}
+                        </td>
+                        <td className="py-1.5 text-right font-mono font-semibold text-gray-900">
+                          {formatAmount(r.newRestatedValue)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t shrink-0 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setInpcHistoryAsset(null)}
+                className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
