@@ -279,8 +279,10 @@ export async function getTransactionByIdAction(
   if (!member) return { success: false, error: "No autorizado" };
 
   try {
+    // Acepta tanto el CUID (id) como el número legible (ej: T-2026-003)
+    // para que URLs compartidas por número no arrojen 404.
     const tx = await prisma.transaction.findFirst({
-      where: { id: transactionId, companyId },
+      where: { companyId, OR: [{ id: transactionId }, { number: transactionId }] },
       select: {
         id: true,
         number: true,
