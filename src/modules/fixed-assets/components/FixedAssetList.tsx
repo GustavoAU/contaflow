@@ -596,6 +596,7 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           asset={{
             id:                      disposeAsset.id,
             name:                    disposeAsset.name,
+            acquisitionDate:         disposeAsset.acquisitionDate.toISOString(),
             acquisitionCost:         String(disposeAsset.acquisitionCost),
             accumulatedDepreciation: String(disposeAsset.accumulatedDepreciation),
             bookValue:               String(disposeAsset.bookValue),

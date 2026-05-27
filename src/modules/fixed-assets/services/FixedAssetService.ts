@@ -602,6 +602,26 @@ export class FixedAssetService {
       });
     }
 
+    // 5. Art. 66 LIVA — Reintegro IVA Crédito Fiscal por baja anticipada (< 36 meses)
+    //    DEBE  Gasto IVA Reintegrado  (art66ExpenseAccountId, EXPENSE)  → amount: +reintegro
+    //    HABER IVA Crédito Fiscal     (ivaDFAccountId, ASSET)           → amount: −reintegro
+    //    La fracción: (36 − meses_usados) / 36 del IVA crédito original (cost × 16%)
+    if (input.applyArt66 && input.art66ExpenseAccountId && input.ivaDFAccountId) {
+      const art66Amount = new Decimal(input.art66ReintegroAmount ?? "0");
+      if (art66Amount.greaterThan(new Decimal("0.001"))) {
+        glEntries.push({
+          accountId: input.art66ExpenseAccountId,
+          amount: art66Amount,                  // DEBE (positivo)
+          description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
+        });
+        glEntries.push({
+          accountId: input.ivaDFAccountId,
+          amount: art66Amount.negated(),        // HABER (negativo)
+          description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
+        });
+      }
+    }
+
     await tx.transaction.create({
       data: {
         companyId: input.companyId,

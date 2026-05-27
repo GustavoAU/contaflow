@@ -18,6 +18,7 @@ export type AccountOption = { id: string; code: string; name: string; type: stri
 export type AssetInfo = {
   id:                     string;
   name:                   string;
+  acquisitionDate:        string;  // ISO string — necesario para Art. 66 LIVA
   acquisitionCost:        string;
   accumulatedDepreciation: string;
   bookValue:              string;
@@ -57,6 +58,8 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
   const [glAccId,        setGlAccId]  = useState("");
   const [notes,          setNotes]    = useState("");
   const [applyIva,       setApplyIva] = useState(false);
+  const [applyArt66,     setApplyArt66] = useState(true);   // opt-in por defecto cuando aplica
+  const [art66ExpAccId,  setArt66ExpAccId] = useState("");
   const [formError,      setFormError] = useState<string | null>(null);
   const [isPending,      startT]      = useTransition();
 
@@ -80,11 +83,30 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
   const ivaAmount       = effectiveIva ? Math.round(procNum * 0.16 * 100) / 100 : 0;
   const totalReceivable = procNum + ivaAmount;
 
+  // Art. 66 LIVA — Reintegro IVA Crédito Fiscal por baja anticipada (< 36 meses)
+  // Aplica a CUALQUIER tipo de baja (incluyendo venta) si el activo tiene < 36 meses de uso
+  const acqDate     = new Date(asset.acquisitionDate);
+  const dispDate    = new Date(disposalDate + "T12:00:00");
+  const monthsUsed  = Math.max(
+    0,
+    (dispDate.getFullYear() - acqDate.getFullYear()) * 12 +
+    (dispDate.getMonth()    - acqDate.getMonth()),
+  );
+  const art66Months        = 36;
+  const canApplyArt66      = monthsUsed < art66Months && ivaDFAccountId !== null;
+  const art66Fraction      = canApplyArt66 ? (art66Months - monthsUsed) / art66Months : 0;
+  const art66BaseIva       = Math.round(cost * 0.16 * 100) / 100;
+  const art66ReintegroAmt  = canApplyArt66 ? Math.round(art66BaseIva * art66Fraction * 100) / 100 : 0;
+  const effectiveArt66     = applyArt66 && canApplyArt66 && art66ReintegroAmt > 0.001;
+
   // DEBE/HABER totales para el preview (con IVA: banco recibe proceeds+iva; HABER incluye IVA DF)
   const debeTotal  = (accDep > 0.001 ? accDep : 0)
                    + (totalReceivable > 0.001 ? totalReceivable : 0)
-                   + (isLoss ? Math.abs(gainLoss) : 0);
-  const haberTotal = cost + (isGain ? gainLoss : 0) + (effectiveIva ? ivaAmount : 0);
+                   + (isLoss ? Math.abs(gainLoss) : 0)
+                   + (effectiveArt66 ? art66ReintegroAmt : 0);
+  const haberTotal = cost + (isGain ? gainLoss : 0)
+                   + (effectiveIva    ? ivaAmount         : 0)
+                   + (effectiveArt66  ? art66ReintegroAmt : 0);
   const isBalanced = Math.abs(debeTotal - haberTotal) < 0.02;
 
   // ── Validación ────────────────────────────────────────────────────────────
@@ -95,6 +117,8 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
       return isGain
         ? "Selecciona la cuenta de ingreso por ganancia en venta."
         : "Selecciona la cuenta de pérdida en baja de activo.";
+    if (effectiveArt66 && !art66ExpAccId)
+      return "Selecciona la cuenta de gasto para el reintegro IVA Art. 66 LIVA.";
     return null;
   }
 
@@ -117,7 +141,10 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
         notes:             notes || null,
         applyIva:          effectiveIva,
         ivaRate:           "0.16",
-        ivaDFAccountId:    effectiveIva ? ivaDFAccountId : null,
+        ivaDFAccountId:    (effectiveIva || effectiveArt66) ? ivaDFAccountId : null,
+        applyArt66:            effectiveArt66,
+        art66ReintegroAmount:  String(art66ReintegroAmt),
+        art66ExpenseAccountId: effectiveArt66 ? art66ExpAccId : null,
       });
       if (r.success) {
         toast.success(`"${asset.name}" dado de baja correctamente.`);
@@ -250,6 +277,52 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
             </div>
           )}
 
+          {/* Art. 66 LIVA — Reintegro IVA Crédito Fiscal (baja anticipada < 36 meses) */}
+          {canApplyArt66 && (
+            <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="apply-art66"
+                  checked={applyArt66}
+                  onChange={(e) => setApplyArt66(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600"
+                />
+                <div className="flex-1">
+                  <label htmlFor="apply-art66" className="text-sm font-medium text-gray-900 cursor-pointer">
+                    Reintegrar IVA Crédito Fiscal (Art. 66 LIVA)
+                  </label>
+                  <p className="text-xs text-violet-700 mt-0.5">
+                    El activo tiene <strong>{monthsUsed}</strong> mes{monthsUsed !== 1 ? "es" : ""} de uso (menos de 36).
+                    Se debe reintegrar {((art66Fraction) * 100).toFixed(1)}% del IVA crédito original:
+                    {" "}<strong>Bs. {fmt(art66ReintegroAmt)}</strong>
+                  </p>
+                  <p className="text-xs text-violet-500 mt-0.5">
+                    Cálculo: {"{"}costo Bs. {fmt(cost)} × 16% × ({art66Months} − {monthsUsed})/{art66Months}{"}"}
+                  </p>
+                </div>
+              </div>
+              {effectiveArt66 && (
+                <div>
+                  <label className={`${lc} text-violet-700`}>Cuenta gasto IVA reintegrado *</label>
+                  <select
+                    value={art66ExpAccId}
+                    onChange={(e) => setArt66ExpAccId(e.target.value)}
+                    className={fc}
+                  >
+                    <option value="">Seleccionar cuenta EXPENSE…</option>
+                    {glAccounts.filter((a) => a.type === "EXPENSE").map((a) => (
+                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-11 text-zinc-400">
+                    Tipo EXPENSE — el monto reintegrado se cargará como gasto del período.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Cuenta de cobro — solo si hay precio > 0 */}
           {reason === "SALE" && procNum > 0.001 && (
             <div>
@@ -336,6 +409,13 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
+                {effectiveArt66 && (
+                  <tr>
+                    <td className="py-1 text-violet-700">Gasto IVA reintegrado (Art. 66)</td>
+                    <td className="py-1 text-right text-violet-800 tabular-nums">{fmt(art66ReintegroAmt)}</td>
+                    <td className="py-1 text-right text-gray-400">—</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="py-1 text-gray-600">Activo (costo histórico)</td>
                   <td className="py-1 text-right text-gray-400">—</td>
@@ -346,6 +426,13 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                     <td className="py-1 text-emerald-600">Ganancia en venta</td>
                     <td className="py-1 text-right text-gray-400">—</td>
                     <td className="py-1 text-right text-emerald-700 tabular-nums">{fmt(gainLoss)}</td>
+                  </tr>
+                )}
+                {effectiveArt66 && (
+                  <tr>
+                    <td className="py-1 text-violet-700">IVA Crédito Fiscal reintegrado (Art. 66)</td>
+                    <td className="py-1 text-right text-gray-400">—</td>
+                    <td className="py-1 text-right text-violet-800 tabular-nums">{fmt(art66ReintegroAmt)}</td>
                   </tr>
                 )}
               </tbody>
@@ -371,6 +458,14 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
             <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               ⚠ Esta venta generará IVA Débito Fiscal que <strong>debe aparecer en el Libro de Ventas</strong>{" "}
               del período. Verifíquelo en el módulo de Declaraciones antes de cerrar el mes.
+            </div>
+          )}
+
+          {/* Art. 66 LIVA — Nota declaración */}
+          {effectiveArt66 && (
+            <div className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+              ⚠ El reintegro de IVA Crédito Fiscal (Art. 66 LIVA) <strong>debe reflejarse en la declaración de IVA</strong>{" "}
+              del período como ajuste a los créditos fiscales del mes.
             </div>
           )}
 
