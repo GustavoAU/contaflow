@@ -237,8 +237,10 @@ export class FixedAssetService {
     }
 
     // Generar asiento contable de depreciación
-    const transactionCount = await tx.transaction.count({ where: { companyId } });
-    const txNumber = `DEP-${year}${String(month).padStart(2, "0")}-${String(transactionCount + 1).padStart(4, "0")}`;
+    // Número único por construcción: assetId + YYYYMM no puede repetirse gracias a
+    // @@unique([fixedAssetId, periodYear, periodMonth]) en DepreciationEntry.
+    // Elimina el race condition de count()+1 bajo concurrencia (Fix #4).
+    const txNumber = `DEP-${year}${String(month).padStart(2, "0")}-${assetId.slice(-8).toUpperCase()}`;
     // VEN-NIF 16 párr. 55: el asiento se registra en el último día del mes depreciado.
     // new Date(year, month, 0) → día 0 del mes siguiente = último día del mes actual.
     const periodDate = new Date(year, month, 0);
@@ -352,8 +354,14 @@ export class FixedAssetService {
     const proceeds    = new Decimal(input.saleProceeds ?? "0");
     const gainLoss    = proceeds.minus(bookValue); // + ganancia, − pérdida
 
-    const transactionCount = await tx.transaction.count({ where: { companyId: input.companyId } });
-    const txNumber = `BAJA-${String(transactionCount + 1).padStart(4, "0")}`;
+    // Número único por construcción: un activo solo puede darse de baja una vez
+    // (status === "DISPOSED" guard arriba). Elimina race condition de count()+1 (Fix #4).
+    const disposalDateStr = [
+      input.disposalDate.getFullYear(),
+      String(input.disposalDate.getMonth() + 1).padStart(2, "0"),
+      String(input.disposalDate.getDate()).padStart(2, "0"),
+    ].join("");
+    const txNumber = `BAJA-${disposalDateStr}-${input.assetId.slice(-8).toUpperCase()}`;
     const label = asset.name;
 
     // ── Construir las líneas del asiento ─────────────────────────────────────
