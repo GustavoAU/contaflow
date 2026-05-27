@@ -77,6 +77,10 @@ export const DisposeFixedAssetSchema = z.object({
   applyIva:        z.boolean().default(false),
   ivaRate:         zMoneyAmount.default("0.16"),
   ivaDFAccountId:  z.string().optional().nullable(),
+  /** Reintegro IVA Crédito Fiscal por baja anticipada (Art. 66 LIVA — < 36 meses) */
+  applyArt66:               z.boolean().default(false),
+  art66ReintegroAmount:     zMoneyAmount.default("0"),
+  art66ExpenseAccountId:    z.string().optional().nullable(),
 });
 
 export type DisposeFixedAssetInput = z.infer<typeof DisposeFixedAssetSchema>;
