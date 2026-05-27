@@ -50,6 +50,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember:    { findFirst: vi.fn().mockResolvedValue(mockMember) },
     accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
+    expense:          { findMany: vi.fn().mockResolvedValue([]) },
     $transaction:     mockTransaction,
   },
 }));
@@ -62,6 +63,7 @@ import {
   postFixedAssetINPCRestatementAction,
   getFixedAssetGLReconciliationAction,
   getFixedAssetINPCHistoryAction,
+  getExpensesForAssetImportAction,
 } from "./fixed-asset.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
@@ -483,5 +485,87 @@ describe("getFixedAssetsAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
     const r = await getFixedAssetsAction("company-001");
     expect(r.success).toBe(false);
+  });
+});
+
+// ─── getExpensesForAssetImportAction (N4) ─────────────────────────────────────
+
+describe("getExpensesForAssetImportAction", () => {
+  beforeEach(() => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-test" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMember as never);
+    vi.mocked(prisma.expense.findMany).mockResolvedValue([] as never);
+  });
+
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await getExpensesForAssetImportAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("VIEWER no puede listar gastos para importar", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await getExpensesForAssetImportAction("company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
+  });
+
+  it("happy path — sin gastos: retorna array vacío", async () => {
+    vi.mocked(prisma.expense.findMany).mockResolvedValue([] as never);
+    const r = await getExpensesForAssetImportAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual([]);
+  });
+
+  it("happy path — serializa campos de proveedor correctamente", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(prisma.expense.findMany).mockResolvedValue([
+      {
+        id:            "exp-001",
+        concept:       "Compra Vehículo Toyota Hilux",
+        amount:        new Decimal("50000.00"),
+        currency:      "USD",
+        invoiceNumber: "00-000123",
+        invoiceDate:   new Date("2026-01-15"),
+        supplierName:  null,
+        vendor:        { name: "Importadora Toyota", rif: "J-12345678-9" },
+      },
+    ] as never);
+    const r = await getExpensesForAssetImportAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toHaveLength(1);
+      expect(r.data[0]!.concept).toBe("Compra Vehículo Toyota Hilux");
+      expect(r.data[0]!.amount).toBe("50000.00");
+      expect(r.data[0]!.currency).toBe("USD");
+      expect(r.data[0]!.invoiceNumber).toBe("00-000123");
+      expect(r.data[0]!.invoiceDate).toBe("2026-01-15");
+      expect(r.data[0]!.vendorName).toBe("Importadora Toyota");
+      expect(r.data[0]!.vendorRif).toBe("J-12345678-9");
+    }
+  });
+
+  it("usa supplierName cuando no hay vendor vinculado", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(prisma.expense.findMany).mockResolvedValue([
+      {
+        id:            "exp-002",
+        concept:       "Equipo de oficina",
+        amount:        new Decimal("1500.00"),
+        currency:      "VES",
+        invoiceNumber: null,
+        invoiceDate:   null,
+        supplierName:  "Tienda Genérica",
+        vendor:        null,
+      },
+    ] as never);
+    const r = await getExpensesForAssetImportAction("company-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data[0]!.vendorName).toBe("Tienda Genérica");
+      expect(r.data[0]!.vendorRif).toBeNull();
+      expect(r.data[0]!.invoiceDate).toBeNull();
+    }
   });
 });
