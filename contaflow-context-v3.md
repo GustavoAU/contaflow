@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` (Sprint FA N1-N6 + Fase 39 mergeados 2026-05-28)
+**Ninguna** — branch `main` (ALERTA 12 + A8/10/11 fixes mergeados 2026-05-28)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **ALERTA 12 + fixes 2026-05-28** ✅ merged — Carga masiva: (1) botón "Dup" por fila InvoiceBook → sessionStorage DUPLICATE_SESSION_KEY → pre-fill InvoiceForm; (2) RifInput autocomplete debounced 300ms con sugerencias vendor/customer (badge PROV/CLI, searchContactsByRifAction); (3) InvoiceBatchImportDialog 3 pasos (upload/preview/result) + importInvoiceBatchAction Decimal.js R-5 compliant. Fixes: A8 GL account validation física en InvoiceLineService; ALERTA10 stockWarnings propagation InvoiceService→action; ALERTA11 CPP policy banner InventoryReportsView; IVA retenciones enteradas-only en DeclaracionIVAService. 2236 tests GREEN.
 - **Fase 39 2026-05-28** ✅ merged — DigitalInvoiceProvider PA-102 (ADR-031): interfaz neutral `DigitalInvoiceProvider` + `DigitalInvoiceFactory` (env `DIGITAL_INVOICE_PROVIDER=hka|mock|null`) + `HKADigitalInvoiceProvider` STUB (mapeo estimado, pendiente docs HKA) + `MockDigitalInvoiceProvider` + `NullDigitalInvoiceProvider`. Schema: `Invoice.digitalProviderRef + isDigital + contingency`. 2191 tests GREEN.
 - **Sprint Activos Fijos N1-N6 2026-05-28** ✅ merged — N1: Art.66 LIVA reintegro IVA en baja anticipada (<36m) + GL automático; N2: `acquisitionCurrency`+`bcvRateAtAcquisition` schema+UI; N3: `FixedAssetINPCRestatement` historial persistente + modal; N4: importar desde Gasto confirmado (pre-fill 6 campos); N5: advertencia salto de período (useMemo minGapPeriod); N6: columna "Factor INPC" visible en tabla. FA-5 F3: alerta deductibilidad SENIAT. 2191 tests GREEN.
 - **Q3-6 2026-05-26** ✅ merged — Keyboard Navigation: `useGlobalShortcuts` hook (ShortcutConfig + isTypingTarget usa `document.activeElement`) + N→nueva factura + Ctrl+S→submit form + TopbarInner pill button [N] + InvoiceForm `aria-busy`+`aria-keyshortcuts` + `ariaKeyShortcut` util. 16 tests Vitest jsdom. 2153 tests GREEN.

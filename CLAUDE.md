@@ -329,7 +329,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Fase 39** ✅ merged (DigitalInvoiceProvider PA-102 — ADR-031): interfaz neutral `DigitalInvoiceProvider` + `DigitalInvoiceFactory` + HKADigitalInvoiceProvider STUB (mapeo estimado, pendiente docs oficiales HKA) + MockDigitalInvoiceProvider + NullDigitalInvoiceProvider — 2191 tests
 
-**2191 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
+**ALERTA 12 + A8/10/11 fixes** ✅ merged: duplicar factura (sessionStorage DUPLICATE_SESSION_KEY) + RIF autocomplete debounced (searchContactsByRifAction, badge PROV/CLI) + importación masiva CSV (InvoiceBatchImportDialog 3 pasos + importInvoiceBatchAction Decimal.js R-5) + A8 GL account validation física + ALERTA10 stockWarnings propagation + ALERTA11 CPP banner + IVA retenciones enteradas-only — 2236 tests
+
+**2236 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
 
 ### middleware.ts
 
