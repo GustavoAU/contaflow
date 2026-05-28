@@ -83,7 +83,7 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
       ((fn: (tx: unknown) => unknown) =>
         fn({ auditLog: prisma.auditLog })) as never,
     );
-    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1" } as never);
+    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1", stockWarnings: [] } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
