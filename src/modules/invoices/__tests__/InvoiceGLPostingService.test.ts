@@ -303,6 +303,55 @@ describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
   });
 });
 
+// ─── Tests moneda extranjera (ALERTA 1 — NIC 21) ─────────────────────────────
+
+describe("InvoiceGLPostingService — moneda extranjera (NIC 21)", () => {
+  it("incluye detalle de conversión USD en descripción del asiento", async () => {
+    const db = makeMockDb();
+    // total VES = 116 | tasa = 54.0040 → original USD = 116 / 54.0040 ≈ 2.15
+    const usdInvoice: InvoiceForGL = {
+      ...SALE_INVOICE,
+      currency: "USD",
+      exchangeRateVes: new Decimal("54.0040"),
+    };
+
+    await InvoiceGLPostingService.postInvoice(usdInvoice, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const desc = (createCall.data as any).description as string;
+    expect(desc).toContain("USD");
+    expect(desc).toContain("54.0040");
+    expect(desc).toContain("Bs/USD");
+  });
+
+  it("NO incluye detalle de conversión para factura en VES", async () => {
+    const db = makeMockDb();
+    await InvoiceGLPostingService.postInvoice(
+      { ...SALE_INVOICE, currency: "VES" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db
+    );
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const desc = (createCall.data as any).description as string;
+    expect(desc).not.toContain("Bs/");
+  });
+
+  it("NO incluye detalle cuando exchangeRateVes es null aunque currency sea USD", async () => {
+    const db = makeMockDb();
+    await InvoiceGLPostingService.postInvoice(
+      { ...SALE_INVOICE, currency: "USD", exchangeRateVes: null },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db
+    );
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const desc = (createCall.data as any).description as string;
+    expect(desc).not.toContain("Bs/USD");
+  });
+});
+
 // ─── Tests guarda semántica ───────────────────────────────────────────────────
 
 describe("InvoiceGLPostingService — guarda semántica", () => {

@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` (Q3-6 mergeado 2026-05-26)
+**Ninguna** — branch `main` (Sprint FA N1-N6 + Fase 39 mergeados 2026-05-28)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -20,6 +20,8 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **Fase 39 2026-05-28** ✅ merged — DigitalInvoiceProvider PA-102 (ADR-031): interfaz neutral `DigitalInvoiceProvider` + `DigitalInvoiceFactory` (env `DIGITAL_INVOICE_PROVIDER=hka|mock|null`) + `HKADigitalInvoiceProvider` STUB (mapeo estimado, pendiente docs HKA) + `MockDigitalInvoiceProvider` + `NullDigitalInvoiceProvider`. Schema: `Invoice.digitalProviderRef + isDigital + contingency`. 2191 tests GREEN.
+- **Sprint Activos Fijos N1-N6 2026-05-28** ✅ merged — N1: Art.66 LIVA reintegro IVA en baja anticipada (<36m) + GL automático; N2: `acquisitionCurrency`+`bcvRateAtAcquisition` schema+UI; N3: `FixedAssetINPCRestatement` historial persistente + modal; N4: importar desde Gasto confirmado (pre-fill 6 campos); N5: advertencia salto de período (useMemo minGapPeriod); N6: columna "Factor INPC" visible en tabla. FA-5 F3: alerta deductibilidad SENIAT. 2191 tests GREEN.
 - **Q3-6 2026-05-26** ✅ merged — Keyboard Navigation: `useGlobalShortcuts` hook (ShortcutConfig + isTypingTarget usa `document.activeElement`) + N→nueva factura + Ctrl+S→submit form + TopbarInner pill button [N] + InvoiceForm `aria-busy`+`aria-keyshortcuts` + `ariaKeyShortcut` util. 16 tests Vitest jsdom. 2153 tests GREEN.
 - **Q3-5 2026-05-26** ✅ merged — Arquitectura Multi-País: `tax-config.ts` (FiscalConfig/TaxRates/CountryCode/FISCAL_CONFIGS/getFiscalConfig/VEN_*) + `fiscal-provider.ts` (FiscalProvider interface + VenezuelaFiscalProvider + FiscalProviderFactory) + `fiscal-validators.ts` re-exports VEN_RIF_REGEX/CONTROL_NUMBER_REGEX + Company.country migration `20260526_company_country`. 27 tests. 2137 tests GREEN.
 - **Q3-4 2026-05-26** ✅ merged — Mobile-First: sidebar `w-14 sm:w-58` (fuerza icon-only <640px) + dashboard responsive 390px (`flex-col→sm:flex-row`, `grid-cols-2 sm:grid-cols-4`, métricas `p-3 sm:p-5`) + `ManagerApprovalInbox` (nóminas DRAFT + presupuestos DRAFT, minHeight 64px WCAG 2.5.8) + PendingTasksWidget tap targets `min-h-[52px]`. 2110 tests GREEN.

@@ -244,6 +244,102 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
     URL.revokeObjectURL(url);
   }
 
+  // ALERTA 5: Exportación TXT compatible con SIVIT/SENIAT (Providencia 00071)
+  // Formato: pipe-delimited, una línea por factura, fecha DD/MM/YYYY, decimales con punto
+  // Verificar campos exactos con versión vigente de SIVIT antes de carga al portal
+  function handleExportTXT() {
+    if (!result) return;
+
+    const DOC_TYPE: Record<string, string> = {
+      FACTURA:      "01",
+      NOTA_DEBITO:  "02",
+      NOTA_CREDITO: "03",
+    };
+
+    const fmtNum = (v: string | number) =>
+      parseFloat(String(v)).toFixed(2);
+
+    const fmtDateSivit = (d: Date | string) => {
+      const dt = d instanceof Date ? d : new Date(d);
+      const dd = String(dt.getUTCDate()).padStart(2, "0");
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const yyyy = dt.getUTCFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    };
+
+    // Cabecera del archivo
+    const header = [
+      `# ContaFlow — ${type === "SALE" ? "Libro de Ventas" : "Libro de Compras"}`,
+      `# Empresa: ${companyName}`,
+      `# Período: ${MONTHS[month - 1]} ${year}`,
+      `# Formato SIVIT/SENIAT — Providencia 00071`,
+      `# RIF|Nombre|Nro.Factura|Nro.Control|Fecha|TipoDoc|Base16%|IVA16%|Base8%|IVA8%|Exento|IVARetenido${type === "PURCHASE" ? "|ISLRRetenido" : "|BaseIGTF|IGTF"}`,
+    ].join("\n");
+
+    const lines = result.rows.map((row) => {
+      // Agregar bases e IVA por alícuota
+      let base16 = 0, iva16 = 0, base8 = 0, iva8 = 0, exento = 0;
+      for (const tl of row.taxLines) {
+        if (tl.taxType === "IVA_GENERAL" || tl.taxType === "IVA_ADICIONAL") {
+          base16 += parseFloat(tl.base);
+          iva16  += parseFloat(tl.amount);
+        } else if (tl.taxType === "IVA_REDUCIDO") {
+          base8 += parseFloat(tl.base);
+          iva8  += parseFloat(tl.amount);
+        } else {
+          exento += parseFloat(tl.base);
+        }
+      }
+
+      const fields = [
+        row.counterpartRif ?? "",
+        row.counterpartName,
+        row.invoiceNumber,
+        row.controlNumber ?? "",
+        fmtDateSivit(row.date),
+        DOC_TYPE[row.docType] ?? "01",
+        fmtNum(base16),
+        fmtNum(iva16),
+        fmtNum(base8),
+        fmtNum(iva8),
+        fmtNum(exento),
+        fmtNum(row.ivaRetentionAmount),
+        ...(type === "PURCHASE"
+          ? [fmtNum(row.islrRetentionAmount)]
+          : [fmtNum(row.igtfBase), fmtNum(row.igtfAmount)]),
+      ];
+
+      return fields.join("|");
+    });
+
+    const s = result.summary;
+    const footer = [
+      "",
+      `# TOTALES`,
+      [
+        "TOTAL", "", "", "", "", "",
+        fmtNum(s.totalBaseGeneral),
+        fmtNum(s.totalIvaGeneral),
+        fmtNum(s.totalBaseReduced),
+        fmtNum(s.totalIvaReduced),
+        fmtNum(s.totalExempt),
+        fmtNum(s.totalIvaRetention),
+        ...(type === "PURCHASE"
+          ? [fmtNum(s.totalIslrRetention)]
+          : ["", fmtNum(s.totalIgtf)]),
+      ].join("|"),
+    ].join("\n");
+
+    const content = [header, ...lines, footer].join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const bookTitle = type === "SALE" ? "Libro de Ventas" : "Libro de Compras";
 
   return (
@@ -292,7 +388,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
-                {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                {/* COT Art. 55-56: fiscalizaciones hasta 4 años retroactivos */}
+                {Array.from({ length: 6 }, (_, i) => currentYear - 4 + i).map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
@@ -309,6 +406,15 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               <>
                 <Button variant="outline" onClick={handleExportExcel}>
                   Exportar Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExportTXT}
+                  className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  aria-label="Exportar libro en formato TXT compatible con SIVIT/SENIAT"
+                  title="Formato TXT compatible con portal SENIAT (SIVIT). Verificar campos con versión vigente antes de cargar."
+                >
+                  Exportar TXT (SIVIT)
                 </Button>
                 <Button
                   variant="outline"
@@ -639,6 +745,71 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
             )}
           </div>
         )}
+
+        {/* ALERTA 6: Subtotales por alícuota — requerido por Providencia 00071 */}
+        {result && result.rows.length > 0 && (() => {
+          const s = result.summary;
+          const hasReduced    = parseFloat(s.totalBaseReduced) > 0;
+          const hasAdditional = parseFloat(s.totalBaseAdditional) > 0;
+          const hasExempt     = parseFloat(s.totalExempt) > 0;
+          const hasIslr       = type === "PURCHASE" && parseFloat(s.totalIslrRetention) > 0;
+          const hasIgtf       = type === "SALE"     && parseFloat(s.totalIgtf) > 0;
+
+          const Row = ({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
+            label: string; base: string; iva: string; baseLabel?: string; ivaLabel?: string;
+          }) => (
+            <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 last:border-0">
+              <span className="text-zinc-600 whitespace-nowrap">{label}</span>
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{baseLabel}</p>
+                  <MoneyBadge amount={base} currency="VES" />
+                </div>
+                <div className="text-right min-w-[90px]">
+                  <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{ivaLabel}</p>
+                  <MoneyBadge amount={iva} currency="VES" />
+                </div>
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="rounded-lg border bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-zinc-500">
+                Resumen del Período — Subtotales por Alícuota
+              </h3>
+              <div className="divide-y divide-zinc-100">
+                <Row label="Operaciones gravadas al 16%" base={s.totalBaseGeneral} iva={s.totalIvaGeneral} />
+                {hasReduced    && <Row label="Operaciones gravadas al 8% (Reducido)" base={s.totalBaseReduced} iva={s.totalIvaReduced} />}
+                {hasAdditional && <Row label="Operaciones gravadas al 31% (Lujo)" base={s.totalBaseAdditional} iva={s.totalIvaAdditional} />}
+                {hasExempt && (
+                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100">
+                    <span className="text-zinc-600">Operaciones exentas / no sujetas</span>
+                    <MoneyBadge amount={s.totalExempt} currency="VES" />
+                  </div>
+                )}
+                {parseFloat(s.totalIvaRetention) > 0 && (
+                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
+                    <span>IVA Retenido (comprobantes)</span>
+                    <MoneyBadge amount={s.totalIvaRetention} currency="VES" />
+                  </div>
+                )}
+                {hasIslr && (
+                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
+                    <span>ISLR Retenido</span>
+                    <MoneyBadge amount={s.totalIslrRetention} currency="VES" />
+                  </div>
+                )}
+                {hasIgtf && (
+                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-yellow-700">
+                    <span>IGTF (3%)</span>
+                    <MoneyBadge amount={s.totalIgtf} currency="VES" />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <Toaster richColors position="top-right" />

@@ -318,7 +318,18 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Q2-5 Daltonismo badges stock** ✅ merged (WCAG 1.4.1: XCircleIcon+CheckCircle2Icon en InventoryReportsView Estado col + KPI Bajo stock; XCircleIcon+CheckCircle2Icon en InventoryValuation KPI Stock agotado — 2153 tests)
 
-**2153 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-26)
+**Sprint Activos Fijos — Auditoría N1-N6** ✅ merged (2026-05-28):
+- **N1** Art. 66 LIVA — reintegro IVA crédito fiscal en baja anticipada (<36 meses): `DisposeAssetModal` calcula `costo×16%×(36-meses)/36`, GL Dr Gasto IVA / Cr IVA CF, checkbox opt-out
+- **N2** Moneda de adquisición + tasa BCV histórica: `acquisitionCurrency` + `bcvRateAtAcquisition` en schema + badge azul en tabla + serialización page.tsx
+- **N3** Historial persistente reajustes INPC: `FixedAssetINPCRestatement` @@unique([assetId,year,month]) + `getFixedAssetINPCHistoryAction` + modal por activo
+- **N4** Integración Compras → Activos Fijos: `getExpensesForAssetImportAction` (últimos 50 CONFIRMED + vendor.rif) + sección "Importar desde Gasto" en `FixedAssetForm` pre-llena 6 campos
+- **N5** Advertencia salto de período: `minGapPeriod` useMemo detecta brecha → alerta ámbar en panel depreciación
+- **N6** Factor INPC columna visible: columna "Factor INPC" con badge emerald ×factor en tabla activos
+- FA-5 F3: advertencia deductibilidad SENIAT (Art. 76 LISLR) si faltan facturaNumber+providerRif — 2191 tests
+
+**Fase 39** ✅ merged (DigitalInvoiceProvider PA-102 — ADR-031): interfaz neutral `DigitalInvoiceProvider` + `DigitalInvoiceFactory` + HKADigitalInvoiceProvider STUB (mapeo estimado, pendiente docs oficiales HKA) + MockDigitalInvoiceProvider + NullDigitalInvoiceProvider — 2191 tests
+
+**2191 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
 
 ### middleware.ts
 

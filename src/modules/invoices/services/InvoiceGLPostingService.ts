@@ -40,6 +40,9 @@ export interface InvoiceForGL {
   periodId: string | null;
   totalAmountVes: Decimal | null;
   taxLines: Array<{ taxType: string; base: Decimal; amount: Decimal }>;
+  // NIC 21: tasa de conversión para enriquecer descripción del asiento (ALERTA 1)
+  currency?: string;
+  exchangeRateVes?: Decimal | null;
 }
 
 export class InvoiceGLPostingService {
@@ -89,6 +92,12 @@ export class InvoiceGLPostingService {
     const baseTotal = total.minus(ivaTotal);
 
     let desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
+
+    // NIC 21: documentar conversión en facturas emitidas en moneda extranjera (ALERTA 1)
+    if (invoice.currency && invoice.currency !== "VES" && invoice.exchangeRateVes?.greaterThan(0)) {
+      const originalTotal = total.div(invoice.exchangeRateVes).toDecimalPlaces(2);
+      desc += ` — ${invoice.currency} ${originalTotal.toFixed(2)} × ${invoice.exchangeRateVes.toFixed(4)} Bs/${invoice.currency} = Bs. ${total.toFixed(2)}`;
+    }
 
     // Error 3 dictamen SENIAT: ventas sin IVA deben documentar la base legal
     // de la exención en la descripción del asiento para trazabilidad fiscal.
