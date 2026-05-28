@@ -130,9 +130,21 @@ export async function createInvoiceAction(input: unknown) {
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/invoices`);
-    return { success: true as const, data: invoice.id };
+    return {
+      success: true as const,
+      data: invoice.id,
+      stockWarnings: (invoice.stockWarnings ?? []).length > 0 ? invoice.stockWarnings : undefined,
+    };
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === "STOCK_CONFIRM_REQUIRED") {
+        const insufficient = (error as Error & { insufficient: Array<{ itemId: string; name: string; available: string; requested: string }> }).insufficient;
+        return {
+          success: false as const,
+          error: "STOCK_CONFIRM_REQUIRED",
+          insufficient,
+        };
+      }
       if (error.message.includes("P2002")) {
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
         if (parsed.data.idempotencyKey) {
@@ -140,7 +152,7 @@ export async function createInvoiceAction(input: unknown) {
             where: { idempotencyKey: parsed.data.idempotencyKey, companyId: parsed.data.companyId },
             select: { id: true },
           });
-          if (existing) return { success: true as const, data: existing.id };
+          if (existing) return { success: true as const, data: existing.id, stockWarnings: undefined };
         }
         return {
           success: false as const,

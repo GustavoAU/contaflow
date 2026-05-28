@@ -10,6 +10,7 @@ import {
   deriveInvoiceTaxLines,
   validateStockForLines,
   createInvoiceLinesInTx,
+  type StockWarningItem,
 } from "./InvoiceLineService";
 import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
@@ -185,6 +186,7 @@ export class InvoiceService {
     // ─── Path con líneas: validar stock PRE-$transaction ────────────────────
     // La validación ocurre fuera de la $transaction (ADR-024 D-2.3 paso 1)
     const computed = hasLines ? computeLineTotals(inputWithLines.lines!) : [];
+    let stockWarnings: StockWarningItem[] = [];
     if (hasLines) {
       const settings = await prisma.companySettings.findUnique({
         where: { companyId: input.companyId },
@@ -193,13 +195,16 @@ export class InvoiceService {
       const stockLevel = settings?.stockControlLevel ?? "WARN";
       // Pre-validación usa Read Committed — no requiere $transaction
       await prisma.$transaction(async (checkTx) => {
-        await validateStockForLines(
+        const stockResult = await validateStockForLines(
           inputWithLines.lines!,
           input.companyId,
           stockLevel,
           inputWithLines.stockConfirmed ?? false,
           checkTx
         );
+        if (stockResult.ok && stockResult.warnings) {
+          stockWarnings = stockResult.warnings;
+        }
       });
     }
 
@@ -406,8 +411,8 @@ export class InvoiceService {
       return invoice;
     };
 
-    if (outerTx) return doCreate(outerTx);
-    return prisma.$transaction(doCreate, { timeout: 10000 });
+    const inv = await (outerTx ? doCreate(outerTx) : prisma.$transaction(doCreate, { timeout: 10000 }));
+    return Object.assign(inv, { stockWarnings });
   }
 
   // ─── Obtener factura por ID ──────────────────────────────────────────────────

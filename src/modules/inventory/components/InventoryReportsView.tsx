@@ -57,6 +57,17 @@ function StockTab({
 }) {
   return (
     <div className="space-y-4">
+      {/* ALERTA 11 — Política Contable CPP (NIIF Sección 13 §13.18) */}
+      <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <span className="mt-0.5 shrink-0 text-base">ℹ</span>
+        <span>
+          <strong>Política contable:</strong> El costo de los inventarios se determina por el método del{" "}
+          <strong>Costo Promedio Ponderado (CPP)</strong>, de conformidad con la NIIF para PYMES, Sección 13, §13.18.
+          Este método debe mantenerse de forma consistente entre períodos. La columna{" "}
+          <em>CPP (Bs.)</em> refleja el costo unitario vigente utilizado para valorar las salidas de inventario.
+        </span>
+      </div>
+
       {/* Cards resumen */}
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-lg border bg-white p-4">

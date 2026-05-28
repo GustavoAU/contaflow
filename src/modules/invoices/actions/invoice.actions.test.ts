@@ -311,6 +311,43 @@ describe("createInvoiceAction", () => {
     if (!result.success)
       expect(result.error).toBe("Datos de referencia inválidos (empresa o período no existe)");
   });
+
+  // ── ALERTA 10: STOCK_CONFIRM_REQUIRED ────────────────────────────────────────
+  it("retorna STOCK_CONFIRM_REQUIRED con lista de ítems insuficientes", async () => {
+    const insufficient = [{ itemId: "item-1", name: "Laptop", available: "0.0000", requested: "2.0000" }];
+    const err = Object.assign(new Error("STOCK_CONFIRM_REQUIRED"), { insufficient });
+    vi.mocked(InvoiceService.create).mockRejectedValue(err as never);
+
+    const result = await createInvoiceAction(BASE_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("STOCK_CONFIRM_REQUIRED");
+      expect((result as { insufficient?: typeof insufficient }).insufficient).toEqual(insufficient);
+    }
+  });
+
+  // ── ALERTA 10: stockWarnings en success response ─────────────────────────────
+  it("incluye stockWarnings en success cuando el servicio reporta ítems en negativo", async () => {
+    const warnings = [{ itemId: "item-2", name: "Mouse", available: "1.0000", requested: "3.0000" }];
+    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-warn", stockWarnings: warnings } as never);
+
+    const result = await createInvoiceAction(BASE_INPUT);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.stockWarnings).toEqual(warnings);
+    }
+  });
+
+  it("stockWarnings es undefined cuando no hay ítems en negativo", async () => {
+    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-ok", stockWarnings: [] } as never);
+
+    const result = await createInvoiceAction(BASE_INPUT);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.stockWarnings).toBeUndefined();
+  });
 });
 
 // ─── getInvoiceBookAction ─────────────────────────────────────────────────────

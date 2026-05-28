@@ -101,6 +101,8 @@ export class DeclaracionIVAService {
     });
 
     // ── 5. Retenciones practicadas (solo si isSpecialContributor) ────────────
+    // PA-0049 Art. 11-12: solo retenciones YA enteradas al SENIAT generan crédito fiscal.
+    // Retenciones pendientes (enteradoAt IS NULL) no deben incluirse hasta su enteramiento.
     const retenciones = isSpecialContributor
       ? await db.retencion.findMany({
           where: {
@@ -108,6 +110,7 @@ export class DeclaracionIVAService {
             invoiceDate: { gte: periodStart, lt: periodEnd },
             status: { not: "VOIDED" },
             deletedAt: null,
+            enteradoAt: { not: null },
           },
           select: { ivaRetention: true },
         })

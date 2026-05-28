@@ -2,9 +2,10 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Loader2Icon, InboxIcon, PlusIcon, ScanIcon } from "lucide-react";
+import { Loader2Icon, InboxIcon, PlusIcon, ScanIcon, CopyIcon, UploadIcon } from "lucide-react";
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/servi
 import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
 import { MoneyBadge } from "@/components/ui/MoneyBadge";
 import { fmtDate } from "@/lib/format";
+import { DUPLICATE_SESSION_KEY } from "@/components/invoices/InvoiceForm";
+import { InvoiceBatchImportDialog } from "@/components/invoices/InvoiceBatchImportDialog";
 
 type Props = {
   companyId: string;
@@ -75,6 +78,7 @@ function SeniatBadge({ status }: { status: SeniatStatus }) {
 }
 
 export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", activePeriodMonth, activePeriodYear }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isPendingPDF, startTransitionPDF] = useTransition();
   const [isPendingVoucher, startTransitionVoucher] = useTransition();
@@ -84,6 +88,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
   const [month, setMonth] = useState(activePeriodMonth ?? currentMonth);
   const [result, setResult] = useState<InvoiceBookResult | null>(null);
   const [expandedNcNdId, setExpandedNcNdId] = useState<string | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     startTransition(async () => {
@@ -92,6 +97,31 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
       else toast.error(res.error);
     });
   }, [companyId, type, year, month]);
+
+  function handleDuplicate(row: InvoiceBookRow) {
+    try {
+      sessionStorage.setItem(
+        DUPLICATE_SESSION_KEY,
+        JSON.stringify({
+          type,
+          currency: row.currency as "VES" | "USD" | "EUR",
+          docType: row.docType,
+          taxCategory: row.taxCategory,
+          counterpartName: row.counterpartName,
+          counterpartRif: row.counterpartRif,
+          taxLines: row.taxLines.map((tl) => ({
+            taxType: tl.taxType,
+            base: tl.base,
+            rate: tl.rate,
+            amount: tl.amount,
+          })),
+        }),
+      );
+      router.push(`/company/${companyId}/invoices/new`);
+    } catch {
+      toast.error("No se pudo duplicar la factura");
+    }
+  }
 
   function handleExportPDF() {
     startTransitionPDF(async () => {
@@ -402,6 +432,16 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               {isPending && <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" aria-hidden />}
             </div>
 
+            <Button
+              variant="outline"
+              onClick={() => setShowImportDialog(true)}
+              className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+              title="Importar facturas desde archivo CSV"
+            >
+              <UploadIcon className="h-3.5 w-3.5" />
+              Importar lote
+            </Button>
+
             {result && result.rows.length > 0 && (
               <>
                 <Button variant="outline" onClick={handleExportExcel}>
@@ -580,6 +620,15 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                   >
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDuplicate(row)}
+                                    title="Duplicar esta factura (pre-llena el formulario con los mismos datos)"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                                    aria-label={`Duplicar factura ${row.invoiceNumber}`}
+                                  >
+                                    <CopyIcon className="inline h-3 w-3" />
+                                  </button>
                                   {ncNdButton}
                                   {type === "SALE" && row.seniatStatus && (
                                     <SeniatBadge status={row.seniatStatus} />
@@ -650,6 +699,15 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                                     aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
                                   >
                                     {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDuplicate(row)}
+                                    title="Duplicar esta factura"
+                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                                    aria-label={`Duplicar factura ${row.invoiceNumber}`}
+                                  >
+                                    <CopyIcon className="inline h-3 w-3" />
                                   </button>
                                   {ncNdButton}
                                   {type === "SALE" && row.seniatStatus && (
@@ -813,6 +871,12 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
       </div>
 
       <Toaster richColors position="top-right" />
+
+      <InvoiceBatchImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        companyId={companyId}
+      />
     </>
   );
 }

@@ -148,9 +148,11 @@ function ratePercent(taxType: "IVA_GENERAL" | "IVA_REDUCIDO" | "EXENTO"): Decima
 // ─── Validación de stock pre-$transaction (ADR-024 D-2.3) ────────────────────
 // Lee stockQuantity fuera de la transacción (Read Committed, no Serializable)
 // Retorna resultado por línea: si hay stock insuficiente y qué hacer
+export type StockWarningItem = { itemId: string; name: string; available: string; requested: string };
+
 export type StockCheckResult =
-  | { ok: true }
-  | { ok: false; insufficient: Array<{ itemId: string; name: string; available: string; requested: string }> };
+  | { ok: true; warnings?: StockWarningItem[] }
+  | { ok: false; insufficient: StockWarningItem[] };
 
 export async function validateStockForLines(
   lines: InvoiceLineInput[],
@@ -213,8 +215,8 @@ export async function validateStockForLines(
       }
       return { ok: true };
     case "WARN":
-      // WARN: continúa siempre — stock negativo es permitido por diseño
-      return { ok: true };
+      // WARN: continúa pero reporta los ítems con stock insuficiente al caller
+      return { ok: true, warnings: insufficient };
   }
 }
 
@@ -258,8 +260,26 @@ export async function createInvoiceLinesInTx(
       // Leer item (post-lock para SALIDA; lectura directa para ENTRADA)
       const item = await tx.inventoryItem.findFirstOrThrow({
         where: { id: line.inventoryItemId, companyId },
-        select: { averageCost: true, sku: true, name: true, baseUnitId: true },
+        select: { averageCost: true, sku: true, name: true, baseUnitId: true,
+                  itemType: true, accountId: true, cogsAccountId: true },
       });
+
+      // A8: ítems físicos DEBEN tener cuentas GL antes de facturar (auto-COGS OM-01 las requiere)
+      const PHYSICAL_TYPES = ["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"] as const;
+      if ((PHYSICAL_TYPES as readonly string[]).includes(item.itemType)) {
+        if (!item.accountId) {
+          throw new Error(
+            `El ítem "${item.name}" (${item.sku}) no tiene cuenta de inventario configurada. ` +
+            `Configúrela en Inventario → Ítems antes de facturar.`,
+          );
+        }
+        if (!isPurchase && !item.cogsAccountId) {
+          throw new Error(
+            `El ítem "${item.name}" (${item.sku}) no tiene cuenta de costo (COGS) configurada. ` +
+            `Configúrela en Inventario → Ítems antes de facturar.`,
+          );
+        }
+      }
 
       // Resolver cantidad en unidad base
       let quantityInBase: Decimal;

@@ -30,6 +30,18 @@ import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { type ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
 import { OCR_SESSION_KEY } from "@/components/ocr/InvoiceUploader";
 
+// Duplicate pre-fill key — set by InvoiceBook "Dup" button, read once on mount
+export const DUPLICATE_SESSION_KEY = "cf-invoice-dup";
+type DuplicateData = {
+  type: "SALE" | "PURCHASE";
+  currency: "VES" | "USD" | "EUR";
+  docType: string;
+  taxCategory: string;
+  counterpartName: string;
+  counterpartRif: string;
+  taxLines: Array<{ taxType: string; base: string; rate: string; amount: string }>;
+};
+
 type TaxLineType = "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
 
 type TaxLine = {
@@ -232,6 +244,44 @@ export function InvoiceForm({
       }
 
       setOcrLoaded(true);
+    } catch {
+      // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Duplicate pre-fill (InvoiceBook "Dup" button) ───────────────────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DUPLICATE_SESSION_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(DUPLICATE_SESSION_KEY);
+      const dup = JSON.parse(raw) as DuplicateData;
+
+      if (dup.type) setType(dup.type);
+      if (dup.currency) setCurrency(dup.currency);
+      if (dup.docType) setDocType(dup.docType);
+      if (dup.taxCategory) {
+        setTaxCategory(dup.taxCategory);
+        prevCategoryRef.current = dup.taxCategory;
+      }
+      if (dup.counterpartName) setCounterpartName(dup.counterpartName);
+      if (dup.counterpartRif) {
+        setOcrCounterpartRif(dup.counterpartRif);
+        setOcrRifKey((k) => k + 1);
+      }
+      if (dup.taxLines?.length > 0) {
+        setTaxLines(
+          dup.taxLines.map((tl) => ({
+            id: `dup-${crypto.randomUUID()}`,
+            taxType: tl.taxType as TaxLineType,
+            description: "",
+            base: tl.base,
+            rate: tl.rate,
+            amount: tl.amount,
+            luxuryGroupId: null,
+          })),
+        );
+      }
     } catch {
       // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
     }
@@ -502,7 +552,7 @@ export function InvoiceForm({
         currency,
       };
 
-      let result: { success: boolean; error?: string };
+      let result: { success: boolean; error?: string; stockWarnings?: Array<{ itemId: string; name: string; available: string; requested: string }>; insufficient?: Array<{ itemId: string; name: string; available: string; requested: string }> };
       if (docType === "NOTA_CREDITO") {
         result = await createCreditNoteAction({ ...basePayload, relatedInvoiceId });
       } else if (docType === "NOTA_DEBITO") {
@@ -513,7 +563,12 @@ export function InvoiceForm({
 
       if (result.success) {
         clearDraft(); // borrador ya no necesario tras envío exitoso
-        toast.success("Factura registrada correctamente");
+        if (result.stockWarnings && result.stockWarnings.length > 0) {
+          const names = result.stockWarnings.map((w) => w.name).join(", ");
+          toast.warning(`Factura registrada. Stock insuficiente para: ${names}. El inventario quedará en negativo.`);
+        } else {
+          toast.success("Factura registrada correctamente");
+        }
         form.reset();
         setTaxLines([
           {
