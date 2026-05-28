@@ -1,6 +1,17 @@
 // src/modules/ocr/schemas/invoice.schema.ts
 import { z } from "zod";
 
+// ─── Riesgo de campo extraído por OCR ─────────────────────────────────────────
+// Generado en GeminiOCRService cuando un campo fiscal crítico no supera
+// la validación de formato post-extracción (PA-00071: RIF, N° Control).
+export const FieldRiskSchema = z.object({
+  field: z.string(),
+  label: z.string(),
+  issue: z.string(),
+  severity: z.enum(["critical", "warn"]),
+});
+export type FieldRisk = z.infer<typeof FieldRiskSchema>;
+
 export const ExtractedInvoiceSchema = z.object({
   // ── Identificación del emisor ──────────────────────────────────────────────
   razonSocial: z.string().optional(),
@@ -35,6 +46,10 @@ export const ExtractedInvoiceSchema = z.object({
     )
     .optional(),
   notes: z.string().optional(),
+  // ── Riesgos detectados post-extracción ────────────────────────────────────
+  // Campos fiscales críticos (RIF, N° Control) que no superan validación
+  // de formato local. Ver GeminiOCRService para la lógica de detección.
+  _fieldRisks: z.array(FieldRiskSchema).optional(),
 });
 
 export type ExtractedInvoice = z.infer<typeof ExtractedInvoiceSchema>;

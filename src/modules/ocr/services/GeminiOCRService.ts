@@ -8,8 +8,9 @@
 //
 // Rate limit gratuito: 15 RPM / 1 000 RPD  (src/lib/ratelimit.ts → ocr: 12/min con margen)
 
-import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
+import { ExtractedInvoiceSchema, type ExtractedInvoice, type FieldRisk } from "../schemas/invoice.schema";
 import { parseLocalNumber } from "@/lib/format";
+import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 
 // Normaliza un string de monto en formato regional (VE o americano) a formato estándar.
 // Solo actúa si detecta coma o múltiples puntos; preserva strings ya en formato estándar.
@@ -196,7 +197,31 @@ Reglas:
       );
     }
 
-    return result.data;
+    // ── Validación post-extracción de campos fiscales críticos (ALERTA 13/14) ─
+    // PA-00071 Art. 15: RIF incorrecto invalida el crédito fiscal.
+    // El N° Control es cruzado por el SENIAT entre emisor y receptor.
+    const extracted = result.data;
+    const risks: FieldRisk[] = [];
+
+    if (extracted.rif !== undefined && !validateVenezuelanRif(extracted.rif)) {
+      risks.push({
+        field: "rif",
+        label: "RIF",
+        issue: `RIF extraído "${extracted.rif}" no cumple el formato X-XXXXXXXX-X (PA-00071 Art. 15). Verifica contra la factura física.`,
+        severity: "critical",
+      });
+    }
+
+    if (extracted.numeroControl !== undefined && !/^\d{2}-\d{8}$/.test(extracted.numeroControl)) {
+      risks.push({
+        field: "numeroControl",
+        label: "N° Control",
+        issue: `N° Control extraído "${extracted.numeroControl}" no cumple el formato XX-XXXXXXXX. El SENIAT cruza este campo entre emisor y receptor.`,
+        severity: "critical",
+      });
+    }
+
+    return risks.length > 0 ? { ...extracted, _fieldRisks: risks } : extracted;
   }
 
 }

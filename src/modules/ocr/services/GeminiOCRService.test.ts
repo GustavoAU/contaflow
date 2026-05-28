@@ -215,4 +215,87 @@ describe("GeminiOCRService.extractFromImage", () => {
     expect(result.baseImponibleReducida).toBe("50.00");
     expect(result.ivaReducido).toBe("4.00");
   });
+
+  // ── Validación post-extracción de campos fiscales críticos (ALERTA 13/14) ───
+
+  it("no genera _fieldRisks cuando RIF y N° Control son válidos", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(mockGeminiResponse(VALID_INVOICE_JSON));
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+
+    expect(result._fieldRisks).toBeUndefined();
+  });
+
+  it("genera riesgo crítico en _fieldRisks cuando el RIF extraído tiene formato inválido", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          ...JSON.parse(VALID_INVOICE_JSON),
+          rif: "J-30987654",       // dígito verificador faltante
+          numeroControl: "00-0001234",
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+
+    expect(result._fieldRisks).toBeDefined();
+    expect(result._fieldRisks).toHaveLength(1);
+    expect(result._fieldRisks![0].field).toBe("rif");
+    expect(result._fieldRisks![0].severity).toBe("critical");
+    expect(result._fieldRisks![0].issue).toContain("J-30987654");
+  });
+
+  it("genera riesgo crítico en _fieldRisks cuando el N° Control tiene formato incorrecto", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          ...JSON.parse(VALID_INVOICE_JSON),
+          numeroControl: "00-01000001",   // 9 dígitos en la parte numérica
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+
+    expect(result._fieldRisks).toBeDefined();
+    const nCtrlRisk = result._fieldRisks!.find(r => r.field === "numeroControl");
+    expect(nCtrlRisk).toBeDefined();
+    expect(nCtrlRisk!.severity).toBe("critical");
+    expect(nCtrlRisk!.issue).toContain("00-01000001");
+  });
+
+  it("genera dos riesgos críticos si tanto RIF como N° Control son inválidos", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          ...JSON.parse(VALID_INVOICE_JSON),
+          rif: "J30987654",               // sin guiones
+          numeroControl: "0001234",        // sin separador XX-
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+
+    expect(result._fieldRisks).toHaveLength(2);
+    const fields = result._fieldRisks!.map(r => r.field);
+    expect(fields).toContain("rif");
+    expect(fields).toContain("numeroControl");
+  });
+
+  it("no genera _fieldRisks si rif y numeroControl son undefined (campos ausentes)", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      mockGeminiResponse(
+        JSON.stringify({
+          montoTotal: "200.00",
+          currency: "VES",
+        })
+      )
+    );
+
+    const result = await GeminiOCRService.extractFromImage("base64fake==");
+
+    expect(result._fieldRisks).toBeUndefined();
+  });
 });

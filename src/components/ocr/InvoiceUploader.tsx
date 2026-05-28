@@ -1,4 +1,4 @@
-﻿// src/components/ocr/InvoiceUploader.tsx
+// src/components/ocr/InvoiceUploader.tsx
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
@@ -17,9 +17,11 @@ import {
   DownloadIcon,
   SparklesIcon,
   ShieldAlertIcon,
+  AlertTriangleIcon,
+  EyeIcon,
 } from "lucide-react";
 import { extractInvoiceAction, exportOcrDraftPDFAction } from "@/modules/ocr/actions/ocr.actions";
-import type { ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
+import type { ExtractedInvoice, FieldRisk } from "@/modules/ocr/schemas/invoice.schema";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,6 +52,9 @@ const CURRENCY_LABELS: Record<string, string> = {
   USD: "Dólares (USD)",
   EUR: "Euros (EUR)",
 };
+
+// localStorage key para el aviso de privacidad Gemini (ALERTA 16)
+const PRIVACY_ACK_KEY = "cf-ocr-privacy-ack";
 
 export const OCR_SESSION_KEY = "ocr:invoice:draft";
 
@@ -138,10 +143,31 @@ export function InvoiceUploader({ companyId }: Props) {
   const [fileName, setFileName] = useState<string>("");
   const [extracted, setExtracted] = useState<ExtractedInvoice | null>(null);
 
+  // ALERTA 15: confirmación explícita cuando hay riesgos críticos
+  const [risksAcknowledged, setRisksAcknowledged] = useState(false);
+
+  // ALERTA 16: aviso de privacidad Gemini — persiste en localStorage
+  const [privacyAckSeen, setPrivacyAckSeen] = useState(true); // optimistic: true evita flash
+  useEffect(() => {
+    try {
+      setPrivacyAckSeen(!!localStorage.getItem(PRIVACY_ACK_KEY));
+    } catch {
+      setPrivacyAckSeen(true); // sin localStorage → no bloquear
+    }
+  }, []);
+
+  function handlePrivacyAck() {
+    try { localStorage.setItem(PRIVACY_ACK_KEY, "1"); } catch { /* noop */ }
+    setPrivacyAckSeen(true);
+  }
+
   // Cleanup timer on unmount
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const isLoading = scanPhase === "uploading" || scanPhase === "analyzing";
+
+  const criticalRisks = (extracted?._fieldRisks ?? []).filter(r => r.severity === "critical");
+  const hasCriticalRisks = criticalRisks.length > 0;
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -164,6 +190,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setMimeType(file.type as ValidMime);
     setExtracted(null);
     setScanPhase("idle");
+    setRisksAcknowledged(false);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -184,6 +211,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setScanPhase("uploading");
     setExtracted(null);
     setFieldsVisible(false);
+    setRisksAcknowledged(false);
 
     // State 2: after 500 ms — show skeleton + indeterminate progress
     timerRef.current = setTimeout(() => setScanPhase("analyzing"), 500);
@@ -217,6 +245,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setExtracted(null);
     setScanPhase("idle");
     setFieldsVisible(false);
+    setRisksAcknowledged(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -253,6 +282,30 @@ export function InvoiceUploader({ companyId }: Props) {
 
   return (
     <>
+      {/* ── ALERTA 16: Aviso de privacidad Gemini (una sola vez) ─────────────── */}
+      {!privacyAckSeen && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+          <EyeIcon className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" aria-hidden />
+          <div className="flex-1">
+            <p className="font-semibold text-blue-800">Procesamiento de imágenes con Google Gemini Vision</p>
+            <p className="mt-1 text-blue-700">
+              Las imágenes de facturas se envían a la API de Google Gemini (Google LLC) para la
+              extracción de datos. Los documentos pueden contener RIF, nombres de empresas, RIF de
+              contrapartes y montos fiscales. Verifica que tu empresa autoriza el envío de esta
+              información a servicios de terceros conforme al COT Art. 126 y tus políticas internas
+              de confidencialidad.
+            </p>
+            <button
+              type="button"
+              onClick={handlePrivacyAck}
+              className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Entendido — continuar
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
 
         {/* ── Left panel: upload ─────────────────────────────────────────── */}
@@ -345,11 +398,23 @@ export function InvoiceUploader({ companyId }: Props) {
           {/* State 3: done — extracted data with staggered fade-in */}
           {scanPhase === "done" && extracted && (
             <div className="overflow-hidden rounded-lg border bg-white">
-              {/* Success header */}
-              <div className="flex items-center gap-2 border-b bg-green-50 px-4 py-3">
-                <CheckIcon className="h-4 w-4 text-green-600 shrink-0" />
-                <span className="text-sm font-semibold text-green-700">
-                  Datos extraídos correctamente
+              {/* Success / warning header */}
+              <div className={cn(
+                "flex items-center gap-2 border-b px-4 py-3",
+                hasCriticalRisks ? "bg-red-50" : "bg-green-50"
+              )}>
+                {hasCriticalRisks ? (
+                  <AlertTriangleIcon className="h-4 w-4 text-red-600 shrink-0" aria-hidden />
+                ) : (
+                  <CheckIcon className="h-4 w-4 text-green-600 shrink-0" />
+                )}
+                <span className={cn(
+                  "text-sm font-semibold",
+                  hasCriticalRisks ? "text-red-700" : "text-green-700"
+                )}>
+                  {hasCriticalRisks
+                    ? "Campos fiscales críticos requieren verificación"
+                    : "Datos extraídos correctamente"}
                 </span>
               </div>
 
@@ -365,36 +430,42 @@ export function InvoiceUploader({ companyId }: Props) {
 
               {/* Fields with staggered fade-in */}
               <div className="space-y-1 p-4">
-                {[
-                  extracted.razonSocial     && { label: "Razón Social",             value: extracted.razonSocial },
-                  extracted.rif             && { label: "RIF",                      value: extracted.rif },
-                  extracted.numeroFactura   && { label: "N° Factura",               value: extracted.numeroFactura },
-                  extracted.numeroControl   && { label: "N° Control",               value: extracted.numeroControl },
-                  extracted.fechaEmision    && { label: "Fecha",                    value: extracted.fechaEmision },
-                  extracted.currency        && { label: "Moneda",                   value: CURRENCY_LABELS[extracted.currency] ?? extracted.currency },
-                  extracted.baseImponibleGeneral && { label: "Base Imponible General", value: formatAmount(extracted.baseImponibleGeneral), mono: true },
-                  extracted.ivaGeneral      && { label: "IVA 16%",                  value: formatAmount(extracted.ivaGeneral), mono: true },
-                  extracted.ivaReducido     && { label: "IVA 8%",                   value: formatAmount(extracted.ivaReducido), mono: true },
-                  extracted.ivaAdicional    && { label: "IVA Adicional (+15%)",     value: formatAmount(extracted.ivaAdicional), mono: true },
-                  extracted.montoTotal      && { label: "Monto Total",              value: formatAmount(extracted.montoTotal), mono: true, bold: true },
-                  extracted.paymentMethod   && { label: "Método de Pago",           value: PAYMENT_METHOD_LABELS[extracted.paymentMethod] ?? extracted.paymentMethod },
-                  extracted.notes           && { label: "Notas",                    value: extracted.notes },
-                ]
-                  .filter(Boolean)
-                  .map((field, i) => {
-                    const f = field as { label: string; value: string; mono?: boolean; bold?: boolean };
-                    return (
-                      <Field
-                        key={f.label}
-                        label={f.label}
-                        value={f.value}
-                        mono={f.mono}
-                        bold={f.bold}
-                        visible={fieldsVisible}
-                        delay={i * 55}
-                      />
-                    );
-                  })}
+                {(() => {
+                  const riskByField = Object.fromEntries(
+                    (extracted._fieldRisks ?? []).map((r) => [r.field, r])
+                  );
+                  return [
+                    extracted.razonSocial     && { label: "Razón Social",             value: extracted.razonSocial },
+                    extracted.rif             && { label: "RIF",                      value: extracted.rif,           risk: riskByField["rif"] },
+                    extracted.numeroFactura   && { label: "N° Factura",               value: extracted.numeroFactura },
+                    extracted.numeroControl   && { label: "N° Control",               value: extracted.numeroControl, risk: riskByField["numeroControl"] },
+                    extracted.fechaEmision    && { label: "Fecha",                    value: extracted.fechaEmision },
+                    extracted.currency        && { label: "Moneda",                   value: CURRENCY_LABELS[extracted.currency] ?? extracted.currency },
+                    extracted.baseImponibleGeneral && { label: "Base Imponible General", value: formatAmount(extracted.baseImponibleGeneral), mono: true },
+                    extracted.ivaGeneral      && { label: "IVA 16%",                  value: formatAmount(extracted.ivaGeneral), mono: true },
+                    extracted.ivaReducido     && { label: "IVA 8%",                   value: formatAmount(extracted.ivaReducido), mono: true },
+                    extracted.ivaAdicional    && { label: "IVA Adicional (+15%)",     value: formatAmount(extracted.ivaAdicional), mono: true },
+                    extracted.montoTotal      && { label: "Monto Total",              value: formatAmount(extracted.montoTotal), mono: true, bold: true },
+                    extracted.paymentMethod   && { label: "Método de Pago",           value: PAYMENT_METHOD_LABELS[extracted.paymentMethod] ?? extracted.paymentMethod },
+                    extracted.notes           && { label: "Notas",                    value: extracted.notes },
+                  ]
+                    .filter(Boolean)
+                    .map((field, i) => {
+                      const f = field as { label: string; value: string; mono?: boolean; bold?: boolean; risk?: FieldRisk };
+                      return (
+                        <Field
+                          key={f.label}
+                          label={f.label}
+                          value={f.value}
+                          mono={f.mono}
+                          bold={f.bold}
+                          risk={f.risk}
+                          visible={fieldsVisible}
+                          delay={i * 55}
+                        />
+                      );
+                    });
+                })()}
 
                 {/* Invoice line items */}
                 {extracted.items && extracted.items.length > 0 && (
@@ -440,10 +511,40 @@ export function InvoiceUploader({ companyId }: Props) {
                 </div>
               </div>
 
+              {/* ALERTA 13/14/15: Panel de riesgos críticos + checkbox de confirmación */}
+              {hasCriticalRisks && (
+                <div className="border-t border-red-200 bg-red-50 px-4 py-3 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700">
+                    <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    Campos fiscales críticos con posibles errores de OCR
+                  </div>
+                  <ul className="space-y-1.5">
+                    {criticalRisks.map((r) => (
+                      <li key={r.field} className="text-xs text-red-700">
+                        <span className="font-medium">{r.label}:</span>{" "}{r.issue}
+                      </li>
+                    ))}
+                  </ul>
+                  <label className="flex cursor-pointer items-start gap-2 text-xs text-red-800">
+                    <input
+                      type="checkbox"
+                      checked={risksAcknowledged}
+                      onChange={(e) => setRisksAcknowledged(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-red-600"
+                      aria-label="Confirmar verificación manual de campos con errores"
+                    />
+                    <span>
+                      He verificado los campos marcados contra la factura física y confirmo su exactitud antes de continuar.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="border-t bg-zinc-50 px-4 py-3 flex flex-col gap-2">
                 <Button
                   onClick={handleUseInForm}
+                  disabled={hasCriticalRisks && !risksAcknowledged}
                   className="w-full gap-2"
                   kbdHint="Ctrl+↵"
                 >
@@ -496,6 +597,7 @@ function Field({
   value,
   mono = false,
   bold = false,
+  risk,
   visible,
   delay,
 }: {
@@ -503,28 +605,37 @@ function Field({
   value: string;
   mono?: boolean;
   bold?: boolean;
+  risk?: FieldRisk;
   visible: boolean;
   delay: number;
 }) {
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 rounded-md px-2 py-1 transition-all duration-300",
+        "flex flex-col gap-0.5 rounded-md px-2 py-1 transition-all duration-300",
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
       )}
       style={{ transitionDelay: `${delay}ms` }}
     >
-      <span className="shrink-0 text-xs text-zinc-500">{label}</span>
-      {/* Yellow highlight signals AI-generated data */}
-      <span
-        className={cn(
-          "rounded px-1.5 py-0.5 text-right text-sm bg-amber-50 text-amber-900 ring-1 ring-amber-200/60",
-          mono && "font-mono",
-          bold && "font-bold"
-        )}
-      >
-        {value}
-      </span>
+      <div className="flex items-start justify-between gap-4">
+        <span className="shrink-0 text-xs text-zinc-500">{label}</span>
+        {/* Risk: red ring. Normal: amber ring (AI-generated). */}
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 text-right text-sm ring-1",
+            risk
+              ? "bg-red-50 text-red-900 ring-red-300"
+              : "bg-amber-50 text-amber-900 ring-amber-200/60",
+            mono && "font-mono",
+            bold && "font-bold"
+          )}
+        >
+          {value}
+        </span>
+      </div>
+      {risk && (
+        <p className="text-right text-10 text-red-600 leading-tight">{risk.issue}</p>
+      )}
     </div>
   );
 }

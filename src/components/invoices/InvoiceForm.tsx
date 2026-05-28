@@ -3,7 +3,7 @@
 
 import { useState, useTransition, useId, useRef, useEffect, useCallback } from "react";
 import { useFormDraft, DRAFT_AUTO_SAVE_MS } from "@/hooks/useFormDraft";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, AlertTriangleIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -197,6 +197,7 @@ export function InvoiceForm({
 
   // ─── OCR pre-fill ────────────────────────────────────────────────────────────
   const [ocrLoaded, setOcrLoaded] = useState(false);
+  const [ocrHasCriticalRisks, setOcrHasCriticalRisks] = useState(false);
   const [ocrCounterpartRif, setOcrCounterpartRif] = useState("");
   const [ocrRifKey, setOcrRifKey] = useState(0);
   const invoiceNumberRef = useRef<HTMLInputElement>(null);
@@ -243,6 +244,9 @@ export function InvoiceForm({
         ]);
       }
 
+      // ALERTA 13/14/15: señalar si campos fiscales críticos tienen posibles errores
+      const hasCritical = (ocr._fieldRisks ?? []).some(r => r.severity === "critical");
+      setOcrHasCriticalRisks(hasCritical);
       setOcrLoaded(true);
     } catch {
       // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
@@ -624,8 +628,8 @@ export function InvoiceForm({
       <div className="rounded-lg border bg-white p-6">
         <h2 className="mb-4 font-semibold">Registrar Factura</h2>
 
-        {/* Banner OCR pre-fill */}
-        {ocrLoaded && (
+        {/* Banner OCR pre-fill — diferencia entre extracción limpia y con riesgos */}
+        {ocrLoaded && !ocrHasCriticalRisks && (
           <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
             <span className="mt-0.5 text-blue-500">★</span>
             <div className="flex-1 text-sm">
@@ -642,6 +646,22 @@ export function InvoiceForm({
             >
               ×
             </button>
+          </div>
+        )}
+        {/* ALERTA 13/14/15: banner de alto riesgo cuando OCR detectó problemas en campos fiscales */}
+        {ocrLoaded && ocrHasCriticalRisks && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+            <AlertTriangleIcon className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" aria-hidden />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800">
+                Datos OCR con campos fiscales en revisión
+              </p>
+              <p className="mt-0.5 text-amber-700">
+                El RIF o N° de Control extraídos podrían contener errores de lectura.
+                Verifica <strong>ambos campos</strong> contra la factura física antes de guardar.
+                Un RIF incorrecto invalida el crédito fiscal (PA-00071 Art. 15).
+              </p>
+            </div>
           </div>
         )}
 
