@@ -26,7 +26,7 @@ const VALID_INVOICE_JSON = JSON.stringify({
   razonSocial: "Distribuidora ABC C.A.",
   rif: "J-12345678-9",
   numeroFactura: "0001234",
-  numeroControl: "00-0001234",
+  numeroControl: "00-00001234",
   fechaEmision: "2026-04-04",
   baseImponibleGeneral: "100.00",
   ivaGeneral: "16.00",
@@ -57,7 +57,7 @@ describe("GeminiOCRService.extractFromImage", () => {
     expect(result.montoTotal).toBe("116.00");
     expect(result.ivaGeneral).toBe("16.00");
     expect(result.baseImponibleGeneral).toBe("100.00");
-    expect(result.numeroControl).toBe("00-0001234");
+    expect(result.numeroControl).toBe("00-00001234");
     expect(result.currency).toBe("VES");
   });
 
@@ -232,7 +232,7 @@ describe("GeminiOCRService.extractFromImage", () => {
         JSON.stringify({
           ...JSON.parse(VALID_INVOICE_JSON),
           rif: "J-30987654",       // dígito verificador faltante
-          numeroControl: "00-0001234",
+          numeroControl: "00-00001234",
         })
       )
     );
@@ -251,7 +251,7 @@ describe("GeminiOCRService.extractFromImage", () => {
       mockGeminiResponse(
         JSON.stringify({
           ...JSON.parse(VALID_INVOICE_JSON),
-          numeroControl: "00-01000001",   // 9 dígitos en la parte numérica
+          numeroControl: "00-010000001",   // 9 dígitos — inválido (correcto: XX-XXXXXXXX)
         })
       )
     );
@@ -262,7 +262,7 @@ describe("GeminiOCRService.extractFromImage", () => {
     const nCtrlRisk = result._fieldRisks!.find(r => r.field === "numeroControl");
     expect(nCtrlRisk).toBeDefined();
     expect(nCtrlRisk!.severity).toBe("critical");
-    expect(nCtrlRisk!.issue).toContain("00-01000001");
+    expect(nCtrlRisk!.issue).toContain("00-010000001");
   });
 
   it("genera dos riesgos críticos si tanto RIF como N° Control son inválidos", async () => {
