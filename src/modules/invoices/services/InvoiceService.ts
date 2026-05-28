@@ -346,6 +346,16 @@ export class InvoiceService {
       // Solo si no se pasó transactionId explícito y la config GL está completa
       let glTransactionId: string | null = null;
       if (!input.transactionId && settings && InvoiceGLPostingService.canPost(input.type as "SALE" | "PURCHASE", settings)) {
+        // NIC 21: obtener tasa histórica para enriquecer descripción GL (ALERTA 1)
+        let exchangeRateVes: Decimal | null = null;
+        if (input.exchangeRateId && (input.currency ?? "VES") !== "VES") {
+          const er = await db.exchangeRate.findUnique({
+            where: { id: input.exchangeRateId },
+            select: { rate: true },
+          });
+          exchangeRateVes = er ? new Decimal(er.rate.toString()) : null;
+        }
+
         glTransactionId = await InvoiceGLPostingService.postInvoice(
           {
             id: invoice.id,
@@ -356,6 +366,8 @@ export class InvoiceService {
             periodId: input.periodId ?? null,
             totalAmountVes,
             taxLines: invoice.taxLines,
+            currency: input.currency ?? "VES",
+            exchangeRateVes,
           },
           settings,
           input.companyId,

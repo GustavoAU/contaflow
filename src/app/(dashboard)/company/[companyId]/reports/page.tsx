@@ -1,5 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
-import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon } from "lucide-react";
+import Link from "next/link";
+import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon, ChevronLeftIcon } from "lucide-react";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
 import { NavigationCard } from "@/components/ui/NavigationCard";
 
@@ -52,6 +53,13 @@ export default async function ReportsPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
+        <Link
+          href={`/company/${companyId}`}
+          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          Dashboard
+        </Link>
         <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
         <p className="text-muted-foreground mt-1 text-sm">Reportes contables de tu empresa</p>
       </div>
