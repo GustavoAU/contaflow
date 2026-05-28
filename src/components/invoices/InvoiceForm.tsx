@@ -150,7 +150,6 @@ export function InvoiceForm({
   const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
   const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
-  const [counterpartIsSpecialContributor, setCounterpartIsSpecialContributor] = useState(false);
 
   // ─── Autosave borrador (Q1-3) ────────────────────────────────────────────────
   type InvoiceDraft = {
@@ -901,16 +900,6 @@ export function InvoiceForm({
               />
             </div>
           </div>
-
-          {/* A17: alerta Contribuyente Especial en compras — debe aplicar retención IVA */}
-          {type === "PURCHASE" && counterpartIsSpecialContributor && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <span className="mt-0.5 shrink-0 font-bold">⚠</span>
-              <span>
-                Este proveedor es <strong>Contribuyente Especial</strong> — debe emitir comprobante de retención de IVA (75% estándar o 100% si el servicio no incluye materiales) según la Providencia 0049.
-              </span>
-            </div>
-          )}
 
           {/* ─── Desglose de impuestos ──────────────────────────────────────── */}
           <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
