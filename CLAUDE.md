@@ -331,7 +331,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **ALERTA 12 + A8/10/11 fixes** ✅ merged: duplicar factura (sessionStorage DUPLICATE_SESSION_KEY) + RIF autocomplete debounced (searchContactsByRifAction, badge PROV/CLI) + importación masiva CSV (InvoiceBatchImportDialog 3 pasos + importInvoiceBatchAction Decimal.js R-5) + A8 GL account validation física + ALERTA10 stockWarnings propagation + ALERTA11 CPP banner + IVA retenciones enteradas-only — 2236 tests
 
-**2236 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
+**ALERTA 13/14/15/16** ✅ merged: GeminiOCRService detecta RIF y N° Control con formato inválido post-extracción → `_fieldRisks` severity="critical"; InvoiceUploader muestra badge rojo por campo + checkbox obligatorio de verificación antes de usar datos; banner ámbar en InvoiceForm cuando OCR cargó con riesgos críticos; aviso de privacidad Gemini dismissable (localStorage cf-ocr-privacy-ack, COT Art. 126) — 2263 tests
+
+**2263 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
 
 ### middleware.ts
 
