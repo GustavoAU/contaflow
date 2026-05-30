@@ -96,8 +96,10 @@ export async function postMovement(
         });
 
         // ── Generar número de transacción ─────────────────────────────────────
-        const txCount = await tx.transaction.count({ where: { companyId } });
-        const txNumber = `INV-${String(txCount + 1).padStart(6, "0")}`;
+        // Usa date-based prefix + cuid suffix para evitar P2002 por race condition
+        // (count+1 puede colisionar si dos Serializables corren simultáneamente)
+        const dateTag = movement.date.toISOString().slice(0, 7).replace("-", ""); // YYYYMM
+        const txNumber = `INV-${dateTag}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
         // ── Generar asiento contable ──────────────────────────────────────────
         const totalCost = new Decimal(movement.totalCost);

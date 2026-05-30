@@ -44,16 +44,16 @@ export async function postMovementAction(
   const parsed = PostMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId: ctx.userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  // HIGH-2: ADMINISTRATIVE no puede contabilizar — solo ACCOUNTING
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
   try {
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: parsed.data.companyId, userId: ctx.userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // HIGH-2: ADMINISTRATIVE no puede contabilizar — solo ACCOUNTING
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+
     const result = await postMovement(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return {
@@ -65,7 +65,7 @@ export async function postMovementAction(
     };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return { success: false, error: "Error inesperado al contabilizar" };
   }
 }
 
