@@ -97,6 +97,30 @@ export async function createRetentionAction(
       };
     }
 
+    // ALERTA 20: la fecha de factura debe caer dentro del período contable activo
+    const activePeriod = await prisma.accountingPeriod.findFirst({
+      where: { companyId: data.companyId, status: "OPEN" },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+      select: { year: true, month: true },
+    });
+    if (activePeriod) {
+      const periodStart = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, 1));
+      const lastDay = new Date(Date.UTC(activePeriod.year, activePeriod.month, 0)).getDate();
+      const periodEnd = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, lastDay, 23, 59, 59));
+      const invDate = new Date(Date.UTC(
+        data.invoiceDate.getFullYear(),
+        data.invoiceDate.getMonth(),
+        data.invoiceDate.getDate()
+      ));
+      if (invDate < periodStart || invDate > periodEnd) {
+        const mm = String(activePeriod.month).padStart(2, "0");
+        return {
+          success: false,
+          error: `La fecha de la factura está fuera del período contable activo (${mm}/${activePeriod.year}). Solo se pueden registrar retenciones para facturas del período abierto actual.`,
+        };
+      }
+    }
+
     const calc = RetentionService.calculate(
       data.taxBase,
       data.ivaRetentionPct as 75 | 100,
@@ -388,6 +412,8 @@ export type InvoiceMatch = {
   counterpartName: string;
   counterpartRif: string;
   type: string;
+  isVendorSpecialContributor: boolean; // ALERTA 17 — proveedor es Contribuyente Especial
+  hasLinkedRetention: boolean;          // ALERTA 19 — ya tiene retención vinculada
 };
 
 export async function findInvoiceByNumberAction(
@@ -421,9 +447,54 @@ export async function findInvoiceByNumberAction(
       take: 10,
     });
 
-    return { success: true, data: invoices };
+    if (invoices.length === 0) return { success: true, data: [] };
+
+    // ALERTA 17: detectar si el proveedor es Contribuyente Especial buscando por RIF
+    const rifs = [...new Set(invoices.map((i) => i.counterpartRif))];
+    const vendors = await prisma.vendor.findMany({
+      where: { companyId, rif: { in: rifs } },
+      select: { rif: true, isSpecialContributor: true },
+    });
+    const ceByRif = new Map(vendors.map((v) => [v.rif, v.isSpecialContributor]));
+
+    // ALERTA 19: detectar facturas que ya tienen retención vinculada
+    const retenciones = await prisma.retencion.findMany({
+      where: { companyId, invoiceId: { in: invoices.map((i) => i.id) } },
+      select: { invoiceId: true },
+    });
+    const invoicesWithRetention = new Set(retenciones.map((r) => r.invoiceId));
+
+    const data: InvoiceMatch[] = invoices.map((inv) => ({
+      ...inv,
+      isVendorSpecialContributor: ceByRif.get(inv.counterpartRif) ?? false,
+      hasLinkedRetention: invoicesWithRetention.has(inv.id),
+    }));
+
+    return { success: true, data };
   } catch {
     return { success: false, error: "Error al buscar factura" };
+  }
+}
+
+// ─── Período contable activo (ALERTA 20) ─────────────────────────────────────
+export type ActivePeriod = { year: number; month: number };
+
+export async function getActivePeriodAction(
+  companyId: string
+): Promise<ActionResult<ActivePeriod | null>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const period = await prisma.accountingPeriod.findFirst({
+      where: { companyId, status: "OPEN" },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+      select: { year: true, month: true },
+    });
+
+    return { success: true, data: period ?? null };
+  } catch {
+    return { success: false, error: "Error al obtener período activo" };
   }
 }
 
