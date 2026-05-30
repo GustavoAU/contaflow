@@ -335,7 +335,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **ALERTA 17/18/19/20** ✅ merged: findInvoiceByNumberAction retorna isVendorSpecialContributor (ALERTA 17) + hasLinkedRetention (ALERTA 19); RetentionForm alerta CE Prov.0049 + badge "Ya tiene retención" + guía 75%/100% (ALERTA 18); createRetentionAction valida invoiceDate dentro de período OPEN + getActivePeriodAction; RetentionForm muestra período activo + borde ámbar si fecha fuera (ALERTA 20) — 2273 tests
 
-**2273 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-30)
+**ALERTA 18/20 fixes** ✅ merged: createRetentionAction valida taxBase vs InvoiceTaxLine.base (error si excede en >1 Bs, tolerancia redondeo, permite si factura no está en BD); RetentionForm INCES auto-activación vía INCES_AUTO_CODES (SERVICIOS/CONSTRUCCION/HONORARIOS/COMISIONES) + badge "Auto" + nota Ley INCES Art. 14 — 2276 tests
+
+**2276 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-30)
 
 ### middleware.ts
 
