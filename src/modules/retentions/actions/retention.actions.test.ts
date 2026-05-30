@@ -26,6 +26,12 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
+    vendor: {
+      findMany: vi.fn(),
+    },
+    accountingPeriod: {
+      findFirst: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -83,6 +89,7 @@ import {
   exportRetentionVoucherPDFAction,
   linkRetentionToInvoiceAction,
   findInvoiceByNumberAction,
+  getActivePeriodAction,
 } from "./retention.actions";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -527,7 +534,7 @@ describe("findInvoiceByNumberAction", () => {
     if (!result.success) expect(result.error).toContain("acceso denegado");
   });
 
-  it("happy path: retorna facturas que coinciden con el número", async () => {
+  it("happy path: retorna facturas con isVendorSpecialContributor y hasLinkedRetention", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
@@ -540,6 +547,8 @@ describe("findInvoiceByNumberAction", () => {
         type: "PURCHASE",
       },
     ] as never);
+    vi.mocked(prisma.vendor.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
 
     const result = await findInvoiceByNumberAction("B0001", "company-1");
 
@@ -547,7 +556,8 @@ describe("findInvoiceByNumberAction", () => {
     if (!result.success) return;
     expect(result.data).toHaveLength(1);
     expect(result.data[0].invoiceNumber).toBe("B00000001");
-    // Verificar que busca con companyId — aislamiento multi-tenant
+    expect(result.data[0].isVendorSpecialContributor).toBe(false);
+    expect(result.data[0].hasLinkedRetention).toBe(false);
     expect(prisma.invoice.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: "company-1" }),
@@ -565,5 +575,187 @@ describe("findInvoiceByNumberAction", () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data).toHaveLength(0);
+  });
+
+  // ── ALERTA 17: isVendorSpecialContributor ─────────────────────────────────
+  it("ALERTA 17: retorna isVendorSpecialContributor=true cuando el proveedor es CE", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      { id: "inv-1", invoiceNumber: "B00000001", date: new Date(), counterpartName: "CE Corp", counterpartRif: "J-99887766-5", type: "PURCHASE" },
+    ] as never);
+    vi.mocked(prisma.vendor.findMany).mockResolvedValue([
+      { rif: "J-99887766-5", isSpecialContributor: true },
+    ] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
+
+    const result = await findInvoiceByNumberAction("B0001", "company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0].isVendorSpecialContributor).toBe(true);
+  });
+
+  it("ALERTA 17: retorna isVendorSpecialContributor=false cuando el proveedor no es CE", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      { id: "inv-2", invoiceNumber: "B00000002", date: new Date(), counterpartName: "Normal Corp", counterpartRif: "J-11223344-5", type: "PURCHASE" },
+    ] as never);
+    vi.mocked(prisma.vendor.findMany).mockResolvedValue([
+      { rif: "J-11223344-5", isSpecialContributor: false },
+    ] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
+
+    const result = await findInvoiceByNumberAction("B0002", "company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0].isVendorSpecialContributor).toBe(false);
+  });
+
+  // ── ALERTA 19: hasLinkedRetention ─────────────────────────────────────────
+  it("ALERTA 19: retorna hasLinkedRetention=true cuando la factura ya tiene retención", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      { id: "inv-3", invoiceNumber: "B00000003", date: new Date(), counterpartName: "Corp X", counterpartRif: "J-12345678-9", type: "PURCHASE" },
+    ] as never);
+    vi.mocked(prisma.vendor.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([
+      { invoiceId: "inv-3" },
+    ] as never);
+
+    const result = await findInvoiceByNumberAction("B0003", "company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0].hasLinkedRetention).toBe(true);
+  });
+
+  it("ALERTA 19: retorna hasLinkedRetention=false cuando la factura no tiene retención", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      { id: "inv-4", invoiceNumber: "B00000004", date: new Date(), counterpartName: "Corp Y", counterpartRif: "J-12345678-9", type: "PURCHASE" },
+    ] as never);
+    vi.mocked(prisma.vendor.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
+
+    const result = await findInvoiceByNumberAction("B0004", "company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0].hasLinkedRetention).toBe(false);
+  });
+});
+
+// ─── ALERTA 20: createRetentionAction — validación de período ────────────────
+
+describe("createRetentionAction — ALERTA 20: período contable activo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({
+          retencion: prisma.retencion,
+          auditLog: prisma.auditLog,
+        })) as never
+    );
+    vi.mocked(prisma.retencion.create).mockResolvedValue({
+      ...mockRetention,
+      enteradoAt: null,
+      incesAmount: null,
+      fatAmount: null,
+      ivaRetentionPct: { toString: () => "75" },
+      islrAmount: null,
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("ALERTA 20: rechaza retención cuando la fecha está fuera del período activo", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      year: 2026,
+      month: 3, // período activo: marzo 2026
+    } as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      invoiceDate: new Date("2026-02-15"), // febrero — fuera del período activo
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("fuera del período contable activo");
+      expect(result.error).toContain("03/2026");
+    }
+  });
+
+  it("ALERTA 20: permite retención cuando la fecha está dentro del período activo", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      year: 2026,
+      month: 3, // período activo: marzo 2026
+    } as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      invoiceDate: new Date("2026-03-10"), // marzo — dentro del período activo
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("ALERTA 20: permite retención cuando no hay período activo (empresa sin período configurado)", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      invoiceDate: new Date("2025-06-01"), // fecha arbitraria, sin período que la bloquee
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+// ─── getActivePeriodAction ────────────────────────────────────────────────────
+
+describe("getActivePeriodAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna el período activo cuando existe", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      year: 2026,
+      month: 3,
+    } as never);
+
+    const result = await getActivePeriodAction("company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual({ year: 2026, month: 3 });
+  });
+
+  it("retorna null cuando no hay período activo", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+
+    const result = await getActivePeriodAction("company-1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toBeNull();
+  });
+
+  it("retorna error si no hay sesión autenticada", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const result = await getActivePeriodAction("company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
   });
 });

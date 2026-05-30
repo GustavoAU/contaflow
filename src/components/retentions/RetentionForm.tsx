@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, AlertTriangleIcon, InfoIcon } from "lucide-react";
 import { suggestIslrCode, type IslrSuggestion } from "@/lib/islr-suggestions";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,7 +12,9 @@ import {
   exportRetentionVoucherPDFAction,
   linkRetentionToInvoiceAction,
   findInvoiceByNumberAction,
+  getActivePeriodAction,
   type InvoiceMatch,
+  type ActivePeriod,
 } from "@/modules/retentions/actions/retention.actions";
 import { RetentionCalculator } from "@/modules/retentions/services/RetentionCalculator";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
@@ -44,6 +46,14 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [islrSuggestion, setIslrSuggestion] = useState<IslrSuggestion | null>(null);
   const [applyInces, setApplyInces] = useState(false);
   const [applyFat, setApplyFat] = useState(false);
+  const [activePeriod, setActivePeriod] = useState<ActivePeriod | null>(null);
+
+  // ALERTA 20: cargar período activo al montar
+  useEffect(() => {
+    getActivePeriodAction(companyId).then((res) => {
+      if (res.success) setActivePeriod(res.data);
+    });
+  }, [companyId]);
 
   // Debounce 400ms para sugerencia ISLR al escribir el concepto
   useEffect(() => {
@@ -125,6 +135,19 @@ export function RetentionForm({ companyId, userId }: Props) {
   const baseExceedsTotal =
     taxBase && invoiceAmount &&
     parseFloat(taxBase) > parseFloat(invoiceAmount);
+
+  // ALERTA 20: calcular si la fecha de factura está fuera del período activo
+  const invoiceDateOutsidePeriod = (() => {
+    if (!activePeriod || !invoiceDate) return false;
+    const [y, m, d] = invoiceDate.split("-").map(Number);
+    if (!y || !m || !d) return false;
+    return y !== activePeriod.year || m !== activePeriod.month;
+  })();
+
+  // ALERTA 17: detectar si alguna factura encontrada corresponde a un CE
+  const selectedMatchIsSpecialContributor = invoiceMatches.some(
+    (inv) => inv.isVendorSpecialContributor
+  );
 
   function handleClear() {
     setInvoiceDate("");
@@ -231,6 +254,12 @@ export function RetentionForm({ companyId, userId }: Props) {
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Fecha de Factura
+                {activePeriod && (
+                  <span className="ml-1.5 font-normal text-zinc-400">
+                    — Período activo:{" "}
+                    {String(activePeriod.month).padStart(2, "0")}/{activePeriod.year}
+                  </span>
+                )}
               </label>
               <input
                 name="invoiceDate"
@@ -238,11 +267,23 @@ export function RetentionForm({ companyId, userId }: Props) {
                 required
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className={`w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                  invoiceDateOutsidePeriod ? "border-amber-400 bg-amber-50" : ""
+                }`}
               />
-              {invoiceDateDisplay ? (
+              {invoiceDateDisplay && !invoiceDateOutsidePeriod && (
                 <p className="mt-0.5 text-xs text-emerald-600">{invoiceDateDisplay}</p>
-              ) : (
+              )}
+              {/* ALERTA 20 */}
+              {invoiceDateOutsidePeriod && activePeriod && (
+                <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-700">
+                  <AlertTriangleIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  Fecha fuera del período activo (
+                  {String(activePeriod.month).padStart(2, "0")}/{activePeriod.year}
+                  ) — la retención será rechazada por el servidor.
+                </p>
+              )}
+              {!invoiceDate && (
                 <p className="mt-0.5 text-xs text-zinc-400">Selecciona una fecha</p>
               )}
             </div>
@@ -320,6 +361,14 @@ export function RetentionForm({ companyId, userId }: Props) {
                 <option value={75}>{IVA_RETENTION_RATES.STANDARD.description}</option>
                 <option value={100}>{IVA_RETENTION_RATES.FULL.description}</option>
               </select>
+              {/* ALERTA 18: guía Providencia 0049 */}
+              <p className="mt-0.5 flex items-start gap-1 text-xs text-zinc-500">
+                <InfoIcon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                <span>
+                  <strong>75%</strong> para compras con insumos materiales ·{" "}
+                  <strong>100%</strong> para servicios sin insumos (Prov. 0049 Art. 1)
+                </span>
+              </p>
             </div>
           )}
 
@@ -516,6 +565,17 @@ export function RetentionForm({ companyId, userId }: Props) {
                     {isPendingSearch ? "..." : "Buscar"}
                   </Button>
                 </div>
+                {/* ALERTA 17: proveedor es Contribuyente Especial */}
+                {selectedMatchIsSpecialContributor && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden />
+                    <span>
+                      <strong>Contribuyente Especial</strong> — Este proveedor requiere comprobante
+                      de retención de IVA (75% estándar o 100% si servicios sin insumos) según
+                      Providencia 0049.
+                    </span>
+                  </div>
+                )}
                 {invoiceMatches.length > 0 && (
                   <ul className="divide-y rounded-md border bg-white text-sm">
                     {invoiceMatches.map((inv) => (
@@ -523,12 +583,25 @@ export function RetentionForm({ companyId, userId }: Props) {
                         key={inv.id}
                         className="flex items-center justify-between px-3 py-2 hover:bg-zinc-50"
                       >
-                        <span>
+                        <span className="min-w-0 flex-1">
                           <span className="font-mono font-medium">{inv.invoiceNumber}</span>
                           {" "}— {inv.counterpartName}
                           <span className="ml-2 text-xs text-zinc-400">
                             {new Date(inv.date).toLocaleDateString("es-VE")}
                           </span>
+                          {/* ALERTA 19: ya tiene retención vinculada */}
+                          {inv.hasLinkedRetention && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-10 font-medium bg-amber-100 text-amber-700">
+                              <AlertTriangleIcon className="h-2.5 w-2.5" aria-hidden />
+                              Ya tiene retención
+                            </span>
+                          )}
+                          {/* ALERTA 17: CE badge por factura */}
+                          {inv.isVendorSpecialContributor && (
+                            <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-10 font-medium bg-blue-100 text-blue-700">
+                              CE
+                            </span>
+                          )}
                         </span>
                         <Button
                           type="button"
