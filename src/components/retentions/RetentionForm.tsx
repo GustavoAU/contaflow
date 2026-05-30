@@ -45,8 +45,18 @@ export function RetentionForm({ companyId, userId }: Props) {
   const [islrConcept, setIslrConcept] = useState("");
   const [islrSuggestion, setIslrSuggestion] = useState<IslrSuggestion | null>(null);
   const [applyInces, setApplyInces] = useState(false);
+  const [incesAutoActivated, setIncesAutoActivated] = useState(false);
   const [applyFat, setApplyFat] = useState(false);
   const [activePeriod, setActivePeriod] = useState<ActivePeriod | null>(null);
+
+  // ALERTA 20: códigos ISLR que implican servicios con mano de obra propia → INCES obligatorio
+  // Ley INCES Art. 14: aplica a contratantes que contratan servicios con personal del contratista
+  const INCES_AUTO_CODES = new Set([
+    "SERVICIOS_PJ", "SERVICIOS_PN",
+    "CONSTRUCCION_PJ", "CONSTRUCCION_PN",
+    "HONORARIOS_PN",
+    "COMISIONES_PJ", "COMISIONES_PN",
+  ]);
 
   // ALERTA 20: cargar período activo al montar
   useEffect(() => {
@@ -54,6 +64,17 @@ export function RetentionForm({ companyId, userId }: Props) {
       if (res.success) setActivePeriod(res.data);
     });
   }, [companyId]);
+
+  // ALERTA 20: activar INCES automáticamente cuando el código ISLR implica servicios con mano de obra
+  useEffect(() => {
+    if ((retentionType === "ISLR" || retentionType === "AMBAS") && INCES_AUTO_CODES.has(islrCode)) {
+      setApplyInces(true);
+      setIncesAutoActivated(true);
+    } else {
+      setIncesAutoActivated(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [islrCode, retentionType]);
 
   // Debounce 400ms para sugerencia ISLR al escribir el concepto
   useEffect(() => {
@@ -159,6 +180,7 @@ export function RetentionForm({ companyId, userId }: Props) {
     setIslrConcept("");
     setIslrSuggestion(null);
     setApplyInces(false);
+    setIncesAutoActivated(false);
     setApplyFat(false);
     setSavedRetentionId(null);
     setSavedVoucherNumber(null);
@@ -426,18 +448,39 @@ export function RetentionForm({ companyId, userId }: Props) {
             </div>
           )}
 
-          {/* Retenciones parafiscales opcionales */}
+          {/* Retenciones parafiscales */}
           <div className="space-y-2">
-            <p className="text-xs font-medium text-zinc-600">Retenciones parafiscales (opcional)</p>
+            <p className="text-xs font-medium text-zinc-600">Retenciones parafiscales</p>
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={applyInces}
-                onChange={(e) => setApplyInces(e.target.checked)}
+                onChange={(e) => {
+                  setApplyInces(e.target.checked);
+                  if (!e.target.checked) setIncesAutoActivated(false);
+                }}
                 className="h-4 w-4 rounded border-zinc-300"
               />
-              <span className="text-sm">INCES 2% — Ley INCES Art. 14</span>
+              <span className="text-sm flex items-center gap-1.5">
+                INCES 2% — Ley INCES Art. 14
+                {/* ALERTA 20: badge cuando fue activado automáticamente */}
+                {incesAutoActivated && (
+                  <span className="rounded px-1.5 py-0.5 text-10 font-medium bg-blue-100 text-blue-700">
+                    Auto
+                  </span>
+                )}
+              </span>
             </label>
+            {/* ALERTA 20: nota explicativa cuando INCES se activa automáticamente */}
+            {incesAutoActivated && (
+              <p className="ml-6 text-xs text-blue-700 flex items-start gap-1">
+                <InfoIcon className="h-3 w-3 shrink-0 mt-0.5" aria-hidden />
+                <span>
+                  Activado automáticamente — el código ISLR seleccionado corresponde a servicios con
+                  personal del contratista, sujetos a Ley INCES Art. 14.
+                </span>
+              </p>
+            )}
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"

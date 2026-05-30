@@ -97,6 +97,36 @@ export async function createRetentionAction(
       };
     }
 
+    // ALERTA 18: verificar que la base imponible de la retención no excede la de la factura registrada
+    // Si la factura existe en el sistema, la base de retención debe ser ≤ base imponible de la factura.
+    // Se busca por invoiceNumber + companyId + providerRif para garantizar aislamiento multi-tenant.
+    const matchedInvoice = await prisma.invoice.findFirst({
+      where: {
+        companyId: data.companyId,
+        invoiceNumber: data.invoiceNumber,
+        counterpartRif: data.providerRif,
+        deletedAt: null,
+      },
+      select: {
+        taxLines: { select: { base: true } },
+        invoiceNumber: true,
+      },
+    });
+    if (matchedInvoice && matchedInvoice.taxLines.length > 0) {
+      const invoiceBase = matchedInvoice.taxLines.reduce(
+        (acc, tl) => acc.plus(new Decimal(tl.base.toString())),
+        new Decimal(0)
+      );
+      const retBase = new Decimal(data.taxBase);
+      // Tolerancia 1 Bs para diferencias de redondeo
+      if (retBase.minus(invoiceBase).greaterThan(new Decimal("1"))) {
+        return {
+          success: false,
+          error: `La base imponible de la retención (Bs. ${retBase.toFixed(2)}) supera la base imponible registrada de la factura ${data.invoiceNumber} (Bs. ${invoiceBase.toFixed(2)}). Verifica los montos contra la factura física.`,
+        };
+      }
+    }
+
     // ALERTA 20: la fecha de factura debe caer dentro del período contable activo
     const activePeriod = await prisma.accountingPeriod.findFirst({
       where: { companyId: data.companyId, status: "OPEN" },
