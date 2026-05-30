@@ -26,6 +26,9 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
+    invoiceTaxLine: {
+      findMany: vi.fn(),
+    },
     vendor: {
       findMany: vi.fn(),
     },
@@ -757,5 +760,79 @@ describe("getActivePeriodAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+});
+
+// ─── ALERTA 18: createRetentionAction — validación base imponible vs factura ──
+
+describe("createRetentionAction — ALERTA 18: validación base imponible", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null); // sin restricción de período
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ retencion: prisma.retencion, auditLog: prisma.auditLog })) as never
+    );
+    vi.mocked(prisma.retencion.create).mockResolvedValue({
+      ...mockRetention,
+      enteradoAt: null,
+      incesAmount: null,
+      fatAmount: null,
+      ivaRetentionPct: { toString: () => "75" },
+      islrAmount: null,
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("ALERTA 18: rechaza cuando taxBase de retención supera la base de la factura registrada", async () => {
+    // Factura en BD con base imponible de 1000
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      invoiceNumber: "B00000001",
+      taxLines: [
+        { base: { toString: () => "800.00" } },
+        { base: { toString: () => "200.00" } },
+      ],
+    } as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      taxBase: "1500.00", // excede los 1000 de la factura en más de 1 Bs
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("supera la base imponible registrada");
+      expect(result.error).toContain("B00000001");
+    }
+  });
+
+  it("ALERTA 18: permite cuando taxBase está dentro de la base de la factura (con tolerancia)", async () => {
+    // Factura en BD con base imponible de 1000
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      invoiceNumber: "B00000001",
+      taxLines: [{ base: { toString: () => "1000.00" } }],
+    } as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      taxBase: "1000.50", // 0.50 Bs de diferencia → dentro de la tolerancia de 1 Bs
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("ALERTA 18: permite cuando la factura no está en el sistema (retención manual)", async () => {
+    // Factura no encontrada en BD — flujo manual permitido
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      taxBase: "9999.00", // cualquier monto — sin factura en BD no hay restricción
+    });
+
+    expect(result.success).toBe(true);
   });
 });
