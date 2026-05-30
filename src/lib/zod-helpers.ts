@@ -35,3 +35,22 @@ export const zMoneyPositive = z.coerce
   .refine((v) => isValidMoney(v, true), {
     error: "El monto debe ser mayor a cero con máximo 2 decimales",
   });
+
+/**
+ * Schema para tasas de cambio (BCV, etc.).
+ * Acepta hasta 4 decimales — las tasas BCV se publican con 4 dígitos significativos.
+ * Ej: 549.3716 es válido; zMoneyAmount lo rechazaría por superar 2 decimales.
+ */
+export const zExchangeRate = z.coerce
+  .string()
+  .refine(
+    (v) => {
+      try {
+        const d = new Decimal(v);
+        return d.isFinite() && d.gt(0) && d.decimalPlaces() <= 4 && d.lte(new Decimal("9999999.9999"));
+      } catch {
+        return false;
+      }
+    },
+    { error: "Tasa de cambio inválida: debe ser > 0 con máximo 4 decimales" }
+  );

@@ -1,7 +1,7 @@
 // src/modules/inventory/schemas/inventory-movement.schema.ts
 import { z } from "zod";
 import Decimal from "decimal.js";
-import { zMoneyAmount } from "@/lib/zod-helpers";
+import { zMoneyAmount, zExchangeRate } from "@/lib/zod-helpers";
 
 export const CreateMovementSchema = z.object({
   companyId: z.string().min(1),
@@ -22,8 +22,8 @@ export const CreateMovementSchema = z.object({
   // ENTRADA: CR Proveedores/Caja/Banco. AJUSTE: CR Merma/Pérdida o DR Sobrante.
   // SALIDA: no requerida — el asiento Dr COGS / Cr Inventario es autosuficiente.
   counterpartAccountId: z.string().min(1).optional().nullable(),
-  // R-02 auditoría SENIAT: tasa BCV histórica a la fecha del movimiento
-  exchangeRateVes: zMoneyAmount.optional().nullable(),
+  // R-02 auditoría SENIAT: tasa BCV histórica a la fecha del movimiento (hasta 4 decimales)
+  exchangeRateVes: zExchangeRate.optional().nullable(),
 });
 
 // Fase 35G: Lot/Serial Tracking — ADR-021 D-5b
