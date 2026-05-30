@@ -333,7 +333,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **ALERTA 13/14/15/16** ✅ merged: GeminiOCRService detecta RIF y N° Control con formato inválido post-extracción → `_fieldRisks` severity="critical"; InvoiceUploader muestra badge rojo por campo + checkbox obligatorio de verificación antes de usar datos; banner ámbar en InvoiceForm cuando OCR cargó con riesgos críticos; aviso de privacidad Gemini dismissable (localStorage cf-ocr-privacy-ack, COT Art. 126) — 2263 tests
 
-**2263 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-28)
+**ALERTA 17/18/19/20** ✅ merged: findInvoiceByNumberAction retorna isVendorSpecialContributor (ALERTA 17) + hasLinkedRetention (ALERTA 19); RetentionForm alerta CE Prov.0049 + badge "Ya tiene retención" + guía 75%/100% (ALERTA 18); createRetentionAction valida invoiceDate dentro de período OPEN + getActivePeriodAction; RetentionForm muestra período activo + borde ámbar si fecha fuera (ALERTA 20) — 2273 tests
+
+**2273 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-30)
 
 ### middleware.ts
 

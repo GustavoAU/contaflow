@@ -9,10 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` limpio (ALERTA 13-16 OCR + tests ALERTA 10/11 mergeados 2026-05-28)
-
-### Pendiente: ALERTA 17-20 (retenciones)
-La rama `feat/alertas17-18-19-20-retention-improvements` fue eliminada por colisión de agentes. Las 4 alertas no están implementadas. El único remanente en `main` (código incompleto de ALERTA 17 en InvoiceForm) fue limpiado en commit `cd2cd20`.
+**Ninguna** — branch `main` limpio (ALERTA 17-20 mergeados 2026-05-30)
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
@@ -23,6 +20,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - LAND-1/2/3/4/5: `--lnd-fg oklch(0.12)` (WCAG AA), btnPill/btnGhost CTAs, microcopy, tabla comparativa, footer completo
 
 ### Completadas recientes
+- **ALERTA 17/18/19/20 2026-05-30** ✅ merged — findInvoiceByNumberAction: isVendorSpecialContributor (vendor.findMany por RIF) + hasLinkedRetention (retencion.findMany por invoiceId); createRetentionAction: valida invoiceDate dentro del período OPEN activo (accountingPeriod.findFirst); getActivePeriodAction nueva; RetentionForm: alerta CE Prov.0049 + badge "Ya tiene retención" + guía 75%/100% + período activo en label fecha + borde ámbar si fuera de período. 10 tests nuevos. 2273 tests GREEN.
 - **ALERTA 13/14/15/16 2026-05-28** ✅ merged — GeminiOCRService detecta RIF/N°Control inválidos → `_fieldRisks` severity=critical; InvoiceUploader badge rojo por campo + checkbox confirmación obligatoria; InvoiceForm banner ámbar; aviso privacidad Gemini (localStorage cf-ocr-privacy-ack). 22 tests nuevos. 2263 tests GREEN.
 - **Tests ALERTA 10/11 2026-05-28** ✅ — InvoiceLineService.test.ts (15 tests validateStockForLines WARN/CONFIRM/BLOCK) + InventoryReportsView.test.tsx (4 tests jsdom). 2263 tests GREEN.
 - **ALERTA 12 + fixes 2026-05-28** ✅ merged — Carga masiva: (1) botón "Dup" por fila InvoiceBook → sessionStorage DUPLICATE_SESSION_KEY → pre-fill InvoiceForm; (2) RifInput autocomplete debounced 300ms con sugerencias vendor/customer (badge PROV/CLI, searchContactsByRifAction); (3) InvoiceBatchImportDialog 3 pasos (upload/preview/result) + importInvoiceBatchAction Decimal.js R-5 compliant. Fixes: A8 GL account validation física en InvoiceLineService; ALERTA10 stockWarnings propagation InvoiceService→action; ALERTA11 CPP policy banner InventoryReportsView; IVA retenciones enteradas-only en DeclaracionIVAService. 2236 tests GREEN.
