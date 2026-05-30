@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import { useState, useEffect, useTransition, useRef, useCallback } from "react";
 import { RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -66,17 +66,25 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
     void loadRates();
   }, [companyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cerrar tooltip al hacer click fuera
+  // Cerrar al click fuera o Escape — no se cierra por hover/scroll
+  const closeTooltip = useCallback(() => setShowTooltip(false), []);
   useEffect(() => {
     if (!showTooltip) return;
     function onOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowTooltip(false);
+        closeTooltip();
       }
     }
+    function onEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") closeTooltip();
+    }
     document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
-  }, [showTooltip]);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [showTooltip, closeTooltip]);
 
   function handleRefresh(e: React.MouseEvent) {
     e.stopPropagation();
@@ -111,14 +119,9 @@ export function BcvRateWidget({ companyId, variant = "light" }: Props) {
       <button
         type="button"
         onClick={() => setShowTooltip((v) => !v)}
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={(e) => {
-          // Solo ocultar si no va hacia el tooltip
-          const related = e.relatedTarget as Node | null;
-          if (!containerRef.current?.contains(related)) setShowTooltip(false);
-        }}
-        aria-label="Ver tasas BCV"
+        aria-label="Ver tasas BCV — click para abrir/cerrar"
         aria-expanded={showTooltip}
+        aria-haspopup="true"
         className={cn(
           "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors outline-none",
           "focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1",
