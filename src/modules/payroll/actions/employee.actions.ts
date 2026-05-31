@@ -45,15 +45,19 @@ function revalidate(companyId: string) {
 export async function listEmployeesAction(
   companyId: string
 ): Promise<Result<EmployeeListRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
+  try {
+    const { userId, member } = await resolveAuth(companyId);
+    if (!userId || !member) return { success: false, error: "No autorizado" };
 
-  // VIEWER no accede a datos de empleados (datos sensibles)
-  if (!canAccess(member.role, ROLES.WRITERS))
-    return { success: false, error: "Acceso denegado" };
+    // VIEWER no accede a datos de empleados (datos sensibles)
+    if (!canAccess(member.role, ROLES.WRITERS))
+      return { success: false, error: "Acceso denegado" };
 
-  const rows = await EmployeeService.list(companyId);
-  return { success: true, data: rows };
+    const rows = await EmployeeService.list(companyId);
+    return { success: true, data: rows };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 // ── getEmployeeAction ─────────────────────────────────────────────────────────
@@ -61,12 +65,16 @@ export async function getEmployeeAction(
   companyId: string,
   employeeId: string
 ): Promise<Result<EmployeeRow | null>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
+  try {
+    const { userId, member } = await resolveAuth(companyId);
+    if (!userId || !member) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
 
-  const emp = await EmployeeService.getById(companyId, employeeId);
-  return { success: true, data: emp };
+    const emp = await EmployeeService.getById(companyId, employeeId);
+    return { success: true, data: emp };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 // ── createEmployeeAction — ADMIN_ONLY + rate limit ───────────────────────────
@@ -211,10 +219,14 @@ export async function getSalaryHistoryAction(
   companyId: string,
   employeeId: string
 ): Promise<Result<SalaryHistoryRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
+  try {
+    const { userId, member } = await resolveAuth(companyId);
+    if (!userId || !member) return { success: false, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
 
-  const rows = await EmployeeService.getSalaryHistory(companyId, employeeId);
-  return { success: true, data: rows };
+    const rows = await EmployeeService.getSalaryHistory(companyId, employeeId);
+    return { success: true, data: rows };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }

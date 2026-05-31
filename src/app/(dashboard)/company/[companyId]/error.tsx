@@ -4,7 +4,7 @@
 // y de cualquier página hija que no tenga su propio error.tsx.
 // Caso principal: Neon cold start durante getUserCompaniesAction o getActivePeriodAction.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangleIcon, RefreshCwIcon, HomeIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -14,6 +14,8 @@ type Props = {
 };
 
 export default function CompanyError({ error, reset }: Props) {
+  const [countdown, setCountdown] = useState(4);
+
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
       console.error("[company/error]", error.message);
@@ -25,7 +27,18 @@ export default function CompanyError({ error, reset }: Props) {
     error.message.toLowerCase().includes("connection") ||
     error.message.toLowerCase().includes("econnreset") ||
     error.message.toLowerCase().includes("socket") ||
-    error.message.toLowerCase().includes("neon");
+    error.message.toLowerCase().includes("neon") ||
+    error.message.toLowerCase().includes("headers timeout") ||
+    error.message.toLowerCase().includes("fetch failed");
+
+  // Auto-retry on cold start — Neon warms up in 2-10s, 4s covers most cases.
+  useEffect(() => {
+    if (!isColdStart) return;
+    setCountdown(4);
+    const tick = setInterval(() => setCountdown((n) => Math.max(0, n - 1)), 1000);
+    const retry = setTimeout(() => reset(), 4000);
+    return () => { clearInterval(tick); clearTimeout(retry); };
+  }, [isColdStart, reset]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4">
@@ -42,7 +55,7 @@ export default function CompanyError({ error, reset }: Props) {
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
             {isColdStart
-              ? "La base de datos estaba inactiva y necesita unos segundos para iniciar. Esto es normal en la primera solicitud del día."
+              ? `Reconectando automáticamente en ${countdown}s…`
               : "Ocurrió un error inesperado. Puedes reintentar o volver al inicio."}
           </p>
         </div>
@@ -58,7 +71,7 @@ export default function CompanyError({ error, reset }: Props) {
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             <RefreshCwIcon className="h-4 w-4" />
-            Reintentar
+            {isColdStart ? "Reintentar ahora" : "Reintentar"}
           </button>
           <Link
             href="/dashboard"

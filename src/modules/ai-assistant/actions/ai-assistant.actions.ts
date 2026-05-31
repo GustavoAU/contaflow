@@ -92,6 +92,7 @@ export async function sendMessageAction(
   userMessage: string,
   imageBase64?: string,
 ): Promise<SendMessageResult> {
+  try {
   // Auth (26-01)
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autenticado" };
@@ -179,6 +180,9 @@ export async function sendMessageAction(
   }
 
   return { success: true, reply, isAuditMode };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado en el asistente" };
+  }
 }
 
 // ─── Resumen de anomalías (para badge del botón flotante) ─────────────────────
@@ -190,19 +194,19 @@ export type AnomalySummaryResult =
   | { success: false; error: string };
 
 export async function getAnomalySummaryAction(companyId: string): Promise<AnomalySummaryResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Sin acceso" };
-
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Rol insuficiente" };
-  }
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autenticado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+    });
+    if (!member) return { success: false, error: "Sin acceso" };
+
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) {
+      return { success: false, error: "Rol insuficiente" };
+    }
+
     const report = await FiscalAnomalyDetectorService.detect(companyId);
     return {
       success: true,
@@ -211,7 +215,7 @@ export async function getAnomalySummaryAction(companyId: string): Promise<Anomal
       medium: report.totalMedium,
     };
   } catch {
-    // Si el detector falla (DB timeout, etc.) no bloquea la UI
+    // Si el detector o la DB fallan, no bloquear la UI — mostrar cero anomalías
     return { success: true, critical: 0, high: 0, medium: 0 };
   }
 }
