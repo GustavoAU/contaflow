@@ -119,20 +119,24 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 async function guardAccounting(
   companyId: string,
 ): Promise<{ userId: string } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
 
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Acceso denegado" };
 
-  return { userId };
+    return { userId };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error de conexión" };
+  }
 }
 
 export async function getJournalAction(

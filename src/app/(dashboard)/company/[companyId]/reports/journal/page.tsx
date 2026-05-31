@@ -124,8 +124,14 @@ export default async function JournalPage({ params, searchParams }: Props) {
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
+  // guardAccounting dentro de getJournalAction no tiene try/catch propio.
+  // Si lanza (cold start Neon), lo capturamos aquí para evitar que el error
+  // propague al framework y cause un 404 en vez de mostrarse correctamente.
   const [result, periodsResult] = await Promise.all([
-    getJournalAction(companyId, dateFrom, dateTo, q),
+    getJournalAction(companyId, dateFrom, dateTo, q).catch((err: unknown) => ({
+      success: false as const,
+      error: err instanceof Error ? err.message : "Error al cargar el libro diario",
+    })),
     getPeriodsAction(companyId),
   ]);
   const transactions = result.success ? result.data : [];

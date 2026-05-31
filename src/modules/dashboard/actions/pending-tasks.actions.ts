@@ -68,36 +68,40 @@ type GetPendingTasksResult =
 export async function getPendingTasksAction(
   companyId: string,
 ): Promise<GetPendingTasksResult> {
-  // Auth (26B-01)
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
+  try {
+    // Auth (26B-01)
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autenticado" };
 
-  // IDOR guard (26B-01 CRITICAL)
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Sin acceso" };
+    // IDOR guard (26B-01 CRITICAL)
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+    });
+    if (!member) return { success: false, error: "Sin acceso" };
 
-  // Role guard (26B-05 MEDIUM) — mínimo ACCOUNTING
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Rol insuficiente" };
-  }
-
-  // Rate limit base (limiters.fiscal — acceso a datos contables)
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en un momento." };
-
-  // Obtener tareas (queries determinísticas)
-  const data = await PendingTasksService.getPendingTasks(companyId);
-
-  // Resumen IA — rate limit OCR independiente (26B-03 HIGH)
-  let aiSummary: string | null = null;
-  if (data.tasks.length > 0) {
-    const aiRl = await checkRateLimit(userId, limiters.ocr);
-    if (aiRl.allowed) {
-      aiSummary = await generateAISummary(data.tasks);
+    // Role guard (26B-05 MEDIUM) — mínimo ACCOUNTING
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) {
+      return { success: false, error: "Rol insuficiente" };
     }
-  }
 
-  return { success: true, data: { ...data, aiSummary } };
+    // Rate limit base (limiters.fiscal — acceso a datos contables)
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en un momento." };
+
+    // Obtener tareas (queries determinísticas)
+    const data = await PendingTasksService.getPendingTasks(companyId);
+
+    // Resumen IA — rate limit OCR independiente (26B-03 HIGH)
+    let aiSummary: string | null = null;
+    if (data.tasks.length > 0) {
+      const aiRl = await checkRateLimit(userId, limiters.ocr);
+      if (aiRl.allowed) {
+        aiSummary = await generateAISummary(data.tasks);
+      }
+    }
+
+    return { success: true, data: { ...data, aiSummary } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error de conexión" };
+  }
 }

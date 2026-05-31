@@ -34,7 +34,9 @@ export default async function CompanyLayout({ children, params }: Props) {
   const showNotifications = canAccess(company.role, ROLES.ACCOUNTING);
   const showAIAssistant = canAccess(company.role, ROLES.ACCOUNTING);
 
-  const grantsSet = await getCompanyGrants(companyId);
+  // getCompanyGrants usa unstable_cache pero la query interna puede lanzar (cold start).
+  // Si lanza, continuamos con permisos vacíos para no bloquear el layout.
+  const grantsSet = await getCompanyGrants(companyId).catch(() => new Set<string>());
   const rolePrefix = `${company.role}:`;
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
 
