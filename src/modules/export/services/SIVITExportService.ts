@@ -56,16 +56,19 @@ async function fetchInvoices(params: SIVITParams, type: "SALE" | "PURCHASE") {
       deletedAt: null,
     },
     select: {
-      invoiceNumber:        true,
-      controlNumber:        true,
-      docType:              true,
-      date:                 true,
-      counterpartName:      true,
-      counterpartRif:       true,
-      ivaRetentionAmount:   true,
-      ivaRetentionVoucher:  true,
-      ivaRetentionDate:     true,
-      relatedDocNumber:     true,
+      invoiceNumber:          true,
+      controlNumber:          true,
+      docType:                true,
+      date:                   true,
+      counterpartName:        true,
+      counterpartRif:         true,
+      ivaRetentionAmount:     true,
+      ivaRetentionVoucher:    true,
+      ivaRetentionDate:       true,
+      islrRetentionAmount:    true,
+      igtfBase:               true,
+      igtfAmount:             true,
+      relatedDocNumber:       true,
       taxLines: {
         select: { taxType: true, base: true, amount: true },
       },
@@ -76,7 +79,7 @@ async function fetchInvoices(params: SIVITParams, type: "SALE" | "PURCHASE") {
 
 // ─── Row builder ──────────────────────────────────────────────────────────────
 
-function buildSIVITLine(inv: InvRow): string {
+function buildSIVITLine(inv: InvRow, type: "SALE" | "PURCHASE"): string {
   const exento    = inv.taxLines.find((t) => t.taxType === "EXENTO");
   const reducido  = inv.taxLines.find((t) => t.taxType === "IVA_REDUCIDO");
   const general   = inv.taxLines.find((t) => t.taxType === "IVA_GENERAL");
@@ -118,6 +121,10 @@ function buildSIVITLine(inv: InvRow): string {
     inv.ivaRetentionVoucher ?? "",
     fmtDate(inv.ivaRetentionDate),
     fmtNum(ivaRetenido),
+    // Columnas finales diferenciadas por tipo de libro (Prov. SNAT/2003/1677)
+    ...(type === "SALE"
+      ? [fmtNum(dec(inv.igtfBase)), fmtNum(dec(inv.igtfAmount))]
+      : [fmtNum(dec(inv.islrRetentionAmount))]),
   ];
 
   return fields.join("|");
@@ -127,7 +134,7 @@ function buildSIVITLine(inv: InvRow): string {
 
 async function generateTxt(params: SIVITParams, type: "SALE" | "PURCHASE"): Promise<string> {
   const rows = await fetchInvoices(params, type);
-  return rows.map(buildSIVITLine).join("\r\n");
+  return rows.map((r) => buildSIVITLine(r, type)).join("\r\n");
 }
 
 export async function generateSIVITZip(params: SIVITParams): Promise<Buffer> {
@@ -152,10 +159,19 @@ export async function generateSIVITZip(params: SIVITParams): Promise<Buffer> {
       "LV.txt — Libro de Ventas (formato SIVIT)",
       "LC.txt — Libro de Compras (formato SIVIT)",
       "",
-      "Columnas (separadas por |):",
+      "Columnas LV.txt (separadas por |):",
       "TIPO_DOC|FECHA|NRO_CONTROL|NRO_FACTURA|RIF|NOMBRE|DOC_AFECTADO|",
       "MONTO_EXENTO|MONTO_NO_SUJETO|BASE_8|IVA_8|BASE_16|IVA_16|",
-      "BASE_ADICIONAL|IVA_ADICIONAL|TOTAL|NRO_COMPROBANTE_RET|FECHA_RET|IVA_RETENIDO",
+      "BASE_ADICIONAL|IVA_ADICIONAL|TOTAL|NRO_COMPROBANTE_RET|FECHA_RET|IVA_RETENIDO|",
+      "BASE_IGTF|IGTF",
+      "",
+      "Columnas LC.txt (separadas por |):",
+      "TIPO_DOC|FECHA|NRO_CONTROL|NRO_FACTURA|RIF|NOMBRE|DOC_AFECTADO|",
+      "MONTO_EXENTO|MONTO_NO_SUJETO|BASE_8|IVA_8|BASE_16|IVA_16|",
+      "BASE_ADICIONAL|IVA_ADICIONAL|TOTAL|NRO_COMPROBANTE_RET|FECHA_RET|IVA_RETENIDO|",
+      "ISLR_RETENIDO",
+      "",
+      "Referencia: Providencia SNAT/2003/1677 y SNAT/2005/0056 (IGTF)",
     ].join("\n")
   );
 

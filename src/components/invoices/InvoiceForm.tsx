@@ -1010,7 +1010,8 @@ export function InvoiceForm({
                 {/* Glosa / descripción de la línea */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-zinc-600">
-                    Glosa <span className="font-normal text-zinc-400">(opcional)</span>
+                    Glosa{" "}
+                    <span className="font-normal text-zinc-400" title="Prov. 00071: el libro debe identificar la naturaleza de la operación">(recomendada)</span>
                   </label>
                   <input
                     type="text"

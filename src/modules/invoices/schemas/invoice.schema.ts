@@ -243,7 +243,8 @@ export const InvoiceLineInputSchema = z.object({
   inventoryItemId: z.string().optional(),
   nameSnapshot: z.string().min(1, { error: "El nombre del ítem es requerido" }),
   skuSnapshot: z.string().optional(),
-  description: z.string().optional(),
+  // Prov. 00071: el libro debe identificar la naturaleza de la operación; si se ingresa no puede estar vacía
+  description: z.string().min(1, { error: "La glosa no puede estar vacía" }).optional(),
   quantity: z
     .string()
     .min(1, { error: "La cantidad es requerida" })
