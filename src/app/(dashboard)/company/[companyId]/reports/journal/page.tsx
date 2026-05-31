@@ -98,15 +98,30 @@ export default async function JournalPage({ params, searchParams }: Props) {
   // Error 1 SENIAT-dictamen: sin filtro el Libro Diario muestra TODOS los períodos
   // incluyendo facturas de períodos anteriores (ej. TESA-007 enero 2026 = f.001 falso).
   // Si no hay parámetros de fecha, redirigir al período ABIERTO automáticamente.
+  // try/catch: si getPeriodsAction falla (Neon cold start), continuar sin redirigir
+  // en lugar de crashear con 404.
   if (!from && !to) {
-    const periodsForRedirect = await getPeriodsAction(companyId);
-    if (periodsForRedirect.success) {
-      const open = periodsForRedirect.data.find((p) => p.status === "OPEN");
-      if (open) {
-        const mm = String(open.month).padStart(2, "0");
-        const lastDay = new Date(open.year, open.month, 0).getDate();
-        const dd = String(lastDay).padStart(2, "0");
-        redirect(`/company/${companyId}/reports/journal?from=${open.year}-${mm}-01&to=${open.year}-${mm}-${dd}`);
+    try {
+      const periodsForRedirect = await getPeriodsAction(companyId);
+      if (periodsForRedirect.success) {
+        const open = periodsForRedirect.data.find((p) => p.status === "OPEN");
+        if (open) {
+          const mm = String(open.month).padStart(2, "0");
+          const lastDay = new Date(open.year, open.month, 0).getDate();
+          const dd = String(lastDay).padStart(2, "0");
+          redirect(`/company/${companyId}/reports/journal?from=${open.year}-${mm}-01&to=${open.year}-${mm}-${dd}`);
+        }
+      }
+    } catch (redirectErr) {
+      // re-throw solo si es un redirect de Next.js — otros errores se ignoran
+      // para que la página se muestre vacía en vez de crashear
+      if (
+        redirectErr &&
+        typeof redirectErr === "object" &&
+        "digest" in redirectErr &&
+        String((redirectErr as { digest: string }).digest).startsWith("NEXT_REDIRECT")
+      ) {
+        throw redirectErr;
       }
     }
   }

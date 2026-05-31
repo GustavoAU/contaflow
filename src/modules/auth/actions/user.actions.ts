@@ -25,22 +25,28 @@ export async function syncUserAction() {
 }
 
 export async function getUserCompaniesAction() {
-  const clerkUser = await currentUser();
-  if (!clerkUser) return [];
+  try {
+    const clerkUser = await currentUser();
+    if (!clerkUser) return [];
 
-  const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista todas las empresas del usuario (company switcher)
-    where: {
-      userId: clerkUser.id,
-      company: { status: "ACTIVE" },
-    },
-    include: { company: true },
-    orderBy: { company: { name: "asc" } },
-  });
+    const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista todas las empresas del usuario (company switcher)
+      where: {
+        userId: clerkUser.id,
+        company: { status: "ACTIVE" },
+      },
+      include: { company: true },
+      orderBy: { company: { name: "asc" } },
+    });
 
-  return memberships.map((m) => ({
-    ...m.company,
-    role: m.role,
-  }));
+    return memberships.map((m) => ({
+      ...m.company,
+      role: m.role,
+    }));
+  } catch {
+    // Neon cold start u otro error de conexión — el layout recibe [] y
+    // redirige a /dashboard; la UI muestra "reconectando" en lugar de crashear.
+    return [];
+  }
 }
 
 export async function getArchivedCompaniesAction() {
