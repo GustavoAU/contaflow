@@ -3,14 +3,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mocks hoisted (vi.mock se eleva al tope) ────────────────────────────────
 
-const { mockAuth, mockCheckRateLimit, mockFindFirst, mockExtractFromImage } = vi.hoisted(() => ({
+const { mockAuth, mockCheckRateLimit, mockFindFirst, mockExtractFromImage, mockAuditLogCreate } = vi.hoisted(() => ({
   mockAuth: vi.fn().mockResolvedValue({ userId: "user_test" }),
   mockCheckRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   mockFindFirst: vi.fn(),
   mockExtractFromImage: vi.fn(),
+  mockAuditLogCreate: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({
+    get: (name: string) => {
+      const h: Record<string, string> = { "user-agent": "vitest/1.0", "x-forwarded-for": "127.0.0.1" };
+      return h[name] ?? null;
+    },
+  }),
+}));
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
@@ -20,6 +30,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: (...args: unknown[]) => mockFindFirst(...args) },
+    auditLog: { create: (...args: unknown[]) => mockAuditLogCreate(...args) },
   },
 }));
 

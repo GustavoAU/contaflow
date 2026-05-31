@@ -109,8 +109,8 @@ export function InvoiceUploader({ companyId }: Props) {
   const [fileName, setFileName] = useState<string>("");
   const [extracted, setExtracted] = useState<ExtractedInvoice | null>(null);
 
-  // ALERTA 15: confirmación explícita cuando hay riesgos críticos
-  const [risksAcknowledged, setRisksAcknowledged] = useState(false);
+  // H-007: confirmación obligatoria en TODOS los escaneos (no solo con riesgos críticos)
+  const [dataVerified, setDataVerified] = useState(false);
 
   // ALERTA 16: aviso de privacidad Gemini — persiste en localStorage
   const [privacyAckSeen, setPrivacyAckSeen] = useState(true); // optimistic evita flash
@@ -152,7 +152,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setMimeType(file.type as ValidMime);
     setExtracted(null);
     setScanPhase("idle");
-    setRisksAcknowledged(false);
+    setDataVerified(false);
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
@@ -167,7 +167,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setScanPhase("uploading");
     setExtracted(null);
     setFieldsVisible(false);
-    setRisksAcknowledged(false);
+    setDataVerified(false);
     timerRef.current = setTimeout(() => setScanPhase("analyzing"), 500);
     try {
       const result = await extractInvoiceAction(companyId, base64, mimeType);
@@ -195,7 +195,7 @@ export function InvoiceUploader({ companyId }: Props) {
     setExtracted(null);
     setScanPhase("idle");
     setFieldsVisible(false);
-    setRisksAcknowledged(false);
+    setDataVerified(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -225,24 +225,34 @@ export function InvoiceUploader({ companyId }: Props) {
 
   return (
     <>
-      {/* ── ALERTA 16: Aviso de privacidad Gemini (una sola vez) ─────────────── */}
+      {/* ── H-006: Aviso de privacidad Gemini — COT Art. 126 / Ley de Infogobierno ── */}
       {!privacyAckSeen && (
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
           <EyeIcon className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" aria-hidden />
           <div className="flex-1">
-            <p className="font-semibold text-blue-800">Procesamiento de imágenes con Google Gemini Vision</p>
+            <p className="font-semibold text-blue-800">Aviso de confidencialidad — Google Gemini Vision (COT Art. 126)</p>
             <p className="mt-1 text-blue-700">
-              Las imágenes de facturas se envían a la API de Google Gemini (Google LLC) para la
-              extracción de datos. Los documentos pueden contener RIF, nombres de empresas y montos
-              fiscales. Verifica que tu empresa autoriza el envío de esta información a servicios de
-              terceros conforme al COT Art. 126 y tus políticas internas de confidencialidad.
+              Cada imagen escaneada se envía a la API de Google Gemini (Google LLC, EE.UU.) para
+              extracción automática de datos. Los documentos pueden contener:
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-blue-700 text-xs list-disc list-inside">
+              <li>RIF del proveedor/cliente</li>
+              <li>Razón social y dirección fiscal</li>
+              <li>Número de Control y Número de Factura</li>
+              <li>Montos, bases imponibles e IVA</li>
+            </ul>
+            <p className="mt-2 text-blue-700">
+              En el <strong>tier de producción</strong>, Google no usa los datos para entrenamiento.
+              Tu empresa es responsable de evaluar si el envío de esta información a un tercero
+              internacional es compatible con el <strong>COT Art. 126 Num. 1</strong> y tus políticas
+              de confidencialidad. Cada escaneo queda registrado en el AuditLog de la empresa.
             </p>
             <button
               type="button"
               onClick={handlePrivacyAck}
               className="mt-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
             >
-              Entendido — continuar
+              Entendido — asumo la responsabilidad y continúo
             </button>
           </div>
         </div>
@@ -373,36 +383,42 @@ export function InvoiceUploader({ companyId }: Props) {
                 </div>
               </div>
 
-              {/* ALERTA 13/14/15: Panel de riesgos críticos + checkbox obligatorio */}
-              {hasCriticalRisks && (
-                <div className="border-t border-red-200 bg-red-50 px-4 py-3 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700">
-                    <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    Campos fiscales críticos con posibles errores de OCR
-                  </div>
-                  <ul className="space-y-1.5">
-                    {criticalRisks.map(r => (
-                      <li key={r.field} className="text-xs text-red-700">
-                        <span className="font-medium">{r.label}:</span>{" "}{r.issue}
-                      </li>
-                    ))}
-                  </ul>
-                  <label className="flex cursor-pointer items-start gap-2 text-xs text-red-800">
-                    <input
-                      type="checkbox"
-                      checked={risksAcknowledged}
-                      onChange={e => setRisksAcknowledged(e.target.checked)}
-                      className="mt-0.5 h-3.5 w-3.5 accent-red-600"
-                      aria-label="Confirmar verificación manual de campos con errores"
-                    />
-                    <span>He verificado los campos marcados contra la factura física y confirmo su exactitud antes de continuar.</span>
-                  </label>
-                </div>
-              )}
+              {/* H-007: Panel verificación — siempre visible post-extracción (Prov. 0071 Art. 72) */}
+              <div className={cn("border-t px-4 py-3 space-y-2.5", hasCriticalRisks ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50")}>
+                {hasCriticalRisks && (
+                  <>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-red-700">
+                      <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Campos fiscales críticos con posibles errores de OCR
+                    </div>
+                    <ul className="space-y-1.5">
+                      {criticalRisks.map(r => (
+                        <li key={r.field} className="text-xs text-red-700">
+                          <span className="font-medium">{r.label}:</span>{" "}{r.issue}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <label className={cn("flex cursor-pointer items-start gap-2 text-xs", hasCriticalRisks ? "text-red-800" : "text-amber-800")}>
+                  <input
+                    type="checkbox"
+                    checked={dataVerified}
+                    onChange={e => setDataVerified(e.target.checked)}
+                    className={cn("mt-0.5 h-3.5 w-3.5", hasCriticalRisks ? "accent-red-600" : "accent-amber-600")}
+                    aria-label="Confirmar verificación de los datos extraídos por OCR"
+                  />
+                  <span>
+                    {hasCriticalRisks
+                      ? "He verificado los campos marcados contra la factura física y confirmo su exactitud antes de continuar."
+                      : "He revisado todos los campos extraídos contra la factura física y confirmo su exactitud. Entiendo que soy responsable de la veracidad del libro fiscal (Prov. 0071 Art. 72)."}
+                  </span>
+                </label>
+              </div>
 
               {/* Actions */}
               <div className="border-t bg-zinc-50 px-4 py-3 flex flex-col gap-2">
-                <Button onClick={handleUseInForm} disabled={hasCriticalRisks && !risksAcknowledged} className="w-full gap-2" kbdHint="Ctrl+↵">
+                <Button onClick={handleUseInForm} disabled={!dataVerified} className="w-full gap-2" kbdHint="Ctrl+↵">
                   <ArrowRightIcon className="h-4 w-4" aria-hidden />
                   Usar datos en formulario de factura
                 </Button>
