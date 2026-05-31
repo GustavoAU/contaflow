@@ -14,6 +14,7 @@ import {
 } from "./InvoiceLineService";
 import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
+import { getNextControlNumber } from "./InvoiceSequenceService";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -634,14 +635,22 @@ export class InvoiceService {
         // Derive relatedDocNumber server-side — never from client input
         const relatedDocNumber = original.invoiceNumber;
 
+        // H-002: auto-generar Nº Control para NC de Venta (Prov. 0071 Art. 14)
+        const ncType = ((data.type as string) || original.type) as "SALE" | "PURCHASE";
+        let ncControlNumber = (data as { controlNumber?: string }).controlNumber;
+        if (ncType === "SALE" && !ncControlNumber) {
+          ncControlNumber = await getNextControlNumber(tx, companyId, "SALE");
+        }
+
         // Create the NC invoice
         const nc = await tx.invoice.create({
           data: {
             companyId,
-            type: (data.type as "SALE" | "PURCHASE") ?? original.type as "SALE" | "PURCHASE",
+            type: ncType,
             docType: "NOTA_CREDITO",
             taxCategory: (data.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION") ?? original.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION",
             invoiceNumber: data.invoiceNumber,
+            controlNumber: ncControlNumber ?? null,
             date: data.date,
             counterpartName: data.counterpartName,
             counterpartRif: data.counterpartRif,
@@ -791,14 +800,22 @@ export class InvoiceService {
         // Derive relatedDocNumber server-side
         const relatedDocNumber = original.invoiceNumber;
 
+        // H-002: auto-generar Nº Control para ND de Venta (Prov. 0071 Art. 14)
+        const ndType = ((data.type as string) || original.type) as "SALE" | "PURCHASE";
+        let ndControlNumber = (data as { controlNumber?: string }).controlNumber;
+        if (ndType === "SALE" && !ndControlNumber) {
+          ndControlNumber = await getNextControlNumber(tx, companyId, "SALE");
+        }
+
         // Create the ND invoice
         const nd = await tx.invoice.create({
           data: {
             companyId,
-            type: (data.type as "SALE" | "PURCHASE") ?? original.type as "SALE" | "PURCHASE",
+            type: ndType,
             docType: "NOTA_DEBITO",
             taxCategory: (data.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION") ?? original.taxCategory as "GRAVADA" | "EXENTA" | "EXONERADA" | "NO_SUJETA" | "IMPORTACION",
             invoiceNumber: data.invoiceNumber,
+            controlNumber: ndControlNumber ?? null,
             date: data.date,
             counterpartName: data.counterpartName,
             counterpartRif: data.counterpartRif,

@@ -311,9 +311,10 @@ export function InvoiceForm({
 
   const isReporteZ = docType === "REPORTE_Z";
 
-  // ─── IGTF automático ────────────────────────────────────────────────────────
+  // ─── IGTF automático ─────────────────────────────────────────────────────────
+  // H-003: aplica en SALE y PURCHASE — contribuyente especial pagando en VES también
   const igtfApplies =
-    type === "SALE" && IGTFService.applies(paidInForeign ? "USD" : "VES", isSpecialContributor);
+    IGTFService.applies(paidInForeign ? "USD" : "VES", isSpecialContributor);
   const igtfCalculation =
     igtfApplies && igtfBase && !new Decimal(igtfBase || "0").isZero()
       ? IGTFService.calculate(igtfBase, IGTF_RATE)
@@ -749,14 +750,21 @@ export function InvoiceForm({
                 Número de Control{" "}
                 {type === "PURCHASE" && <span className="text-red-500">*</span>}
               </label>
-              <input
-                ref={controlNumberRef}
-                name="controlNumber"
-                required={type === "PURCHASE"}
-                pattern={type === "PURCHASE" ? "\\d{2}-\\d{8}" : undefined}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="00-00000001"
-              />
+              {type === "SALE" ? (
+                <div className="flex w-full items-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-400">
+                  <span>Se asignará automáticamente</span>
+                  <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600">Prov. 0071 Art. 14</span>
+                </div>
+              ) : (
+                <input
+                  ref={controlNumberRef}
+                  name="controlNumber"
+                  required
+                  pattern="\d{2}-\d{8}"
+                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="00-00000001"
+                />
+              )}
             </div>
           </div>
 
@@ -1143,19 +1151,18 @@ export function InvoiceForm({
             </div>
           </div>
 
-          {/* IGTF — solo ventas */}
-          {type === "SALE" && (
-            <div className="space-y-3 rounded-lg bg-yellow-50 p-4">
-              <p className="text-sm font-semibold text-yellow-700">Detalle de Pago / IGTF</p>
-              <label className="flex items-center gap-2 text-sm text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={paidInForeign}
-                  onChange={(e) => setPaidInForeign(e.target.checked)}
-                  className="rounded"
-                />
-                Pago recibido en divisas
-              </label>
+          {/* IGTF — Ventas y Compras en divisas (H-003) */}
+          <div className="space-y-3 rounded-lg bg-yellow-50 p-4">
+            <p className="text-sm font-semibold text-yellow-700">Detalle de Pago / IGTF</p>
+            <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={paidInForeign}
+                onChange={(e) => setPaidInForeign(e.target.checked)}
+                className="rounded"
+              />
+              {type === "SALE" ? "Pago recibido en divisas" : "Pago realizado en divisas"}
+            </label>
               {igtfApplies && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -1185,8 +1192,7 @@ export function InvoiceForm({
                   </div>
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           {/* ─── Resumen de la factura ────────────────────────────────────── */}
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-2">
