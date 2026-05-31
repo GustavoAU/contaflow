@@ -126,6 +126,12 @@ Cambiar este valor sin el proceso es una infracción a la PA 121.
 ## Checklist Pre-Merge
 
 ```
+SCOPE Y WORKING TREE (verificar PRIMERO — si falla, no continuar)
+[ ] git status → solo archivos del task actual (sin M ni ?? ajenos)
+[ ] npx tsc --noEmit → exit 0
+[ ] npx vitest run → 0 failures
+[ ] Todos los archivos nuevos están commiteados (no hay ?? en git status)
+
 INVARIANTES
 [ ] R-1: ¿Separación Transaction / JournalEntry respetada?
 [ ] R-2: ¿Reportes fiscales a Object Storage con contentHash?
@@ -219,9 +225,10 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 0. Activar `security-agent` para auditar superficie de ataque del módulo nuevo.
 1. `npx tsc --noEmit` → exit 0.
 2. `npx vitest run` → 0 failures.
-3. Si falla: parar, corregir, re-ejecutar, reportar antes de mencionar siguiente fase.
+3. `git status` → working tree limpio (sin `M` ni `??` ajenos al task).
+4. Si falla cualquiera: parar, corregir, re-ejecutar, reportar antes de mencionar siguiente fase.
 
-**Nunca cargar errores TS o tests fallidos entre fases.**
+**Nunca cargar errores TS, tests fallidos, o working tree sucio entre fases.**
 
 ### security-agent — triggers OBLIGATORIOS
 
@@ -242,6 +249,25 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - Merge a `main` solo: phase gate GREEN + confirmación del usuario
 - Docs pueden ir directo a `main`
 - Nunca feature code directo a `main`
+
+### Regla de aislamiento de scope — OBLIGATORIA
+
+**Antes de todo commit o merge, sin excepción:**
+
+```
+1. git status   → solo deben aparecer los archivos del task actual
+2. npx tsc --noEmit → exit 0
+3. npx vitest run   → 0 failures
+4. git diff HEAD    → revisar que no hay cambios en archivos fuera del scope
+```
+
+**Prohibido:**
+- Modificar archivos fuera del scope del task actual (ej: si el task es invoices, no tocar prisma.ts, error.tsx, vendor.actions.ts, etc.)
+- Dejar cambios sin commitear en el working tree al terminar un task
+- Crear archivos nuevos y no commitearlos (archivos `??` en `git status`)
+- Hacer merge si `git status` muestra modificaciones ajenas al task
+
+**Si un archivo fuera del scope "necesita" cambio:** abrir un task separado, en branch separada, con su propio tsc+vitest verde antes de mergear. Nunca agrupar en el mismo commit.
 
 ---
 
