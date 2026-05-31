@@ -1,6 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/import/page.tsx
-import Link from "next/link";
 import { FileSpreadsheetIcon, ArrowRightIcon } from "lucide-react";
+import { NavigationCard } from "@/components/ui/NavigationCard";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -19,9 +19,9 @@ export default async function ImportPage({ params }: Props) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Link
+        <NavigationCard
           href={`/company/${companyId}/import/accounts`}
-          className="block rounded-lg border bg-white p-6 transition-all hover:border-blue-500 hover:shadow-sm"
+          className="group rounded-lg border bg-white p-6 transition-all hover:border-blue-500 hover:shadow-sm"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -33,7 +33,7 @@ export default async function ImportPage({ params }: Props) {
             </div>
             <ArrowRightIcon className="h-5 w-5 shrink-0 text-zinc-300" />
           </div>
-        </Link>
+        </NavigationCard>
       </div>
     </div>
   );
