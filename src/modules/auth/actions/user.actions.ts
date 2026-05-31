@@ -5,23 +5,27 @@ import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 export async function syncUserAction() {
-  const clerkUser = await currentUser();
-  if (!clerkUser) return null;
+  try {
+    const clerkUser = await currentUser();
+    if (!clerkUser) return null;
 
-  const user = await prisma.user.upsert({
-    where: { id: clerkUser.id },
-    update: {
-      name: clerkUser.fullName,
-      email: clerkUser.emailAddresses[0].emailAddress,
-    },
-    create: {
-      id: clerkUser.id,
-      name: clerkUser.fullName,
-      email: clerkUser.emailAddresses[0].emailAddress,
-    },
-  });
+    const user = await prisma.user.upsert({
+      where: { id: clerkUser.id },
+      update: {
+        name: clerkUser.fullName,
+        email: clerkUser.emailAddresses[0].emailAddress,
+      },
+      create: {
+        id: clerkUser.id,
+        name: clerkUser.fullName,
+        email: clerkUser.emailAddresses[0].emailAddress,
+      },
+    });
 
-  return user;
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export async function getUserCompaniesAction() {
@@ -50,20 +54,24 @@ export async function getUserCompaniesAction() {
 }
 
 export async function getArchivedCompaniesAction() {
-  const clerkUser = await currentUser();
-  if (!clerkUser) return [];
+  try {
+    const clerkUser = await currentUser();
+    if (!clerkUser) return [];
 
-  const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista empresas archivadas del usuario
-    where: {
-      userId: clerkUser.id,
-      company: { status: "ARCHIVED" },
-    },
-    include: { company: true },
-    orderBy: { company: { name: "asc" } },
-  });
+    const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista empresas archivadas del usuario
+      where: {
+        userId: clerkUser.id,
+        company: { status: "ARCHIVED" },
+      },
+      include: { company: true },
+      orderBy: { company: { name: "asc" } },
+    });
 
-  return memberships.map((m) => ({
-    ...m.company,
-    role: m.role,
-  }));
+    return memberships.map((m) => ({
+      ...m.company,
+      role: m.role,
+    }));
+  } catch {
+    return [];
+  }
 }

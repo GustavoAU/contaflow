@@ -132,7 +132,7 @@ export default async function JournalPage({ params, searchParams }: Props) {
       success: false as const,
       error: err instanceof Error ? err.message : "Error al cargar el libro diario",
     })),
-    getPeriodsAction(companyId),
+    getPeriodsAction(companyId).catch(() => ({ success: false as const, error: "Error al cargar períodos" })),
   ]);
   const transactions = result.success ? result.data : [];
   const periods = periodsResult.success

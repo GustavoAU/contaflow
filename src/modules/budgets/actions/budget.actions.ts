@@ -59,27 +59,35 @@ async function resolveAdmin(companyId: string): Promise<{ userId: string; allowe
 // ── Budget CRUD ───────────────────────────────────────────────────────────────
 
 export async function listBudgetsAction(companyId: string): Promise<Result<BudgetRow[]>> {
-  // Read-only: ROLES.ALL (VIEWER incluido — solo consulta)
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-  const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
-  if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
-  const data = await BudgetService.list(companyId);
-  return { success: true, data };
+  try {
+    // Read-only: ROLES.ALL (VIEWER incluido — solo consulta)
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+    const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
+    if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const data = await BudgetService.list(companyId);
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 export async function getBudgetAction(
   companyId: string,
   budgetId: string,
 ): Promise<Result<BudgetRow>> {
-  // Read-only: ROLES.ALL
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-  const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
-  if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
-  const data = await BudgetService.get(companyId, budgetId);
-  if (!data) return { success: false, error: "Presupuesto no encontrado" };
-  return { success: true, data };
+  try {
+    // Read-only: ROLES.ALL
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+    const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
+    if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const data = await BudgetService.get(companyId, budgetId);
+    if (!data) return { success: false, error: "Presupuesto no encontrado" };
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 export async function createBudgetAction(
@@ -99,11 +107,10 @@ export async function createBudgetAction(
     const data = await BudgetService.create(companyId, parsed.data, userId);
     return { success: true, data };
   } catch (e: unknown) {
-    // P2002: ya existe un presupuesto con ese nombre y año
     if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
       return { success: false, error: "Ya existe un presupuesto con ese nombre para ese año." };
     }
-    throw e;
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
   }
 }
 
@@ -121,9 +128,13 @@ export async function updateBudgetAction(
   const parsed = UpdateBudgetSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const data = await BudgetService.update(companyId, budgetId, parsed.data);
-  if (!data) return { success: false, error: "Presupuesto no encontrado" };
-  return { success: true, data };
+  try {
+    const data = await BudgetService.update(companyId, budgetId, parsed.data);
+    if (!data) return { success: false, error: "Presupuesto no encontrado" };
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 export async function deleteBudgetAction(
@@ -136,9 +147,13 @@ export async function deleteBudgetAction(
   const rl = await checkRateLimit(userId, limiters.fiscal);
   if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
 
-  const ok = await BudgetService.delete(companyId, budgetId);
-  if (!ok) return { success: false, error: "Presupuesto no encontrado" };
-  return { success: true, data: true };
+  try {
+    const ok = await BudgetService.delete(companyId, budgetId);
+    if (!ok) return { success: false, error: "Presupuesto no encontrado" };
+    return { success: true, data: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 // ── Budget Lines ──────────────────────────────────────────────────────────────
@@ -157,9 +172,13 @@ export async function upsertBudgetLineAction(
   const parsed = UpsertBudgetLineSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const data = await BudgetService.upsertLine(companyId, budgetId, parsed.data);
-  if (!data) return { success: false, error: "Presupuesto o cuenta no válidos para esta empresa" };
-  return { success: true, data };
+  try {
+    const data = await BudgetService.upsertLine(companyId, budgetId, parsed.data);
+    if (!data) return { success: false, error: "Presupuesto o cuenta no válidos para esta empresa" };
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 export async function deleteBudgetLineAction(
@@ -173,9 +192,13 @@ export async function deleteBudgetLineAction(
   const rl = await checkRateLimit(userId, limiters.fiscal);
   if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente en un momento." };
 
-  const ok = await BudgetService.deleteLine(companyId, budgetId, accountId);
-  if (!ok) return { success: false, error: "Línea no encontrada" };
-  return { success: true, data: true };
+  try {
+    const ok = await BudgetService.deleteLine(companyId, budgetId, accountId);
+    if (!ok) return { success: false, error: "Línea no encontrada" };
+    return { success: true, data: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 // ── Reports ───────────────────────────────────────────────────────────────────
@@ -188,9 +211,13 @@ export async function getBudgetVsActualAction(
   const { allowed } = await resolveAccounting(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 
-  const data = await BudgetService.compareWithActual(companyId, budgetId);
-  if (!data) return { success: false, error: "Presupuesto no encontrado" };
-  return { success: true, data };
+  try {
+    const data = await BudgetService.compareWithActual(companyId, budgetId);
+    if (!data) return { success: false, error: "Presupuesto no encontrado" };
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
 
 export async function getCashFlowProjectionAction(
@@ -200,6 +227,10 @@ export async function getCashFlowProjectionAction(
   const { allowed } = await resolveAccounting(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 
-  const data = await CashFlowProjectionService.project(companyId);
-  return { success: true, data };
+  try {
+    const data = await CashFlowProjectionService.project(companyId);
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
 }
