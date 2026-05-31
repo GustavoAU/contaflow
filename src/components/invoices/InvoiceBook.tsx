@@ -521,6 +521,14 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                     {isPendingPDF ? "Generando PDF..." : "Exportar PDF"}
                   </Button>
                 )}
+                {/* H-4: enlace al ZIP SIVIT completo (LV.txt + LC.txt + historial) */}
+                <Link
+                  href={`/company/${companyId}/export`}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                  title="Descarga ZIP con LV.txt + LC.txt para cargar directamente al portal SIVIT del SENIAT"
+                >
+                  ZIP SIVIT completo →
+                </Link>
               </>
             )}
           </div>
