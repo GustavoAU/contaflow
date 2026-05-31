@@ -100,29 +100,24 @@ export default async function JournalPage({ params, searchParams }: Props) {
   // Si no hay parámetros de fecha, redirigir al período ABIERTO automáticamente.
   // try/catch: si getPeriodsAction falla (Neon cold start), continuar sin redirigir
   // en lugar de crashear con 404.
+  // Sin parámetros de fecha → redirigir al período activo.
+  // redirect() DEBE quedar fuera del try/catch — Next.js 16 no procesa correctamente
+  // un redirect lanzado y recapturado desde un bloque catch en un Server Component.
   if (!from && !to) {
+    let openPeriod: { year: number; month: number } | undefined;
     try {
       const periodsForRedirect = await getPeriodsAction(companyId);
       if (periodsForRedirect.success) {
-        const open = periodsForRedirect.data.find((p) => p.status === "OPEN");
-        if (open) {
-          const mm = String(open.month).padStart(2, "0");
-          const lastDay = new Date(open.year, open.month, 0).getDate();
-          const dd = String(lastDay).padStart(2, "0");
-          redirect(`/company/${companyId}/reports/journal?from=${open.year}-${mm}-01&to=${open.year}-${mm}-${dd}`);
-        }
+        openPeriod = periodsForRedirect.data.find((p) => p.status === "OPEN");
       }
-    } catch (redirectErr) {
-      // re-throw solo si es un redirect de Next.js — otros errores se ignoran
-      // para que la página se muestre vacía en vez de crashear
-      if (
-        redirectErr &&
-        typeof redirectErr === "object" &&
-        "digest" in redirectErr &&
-        String((redirectErr as { digest: string }).digest).startsWith("NEXT_REDIRECT")
-      ) {
-        throw redirectErr;
-      }
+    } catch {
+      // Cold start u otro error de conexión — continúa sin redirigir
+    }
+    if (openPeriod) {
+      const mm = String(openPeriod.month).padStart(2, "0");
+      const lastDay = new Date(openPeriod.year, openPeriod.month, 0).getDate();
+      const dd = String(lastDay).padStart(2, "0");
+      redirect(`/company/${companyId}/reports/journal?from=${openPeriod.year}-${mm}-01&to=${openPeriod.year}-${mm}-${dd}`);
     }
   }
 
