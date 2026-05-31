@@ -940,11 +940,24 @@ export class InvoiceService {
 
   // ─── Obtener libro ───────────────────────────────────────────────────────────
   static async getBook(filter: InvoiceBookFilter): Promise<InvoiceBookResult> {
+    // H-004: soporta modo período (year/month) y modo rango (startDate/endDate).
     // FAC-4: Date.UTC garantiza medianoche UTC independiente de la zona horaria del servidor.
-    // Las facturas se almacenan con fecha medianoche UTC, por lo que este rango captura
-    // exactamente el mes seleccionado sin desplazamientos por timezone.
-    const startDate = new Date(Date.UTC(filter.year, filter.month - 1, 1));
-    const endDate = new Date(Date.UTC(filter.year, filter.month, 1));
+    let startDate: Date;
+    let endDate: Date;
+    if (filter.startDate && filter.endDate) {
+      startDate = new Date(Date.UTC(
+        filter.startDate.getUTCFullYear(), filter.startDate.getUTCMonth(), filter.startDate.getUTCDate()
+      ));
+      // endDate inclusivo: avanzar al día siguiente para que `lt` capture todo el día final
+      endDate = new Date(Date.UTC(
+        filter.endDate.getUTCFullYear(), filter.endDate.getUTCMonth(), filter.endDate.getUTCDate() + 1
+      ));
+    } else {
+      const year = filter.year!;
+      const month = filter.month!;
+      startDate = new Date(Date.UTC(year, month - 1, 1));
+      endDate   = new Date(Date.UTC(year, month, 1));
+    }
 
     const invoices = await prisma.invoice.findMany({
       where: {
