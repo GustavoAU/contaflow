@@ -27,6 +27,8 @@ import { getGrantsAction } from "@/modules/company/actions/permission.actions";
 import { CompanySeniatDataForm } from "@/modules/company/components/CompanySeniatDataForm";
 import { GLAccountsForm } from "@/modules/settings/components/GLAccountsForm";
 import { AccountantSignatureForm } from "@/modules/settings/components/AccountantSignatureForm";
+import { StockControlLevelForm } from "@/modules/settings/components/StockControlLevelForm";
+import { getStockControlLevelAction } from "@/modules/settings/actions/stock-config.actions";
 import { getAccountantConfigAction } from "@/modules/settings/actions/accountant-config.actions";
 import { ActiveSessionsPanel } from "@/modules/settings/components/ActiveSessionsPanel";
 import { SearchParamTabs } from "@/components/ui/SearchParamTabs";
@@ -64,14 +66,15 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   // ── Fetch selectivo por pestaña ──────────────────────────────────────────────
 
-  const [fiscalConfigResult, accountsResult, glConfigResult] =
+  const [fiscalConfigResult, accountsResult, glConfigResult, stockLevelResult] =
     currentTab === "contabilidad"
       ? await Promise.all([
           getFiscalConfigAction(companyId),
           getAccountsAction(companyId),
           getGLConfigAction(companyId),
+          getStockControlLevelAction(companyId),
         ])
-      : ([null, null, null] as const);
+      : ([null, null, null, null] as const);
 
   const [certStatusResult, accountantConfigResult] =
     currentTab === "firmas"
@@ -101,6 +104,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     ? accountsResult.data.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))
     : [];
   const glConfig = glConfigResult?.success ? glConfigResult.data : null;
+  const stockControlLevel = stockLevelResult?.success ? stockLevelResult.data.level : "WARN";
   const certStatus = certStatusResult?.success
     ? certStatusResult.data
     : ({ exists: false } as const);
@@ -237,6 +241,22 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                 initialUnbookedCount={glConfig?.unbookedCount ?? 0}
               />
             )}
+          </div>
+
+          {/* Control de Stock — H-005 */}
+          <div className="rounded-lg border p-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Control de Stock en Facturación</h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Define qué sucede al emitir una factura con stock insuficiente para ítems
+                de tipo Mercancía. El nivel <strong>Bloqueo total</strong> es el recomendado
+                para cumplir con el Art. 186 COT ante fiscalizaciones SENIAT.
+              </p>
+            </div>
+            <StockControlLevelForm
+              companyId={companyId}
+              currentLevel={stockControlLevel}
+            />
           </div>
         </div>
       )}

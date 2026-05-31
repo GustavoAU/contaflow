@@ -86,17 +86,28 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
   const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
   const [year, setYear] = useState(activePeriodYear ?? currentYear);
   const [month, setMonth] = useState(activePeriodMonth ?? currentMonth);
+  // H-004: modo rango de fechas para fiscalizaciones multimensuales
+  const [filterMode, setFilterMode] = useState<"period" | "range">("period");
+  const [rangeStart, setRangeStart] = useState(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [rangeEnd, setRangeEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [result, setResult] = useState<InvoiceBookResult | null>(null);
   const [expandedNcNdId, setExpandedNcNdId] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     startTransition(async () => {
-      const res = await getInvoiceBookAction({ companyId, type, year, month });
+      const filter = filterMode === "range"
+        ? { companyId, type, startDate: rangeStart, endDate: rangeEnd }
+        : { companyId, type, year, month };
+      const res = await getInvoiceBookAction(filter);
       if (res.success) setResult(res.data);
       else toast.error(res.error);
     });
-  }, [companyId, type, year, month]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, type, year, month, filterMode, rangeStart, rangeEnd]);
 
   function handleDuplicate(row: InvoiceBookRow) {
     try {
@@ -396,38 +407,80 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
               </div>
             </div>
 
+            {/* H-004: toggle Período / Rango */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Mes</label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {m}
-                  </option>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">Filtro</label>
+              <div className="flex rounded-lg border p-1">
+                {(["period", "range"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => { setFilterMode(m); setResult(null); }}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      filterMode === m ? "bg-zinc-800 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {m === "period" ? "Período" : "Rango"}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Año</label>
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {/* COT Art. 55-56: fiscalizaciones hasta 4 años retroactivos */}
-                {Array.from({ length: 6 }, (_, i) => currentYear - 4 + i).map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {filterMode === "period" ? (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">Mes</label>
+                  <select
+                    value={month}
+                    onChange={(e) => setMonth(Number(e.target.value))}
+                    className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {MONTHS.map((m, i) => (
+                      <option key={i + 1} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Loading indicator replaces the former "Consultar" button */}
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">Año</label>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {/* COT Art. 55-56: fiscalizaciones hasta 4 años retroactivos */}
+                    {Array.from({ length: 6 }, (_, i) => currentYear - 4 + i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">Desde</label>
+                  <input
+                    type="date"
+                    value={rangeStart}
+                    onChange={(e) => setRangeStart(e.target.value)}
+                    className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">
+                    Hasta <span className="font-normal text-zinc-400">(máx 366 días)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={rangeEnd}
+                    onChange={(e) => setRangeEnd(e.target.value)}
+                    className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Loading indicator */}
             <div className="flex h-9 w-9 items-center justify-center" aria-live="polite" aria-label={isPending ? "Cargando datos…" : undefined}>
               {isPending && <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" aria-hidden />}
             </div>
@@ -456,15 +509,18 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 >
                   Exportar TXT (SIVIT)
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleExportPDF}
-                  disabled={isPendingPDF || isPending}
-                  className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
-                  aria-label="Exportar libro como PDF"
-                >
-                  {isPendingPDF ? "Generando PDF..." : "Exportar PDF"}
-                </Button>
+                {/* PDF export solo en modo Período — requiere year/month exacto */}
+                {filterMode === "period" && (
+                  <Button
+                    variant="outline"
+                    onClick={handleExportPDF}
+                    disabled={isPendingPDF || isPending}
+                    className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                    aria-label="Exportar libro como PDF"
+                  >
+                    {isPendingPDF ? "Generando PDF..." : "Exportar PDF"}
+                  </Button>
+                )}
               </>
             )}
           </div>

@@ -197,11 +197,31 @@ export const CreateInvoiceSchema = z.object({
 });
 
 // ─── Filtros para el libro ─────────────────────────────────────────────────────
+// Soporta dos modos:
+//   Período  → { year, month } — mes calendario completo
+//   Rango    → { startDate, endDate } — máx 366 días (compatible con SIVIT)
 export const InvoiceBookFilterSchema = z.object({
   companyId: z.string().min(1),
   type: InvoiceTypeSchema,
-  year: z.number().int().min(2000).max(2100),
-  month: z.number().int().min(1).max(12),
+  year:      z.number().int().min(2000).max(2100).optional(),
+  month:     z.number().int().min(1).max(12).optional(),
+  startDate: z.coerce.date().optional(),
+  endDate:   z.coerce.date().optional(),
+}).superRefine((data, ctx) => {
+  const hasRange  = !!(data.startDate && data.endDate);
+  const hasPeriod = data.year !== undefined && data.month !== undefined;
+  if (!hasRange && !hasPeriod) {
+    ctx.addIssue({ code: "custom", message: "Debe especificar año+mes o un rango de fechas", path: ["year"] });
+  }
+  if (data.startDate && data.endDate) {
+    if (data.startDate > data.endDate) {
+      ctx.addIssue({ code: "custom", message: "La fecha inicial debe ser anterior a la final", path: ["endDate"] });
+    }
+    const diffDays = (data.endDate.getTime() - data.startDate.getTime()) / 86_400_000;
+    if (diffDays > 366) {
+      ctx.addIssue({ code: "custom", message: "El rango no puede superar 366 días (SIVIT)", path: ["endDate"] });
+    }
+  }
 });
 
 // ─── Crear Nota de Crédito / Nota de Débito ───────────────────────────────────
