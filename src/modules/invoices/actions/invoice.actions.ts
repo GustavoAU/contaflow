@@ -9,6 +9,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
+import { getNextControlNumber } from "../services/InvoiceSequenceService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
@@ -102,10 +103,21 @@ export async function createInvoiceAction(input: unknown) {
       }
     }
 
+    // H-002 (Prov. 0071 Art. 14): SALE usa Serializable para garantizar unicidad del correlativo
+    const txIsolation = parsed.data.type === "SALE"
+      ? { isolationLevel: "Serializable" as const }
+      : undefined;
+
     const invoice = await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) => {
+        // H-002: auto-generar Nº Control para facturas de venta (Z-1 — Serializable obligatorio)
+        let controlNumber = parsed.data.controlNumber;
+        if (parsed.data.type === "SALE" && !controlNumber) {
+          controlNumber = await getNextControlNumber(tx, parsed.data.companyId, "SALE");
+        }
+
         const inv = await InvoiceService.create(
-          { ...parsed.data, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
+          { ...parsed.data, controlNumber, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
           tx,
         );
         await tx.auditLog.create({
@@ -127,7 +139,7 @@ export async function createInvoiceAction(input: unknown) {
         });
         return inv;
       })
-    );
+    , txIsolation);
 
     revalidatePath(`/company/${parsed.data.companyId}/invoices`);
     return {
@@ -146,6 +158,10 @@ export async function createInvoiceAction(input: unknown) {
         };
       }
       if (error.message.includes("P2002")) {
+        // H-002 Z-1: P2002 en secuencia de Nº Control (upsert concurrente en ControlNumberSequence)
+        if (parsed.data.type === "SALE" && error.message.toLowerCase().includes("controlnumber")) {
+          return { success: false as const, error: "Error transitorio al generar Nº Control — intenta de nuevo." };
+        }
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
         if (parsed.data.idempotencyKey) {
           const existing = await prisma.invoice.findFirst({

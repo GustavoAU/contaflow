@@ -100,6 +100,8 @@ function setupTransactionMock() {
         transaction: { create: vi.fn() },
         journalEntry: { create: vi.fn() },
         transactionLine: { createMany: vi.fn() },
+        // H-002: controlNumberSequence para auto-generación de Nº Control en NC/ND SALE
+        controlNumberSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
       })) as never,
   );
 }
