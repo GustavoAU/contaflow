@@ -21,21 +21,21 @@ export type KpiDashboardData = {
 export async function getKpiDashboardAction(
   companyId: string,
 ): Promise<ActionResult<KpiDashboardData>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Se requiere rol Contador o superior" };
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Se requiere rol Contador o superior" };
+
     const [summary, cashFlow] = await Promise.all([
       KpiDashboardService.getKpiSummary(companyId),
       KpiDashboardService.getCashFlowProjection(companyId),
