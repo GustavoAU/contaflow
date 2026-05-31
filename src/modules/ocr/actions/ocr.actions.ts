@@ -8,6 +8,7 @@
 // ADR-006 D-1: auth → checkRateLimit → safeParse → companyMember → lógica
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { GeminiOCRService } from "../services/GeminiOCRService";
@@ -71,11 +72,38 @@ export async function extractInvoiceAction(
     return { success: false, error: "OCR no disponible — GEMINI_API_KEY no configurada" };
   }
 
+  // Capturar IP/UA para AuditLog (R-6)
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await GeminiOCRService.extractFromImage(
       parsed.data.base64,
       parsed.data.mimeType,
     );
+
+    // R-6: Registrar cada escaneo OCR como evento de trazabilidad fiscal.
+    // El operador asumió la responsabilidad de confidencialidad (COT Art. 126)
+    // al confirmar el aviso de privacidad en la UI antes de enviar la imagen.
+    await prisma.auditLog.create({
+      data: {
+        companyId: parsed.data.companyId,
+        entityName: "OCR",
+        entityId: parsed.data.companyId,
+        action: "OCR_SCAN",
+        userId,
+        ipAddress,
+        userAgent,
+        newValue: {
+          mimeType: parsed.data.mimeType,
+          hasCriticalRisks: (data._fieldRisks ?? []).some(r => r.severity === "critical"),
+          extractedRif: data.rif ?? null,
+          extractedNumeroControl: data.numeroControl ?? null,
+        },
+      },
+    }).catch(() => { /* audit no bloquea si falla */ });
+
     return { success: true, data };
   } catch (error) {
     if (error instanceof Error) return { success: false, error: error.message };
