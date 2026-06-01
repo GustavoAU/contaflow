@@ -9,7 +9,11 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` limpio (ALERTA 17-20 mergeados 2026-05-30)
+**Ninguna** — branch `main` limpio (2026-06-01)
+
+### Completadas recientes
+- **Auditoría Forense H-1→H-15 2026-06-01** ✅ merged — 15 hallazgos en 3 branches: H-9 (import lote vacío), H-12 (N°Control único por proveedor COT Art.101), H-14 (comprobante IVA obligatorio Prov.0049 Art.11), H-8 (stockControlLevel real en convert order→invoice), H-6 (IGTF GL en asiento venta + IGTF_GL_SKIPPED audit), H-7 (asiento suplementario Dr CxP/Cr Ret.IVA por enterar), H-13 (auto-link invoiceId en Retencion), H-15 (RetentionReconciliation + getRetentionReconciliationAction — tabla conciliación MATCHED/MISMATCH). H-10/H-11 ya estaban cubiertos por ALERTA 13-16. 2279 tests GREEN.
+- **UX fixes 2026-06-01** ✅ merged — date picker: `min-w-36` en todos los `<input type="date">` (DateRangeFilter/TrialBalance/BalanceSheet/IncomeStatement); table scroll: `overflow-x-auto` wrapper en LedgerAccountBlock + journal/page.tsx; sidebar compact: `py-1.75`→`py-1.5` en items; clases canónicas: `min-w-[90px]`→`min-w-22.5`, `min-w-[700px]`→`min-w-175`, `min-w-[8rem]`→`min-w-32`. 2279 tests GREEN.
 
 ### 🎉 BACKLOG PRE-LANZAMIENTO COMPLETO
 Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
