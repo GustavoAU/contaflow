@@ -106,6 +106,8 @@ export const CreateInvoiceSchema = z.object({
     .string()
     .min(1, { error: "El RIF es requerido" })
     .regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),
+  // H-1: Art. 57 Ley IVA — dirección fiscal del contribuyente en el libro
+  counterpartAddress: z.string().max(500).optional(),
 
   // Líneas de impuesto dinámicas
   taxLines: z.array(TaxLineSchema).min(0),

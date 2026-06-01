@@ -288,6 +288,25 @@ export class InvoiceService {
         },
       });
 
+      // H-1/H-2: snapshotear dirección fiscal y estado CE del contacto al momento de emisión
+      let snapshotAddress: string | null = (input as { counterpartAddress?: string }).counterpartAddress ?? null;
+      let snapshotIsCE = false;
+      if (input.counterpartRif) {
+        const [vendor, customer] = await Promise.all([
+          db.vendor.findFirst({
+            where: { companyId: input.companyId, rif: input.counterpartRif, deletedAt: null },
+            select: { address: true, isSpecialContributor: true },
+          }),
+          db.customer.findFirst({
+            where: { companyId: input.companyId, rif: input.counterpartRif, deletedAt: null },
+            select: { address: true },
+          }),
+        ]);
+        const found = vendor ?? customer;
+        if (found && !snapshotAddress) snapshotAddress = found.address ?? null;
+        if (vendor) snapshotIsCE = vendor.isSpecialContributor;
+      }
+
       const invoice = await db.invoice.create({
         data: {
           companyId: input.companyId,
@@ -303,6 +322,8 @@ export class InvoiceService {
           date: input.date,
           counterpartName: input.counterpartName,
           counterpartRif: input.counterpartRif,
+          counterpartAddress: snapshotAddress,
+          counterpartIsSpecialContributor: snapshotIsCE,
           ivaRetentionAmount: new Decimal(input.ivaRetentionAmount),
           ivaRetentionVoucher: input.ivaRetentionVoucher,
           ivaRetentionDate: input.ivaRetentionDate,

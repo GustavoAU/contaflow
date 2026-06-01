@@ -522,72 +522,76 @@ model Retencion {
 }
 
 model Invoice {
-  id                  String               @id @default(cuid())
-  companyId           String
-  company             Company              @relation(fields: [companyId], references: [id])
-  type                InvoiceType
-  docType             InvoiceDocType       @default(FACTURA)
-  taxCategory         TaxCategory          @default(GRAVADA)
-  invoiceNumber       String
-  controlNumber       String?
-  relatedDocNumber    String?
-  importFormNumber    String?
-  reportZStart        String? // Reporte Z — número inicial
-  reportZEnd          String? // Reporte Z — número final
-  date                DateTime
-  counterpartName     String
-  counterpartRif      String
-  ivaRetentionAmount  Decimal              @default(0) @db.Decimal(19, 4)
-  ivaRetentionVoucher String?
-  ivaRetentionDate    DateTime?
-  islrRetentionAmount Decimal              @default(0) @db.Decimal(19, 4)
-  igtfBase            Decimal              @default(0) @db.Decimal(19, 4)
-  igtfAmount          Decimal              @default(0) @db.Decimal(19, 4)
-  currency            Currency             @default(VES)
-  exchangeRateId      String?
-  exchangeRate        ExchangeRate?        @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
-  taxLines            InvoiceTaxLine[]
-  retenciones         Retencion[]
-  paymentRecords      PaymentRecord[]
-  transactionId       String?
-  transaction         Transaction?         @relation(fields: [transactionId], references: [id])
-  periodId            String?
-  period              AccountingPeriod?    @relation(fields: [periodId], references: [id])
-  idempotencyKey      String?              @unique
-  deletedAt           DateTime?
-  createdAt           DateTime             @default(now())
-  createdBy           String
+  id                              String               @id @default(cuid())
+  companyId                       String
+  company                         Company              @relation(fields: [companyId], references: [id])
+  type                            InvoiceType
+  docType                         InvoiceDocType       @default(FACTURA)
+  taxCategory                     TaxCategory          @default(GRAVADA)
+  invoiceNumber                   String
+  controlNumber                   String?
+  relatedDocNumber                String?
+  importFormNumber                String?
+  reportZStart                    String? // Reporte Z — número inicial
+  reportZEnd                      String? // Reporte Z — número final
+  date                            DateTime
+  counterpartName                 String
+  counterpartRif                  String
+  // H-1: Art. 57 Ley IVA + Art. 13 Prov. 00071 — snapshot dirección fiscal
+  counterpartAddress              String?
+  // H-2: Prov. 0049 — snapshot metadato CE para precisión histórica de retenciones
+  counterpartIsSpecialContributor Boolean              @default(false)
+  ivaRetentionAmount              Decimal              @default(0) @db.Decimal(19, 4)
+  ivaRetentionVoucher             String?
+  ivaRetentionDate                DateTime?
+  islrRetentionAmount             Decimal              @default(0) @db.Decimal(19, 4)
+  igtfBase                        Decimal              @default(0) @db.Decimal(19, 4)
+  igtfAmount                      Decimal              @default(0) @db.Decimal(19, 4)
+  currency                        Currency             @default(VES)
+  exchangeRateId                  String?
+  exchangeRate                    ExchangeRate?        @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+  taxLines                        InvoiceTaxLine[]
+  retenciones                     Retencion[]
+  paymentRecords                  PaymentRecord[]
+  transactionId                   String?
+  transaction                     Transaction?         @relation(fields: [transactionId], references: [id])
+  periodId                        String?
+  period                          AccountingPeriod?    @relation(fields: [periodId], references: [id])
+  idempotencyKey                  String?              @unique
+  deletedAt                       DateTime?
+  createdAt                       DateTime             @default(now())
+  createdBy                       String
   // Fase 16: CxC/CxP
-  dueDate             DateTime?
-  totalAmountVes      Decimal?             @db.Decimal(19, 4)
-  pendingAmount       Decimal?             @db.Decimal(19, 4)
-  paymentStatus       InvoicePaymentStatus @default(UNPAID)
-  invoicePayments     InvoicePayment[]
+  dueDate                         DateTime?
+  totalAmountVes                  Decimal?             @db.Decimal(19, 4)
+  pendingAmount                   Decimal?             @db.Decimal(19, 4)
+  paymentStatus                   InvoicePaymentStatus @default(UNPAID)
+  invoicePayments                 InvoicePayment[]
   // Fase 23C: NC/ND Workflow (Reglamento IVA Art. 58)
-  relatedInvoiceId    String?
-  relatedInvoice      Invoice?             @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
-  creditDebitNotes    Invoice[]            @relation("CreditDebitNotes")
+  relatedInvoiceId                String?
+  relatedInvoice                  Invoice?             @relation("CreditDebitNotes", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  creditDebitNotes                Invoice[]            @relation("CreditDebitNotes")
   // Fase 28D: Inventario
-  inventoryMovements  InventoryMovement[]
+  inventoryMovements              InventoryMovement[]
   // Fase 28: Compras y Ventas
-  orderId             String?              @unique
-  order               Order?               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId                         String?              @unique
+  order                           Order?               @relation(fields: [orderId], references: [id], onDelete: Restrict)
   // Fase 35A: Vendor / Customer
-  vendorId            String?
-  vendor              Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  customerId          String?
-  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vendorId                        String?
+  vendor                          Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerId                      String?
+  customer                        Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
   // Fase 35H: PA-121 Outbox
-  seniatSubmission    SeniatSubmission?
+  seniatSubmission                SeniatSubmission?
   // Fase 36C: Distribución de Pagos A/P
-  paymentBatchLines   PaymentBatchLine[]
+  paymentBatchLines               PaymentBatchLine[]
   // Fase 37A: Líneas de detalle de factura
-  lines               InvoiceLine[]
+  lines                           InvoiceLine[]
   // Fase 39: Facturación Digital PA-102 (ADR-031)
-  controlNumberSource ControlNumberSource  @default(INTERNAL)
-  qrCodeData          String? // URL o base64 del QR del proveedor
-  providerReferenceId String? // ID de la imprenta para reconciliación
-  isContingency       Boolean              @default(false)
+  controlNumberSource             ControlNumberSource  @default(INTERNAL)
+  qrCodeData                      String? // URL o base64 del QR del proveedor
+  providerReferenceId             String? // ID de la imprenta para reconciliación
+  isContingency                   Boolean              @default(false)
 
   @@unique([companyId, invoiceNumber, type])
   @@index([companyId, type, date])
