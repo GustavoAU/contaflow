@@ -204,6 +204,7 @@ export async function postUnbookedInvoicesAction(
         ivaDFAccountId: true,
         ivaCFAccountId: true,
         ivaRetentionPayableAccountId: true, // GAP-03
+        igtfPayableAccountId: true,         // H-6 — ADR-030
       },
     });
 
