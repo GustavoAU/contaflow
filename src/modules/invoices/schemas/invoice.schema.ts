@@ -196,6 +196,18 @@ export const CreateInvoiceSchema = z.object({
       });
     }
   }
+  // H-14: Prov. 0049 — N° Comprobante obligatorio cuando hay retención IVA (Art. 11)
+  try {
+    if (new Decimal(data.ivaRetentionAmount).greaterThan(0) && !data.ivaRetentionVoucher?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "El Nº Comprobante de Retención IVA es obligatorio cuando el monto retenido es mayor a cero (Prov. 0049, Art. 11)",
+        path: ["ivaRetentionVoucher"],
+      });
+    }
+  } catch {
+    // ivaRetentionAmount parse error already caught by field refine
+  }
 });
 
 // ─── Filtros para el libro ─────────────────────────────────────────────────────

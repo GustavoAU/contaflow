@@ -20,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     invoiceLine: { create: vi.fn() },
     auditLog: { create: vi.fn() },
     inventoryItem: { findMany: vi.fn() }, // OM-08
+    companySettings: { findUnique: vi.fn() }, // H-8
   },
 }));
 
@@ -178,6 +179,7 @@ describe("OrderService.convertOrderToInvoice", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Full $transaction mock with tx helpers
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ stockControlLevel: "WARN" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         order: prisma.order,
@@ -185,6 +187,7 @@ describe("OrderService.convertOrderToInvoice", () => {
         invoiceTaxLine: prisma.invoiceTaxLine,
         invoiceLine: prisma.invoiceLine,
         auditLog: prisma.auditLog,
+        companySettings: prisma.companySettings, // H-8
       })) as never
     );
   });

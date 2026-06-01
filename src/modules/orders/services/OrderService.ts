@@ -301,10 +301,18 @@ export const OrderService = {
       // Determine invoice type
       const invoiceType = order.type === "PURCHASE" ? "PURCHASE" : "SALE";
 
+      // H-8: respetar stockControlLevel de la empresa (NIC 2 / Art. 13 Ley IVA)
+      const settings = await tx.companySettings.findUnique({
+        where: { companyId },
+        select: { stockControlLevel: true },
+      });
+      const stockLevel = settings?.stockControlLevel ?? "WARN";
+
       // Fase 37C: mapear OrderItems → InvoiceLineInput (ADR-024 D-1 / D-2)
       // OrderItem.unit es un string (no FK a InventoryItemUnit) → unitId omitido
-      // OrderItem no tiene inventoryItemId → stock check se omite en createInvoiceLinesInTx
+      // H-8: inventoryItemId se propaga para habilitar control de stock en createInvoiceLinesInTx
       const lineInputs: InvoiceLineInput[] = order.items.map((item, idx) => ({
+        inventoryItemId: item.inventoryItemId ?? undefined,
         nameSnapshot: item.description,
         quantity: new Decimal(item.quantity.toString()).toString(),
         unitPriceVes: new Decimal(item.unitPrice.toString()).toString(),
@@ -356,13 +364,14 @@ export const OrderService = {
 
       // Fase 37C: crear InvoiceLines desde OrderItems
       // OM-01: pasar invoiceType para crear ENTRADA (compra) o SALIDA (venta) según corresponda
+      // H-8: stockLevel real de la empresa — habilita validación NIC 2 / Art. 13 Ley IVA
       await createInvoiceLinesInTx(
         invoice.id,
         companyId,
         computed,
         invoiceData.date,
         userId,
-        "WARN",
+        stockLevel,
         tx,
         invoiceType  // OM-01: "PURCHASE" → ENTRADA, "SALE" → SALIDA
       );
