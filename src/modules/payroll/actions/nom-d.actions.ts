@@ -561,6 +561,35 @@ export async function listBenefitAdvancesAction(
   }
 }
 
+// ─── Backfill Prestaciones Históricas ────────────────────────────────────────
+// ADR-015: postea trimestres faltantes al período activo actual.
+// Solo ADMIN — operación destructiva (crea múltiples asientos contables).
+
+export async function backfillBenefitsAction(
+  companyId: string
+): Promise<Result<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
+    return { success: false, error: "Se requiere rol de Administrador" };
+  }
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+  try {
+    const data = await BenefitAccrualService.backfillAllQuarters(companyId, userId, ipAddress, userAgent);
+    revalidateNomD(companyId);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: handlePrismaError(err) };
+  }
+}
+
 export async function getVacationAlertsAction(
   companyId: string
 ): Promise<Result<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {

@@ -401,6 +401,87 @@ describe("BenefitAccrualService.postBenefitInterest", () => {
   });
 });
 
+describe("BenefitAccrualService.backfillAllQuarters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-bf" } as never);
+    vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.create).mockResolvedValue(BASE_BALANCE as never);
+  });
+
+  it("throws if no open period", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
+    await expect(
+      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
+    ).rejects.toThrow("No hay período contable abierto");
+  });
+
+  it("throws if benefit accounts not configured", async () => {
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ...BASE_CONFIG,
+      benefitsExpenseAccountId: null,
+    } as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
+    await expect(
+      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
+    ).rejects.toThrow("Configure las cuentas contables");
+  });
+
+  it("skips employees without salary history", async () => {
+    const emp = { ...BASE_EMPLOYEE, salaryHistory: [], benefitBalance: null };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.employeesProcessed).toBe(0);
+    expect(result.quartersProcessed).toBe(0);
+  });
+
+  it("no procesa trimestres futuros (empleado contratado el año siguiente)", async () => {
+    // Si el empleado fue contratado el año próximo, no hay trimestres históricos a procesar
+    const nextYear = new Date().getFullYear() + 1;
+    const emp = {
+      ...BASE_EMPLOYEE,
+      hireDate: new Date(`${nextYear}-01-01`),
+      benefitBalance: null,
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.quartersProcessed).toBe(0);
+    expect(result.employeesProcessed).toBe(0);
+    expect(vi.mocked(prisma.$transaction)).not.toHaveBeenCalled();
+  });
+
+  it("procesa trimestres faltantes para empleado sin balance previo (ADR-015)", async () => {
+    // Empleado contratado en el trimestre actual — debe procesar al menos 1 trimestre
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const emp = {
+      ...BASE_EMPLOYEE,
+      hireDate: new Date(`${currentYear}-01-01`),
+      benefitBalance: null,
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.employeesProcessed).toBe(1);
+    expect(result.quartersProcessed).toBeGreaterThanOrEqual(1);
+    // Verifica que postea al período activo (ADR-015)
+    expect(vi.mocked(prisma.transaction.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: BASE_PERIOD.id }),
+      })
+    );
+  });
+});
+
 describe("BenefitAccrualService.createBcvRate", () => {
   beforeEach(() => vi.clearAllMocks());
 

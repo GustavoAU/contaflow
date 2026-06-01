@@ -17,8 +17,9 @@ import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@pri
 // LSS Art. 62: IVSS obrero 4% | tope: 5 × salario mínimo
 const IVSS_WORKER_RATE = new Decimal("0.04");
 const IVSS_CAP_MULTIPLES = new Decimal("5");
-// Ley INCES Art. 30: trabajador 2% | tope: 5 × salario mínimo (igual que IVSS)
-const INCES_WORKER_RATE = new Decimal("0.02");
+// Ley INCES Art. 30: trabajador 0.5% | tope: 5 × salario mínimo (igual que IVSS)
+// Nota: el 2% es la tasa PATRONAL (INCES_PAT), no la del trabajador
+const INCES_WORKER_RATE = new Decimal("0.005");
 const INCES_CAP_MULTIPLES = new Decimal("5");
 // LAH Art. 172: FAOV obrero 1% | tope: 10 × salario mínimo
 const FAOV_WORKER_RATE = new Decimal("0.01");
@@ -121,6 +122,15 @@ export const PayrollCalculatorService = {
     manualConcepts: ManualConceptCalculationInput[],
     config: PayrollCalculatorConfig
   ): PayrollCalculatorResult {
+    // C-01: monedas mixtas generan totales imposibles — bloquear antes de calcular
+    const currencies = new Set(employees.map((e) => e.salaryCurrency));
+    if (currencies.size > 1) {
+      throw new Error(
+        `Nómina con monedas mixtas (${[...currencies].join(" y ")}). ` +
+        "Procese por separado empleados con moneda VES y USD, o configure una tasa BCV para el período."
+      );
+    }
+
     const allLines: CalculatorLineOutput[] = [];
 
     for (const emp of employees) {
