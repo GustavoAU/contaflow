@@ -22,6 +22,13 @@ vi.mock("@/lib/prisma", () => {
     accountingPeriod: {
       findFirst: vi.fn().mockResolvedValue(null), // OM-05: sin período cerrado por defecto
     },
+    // H-1/H-2: lookup para snapshot dirección fiscal + CE
+    vendor: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    customer: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     $transaction: vi.fn().mockImplementation(
       (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)
     ),

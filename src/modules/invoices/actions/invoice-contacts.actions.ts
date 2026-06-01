@@ -8,6 +8,8 @@ import prisma from "@/lib/prisma";
 export type ContactSuggestion = {
   rif: string;
   name: string;
+  address: string | null;
+  isSpecialContributor: boolean;
   source: "vendor" | "customer";
 };
 
@@ -40,7 +42,7 @@ export async function searchContactsByRifAction(
             { name: { contains: q, mode: "insensitive" } },
           ],
         },
-        select: { rif: true, name: true },
+        select: { rif: true, name: true, address: true, isSpecialContributor: true },
         take: 5,
       }),
       prisma.customer.findMany({
@@ -52,18 +54,19 @@ export async function searchContactsByRifAction(
             { name: { contains: q, mode: "insensitive" } },
           ],
         },
-        select: { rif: true, name: true },
+        select: { rif: true, name: true, address: true },
         take: 5,
       }),
     ]);
 
+    // isSpecialContributor existe en Vendor pero no en Customer (solo aplica retención a proveedores)
     const results: ContactSuggestion[] = [
       ...vendors
         .filter((v) => v.rif)
-        .map((v) => ({ rif: v.rif!, name: v.name, source: "vendor" as const })),
+        .map((v) => ({ rif: v.rif!, name: v.name, address: v.address ?? null, isSpecialContributor: v.isSpecialContributor, source: "vendor" as const })),
       ...customers
         .filter((c) => c.rif)
-        .map((c) => ({ rif: c.rif!, name: c.name, source: "customer" as const })),
+        .map((c) => ({ rif: c.rif!, name: c.name, address: c.address ?? null, isSpecialContributor: false, source: "customer" as const })),
     ].slice(0, 8);
 
     return { success: true, data: results };

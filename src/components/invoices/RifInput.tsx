@@ -21,6 +21,7 @@ interface Props {
   required?: boolean;
   placeholder?: string;
   onLegalNameFound?: (name: string) => void;
+  onContactSelected?: (contact: ContactSuggestion) => void;
 }
 
 export function RifInput({
@@ -30,6 +31,7 @@ export function RifInput({
   required,
   placeholder = "J-12345678-9",
   onLegalNameFound,
+  onContactSelected,
 }: Props) {
   const [value, setValue] = useState(defaultValue);
   const [status, setStatus] = useState<VerifyStatus>("idle");
@@ -91,6 +93,7 @@ export function RifInput({
     setStatus("verified");
     setLegalName(s.name);
     onLegalNameFound?.(s.name);
+    onContactSelected?.(s);
     setShowSuggestions(false);
     setSuggestions([]);
   }
@@ -148,9 +151,17 @@ export function RifInput({
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-10 font-medium bg-zinc-100 text-zinc-600 mt-0.5">
                       {s.source === "vendor" ? "PROV" : "CLI"}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-zinc-800">{s.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        <span className="block truncate font-medium text-zinc-800">{s.name}</span>
+                        {s.isSpecialContributor && (
+                          <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-10 font-bold text-amber-700">CE</span>
+                        )}
+                      </span>
                       <span className="block font-mono text-xs text-zinc-400">{s.rif}</span>
+                      {s.address && (
+                        <span className="block truncate text-xs text-zinc-400">{s.address}</span>
+                      )}
                     </span>
                   </button>
                 </li>

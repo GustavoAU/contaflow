@@ -149,6 +149,8 @@ export function InvoiceForm({
   const [bcvLoading, setBcvLoading] = useState(false);
   const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
+  const [counterpartAddress, setCounterpartAddress] = useState("");
+  const [counterpartIsSpecialContributor, setCounterpartIsSpecialContributor] = useState(false);
   const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
 
   // ─── Autosave borrador (Q1-3) ────────────────────────────────────────────────
@@ -539,6 +541,7 @@ export function InvoiceForm({
         date: data.get("date"),
         counterpartName: data.get("counterpartName"),
         counterpartRif: data.get("counterpartRif"),
+        counterpartAddress: (data.get("counterpartAddress") as string) || undefined,
         taxLines: taxLines
           .filter((l) => l.base && !new Decimal(l.base || "0").isZero())
           .map((l) => ({
@@ -905,8 +908,32 @@ export function InvoiceForm({
                 onLegalNameFound={(name) => {
                   if (!counterpartName) setCounterpartName(name);
                 }}
+                onContactSelected={(contact) => {
+                  if (!counterpartName) setCounterpartName(contact.name);
+                  if (!counterpartAddress && contact.address) setCounterpartAddress(contact.address);
+                  setCounterpartIsSpecialContributor(contact.isSpecialContributor);
+                }}
               />
             </div>
+          </div>
+
+          {/* H-1: Dirección fiscal — Art. 57 Ley IVA, Art. 13 Prov. 00071 */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600">
+              Dirección Fiscal{" "}
+              <span className="font-normal text-zinc-400" title="Art. 57 Ley IVA: el libro debe registrar la dirección del contribuyente">(recomendada)</span>
+              {counterpartIsSpecialContributor && (
+                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase" title="Contribuyente Especial — aplica retención IVA (Prov. 0049)">CE</span>
+              )}
+            </label>
+            <input
+              type="text"
+              name="counterpartAddress"
+              value={counterpartAddress}
+              onChange={(e) => setCounterpartAddress(e.target.value)}
+              placeholder="Ej: Av. Principal, Edif. Torre, Piso 3, Caracas"
+              className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
           </div>
 
           {/* ─── Desglose de impuestos ──────────────────────────────────────── */}
