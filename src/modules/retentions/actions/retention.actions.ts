@@ -648,6 +648,163 @@ export async function getAccountsForEnteramientoAction(
   }
 }
 
+// ─── H-15: Conciliación Retenciones ↔ Libro de Compras ───────────────────────
+// Muestra lado a lado: comprobantes RIVA del período vs facturas del Libro de Compras
+// con indicadores de coincidencia y alertas de descuadre (Prov. 0049 Art. 11)
+export type ReconciliationRow = {
+  // Retención
+  retentionId: string | null;
+  voucherNumber: string | null;
+  retentionStatus: string | null;
+  retentionIvaRetention: string | null;
+  // Factura en Libro de Compras
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: Date | null;
+  counterpartName: string | null;
+  counterpartRif: string | null;
+  invoiceIvaRetentionAmount: string | null;
+  invoiceIvaRetentionVoucher: string | null;
+  // Estado de conciliación
+  status: "MATCHED" | "RETENTION_WITHOUT_INVOICE" | "INVOICE_WITHOUT_RETENTION" | "MISMATCH";
+};
+
+export async function getRetentionReconciliationAction(
+  companyId: string,
+  year: number,
+  month: number
+): Promise<ActionResult<ReconciliationRow[]>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Se requiere rol Contador o superior" };
+
+    const periodStart = new Date(Date.UTC(year, month - 1, 1));
+    const lastDay = new Date(Date.UTC(year, month, 0)).getDate();
+    const periodEnd = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59, 999));
+
+    // Retenciones del período
+    const retenciones = await prisma.retencion.findMany({
+      where: {
+        companyId,
+        invoiceDate: { gte: periodStart, lte: periodEnd },
+        type: { in: ["IVA", "AMBAS"] },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        voucherNumber: true,
+        status: true,
+        invoiceNumber: true,
+        providerRif: true,
+        ivaRetention: true,
+        invoiceId: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Facturas de Compras del período con retención registrada
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: "PURCHASE",
+        date: { gte: periodStart, lte: periodEnd },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        date: true,
+        counterpartName: true,
+        counterpartRif: true,
+        ivaRetentionAmount: true,
+        ivaRetentionVoucher: true,
+      },
+      orderBy: { date: "asc" },
+    });
+
+    const rows: ReconciliationRow[] = [];
+    const matchedInvoiceIds = new Set<string>();
+
+    // Por cada retención, buscar la factura correspondiente
+    for (const ret of retenciones) {
+      const matchedInvoice = ret.invoiceId
+        ? invoices.find((i) => i.id === ret.invoiceId)
+        : invoices.find((i) => i.invoiceNumber === ret.invoiceNumber && i.counterpartRif === ret.providerRif);
+
+      if (matchedInvoice) {
+        matchedInvoiceIds.add(matchedInvoice.id);
+        // Verificar si los montos coinciden (tolerancia 1 Bs)
+        const retAmount = new Decimal(ret.ivaRetention.toString());
+        const invAmount = new Decimal(matchedInvoice.ivaRetentionAmount.toString());
+        const mismatch = retAmount.minus(invAmount).abs().greaterThan(new Decimal("1"));
+
+        rows.push({
+          retentionId: ret.id,
+          voucherNumber: ret.voucherNumber,
+          retentionStatus: ret.status,
+          retentionIvaRetention: retAmount.toFixed(2),
+          invoiceId: matchedInvoice.id,
+          invoiceNumber: matchedInvoice.invoiceNumber,
+          invoiceDate: matchedInvoice.date,
+          counterpartName: matchedInvoice.counterpartName,
+          counterpartRif: matchedInvoice.counterpartRif,
+          invoiceIvaRetentionAmount: invAmount.toFixed(2),
+          invoiceIvaRetentionVoucher: matchedInvoice.ivaRetentionVoucher,
+          status: mismatch ? "MISMATCH" : "MATCHED",
+        });
+      } else {
+        rows.push({
+          retentionId: ret.id,
+          voucherNumber: ret.voucherNumber,
+          retentionStatus: ret.status,
+          retentionIvaRetention: new Decimal(ret.ivaRetention.toString()).toFixed(2),
+          invoiceId: null,
+          invoiceNumber: ret.invoiceNumber,
+          invoiceDate: null,
+          counterpartName: null,
+          counterpartRif: ret.providerRif,
+          invoiceIvaRetentionAmount: null,
+          invoiceIvaRetentionVoucher: null,
+          status: "RETENTION_WITHOUT_INVOICE",
+        });
+      }
+    }
+
+    // Facturas con retención registrada pero sin comprobante vinculado
+    for (const inv of invoices) {
+      if (!matchedInvoiceIds.has(inv.id) && new Decimal(inv.ivaRetentionAmount.toString()).greaterThan(0)) {
+        rows.push({
+          retentionId: null,
+          voucherNumber: null,
+          retentionStatus: null,
+          retentionIvaRetention: null,
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.date,
+          counterpartName: inv.counterpartName,
+          counterpartRif: inv.counterpartRif,
+          invoiceIvaRetentionAmount: new Decimal(inv.ivaRetentionAmount.toString()).toFixed(2),
+          invoiceIvaRetentionVoucher: inv.ivaRetentionVoucher,
+          status: "INVOICE_WITHOUT_RETENTION",
+        });
+      }
+    }
+
+    return { success: true, data: rows };
+  } catch (e) {
+    console.error("getRetentionReconciliationAction:", e);
+    return { success: false, error: "Error al obtener conciliación" };
+  }
+}
+
 // ─── Serializar Retencion → RetentionSummary ──────────────────────────────────
 function serializeRetention(r: Retencion): RetentionSummary {
   return {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getRetentionsAction } from "@/modules/retentions/actions/retention.actions";
 import { RetentionForm } from "@/components/retentions/RetentionForm";
 import { RetentionList } from "@/components/retentions/RetentionList";
+import { RetentionReconciliation } from "@/components/retentions/RetentionReconciliation";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
 
 type Props = {
@@ -49,6 +50,17 @@ export default async function RetentionsPage({ params }: Props) {
             <RetentionList companyId={companyId} retentions={result.data} />
           )}
         </div>
+      </div>
+
+      {/* H-15: Conciliación Retenciones ↔ Libro de Compras (Prov. 0049 Art. 11) */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-semibold">Conciliación Retenciones ↔ Libro de Compras</h2>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            Verifica coherencia entre comprobantes RIVA emitidos y facturas del Libro de Compras para el período seleccionado.
+          </p>
+        </div>
+        <RetentionReconciliation companyId={companyId} />
       </div>
     </div>
   );
