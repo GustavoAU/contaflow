@@ -9,11 +9,13 @@ import type { TerminationRow } from "../services/TerminationService";
 import { updateTerminationAction, finalizeTerminationAction } from "../actions/nom-d.actions";
 
 const REASON_LABELS: Record<string, string> = {
-  RESIGNATION: "Renuncia voluntaria",
-  DISMISSAL_JUSTIFIED: "Despido justificado",
-  DISMISSAL_UNJUSTIFIED: "Despido injustificado",
-  CONTRACT_END: "Fin de contrato",
+  RESIGNATION: "Renuncia voluntaria (Art. 80 LOTTT)",
+  DISMISSAL_JUSTIFIED: "Despido justificado (Art. 79 LOTTT)",
+  DISMISSAL_UNJUSTIFIED: "Despido injustificado (Art. 92 LOTTT)",
   MUTUAL_AGREEMENT: "Mutuo acuerdo",
+  CONTRACT_EXPIRY: "Vencimiento de contrato determinado",
+  DEATH: "Fallecimiento del trabajador",
+  DISABILITY: "Incapacidad total permanente",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -159,6 +161,20 @@ export default function TerminationDetail({ companyId, termination: initial, emp
                 <td className="px-4 py-3 text-right text-gray-400">—</td>
                 <td className="px-4 py-3 text-right font-mono font-semibold text-amber-800">
                   {fmt(t.indemnificationAmount)}
+                </td>
+              </tr>
+            )}
+            {Number(t.noticePeriodAmount) > 0 && (
+              <tr className="bg-amber-50">
+                <td className="px-4 py-3 font-medium text-amber-800">
+                  Preaviso (Art. 86 LOTTT)
+                  {Number(t.noticePeriodDays) > 0 && (
+                    <span className="ml-1 text-xs font-normal">({fmtDays(t.noticePeriodDays)} días)</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-amber-700 text-xs">{fmtDays(t.noticePeriodDays)}</td>
+                <td className="px-4 py-3 text-right font-mono font-semibold text-amber-800">
+                  {fmt(t.noticePeriodAmount)}
                 </td>
               </tr>
             )}

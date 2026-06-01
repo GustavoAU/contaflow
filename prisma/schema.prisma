@@ -2175,6 +2175,9 @@ model Termination {
   profitSharingBaseSalary       Decimal?          @db.Decimal(19, 4) // promedio snapshot (ADR-014 Dec. 8)
   // Indemnización Art. 92 (solo DISMISSAL_UNJUSTIFIED)
   indemnificationAmount         Decimal           @default(0) @db.Decimal(19, 4)
+  // Preaviso Art. 86 LOTTT (solo DISMISSAL_UNJUSTIFIED — tramos por antigüedad)
+  noticePeriodDays              Decimal           @default(0) @db.Decimal(5, 2)
+  noticePeriodAmount            Decimal           @default(0) @db.Decimal(19, 4)
   // Otros conceptos pendientes
   pendingConceptsAmount         Decimal           @default(0) @db.Decimal(19, 4)
   pendingConceptsNotes          String?

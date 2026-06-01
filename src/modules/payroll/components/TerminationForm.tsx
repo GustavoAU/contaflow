@@ -31,12 +31,29 @@ function generateUUID(): string {
 }
 
 const REASONS = [
-  { value: "RESIGNATION", label: "Renuncia voluntaria" },
-  { value: "DISMISSAL_JUSTIFIED", label: "Despido justificado" },
-  { value: "DISMISSAL_UNJUSTIFIED", label: "Despido injustificado (doble prestación)" },
-  { value: "CONTRACT_END", label: "Fin de contrato" },
+  { value: "RESIGNATION", label: "Renuncia voluntaria (Art. 80 LOTTT)" },
+  { value: "DISMISSAL_JUSTIFIED", label: "Despido justificado (Art. 79 LOTTT)" },
+  { value: "DISMISSAL_UNJUSTIFIED", label: "Despido injustificado (Art. 92 LOTTT)" },
   { value: "MUTUAL_AGREEMENT", label: "Mutuo acuerdo" },
+  { value: "CONTRACT_EXPIRY", label: "Vencimiento de contrato determinado" },
+  { value: "DEATH", label: "Fallecimiento del trabajador" },
+  { value: "DISABILITY", label: "Incapacidad total permanente" },
 ];
+
+const REASON_NOTES: Record<string, string> = {
+  DISMISSAL_UNJUSTIFIED:
+    "Art. 92 LOTTT: indemnización equivalente a las prestaciones acumuladas + preaviso según antigüedad (Art. 86: <3m=15d, 3-6m=30d, 6-12m=45d, >1a=60d).",
+  DISMISSAL_JUSTIFIED:
+    "Art. 79 LOTTT: solo se pagan prestaciones, vacaciones y utilidades fraccionadas. Sin indemnización ni preaviso.",
+  RESIGNATION:
+    "Art. 80 LOTTT: el trabajador adeuda preaviso al patrono. Solo se pagan prestaciones, vacaciones y utilidades fraccionadas.",
+  CONTRACT_EXPIRY:
+    "Contrato determinado vencido. Solo prestaciones y conceptos fraccionados. Si el patrono no notificó con 30 días de anticipación, puede corresponder un mes de salario adicional (ajuste manual).",
+  DEATH:
+    "Fallecimiento: prestaciones y beneficios corresponden a los herederos legales.",
+  DISABILITY:
+    "Incapacidad total permanente (Art. 72 LOPCYMAT): prestaciones + posible indemnización adicional según dictamen médico.",
+};
 
 export default function TerminationForm({ companyId, employees }: Props) {
   const router = useRouter();
@@ -103,9 +120,9 @@ export default function TerminationForm({ companyId, employees }: Props) {
             <option key={r.value} value={r.value}>{r.label}</option>
           ))}
         </select>
-        {reason === "DISMISSAL_UNJUSTIFIED" && (
-          <p className="mt-1 text-xs text-amber-600">
-            Art. 92 LOTTT: la indemnización equivale al doble de las prestaciones acumuladas.
+        {REASON_NOTES[reason] && (
+          <p className="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+            {REASON_NOTES[reason]}
           </p>
         )}
       </div>

@@ -97,6 +97,8 @@ const BASE_TERMINATION = {
   profitSharingFractionalAmount: new Decimal("375"),
   profitSharingBaseSalary: new Decimal("3000"),
   indemnificationAmount: new Decimal("0"),
+  noticePeriodDays: new Decimal("0"),
+  noticePeriodAmount: new Decimal("0"),
   pendingConceptsAmount: new Decimal("0"),
   pendingConceptsNotes: null,
   totalGrossAmount: new Decimal("1075"),
@@ -189,16 +191,122 @@ describe("TerminationService.create", () => {
     );
   });
 
-  it("RESIGNATION has zero indemnification", async () => {
+  it("RESIGNATION has zero indemnification and zero notice period", async () => {
     await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
 
     expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           indemnificationAmount: "0.0000",
+          noticePeriodDays: "0.00",
+          noticePeriodAmount: "0.0000",
         }),
       })
     );
+  });
+
+  describe("preaviso por antigüedad — LOTTT Art. 86 (C-03 / F-08)", () => {
+    const dailySalary = new Decimal("3000").div(30); // = 100 Bs/día
+
+    function setupEmployeeWithHire(hireDate: Date) {
+      vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+        ...BASE_EMPLOYEE,
+        hireDate,
+      } as never);
+    }
+
+    it("< 3 meses → 15 días preaviso", async () => {
+      // hireDate 45 días antes de terminationDate
+      const terminationDate = new Date("2026-04-16");
+      const hireDate = new Date(terminationDate.getTime() - 45 * 24 * 60 * 60 * 1000);
+      setupEmployeeWithHire(hireDate);
+
+      await TerminationService.create(COMPANY, USER, EMP_ID, {
+        ...CREATE_INPUT,
+        reason: "DISMISSAL_UNJUSTIFIED",
+        terminationDate: "2026-04-16",
+      });
+
+      expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            noticePeriodDays: "15.00",
+            // 15 * 100 = 1500
+            noticePeriodAmount: dailySalary.mul(15).toDecimalPlaces(4).toFixed(4),
+          }),
+        })
+      );
+    });
+
+    it("3–6 meses → 30 días preaviso", async () => {
+      const terminationDate = new Date("2026-04-16");
+      const hireDate = new Date(terminationDate.getTime() - 120 * 24 * 60 * 60 * 1000); // 120 días
+      setupEmployeeWithHire(hireDate);
+
+      await TerminationService.create(COMPANY, USER, EMP_ID, {
+        ...CREATE_INPUT,
+        reason: "DISMISSAL_UNJUSTIFIED",
+        terminationDate: "2026-04-16",
+      });
+
+      expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ noticePeriodDays: "30.00" }),
+        })
+      );
+    });
+
+    it("6–12 meses → 45 días preaviso", async () => {
+      const terminationDate = new Date("2026-04-16");
+      const hireDate = new Date(terminationDate.getTime() - 200 * 24 * 60 * 60 * 1000); // 200 días
+      setupEmployeeWithHire(hireDate);
+
+      await TerminationService.create(COMPANY, USER, EMP_ID, {
+        ...CREATE_INPUT,
+        reason: "DISMISSAL_UNJUSTIFIED",
+        terminationDate: "2026-04-16",
+      });
+
+      expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ noticePeriodDays: "45.00" }),
+        })
+      );
+    });
+
+    it("> 1 año → 60 días preaviso", async () => {
+      // BASE_EMPLOYEE.hireDate = 2024-01-01, terminationDate = 2026-04-16 → 2+ años
+      await TerminationService.create(COMPANY, USER, EMP_ID, {
+        ...CREATE_INPUT,
+        reason: "DISMISSAL_UNJUSTIFIED",
+        terminationDate: "2026-04-16",
+      });
+
+      expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            noticePeriodDays: "60.00",
+            noticePeriodAmount: dailySalary.mul(60).toDecimalPlaces(4).toFixed(4),
+          }),
+        })
+      );
+    });
+
+    it("DISMISSAL_JUSTIFIED → sin preaviso", async () => {
+      await TerminationService.create(COMPANY, USER, EMP_ID, {
+        ...CREATE_INPUT,
+        reason: "DISMISSAL_JUSTIFIED",
+      });
+
+      expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            noticePeriodDays: "0.00",
+            noticePeriodAmount: "0.0000",
+          }),
+        })
+      );
+    });
   });
 
   it("idempotency key duplicate → P2002 → friendly error", async () => {
