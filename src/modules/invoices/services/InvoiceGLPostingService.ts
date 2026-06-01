@@ -3,8 +3,11 @@
 //
 // Convención JournalEntry: positivo = Débito, negativo = Crédito
 //
-// VENTA:  Dr CxC (total) | Cr Ingresos (base) + Cr IVA-DF (iva)
+// VENTA:  Dr CxC (total+IGTF) | Cr Ingresos (base) + Cr IVA-DF (iva) [+ Cr IGTF por Enterar]
 //         Si ivaTotal = 0: desc incluye "Exento Art. 9 LIVA" (Error 3 dictamen SENIAT)
+//         H-6: si igtfAmount > 0 y igtfPayableAccountId configurado:
+//           Dr CxC se amplía con igtfAmount | Cr IGTF Percibido por Enterar
+//           Si igtfPayableAccountId es null → asiento IGTF omitido, registra IGTF_GL_SKIPPED
 // COMPRA: Dr Inventario (base) + Dr IVA-CF (iva) | Cr Proveedores (neto) [+ Cr Ret.IVA si aplica]
 //         inventoryAccountId → ASSET 1115 (inventario perpetuo — Error 4 dictamen SENIAT)
 //         InventoryAccountingService.postMovement(SALIDA) se encarga del Dr COGS / Cr Inventario
@@ -29,6 +32,7 @@ export interface InvoiceGLConfig {
   ivaDFAccountId: string | null;
   ivaCFAccountId: string | null;
   ivaRetentionPayableAccountId: string | null; // LIABILITY — Retenciones IVA p.p. (GAP-03)
+  igtfPayableAccountId: string | null;         // H-6 — IGTF Percibido por Enterar (ADR-030)
 }
 
 export interface InvoiceForGL {
@@ -43,6 +47,8 @@ export interface InvoiceForGL {
   // NIC 21: tasa de conversión para enriquecer descripción del asiento (ALERTA 1)
   currency?: string;
   exchangeRateVes?: Decimal | null;
+  // H-6: IGTF percibido en ventas en divisas (Decreto Constituyente IGTF 2022)
+  igtfAmount?: Decimal | null;
 }
 
 export class InvoiceGLPostingService {
@@ -91,6 +97,11 @@ export class InvoiceGLPostingService {
     // doblar la base cuando hay múltiples líneas sobre el mismo monto gravable.
     const baseTotal = total.minus(ivaTotal);
 
+    // H-6: IGTF percibido — tributo separado del IVA (Decreto Constituyente IGTF 2022)
+    const igtfAmount = invoice.igtfAmount && invoice.igtfAmount.greaterThan(0)
+      ? new Decimal(invoice.igtfAmount.toString())
+      : new Decimal(0);
+
     let desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
 
     // NIC 21: documentar conversión en facturas emitidas en moneda extranjera (ALERTA 1)
@@ -108,12 +119,43 @@ export class InvoiceGLPostingService {
     let entries: Array<{ accountId: string; amount: Decimal; description: string }>;
 
     if (invoice.type === "SALE") {
+      // H-6: CxC incluye IGTF cuando aplica (total + igtf es el total exigible al cliente)
+      const arAmount = igtfAmount.greaterThan(0) && config.igtfPayableAccountId
+        ? total.plus(igtfAmount)
+        : total;
+
       entries = [
-        { accountId: config.arAccountId!, amount: total, description: `${desc} — CxC` },
+        { accountId: config.arAccountId!, amount: arAmount, description: `${desc} — CxC` },
         { accountId: config.salesAccountId!, amount: baseTotal.negated(), description: `${desc} — ingresos` },
       ];
       if (ivaTotal.greaterThan(0)) {
         entries.push({ accountId: config.ivaDFAccountId!, amount: ivaTotal.negated(), description: `${desc} — IVA débito fiscal` });
+      }
+      // H-6: Cr IGTF Percibido por Enterar si configurado; si no → IGTF_GL_SKIPPED
+      if (igtfAmount.greaterThan(0)) {
+        if (config.igtfPayableAccountId) {
+          entries.push({
+            accountId: config.igtfPayableAccountId,
+            amount: igtfAmount.negated(),
+            description: `${desc} — IGTF percibido por enterar`,
+          });
+        } else {
+          // Consistente con PaymentGLService: omitir silenciosamente + audit
+          await db.auditLog.create({
+            data: {
+              companyId,
+              entityId: invoice.id,
+              entityName: "Invoice",
+              action: "IGTF_GL_SKIPPED",
+              userId,
+              newValue: {
+                reason: "igtfPayableAccountId no configurado en CompanySettings",
+                igtfAmount: igtfAmount.toFixed(2),
+                invoiceNumber: invoice.invoiceNumber,
+              },
+            },
+          });
+        }
       }
     } else {
       // COMPRA — inventario perpetuo (Error 4 dictamen SENIAT):

@@ -22,6 +22,7 @@ const FULL_CONFIG: InvoiceGLConfig = {
   ivaDFAccountId: "acc-iva-df",
   ivaCFAccountId: "acc-iva-cf",
   ivaRetentionPayableAccountId: null,           // GAP-03: sin retención por defecto
+  igtfPayableAccountId: null,                   // H-6: sin IGTF por defecto
 };
 
 const SALE_INVOICE: InvoiceForGL = {
@@ -471,5 +472,84 @@ describe("InvoiceGLPostingService — GAP-03 retención IVA split", () => {
     const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
     const apEntry = entries.find((e) => e.accountId === "acc-prov");
     expect(new Decimal(apEntry!.amount.toString()).toFixed(2)).toBe("-232.00");
+  });
+});
+
+// ─── H-6: IGTF GL en ventas en divisas ────────────────────────────────────────
+describe("InvoiceGLPostingService — H-6: IGTF en asiento de venta", () => {
+  const IGTF_ACCOUNT_ID = "acc-igtf-percibido";
+  const SALE_WITH_IGTF: InvoiceForGL = {
+    id: INVOICE_ID,
+    type: "SALE",
+    invoiceNumber: "0005",
+    counterpartName: "Cliente IGTF",
+    date: new Date("2026-04-01"),
+    periodId: "period-1",
+    totalAmountVes: new Decimal("116.00"), // base 100 + IVA 16
+    taxLines: [{ taxType: "IVA_GENERAL", base: new Decimal("100"), amount: new Decimal("16") }],
+    currency: "USD",
+    igtfAmount: new Decimal("3.48"), // 3% sobre 116
+  };
+
+  function makeDbForIgtf() {
+    return {
+      transaction: { create: vi.fn().mockResolvedValue({ id: TX_ID }) },
+      invoice: { update: vi.fn().mockResolvedValue({ id: INVOICE_ID, transactionId: TX_ID }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    } as unknown as import("@prisma/client").Prisma.TransactionClient;
+  }
+
+  it("H-6: Dr CxC incluye IGTF + Cr IGTF Percibido cuando igtfPayableAccountId configurado", async () => {
+    const config: InvoiceGLConfig = { ...FULL_CONFIG, igtfPayableAccountId: IGTF_ACCOUNT_ID };
+    const db = makeDbForIgtf();
+
+    await InvoiceGLPostingService.postInvoice(SALE_WITH_IGTF, config, COMPANY_ID, USER_ID, db);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const arEntry = entries.find((e) => e.accountId === "acc-cxc");
+    const igtfEntry = entries.find((e) => e.accountId === IGTF_ACCOUNT_ID);
+
+    // CxC = total + IGTF = 116 + 3.48 = 119.48
+    expect(new Decimal(arEntry!.amount.toString()).toFixed(2)).toBe("119.48");
+    // IGTF percibido = −3.48
+    expect(new Decimal(igtfEntry!.amount.toString()).toFixed(2)).toBe("-3.48");
+  });
+
+  it("H-6: IGTF_GL_SKIPPED + CxC sin IGTF cuando igtfPayableAccountId es null", async () => {
+    // FULL_CONFIG tiene igtfPayableAccountId: null
+    const db = makeDbForIgtf();
+
+    await InvoiceGLPostingService.postInvoice(SALE_WITH_IGTF, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const arEntry = entries.find((e) => e.accountId === "acc-cxc");
+
+    // CxC = total solamente (IGTF no incluido porque no hay cuenta configurada)
+    expect(new Decimal(arEntry!.amount.toString()).toFixed(2)).toBe("116.00");
+    // auditLog.create llamado con IGTF_GL_SKIPPED
+    expect(vi.mocked(db.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "IGTF_GL_SKIPPED" }) })
+    );
+  });
+
+  it("H-6: sin IGTF (igtfAmount = 0) → asiento normal sin IGTF", async () => {
+    const config: InvoiceGLConfig = { ...FULL_CONFIG, igtfPayableAccountId: IGTF_ACCOUNT_ID };
+    const db = makeDbForIgtf();
+    const saleNoIgtf: InvoiceForGL = { ...SALE_WITH_IGTF, igtfAmount: new Decimal("0") };
+
+    await InvoiceGLPostingService.postInvoice(saleNoIgtf, config, COMPANY_ID, USER_ID, db);
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const arEntry = entries.find((e) => e.accountId === "acc-cxc");
+    const igtfEntry = entries.find((e) => e.accountId === IGTF_ACCOUNT_ID);
+
+    expect(new Decimal(arEntry!.amount.toString()).toFixed(2)).toBe("116.00");
+    expect(igtfEntry).toBeUndefined();
   });
 });

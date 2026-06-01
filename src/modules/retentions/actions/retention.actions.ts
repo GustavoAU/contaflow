@@ -97,9 +97,10 @@ export async function createRetentionAction(
       };
     }
 
-    // ALERTA 18: verificar que la base imponible de la retención no excede la de la factura registrada
-    // Si la factura existe en el sistema, la base de retención debe ser ≤ base imponible de la factura.
-    // Se busca por invoiceNumber + companyId + providerRif para garantizar aislamiento multi-tenant.
+    // ALERTA 18 + H-13/H-7: buscar factura por invoiceNumber + providerRif
+    // H-13: si se encuentra, auto-vincular retención con invoiceId (FK Prov. 0049 Art. 11)
+    // H-7: si la factura tiene asiento GL y la cuenta CxP está configurada, generar asiento
+    //      suplementario Dr CxP / Cr Ret.IVA por Enterar (Prov. 0049 — causación automática)
     const matchedInvoice = await prisma.invoice.findFirst({
       where: {
         companyId: data.companyId,
@@ -108,8 +109,10 @@ export async function createRetentionAction(
         deletedAt: null,
       },
       select: {
-        taxLines: { select: { base: true } },
+        id: true,
         invoiceNumber: true,
+        transactionId: true,
+        taxLines: { select: { base: true } },
       },
     });
     if (matchedInvoice && matchedInvoice.taxLines.length > 0) {
@@ -240,6 +243,58 @@ export async function createRetentionAction(
                   },
                 },
               });
+
+              // H-13: auto-vincular retención a la factura encontrada (Prov. 0049 Art. 11)
+              // La vinculación permite la conciliación exacta y habilita el split GL en futuros postings
+              if (matchedInvoice?.id) {
+                await tx.retencion.update({
+                  where: { id: ret.id },
+                  data: { invoiceId: matchedInvoice.id },
+                });
+
+                // H-7: asiento GL suplementario si la factura ya tiene transacción y la cuenta CxP está configurada
+                // Asiento: Dr CxP (ivaRetention) — Cr Ret.IVA por Enterar (ivaRetention)
+                // Corrige el pasivo de la factura original para reflejar que parte se retiene
+                if (data.type !== "ISLR" && new Decimal(calc.ivaRetention).greaterThan(0) && matchedInvoice.transactionId) {
+                  const glSettings = await tx.companySettings.findUnique({
+                    where: { companyId: data.companyId },
+                    select: { apAccountId: true, ivaRetentionPayableAccountId: true },
+                  });
+                  if (glSettings?.apAccountId && glSettings.ivaRetentionPayableAccountId) {
+                    const ivaRet = new Decimal(calc.ivaRetention);
+                    const retGlTx = await tx.transaction.create({
+                      data: {
+                        companyId: data.companyId,
+                        number: `RET-${voucherNumber}`,
+                        date: data.invoiceDate,
+                        description: `Retención IVA ${voucherNumber} — ${data.providerName} (Factura ${data.invoiceNumber})`,
+                        type: "DIARIO",
+                        userId,
+                        entries: {
+                          create: [
+                            {
+                              accountId: glSettings.apAccountId,
+                              // Dr CxP: reduce lo que se le pagará al proveedor
+                              amount: ivaRet,
+                              description: `Retención IVA ${voucherNumber} — CxP`,
+                            },
+                            {
+                              accountId: glSettings.ivaRetentionPayableAccountId,
+                              // Cr Ret.IVA por Enterar: obligación por enterar al SENIAT
+                              amount: ivaRet.negated(),
+                              description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
+                            },
+                          ],
+                        },
+                      },
+                    });
+                    await tx.retencion.update({
+                      where: { id: ret.id },
+                      data: { transactionId: retGlTx.id },
+                    });
+                  }
+                }
+              }
 
               return ret;
             }),

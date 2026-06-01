@@ -305,6 +305,7 @@ export class InvoiceService {
           ivaDFAccountId: true,
           ivaCFAccountId: true,
           ivaRetentionPayableAccountId: true, // GAP-03
+          igtfPayableAccountId: true,         // H-6 — ADR-030
         },
       });
 
@@ -415,6 +416,8 @@ export class InvoiceService {
             taxLines: invoice.taxLines,
             currency: input.currency ?? "VES",
             exchangeRateVes,
+            // H-6: IGTF percibido — Decreto Constituyente IGTF 2022
+            igtfAmount: new Decimal(input.igtfAmount ?? "0"),
           },
           settings,
           input.companyId,
