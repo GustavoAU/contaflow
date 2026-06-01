@@ -126,12 +126,12 @@ export function IncomeStatementFilter({ defaultFrom = "", defaultTo = "", defaul
             <div className="space-y-1">
               <label className="text-xs text-zinc-500">Desde</label>
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-zinc-500">Hasta</label>
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
             </div>
           </div>
         </div>
@@ -142,12 +142,12 @@ export function IncomeStatementFilter({ defaultFrom = "", defaultTo = "", defaul
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">Desde</label>
               <input type="date" value={cmpFrom} onChange={(e) => setCmpFrom(e.target.value)}
-                className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">Hasta</label>
               <input type="date" value={cmpTo} onChange={(e) => setCmpTo(e.target.value)}
-                className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
             </div>
           </div>
         </div>

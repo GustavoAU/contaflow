@@ -253,7 +253,7 @@ export function PaymentBatchList({ companyId, batches, onVoided }: Props) {
 
   return (
     <div className="overflow-x-auto rounded-lg border bg-white">
-      <table className="w-full min-w-[700px] text-sm">
+      <table className="w-full min-w-175 text-sm">
         <thead className="border-b bg-zinc-50 text-xs font-medium uppercase text-zinc-500">
           <tr>
             <th className="w-8 px-3 py-3" />
