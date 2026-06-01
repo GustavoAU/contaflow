@@ -897,7 +897,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{baseLabel}</p>
                   <MoneyBadge amount={base} currency="VES" />
                 </div>
-                <div className="text-right min-w-[90px]">
+                <div className="text-right min-w-22.5">
                   <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{ivaLabel}</p>
                   <MoneyBadge amount={iva} currency="VES" />
                 </div>

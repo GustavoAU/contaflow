@@ -89,7 +89,8 @@ export function LedgerAccountBlock({
 
       {/* Movimientos — solo visibles cuando está expandido */}
       {expanded && (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-160 text-sm">
           <thead className="border-b">
             <tr className="text-zinc-500">
               <th className="px-4 py-2 text-left font-medium">Fecha</th>
@@ -159,6 +160,7 @@ export function LedgerAccountBlock({
             </tfoot>
           )}
         </table>
+        </div>
       )}
     </div>
   );

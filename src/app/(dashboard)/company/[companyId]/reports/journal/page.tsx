@@ -54,7 +54,8 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
       </div>
 
       {/* Partidas */}
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-120 text-sm">
         <thead className="border-b">
           <tr className="text-xs text-zinc-400">
             <th className="w-20 px-4 py-1.5 text-left font-normal">Código</th>
@@ -87,6 +88,7 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
           </tr>
         </tfoot>
       </table>
+      </div>
     </div>
   );
 }

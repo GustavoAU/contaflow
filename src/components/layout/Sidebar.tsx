@@ -91,7 +91,7 @@ function SidebarItem({
   disabled?: boolean;
 }) {
   const cls = cn(
-    "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
+    "flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-13 font-medium",
     "transition-colors overflow-hidden whitespace-nowrap",
     // WCAG 2.4.7: indicador de foco visible en todos los enlaces de navegación
     "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
@@ -140,7 +140,7 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       onClick={() => signOut({ redirectUrl: "/sign-in" })}
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
-        "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
+        "flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-13 font-medium",
         "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors",
         "overflow-hidden whitespace-nowrap",
         // WCAG 2.4.7: indicador de foco visible
