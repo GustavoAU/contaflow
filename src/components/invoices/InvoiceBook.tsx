@@ -576,7 +576,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                     Registra o escanea una factura para que aparezca aquí.
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-center gap-2">
                   <Link
                     href={`/company/${companyId}/invoices/new`}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
@@ -591,6 +591,16 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                     <ScanIcon className="h-4 w-4" />
                     Escanear
                   </Link>
+                  {/* H-9: acceso rápido a importación masiva desde estado vacío */}
+                  <button
+                    type="button"
+                    onClick={() => setShowImportDialog(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                    title="Importar múltiples facturas desde archivo CSV"
+                  >
+                    <UploadIcon className="h-4 w-4" />
+                    Importar lote
+                  </button>
                 </div>
               </div>
             ) : (

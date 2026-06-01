@@ -263,6 +263,26 @@ export class InvoiceService {
         );
       }
 
+      // H-12: validar unicidad de Nº Control por proveedor (COT Art. 101 — ilícito formal)
+      // Solo aplica a compras con controlNumber presente
+      if (input.type === "PURCHASE" && input.controlNumber && input.counterpartRif) {
+        const duplicate = await db.invoice.findFirst({
+          where: {
+            companyId: input.companyId,
+            type: "PURCHASE",
+            controlNumber: input.controlNumber,
+            counterpartRif: input.counterpartRif,
+            deletedAt: null,
+          },
+          select: { invoiceNumber: true },
+        });
+        if (duplicate) {
+          throw new Error(
+            `El Nº Control ${input.controlNumber} ya fue registrado para el proveedor ${input.counterpartRif} (Factura ${duplicate.invoiceNumber}). Un Nº Control duplicado es un ilícito formal (COT Art. 101).`
+          );
+        }
+      }
+
       // Fase 16: obtener paymentTermDays para calcular dueDate
       const company = await db.company.findUnique({
         where: { id: input.companyId },
