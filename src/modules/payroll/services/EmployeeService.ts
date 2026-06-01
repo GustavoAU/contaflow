@@ -17,6 +17,7 @@ import { Decimal } from "decimal.js";
 import type {
   ContractType,
   EmployeeStatus,
+  JornadaType,
   LottRegime,
   PayrollPaymentCurrency,
 } from "@prisma/client";
@@ -58,6 +59,12 @@ export interface EmployeeRow {
   bankName: string | null;
   bankAccount: string | null;
   costCenter: string | null;
+  // F-01: campos parafiscales
+  ivssNumber: string | null;
+  banavihNumber: string | null;
+  dependents: number | null;
+  birthDate: string | null;
+  workSchedule: JornadaType | null;
   currentSalary: SalaryHistoryRow | null;
   updatedAt: string;
 }
@@ -112,6 +119,11 @@ type PrismaEmployee = {
   bankName: string | null;
   bankAccount: string | null;
   costCenter: string | null;
+  ivssNumber: string | null;
+  banavihNumber: string | null;
+  dependents: number | null;
+  birthDate: Date | null;
+  workSchedule: JornadaType | null;
   updatedAt: Date;
   salaryHistory: Array<{
     id: string;
@@ -145,6 +157,11 @@ function serializeEmployee(e: PrismaEmployee): EmployeeRow {
     bankName: e.bankName,
     bankAccount: e.bankAccount,
     costCenter: e.costCenter,
+    ivssNumber: e.ivssNumber,
+    banavihNumber: e.banavihNumber,
+    dependents: e.dependents,
+    birthDate: e.birthDate ? e.birthDate.toISOString().split("T")[0] : null,
+    workSchedule: e.workSchedule,
     currentSalary: currentSalary ? serializeSalary(currentSalary) : null,
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -230,6 +247,11 @@ export const EmployeeService = {
           bankName: input.bankName ?? null,
           bankAccount: input.bankAccount ?? null,
           costCenter: input.costCenter ?? null,
+          ivssNumber: input.ivssNumber ?? null,
+          banavihNumber: input.banavihNumber ?? null,
+          dependents: input.dependents ?? null,
+          birthDate: input.birthDate ? new Date(input.birthDate) : null,
+          workSchedule: input.workSchedule ?? null,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -311,6 +333,11 @@ export const EmployeeService = {
           bankName: input.bankName ?? null,
           bankAccount: input.bankAccount ?? null,
           costCenter: input.costCenter ?? null,
+          ivssNumber: input.ivssNumber ?? null,
+          banavihNumber: input.banavihNumber ?? null,
+          dependents: input.dependents ?? null,
+          birthDate: input.birthDate ? new Date(input.birthDate) : null,
+          workSchedule: input.workSchedule ?? null,
         },
         include: WITH_CURRENT_SALARY,
       });

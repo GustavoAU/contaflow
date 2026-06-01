@@ -10,6 +10,8 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       delete: vi.fn(),
     },
+    auditLog: { create: vi.fn() },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -99,9 +101,15 @@ describe("LegalThresholdService.list", () => {
 });
 
 describe("LegalThresholdService.create", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
 
-  it("crea registro y devuelve fila serializada", async () => {
+  it("crea registro y devuelve fila serializada + AuditLog (C-04)", async () => {
     vi.mocked(prisma.legalThreshold.create).mockResolvedValue(SAMPLE_ROW as never);
 
     const result = await LegalThresholdService.create(COMPANY_ID, {
@@ -109,6 +117,7 @@ describe("LegalThresholdService.create", () => {
       effectiveFrom: new Date("2026-01-01"),
       value: new Decimal("130.00"),
       notes: "Decreto 5.163",
+      userId: "user-1",
     });
 
     expect(result.value).toBe("130.00");
@@ -122,25 +131,43 @@ describe("LegalThresholdService.create", () => {
         }),
       }),
     );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "CREATE_LEGAL_THRESHOLD", userId: "user-1" }),
+      }),
+    );
   });
 });
 
 describe("LegalThresholdService.delete", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
 
-  it("elimina cuando el registro pertenece a la empresa", async () => {
+  it("elimina cuando el registro pertenece a la empresa + AuditLog (C-04)", async () => {
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(SAMPLE_ROW as never);
     vi.mocked(prisma.legalThreshold.delete).mockResolvedValue(SAMPLE_ROW as never);
 
-    await expect(LegalThresholdService.delete(COMPANY_ID, "th-1")).resolves.toBeUndefined();
+    await expect(
+      LegalThresholdService.delete(COMPANY_ID, "th-1", "user-1")
+    ).resolves.toBeUndefined();
     expect(prisma.legalThreshold.delete).toHaveBeenCalledWith({ where: { id: "th-1" } });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "DELETE_LEGAL_THRESHOLD", userId: "user-1" }),
+      }),
+    );
   });
 
   it("lanza error si el registro no pertenece a la empresa (IDOR guard)", async () => {
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null);
 
     await expect(
-      LegalThresholdService.delete(COMPANY_ID, "th-other"),
+      LegalThresholdService.delete(COMPANY_ID, "th-other", "user-1"),
     ).rejects.toThrow("Registro no encontrado");
   });
 });

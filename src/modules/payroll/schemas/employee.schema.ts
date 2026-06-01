@@ -35,6 +35,12 @@ export const CreateEmployeeSchema = z.object({
   costCenter: z.string().max(100).optional(),
   initialSalaryAmount: zMoneyPositive.optional(),
   initialSalaryCurrency: z.enum(["VES", "USD", "MIXED"]).optional(),
+  // F-01: campos parafiscales
+  ivssNumber: z.string().max(20).optional(),
+  banavihNumber: z.string().max(20).optional(),
+  dependents: z.coerce.number().int().min(0).max(20).optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
 });
 
 export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
@@ -55,6 +61,12 @@ export const UpdateEmployeeSchema = z.object({
   bankName: z.string().max(100).optional(),
   bankAccount: z.string().max(30).optional(),
   costCenter: z.string().max(100).optional(),
+  // F-01: campos parafiscales
+  ivssNumber: z.string().max(20).optional(),
+  banavihNumber: z.string().max(20).optional(),
+  dependents: z.coerce.number().int().min(0).max(20).optional(),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
 });
 
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;

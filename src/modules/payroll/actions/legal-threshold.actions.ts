@@ -9,6 +9,7 @@
 //   - rate limit con limiters.fiscal en escrituras
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -84,12 +85,18 @@ export async function createLegalThresholdAction(
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const { type, effectiveFrom, value, notes } = parsed.data;
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const data = await LegalThresholdService.create(companyId, {
       type: type as LegalThresholdType,
       effectiveFrom: new Date(effectiveFrom),
       value: new Decimal(value),
       notes,
+      userId,
+      ipAddress,
+      userAgent,
     });
 
     revalidatePath(`/payroll/legal-thresholds`);
@@ -117,7 +124,11 @@ export async function deleteLegalThresholdAction(
     const guard = await guardAdmin(companyId, userId);
     if (guard) return guard;
 
-    await LegalThresholdService.delete(companyId, id);
+    const h2 = await headers();
+    const ipAddress2 = h2.get("x-real-ip") ?? h2.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+    const userAgent2 = (h2.get("user-agent") ?? "").slice(0, 512) || null;
+
+    await LegalThresholdService.delete(companyId, id, userId, ipAddress2, userAgent2);
     revalidatePath(`/payroll/legal-thresholds`);
     return { success: true, data: undefined };
   } catch (e) {

@@ -1521,6 +1521,13 @@ enum LottRegime {
   MIXED // Empleados de ambos regímenes (pre-1997 LOT + post-2012)
 }
 
+// Tipo de jornada laboral (LOTTT Arts. 173-177) — distinto de WorkSchedule (días semana)
+enum JornadaType {
+  DIURNA
+  NOCTURNA
+  MIXTA
+}
+
 enum PayrollPaymentCurrency {
   VES
   USD
@@ -1714,6 +1721,12 @@ model Employee {
   // Datos bancarios (para nómina)
   bankName        String?
   bankAccount     String?
+  // Parafiscal (F-01 — IVSS/Banavih/ISLR D.1808)
+  ivssNumber      String? // Número afiliación IVSS (Forma 14-02)
+  banavihNumber   String? // Número afiliación Banavih/FAOV (FAOVWeb)
+  dependents      Int? // Cargas familiares para ISLR (D. 1808)
+  birthDate       DateTime?      @db.Date
+  workSchedule    JornadaType? // Jornada laboral LOTTT Arts. 173-177
   // Timestamps
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
