@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { createEmployeeAction, updateEmployeeAction } from "../actions/employee.actions";
 import type { EmployeeRow } from "../services/EmployeeService";
+import { VENEZUELA_BANKS } from "../../payments/constants/venezuela-banks";
 
 interface Props {
   companyId: string;
@@ -383,13 +384,16 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Banco</label>
-          <input
-            type="text"
+          <select
             value={form.bankName}
             onChange={(e) => set("bankName", e.target.value)}
-            className="w-full rounded border px-3 py-2 text-sm"
-            placeholder="ej. Banesco, BDV..."
-          />
+            className="w-full rounded border px-3 py-2 text-sm bg-white"
+          >
+            <option value="">— Seleccionar banco —</option>
+            {VENEZUELA_BANKS.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Cuenta bancaria</label>
