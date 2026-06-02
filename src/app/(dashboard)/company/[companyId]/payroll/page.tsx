@@ -86,7 +86,11 @@ export default async function PayrollPage({ params }: Props) {
   const [latestBcvBenefitRate, latestThreshold, latestExchangeRate] = config && canReadAccounting
     ? await Promise.all([
         prisma.bcvBenefitRate.findFirst({ where: { companyId, year: currentYear }, select: { id: true } }),
-        prisma.legalThreshold.findFirst({ where: { companyId }, orderBy: { effectiveFrom: "desc" }, select: { effectiveFrom: true } }),
+        prisma.legalThreshold.findFirst({
+          where: { companyId, type: "SALARY_MIN_VES" },
+          orderBy: { effectiveFrom: "desc" },
+          select: { effectiveFrom: true, value: true },
+        }),
         prisma.exchangeRate.findFirst({ where: { companyId, currency: "USD" }, orderBy: { date: "desc" }, select: { date: true } }),
       ])
     : [null, null, null];
@@ -121,10 +125,10 @@ export default async function PayrollPage({ params }: Props) {
                   ? "amber"
                   : "green",
               detail: !latestThreshold
-                ? "Sin topes registrados — configura el salario mínimo vigente."
+                ? "Sin topes registrados — configura el salario mínimo vigente (tope cotización IVSS/INCES/FAOV/RPE)."
                 : thresholdAge !== null && thresholdAge > 120
-                  ? `Último registro hace ${thresholdAge} días — verifica si hubo decreto presidencial reciente.`
-                  : `Actualizado (hace ${thresholdAge} días).`,
+                  ? `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (desde ${latestThreshold.effectiveFrom.toISOString().slice(0, 10)}, hace ${thresholdAge} días) — verifica si hubo decreto presidencial reciente.`
+                  : `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })} — actualizado (hace ${thresholdAge} días).`,
               href: "/payroll/legal-thresholds",
               hrefLabel: "Configurar",
             },
