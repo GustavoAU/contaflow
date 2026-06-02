@@ -61,6 +61,8 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
   const [isExportingTxt, startExportTxt] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  // U-03: checklist obligatorio antes de aprobar
+  const [salMinChecked, setSalMinChecked] = useState(false);
 
   // Agrupar líneas por empleado
   const byEmployee = run.lines.reduce<Record<string, typeof run.lines>>((acc, line) => {
@@ -291,14 +293,56 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
         )}
       </div>
 
-      {/* U-03: Modal de confirmación con resumen de impacto contable */}
+      {/* U-03: Modal de confirmación con checklist pre-aprobación */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900">Confirmar aprobación de nómina</h3>
             <p className="mt-1 text-sm text-gray-500">
               Esta acción generará el asiento contable y no podrá revertirse directamente.
             </p>
+
+            {/* Checklist de prerrequisitos — U-03 */}
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Verificación previa</p>
+
+              {/* Tasa BCV prestaciones */}
+              <div className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${run.bcvRateAtRun ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}>
+                <span className="shrink-0 mt-0.5">{run.bcvRateAtRun ? "✓" : "⚠"}</span>
+                <span>
+                  <strong>Tasa BCV prestaciones:</strong>{" "}
+                  {run.bcvRateAtRun
+                    ? `Registrada — ${Number(run.bcvRateAtRun).toFixed(2)}% anual`
+                    : "No registrada para este período. Regístrate en Nómina → Topes Legales → Tasa BCV antes de aprobar."}
+                </span>
+              </div>
+
+              {/* Aportes patronales */}
+              <div className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${Number(run.totalEmployerCosts) > 0 ? "bg-green-50 text-green-800" : "bg-gray-50 text-gray-600"}`}>
+                <span className="shrink-0 mt-0.5">{Number(run.totalEmployerCosts) > 0 ? "✓" : "·"}</span>
+                <span>
+                  <strong>Aportes patronales (IVSS/INCES/FAOV/RPE):</strong>{" "}
+                  {Number(run.totalEmployerCosts) > 0
+                    ? `Calculados — ${currency} ${formatAmount(Number(run.totalEmployerCosts))}`
+                    : "No hay aportes patronales en este proceso. Verifica la configuración si se esperan."}
+                </span>
+              </div>
+
+              {/* Checkbox obligatorio — salario mínimo (manual, no derivable del run) */}
+              <label className="flex items-start gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={salMinChecked}
+                  onChange={(e) => setSalMinChecked(e.target.checked)}
+                  className="mt-0.5 accent-green-600"
+                />
+                <span>
+                  <strong>Confirmo</strong> que el salario mínimo vigente en{" "}
+                  <em>Nómina → Topes Legales</em> está actualizado al decreto presidencial vigente
+                  y que las prestaciones del trimestre han sido acumuladas.
+                </span>
+              </label>
+            </div>
 
             {/* Resumen de impacto contable */}
             <div className="mt-4 rounded-md border bg-gray-50 divide-y text-sm">
@@ -328,16 +372,17 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
 
             <div className="mt-5 flex gap-3 justify-end">
               <button
-                onClick={() => setShowConfirm(false)}
+                onClick={() => { setShowConfirm(false); setSalMinChecked(false); }}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleApprove}
-                disabled={isPending}
+                disabled={isPending || !salMinChecked}
                 aria-busy={isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                title={!salMinChecked ? "Debes confirmar la verificación del salario mínimo" : undefined}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isPending && <Loader2Icon className="size-4 animate-spin" />}
                 {isPending ? "Aprobando…" : "Confirmar aprobación"}
@@ -393,7 +438,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                     <tbody>
                       {earnings.map((l) => (
                         <tr key={l.id}>
-                          <td className="py-0.5 pr-4 text-gray-600">{conceptLabel(l.conceptCode)}</td>
+                          <td className="py-0.5 pr-4 text-gray-600">
+                            {conceptLabel(l.conceptCode)}
+                            {/* U-02: base imponible visible */}
+                            {l.basis && l.rate && (
+                              <span className="ml-1.5 text-gray-400 font-normal">
+                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                              </span>
+                            )}
+                          </td>
                           <td className="py-0.5 text-right font-mono text-green-700">
                             +{formatAmount(Number(l.amount))}
                           </td>
@@ -414,7 +467,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                     <tbody>
                       {deductions.map((l) => (
                         <tr key={l.id}>
-                          <td className="py-0.5 pr-4 text-gray-500">{conceptLabel(l.conceptCode)}</td>
+                          <td className="py-0.5 pr-4 text-gray-500">
+                            {conceptLabel(l.conceptCode)}
+                            {/* U-02: base imponible visible */}
+                            {l.basis && l.rate && (
+                              <span className="ml-1.5 text-gray-400 font-normal">
+                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                              </span>
+                            )}
+                          </td>
                           <td className="py-0.5 text-right font-mono text-red-600">
                             -{formatAmount(Number(l.amount))}
                           </td>
@@ -432,7 +493,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                       <tbody>
                         {employerCosts.map((l) => (
                           <tr key={l.id} className="opacity-80">
-                            <td className="py-0.5 pr-4 text-orange-700">{conceptLabel(l.conceptCode)}</td>
+                            <td className="py-0.5 pr-4 text-orange-700">
+                              {conceptLabel(l.conceptCode)}
+                              {/* U-02: base imponible visible en aportes patronales */}
+                              {l.basis && l.rate && (
+                                <span className="ml-1.5 text-orange-400 font-normal">
+                                  ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                                </span>
+                              )}
+                            </td>
                             <td className="py-0.5 text-right font-mono text-orange-700">
                               {formatAmount(Number(l.amount))}
                             </td>

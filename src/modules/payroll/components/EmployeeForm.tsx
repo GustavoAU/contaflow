@@ -104,11 +104,31 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
     });
   }
 
+  const SECTIONS = isEdit
+    ? ["Identificación", "Datos personales", "Contrato", "Banco", "Parafiscales"]
+    : ["Identificación", "Datos personales", "Contrato", "Banco", "Parafiscales", "Salario inicial"];
+
   return (
     <div className="space-y-5 rounded-lg border p-6">
-      <h2 className="text-lg font-semibold">
-        {isEdit ? "Editar empleado" : "Registrar empleado"}
-      </h2>
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-lg font-semibold">
+          {isEdit ? "Editar empleado" : "Registrar empleado"}
+        </h2>
+        {/* U-06: índice de secciones del formulario */}
+        <ol className="flex flex-wrap gap-1.5" aria-label="Secciones del formulario">
+          {SECTIONS.map((sec, i) => (
+            <li
+              key={sec}
+              className="flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold leading-none">
+                {i + 1}
+              </span>
+              {sec}
+            </li>
+          ))}
+        </ol>
+      </div>
 
       {/* Identificación */}
       <div className="grid grid-cols-3 gap-3">
@@ -163,7 +183,10 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       )}
 
-      {/* Datos personales */}
+      {/* ② Datos personales */}
+      <div className="border-t pt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">② Datos personales</p>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Fecha de nacimiento</label>
@@ -194,7 +217,10 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* Contrato */}
+      {/* ③ Contrato */}
+      <div className="border-t pt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">③ Contrato</p>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Tipo contrato *</label>
@@ -350,7 +376,10 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* Datos bancarios */}
+      {/* ④ Banco */}
+      <div className="border-t pt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">④ Datos bancarios</p>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Banco</label>
@@ -373,7 +402,10 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* Parafiscal */}
+      {/* ⑤ Parafiscal */}
+      <div className="border-t pt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">⑤ Parafiscales</p>
+      </div>
       <div className="rounded bg-slate-50 p-4 space-y-3">
         <p className="text-xs font-medium text-slate-700">
           Datos parafiscales{" "}
@@ -445,7 +477,14 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* Salario inicial — solo en creación */}
+      {/* ⑥ Salario inicial — solo en creación */}
+      {!isEdit && (
+        <>
+          <div className="border-t pt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">⑥ Salario inicial</p>
+          </div>
+        </>
+      )}
       {!isEdit && (
         <div className="rounded bg-blue-50 p-4">
           <p className="mb-2 text-xs font-medium text-blue-800">

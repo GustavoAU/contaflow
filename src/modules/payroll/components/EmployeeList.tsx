@@ -51,9 +51,11 @@ interface Props {
   companyId: string;
   employees: EmployeeListRow[];
   canWrite: boolean;
+  // U-01: tasa para total equivalente en moneda base
+  usdToVesRate?: { rate: string; date: string };
 }
 
-export default function EmployeeList({ companyId, employees, canWrite }: Props) {
+export default function EmployeeList({ companyId, employees, canWrite, usdToVesRate }: Props) {
   // U-06: búsqueda local por nombre o cédula
   const [query, setQuery] = useState("");
   const [filterContract, setFilterContract] = useState<string>("");
@@ -72,6 +74,31 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
     if (filterCurrency && e.currentSalaryCurrency !== filterCurrency) return false;
     return true;
   });
+
+  // U-01: totales de nómina activa con conversión a VES
+  const activeFiltered = filtered.filter((e) => e.status === "ACTIVE" && e.currentSalaryAmount);
+  const totalVes = activeFiltered.reduce((sum, e) => {
+    if (!e.currentSalaryAmount) return sum;
+    const amt = Number(e.currentSalaryAmount);
+    if (e.currentSalaryCurrency === "USD" && usdToVesRate) {
+      return sum + amt * Number(usdToVesRate.rate);
+    }
+    if (e.currentSalaryCurrency === "VES") {
+      return sum + amt;
+    }
+    return sum;
+  }, 0);
+  const totalUsd = activeFiltered.reduce((sum, e) => {
+    if (!e.currentSalaryAmount) return sum;
+    const amt = Number(e.currentSalaryAmount);
+    if (e.currentSalaryCurrency === "USD") return sum + amt;
+    if (e.currentSalaryCurrency === "VES" && usdToVesRate) {
+      return sum + amt / Number(usdToVesRate.rate);
+    }
+    return sum;
+  }, 0);
+  const hasMixedCurrencies = activeFiltered.some((e) => e.currentSalaryCurrency === "USD") &&
+    activeFiltered.some((e) => e.currentSalaryCurrency === "VES");
 
   if (employees.length === 0) {
     return (
@@ -233,6 +260,48 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* U-01: panel de totales con conversión a moneda base */}
+      {activeFiltered.length > 0 && hasMixedCurrencies && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+          <p className="font-semibold mb-1.5">
+            Total nómina mensual estimada — {activeFiltered.length} empleado{activeFiltered.length !== 1 ? "s" : ""} activo{activeFiltered.length !== 1 ? "s" : ""}
+          </p>
+          {usdToVesRate ? (
+            <div className="flex flex-wrap gap-4">
+              <span>
+                Total equivalente VES:{" "}
+                <strong className="font-mono">{totalVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.</strong>
+              </span>
+              <span>
+                Total equivalente USD:{" "}
+                <strong className="font-mono">$ {totalUsd.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </span>
+              <span className="text-blue-600">
+                Tasa: Bs. {Number(usdToVesRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })} / USD
+                {" "}({usdToVesRate.date})
+              </span>
+            </div>
+          ) : (
+            <p className="text-amber-700">
+              Sin tasa USD registrada — registra la tasa BCV en Contabilidad → Tasas de Cambio para ver el total equivalente.
+            </p>
+          )}
+        </div>
+      )}
+      {activeFiltered.length > 0 && !hasMixedCurrencies && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600 flex items-center gap-4">
+          <span className="font-medium">
+            Total nómina mensual ({activeFiltered.length} activo{activeFiltered.length !== 1 ? "s" : ""}):
+          </span>
+          <span className="font-mono font-semibold">
+            {activeFiltered[0]?.currentSalaryCurrency === "USD" ? "$ " : "Bs. "}
+            {activeFiltered[0]?.currentSalaryCurrency === "USD"
+              ? totalUsd.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : totalVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
         </div>
       )}
     </div>

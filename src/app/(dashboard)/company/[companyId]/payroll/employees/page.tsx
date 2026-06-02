@@ -37,6 +37,13 @@ export default async function EmployeesPage({ params }: Props) {
   const canWrite = canAccess(member.role, ROLES.ADMIN_ONLY);
   const activeCount = employees.filter((e) => e.status === "ACTIVE").length;
 
+  // U-01: tasa USD→VES más reciente para total equivalente en moneda base
+  const latestUsdRate = await prisma.exchangeRate.findFirst({
+    where: { companyId, currency: "USD" },
+    orderBy: { date: "desc" },
+    select: { rate: true, date: true },
+  });
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -66,7 +73,12 @@ export default async function EmployeesPage({ params }: Props) {
         </div>
       </div>
 
-      <EmployeeList companyId={companyId} employees={employees} canWrite={canWrite} />
+      <EmployeeList
+        companyId={companyId}
+        employees={employees}
+        canWrite={canWrite}
+        usdToVesRate={latestUsdRate ? { rate: latestUsdRate.rate.toString(), date: latestUsdRate.date.toISOString().split("T")[0] } : undefined}
+      />
     </div>
   );
 }
