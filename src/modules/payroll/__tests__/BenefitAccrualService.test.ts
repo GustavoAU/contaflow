@@ -87,6 +87,8 @@ const BASE_BALANCE = {
   employeeId: EMP_ID,
   currentBalance: new Decimal("0"),
   interestBalance: new Decimal("0"),
+  initialBalance: new Decimal("0"),
+  initialInterestBalance: new Decimal("0"),
   isLiquidated: false,
   liquidatedAt: null,
   createdAt: new Date(),

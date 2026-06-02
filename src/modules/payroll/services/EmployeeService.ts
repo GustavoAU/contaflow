@@ -71,6 +71,7 @@ export interface EmployeeRow {
   maritalStatus: MaritalStatus | null;
   payrollWorkerType: PayrollWorkerType;
   contractEndDate: string | null;
+  useFideicomiso: boolean;
   currentSalary: SalaryHistoryRow | null;
   updatedAt: string;
 }
@@ -86,6 +87,8 @@ export interface EmployeeListRow {
   hireDate: string;
   currentSalaryAmount: string | null;
   currentSalaryCurrency: PayrollPaymentCurrency | null;
+  // C-06: tipo trabajador — visible en tabla para identificar Forma 14-02 IVSS
+  payrollWorkerType: PayrollWorkerType;
 }
 
 // ─── Helpers de serialización ─────────────────────────────────────────────────
@@ -133,6 +136,7 @@ type PrismaEmployee = {
   maritalStatus: MaritalStatus | null;
   payrollWorkerType: PayrollWorkerType;
   contractEndDate: Date | null;
+  useFideicomiso: boolean;
   updatedAt: Date;
   salaryHistory: Array<{
     id: string;
@@ -174,6 +178,7 @@ function serializeEmployee(e: PrismaEmployee): EmployeeRow {
     maritalStatus: e.maritalStatus,
     payrollWorkerType: e.payrollWorkerType,
     contractEndDate: e.contractEndDate ? e.contractEndDate.toISOString().split("T")[0] : null,
+    useFideicomiso: e.useFideicomiso,
     currentSalary: currentSalary ? serializeSalary(currentSalary) : null,
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -208,6 +213,7 @@ export const EmployeeService = {
       hireDate: e.hireDate.toISOString().split("T")[0],
       currentSalaryAmount: e.salaryHistory[0]?.amount.toString() ?? null,
       currentSalaryCurrency: e.salaryHistory[0]?.currency ?? null,
+      payrollWorkerType: e.payrollWorkerType,
     }));
   },
 
@@ -267,6 +273,7 @@ export const EmployeeService = {
           maritalStatus: input.maritalStatus ?? null,
           payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
           contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
+          useFideicomiso: input.useFideicomiso ?? false,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -356,6 +363,7 @@ export const EmployeeService = {
           maritalStatus: input.maritalStatus ?? null,
           payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
           contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
+          useFideicomiso: input.useFideicomiso ?? false,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -458,6 +466,13 @@ export const EmployeeService = {
         throw new Error("No se puede modificar el salario de un empleado egresado");
       }
 
+      // Captura salario anterior para AuditLog (oldValue) — P-V auditoría LOTTT
+      const prevSalary = await tx.salaryHistory.findFirst({
+        where: { employeeId, companyId },
+        orderBy: { effectiveFrom: "desc" },
+        select: { amount: true, currency: true, effectiveFrom: true },
+      });
+
       const entry = await tx.salaryHistory.create({
         data: {
           companyId,
@@ -469,6 +484,10 @@ export const EmployeeService = {
         },
       });
 
+      const isRetroactive =
+        prevSalary &&
+        new Date(input.effectiveFrom) < new Date(prevSalary.effectiveFrom);
+
       await tx.auditLog.create({
         data: {
           companyId,
@@ -478,12 +497,19 @@ export const EmployeeService = {
           userId,
           ipAddress,
           userAgent,
-          oldValue: Prisma.JsonNull,
+          oldValue: prevSalary
+            ? {
+                amount: prevSalary.amount.toString(),
+                currency: prevSalary.currency,
+                effectiveFrom: prevSalary.effectiveFrom.toISOString().slice(0, 10),
+              }
+            : Prisma.JsonNull,
           newValue: {
             employeeId,
             effectiveFrom: input.effectiveFrom,
             amount: input.amount,
             currency: input.currency,
+            retroactive: isRetroactive ?? false,
           },
         },
       });

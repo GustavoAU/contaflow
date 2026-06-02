@@ -61,6 +61,9 @@ export interface BenefitBalanceRow {
   employeeId: string;
   currentBalance: string;
   interestBalance: string;
+  // Saldo previo al sistema (migración de empleados con prestaciones antes de ContaFlow)
+  initialBalance: string;
+  initialInterestBalance: string;
   isLiquidated: boolean;
   lines: AccrualLineRow[];
 }
@@ -140,6 +143,8 @@ export const BenefitAccrualService = {
       employeeId: b.employeeId,
       currentBalance: b.currentBalance.toString(),
       interestBalance: b.interestBalance.toString(),
+      initialBalance: b.initialBalance.toString(),
+      initialInterestBalance: b.initialInterestBalance.toString(),
       isLiquidated: b.isLiquidated,
       lines: b.accrualLines.map(serializeLine),
     };
@@ -332,6 +337,12 @@ export const BenefitAccrualService = {
                 employeeId: emp.id,
                 year,
                 quarter,
+                // P-V auditoría LOTTT Art. 122: salario integral desagregado
+                dailyNormalWage: dailyNormalWage.toFixed(4),
+                profitDaysAliquot: profitDaysAliquot.toFixed(4),
+                vacationBonusDaysAliquot: vacationBonusDaysAliquot.toFixed(4),
+                integralDailyWage: integralDailyWage.toFixed(4),
+                accrualDays: BASE_DAYS_PER_QUARTER,
                 accrualAmount: accrualAmount.toFixed(4),
                 runningBalance: runningBalance.toFixed(4),
               },

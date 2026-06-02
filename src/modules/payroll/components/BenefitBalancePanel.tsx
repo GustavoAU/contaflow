@@ -2,6 +2,8 @@
 // src/modules/payroll/components/BenefitBalancePanel.tsx
 // Fase NOM-D: Panel de saldo de prestaciones por empleado
 // Incluye: historial de líneas con días adicionales + anticipos (Art. 144 LOTTT)
+// F-05 (auditoria 2026-06-02): desglose salario integral por trimestre
+// Saldo inicial previo al sistema para empleados con prestaciones antes de ContaFlow
 
 import { useState } from "react";
 import type { BenefitBalanceRow } from "../services/BenefitAccrualService";
@@ -41,14 +43,37 @@ export default function BenefitBalancePanel({
 }: Props) {
   const [advances, setAdvances] = useState<BenefitAdvanceRow[]>(initialAdvances);
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
+  const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
 
-  const total = Number(balance.currentBalance) + Number(balance.interestBalance);
+  const hasInitial = Number(balance.initialBalance) > 0 || Number(balance.initialInterestBalance) > 0;
+  const totalInitial = Number(balance.initialBalance) + Number(balance.initialInterestBalance);
+  const total = Number(balance.currentBalance) + Number(balance.interestBalance) + totalInitial;
   const totalAdvances = advances.reduce((s, a) => s + Number(a.amount), 0);
+
+  function toggleExpand(id: string) {
+    setExpandedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-4">
       {/* Resumen de saldos */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className={`grid gap-3 ${hasInitial ? "grid-cols-4" : "grid-cols-3"}`}>
+        {hasInitial && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+            <p className="text-xs text-amber-700 font-medium">Saldo previo al sistema</p>
+            <p className="mt-1 text-lg font-mono font-semibold text-amber-900">
+              {fmt(totalInitial.toString())}
+            </p>
+            <p className="mt-0.5 text-xs text-amber-600">
+              Garantía: {fmt(balance.initialBalance)} + Int.: {fmt(balance.initialInterestBalance)}
+            </p>
+          </div>
+        )}
         <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
           <p className="text-xs text-blue-600 font-medium">Garantía acumulada</p>
           <p className="mt-1 text-lg font-mono font-semibold text-blue-900">
@@ -74,12 +99,13 @@ export default function BenefitBalancePanel({
         </div>
       </div>
 
-      {/* Historial de líneas */}
+      {/* Historial de líneas — F-05: desglose salario integral */}
       {balance.lines.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="w-4 px-2 py-2" />
                 <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
                 <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
                 <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Días</th>
@@ -90,37 +116,99 @@ export default function BenefitBalancePanel({
             <tbody className="divide-y divide-gray-100 bg-white">
               {balance.lines.map((line) => {
                 const hasAdditional = line.type === "QUARTERLY_ACCRUAL" && line.additionalDays && Number(line.additionalDays) > 0;
+                const isExpanded = expandedLines.has(line.id);
+                const hasIntegral = line.type === "QUARTERLY_ACCRUAL" && line.integralDailyWage;
+
                 return (
-                  <tr key={line.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">
-                      {LINE_TYPE_LABELS[line.type] ?? line.type}
-                    </td>
-                    <td className="px-3 py-2 text-gray-500">
-                      {line.quarter
-                        ? `Q${line.quarter}-${line.year}`
-                        : `${line.year}-${String(line.month).padStart(2, "0")}`}
-                    </td>
-                    <td className="px-3 py-2 text-gray-600">
-                      {line.type === "QUARTERLY_ACCRUAL" ? (
-                        <span title={hasAdditional ? `${line.accrualDays ?? 5} base + ${Number(line.additionalDays).toFixed(2)} antigüedad` : undefined}>
-                          {line.accrualDays ?? 5}
-                          {hasAdditional && (
-                            <span className="ml-1 text-amber-600 font-semibold">
-                              +{Number(line.additionalDays).toFixed(2)}
-                            </span>
+                  <>
+                    <tr
+                      key={line.id}
+                      className={`hover:bg-gray-50 ${hasIntegral ? "cursor-pointer" : ""}`}
+                      onClick={() => hasIntegral && toggleExpand(line.id)}
+                    >
+                      <td className="px-2 py-2 text-center text-gray-400">
+                        {hasIntegral && (
+                          <svg
+                            className={`inline h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {LINE_TYPE_LABELS[line.type] ?? line.type}
+                      </td>
+                      <td className="px-3 py-2 text-gray-500">
+                        {line.quarter
+                          ? `Q${line.quarter}-${line.year}`
+                          : `${line.year}-${String(line.month).padStart(2, "0")}`}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">
+                        {line.type === "QUARTERLY_ACCRUAL" ? (
+                          <span title={hasAdditional ? `${line.accrualDays ?? 5} base + ${Number(line.additionalDays).toFixed(2)} antigüedad` : undefined}>
+                            {line.accrualDays ?? 5}
+                            {hasAdditional && (
+                              <span className="ml-1 text-amber-600 font-semibold">
+                                +{Number(line.additionalDays).toFixed(2)}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-mono ${Number(line.accrualAmount) >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        {fmt(line.accrualAmount)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-gray-700">
+                        {fmt(line.runningBalance)}
+                      </td>
+                    </tr>
+
+                    {/* F-05: desglose salario integral — visible al expandir trimestre */}
+                    {isExpanded && hasIntegral && (
+                      <tr key={`${line.id}-detail`} className="bg-blue-50">
+                        <td />
+                        <td colSpan={5} className="px-4 py-2">
+                          <p className="text-xs font-medium text-blue-700 mb-1">
+                            Desglose salario integral (Art. 104 LOTTT):
+                          </p>
+                          <div className="grid grid-cols-4 gap-3 text-xs">
+                            <div>
+                              <p className="text-gray-500">Salario diario normal</p>
+                              <p className="font-mono font-semibold text-gray-800">
+                                {line.dailyNormalWage ? fmt(line.dailyNormalWage) : "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">+ Alíc. utilidades</p>
+                              <p className="font-mono font-semibold text-gray-800">
+                                {line.profitDaysAliquot ? fmt(line.profitDaysAliquot) : "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">+ Alíc. bono vacacional</p>
+                              <p className="font-mono font-semibold text-gray-800">
+                                {line.vacationBonusDaysAliquot ? fmt(line.vacationBonusDaysAliquot) : "—"}
+                              </p>
+                            </div>
+                            <div className="rounded bg-blue-100 px-2 py-1">
+                              <p className="text-blue-600 font-medium">= Salario integral/día</p>
+                              <p className="font-mono font-bold text-blue-900">
+                                {line.integralDailyWage ? fmt(line.integralDailyWage) : "—"}
+                              </p>
+                            </div>
+                          </div>
+                          {line.appliedRate && (
+                            <p className="mt-1.5 text-xs text-purple-700">
+                              Tasa BCV aplicada: <strong>{line.appliedRate}%</strong>
+                            </p>
                           )}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className={`px-3 py-2 text-right font-mono ${Number(line.accrualAmount) >= 0 ? "text-green-700" : "text-red-600"}`}>
-                      {fmt(line.accrualAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-gray-700">
-                      {fmt(line.runningBalance)}
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>

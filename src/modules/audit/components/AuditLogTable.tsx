@@ -32,22 +32,41 @@ const ENTITY_LABELS: Record<string, string> = {
   Company: "Empresa",
   ExchangeRate: "Tasa de Cambio",
   INPCRate: "INPC",
-  // F-09: Nómina
+  // Nómina — nombres exactos usados en los servicios (P-V auditoría)
   Employee: "Empleado",
   PayrollRun: "Corrida de Nómina",
+  SalaryHistory: "Historial Salarial",
+  BenefitAccrualLine: "Acumulación Prestaciones",
   BenefitBalance: "Saldo Prestaciones",
   BenefitAdvance: "Anticipo Prestaciones",
   VacationRecord: "Vacaciones",
   ProfitSharingRecord: "Utilidades",
   EmployeeLoan: "Préstamo Empleado",
+  LegalThreshold: "Tope Legal (SalMin/UT)",
+  PayrollConcept: "Concepto de Nómina",
+  PayrollConfig: "Configuración Nómina",
   // Auditoría
   AuditLogExport: "Exportación Auditoría",
 };
 
-// F-09: Grupos de módulo para el filtro rápido
+// Grupos de módulo para el filtro rápido — sincronizados con entityName exactos de los servicios
 const MODULE_ENTITIES: Record<string, string[]> = {
   Contabilidad: ["Transaction", "Account", "AccountingPeriod", "FiscalYearClose", "InflationAdjustment"],
-  Nómina: ["Employee", "PayrollRun", "BenefitBalance", "BenefitAdvance", "VacationRecord", "ProfitSharingRecord", "EmployeeLoan"],
+  // P-V: incluye TODOS los entityName reales escritos por los servicios de nómina
+  Nómina: [
+    "Employee",
+    "PayrollRun",
+    "SalaryHistory",
+    "BenefitAccrualLine",
+    "BenefitBalance",
+    "BenefitAdvance",
+    "VacationRecord",
+    "ProfitSharingRecord",
+    "EmployeeLoan",
+    "LegalThreshold",
+    "PayrollConcept",
+    "PayrollConfig",
+  ],
   Inventario: ["InventoryItem", "InventoryMovement", "FixedAsset"],
   Fiscal: ["Invoice", "InvoicePayment", "Retencion", "IGTFTransaction", "PaymentRecord"],
   Bancos: ["BankStatement", "BankTransaction"],

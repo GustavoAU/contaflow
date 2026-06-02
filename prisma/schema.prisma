@@ -1759,6 +1759,8 @@ model Employee {
   maritalStatus     MaritalStatus? // Estado civil — ISLR D. 1808
   payrollWorkerType PayrollWorkerType @default(EMPLEADO) // Tipo trabajador LOTTT Art. 1
   contractEndDate   DateTime?         @db.Date // Vencimiento contrato DETERMINADO (LOTTT Art. 64)
+  // Fideicomiso: si el trabajador optó por fideicomiso bancario real (Art. 143 LOTTT parte final)
+  useFideicomiso    Boolean           @default(false)
   // Timestamps
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -1980,15 +1982,18 @@ model BcvBenefitRate {
 // La fuente de verdad son los BenefitAccrualLine.
 // Uno por empleado — creado al contratar, cerrado (isLiquidated) al finalizar la liquidación.
 model BenefitBalance {
-  id              String    @id @default(cuid())
-  companyId       String
-  employeeId      String    @unique // uno por empleado
-  currentBalance  Decimal   @default(0) @db.Decimal(19, 4) // acumulado prestaciones
-  interestBalance Decimal   @default(0) @db.Decimal(19, 4) // intereses BCV acumulados
-  isLiquidated    Boolean   @default(false)
-  liquidatedAt    DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  companyId              String
+  employeeId             String    @unique // uno por empleado
+  currentBalance         Decimal   @default(0) @db.Decimal(19, 4) // acumulado prestaciones (desde sistema)
+  interestBalance        Decimal   @default(0) @db.Decimal(19, 4) // intereses BCV acumulados
+  // Saldo previo al sistema — para empleados con prestaciones antes de ContaFlow (auditoria 2026-06-02)
+  initialBalance         Decimal   @default(0) @db.Decimal(19, 4)
+  initialInterestBalance Decimal   @default(0) @db.Decimal(19, 4)
+  isLiquidated           Boolean   @default(false)
+  liquidatedAt           DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employee     Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)

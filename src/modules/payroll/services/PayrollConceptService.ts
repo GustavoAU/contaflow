@@ -39,7 +39,13 @@ const SYSTEM_CONCEPTS: Array<{
   { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)",     type: "EARNING",   affectsSalaryIntegral: true  },
   { code: "BONO_NOCHE",  name: "Bono Nocturno (30%)",              type: "EARNING",   affectsSalaryIntegral: true  },
   // CESTA_TICKET: beneficio social — NO afecta salario integral (LOTTT Art. 105 / LCEA Art. 5)
-  { code: "CESTA_TICKET", name: "Cesta Ticket / Alimentación",     type: "EARNING",   affectsSalaryIntegral: false },
+  { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false },
+  // BONO_ALIM_EFECT: alternativa en efectivo al cestaticket (LCEA Art. 5)
+  { code: "BONO_ALIM_EFECT", name: "Bono de Alimentación en efectivo",         type: "EARNING",   affectsSalaryIntegral: false },
+  // DOM_FERIADO: trabajo en día de descanso/feriado → recargo 100% del salario normal (Art. 119 LOTTT)
+  { code: "DOM_FERIADO",     name: "Domingos y Feriados trabajados (100%)",    type: "EARNING",   affectsSalaryIntegral: false },
+  // DESCANSO_COMP: compensación cuando no se otorga el descanso compensatorio (Art. 120 LOTTT)
+  { code: "DESCANSO_COMP",   name: "Descanso compensatorio no otorgado (100%)", type: "EARNING",   affectsSalaryIntegral: false },
   // Deducciones — no afectan salario integral (son retenciones, no ingresos)
   { code: "IVSS_OBR",   name: "IVSS Obrero (4%)",                  type: "DEDUCTION", affectsSalaryIntegral: false },
   { code: "INCES_OBR",  name: "INCES Trabajador (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },

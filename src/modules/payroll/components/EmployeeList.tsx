@@ -26,6 +26,20 @@ const CONTRACT_LABELS: Record<string, string> = {
   OBRA_DETERMINADA: "Obra determ.",
 };
 
+// Art. 45 LOTTT: período de prueba máximo 6 meses
+const PROBATION_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+function isProbation(hireDate: string | null): boolean {
+  if (!hireDate) return false;
+  return Date.now() - new Date(hireDate).getTime() < PROBATION_MS;
+}
+// Días restantes hasta que venza el período de prueba (null si no aplica)
+function probationDaysLeft(hireDate: string | null): number | null {
+  if (!hireDate) return null;
+  const elapsed = Date.now() - new Date(hireDate).getTime();
+  if (elapsed >= PROBATION_MS) return null;
+  return Math.ceil((PROBATION_MS - elapsed) / (24 * 60 * 60 * 1000));
+}
+
 // U-01: chip de moneda con color diferenciado
 const CURRENCY_CHIP: Record<string, string> = {
   USD: "bg-green-100 text-green-800",
@@ -42,17 +56,22 @@ interface Props {
 export default function EmployeeList({ companyId, employees, canWrite }: Props) {
   // U-06: búsqueda local por nombre o cédula
   const [query, setQuery] = useState("");
+  const [filterContract, setFilterContract] = useState<string>("");
+  const [filterCurrency, setFilterCurrency] = useState<string>("");
 
-  const filtered = query.trim()
-    ? employees.filter((e) => {
-        const q = query.toLowerCase();
-        return (
-          e.fullName.toLowerCase().includes(q) ||
-          e.cedula?.toLowerCase().includes(q) ||
-          e.position?.toLowerCase().includes(q)
-        );
-      })
-    : employees;
+  const filtered = employees.filter((e) => {
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      const matchesSearch =
+        e.fullName.toLowerCase().includes(q) ||
+        e.cedula?.toLowerCase().includes(q) ||
+        e.position?.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+    }
+    if (filterContract && e.contractType !== filterContract) return false;
+    if (filterCurrency && e.currentSalaryCurrency !== filterCurrency) return false;
+    return true;
+  });
 
   if (employees.length === 0) {
     return (
@@ -72,8 +91,8 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
 
   return (
     <div className="space-y-3">
-      {/* U-06: barra de búsqueda */}
-      <div className="flex items-center gap-3">
+      {/* U-06: barra de búsqueda + filtros rápidos */}
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
           value={query}
@@ -82,7 +101,28 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
           className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           aria-label="Buscar empleados"
         />
-        {query && (
+        <select
+          value={filterContract}
+          onChange={(e) => setFilterContract(e.target.value)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          aria-label="Filtrar por tipo de contrato"
+        >
+          <option value="">Todos los contratos</option>
+          <option value="INDEFINIDO">Indefinido</option>
+          <option value="DETERMINADO">Determinado</option>
+          <option value="OBRA_DETERMINADA">Obra determ.</option>
+        </select>
+        <select
+          value={filterCurrency}
+          onChange={(e) => setFilterCurrency(e.target.value)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          aria-label="Filtrar por moneda de salario"
+        >
+          <option value="">Todas las monedas</option>
+          <option value="VES">VES</option>
+          <option value="USD">USD</option>
+        </select>
+        {(query || filterContract || filterCurrency) && (
           <span className="text-xs text-gray-500">
             {filtered.length} de {employees.length}
           </span>
@@ -121,7 +161,39 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {CONTRACT_LABELS[emp.contractType] ?? emp.contractType}
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>{CONTRACT_LABELS[emp.contractType] ?? emp.contractType}</span>
+                      {/* C-06: tipo trabajador LOTTT — relevante para Forma 14-02 IVSS */}
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                          emp.payrollWorkerType === "OBRERO"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-sky-100 text-sky-700"
+                        }`}
+                        title={emp.payrollWorkerType === "OBRERO" ? "Obrero (Forma 14-02 IVSS)" : "Empleado"}
+                      >
+                        {emp.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"}
+                      </span>
+                      {/* Art. 45 LOTTT: badge de período de prueba con countdown */}
+                      {emp.status === "ACTIVE" && isProbation(emp.hireDate) && (() => {
+                        const daysLeft = probationDaysLeft(emp.hireDate);
+                        const urgent = daysLeft !== null && daysLeft <= 30;
+                        return (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                              urgent ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
+                            }`}
+                            title={
+                              daysLeft !== null
+                                ? `Art. 45 LOTTT — ${daysLeft} días para vencer el período de prueba`
+                                : "Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
+                            }
+                          >
+                            {urgent && daysLeft !== null ? `Prueba · ${daysLeft}d` : "Prueba"}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {emp.currentSalaryAmount ? (
