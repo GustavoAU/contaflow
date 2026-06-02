@@ -531,6 +531,15 @@ export const PayrollRunService = {
         : new Decimal(0);
       const totalPatronal = ivssPatTotal.plus(incesPatTotal).plus(faovPatTotal).plus(rpePatTotal);
 
+      // V-1: debit patronal = SOLO los organismos con cuenta GL configurada — garantiza cuadre del asiento.
+      // Si ivssPatronalAccountId=null pero incesPatronalAccountId≠null, el debit debe ser solo INCES.
+      const configuredPatronal = [
+        config.ivssPatronalAccountId ? ivssPatTotal : new Decimal(0),
+        config.incesPatronalAccountId ? incesPatTotal : new Decimal(0),
+        config.faovPatronalAccountId ? faovPatTotal : new Decimal(0),
+        config.rpePatronalAccountId ? rpePatTotal : new Decimal(0),
+      ].reduce((s, v) => s.plus(v), new Decimal(0));
+
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
       // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
       // DÉBITO: Gastos de Personal (totalEarnings — solo componentes salariales, sin cuotas de préstamo)
@@ -565,6 +574,41 @@ export const PayrollRunService = {
       // Crédito consolidado a "Sueldos por Pagar" = gasto salarial − retenciones con cuenta propia
       const payableCredit = salaryExpense.minus(configuredDeductions).negated();
 
+      // V-2: si la nómina fue procesada en USD, convertir a VES antes de generar el asiento
+      const firstLine = lines[0];
+      const payCurrency = firstLine?.salarySnapshotCurrency ?? "VES";
+      let glMultiplier = new Decimal(1);
+      let fxNote = "";
+
+      if (payCurrency === "USD") {
+        const fxRow = await tx.exchangeRate.findFirst({
+          where: { companyId, currency: "USD", date: { lte: run.periodEnd } },
+          orderBy: { date: "desc" },
+          select: { rate: true },
+        });
+        if (!fxRow) {
+          throw new Error(
+            "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio antes de aprobar esta nómina."
+          );
+        }
+        glMultiplier = new Decimal(fxRow.rate.toString());
+        fxNote = ` (USD → Bs. ${glMultiplier.toFixed(2)}/USD)`;
+      }
+
+      // Montos GL en VES (glMultiplier=1 para nóminas VES — no cambia valores)
+      const glSalaryExpense     = salaryExpense.mul(glMultiplier);
+      const glPayableCredit     = payableCredit.mul(glMultiplier);
+      const glIvssTotal         = ivssTotal.mul(glMultiplier);
+      const glFaovTotal         = faovTotal.mul(glMultiplier);
+      const glIncesTotal        = incesTotal.mul(glMultiplier);
+      const glRpeTotal          = rpeTotal.mul(glMultiplier);
+      const glLoanTotal         = loanTotal.mul(glMultiplier);
+      const glConfiguredPatronal = configuredPatronal.mul(glMultiplier);
+      const glIvssPatTotal      = ivssPatTotal.mul(glMultiplier);
+      const glIncesPatTotal     = incesPatTotal.mul(glMultiplier);
+      const glFaovPatTotal      = faovPatTotal.mul(glMultiplier);
+      const glRpePatTotal       = rpePatTotal.mul(glMultiplier);
+
       const asiento = await tx.transaction.create({
         data: {
           companyId,
@@ -578,45 +622,45 @@ export const PayrollRunService = {
           entries: {
             create: [
               // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
-              { accountId: expenseAccountId, amount: salaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados` },
+              { accountId: expenseAccountId, amount: glSalaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados${fxNote}` },
               // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
-              { accountId: payableAccountId, amount: payableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada` },
+              { accountId: payableAccountId, amount: glPayableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada${fxNote}` },
               // CRÉDITO — IVSS Obrero por Pagar (si aplica)
-              ...(config.ivssPayableAccountId && ivssTotal.greaterThan(0)
-                ? [{ accountId: config.ivssPayableAccountId, amount: ivssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero` }]
+              ...(config.ivssPayableAccountId && glIvssTotal.greaterThan(0)
+                ? [{ accountId: config.ivssPayableAccountId, amount: glIvssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}` }]
                 : []),
               // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
-              ...(config.faovPayableAccountId && faovTotal.greaterThan(0)
-                ? [{ accountId: config.faovPayableAccountId, amount: faovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero` }]
+              ...(config.faovPayableAccountId && glFaovTotal.greaterThan(0)
+                ? [{ accountId: config.faovPayableAccountId, amount: glFaovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}` }]
                 : []),
               // CRÉDITO — INCES por Pagar (si aplica)
-              ...(config.incesPayableAccountId && incesTotal.greaterThan(0)
-                ? [{ accountId: config.incesPayableAccountId, amount: incesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero` }]
+              ...(config.incesPayableAccountId && glIncesTotal.greaterThan(0)
+                ? [{ accountId: config.incesPayableAccountId, amount: glIncesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}` }]
                 : []),
               // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
-              ...(config.rpePayableAccountId && rpeTotal.greaterThan(0)
-                ? [{ accountId: config.rpePayableAccountId, amount: rpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero` }]
+              ...(config.rpePayableAccountId && glRpeTotal.greaterThan(0)
+                ? [{ accountId: config.rpePayableAccountId, amount: glRpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}` }]
                 : []),
               // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
-              ...(config.loanReceivableAccountId && loanTotal.greaterThan(0)
-                ? [{ accountId: config.loanReceivableAccountId, amount: loanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados` }]
+              ...(config.loanReceivableAccountId && glLoanTotal.greaterThan(0)
+                ? [{ accountId: config.loanReceivableAccountId, amount: glLoanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}` }]
                 : []),
-              // F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
-              // Solo se registran si las cuentas patronales están configuradas en PayrollConfig
-              ...(config.ivssPatronalAccountId && ivssPatTotal.greaterThan(0) && totalPatronal.greaterThan(0)
-                ? [{ accountId: expenseAccountId, amount: totalPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE` }]
+              // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
+              // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
+              ...(glConfiguredPatronal.greaterThan(0)
+                ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE${fxNote}` }]
                 : []),
-              ...(config.ivssPatronalAccountId && ivssPatTotal.greaterThan(0)
-                ? [{ accountId: config.ivssPatronalAccountId, amount: ivssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%` }]
+              ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
+                ? [{ accountId: config.ivssPatronalAccountId, amount: glIvssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}` }]
                 : []),
-              ...(config.incesPatronalAccountId && incesPatTotal.greaterThan(0)
-                ? [{ accountId: config.incesPatronalAccountId, amount: incesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%` }]
+              ...(config.incesPatronalAccountId && glIncesPatTotal.greaterThan(0)
+                ? [{ accountId: config.incesPatronalAccountId, amount: glIncesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}` }]
                 : []),
-              ...(config.faovPatronalAccountId && faovPatTotal.greaterThan(0)
-                ? [{ accountId: config.faovPatronalAccountId, amount: faovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%` }]
+              ...(config.faovPatronalAccountId && glFaovPatTotal.greaterThan(0)
+                ? [{ accountId: config.faovPatronalAccountId, amount: glFaovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}` }]
                 : []),
-              ...(config.rpePatronalAccountId && rpePatTotal.greaterThan(0)
-                ? [{ accountId: config.rpePatronalAccountId, amount: rpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%` }]
+              ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
+                ? [{ accountId: config.rpePatronalAccountId, amount: glRpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}` }]
                 : []),
             ],
           },
@@ -685,6 +729,8 @@ export const PayrollRunService = {
             totalDeductions: approvedRun.totalDeductions.toString(),
             totalNet: approvedRun.totalNet.toString(),
             bcvRateAtRun: approvedRun.bcvRateAtRun?.toString() ?? null,
+            // V-2: tasa de cambio usada para GL si la nómina fue en USD
+            ...(payCurrency !== "VES" && { fxRateAtApproval: glMultiplier.toString(), payCurrency }),
           },
         },
       });
