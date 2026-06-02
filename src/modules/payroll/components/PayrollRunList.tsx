@@ -95,9 +95,24 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
                 {run.periodStart} — {run.periodEnd}
               </td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
-                  {STATUS_LABELS[run.status] ?? run.status}
-                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
+                    {STATUS_LABELS[run.status] ?? run.status}
+                  </span>
+                  {/* Alerta si deducciones < 2% de asignaciones — indica salario mínimo desactualizado */}
+                  {Number(run.totalEarnings) > 0 &&
+                    Number(run.totalDeductions) / Number(run.totalEarnings) < 0.02 && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+                      title="Las deducciones parafiscales representan menos del 2% de las asignaciones. Verifica los topes de IVSS/INCES/FAOV — puede indicar salario mínimo desactualizado."
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      Topes
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-3 text-sm text-gray-700 text-right">{run.employeeCount}</td>
               <td className="px-4 py-3 text-sm text-gray-700 text-right font-mono">

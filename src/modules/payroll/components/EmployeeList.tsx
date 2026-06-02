@@ -26,6 +26,13 @@ const CONTRACT_LABELS: Record<string, string> = {
   OBRA_DETERMINADA: "Obra determ.",
 };
 
+// Art. 45 LOTTT: período de prueba máximo 6 meses
+const PROBATION_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+function isProbation(hireDate: string | null): boolean {
+  if (!hireDate) return false;
+  return Date.now() - new Date(hireDate).getTime() < PROBATION_MS;
+}
+
 // U-01: chip de moneda con color diferenciado
 const CURRENCY_CHIP: Record<string, string> = {
   USD: "bg-green-100 text-green-800",
@@ -42,17 +49,22 @@ interface Props {
 export default function EmployeeList({ companyId, employees, canWrite }: Props) {
   // U-06: búsqueda local por nombre o cédula
   const [query, setQuery] = useState("");
+  const [filterContract, setFilterContract] = useState<string>("");
+  const [filterCurrency, setFilterCurrency] = useState<string>("");
 
-  const filtered = query.trim()
-    ? employees.filter((e) => {
-        const q = query.toLowerCase();
-        return (
-          e.fullName.toLowerCase().includes(q) ||
-          e.cedula?.toLowerCase().includes(q) ||
-          e.position?.toLowerCase().includes(q)
-        );
-      })
-    : employees;
+  const filtered = employees.filter((e) => {
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      const matchesSearch =
+        e.fullName.toLowerCase().includes(q) ||
+        e.cedula?.toLowerCase().includes(q) ||
+        e.position?.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+    }
+    if (filterContract && e.contractType !== filterContract) return false;
+    if (filterCurrency && e.currentSalaryCurrency !== filterCurrency) return false;
+    return true;
+  });
 
   if (employees.length === 0) {
     return (
@@ -72,8 +84,8 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
 
   return (
     <div className="space-y-3">
-      {/* U-06: barra de búsqueda */}
-      <div className="flex items-center gap-3">
+      {/* U-06: barra de búsqueda + filtros rápidos */}
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
           value={query}
@@ -82,7 +94,28 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
           className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           aria-label="Buscar empleados"
         />
-        {query && (
+        <select
+          value={filterContract}
+          onChange={(e) => setFilterContract(e.target.value)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          aria-label="Filtrar por tipo de contrato"
+        >
+          <option value="">Todos los contratos</option>
+          <option value="INDEFINIDO">Indefinido</option>
+          <option value="DETERMINADO">Determinado</option>
+          <option value="OBRA_DETERMINADA">Obra determ.</option>
+        </select>
+        <select
+          value={filterCurrency}
+          onChange={(e) => setFilterCurrency(e.target.value)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          aria-label="Filtrar por moneda de salario"
+        >
+          <option value="">Todas las monedas</option>
+          <option value="VES">VES</option>
+          <option value="USD">USD</option>
+        </select>
+        {(query || filterContract || filterCurrency) && (
           <span className="text-xs text-gray-500">
             {filtered.length} de {employees.length}
           </span>
@@ -121,7 +154,18 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {CONTRACT_LABELS[emp.contractType] ?? emp.contractType}
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>{CONTRACT_LABELS[emp.contractType] ?? emp.contractType}</span>
+                      {/* Art. 45 LOTTT: badge de período de prueba (< 6 meses) */}
+                      {emp.status === "ACTIVE" && isProbation(emp.hireDate) && (
+                        <span
+                          className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700"
+                          title="Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
+                        >
+                          Prueba
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {emp.currentSalaryAmount ? (

@@ -4,7 +4,7 @@
 // NOM-A-03: confirmación de desactivar organismos obligatorios (IVSS/INCES/Banavih)
 // Solo visible para ADMIN_ONLY — el server guard rechaza a otros roles en la action
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
@@ -96,6 +96,27 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Detecta en tiempo real si dos conceptos comparten la misma cuenta GL
+  const accountConflict = useMemo((): string | null => {
+    const fields = [
+      { key: "benefitsExpenseAccountId",     label: "Gasto Prestaciones" },
+      { key: "benefitsPayableAccountId",      label: "Prestaciones por Pagar" },
+      { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar" },
+      { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
+      { key: "rpePayableAccountId",           label: "RPE por Pagar" },
+      { key: "loanReceivableAccountId",       label: "Préstamos a Empleados" },
+      { key: "disbursementBankAccountId",     label: "Banco de Desembolso" },
+    ] as const;
+    const seen = new Map<string, string>();
+    for (const { key, label } of fields) {
+      const id = form[key];
+      if (!id) continue;
+      if (seen.has(id)) return `"${seen.get(id)}" y "${label}" usan la misma cuenta GL`;
+      seen.set(id, label);
+    }
+    return null;
+  }, [form]);
+
   // NOM-A-03: advertencia si el usuario intenta desactivar un organismo obligatorio
   function toggleOrganism(key: "ivssEnabled" | "incesEnabled" | "banavihEnabled" | "rpeEnabled") {
     const current = form[key];
@@ -115,8 +136,36 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     set(key, !current as typeof form[typeof key]);
   }
 
+  function validateAccountConflicts(): string | null {
+    const accountFields = [
+      { key: "benefitsExpenseAccountId",       label: "Gasto Prestaciones" },
+      { key: "benefitsPayableAccountId",        label: "Prestaciones por Pagar" },
+      { key: "vacationPayableAccountId",        label: "Vacaciones por Pagar" },
+      { key: "profitSharingPayableAccountId",   label: "Utilidades por Pagar" },
+      { key: "rpePayableAccountId",             label: "RPE por Pagar" },
+      { key: "loanReceivableAccountId",         label: "Préstamos a Empleados" },
+      { key: "disbursementBankAccountId",       label: "Banco de Desembolso" },
+    ] as const;
+
+    const seen = new Map<string, string>();
+    for (const { key, label } of accountFields) {
+      const id = form[key];
+      if (!id) continue;
+      if (seen.has(id)) {
+        return `La misma cuenta está asignada a "${seen.get(id)}" y "${label}". Cada concepto debe usar una cuenta GL diferente para evitar descuadres en los estados financieros.`;
+      }
+      seen.set(id, label);
+    }
+    return null;
+  }
+
   function handleSubmit() {
     setError(null);
+    const conflict = validateAccountConflicts();
+    if (conflict) {
+      setError(conflict);
+      return;
+    }
     startTransition(async () => {
       const payload = {
         ...form,
@@ -385,7 +434,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             <div className="space-y-3">
               <p className="text-sm font-medium text-gray-700">Cuentas contables — Beneficios legales</p>
               <p className="text-xs text-gray-500">
-                Requeridas para registrar prestaciones sociales, vacaciones y utilidades.
+                Requeridas para registrar prestaciones sociales, vacaciones y utilidades. Cada concepto debe usar una cuenta GL diferente.
               </p>
               {(
                 [
@@ -414,6 +463,17 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                   </select>
                 </div>
               ))}
+              {/* Alerta en tiempo real si dos conceptos comparten la misma cuenta GL */}
+              {accountConflict && (
+                <div className="flex items-start gap-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <span>
+                    <strong>Cuenta GL duplicada:</strong> {accountConflict}. Asigna una cuenta diferente para evitar descuadres contables.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -459,8 +519,9 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isPending}
+              disabled={isPending || !!accountConflict}
               className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              title={accountConflict ? "Resuelve el conflicto de cuentas GL antes de guardar" : undefined}
             >
               {isPending ? "Guardando..." : "Guardar configuración"}
             </button>

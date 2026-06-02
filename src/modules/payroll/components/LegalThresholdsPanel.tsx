@@ -77,26 +77,38 @@ export default function LegalThresholdsPanel({
   return (
     <div className="space-y-6">
       {salMinStale && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
-          <div>
-            <p className="font-medium">Salario mínimo posiblemente desactualizado</p>
-            <p className="mt-0.5 text-amber-700">
+          <div className="space-y-1.5">
+            <p className="font-semibold">
+              Salario mínimo desactualizado — topes de cotización incorrectos
+            </p>
+            <p className="text-red-700">
               {lastSalMin
-                ? `El último valor registrado es del ${new Date(lastSalMin.effectiveFrom).toLocaleDateString("es-VE")} — han pasado más de 6 meses.`
+                ? `El último valor registrado (Bs. ${Number(lastSalMin.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}) es del ${new Date(lastSalMin.effectiveFrom).toLocaleDateString("es-VE")}.`
                 : "No hay salario mínimo registrado."}{" "}
-              Verifica el decreto vigente en{" "}
+              Mientras no se actualice, los topes de cotización usados son:
+            </p>
+            {lastSalMin && (
+              <ul className="mt-1 space-y-0.5 text-xs font-mono text-red-700">
+                <li>· IVSS obrero (4%): base máx. Bs {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (5 × salMin)</li>
+                <li>· INCES obrero (0,5%): base máx. Bs {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (5 × salMin)</li>
+                <li>· FAOV/Banavih obrero (1%): base máx. Bs {(Number(lastSalMin.value) * 10).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (10 × salMin)</li>
+              </ul>
+            )}
+            <p className="text-red-700">
+              Esto genera <strong>subpagos a los organismos fiscales</strong>. Verifica el decreto vigente en{" "}
               <a
                 href="https://www.minpptrass.gob.ve"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-amber-900"
+                className="underline hover:text-red-900"
               >
                 MINPPTRASS
               </a>{" "}
-              y actualiza el valor para que los topes de cotización IVSS/INCES sean correctos.
+              y actualiza el valor de inmediato.
             </p>
           </div>
         </div>
