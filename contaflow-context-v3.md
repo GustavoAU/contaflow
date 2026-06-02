@@ -9,9 +9,11 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` limpio (2026-06-01)
+**Ninguna** — branch `main` limpio (2026-06-02)
 
 ### Completadas recientes
+- **Auditoría Nómina Partes IV/V/VI 2026-06-02** ✅ merged (`feat/auditoria-nom-parte4`) — Parte IV: campos obligatorios Forma 14-02 IVSS visibles en EmployeeDetail+EmployeeList (ivssNumber, payrollWorkerType badge OBRERO/EMPLEADO, maritalStatus, dependents — C-06/C-07); probation countdown ≤30 días en EmployeeList badge rojo (F-06); ApproveDialog modal con detalles run + alerta anomalía deducciones <2% (U-02). Parte V: MODULE_ENTITIES.Nómina corregido (BenefitAccrualLine, SalaryHistory, LegalThreshold, PayrollConcept); AuditLog payloads enriquecidos en CREATE/APPROVE_PAYROLL_RUN (totalEarnings/Deductions, employeeCount, bcvRateAtRun), ADD_SALARY (retroactive flag, prev salary), ACCRUE_QUARTERLY_BENEFITS (salario integral 4 componentes), CREATE_LEGAL_THRESHOLD (notes/Gaceta). Parte VI: PayrollConfigService+SavePayrollConfigInput+serializeConfig exponen 9 cuentas GL faltantes; PayrollWizard Step 3 reestructurado en 3 secciones (Nómina, Aportes Patronales, Beneficios) con 16 account fields y conflicto-detection expandido. Migración `20260602_nom_auditoria_ii`. 2329 tests GREEN.
+- **Auditoría Nómina Parte VII 2026-06-02** ✅ merged (`feat/auditoria-nom-parte7`) — 4 nuevas alertas automáticas en PendingTasksWidget: `NOM_SALARIO_MINIMO_VENCIDO` (SALARY_MIN_VES >30d sin actualizar, warning), `NOM_PRESTACIONES_POR_ACUMULAR` (trimestre actual sin BenefitAccrualLine, warning — Art.142), `NOM_INTERESES_BCV_PENDIENTES` (mes anterior con tasa BCV pero sin intereses, info — Art.143), `NOM_PRUEBA_POR_VENCER` (empleados con prueba venciendo ≤30d, info — Art.45). AccrueQuarterForm: badge Q{n}-{año} ya acumulado/pendiente (isCurrentQuarterAccrued prop desde benefits/page.tsx). BcvRateForm: alerta de meses sin tasa registrada. PayrollRunForm: nota de automatizaciones activas (IVSS/cuotas/BCV/GL). 7 nuevos tests. 2336 tests GREEN.
 - **Auditoría Forense H-1→H-15 2026-06-01** ✅ merged — 15 hallazgos en 3 branches: H-9 (import lote vacío), H-12 (N°Control único por proveedor COT Art.101), H-14 (comprobante IVA obligatorio Prov.0049 Art.11), H-8 (stockControlLevel real en convert order→invoice), H-6 (IGTF GL en asiento venta + IGTF_GL_SKIPPED audit), H-7 (asiento suplementario Dr CxP/Cr Ret.IVA por enterar), H-13 (auto-link invoiceId en Retencion), H-15 (RetentionReconciliation + getRetentionReconciliationAction — tabla conciliación MATCHED/MISMATCH). H-10/H-11 ya estaban cubiertos por ALERTA 13-16. 2279 tests GREEN.
 - **UX fixes 2026-06-01** ✅ merged — date picker: `min-w-36` en todos los `<input type="date">` (DateRangeFilter/TrialBalance/BalanceSheet/IncomeStatement); table scroll: `overflow-x-auto` wrapper en LedgerAccountBlock + journal/page.tsx; sidebar compact: `py-1.75`→`py-1.5` en items; clases canónicas: `min-w-[90px]`→`min-w-22.5`, `min-w-[700px]`→`min-w-175`, `min-w-[8rem]`→`min-w-32`. 2279 tests GREEN.
 
@@ -92,7 +94,7 @@ Revisado 2026-05-16: todos los ítems pendientes de Grupos 7-9 eran YA ESTABA:
 - **Fase 38 2026-05-26** ✅ merged — GL Auto-Posting de Pagos + Causación por Gemini OCR (ADR-030). `PaymentGLService` (postPaymentRecordGL/Batch + reversePaymentRecordGL/Batch), migración `20260526_payment_gl_bankaccount` (bankAccountId+glTransactionId+igtfPayableAccountId nullable), selector bankAccountId en PaymentForm+PaymentBatchForm, AnalyzeReceiptButton (Gemini 2.0 Flash OCR), CompanySettings UI `igtfPayableAccountId`. 2042 tests GREEN.
 
 ### Tests / CI
-**2153 tests GREEN | 0 TS errors** (2026-05-26)
+**2336 tests GREEN | 0 TS errors** (2026-06-02)
 
 ### Deuda técnica
 - `revalidateTag` TS error en Next.js 16 — baja prioridad; `revalidatePath` funciona correctamente

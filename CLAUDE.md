@@ -363,7 +363,13 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **ALERTA 18/20 fixes** ✅ merged: createRetentionAction valida taxBase vs InvoiceTaxLine.base (error si excede en >1 Bs, tolerancia redondeo, permite si factura no está en BD); RetentionForm INCES auto-activación vía INCES_AUTO_CODES (SERVICIOS/CONSTRUCCION/HONORARIOS/COMISIONES) + badge "Auto" + nota Ley INCES Art. 14 — 2276 tests
 
-**2276 tests GREEN** | **0 TS errors** | **CI passing** (2026-05-30)
+**Auditoría Forense H-1→H-15** ✅ merged (2026-06-01): H-9/H-12/H-14/H-8/H-6/H-7/H-13/H-15 — RetentionReconciliation + IGTF GL + N°Control único + comprobante IVA + COGS convert-order — 2329 tests
+
+**Auditoría Nómina Partes IV/V/VI** ✅ merged (2026-06-02): campos Forma 14-02 IVSS (C-06/C-07: ivssNumber/payrollWorkerType/maritalStatus/dependents) + probation countdown F-06 + ApproveDialog U-02 + AuditLog payloads enriquecidos (retroactive, salario integral, Gaceta) + 9 cuentas GL en PayrollWizard Step 3 (expenseAccountId/payableAccountId/IVSS/FAOV/INCES/patronales) — 2329 tests
+
+**Auditoría Nómina Parte VII — Automatizaciones** ✅ merged (2026-06-02): 4 alertas en PendingTasksWidget (NOM_SALARIO_MINIMO_VENCIDO / NOM_PRESTACIONES_POR_ACUMULAR / NOM_INTERESES_BCV_PENDIENTES / NOM_PRUEBA_POR_VENCER) + AccrueQuarterForm badge acumulado/pendiente + BcvRateForm indicador meses faltantes — 2336 tests
+
+**2336 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-02)
 
 ### middleware.ts
 
