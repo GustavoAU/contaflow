@@ -16,7 +16,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { Prisma } from "@prisma/client";
+import { Prisma, Currency } from "@prisma/client";
 
 // Días base por LOTTT Art. 142: 5 días/trimestre (15/año)
 const BASE_DAYS_PER_QUARTER = 5;
@@ -52,6 +52,9 @@ export interface AccrualLineRow {
   accrualDays: number | null;
   additionalDays: string | null;
   appliedRate: string | null;
+  // F-02: tasa de cambio usada si el salario era no-VES
+  exchangeRateAtAccrual: string | null;
+  originalCurrency: string | null;
   transactionId: string | null;
   createdAt: string;
 }
@@ -92,6 +95,8 @@ function serializeLine(l: {
   accrualDays: number | null;
   additionalDays: Decimal | null;
   appliedRate: Decimal | null;
+  exchangeRateAtAccrual: Decimal | null;
+  originalCurrency: string | null;
   transactionId: string | null;
   createdAt: Date;
 }): AccrualLineRow {
@@ -110,6 +115,8 @@ function serializeLine(l: {
     accrualDays: l.accrualDays,
     additionalDays: l.additionalDays?.toString() ?? null,
     appliedRate: l.appliedRate?.toString() ?? null,
+    exchangeRateAtAccrual: l.exchangeRateAtAccrual?.toString() ?? null,
+    originalCurrency: l.originalCurrency ?? null,
     transactionId: l.transactionId,
     createdAt: l.createdAt.toISOString(),
   };
@@ -238,10 +245,31 @@ export const BenefitAccrualService = {
       const salaryRow = emp.salaryHistory[0];
       if (!salaryRow) continue; // sin salario registrado — saltar
 
-      const monthlyWage = new Decimal(salaryRow.amount.toString());
+      // F-02: si el salario es en moneda no-VES, convertir a VES usando tasa BCV histórica
+      let monthlyWageVes = new Decimal(salaryRow.amount.toString());
+      let exchangeRateAtAccrual: Decimal | null = null;
+      const originalCurrency = salaryRow.currency !== "VES" ? (salaryRow.currency as string) : null;
+
+      if (salaryRow.currency === "USD") {
+        const fxRate = await prisma.exchangeRate.findFirst({
+          where: { companyId, currency: Currency.USD, date: { lte: quarterEndDate } },
+          orderBy: { date: "desc" },
+          select: { rate: true },
+        });
+        if (!fxRate) {
+          throw new Error(
+            `Empleado ${emp.firstName} ${emp.lastName} tiene salario en USD pero no hay tasa de cambio ` +
+            `registrada para el trimestre Q${quarter}/${year}. ` +
+            "Registre la tasa BCV en Contabilidad → Tasas de Cambio antes de calcular prestaciones."
+          );
+        }
+        exchangeRateAtAccrual = new Decimal(fxRate.rate.toString());
+        monthlyWageVes = monthlyWageVes.mul(exchangeRateAtAccrual);
+      }
+
       // Promedio mensual de conceptos salariales del trimestre (affectsSalaryIntegral=true)
       const avgMonthlyIntegralConcepts = (integralByEmployee.get(emp.id) ?? new Decimal(0)).div(3);
-      const dailyNormalWage = monthlyWage.plus(avgMonthlyIntegralConcepts).div(30);
+      const dailyNormalWage = monthlyWageVes.plus(avgMonthlyIntegralConcepts).div(30);
 
       // Salario integral = dailyNormal + alícuota utilidades + alícuota bono vacacional (ADR-014 Dec. 3)
       const profitDaysAliquot = dailyNormalWage.mul(config.profitDays).div(360);
@@ -309,6 +337,9 @@ export const BenefitAccrualService = {
               additionalDays: additionalDays.toFixed(2),
               accrualAmount: accrualAmount.toFixed(4),
               runningBalance: runningBalance.toFixed(4),
+              // F-02: snapshot de tasa de cambio si el salario era no-VES
+              exchangeRateAtAccrual: exchangeRateAtAccrual ? exchangeRateAtAccrual.toFixed(4) : undefined,
+              originalCurrency: originalCurrency ?? undefined,
               transactionId: transaction.id,
               createdByUserId: userId,
             },
@@ -345,6 +376,12 @@ export const BenefitAccrualService = {
                 accrualDays: BASE_DAYS_PER_QUARTER,
                 accrualAmount: accrualAmount.toFixed(4),
                 runningBalance: runningBalance.toFixed(4),
+                // F-02: trazabilidad de conversión si el salario era no-VES
+                ...(originalCurrency && {
+                  originalCurrency,
+                  originalAmount: new Decimal(salaryRow.amount.toString()).toFixed(4),
+                  exchangeRateAtAccrual: exchangeRateAtAccrual?.toFixed(4),
+                }),
               },
             },
           });
@@ -637,7 +674,27 @@ export const BenefitAccrualService = {
             .at(-1);
           if (!salAtQuarter) continue;
 
-          const monthlyWage = new Decimal(salAtQuarter.amount.toString());
+          // F-02: si el salario es en moneda no-VES, convertir a VES usando tasa BCV histórica
+          let monthlyWage = new Decimal(salAtQuarter.amount.toString());
+          let exchangeRateAtAccrual: Decimal | null = null;
+          const originalCurrency = salAtQuarter.currency !== "VES" ? (salAtQuarter.currency as string) : null;
+
+          if (salAtQuarter.currency === "USD") {
+            const fxRate = await prisma.exchangeRate.findFirst({
+              where: { companyId, currency: Currency.USD, date: { lte: quarterEndDate } },
+              orderBy: { date: "desc" },
+              select: { rate: true },
+            });
+            if (!fxRate) {
+              throw new Error(
+                `Backfill Q${quarter}/${year}: empleado ${emp.firstName} ${emp.lastName} tiene salario ` +
+                "en USD pero no hay tasa de cambio registrada para ese período. " +
+                "Registre las tasas BCV históricas en Contabilidad → Tasas de Cambio."
+              );
+            }
+            exchangeRateAtAccrual = new Decimal(fxRate.rate.toString());
+            monthlyWage = monthlyWage.mul(exchangeRateAtAccrual);
+          }
 
           // Conceptos salariales de nóminas APPROVED del trimestre (affectsSalaryIntegral)
           const integralLines = await prisma.payrollRunLine.findMany({
@@ -712,6 +769,9 @@ export const BenefitAccrualService = {
                   additionalDays: additionalDays.toFixed(2),
                   accrualAmount: accrualAmount.toFixed(4),
                   runningBalance: runningBalance.toFixed(4),
+                  // F-02: snapshot de tasa de cambio si el salario era no-VES
+                  exchangeRateAtAccrual: exchangeRateAtAccrual ? exchangeRateAtAccrual.toFixed(4) : undefined,
+                  originalCurrency: originalCurrency ?? undefined,
                   transactionId: transaction.id,
                   createdByUserId: userId,
                 },
@@ -735,6 +795,12 @@ export const BenefitAccrualService = {
                   newValue: {
                     accrualAmount: accrualAmount.toFixed(4),
                     runningBalance: runningBalance.toFixed(4),
+                    // F-02: trazabilidad de conversión si el salario era no-VES
+                    ...(originalCurrency && {
+                      originalCurrency,
+                      originalAmount: new Decimal(salAtQuarter.amount.toString()).toFixed(4),
+                      exchangeRateAtAccrual: exchangeRateAtAccrual?.toFixed(4),
+                    }),
                   },
                 },
               });

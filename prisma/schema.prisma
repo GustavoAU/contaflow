@@ -2035,6 +2035,9 @@ model BenefitAccrualLine {
   // Tasa BCV aplicada (solo BCV_INTEREST)
   bcvRateId                String?
   appliedRate              Decimal?           @db.Decimal(5, 2) // snapshot de la tasa aplicada
+  // F-02: conversión USD→VES en QUARTERLY_ACCRUAL cuando salario es no-VES
+  exchangeRateAtAccrual    Decimal?           @db.Decimal(16, 4) // tasa BCV usada para convertir a VES
+  originalCurrency         String?            @db.VarChar(3) // moneda original del salario (null = VES)
   // Asiento contable — NON-NULL para QUARTERLY_ACCRUAL y BCV_INTEREST
   transactionId            String?            @unique
   notes                    String?
