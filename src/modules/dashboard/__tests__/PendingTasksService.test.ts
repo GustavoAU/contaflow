@@ -9,10 +9,15 @@ vi.mock("@/lib/prisma", () => ({
     fixedAsset: { count: vi.fn() },
     retencion: { count: vi.fn() },
     bankStatement: { count: vi.fn() },
-    order: { count: vi.fn() },           // GAP-02
-    inventoryItem: { count: vi.fn() },   // PC-03
-    company: { findFirst: vi.fn() },     // ADR-030 audit: isSpecialContributor
+    order: { count: vi.fn() },               // GAP-02
+    inventoryItem: { count: vi.fn() },       // PC-03
+    company: { findFirst: vi.fn() },         // ADR-030 audit: isSpecialContributor
     $queryRaw: vi.fn(),
+    // Parte VII: nómina
+    employee: { count: vi.fn() },
+    legalThreshold: { findFirst: vi.fn() },
+    benefitAccrualLine: { count: vi.fn() },
+    bcvBenefitRate: { findFirst: vi.fn() },
   },
 }));
 
@@ -27,8 +32,13 @@ function mockAllZero() {
   vi.mocked(prisma.order.count).mockResolvedValue(0 as never);           // GAP-02
   vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
   vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
-  // $queryRaw se usa 2 veces: stockBajo (raw SQL) e igtfPagosSinRegistrar (raw SQL)
+  // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
+  // Parte VII: nómina — sin empleados por defecto → no dispara alertas de nómina
+  vi.mocked(prisma.employee.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null as never);
+  vi.mocked(prisma.benefitAccrualLine.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null as never);
 }
 
 describe("PendingTasksService.getPendingTasks", () => {
@@ -248,5 +258,92 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "IGTF_PAGOS_SIN_REGISTRAR")).toBeUndefined();
+  });
+
+  // ── Parte VII: Alertas de nómina ─────────────────────────────────────────────
+
+  it("detecta salario mínimo sin actualizar > 30 días (NOM_SALARIO_MINIMO_VENCIDO) — severity warning", async () => {
+    // 2 empleados activos, último tope hace 45 días
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("warning");
+    expect(task?.count).toBe(1);
+    expect(task?.href).toBe("/payroll/settings");
+    expect(task?.description).toContain("IVSS");
+  });
+
+  it("NO emite NOM_SALARIO_MINIMO_VENCIDO cuando el tope fue actualizado recientemente", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 días — dentro de 30
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO")).toBeUndefined();
+  });
+
+  it("detecta trimestre actual sin prestaciones acumuladas (NOM_PRESTACIONES_POR_ACUMULAR) — severity warning", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(3 as never);
+    vi.mocked(prisma.benefitAccrualLine.count).mockResolvedValue(0 as never); // no accrual for Q actual
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_PRESTACIONES_POR_ACUMULAR");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("warning");
+    expect(task?.count).toBe(3); // = nomActiveEmployeesCount
+    expect(task?.href).toBe("/payroll/benefits");
+    expect(task?.description).toContain("Art. 142");
+  });
+
+  it("detecta intereses BCV del mes anterior sin registrar (NOM_INTERESES_BCV_PENDIENTES) — severity info", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue({ id: "rate-1" } as never);
+    // benefitAccrualLine.count devuelve 0 por defecto (mockAllZero)
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_INTERESES_BCV_PENDIENTES");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("info");
+    expect(task?.href).toBe("/payroll/benefits");
+    expect(task?.description).toContain("Art. 143");
+  });
+
+  it("NO emite NOM_INTERESES_BCV_PENDIENTES si no hay tasa BCV registrada para el mes anterior", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null as never); // sin tasa
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_INTERESES_BCV_PENDIENTES")).toBeUndefined();
+  });
+
+  it("detecta empleados con período de prueba por vencer (NOM_PRUEBA_POR_VENCER) — severity info", async () => {
+    // employee.count devuelve 2 en la primera llamada (activos), 1 en la segunda (prueba)
+    vi.mocked(prisma.employee.count)
+      .mockResolvedValueOnce(5 as never)  // nomActiveEmployeesCount
+      .mockResolvedValueOnce(1 as never); // nomProbationCount
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_PRUEBA_POR_VENCER");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("info");
+    expect(task?.count).toBe(1);
+    expect(task?.href).toBe("/payroll/employees");
+    expect(task?.description).toContain("Art. 45");
+  });
+
+  it("NO emite alertas de nómina cuando la empresa no tiene empleados activos", async () => {
+    // mockAllZero ya pone employee.count = 0 → ninguna alerta de nómina
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+    } as never); // tope vencido pero sin empleados → no alert
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type?.startsWith("NOM_"))).toBeUndefined();
   });
 });

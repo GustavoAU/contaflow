@@ -17,7 +17,12 @@ export type PendingTaskType =
   | "RETENCIONES_POR_ENTERAR"      // OM-06: retenciones emitidas no enteradas ante SENIAT
   | "INVENTARIO_SIN_CUENTAS_GL"    // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
   | "IGTF_PAGOS_SIN_REGISTRAR"     // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
-  | "CLIENTES_INACTIVOS";          // Q3-2: clientes con historial de facturas pero sin actividad en 90+ días
+  | "CLIENTES_INACTIVOS"           // Q3-2: clientes con historial de facturas pero sin actividad en 90+ días
+  // Parte VII: automatizaciones de nómina
+  | "NOM_SALARIO_MINIMO_VENCIDO"    // SALARY_MIN_VES sin actualizar > 30 días
+  | "NOM_PRESTACIONES_POR_ACUMULAR" // Trimestre actual sin acumular prestaciones (Art. 142 LOTTT)
+  | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
+  | "NOM_PRUEBA_POR_VENCER";        // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -40,6 +45,12 @@ export const PendingTasksService = {
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1; // 1-indexed
+    const currentQuarter = Math.ceil(currentMonth / 3);
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    // Empleados contratados entre (hoy - 180 días) y (hoy - 150 días) tienen prueba que vence en ≤30 días
+    const probationWindowStart = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+    const probationWindowEnd = new Date(now.getTime() - 150 * 24 * 60 * 60 * 1000);
 
     const [
       invoicesSinCausarCount,
@@ -54,6 +65,13 @@ export const PendingTasksService = {
       companyInfo,
       igtfPagosSinRegistrarCount,
       clientesInactivosCount,
+      // Parte VII: nómina
+      nomActiveEmployeesCount,
+      nomProbationCount,
+      nomCurrentQAccruedCount,
+      nomLastSalMin,
+      nomBcvRatePrevMonth,
+      nomBcvInterestPrevMonthCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -185,6 +203,42 @@ export const PendingTasksService = {
               AND i2."date" >= ${ninetyDaysAgo}
           )
       `.then(([r]) => Number(r.count)),
+
+      // 13. Parte VII: Empleados activos — condiciona alertas de nómina
+      prisma.employee.count({ where: { companyId, status: "ACTIVE" } }),
+
+      // 14. Parte VII: Empleados con período de prueba venciendo en ≤30 días (Art. 45 LOTTT — máx. 6 meses = 180 días)
+      // Rango: contratados entre (hoy - 180 días) y (hoy - 150 días) → prueba termina entre hoy y +30 días
+      prisma.employee.count({
+        where: {
+          companyId,
+          status: "ACTIVE",
+          hireDate: { gte: probationWindowStart, lte: probationWindowEnd },
+        },
+      }),
+
+      // 15. Parte VII: Acumulación trimestral del Q actual (QUARTERLY_ACCRUAL)
+      prisma.benefitAccrualLine.count({
+        where: { companyId, type: "QUARTERLY_ACCRUAL", year: currentYear, quarter: currentQuarter },
+      }),
+
+      // 16. Parte VII: Última actualización del salario mínimo (SALARY_MIN_VES)
+      prisma.legalThreshold.findFirst({
+        where: { companyId, type: "SALARY_MIN_VES" },
+        orderBy: { effectiveFrom: "desc" },
+        select: { effectiveFrom: true },
+      }),
+
+      // 17. Parte VII: Tasa BCV del mes anterior (para detectar intereses no calculados)
+      prisma.bcvBenefitRate.findFirst({
+        where: { companyId, year: prevYear, month: prevMonth },
+        select: { id: true },
+      }),
+
+      // 18. Parte VII: Líneas de intereses BCV del mes anterior (Art. 143 LOTTT)
+      prisma.benefitAccrualLine.count({
+        where: { companyId, type: "BCV_INTEREST", year: prevYear, month: prevMonth },
+      }),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -323,6 +377,64 @@ export const PendingTasksService = {
         description: `${clientesInactivosCount} cliente${pl ? "s" : ""} no ${pl ? "han" : "ha"} generado facturas en más de 90 días. Considera hacer seguimiento para retener la relación comercial.`,
         count: clientesInactivosCount,
         href: "/customers",
+      });
+    }
+
+    // ── Parte VII: Alertas de automatización de nómina ─────────────────────────
+
+    // NOM_SALARIO_MINIMO_VENCIDO: SALARY_MIN_VES no actualizado en > 30 días
+    // Solo si la empresa tiene empleados activos (proxy de módulo nómina activo)
+    if (nomActiveEmployeesCount > 0 && (
+      !nomLastSalMin ||
+      new Date(nomLastSalMin.effectiveFrom).getTime() < thirtyDaysAgo.getTime()
+    )) {
+      tasks.push({
+        type: "NOM_SALARIO_MINIMO_VENCIDO",
+        severity: "warning",
+        title: "Salario mínimo sin actualizar",
+        description: nomLastSalMin
+          ? "El tope SALARY_MIN_VES lleva más de 30 días sin actualización. Verifique los decretos del INTT para mantener el cálculo correcto de IVSS/INCES."
+          : "No hay tope de salario mínimo registrado. El sistema usa Bs. 0, lo que puede producir cuotas IVSS/INCES incorrectas.",
+        count: 1,
+        href: "/payroll/settings",
+      });
+    }
+
+    // NOM_PRESTACIONES_POR_ACUMULAR: trimestre actual sin acumular (Art. 142 LOTTT)
+    if (nomActiveEmployeesCount > 0 && nomCurrentQAccruedCount === 0) {
+      tasks.push({
+        type: "NOM_PRESTACIONES_POR_ACUMULAR",
+        severity: "warning",
+        title: `Prestaciones Q${currentQuarter}-${currentYear} sin acumular`,
+        description: `El trimestre Q${currentQuarter}-${currentYear} no tiene prestaciones sociales acumuladas para ${nomActiveEmployeesCount} empleado${nomActiveEmployeesCount !== 1 ? "s" : ""}. Art. 142 LOTTT — 5 días de salario integral por trimestre.`,
+        count: nomActiveEmployeesCount,
+        href: "/payroll/benefits",
+      });
+    }
+
+    // NOM_INTERESES_BCV_PENDIENTES: mes anterior tiene tasa BCV registrada pero sin intereses (Art. 143 LOTTT)
+    if (nomActiveEmployeesCount > 0 && nomBcvRatePrevMonth && nomBcvInterestPrevMonthCount === 0) {
+      const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      tasks.push({
+        type: "NOM_INTERESES_BCV_PENDIENTES",
+        severity: "info",
+        title: "Intereses BCV pendientes de registrar",
+        description: `La tasa BCV de ${MONTH_NAMES[prevMonth - 1]}-${prevYear} está registrada pero no se han calculado los intereses sobre prestaciones. Art. 143 LOTTT — calcúlelos en Prestaciones Sociales.`,
+        count: nomActiveEmployeesCount,
+        href: "/payroll/benefits",
+      });
+    }
+
+    // NOM_PRUEBA_POR_VENCER: empleados con período de prueba expirando en ≤30 días (Art. 45 LOTTT)
+    if (nomProbationCount > 0) {
+      const pl = nomProbationCount > 1;
+      tasks.push({
+        type: "NOM_PRUEBA_POR_VENCER",
+        severity: "info",
+        title: "Período de prueba por vencer",
+        description: `${nomProbationCount} empleado${pl ? "s" : ""} ${pl ? "completan" : "completa"} el período de prueba en los próximos 30 días (Art. 45 LOTTT — máx. 6 meses). Confirme continuidad o inicie egreso.`,
+        count: nomProbationCount,
+        href: "/payroll/employees",
       });
     }
 

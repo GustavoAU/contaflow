@@ -37,11 +37,33 @@ export default async function BenefitsPage({ params }: Props) {
     );
   }
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentQuarter = Math.ceil(currentMonth / 3);
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
   // Cargar datos en paralelo
-  const [employees, bcvRates] = await Promise.all([
+  const [employees, bcvRates, currentQuarterAccrual, prevMonthBcvRate] = await Promise.all([
     EmployeeService.list(companyId, "ACTIVE"),
     BenefitAccrualService.listBcvRates(companyId),
+    // ¿El trimestre actual ya fue acumulado?
+    prisma.benefitAccrualLine.findFirst({
+      where: { companyId, type: "QUARTERLY_ACCRUAL", year: currentYear, quarter: currentQuarter },
+      select: { id: true },
+    }),
+    // ¿El mes anterior tiene tasa BCV registrada?
+    prisma.bcvBenefitRate.findFirst({
+      where: { companyId, year: prevYear, month: prevMonth },
+      select: { id: true },
+    }),
   ]);
+
+  // ¿El mes actual o el mes anterior tienen tasa BCV?
+  const currentMonthBcvRate = bcvRates.find((r) => r.year === currentYear && r.month === currentMonth);
+  const hasPrevMonthRate = !!prevMonthBcvRate;
+  const hasCurrentMonthRate = !!currentMonthBcvRate;
 
   // Cargar saldos de los primeros 20 empleados activos
   const balances = await Promise.all(
@@ -79,7 +101,7 @@ export default async function BenefitsPage({ params }: Props) {
             <p className="text-xs text-gray-500 mb-4">
               5 días de salario integral por trimestre (Art. 142 LOTTT). Se procesa una vez por trimestre para todos los empleados activos.
             </p>
-            <AccrueQuarterForm companyId={companyId} />
+            <AccrueQuarterForm companyId={companyId} isCurrentQuarterAccrued={!!currentQuarterAccrual} />
           </section>
 
           {/* Intereses BCV */}
@@ -100,7 +122,7 @@ export default async function BenefitsPage({ params }: Props) {
             </h2>
             <div className="mb-4">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Registrar nueva tasa</h3>
-              <BcvRateForm companyId={companyId} />
+              <BcvRateForm companyId={companyId} hasCurrentMonthRate={hasCurrentMonthRate} hasPrevMonthRate={hasPrevMonthRate} />
             </div>
             <BcvRateList rates={bcvRates} />
           </section>
