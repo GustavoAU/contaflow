@@ -337,6 +337,12 @@ export const BenefitAccrualService = {
                 employeeId: emp.id,
                 year,
                 quarter,
+                // P-V auditoría LOTTT Art. 122: salario integral desagregado
+                dailyNormalWage: dailyNormalWage.toFixed(4),
+                profitDaysAliquot: profitDaysAliquot.toFixed(4),
+                vacationBonusDaysAliquot: vacationBonusDaysAliquot.toFixed(4),
+                integralDailyWage: integralDailyWage.toFixed(4),
+                accrualDays: BASE_DAYS_PER_QUARTER,
                 accrualAmount: accrualAmount.toFixed(4),
                 runningBalance: runningBalance.toFixed(4),
               },

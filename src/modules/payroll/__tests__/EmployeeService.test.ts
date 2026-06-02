@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     salaryHistory: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
     },
     auditLog: { create: vi.fn() },
@@ -268,6 +269,8 @@ describe("EmployeeService.addSalary", () => {
   it("creates SalaryHistory entry with AuditLog (NOM-B-03)", async () => {
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    // sin salario previo — primer salario del empleado
+    vi.mocked(prisma.salaryHistory.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.salaryHistory.create).mockResolvedValue(BASE_SALARY as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -283,7 +286,9 @@ describe("EmployeeService.addSalary", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           action: "ADD_SALARY",
+          // sin salario previo → oldValue es null (primer registro)
           oldValue: Prisma.JsonNull,
+          newValue: expect.objectContaining({ retroactive: false }),
         }),
       })
     );

@@ -466,6 +466,13 @@ export const EmployeeService = {
         throw new Error("No se puede modificar el salario de un empleado egresado");
       }
 
+      // Captura salario anterior para AuditLog (oldValue) — P-V auditoría LOTTT
+      const prevSalary = await tx.salaryHistory.findFirst({
+        where: { employeeId, companyId },
+        orderBy: { effectiveFrom: "desc" },
+        select: { amount: true, currency: true, effectiveFrom: true },
+      });
+
       const entry = await tx.salaryHistory.create({
         data: {
           companyId,
@@ -477,6 +484,10 @@ export const EmployeeService = {
         },
       });
 
+      const isRetroactive =
+        prevSalary &&
+        new Date(input.effectiveFrom) < new Date(prevSalary.effectiveFrom);
+
       await tx.auditLog.create({
         data: {
           companyId,
@@ -486,12 +497,19 @@ export const EmployeeService = {
           userId,
           ipAddress,
           userAgent,
-          oldValue: Prisma.JsonNull,
+          oldValue: prevSalary
+            ? {
+                amount: prevSalary.amount.toString(),
+                currency: prevSalary.currency,
+                effectiveFrom: prevSalary.effectiveFrom.toISOString().slice(0, 10),
+              }
+            : Prisma.JsonNull,
           newValue: {
             employeeId,
             effectiveFrom: input.effectiveFrom,
             amount: input.amount,
             currency: input.currency,
+            retroactive: isRetroactive ?? false,
           },
         },
       });

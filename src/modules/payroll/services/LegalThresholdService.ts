@@ -92,7 +92,13 @@ export const LegalThresholdService = {
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
           oldValue: Prisma.JsonNull,
-          newValue: { type: input.type, effectiveFrom: input.effectiveFrom.toISOString().slice(0, 10), value: input.value.toString() },
+          newValue: {
+            type: input.type,
+            effectiveFrom: input.effectiveFrom.toISOString().slice(0, 10),
+            value: input.value.toString(),
+            // Referencia decreto / Gaceta Oficial — campo notes del formulario
+            notes: input.notes ?? null,
+          },
         },
       });
       return serialize(row);
