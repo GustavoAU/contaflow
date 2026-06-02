@@ -268,17 +268,41 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
         )}
       </div>
 
-      {/* Modal de confirmación */}
+      {/* U-03: Modal de confirmación con resumen de impacto contable */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900">¿Aprobar nómina?</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Se generarán los registros de pago para{" "}
-              <strong>{run.employeeCount} empleados</strong> por un total de{" "}
-              <strong>{currency} {formatAmount(Number(run.totalNet))}</strong> neto a pagar.
-              Esta acción no puede revertirse directamente.
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900">Confirmar aprobación de nómina</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Esta acción generará el asiento contable y no podrá revertirse directamente.
             </p>
+
+            {/* Resumen de impacto contable */}
+            <div className="mt-4 rounded-md border bg-gray-50 divide-y text-sm">
+              <div className="flex justify-between px-4 py-2">
+                <span className="text-gray-600">Empleados</span>
+                <span className="font-medium">{run.employeeCount}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2">
+                <span className="text-gray-600">Total asignaciones</span>
+                <span className="font-medium font-mono">{currency} {formatAmount(Number(run.totalEarnings))}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2">
+                <span className="text-gray-600">Total deducciones</span>
+                <span className="font-medium font-mono text-red-700">{currency} {formatAmount(Number(run.totalDeductions))}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2 bg-blue-50">
+                <span className="font-medium text-blue-800">Neto a pagar</span>
+                <span className="font-bold font-mono text-blue-900">{currency} {formatAmount(Number(run.totalNet))}</span>
+              </div>
+              {Number(run.totalEmployerCosts) > 0 && (
+                <div className="flex justify-between px-4 py-2 bg-orange-50">
+                  <span className="text-orange-700 text-xs">Aportes patronales (IVSS/INCES/FAOV/RPE)</span>
+                  <span className="font-medium font-mono text-orange-900 text-xs">{currency} {formatAmount(Number(run.totalEmployerCosts))}</span>
+                </div>
+              )}
+            </div>
+
             <div className="mt-5 flex gap-3 justify-end">
               <button
                 onClick={() => setShowConfirm(false)}
@@ -289,8 +313,10 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
               <button
                 onClick={handleApprove}
                 disabled={isPending}
-                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                aria-busy={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >
+                {isPending && <Loader2Icon className="size-4 animate-spin" />}
                 {isPending ? "Aprobando…" : "Confirmar aprobación"}
               </button>
             </div>

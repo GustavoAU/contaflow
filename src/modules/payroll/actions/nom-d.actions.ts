@@ -52,6 +52,8 @@ async function resolveAuth(companyId: string) {
 function revalidateNomD(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/benefits`);
   revalidatePath(`/company/${companyId}/payroll/terminations`);
+  // U-04: actualiza la ficha del empleado (tabs prestaciones/vacaciones)
+  revalidatePath(`/company/${companyId}/payroll/employees`, "layout");
 }
 
 function handlePrismaError(err: unknown): string {

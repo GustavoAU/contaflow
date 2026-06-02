@@ -40,6 +40,8 @@ async function getAuditMeta() {
 
 function revalidateLoans(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/loans`);
+  // U-04: actualiza la ficha del empleado (tab préstamos)
+  revalidatePath(`/company/${companyId}/payroll/employees`, "layout");
 }
 
 // ─── Crear préstamo ───────────────────────────────────────────────────────────
