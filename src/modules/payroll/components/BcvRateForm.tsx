@@ -9,9 +9,11 @@ import { createBcvRateAction } from "../actions/nom-d.actions";
 
 interface Props {
   companyId: string;
+  hasCurrentMonthRate?: boolean;
+  hasPrevMonthRate?: boolean;
 }
 
-export default function BcvRateForm({ companyId }: Props) {
+export default function BcvRateForm({ companyId, hasCurrentMonthRate, hasPrevMonthRate }: Props) {
   const [isPending, startTransition] = useTransition();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -36,8 +38,31 @@ export default function BcvRateForm({ companyId }: Props) {
     });
   }
 
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+  const prevMon = curMonth === 1 ? 12 : curMonth - 1;
+  const prevMonYear = curMonth === 1 ? curYear - 1 : curYear;
+  const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {(hasCurrentMonthRate === false || hasPrevMonthRate === false) && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <span className="font-semibold">Tasas faltantes: </span>
+          {!hasPrevMonthRate && (
+            <span className="inline-block mr-2 rounded bg-amber-100 px-1.5 py-0.5 font-mono">
+              {MONTH_LABELS[prevMon - 1]}-{prevMonYear} sin tasa
+            </span>
+          )}
+          {!hasCurrentMonthRate && (
+            <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 font-mono">
+              {MONTH_LABELS[curMonth - 1]}-{curYear} sin tasa
+            </span>
+          )}
+          {" — "}Sin tasa registrada no se pueden calcular los intereses del período (Art. 143 LOTTT).
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Año</label>

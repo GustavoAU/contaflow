@@ -9,12 +9,15 @@ import { accrueQuarterAction } from "../actions/nom-d.actions";
 
 interface Props {
   companyId: string;
+  isCurrentQuarterAccrued?: boolean;
 }
 
-export default function AccrueQuarterForm({ companyId }: Props) {
+export default function AccrueQuarterForm({ companyId, isCurrentQuarterAccrued }: Props) {
   const [isPending, startTransition] = useTransition();
   const [year, setYear] = useState(new Date().getFullYear());
   const [quarter, setQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
+  const currentYear = new Date().getFullYear();
+  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
   const [result, setResult] = useState<{ employeesProcessed: number; totalAccrued: string } | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -39,6 +42,19 @@ export default function AccrueQuarterForm({ companyId }: Props) {
 
   return (
     <div className="space-y-4">
+      {isCurrentQuarterAccrued !== undefined && (
+        <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
+          isCurrentQuarterAccrued
+            ? "border-green-200 bg-green-50 text-green-700"
+            : "border-amber-200 bg-amber-50 text-amber-700"
+        }`}>
+          <span>{isCurrentQuarterAccrued ? "✓" : "!"}</span>
+          <span>
+            Q{currentQuarter}-{currentYear}:{" "}
+            {isCurrentQuarterAccrued ? "ya acumulado" : "pendiente de acumular"}
+          </span>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Año</label>

@@ -140,10 +140,15 @@ export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, i
         </p>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-md px-4 py-3 text-sm text-blue-800">
-        <strong>Nota:</strong> El cálculo incluye: Salario Básico, IVSS (4%), INCES (2%) y FAOV (1%)
-        según la configuración de nómina. Las horas extra e ISLR se agregan como conceptos manuales
-        en el paso siguiente.
+      <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <strong>Incluye automáticamente:</strong>
+        <ul className="mt-1 ml-4 list-disc text-xs space-y-0.5 text-blue-700">
+          <li>Salario básico + IVSS (4%), INCES (2%), FAOV (1%) según configuración</li>
+          <li>Cuotas de préstamos activos como deducciones automáticas</li>
+          <li>Tasa BCV de interés del período (snapshot del registro mensual)</li>
+          <li>Asiento de causación GL generado automáticamente al aprobar</li>
+        </ul>
+        <p className="mt-1 text-xs text-blue-600">Horas extra e ISLR se agregan como conceptos manuales en el detalle del proceso.</p>
       </div>
 
       <div className="flex gap-3">
