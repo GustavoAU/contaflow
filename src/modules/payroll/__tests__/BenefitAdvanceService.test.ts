@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     benefitBalance: { findUnique: vi.fn(), update: vi.fn() },
     payrollConfig: { findUnique: vi.fn() },
     accountingPeriod: { findFirst: vi.fn() },
-    benefitAdvance: { findMany: vi.fn(), create: vi.fn() },
+    benefitAdvance: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     transaction: { create: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -279,3 +279,189 @@ describe("días adicionales por antigüedad (Art. 142 LOTTT)", () => {
     expect(additionalAnnual / 4).toBe(7);
   });
 });
+
+// ─── F-04: flujo solicitud/aprobación (requestAdvance / approveAdvance / rejectAdvance) ──
+
+const PENDING_ADVANCE = {
+  id: "adv-pending",
+  companyId: COMPANY,
+  employeeId: EMP_ID,
+  benefitBalanceId: BAL_ID,
+  amount: new Decimal("30000"),
+  reason: "HEALTH" as const,
+  status: "PENDING" as const,
+  notes: null,
+  rejectionReason: null,
+  transactionId: null,
+  createdByUserId: USER,
+  approvedByUserId: null,
+  approvedAt: null,
+  rejectedAt: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+describe("BenefitAdvanceService.requestAdvance (F-04)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("creates PENDING advance — no GL entry, no balance change", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(ACTIVE_EMPLOYEE as never);
+    vi.mocked(prisma.benefitBalance.findUnique).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.benefitAdvance.create).mockResolvedValue(PENDING_ADVANCE as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await BenefitAdvanceService.requestAdvance(COMPANY, USER, {
+      employeeId: EMP_ID,
+      amount: "30000",
+      reason: "HEALTH",
+    });
+
+    expect(result.status).toBe("PENDING");
+    expect(result.transactionId).toBeNull();
+    // No GL entry created
+    expect(vi.mocked(prisma.transaction.create)).not.toHaveBeenCalled();
+    // No balance update
+    expect(vi.mocked(prisma.benefitBalance.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "REQUEST_BENEFIT_ADVANCE" }),
+      })
+    );
+  });
+
+  it("rejects when amount exceeds 75% of balance", async () => {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(ACTIVE_EMPLOYEE as never);
+    vi.mocked(prisma.benefitBalance.findUnique).mockResolvedValue(BASE_BALANCE as never);
+
+    // 80000 > 75% de 105000 = 78750
+    await expect(
+      BenefitAdvanceService.requestAdvance(COMPANY, USER, {
+        employeeId: EMP_ID,
+        amount: "80000",
+        reason: "HEALTH",
+      })
+    ).rejects.toThrow("supera el 75%");
+  });
+});
+
+describe("BenefitAdvanceService.approveAdvance (F-04)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("PENDING → APPROVED: creates GL entry and deducts balance", async () => {
+    mockTx();
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue(PENDING_ADVANCE as never);
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(ACTIVE_EMPLOYEE as never);
+    vi.mocked(prisma.benefitBalance.findUnique).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(OPEN_PERIOD as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-approved" } as never);
+    vi.mocked(prisma.benefitBalance.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitAdvance.update).mockResolvedValue({
+      ...PENDING_ADVANCE,
+      status: "APPROVED",
+      transactionId: "tx-approved",
+      approvedByUserId: USER,
+      approvedAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await BenefitAdvanceService.approveAdvance(COMPANY, USER, "adv-pending");
+
+    expect(result.status).toBe("APPROVED");
+    expect(result.transactionId).toBe("tx-approved");
+    expect(vi.mocked(prisma.transaction.create)).toHaveBeenCalledOnce();
+    expect(vi.mocked(prisma.benefitBalance.update)).toHaveBeenCalledOnce();
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "APPROVE_BENEFIT_ADVANCE" }),
+      })
+    );
+  });
+
+  it("throws when advance already approved", async () => {
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue({
+      ...PENDING_ADVANCE, status: "APPROVED",
+    } as never);
+
+    await expect(
+      BenefitAdvanceService.approveAdvance(COMPANY, USER, "adv-pending")
+    ).rejects.toThrow("ya fue aprobado");
+  });
+
+  it("throws when advance not found (IDOR guard)", async () => {
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue(null);
+
+    await expect(
+      BenefitAdvanceService.approveAdvance("other-company", USER, "adv-pending")
+    ).rejects.toThrow("no encontrada");
+  });
+});
+
+describe("BenefitAdvanceService.rejectAdvance (F-04)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("PENDING → REJECTED: no GL, no balance change, stores reason", async () => {
+    mockTx();
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue(PENDING_ADVANCE as never);
+    vi.mocked(prisma.benefitAdvance.update).mockResolvedValue({
+      ...PENDING_ADVANCE,
+      status: "REJECTED",
+      rejectionReason: "Presupuesto insuficiente",
+      rejectedAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await BenefitAdvanceService.rejectAdvance(
+      COMPANY, USER, "adv-pending", "Presupuesto insuficiente"
+    );
+
+    expect(result.status).toBe("REJECTED");
+    expect(result.rejectionReason).toBe("Presupuesto insuficiente");
+    expect(vi.mocked(prisma.transaction.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.benefitBalance.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "REJECT_BENEFIT_ADVANCE" }),
+      })
+    );
+  });
+
+  it("throws when rejectionReason is empty", async () => {
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue(PENDING_ADVANCE as never);
+
+    await expect(
+      BenefitAdvanceService.rejectAdvance(COMPANY, USER, "adv-pending", "")
+    ).rejects.toThrow("motivo del rechazo");
+  });
+
+  it("throws when advance not PENDING", async () => {
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue({
+      ...PENDING_ADVANCE, status: "APPROVED",
+    } as never);
+
+    await expect(
+      BenefitAdvanceService.rejectAdvance(COMPANY, USER, "adv-pending", "razón")
+    ).rejects.toThrow("No se puede rechazar");
+  });
+});
+
+describe("BenefitAdvanceService.listPendingAdvances (F-04)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns only PENDING advances for the company", async () => {
+    vi.mocked(prisma.benefitAdvance.findMany).mockResolvedValue([PENDING_ADVANCE] as never);
+
+    const result = await BenefitAdvanceService.listPendingAdvances(COMPANY);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("PENDING");
+    expect(vi.mocked(prisma.benefitAdvance.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { companyId: COMPANY, status: "PENDING" },
+      })
+    );
+  });
+});
+
+

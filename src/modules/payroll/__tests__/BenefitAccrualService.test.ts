@@ -16,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     benefitAccrualLine: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
     },
     bcvBenefitRate: {
@@ -501,5 +502,82 @@ describe("BenefitAccrualService.createBcvRate", () => {
     expect(result.year).toBe(2026);
     expect(result.month).toBe(3);
     expect(result.annualRate).toBe("24");
+  });
+});
+
+// ─── F-05: getQuarterlyHistory — salario integral histórico por trimestre ──────
+
+describe("BenefitAccrualService.getQuarterlyHistory (F-05)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const QUARTERLY_LINE = {
+    id: "line-q1",
+    type: "QUARTERLY_ACCRUAL",
+    year: 2026,
+    quarter: 1,
+    month: null,
+    accrualAmount: new Decimal("1500.0000"),
+    runningBalance: new Decimal("1500.0000"),
+    dailyNormalWage: new Decimal("100.0000"),
+    profitDaysAliquot: new Decimal("4.1667"),
+    vacationBonusDaysAliquot: new Decimal("1.9444"),
+    integralDailyWage: new Decimal("106.1111"),
+    accrualDays: 5,
+    additionalDays: new Decimal("0"),
+    appliedRate: null,
+    transactionId: "tx-q1",
+    createdAt: new Date("2026-03-31"),
+    createdByUserId: "user-1",
+    companyId: COMPANY,
+    benefitBalanceId: "bal-1",
+    bcvRateId: null,
+  };
+
+  it("returns empty array when employee has no balance", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(null);
+
+    const result = await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+    expect(result).toHaveLength(0);
+  });
+
+  it("returns QUARTERLY_ACCRUAL lines with full aliquot detail (F-05)", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([QUARTERLY_LINE] as never);
+
+    const result = await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("QUARTERLY_ACCRUAL");
+    expect(result[0].year).toBe(2026);
+    expect(result[0].quarter).toBe(1);
+    // F-05: alícuotas detalladas deben estar presentes
+    expect(result[0].dailyNormalWage).toBe("100");
+    expect(result[0].profitDaysAliquot).toBe("4.1667");
+    expect(result[0].vacationBonusDaysAliquot).toBe("1.9444");
+    expect(result[0].integralDailyWage).toBe("106.1111");
+    expect(result[0].accrualDays).toBe(5);
+  });
+
+  it("queries only QUARTERLY_ACCRUAL lines ordered by year+quarter", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([]);
+
+    await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+
+    expect(vi.mocked(prisma.benefitAccrualLine.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "QUARTERLY_ACCRUAL" }),
+        orderBy: [{ year: "asc" }, { quarter: "asc" }],
+      })
+    );
+  });
+
+  it("IDOR: verifica benefitBalance con companyId antes de retornar líneas", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(null);
+
+    await BenefitAccrualService.getQuarterlyHistory("other-company", EMP_ID);
+
+    // No debe consultar líneas si el balance no pertenece a la empresa
+    expect(vi.mocked(prisma.benefitAccrualLine.findMany)).not.toHaveBeenCalled();
   });
 });

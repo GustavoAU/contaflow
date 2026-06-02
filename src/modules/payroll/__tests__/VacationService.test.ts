@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     employee: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
     vacationRecord: {
       findMany: vi.fn(),
@@ -248,5 +249,118 @@ describe("VacationService.computeFractionalDays", () => {
     // Months in year 4 starting from Jan 1: 3 months (Jan-Mar)
     // vacFracDays = 17/12*3 = 4.25
     expect(parseFloat(vacationDays.toFixed(2))).toBeGreaterThan(4);
+  });
+});
+
+// ─── F-06: getOverdueVacationEmployees ───────────────────────────────────────
+
+describe("VacationService.getOverdueVacationEmployees (F-06)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns employees with ≥1 year service and no vacation record for last year", async () => {
+    const overdueYear = new Date().getFullYear() - 1;
+    // Employee hired 2 years ago — should have been covered for last year
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      { id: EMP_ID, firstName: "María", lastName: "González", hireDate: twoYearsAgo },
+    ] as never);
+    // No records for the overdue year
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([] as never); // overdueYear records
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([] as never); // all records
+
+    const result = await VacationService.getOverdueVacationEmployees(COMPANY);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].employeeId).toBe(EMP_ID);
+    expect(result[0].overdueYear).toBe(overdueYear);
+  });
+
+  it("excludes employees who already have a vacation record for the overdue year", async () => {
+    const overdueYear = new Date().getFullYear() - 1;
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      { id: EMP_ID, firstName: "María", lastName: "González", hireDate: twoYearsAgo },
+    ] as never);
+    // Has a record for overdueYear
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([
+      { employeeId: EMP_ID },
+    ] as never);
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([
+      { employeeId: EMP_ID, periodYear: overdueYear },
+    ] as never);
+
+    const result = await VacationService.getOverdueVacationEmployees(COMPANY);
+    expect(result).toHaveLength(0);
+  });
+
+  it("excludes employees with <1 year of service at end of overdue year", async () => {
+    // Hired at the start of current year → less than 1 year at end of last year
+    const startOfThisYear = new Date(new Date().getFullYear(), 0, 1);
+
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      { id: EMP_ID, firstName: "Nuevo", lastName: "Empleado", hireDate: startOfThisYear },
+    ] as never);
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([]);
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValueOnce([]);
+
+    const result = await VacationService.getOverdueVacationEmployees(COMPANY);
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ─── F-06: getEmployeesOnVacation ────────────────────────────────────────────
+
+describe("VacationService.getEmployeesOnVacation (F-06)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns employees whose vacation period includes today", async () => {
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValue([
+      {
+        employeeId: EMP_ID,
+        periodYear: 2026,
+        startDate: yesterday,
+        endDate: tomorrow,
+        employee: { firstName: "María", lastName: "González", status: "ACTIVE" },
+      },
+    ] as never);
+
+    const result = await VacationService.getEmployeesOnVacation(COMPANY);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].employeeId).toBe(EMP_ID);
+    expect(result[0].fullName).toBe("María González");
+  });
+
+  it("returns empty array when no employee is on vacation", async () => {
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValue([] as never);
+    const result = await VacationService.getEmployeesOnVacation(COMPANY);
+    expect(result).toHaveLength(0);
+  });
+
+  it("excludes inactive employees from on-vacation list", async () => {
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+
+    vi.mocked(prisma.vacationRecord.findMany).mockResolvedValue([
+      {
+        employeeId: "emp-inactive",
+        periodYear: 2026,
+        startDate: yesterday,
+        endDate: tomorrow,
+        employee: { firstName: "Ex", lastName: "Empleado", status: "TERMINATED" },
+      },
+    ] as never);
+
+    const result = await VacationService.getEmployeesOnVacation(COMPANY);
+    expect(result).toHaveLength(0);
   });
 });

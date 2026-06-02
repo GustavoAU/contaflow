@@ -2041,6 +2041,13 @@ enum BenefitAdvanceReason {
   EDUCATION // Pago de estudios del trabajador o sus hijos
 }
 
+// F-04: Estado del anticipo en el flujo solicitud/aprobación (Art. 144 LOTTT)
+enum BenefitAdvanceStatus {
+  PENDING // Solicitud creada, pendiente de aprobación del patrono
+  APPROVED // Aprobado: asiento GL generado y saldo descontado
+  REJECTED // Rechazado: sin impacto en saldo
+}
+
 model BenefitAdvance {
   id               String               @id @default(cuid())
   companyId        String
@@ -2048,9 +2055,14 @@ model BenefitAdvance {
   benefitBalanceId String
   amount           Decimal              @db.Decimal(19, 4) // monto del anticipo
   reason           BenefitAdvanceReason
+  status           BenefitAdvanceStatus @default(APPROVED) // APPROVED para compatibilidad con registros directos
   notes            String?
-  transactionId    String?              @unique // asiento débito al saldo (obligatorio)
+  rejectionReason  String? // solo si status = REJECTED
+  transactionId    String?              @unique // asiento débito al saldo (solo si APPROVED)
   createdByUserId  String
+  approvedByUserId String? // quién aprobó (si flujo dos pasos)
+  approvedAt       DateTime? // cuándo se aprobó
+  rejectedAt       DateTime? // cuándo se rechazó
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -2060,7 +2072,7 @@ model BenefitAdvance {
   transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([companyId, employeeId])
-  @@index([companyId])
+  @@index([companyId, status])
 }
 
 // Préstamos otorgados por la empresa al empleado, con descuento automático en nómina.

@@ -44,7 +44,11 @@ export interface AccrualLineRow {
   month: number | null;
   accrualAmount: string;
   runningBalance: string;
-  integralDailyWage: string | null;
+  // F-05: alícuotas detalladas del salario integral por trimestre
+  dailyNormalWage: string | null;       // salario diario normal (base, sin alícuotas)
+  profitDaysAliquot: string | null;     // alícuota utilidades: dailyNormal × días_util / 360
+  vacationBonusDaysAliquot: string | null; // alícuota bono vac.: dailyNormal × días_bono / 360
+  integralDailyWage: string | null;     // salario integral = normal + util + bono_vac
   accrualDays: number | null;
   additionalDays: string | null;
   appliedRate: string | null;
@@ -78,6 +82,9 @@ function serializeLine(l: {
   month: number | null;
   accrualAmount: Decimal;
   runningBalance: Decimal;
+  dailyNormalWage: Decimal | null;
+  profitDaysAliquot: Decimal | null;
+  vacationBonusDaysAliquot: Decimal | null;
   integralDailyWage: Decimal | null;
   accrualDays: number | null;
   additionalDays: Decimal | null;
@@ -93,6 +100,9 @@ function serializeLine(l: {
     month: l.month,
     accrualAmount: l.accrualAmount.toString(),
     runningBalance: l.runningBalance.toString(),
+    dailyNormalWage: l.dailyNormalWage?.toString() ?? null,
+    profitDaysAliquot: l.profitDaysAliquot?.toString() ?? null,
+    vacationBonusDaysAliquot: l.vacationBonusDaysAliquot?.toString() ?? null,
     integralDailyWage: l.integralDailyWage?.toString() ?? null,
     accrualDays: l.accrualDays,
     additionalDays: l.additionalDays?.toString() ?? null,
@@ -757,5 +767,30 @@ export const BenefitAccrualService = {
       rateType: r.rateType,
       source: r.source,
     }));
+  },
+
+  // ── getQuarterlyHistory — F-05: salario integral histórico por trimestre ───
+  // Devuelve solo líneas QUARTERLY_ACCRUAL del empleado con alícuotas detalladas.
+  // Permite auditar cómo se compuso el salario integral en cada trimestre:
+  //   salarioNormal + alícuota_utilidades + alícuota_bono_vacacional = salarioIntegral
+  async getQuarterlyHistory(
+    companyId: string,
+    employeeId: string
+  ): Promise<AccrualLineRow[]> {
+    // IDOR guard: verificar que el empleado pertenece a la empresa
+    const balance = await prisma.benefitBalance.findFirst({
+      where: { companyId, employeeId },
+    });
+    if (!balance) return [];
+
+    const lines = await prisma.benefitAccrualLine.findMany({
+      where: {
+        benefitBalanceId: balance.id,
+        type: "QUARTERLY_ACCRUAL",
+      },
+      orderBy: [{ year: "asc" }, { quarter: "asc" }],
+    });
+
+    return lines.map(serializeLine);
   },
 };
