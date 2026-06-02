@@ -39,6 +39,18 @@ export interface PayrollConfigRow {
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
   salaryMinimumVes: string | null;
+  // Cuentas nómina principal (asiento de causación — requeridas para approve)
+  expenseAccountId: string | null;
+  payableAccountId: string | null;
+  ivssPayableAccountId: string | null;
+  faovPayableAccountId: string | null;
+  incesPayableAccountId: string | null;
+  // Aportes patronales
+  ivssPatronalAccountId: string | null;
+  incesPatronalAccountId: string | null;
+  faovPatronalAccountId: string | null;
+  rpePatronalAccountId: string | null;
+  // Beneficios legales (NOM-D)
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
   vacationPayableAccountId: string | null;
@@ -62,6 +74,18 @@ export interface SavePayrollConfigInput {
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
   salaryMinimumVes?: string | null;
+  // Cuentas nómina principal
+  expenseAccountId?: string | null;
+  payableAccountId?: string | null;
+  ivssPayableAccountId?: string | null;
+  faovPayableAccountId?: string | null;
+  incesPayableAccountId?: string | null;
+  // Aportes patronales
+  ivssPatronalAccountId?: string | null;
+  incesPatronalAccountId?: string | null;
+  faovPatronalAccountId?: string | null;
+  rpePatronalAccountId?: string | null;
+  // Beneficios legales
   benefitsExpenseAccountId?: string | null;
   benefitsPayableAccountId?: string | null;
   vacationPayableAccountId?: string | null;
@@ -88,6 +112,15 @@ function serializeConfig(c: {
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
   salaryMinimumVes: { toString(): string } | null;
+  expenseAccountId: string | null;
+  payableAccountId: string | null;
+  ivssPayableAccountId: string | null;
+  faovPayableAccountId: string | null;
+  incesPayableAccountId: string | null;
+  ivssPatronalAccountId: string | null;
+  incesPatronalAccountId: string | null;
+  faovPatronalAccountId: string | null;
+  rpePatronalAccountId: string | null;
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
   vacationPayableAccountId: string | null;
@@ -112,6 +145,15 @@ function serializeConfig(c: {
     frequency: c.frequency,
     fideicomiso: c.fideicomiso,
     salaryMinimumVes: c.salaryMinimumVes ? c.salaryMinimumVes.toString() : null,
+    expenseAccountId: c.expenseAccountId,
+    payableAccountId: c.payableAccountId,
+    ivssPayableAccountId: c.ivssPayableAccountId,
+    faovPayableAccountId: c.faovPayableAccountId,
+    incesPayableAccountId: c.incesPayableAccountId,
+    ivssPatronalAccountId: c.ivssPatronalAccountId,
+    incesPatronalAccountId: c.incesPatronalAccountId,
+    faovPatronalAccountId: c.faovPatronalAccountId,
+    rpePatronalAccountId: c.rpePatronalAccountId,
     benefitsExpenseAccountId: c.benefitsExpenseAccountId,
     benefitsPayableAccountId: c.benefitsPayableAccountId,
     vacationPayableAccountId: c.vacationPayableAccountId,
