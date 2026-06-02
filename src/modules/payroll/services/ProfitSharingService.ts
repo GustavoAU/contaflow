@@ -45,6 +45,10 @@ export interface CalculateProfitSharingInput {
   // Si no se proveen, se usa hireDate → 31-dic del año fiscal.
   periodStart?: string; // YYYY-MM-DD
   periodEnd?: string;   // YYYY-MM-DD (terminationDate si es fraccionado)
+  // F-07: cálculo dinámico desde utilidad neta (LOTTT Art. 131)
+  // Cuando ambos se proveen, profitDays se calcula en el servidor — nunca del cliente.
+  netProfitVes?: string;
+  totalAnnualPayrollVes?: string;
 }
 
 function serializeProfitSharing(r: {
@@ -148,7 +152,23 @@ export const ProfitSharingService = {
       .reduce((sum, r) => sum.add(new Decimal(r.amount.toString())), new Decimal(0))
       .div(salariesInPeriod.length);
 
-    const profitDays = new Decimal(config.profitDays);
+    // F-07: usar utilidad neta cuando se provee; fallback a config.profitDays (LOTTT Art. 131)
+    // profitPool = netProfit × 15%; profitDays = profitPool × 365 / totalAnnualPayroll
+    // Rango legal: [15 días mínimo, 120 días máximo] (Art. 131 LOTTT)
+    let profitDays: Decimal;
+    if (input.netProfitVes && input.totalAnnualPayrollVes) {
+      const netProfit = new Decimal(input.netProfitVes);
+      const totalPayroll = new Decimal(input.totalAnnualPayrollVes);
+      if (totalPayroll.lte(0)) throw new Error("La nómina anual debe ser mayor a cero");
+      if (netProfit.lte(0)) {
+        profitDays = new Decimal("15"); // mínimo legal aunque no haya utilidades positivas
+      } else {
+        const dynamic = netProfit.mul("0.15").mul("365").div(totalPayroll).toDecimalPlaces(2);
+        profitDays = Decimal.max(new Decimal("15"), Decimal.min(new Decimal("120"), dynamic));
+      }
+    } else {
+      profitDays = new Decimal(config.profitDays);
+    }
     const fractionalDays = profitDays
       .mul(monthsWorked)
       .div(12)
@@ -235,11 +255,14 @@ export const ProfitSharingService = {
             newValue: {
               employeeId,
               fiscalYear: input.fiscalYear,
-              profitDays: config.profitDays,
+              profitDays: profitDays.toFixed(2),
               fractionalDays: fractionalDays.toFixed(2),
               monthsWorked,
               profitAmount: profitAmount.toFixed(4),
               isFractional,
+              ...(input.netProfitVes
+                ? { netProfitVes: input.netProfitVes, totalAnnualPayrollVes: input.totalAnnualPayrollVes ?? null }
+                : {}),
             },
           },
         });

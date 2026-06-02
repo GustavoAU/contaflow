@@ -119,6 +119,56 @@ describe("AuditLogService.list", () => {
   });
 });
 
+describe("AuditLogService.list — F-09 entityNames (módulo filter)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("aplica filtro entityNames como IN cuando se provee el array", async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.auditLog.count).mockResolvedValue(0 as never);
+
+    await AuditLogService.list({
+      companyId: COMPANY_ID,
+      entityNames: ["Employee", "PayrollRun", "BenefitAdvance"],
+    });
+
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          companyId: COMPANY_ID,
+          entityName: { in: ["Employee", "PayrollRun", "BenefitAdvance"] },
+        },
+      })
+    );
+  });
+
+  it("entityNames vacío no filtra por entidad", async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.auditLog.count).mockResolvedValue(0 as never);
+
+    await AuditLogService.list({ companyId: COMPANY_ID, entityNames: [] });
+
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: COMPANY_ID } })
+    );
+  });
+
+  it("entityNames tiene precedencia sobre entityName cuando ambos se proveen", async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.auditLog.count).mockResolvedValue(0 as never);
+
+    await AuditLogService.list({
+      companyId: COMPANY_ID,
+      entityName: "Invoice",
+      entityNames: ["Employee", "PayrollRun"],
+    });
+
+    const call = vi.mocked(prisma.auditLog.findMany).mock.calls[0][0] as {
+      where: { entityName: { in: string[] } };
+    };
+    expect(call.where.entityName).toEqual({ in: ["Employee", "PayrollRun"] });
+  });
+});
+
 describe("AuditLogService.getDistinctEntityNames", () => {
   it("retorna nombres de entidades distintas", async () => {
     vi.mocked(prisma.auditLog.findMany).mockResolvedValue([

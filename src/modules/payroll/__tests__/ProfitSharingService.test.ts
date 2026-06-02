@@ -208,6 +208,86 @@ describe("ProfitSharingService.calculate", () => {
   });
 });
 
+describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("uses netProfitVes + totalAnnualPayrollVes to compute profitDays dynamically", async () => {
+    // netProfit=146000 × 0.15 × 365 / totalPayroll=73000 = 109.5 días → capped at 109.50
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      netProfitVes: "146000",
+      totalAnnualPayrollVes: "73000",
+    });
+    expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          profitDays: "109.50",
+        }),
+      })
+    );
+  });
+
+  it("clamps dynamic profitDays to 120 when profit is very high", async () => {
+    // 99999999 × 0.15 × 365 / 1000 → huge → clamped to 120
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      netProfitVes: "9999999",
+      totalAnnualPayrollVes: "1000",
+    });
+    expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ profitDays: "120.00" }),
+      })
+    );
+  });
+
+  it("applies 15-day minimum when netProfit <= 0", async () => {
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      netProfitVes: "0",
+      totalAnnualPayrollVes: "50000",
+    });
+    expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ profitDays: "15.00" }),
+      })
+    );
+  });
+
+  it("falls back to config.profitDays when only netProfitVes provided (missing totalAnnualPayrollVes)", async () => {
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      netProfitVes: "100000",
+      // totalAnnualPayrollVes not provided
+    });
+    expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ profitDays: "15.00" }), // config.profitDays
+      })
+    );
+  });
+
+  it("throws when totalAnnualPayrollVes is zero", async () => {
+    await expect(
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+        fiscalYear: 2026,
+        netProfitVes: "100000",
+        totalAnnualPayrollVes: "0",
+      })
+    ).rejects.toThrow("La nómina anual debe ser mayor a cero");
+  });
+});
+
 describe("ProfitSharingService.listByEmployee", () => {
   beforeEach(() => vi.clearAllMocks());
 

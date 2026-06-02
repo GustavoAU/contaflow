@@ -24,6 +24,7 @@ export type AuditLogPage = {
 export type AuditLogFilters = {
   companyId: string;
   entityName?: string;
+  entityNames?: string[]; // F-09: filtro por módulo (múltiples entidades)
   userId?: string;
   dateFrom?: string; // ISO date string YYYY-MM-DD
   dateTo?: string;   // ISO date string YYYY-MM-DD
@@ -39,6 +40,7 @@ export class AuditLogService {
     const {
       companyId,
       entityName,
+      entityNames,
       userId,
       dateFrom,
       dateTo,
@@ -50,9 +52,16 @@ export class AuditLogService {
     const safePageSize = Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
     const skip = (safePage - 1) * safePageSize;
 
+    const entityFilter =
+      entityNames && entityNames.length > 0
+        ? { entityName: { in: entityNames } }
+        : entityName
+        ? { entityName }
+        : {};
+
     const where = {
       companyId,
-      ...(entityName ? { entityName } : {}),
+      ...entityFilter,
       ...(userId ? { userId } : {}),
       ...(dateFrom || dateTo
         ? {
@@ -102,13 +111,20 @@ export class AuditLogService {
     return result.map((r) => r.entityName);
   }
 
-  // OM-04: listAll para export PDF — hasta 1000 registros, sin paginación
+  // OM-04: listAll para export PDF/CSV — hasta 1000 registros, sin paginación
   static async listAll(filters: Omit<AuditLogFilters, "page" | "pageSize">): Promise<AuditLogRow[]> {
-    const { companyId, entityName, userId, dateFrom, dateTo } = filters;
+    const { companyId, entityName, entityNames, userId, dateFrom, dateTo } = filters;
+
+    const entityFilter =
+      entityNames && entityNames.length > 0
+        ? { entityName: { in: entityNames } }
+        : entityName
+        ? { entityName }
+        : {};
 
     const where = {
       companyId,
-      ...(entityName ? { entityName } : {}),
+      ...entityFilter,
       ...(userId ? { userId } : {}),
       ...(dateFrom || dateTo
         ? {

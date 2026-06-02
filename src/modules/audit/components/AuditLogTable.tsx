@@ -5,28 +5,53 @@
 
 import { useState, useTransition, useCallback } from "react";
 import { Loader2Icon, FileDownIcon } from "lucide-react";
-import { listAuditLogsAction, exportAuditLogPDFAction } from "../actions/audit.actions";
+import { listAuditLogsAction, exportAuditLogPDFAction, exportAuditLogCSVAction } from "../actions/audit.actions";
 import type { AuditLogRow, AuditLogPage } from "../services/AuditLogService";
 
 const ENTITY_LABELS: Record<string, string> = {
+  // Contabilidad
   Transaction: "Asiento",
-  Invoice: "Factura",
-  InvoicePayment: "Pago",
   Account: "Cuenta",
   AccountingPeriod: "Período",
+  FiscalYearClose: "Cierre Fiscal",
+  InflationAdjustment: "Ajuste por Inflación",
+  // Facturación / Fiscal
+  Invoice: "Factura",
+  InvoicePayment: "Pago",
+  Retencion: "Retención",
+  IGTFTransaction: "IGTF",
+  PaymentRecord: "Registro de Pago",
+  // Bancos
   BankStatement: "Estado Bancario",
   BankTransaction: "Transacción Bancaria",
-  Company: "Empresa",
-  ExchangeRate: "Tasa de Cambio",
-  FiscalYearClose: "Cierre Fiscal",
-  FixedAsset: "Activo Fijo",
-  IGTFTransaction: "IGTF",
-  INPCRate: "INPC",
-  InflationAdjustment: "Ajuste por Inflación",
+  // Inventario / Activos
   InventoryItem: "Ítem Inventario",
   InventoryMovement: "Movimiento Inventario",
-  PaymentRecord: "Registro de Pago",
-  Retencion: "Retención",
+  FixedAsset: "Activo Fijo",
+  // Empresa / Config
+  Company: "Empresa",
+  ExchangeRate: "Tasa de Cambio",
+  INPCRate: "INPC",
+  // F-09: Nómina
+  Employee: "Empleado",
+  PayrollRun: "Corrida de Nómina",
+  BenefitBalance: "Saldo Prestaciones",
+  BenefitAdvance: "Anticipo Prestaciones",
+  VacationRecord: "Vacaciones",
+  ProfitSharingRecord: "Utilidades",
+  EmployeeLoan: "Préstamo Empleado",
+  // Auditoría
+  AuditLogExport: "Exportación Auditoría",
+};
+
+// F-09: Grupos de módulo para el filtro rápido
+const MODULE_ENTITIES: Record<string, string[]> = {
+  Contabilidad: ["Transaction", "Account", "AccountingPeriod", "FiscalYearClose", "InflationAdjustment"],
+  Nómina: ["Employee", "PayrollRun", "BenefitBalance", "BenefitAdvance", "VacationRecord", "ProfitSharingRecord", "EmployeeLoan"],
+  Inventario: ["InventoryItem", "InventoryMovement", "FixedAsset"],
+  Fiscal: ["Invoice", "InvoicePayment", "Retencion", "IGTFTransaction", "PaymentRecord"],
+  Bancos: ["BankStatement", "BankTransaction"],
+  Empresa: ["Company", "ExchangeRate", "INPCRate"],
 };
 
 type Props = {
@@ -82,6 +107,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
 
   // Filters
   const [entityName, setEntityName] = useState("");
+  const [module, setModule] = useState(""); // F-09: filtro por módulo
   const [userId, setUserId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -89,13 +115,17 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
   // OM-04: PDF export state
   const [isExporting, setIsExporting] = useState(false);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
+  // F-09: CSV export state
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
 
   const fetchPage = useCallback(
     (page: number) => {
       startTransition(async () => {
+        const moduleEntities = module ? MODULE_ENTITIES[module] : undefined;
         const r = await listAuditLogsAction({
           companyId,
-          entityName: entityName || undefined,
+          entityName: !moduleEntities && entityName ? entityName : undefined,
+          entityNames: moduleEntities,
           userId: userId || undefined,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
@@ -110,7 +140,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
         }
       });
     },
-    [companyId, entityName, userId, dateFrom, dateTo]
+    [companyId, entityName, module, userId, dateFrom, dateTo]
   );
 
   function handleFilterSubmit(e: React.FormEvent) {
@@ -118,13 +148,45 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
     fetchPage(1);
   }
 
+  // F-09: descarga CSV del registro de auditoría
+  async function handleExportCSV() {
+    setIsExportingCSV(true);
+    setExportMsg(null);
+    try {
+      const moduleEntities = module ? MODULE_ENTITIES[module] : undefined;
+      const result = await exportAuditLogCSVAction(companyId, {
+        entityName: !moduleEntities && entityName ? entityName : undefined,
+        entityNames: moduleEntities,
+        userId: userId || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      if (!result.success) {
+        setExportMsg(`Error: ${result.error}`);
+        return;
+      }
+      const blob = new Blob([result.data.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportMsg(`${result.data.rowCount} registros exportados como CSV.`);
+    } finally {
+      setIsExportingCSV(false);
+    }
+  }
+
   // OM-04: descarga PDF firmado del registro de auditoría
   async function handleExportPDF() {
     setIsExporting(true);
     setExportMsg(null);
     try {
+      const moduleEntities = module ? MODULE_ENTITIES[module] : undefined;
       const result = await exportAuditLogPDFAction(companyId, {
-        entityName: entityName || undefined,
+        entityName: !moduleEntities && entityName ? entityName : undefined,
+        entityNames: moduleEntities,
         userId: userId || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
@@ -161,12 +223,28 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
         onSubmit={handleFilterSubmit}
         className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
       >
+        {/* F-09: Filtro por módulo */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Módulo</label>
+          <select
+            value={module}
+            onChange={(e) => { setModule(e.target.value); setEntityName(""); }}
+            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todos</option>
+            {Object.keys(MODULE_ENTITIES).map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Entidad</label>
           <select
             value={entityName}
-            onChange={(e) => setEntityName(e.target.value)}
+            onChange={(e) => { setEntityName(e.target.value); setModule(""); }}
             className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={!!module}
           >
             <option value="">Todas</option>
             {entityNames.map((n) => (
@@ -219,6 +297,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           type="button"
           onClick={() => {
             setEntityName("");
+            setModule("");
             setUserId("");
             setDateFrom("");
             setDateTo("");
@@ -229,17 +308,31 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           Limpiar
         </button>
 
-        {/* OM-04: Exportar PDF firmado */}
-        <button
-          type="button"
-          onClick={handleExportPDF}
-          disabled={isExporting}
-          aria-busy={isExporting}
-          className="ml-auto flex items-center gap-1.5 rounded border border-emerald-600 px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-        >
-          {isExporting ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
-          {isExporting ? "Generando PDF..." : "Exportar PDF"}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {/* F-09: Exportar CSV */}
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={isExportingCSV}
+            aria-busy={isExportingCSV}
+            className="flex items-center gap-1.5 rounded border border-gray-400 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isExportingCSV ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
+            {isExportingCSV ? "Generando CSV..." : "CSV"}
+          </button>
+
+          {/* OM-04: Exportar PDF firmado */}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            aria-busy={isExporting}
+            className="flex items-center gap-1.5 rounded border border-emerald-600 px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          >
+            {isExporting ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
+            {isExporting ? "Generando PDF..." : "PDF"}
+          </button>
+        </div>
       </form>
 
       {/* OM-04: Mensaje post-exportación */}

@@ -30,16 +30,32 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
     fiscalYear: currentYear - 1,
     periodStart: "",
     periodEnd: "",
+    useDynamic: false,
+    netProfitVes: "",
+    totalAnnualPayrollVes: "",
   });
 
   const alreadyExistsForYear = records.some((r) => r.fiscalYear === form.fiscalYear);
 
+  // F-07: preview días dinámicos desde utilidad neta
+  const dynamicDaysPreview = (() => {
+    if (!form.useDynamic || !form.netProfitVes || !form.totalAnnualPayrollVes) return null;
+    const profit = parseFloat(form.netProfitVes);
+    const payroll = parseFloat(form.totalAnnualPayrollVes);
+    if (!isFinite(profit) || !isFinite(payroll) || payroll <= 0) return null;
+    if (profit <= 0) return 15;
+    const days = Math.round((profit * 0.15 * 365) / payroll * 100) / 100;
+    return Math.max(15, Math.min(120, days));
+  })();
+
   function handleSubmit() {
     setError(null);
     startTransition(async () => {
-      const payload = {
-        fiscalYear: form.fiscalYear,
-      };
+      const payload: Record<string, unknown> = { fiscalYear: form.fiscalYear };
+      if (form.useDynamic && form.netProfitVes && form.totalAnnualPayrollVes) {
+        payload.netProfitVes = form.netProfitVes;
+        payload.totalAnnualPayrollVes = form.totalAnnualPayrollVes;
+      }
       const result = await calculateProfitSharingAction(companyId, employeeId, payload);
       if (!result.success) {
         setError(result.error);
@@ -47,7 +63,7 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
       }
       setRecords((prev) => [result.data, ...prev]);
       setShowForm(false);
-      setForm({ fiscalYear: currentYear - 1, periodStart: "", periodEnd: "" });
+      setForm({ fiscalYear: currentYear - 1, periodStart: "", periodEnd: "", useDynamic: false, netProfitVes: "", totalAnnualPayrollVes: "" });
     });
   }
 
@@ -126,6 +142,60 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
             />
           </div>
 
+          {/* F-07: Cálculo dinámico desde utilidad neta (LOTTT Art. 131) */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="useDynamic"
+              checked={form.useDynamic}
+              onChange={(e) => setForm((f) => ({ ...f, useDynamic: e.target.checked }))}
+              className="rounded border-gray-300 text-green-600"
+            />
+            <label htmlFor="useDynamic" className="text-xs font-medium text-gray-700">
+              Calcular días desde utilidad neta del ejercicio (Art. 131 LOTTT)
+            </label>
+          </div>
+
+          {form.useDynamic && (
+            <div className="rounded border border-blue-200 bg-blue-50 p-3 space-y-3">
+              <p className="text-xs text-blue-700">
+                Ingresa la utilidad neta del ejercicio y la nómina anual para calcular los días proporcionales.
+                El sistema aplica el 15% de la utilidad neta y los clampea entre 15 y 120 días.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Utilidad neta del ejercicio (Bs.)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.netProfitVes}
+                    onChange={(e) => setForm((f) => ({ ...f, netProfitVes: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Nómina anual total (Bs.)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.totalAnnualPayrollVes}
+                    onChange={(e) => setForm((f) => ({ ...f, totalAnnualPayrollVes: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              {dynamicDaysPreview !== null && (
+                <p className="rounded bg-blue-100 px-3 py-2 text-xs font-semibold text-blue-800">
+                  Días calculados: <span className="font-mono">{dynamicDaysPreview.toFixed(2)}</span> días
+                  {dynamicDaysPreview === 15 && " (mínimo legal aplicado)"}
+                  {dynamicDaysPreview === 120 && " (máximo legal aplicado)"}
+                </p>
+              )}
+            </div>
+          )}
+
           {alreadyExistsForYear && (
             <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Ya existe un cálculo de utilidades para el año fiscal {form.fiscalYear}. Solo se permite un registro por ejercicio fiscal.
@@ -139,7 +209,7 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => { setShowForm(false); setError(null); }}
+              onClick={() => { setShowForm(false); setError(null); setForm({ fiscalYear: currentYear - 1, periodStart: "", periodEnd: "", useDynamic: false, netProfitVes: "", totalAnnualPayrollVes: "" }); }}
               className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
             >
               Cancelar

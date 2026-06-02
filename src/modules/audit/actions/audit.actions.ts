@@ -75,6 +75,7 @@ export async function getAuditEntityNamesAction(
 
 export type AuditLogPDFFilters = {
   entityName?: string;
+  entityNames?: string[];
   userId?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -198,6 +199,77 @@ export async function exportAuditLogPDFAction(
         rowCount: rows.length,
       },
     };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error al exportar el registro de auditoría";
+    return { success: false, error: msg };
+  }
+}
+
+// ─── F-09: Exportar Audit Log como CSV ───────────────────────────────────────
+
+type CSVExportResult = {
+  csv: string;    // UTF-8 text
+  filename: string;
+  rowCount: number;
+};
+
+export async function exportAuditLogCSVAction(
+  companyId: string,
+  filters: AuditLogPDFFilters
+): Promise<ActionResult<CSVExportResult>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
+      return { success: false, error: "Solo OWNER y ADMIN pueden exportar el registro de auditoría" };
+    }
+
+    const rows = await AuditLogService.listAll({ companyId, ...filters });
+
+    // Generar CSV (RFC 4180)
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = ["id", "fecha", "entidad", "accion", "entityId", "usuario", "cambios"].map(escape).join(",");
+    const lines = rows.map((r) =>
+      [
+        r.id,
+        new Date(r.createdAt).toISOString(),
+        r.entityName,
+        r.action,
+        r.entityId,
+        r.userId,
+        JSON.stringify(r.newValue),
+      ]
+        .map(String)
+        .map(escape)
+        .join(",")
+    );
+    const csv = [header, ...lines].join("\r\n");
+
+    // Registrar el export en AuditLog
+    await prisma.auditLog.create({
+      data: {
+        companyId,
+        entityId: companyId,
+        entityName: "AuditLogExport",
+        action: "EXPORT_CSV",
+        userId,
+        newValue: { rowCount: rows.length, filters },
+      },
+    });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `auditlog-${companyId.slice(-6)}-${today}.csv`;
+
+    return { success: true, data: { csv, filename, rowCount: rows.length } };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error al exportar el registro de auditoría";
     return { success: false, error: msg };

@@ -84,6 +84,16 @@ export const CalculateProfitSharingSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de fin inválida" })
     .optional(),
   // NO baseSalary ni profitDays — siempre de la config DB (CRITICAL-3)
+  // F-07: utilidad neta + nómina anual para cálculo dinámico (LOTTT Art. 131)
+  // Ambos opcionales y juntos; el servidor calcula profitDays — nunca el cliente.
+  netProfitVes: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, { message: "Utilidad neta debe ser un número positivo" })
+    .optional(),
+  totalAnnualPayrollVes: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, { message: "Nómina anual debe ser un número positivo" })
+    .optional(),
 });
 
 export type CalculateProfitSharingInput = z.infer<typeof CalculateProfitSharingSchema>;
