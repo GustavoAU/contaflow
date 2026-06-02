@@ -87,6 +87,8 @@ export interface EmployeeListRow {
   hireDate: string;
   currentSalaryAmount: string | null;
   currentSalaryCurrency: PayrollPaymentCurrency | null;
+  // C-06: tipo trabajador — visible en tabla para identificar Forma 14-02 IVSS
+  payrollWorkerType: PayrollWorkerType;
 }
 
 // ─── Helpers de serialización ─────────────────────────────────────────────────
@@ -211,6 +213,7 @@ export const EmployeeService = {
       hireDate: e.hireDate.toISOString().split("T")[0],
       currentSalaryAmount: e.salaryHistory[0]?.amount.toString() ?? null,
       currentSalaryCurrency: e.salaryHistory[0]?.currency ?? null,
+      payrollWorkerType: e.payrollWorkerType,
     }));
   },
 

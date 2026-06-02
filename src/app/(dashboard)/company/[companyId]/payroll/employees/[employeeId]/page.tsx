@@ -176,6 +176,34 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             {yearsOfService} año{yearsOfService !== 1 ? "s" : ""}
           </dd>
         </div>
+        {/* C-06: campos obligatorios Forma 14-02 IVSS */}
+        <div>
+          <dt className="text-xs font-medium text-gray-500">Tipo de trabajador</dt>
+          <dd className="mt-0.5 font-medium">
+            <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${
+              emp.payrollWorkerType === "OBRERO" ? "bg-orange-100 text-orange-800" : "bg-sky-100 text-sky-800"
+            }`}>
+              {emp.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"}
+            </span>
+          </dd>
+        </div>
+        {emp.ivssNumber && (
+          <div>
+            <dt className="text-xs font-medium text-gray-500">N° afiliación IVSS</dt>
+            <dd className="mt-0.5 font-mono text-xs">{emp.ivssNumber}</dd>
+          </div>
+        )}
+        {/* C-07: cargas familiares / estado civil para ISLR D.1808 */}
+        {emp.maritalStatus && (
+          <div>
+            <dt className="text-xs font-medium text-gray-500">Estado civil</dt>
+            <dd className="mt-0.5 font-medium capitalize">{emp.maritalStatus.toLowerCase().replace("_", " ")}</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-xs font-medium text-gray-500">Cargas familiares (ISLR)</dt>
+          <dd className="mt-0.5 font-medium">{emp.dependents ?? 0}</dd>
+        </div>
       </dl>
 
       {/* Portal del empleado */}

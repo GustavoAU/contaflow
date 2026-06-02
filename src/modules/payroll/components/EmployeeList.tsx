@@ -32,6 +32,13 @@ function isProbation(hireDate: string | null): boolean {
   if (!hireDate) return false;
   return Date.now() - new Date(hireDate).getTime() < PROBATION_MS;
 }
+// Días restantes hasta que venza el período de prueba (null si no aplica)
+function probationDaysLeft(hireDate: string | null): number | null {
+  if (!hireDate) return null;
+  const elapsed = Date.now() - new Date(hireDate).getTime();
+  if (elapsed >= PROBATION_MS) return null;
+  return Math.ceil((PROBATION_MS - elapsed) / (24 * 60 * 60 * 1000));
+}
 
 // U-01: chip de moneda con color diferenciado
 const CURRENCY_CHIP: Record<string, string> = {
@@ -156,15 +163,36 @@ export default function EmployeeList({ companyId, employees, canWrite }: Props) 
                   <td className="px-4 py-3 text-gray-600">
                     <div className="flex flex-wrap items-center gap-1">
                       <span>{CONTRACT_LABELS[emp.contractType] ?? emp.contractType}</span>
-                      {/* Art. 45 LOTTT: badge de período de prueba (< 6 meses) */}
-                      {emp.status === "ACTIVE" && isProbation(emp.hireDate) && (
-                        <span
-                          className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700"
-                          title="Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
-                        >
-                          Prueba
-                        </span>
-                      )}
+                      {/* C-06: tipo trabajador LOTTT — relevante para Forma 14-02 IVSS */}
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                          emp.payrollWorkerType === "OBRERO"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-sky-100 text-sky-700"
+                        }`}
+                        title={emp.payrollWorkerType === "OBRERO" ? "Obrero (Forma 14-02 IVSS)" : "Empleado"}
+                      >
+                        {emp.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"}
+                      </span>
+                      {/* Art. 45 LOTTT: badge de período de prueba con countdown */}
+                      {emp.status === "ACTIVE" && isProbation(emp.hireDate) && (() => {
+                        const daysLeft = probationDaysLeft(emp.hireDate);
+                        const urgent = daysLeft !== null && daysLeft <= 30;
+                        return (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                              urgent ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
+                            }`}
+                            title={
+                              daysLeft !== null
+                                ? `Art. 45 LOTTT — ${daysLeft} días para vencer el período de prueba`
+                                : "Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
+                            }
+                          >
+                            {urgent && daysLeft !== null ? `Prueba · ${daysLeft}d` : "Prueba"}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
