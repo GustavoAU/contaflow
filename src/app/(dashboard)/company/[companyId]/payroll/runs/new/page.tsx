@@ -34,7 +34,22 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
     );
   }
 
-  const activeEmployeeCount = await EmployeeService.countActive(companyId);
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+
+  const [activeEmployeeCount, salMinThreshold, bcvRateForMonth] = await Promise.all([
+    EmployeeService.countActive(companyId),
+    prisma.legalThreshold.findFirst({
+      where: { companyId, type: "SALARY_MIN_VES" },
+      orderBy: { effectiveFrom: "desc" },
+      select: { value: true, effectiveFrom: true },
+    }),
+    prisma.bcvBenefitRate.findFirst({
+      where: { companyId, year: currentYear, month: currentMonth },
+      select: { id: true },
+    }),
+  ]);
 
   if (activeEmployeeCount === 0) {
     return (
@@ -51,6 +66,9 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
         activeEmployeeCount={activeEmployeeCount}
         initialStart={start}
         initialEnd={end}
+        salMinLastUpdate={salMinThreshold?.effectiveFrom.toISOString() ?? null}
+        salMinValue={salMinThreshold?.value.toString() ?? null}
+        hasBcvRateForMonth={!!bcvRateForMonth}
       />
     </div>
   );

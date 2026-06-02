@@ -43,6 +43,11 @@ const CONCEPT_LABELS: Record<string, string> = {
   BONO_RESP:  "Bono de Responsabilidad",
   UTILIDADES: "Utilidades",
   VACACIONES: "Vacaciones",
+  // C-04: aportes patronales
+  IVSS_PAT:   "IVSS Patronal (9%)",
+  INCES_PAT:  "INCES Patronal (2%)",
+  FAOV_PAT:   "Banavih FAOV Patronal (2%)",
+  RPE_PAT:    "Paro Forzoso Patronal (2%)",
 };
 
 function conceptLabel(code: string): string {
@@ -212,8 +217,8 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
           </div>
         </div>
 
-        {/* Totales */}
-        <div className="mt-6 grid grid-cols-3 gap-4">
+        {/* Totales — C-04: 4 tarjetas cuando hay costo patronal */}
+        <div className={`mt-6 grid gap-4 ${Number(run.totalEmployerCosts) > 0 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3"}`}>
           <div className="bg-green-50 rounded-lg p-4">
             <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Total Asignaciones</p>
             <p className="mt-1 text-2xl font-bold text-green-900 font-mono">
@@ -235,6 +240,16 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
               {formatAmount(Number(run.totalNet))}
             </p>
           </div>
+          {Number(run.totalEmployerCosts) > 0 && (
+            <div className="bg-orange-50 rounded-lg p-4">
+              <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">Costo Patronal</p>
+              <p className="mt-1 text-2xl font-bold text-orange-900 font-mono">
+                <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
+                {formatAmount(Number(run.totalEmployerCosts))}
+              </p>
+              <p className="mt-0.5 text-xs text-orange-600">IVSS/INCES/FAOV/RPE patronal</p>
+            </div>
+          )}
         </div>
 
         {/* Acciones */}
@@ -342,8 +357,10 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
             const name = lines[0]?.employeeName ?? empId;
             const earnings = lines.filter((l) => l.conceptType === "EARNING");
             const deductions = lines.filter((l) => l.conceptType === "DEDUCTION");
+            const employerCosts = lines.filter((l) => l.conceptType === "EMPLOYER_COST");
             const totalEarnings = earnings.reduce((s, l) => s + Number(l.amount), 0);
             const totalDeductions = deductions.reduce((s, l) => s + Number(l.amount), 0);
+            const totalPatronal = employerCosts.reduce((s, l) => s + Number(l.amount), 0);
             const net = totalEarnings - totalDeductions;
 
             return (
@@ -361,6 +378,12 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                     <span className="font-semibold text-gray-900">
                       <span className="mr-0.5 text-xs font-normal opacity-60">{currency}</span>={formatAmount(net)}
                     </span>
+                    {totalPatronal > 0 && (
+                      <span className="text-orange-600 text-xs">
+                        <span className="mr-0.5 opacity-60">{currency}</span>
+                        {formatAmount(totalPatronal)} pat.
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -385,7 +408,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                   <div className="border-t border-dashed border-gray-200 my-1.5" />
                 )}
 
-                {/* Deducciones al final */}
+                {/* Deducciones del trabajador */}
                 {deductions.length > 0 && (
                   <table className="w-full text-xs">
                     <tbody>
@@ -399,6 +422,25 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                       ))}
                     </tbody>
                   </table>
+                )}
+
+                {/* C-04: Aportes patronales — costo del empleador, no del trabajador */}
+                {employerCosts.length > 0 && (
+                  <>
+                    <div className="border-t border-dashed border-orange-200 my-1.5" />
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {employerCosts.map((l) => (
+                          <tr key={l.id} className="opacity-80">
+                            <td className="py-0.5 pr-4 text-orange-700">{conceptLabel(l.conceptCode)}</td>
+                            <td className="py-0.5 text-right font-mono text-orange-700">
+                              {formatAmount(Number(l.amount))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
                 )}
               </div>
             );
