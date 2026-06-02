@@ -1707,44 +1707,61 @@ enum AbsenceCategory {
   PERMISSION // Permiso especial (LOTTT Art. 420)
 }
 
+enum MaritalStatus {
+  SOLTERO
+  CASADO
+  DIVORCIADO
+  VIUDO
+  UNION_ESTABLE // Unión estable de hecho (LOPNNA / Código Civil)
+}
+
+enum PayrollWorkerType {
+  OBRERO // LOTTT Art. 1: trabajo manual o semi-manual
+  EMPLEADO // LOTTT Art. 1: servicios, técnico u oficina
+}
+
 // ─── Employee ─────────────────────────────────────────────────────────────────
 // Campos LOTTT obligatorios: nombre, cédula, fecha ingreso, cargo, contrato, régimen
 // cedulaType + cedulaNumber forman clave única por empresa (@@unique)
 // onDelete: Restrict — nunca eliminar empleados con historial contable
 
 model Employee {
-  id              String         @id @default(cuid())
-  companyId       String
+  id                String            @id @default(cuid())
+  companyId         String
   // Identificación
-  firstName       String
-  lastName        String
-  cedulaType      String // "V" | "E"
-  cedulaNumber    String // solo dígitos
+  firstName         String
+  lastName          String
+  cedulaType        String // "V" | "E"
+  cedulaNumber      String // solo dígitos
   // Contrato LOTTT
-  contractType    ContractType
-  employeeRegime  LottRegime // por empleado — empresa MIXED puede tener ambos
-  hireDate        DateTime       @db.Date
-  terminationDate DateTime?      @db.Date
-  status          EmployeeStatus @default(ACTIVE)
+  contractType      ContractType
+  employeeRegime    LottRegime // por empleado — empresa MIXED puede tener ambos
+  hireDate          DateTime          @db.Date
+  terminationDate   DateTime?         @db.Date
+  status            EmployeeStatus    @default(ACTIVE)
   // Cargo
-  position        String
-  department      String?
-  costCenter      String? // centro de costo (Ítem 52)
+  position          String
+  department        String?
+  costCenter        String? // centro de costo (Ítem 52)
   // Contacto
-  email           String?
-  phone           String?
+  email             String?
+  phone             String?
   // Datos bancarios (para nómina)
-  bankName        String?
-  bankAccount     String?
+  bankName          String?
+  bankAccount       String?
   // Parafiscal (F-01 — IVSS/Banavih/ISLR D.1808)
-  ivssNumber      String? // Número afiliación IVSS (Forma 14-02)
-  banavihNumber   String? // Número afiliación Banavih/FAOV (FAOVWeb)
-  dependents      Int? // Cargas familiares para ISLR (D. 1808)
-  birthDate       DateTime?      @db.Date
-  workSchedule    JornadaType? // Jornada laboral LOTTT Arts. 173-177
+  ivssNumber        String? // Número afiliación IVSS (Forma 14-02)
+  banavihNumber     String? // Número afiliación Banavih/FAOV (FAOVWeb)
+  dependents        Int? // Cargas familiares para ISLR (D. 1808)
+  birthDate         DateTime?         @db.Date
+  workSchedule      JornadaType? // Jornada laboral LOTTT Arts. 173-177
+  // Clasificación LOTTT y estado civil (auditoria 2026-06-02)
+  maritalStatus     MaritalStatus? // Estado civil — ISLR D. 1808
+  payrollWorkerType PayrollWorkerType @default(EMPLEADO) // Tipo trabajador LOTTT Art. 1
+  contractEndDate   DateTime?         @db.Date // Vencimiento contrato DETERMINADO (LOTTT Art. 64)
   // Timestamps
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   salaryHistory        SalaryHistory[]

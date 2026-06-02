@@ -41,6 +41,10 @@ export const CreateEmployeeSchema = z.object({
   dependents: z.coerce.number().int().min(0).max(20).optional(),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
+  // F-02: clasificación LOTTT + estado civil (auditoria 2026-06-02)
+  maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
+  payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
+  contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
@@ -67,6 +71,10 @@ export const UpdateEmployeeSchema = z.object({
   dependents: z.coerce.number().int().min(0).max(20).optional(),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
+  // F-02: clasificación LOTTT + estado civil
+  maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
+  payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
+  contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;

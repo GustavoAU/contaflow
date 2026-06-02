@@ -169,6 +169,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               {run.employeeCount} empleados · {currency}
+              {run.bcvRateAtRun && (
+                <span
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600"
+                  title="Tasa BCV anual aplicada para el cálculo de intereses sobre prestaciones en este período (C-05)"
+                >
+                  Tasa BCV prestaciones: {Number(run.bcvRateAtRun).toFixed(2)}%
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">

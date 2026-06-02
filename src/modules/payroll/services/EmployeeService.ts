@@ -19,7 +19,9 @@ import type {
   EmployeeStatus,
   JornadaType,
   LottRegime,
+  MaritalStatus,
   PayrollPaymentCurrency,
+  PayrollWorkerType,
 } from "@prisma/client";
 import type {
   CreateEmployeeInput,
@@ -65,6 +67,10 @@ export interface EmployeeRow {
   dependents: number | null;
   birthDate: string | null;
   workSchedule: JornadaType | null;
+  // F-02: clasificación LOTTT + estado civil
+  maritalStatus: MaritalStatus | null;
+  payrollWorkerType: PayrollWorkerType;
+  contractEndDate: string | null;
   currentSalary: SalaryHistoryRow | null;
   updatedAt: string;
 }
@@ -124,6 +130,9 @@ type PrismaEmployee = {
   dependents: number | null;
   birthDate: Date | null;
   workSchedule: JornadaType | null;
+  maritalStatus: MaritalStatus | null;
+  payrollWorkerType: PayrollWorkerType;
+  contractEndDate: Date | null;
   updatedAt: Date;
   salaryHistory: Array<{
     id: string;
@@ -162,6 +171,9 @@ function serializeEmployee(e: PrismaEmployee): EmployeeRow {
     dependents: e.dependents,
     birthDate: e.birthDate ? e.birthDate.toISOString().split("T")[0] : null,
     workSchedule: e.workSchedule,
+    maritalStatus: e.maritalStatus,
+    payrollWorkerType: e.payrollWorkerType,
+    contractEndDate: e.contractEndDate ? e.contractEndDate.toISOString().split("T")[0] : null,
     currentSalary: currentSalary ? serializeSalary(currentSalary) : null,
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -252,6 +264,9 @@ export const EmployeeService = {
           dependents: input.dependents ?? null,
           birthDate: input.birthDate ? new Date(input.birthDate) : null,
           workSchedule: input.workSchedule ?? null,
+          maritalStatus: input.maritalStatus ?? null,
+          payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
+          contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -338,6 +353,9 @@ export const EmployeeService = {
           dependents: input.dependents ?? null,
           birthDate: input.birthDate ? new Date(input.birthDate) : null,
           workSchedule: input.workSchedule ?? null,
+          maritalStatus: input.maritalStatus ?? null,
+          payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
+          contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
         },
         include: WITH_CURRENT_SALARY,
       });

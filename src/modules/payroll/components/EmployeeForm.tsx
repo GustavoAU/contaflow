@@ -29,6 +29,25 @@ const CURRENCY_OPTIONS = [
   { value: "USD", label: "Dólares (USD)" },
 ];
 
+const WORKER_TYPE_OPTIONS = [
+  { value: "EMPLEADO", label: "Empleado (Art. 1 LOTTT)" },
+  { value: "OBRERO", label: "Obrero (Art. 1 LOTTT)" },
+];
+
+const MARITAL_STATUS_OPTIONS = [
+  { value: "SOLTERO", label: "Soltero(a)" },
+  { value: "CASADO", label: "Casado(a)" },
+  { value: "DIVORCIADO", label: "Divorciado(a)" },
+  { value: "VIUDO", label: "Viudo(a)" },
+  { value: "UNION_ESTABLE", label: "Unión estable de hecho" },
+];
+
+const SCHEDULE_OPTIONS = [
+  { value: "DIURNA", label: "Diurna (Art. 173 LOTTT)" },
+  { value: "NOCTURNA", label: "Nocturna (Art. 175 LOTTT)" },
+  { value: "MIXTA", label: "Mixta (Art. 176 LOTTT)" },
+];
+
 export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +72,16 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
     // Solo en creación
     initialSalaryAmount: "",
     initialSalaryCurrency: "VES" as "VES" | "USD" | "MIXED",
+    // F-01: parafiscal
+    ivssNumber: initial?.ivssNumber ?? "",
+    banavihNumber: initial?.banavihNumber ?? "",
+    dependents: initial?.dependents?.toString() ?? "",
+    birthDate: initial?.birthDate ?? "",
+    workSchedule: initial?.workSchedule ?? "",
+    // F-02: clasificación LOTTT + estado civil
+    maritalStatus: initial?.maritalStatus ?? "",
+    payrollWorkerType: initial?.payrollWorkerType ?? "EMPLEADO",
+    contractEndDate: initial?.contractEndDate ?? "",
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -133,6 +162,37 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       )}
 
+      {/* Datos personales */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Fecha de nacimiento</label>
+          <input
+            type="date"
+            value={form.birthDate}
+            onChange={(e) => set("birthDate", e.target.value)}
+            className="w-full rounded border px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Estado civil{" "}
+            <span className="text-gray-400 font-normal">(ISLR D. 1808)</span>
+          </label>
+          <select
+            value={form.maritalStatus}
+            onChange={(e) => set("maritalStatus", e.target.value)}
+            className="w-full rounded border px-3 py-2 text-sm"
+          >
+            <option value="">— Sin especificar —</option>
+            {MARITAL_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Contrato */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -167,6 +227,21 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
       </div>
 
+      {form.contractType === "DETERMINADO" && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Fecha de vencimiento del contrato{" "}
+            <span className="text-gray-400 font-normal">(LOTTT Art. 64)</span>
+          </label>
+          <input
+            type="date"
+            value={form.contractEndDate}
+            onChange={(e) => set("contractEndDate", e.target.value)}
+            className="w-full rounded border px-3 py-2 text-sm"
+          />
+        </div>
+      )}
+
       {!isEdit && (
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
@@ -180,6 +255,42 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           />
         </div>
       )}
+
+      {/* Clasificación LOTTT */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Tipo trabajador *{" "}
+            <span className="text-gray-400 font-normal">(Art. 1 LOTTT)</span>
+          </label>
+          <select
+            value={form.payrollWorkerType}
+            onChange={(e) => set("payrollWorkerType", e.target.value as "EMPLEADO" | "OBRERO")}
+            className="w-full rounded border px-3 py-2 text-sm"
+          >
+            {WORKER_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Jornada laboral</label>
+          <select
+            value={form.workSchedule}
+            onChange={(e) => set("workSchedule", e.target.value)}
+            className="w-full rounded border px-3 py-2 text-sm"
+          >
+            <option value="">— Sin especificar —</option>
+            {SCHEDULE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Cargo */}
       <div className="grid grid-cols-3 gap-3">
@@ -257,6 +368,57 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
             value={form.bankAccount}
             onChange={(e) => set("bankAccount", e.target.value)}
             className="w-full rounded border px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Parafiscal */}
+      <div className="rounded bg-slate-50 p-4 space-y-3">
+        <p className="text-xs font-medium text-slate-700">
+          Datos parafiscales{" "}
+          <span className="font-normal text-slate-500">(IVSS Forma 14-02, Banavih, ISLR D. 1808)</span>
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              N° afiliación IVSS
+            </label>
+            <input
+              type="text"
+              value={form.ivssNumber}
+              onChange={(e) => set("ivssNumber", e.target.value)}
+              className="w-full rounded border px-3 py-2 text-sm font-mono"
+              placeholder="ej. 12-34567890-1"
+              maxLength={20}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              N° afiliación Banavih/FAOV
+            </label>
+            <input
+              type="text"
+              value={form.banavihNumber}
+              onChange={(e) => set("banavihNumber", e.target.value)}
+              className="w-full rounded border px-3 py-2 text-sm font-mono"
+              placeholder="Número FAOVWeb"
+              maxLength={20}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Cargas familiares{" "}
+            <span className="text-gray-400 font-normal">(hijos u otros dependientes — D. 1808)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="20"
+            value={form.dependents}
+            onChange={(e) => set("dependents", e.target.value)}
+            className="w-32 rounded border px-3 py-2 text-sm"
+            placeholder="0"
           />
         </div>
       </div>
