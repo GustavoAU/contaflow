@@ -488,7 +488,8 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
 describe("BenefitAccrualService.createBcvRate", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("creates BCV rate", async () => {
+  it("creates BCV rate with AuditLog in $transaction (R-6, VI)", async () => {
+    mockTx();
     vi.mocked(prisma.bcvBenefitRate.create).mockResolvedValue({
       id: "bcv-1",
       companyId: COMPANY,
@@ -499,11 +500,17 @@ describe("BenefitAccrualService.createBcvRate", () => {
       createdByUserId: USER,
       createdAt: new Date(),
     } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     const result = await BenefitAccrualService.createBcvRate(COMPANY, USER, 2026, 3, 24);
     expect(result.year).toBe(2026);
     expect(result.month).toBe(3);
     expect(result.annualRate).toBe("24");
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "CREATE_BCV_RATE" }),
+      })
+    );
   });
 });
 
