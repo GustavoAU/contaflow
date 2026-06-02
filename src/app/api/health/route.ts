@@ -4,23 +4,21 @@
  * Health check endpoint para status pages / uptime monitors (Instatus, UptimeRobot, etc.).
  * Ruta pública — configurada en src/middleware.ts.
  *
+ * Respuesta pública (sin token): { ok } — solo el código HTTP importa al monitor.
+ * Respuesta autorizada (Bearer HEALTH_CHECK_SECRET): detalle completo por servicio.
+ *
  * Retorna 200 si todos los servicios configurados están saludables.
  * Retorna 503 si algún servicio falla.
- *
- * Respuesta: { ok, db, redis, timestamp, version }
  */
 
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { redis } from "@/lib/ratelimit";
 
-// No ejecutar en el Edge runtime — Prisma requiere Node.js
 export const runtime = "nodejs";
-
-// No cachear — cada llamada debe ser un check real
 export const dynamic = "force-dynamic";
 
-interface HealthStatus {
+interface FullHealthStatus {
   ok: boolean;
   db: "ok" | "error";
   redis: "ok" | "error" | "not_configured";
@@ -29,7 +27,7 @@ interface HealthStatus {
   version: string;
 }
 
-export async function GET(): Promise<NextResponse<HealthStatus>> {
+export async function GET(req: Request): Promise<NextResponse> {
   const checks = await Promise.allSettled([
     checkDb(),
     checkRedis(),
@@ -37,20 +35,28 @@ export async function GET(): Promise<NextResponse<HealthStatus>> {
 
   const dbOk = checks[0].status === "fulfilled" && checks[0].value;
   const redisResult = checks[1].status === "fulfilled" ? checks[1].value : "error";
-  const qstashConfigured = !!process.env.QSTASH_TOKEN;
+  const ok = dbOk && redisResult !== "error";
+  const status = ok ? 200 : 503;
 
-  const ok = dbOk && (redisResult !== "error");
+  // Detalles de infraestructura solo para monitores autorizados con token secreto.
+  // HEALTH_CHECK_SECRET se configura en Vercel env vars y en el panel del uptime monitor.
+  const secret = process.env.HEALTH_CHECK_SECRET;
+  const authHeader = req.headers.get("authorization");
+  const isAuthorized = secret && authHeader === `Bearer ${secret}`;
 
-  const body: HealthStatus = {
-    ok,
-    db: dbOk ? "ok" : "error",
-    redis: redisResult,
-    qstash: qstashConfigured ? "configured" : "not_configured",
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version ?? "0.1.0",
-  };
+  if (isAuthorized) {
+    const body: FullHealthStatus = {
+      ok,
+      db: dbOk ? "ok" : "error",
+      redis: redisResult,
+      qstash: process.env.QSTASH_TOKEN ? "configured" : "not_configured",
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version ?? "unknown",
+    };
+    return NextResponse.json(body, { status });
+  }
 
-  return NextResponse.json(body, { status: ok ? 200 : 503 });
+  return NextResponse.json({ ok }, { status });
 }
 
 async function checkDb(): Promise<boolean> {
@@ -62,7 +68,7 @@ async function checkDb(): Promise<boolean> {
   }
 }
 
-async function checkRedis(): Promise<HealthStatus["redis"]> {
+async function checkRedis(): Promise<FullHealthStatus["redis"]> {
   if (!redis) return "not_configured";
   try {
     const pong = await redis.ping();

@@ -17,6 +17,11 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Deshabilita features del navegador no utilizadas
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  // Aísla el contexto de navegación — mitiga Spectre/side-channel (COEP no se activa porque
+  // requeriría CORP en todos los recursos de terceros: Clerk, Sentry, etc.)
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // Impide que otros orígenes embeben recursos de esta app sin permiso explícito
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
 // Orígenes permitidos para Server Actions (CSRF HIGH-2 — ADR-025).
@@ -34,6 +39,8 @@ const allowedOrigins = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // No revelar que el servidor corre Next.js — reduce superficie de ataque fingerprinting
+  poweredByHeader: false,
   // Standalone output para Docker: copia solo las dependencias necesarias al contenedor
   output: process.env.DOCKER_BUILD === "1" ? "standalone" : undefined,
   experimental: {
@@ -60,6 +67,13 @@ const nextConfig: NextConfig = {
         child_process: false,
         net: false,
         tls: false,
+      };
+    }
+    // Limitar caché de webpack a 7 días para evitar que .next/dev/cache crezca indefinidamente
+    if (config.cache && typeof config.cache === "object") {
+      config.cache = {
+        ...config.cache,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       };
     }
     return config;
