@@ -45,6 +45,7 @@ export const CreateEmployeeSchema = z.object({
   maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
   payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
   contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  useFideicomiso: z.boolean().optional(),
 });
 
 export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
@@ -75,6 +76,7 @@ export const UpdateEmployeeSchema = z.object({
   maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
   payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
   contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  useFideicomiso: z.boolean().optional(),
 });
 
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;

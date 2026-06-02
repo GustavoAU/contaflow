@@ -28,6 +28,11 @@ const currentYear = new Date().getFullYear();
 
 export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin, vacationEntitlement, vacationUsedThisYear, yearsOfService, workSchedule }: Props) {
   const [records, setRecords] = useState<VacationRecordRow[]>(initialRecords);
+
+  // Art. 190 LOTTT — alerta si hay vacaciones del año anterior sin registrar disfrute
+  const priorYearUnused = records.filter(
+    (r) => r.periodYear < currentYear && !r.isFractional && (!r.startDate || !r.endDate)
+  );
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +93,20 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
         </div>
       )}
 
+      {/* Art. 190 — alerta vacaciones de años anteriores sin disfrute registrado */}
+      {priorYearUnused.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <span>
+            <strong>Art. 190 LOTTT:</strong>{" "}
+            {priorYearUnused.map((r) => r.periodYear).join(", ")} — vacaciones causadas sin fecha de disfrute registrada.
+            Las vacaciones no pueden acumularse indefinidamente. Registra el período de disfrute efectivo para evitar observaciones del Inspector del Trabajo.
+          </span>
+        </div>
+      )}
+
       {/* Historial */}
       {records.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
@@ -99,7 +118,7 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días bono</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto vac.</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto bono</th>
-                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período de disfrute</th>
                 <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
               </tr>
             </thead>

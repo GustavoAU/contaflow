@@ -83,6 +83,7 @@ const BASE_EMP_ROW = {
   maritalStatus: null,
   payrollWorkerType: "EMPLEADO" as const,
   contractEndDate: null,
+  useFideicomiso: false,
   currentSalary: null,
   currentSalaryAmount: null,
   currentSalaryCurrency: null,

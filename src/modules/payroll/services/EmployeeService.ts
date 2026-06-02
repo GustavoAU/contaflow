@@ -71,6 +71,7 @@ export interface EmployeeRow {
   maritalStatus: MaritalStatus | null;
   payrollWorkerType: PayrollWorkerType;
   contractEndDate: string | null;
+  useFideicomiso: boolean;
   currentSalary: SalaryHistoryRow | null;
   updatedAt: string;
 }
@@ -133,6 +134,7 @@ type PrismaEmployee = {
   maritalStatus: MaritalStatus | null;
   payrollWorkerType: PayrollWorkerType;
   contractEndDate: Date | null;
+  useFideicomiso: boolean;
   updatedAt: Date;
   salaryHistory: Array<{
     id: string;
@@ -174,6 +176,7 @@ function serializeEmployee(e: PrismaEmployee): EmployeeRow {
     maritalStatus: e.maritalStatus,
     payrollWorkerType: e.payrollWorkerType,
     contractEndDate: e.contractEndDate ? e.contractEndDate.toISOString().split("T")[0] : null,
+    useFideicomiso: e.useFideicomiso,
     currentSalary: currentSalary ? serializeSalary(currentSalary) : null,
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -267,6 +270,7 @@ export const EmployeeService = {
           maritalStatus: input.maritalStatus ?? null,
           payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
           contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
+          useFideicomiso: input.useFideicomiso ?? false,
         },
         include: WITH_CURRENT_SALARY,
       });
@@ -356,6 +360,7 @@ export const EmployeeService = {
           maritalStatus: input.maritalStatus ?? null,
           payrollWorkerType: input.payrollWorkerType ?? "EMPLEADO",
           contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
+          useFideicomiso: input.useFideicomiso ?? false,
         },
         include: WITH_CURRENT_SALARY,
       });

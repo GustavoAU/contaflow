@@ -82,6 +82,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
     maritalStatus: initial?.maritalStatus ?? "",
     payrollWorkerType: initial?.payrollWorkerType ?? "EMPLEADO",
     contractEndDate: initial?.contractEndDate ?? "",
+    useFideicomiso: initial?.useFideicomiso ?? false,
   });
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -420,6 +421,27 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
             className="w-32 rounded border px-3 py-2 text-sm"
             placeholder="0"
           />
+        </div>
+      </div>
+
+      {/* Fideicomiso individual (Art. 143 LOTTT parte final) */}
+      <div className="flex items-start gap-3 rounded border bg-slate-50 px-4 py-3">
+        <input
+          type="checkbox"
+          id="useFideicomiso"
+          checked={form.useFideicomiso}
+          onChange={(e) => set("useFideicomiso", e.target.checked)}
+          className="mt-0.5 accent-blue-600"
+        />
+        <div>
+          <label htmlFor="useFideicomiso" className="text-xs font-medium text-slate-700 cursor-pointer">
+            Fideicomiso bancario individual{" "}
+            <span className="font-normal text-slate-500">(Art. 143 LOTTT)</span>
+          </label>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Activa si el trabajador optó por depositar sus prestaciones en un fideicomiso bancario real.
+            Por defecto, el sistema lleva contabilidad interna.
+          </p>
         </div>
       </div>
 
