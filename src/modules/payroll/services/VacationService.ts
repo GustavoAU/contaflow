@@ -287,6 +287,99 @@ export const VacationService = {
     return alerts;
   },
 
+  // ── getOverdueVacationEmployees — F-06: empleados con vacaciones vencidas ──
+  // "Vencidas" = empleados con ≥1 año de servicio que no tienen VacationRecord
+  // para el año anterior completo (entitlement caducado sin disfrutar).
+  // LOTTT Art. 190: las vacaciones deben gozarse dentro del año siguiente
+  // al que las genera. Si el año anterior ya cerró sin VacationRecord → alerta.
+  async getOverdueVacationEmployees(
+    companyId: string
+  ): Promise<{ employeeId: string; fullName: string; lastVacationYear: number | null; overdueYear: number; entitlementDays: number }[]> {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const overdueYear = currentYear - 1; // año que debió haberse disfrutado
+
+    const employees = await prisma.employee.findMany({
+      where: { companyId, status: "ACTIVE" },
+      select: { id: true, firstName: true, lastName: true, hireDate: true },
+    });
+
+    // Registros del año vencido para filtrar quién ya cumplió
+    const recordsOverdueYear = await prisma.vacationRecord.findMany({
+      where: { companyId, periodYear: overdueYear },
+      select: { employeeId: true },
+    });
+    const coveredEmployees = new Set(recordsOverdueYear.map((r) => r.employeeId));
+
+    // Último año con vacaciones por empleado (para contexto de la alerta)
+    const allRecords = await prisma.vacationRecord.findMany({
+      where: { companyId },
+      select: { employeeId: true, periodYear: true },
+      orderBy: { periodYear: "desc" },
+    });
+    const lastYearByEmployee = new Map<string, number>();
+    for (const r of allRecords) {
+      if (!lastYearByEmployee.has(r.employeeId)) {
+        lastYearByEmployee.set(r.employeeId, r.periodYear);
+      }
+    }
+
+    const alerts: { employeeId: string; fullName: string; lastVacationYear: number | null; overdueYear: number; entitlementDays: number }[] = [];
+    const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
+
+    for (const emp of employees) {
+      const yearsOfService = (today.getTime() - emp.hireDate.getTime()) / msPerYear;
+      // Solo aplica a empleados con ≥1 año completo de servicio al final del año vencido
+      const serviceAtEndOfOverdueYear = (new Date(overdueYear, 11, 31).getTime() - emp.hireDate.getTime()) / msPerYear;
+      if (serviceAtEndOfOverdueYear < 1) continue;
+
+      // Si ya tiene registro para el año vencido, no está en mora
+      if (coveredEmployees.has(emp.id)) continue;
+
+      const entitlementDays = Math.max(15, 14 + Math.floor(yearsOfService));
+      alerts.push({
+        employeeId: emp.id,
+        fullName: `${emp.firstName} ${emp.lastName}`,
+        lastVacationYear: lastYearByEmployee.get(emp.id) ?? null,
+        overdueYear,
+        entitlementDays,
+      });
+    }
+
+    return alerts;
+  },
+
+  // ── getEmployeesOnVacation — F-06: empleados actualmente en período disfrute
+  // Devuelve empleados cuyo VacationRecord tiene startDate ≤ hoy ≤ endDate.
+  async getEmployeesOnVacation(
+    companyId: string
+  ): Promise<{ employeeId: string; fullName: string; startDate: string; endDate: string; periodYear: number }[]> {
+    const today = new Date();
+
+    const records = await prisma.vacationRecord.findMany({
+      where: {
+        companyId,
+        isFractional: false, // fraccionadas son en liquidación, no disfrute real
+        startDate: { lte: today },
+        endDate: { gte: today },
+      },
+      include: {
+        employee: { select: { firstName: true, lastName: true, status: true } },
+      },
+      orderBy: { endDate: "asc" },
+    });
+
+    return records
+      .filter((r) => r.employee.status === "ACTIVE")
+      .map((r) => ({
+        employeeId: r.employeeId,
+        fullName: `${r.employee.firstName} ${r.employee.lastName}`,
+        startDate: r.startDate.toISOString().split("T")[0],
+        endDate: r.endDate.toISOString().split("T")[0],
+        periodYear: r.periodYear,
+      }));
+  },
+
   // ── computeFractional — calcula días fraccionados sin persistir ───────────
   // Usado internamente por TerminationService.
   computeFractionalDays(

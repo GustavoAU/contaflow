@@ -69,10 +69,11 @@ describe("PayrollConceptService.list", () => {
 });
 
 describe("PayrollConceptService.seedDefaults", () => {
-  it("upserts all 11 system concepts (incl. RPE_OBR + PRESTAMO_EMP)", async () => {
+  it("upserts all 15 system concepts (incl. RPE_OBR + PRESTAMO_EMP + aportes patronales F-03)", async () => {
     vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-    expect(vi.mocked(prisma.payrollConcept.upsert)).toHaveBeenCalledTimes(11);
+    // 11 conceptos originales + 4 aportes patronales (IVSS_PAT/INCES_PAT/FAOV_PAT/RPE_PAT)
+    expect(vi.mocked(prisma.payrollConcept.upsert)).toHaveBeenCalledTimes(15);
   });
 
   it("is idempotent — upsert propagates affectsSalaryIntegral on update", async () => {

@@ -44,7 +44,11 @@ export interface AccrualLineRow {
   month: number | null;
   accrualAmount: string;
   runningBalance: string;
-  integralDailyWage: string | null;
+  // F-05: alícuotas detalladas del salario integral por trimestre
+  dailyNormalWage: string | null;       // salario diario normal (base, sin alícuotas)
+  profitDaysAliquot: string | null;     // alícuota utilidades: dailyNormal × días_util / 360
+  vacationBonusDaysAliquot: string | null; // alícuota bono vac.: dailyNormal × días_bono / 360
+  integralDailyWage: string | null;     // salario integral = normal + util + bono_vac
   accrualDays: number | null;
   additionalDays: string | null;
   appliedRate: string | null;
@@ -78,6 +82,9 @@ function serializeLine(l: {
   month: number | null;
   accrualAmount: Decimal;
   runningBalance: Decimal;
+  dailyNormalWage: Decimal | null;
+  profitDaysAliquot: Decimal | null;
+  vacationBonusDaysAliquot: Decimal | null;
   integralDailyWage: Decimal | null;
   accrualDays: number | null;
   additionalDays: Decimal | null;
@@ -93,6 +100,9 @@ function serializeLine(l: {
     month: l.month,
     accrualAmount: l.accrualAmount.toString(),
     runningBalance: l.runningBalance.toString(),
+    dailyNormalWage: l.dailyNormalWage?.toString() ?? null,
+    profitDaysAliquot: l.profitDaysAliquot?.toString() ?? null,
+    vacationBonusDaysAliquot: l.vacationBonusDaysAliquot?.toString() ?? null,
     integralDailyWage: l.integralDailyWage?.toString() ?? null,
     accrualDays: l.accrualDays,
     additionalDays: l.additionalDays?.toString() ?? null,
@@ -526,6 +536,223 @@ export const BenefitAccrualService = {
     };
   },
 
+  // ── backfillAllQuarters — acumula trimestres históricos faltantes (ADR-015) ──
+  // Para empleados con antigüedad que nunca tuvieron acumulación trimestral.
+  // Postea al período contable activo actual (ADR-015: ajuste en período actual).
+  // @@unique guard (P2002) previene doble-acumulación si ya existe el trimestre.
+  async backfillAllQuarters(
+    companyId: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }> {
+    const currentPeriod = await prisma.accountingPeriod.findFirst({
+      where: { companyId, status: "OPEN" },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    });
+    if (!currentPeriod) {
+      throw new Error("No hay período contable abierto para registrar el backfill de prestaciones");
+    }
+
+    const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
+    if (!config) throw new Error("Configure la nómina antes de calcular prestaciones");
+    if (!config.benefitsExpenseAccountId || !config.benefitsPayableAccountId) {
+      throw new Error("Configure las cuentas contables de prestaciones antes de hacer backfill");
+    }
+
+    const employees = await prisma.employee.findMany({
+      where: { companyId, status: "ACTIVE" },
+      include: {
+        salaryHistory: {
+          orderBy: { effectiveFrom: "asc" },
+        },
+        benefitBalance: {
+          include: {
+            accrualLines: {
+              where: { type: "QUARTERLY_ACCRUAL" },
+              select: { year: true, quarter: true },
+            },
+          },
+        },
+      },
+    });
+
+    let totalAccrued = new Decimal(0);
+    let quartersProcessed = 0;
+    let employeesProcessed = 0;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+
+    for (const emp of employees) {
+      if (emp.salaryHistory.length === 0) continue;
+
+      // Crear BenefitBalance si no existe
+      let balance = emp.benefitBalance;
+      if (!balance) {
+        const created = await prisma.benefitBalance.create({
+          data: { companyId, employeeId: emp.id } as Parameters<typeof prisma.benefitBalance.create>[0]["data"],
+        });
+        balance = { ...created, accrualLines: [] };
+      }
+
+      const existingKeys = new Set(
+        (balance.accrualLines ?? []).map((l) => `${l.year}-Q${l.quarter}`)
+      );
+
+      const startYear = emp.hireDate.getFullYear();
+      const startQuarter = Math.ceil((emp.hireDate.getMonth() + 1) / 3);
+
+      let empCurrentBalance = new Decimal(balance.currentBalance.toString());
+      let empProcessed = false;
+
+      for (let year = startYear; year <= currentYear; year++) {
+        const firstQ = year === startYear ? startQuarter : 1;
+        const lastQ = year === currentYear ? currentQuarter : 4;
+
+        for (let quarter = firstQ; quarter <= lastQ; quarter++) {
+          const key = `${year}-Q${quarter}`;
+          if (existingKeys.has(key)) continue;
+
+          const quarterStartMonth = (quarter - 1) * 3 + 1;
+          const quarterEndMonth = quarter * 3;
+          const quarterStartDate = new Date(year, quarterStartMonth - 1, 1);
+          const quarterEndDate = new Date(year, quarterEndMonth, 0); // último día del trimestre
+
+          // Salario vigente al final del trimestre
+          const salAtQuarter = emp.salaryHistory
+            .filter((s) => s.effectiveFrom <= quarterEndDate)
+            .at(-1);
+          if (!salAtQuarter) continue;
+
+          const monthlyWage = new Decimal(salAtQuarter.amount.toString());
+
+          // Conceptos salariales de nóminas APPROVED del trimestre (affectsSalaryIntegral)
+          const integralLines = await prisma.payrollRunLine.findMany({
+            where: {
+              companyId,
+              employeeId: emp.id,
+              conceptType: "EARNING",
+              payrollRun: {
+                status: "APPROVED",
+                periodStart: { gte: quarterStartDate },
+                periodEnd: { lte: quarterEndDate },
+              },
+              concept: { affectsSalaryIntegral: true },
+            },
+            select: { amount: true },
+          });
+
+          const avgMonthlyIntegral = integralLines
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            .div(3);
+
+          const dailyNormalWage = monthlyWage.plus(avgMonthlyIntegral).div(30);
+          const profitDaysAliquot = dailyNormalWage.mul(config.profitDays).div(360);
+          const vacationBonusDaysAliquot = dailyNormalWage.mul(config.vacationBonusDays).div(360);
+          const integralDailyWage = dailyNormalWage.add(profitDaysAliquot).add(vacationBonusDaysAliquot);
+
+          const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
+          const totalDays = new Decimal(BASE_DAYS_PER_QUARTER).add(additionalDays);
+          const accrualAmount = integralDailyWage.mul(totalDays);
+          const runningBalance = empCurrentBalance.add(accrualAmount);
+
+          try {
+            await prisma.$transaction(async (tx) => {
+              const transaction = await tx.transaction.create({
+                data: {
+                  companyId,
+                  periodId: currentPeriod.id,
+                  number: `NOM-D-BF-Q${quarter}-${year}-${emp.id.slice(-6)}`,
+                  date: new Date(),
+                  description: `[Backfill] Prestaciones Q${quarter}/${year} — ${emp.firstName} ${emp.lastName} (${BASE_DAYS_PER_QUARTER}d base${additionalDays.gt(0) ? `+${additionalDays.toFixed(2)}d antig.` : ""})`,
+                  userId,
+                  type: "DIARIO",
+                  entries: {
+                    create: [
+                      {
+                        accountId: config.benefitsExpenseAccountId!,
+                        amount: accrualAmount.toDecimalPlaces(4),
+                        description: `Backfill LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                      },
+                      {
+                        accountId: config.benefitsPayableAccountId!,
+                        amount: accrualAmount.negated().toDecimalPlaces(4),
+                        description: `Pasivo prestaciones backfill Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                      },
+                    ],
+                  },
+                },
+              });
+
+              await tx.benefitAccrualLine.create({
+                data: {
+                  companyId,
+                  benefitBalanceId: balance!.id,
+                  type: "QUARTERLY_ACCRUAL",
+                  year,
+                  quarter,
+                  dailyNormalWage: dailyNormalWage.toFixed(4),
+                  profitDaysAliquot: profitDaysAliquot.toFixed(4),
+                  vacationBonusDaysAliquot: vacationBonusDaysAliquot.toFixed(4),
+                  integralDailyWage: integralDailyWage.toFixed(4),
+                  accrualDays: BASE_DAYS_PER_QUARTER,
+                  additionalDays: additionalDays.toFixed(2),
+                  accrualAmount: accrualAmount.toFixed(4),
+                  runningBalance: runningBalance.toFixed(4),
+                  transactionId: transaction.id,
+                  createdByUserId: userId,
+                },
+              });
+
+              await tx.benefitBalance.update({
+                where: { id: balance!.id },
+                data: { currentBalance: runningBalance.toFixed(4), updatedAt: new Date() },
+              });
+
+              await tx.auditLog.create({
+                data: {
+                  companyId,
+                  entityName: "BenefitAccrualLine",
+                  entityId: balance!.id,
+                  action: "BACKFILL_QUARTERLY_BENEFITS",
+                  userId,
+                  ipAddress,
+                  userAgent,
+                  oldValue: { type: "backfill", year, quarter },
+                  newValue: {
+                    accrualAmount: accrualAmount.toFixed(4),
+                    runningBalance: runningBalance.toFixed(4),
+                  },
+                },
+              });
+            });
+
+            empCurrentBalance = runningBalance;
+            totalAccrued = totalAccrued.add(accrualAmount);
+            quartersProcessed++;
+            empProcessed = true;
+            existingKeys.add(key);
+          } catch (err) {
+            if (
+              err instanceof Prisma.PrismaClientKnownRequestError &&
+              err.code === "P2002"
+            ) {
+              existingKeys.add(key);
+              continue;
+            }
+            throw err;
+          }
+        }
+      }
+
+      if (empProcessed) employeesProcessed++;
+    }
+
+    return { employeesProcessed, quartersProcessed, totalAccrued: totalAccrued.toFixed(4) };
+  },
+
   // ── listBcvRates — tasas registradas de la empresa ────────────────────────
   async listBcvRates(companyId: string): Promise<BcvRateRow[]> {
     const rates = await prisma.bcvBenefitRate.findMany({
@@ -540,5 +767,30 @@ export const BenefitAccrualService = {
       rateType: r.rateType,
       source: r.source,
     }));
+  },
+
+  // ── getQuarterlyHistory — F-05: salario integral histórico por trimestre ───
+  // Devuelve solo líneas QUARTERLY_ACCRUAL del empleado con alícuotas detalladas.
+  // Permite auditar cómo se compuso el salario integral en cada trimestre:
+  //   salarioNormal + alícuota_utilidades + alícuota_bono_vacacional = salarioIntegral
+  async getQuarterlyHistory(
+    companyId: string,
+    employeeId: string
+  ): Promise<AccrualLineRow[]> {
+    // IDOR guard: verificar que el empleado pertenece a la empresa
+    const balance = await prisma.benefitBalance.findFirst({
+      where: { companyId, employeeId },
+    });
+    if (!balance) return [];
+
+    const lines = await prisma.benefitAccrualLine.findMany({
+      where: {
+        benefitBalanceId: balance.id,
+        type: "QUARTERLY_ACCRUAL",
+      },
+      orderBy: [{ year: "asc" }, { quarter: "asc" }],
+    });
+
+    return lines.map(serializeLine);
   },
 };

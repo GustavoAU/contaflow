@@ -5,6 +5,7 @@
 // PayrollRunService consume getActive() para obtener el tope vigente al período.
 
 import Decimal from "decimal.js";
+import { Prisma } from "@prisma/client";
 import type { LegalThresholdType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
@@ -22,6 +23,9 @@ export interface CreateLegalThresholdInput {
   effectiveFrom: Date;
   value: Decimal;
   notes?: string;
+  userId: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 function serialize(t: {
@@ -68,23 +72,59 @@ export const LegalThresholdService = {
     companyId: string,
     input: CreateLegalThresholdInput,
   ): Promise<LegalThresholdRow> {
-    const row = await prisma.legalThreshold.create({
-      data: {
-        companyId,
-        type: input.type,
-        effectiveFrom: input.effectiveFrom,
-        value: input.value,
-        notes: input.notes ?? null,
-      },
+    return prisma.$transaction(async (tx) => {
+      const row = await tx.legalThreshold.create({
+        data: {
+          companyId,
+          type: input.type,
+          effectiveFrom: input.effectiveFrom,
+          value: input.value,
+          notes: input.notes ?? null,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "LegalThreshold",
+          entityId: row.id,
+          action: "CREATE_LEGAL_THRESHOLD",
+          userId: input.userId,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+          oldValue: Prisma.JsonNull,
+          newValue: { type: input.type, effectiveFrom: input.effectiveFrom.toISOString().slice(0, 10), value: input.value.toString() },
+        },
+      });
+      return serialize(row);
     });
-    return serialize(row);
   },
 
-  async delete(companyId: string, id: string): Promise<void> {
-    const existing = await prisma.legalThreshold.findFirst({
-      where: { id, companyId },
+  async delete(
+    companyId: string,
+    id: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null,
+  ): Promise<void> {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.legalThreshold.findFirst({
+        where: { id, companyId },
+      });
+      if (!existing) throw new Error("Registro no encontrado");
+      await tx.legalThreshold.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "LegalThreshold",
+          entityId: id,
+          action: "DELETE_LEGAL_THRESHOLD",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: { type: existing.type, effectiveFrom: existing.effectiveFrom.toISOString().slice(0, 10), value: existing.value.toString() },
+          newValue: Prisma.JsonNull,
+        },
+      });
     });
-    if (!existing) throw new Error("Registro no encontrado");
-    await prisma.legalThreshold.delete({ where: { id } });
   },
 };

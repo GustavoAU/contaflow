@@ -267,6 +267,21 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           <p className="mb-2 text-xs font-medium text-blue-800">
             Salario inicial (opcional — puedes agregarlo después)
           </p>
+          {/* U-07: indicador de salario mínimo legal */}
+          <p className="mb-3 text-xs text-blue-700">
+            Salario mínimo legal vigente (LOTTT Art. 130):{" "}
+            <strong>VES 130,00</strong> — verifica en{" "}
+            <a
+              href="https://www.minpptrass.gob.ve"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-blue-900"
+            >
+              MINPPTRASS
+            </a>
+            . El sistema valida el tope de cotización IVSS/INCES con el valor configurado en
+            Nómina → Configuración → Salario Mínimo.
+          </p>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <input

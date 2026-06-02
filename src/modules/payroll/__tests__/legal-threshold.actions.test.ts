@@ -6,6 +6,7 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }) }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
   limiters: { fiscal: {} },
@@ -151,7 +152,7 @@ describe("deleteLegalThresholdAction", () => {
     const res = await deleteLegalThresholdAction(COMPANY_ID, "th-1");
 
     expect(res.success).toBe(true);
-    expect(LegalThresholdService.delete).toHaveBeenCalledWith(COMPANY_ID, "th-1");
+    expect(LegalThresholdService.delete).toHaveBeenCalledWith(COMPANY_ID, "th-1", USER_ID, null, null);
   });
 
   it("bloquea si ACCOUNTANT intenta eliminar", async () => {

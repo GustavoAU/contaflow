@@ -127,12 +127,12 @@ describe("PayrollCalculatorService — IVSS_OBR", () => {
 });
 
 describe("PayrollCalculatorService — INCES_OBR", () => {
-  it("calcula INCES 2% del salario", () => {
+  it("calcula INCES 0.5% del salario (Ley INCES Art. 30 — trabajador)", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), BASE_CONFIG);
     const inces = lines.find((l) => l.conceptCode === "INCES_OBR");
-    // 30000 * 0.02 = 600
-    expect(inces!.amount.toFixed(2)).toBe("600.00");
-    expect(inces!.rate!.toFixed(2)).toBe("0.02");
+    // 30000 * 0.005 = 150 (el 2% es la tasa PATRONAL, no la del trabajador)
+    expect(inces!.amount.toFixed(2)).toBe("150.00");
+    expect(inces!.rate!.toFixed(3)).toBe("0.005");
   });
 
   it("no genera INCES si incesEnabled = false", () => {
@@ -206,11 +206,11 @@ describe("PayrollCalculatorService.calculate", () => {
   it("calcula correctamente para un empleado sin novedades", () => {
     const result = PayrollCalculatorService.calculate([makeEmp()], [], BASE_CONFIG);
     // totalEarnings = 30000 (SAL_BASE)
-    // totalDeductions = 1200 (IVSS) + 600 (INCES) + 300 (FAOV) + 150 (RPE) = 2250
-    // totalNet = 27750
+    // totalDeductions = 1200 (IVSS) + 150 (INCES 0.5%) + 300 (FAOV) + 150 (RPE) = 1800
+    // totalNet = 28200
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("2250.00");
-    expect(result.totalNet.toFixed(2)).toBe("27750.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("1800.00");
+    expect(result.totalNet.toFixed(2)).toBe("28200.00");
   });
 
   it("incluye conceptos manuales en el cálculo", () => {
@@ -224,8 +224,8 @@ describe("PayrollCalculatorService.calculate", () => {
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
-    expect(result.totalDeductions.toFixed(2)).toBe("2750.00"); // 2250 + 500
-    expect(result.totalNet.toFixed(2)).toBe("27250.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2300.00"); // 1800 + 500
+    expect(result.totalNet.toFixed(2)).toBe("27700.00");
   });
 
   it("calcula múltiples empleados sumando correctamente", () => {
@@ -236,11 +236,11 @@ describe("PayrollCalculatorService.calculate", () => {
       salaryAmount: new Decimal("20000"),
     });
     const result = PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG);
-    // emp1: 30000 → ded: 1200+600+300+150=2250, net=27750
-    // emp2: 20000 → ded: 800+400+200+100=1500, net=18500
+    // emp1: 30000 → ded: 1200+150+300+150=1800, net=28200
+    // emp2: 20000 → ded: 800+100+200+100=1200, net=18800
     expect(result.totalEarnings.toFixed(2)).toBe("50000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("3750.00");
-    expect(result.totalNet.toFixed(2)).toBe("46250.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("3000.00");
+    expect(result.totalNet.toFixed(2)).toBe("47000.00");
   });
 
   it("preserva snapshot de salario en cada línea", () => {
@@ -332,6 +332,20 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     expect(faov!.basis!.toFixed(2)).toBe("1300.00");
   });
 
+  it("INCES: capped a 5×salaryMin cuando salario supera el tope", () => {
+    const salary = new Decimal("1000"); // supera 5×130=650
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+    };
+    const emp = makeEmp({ salaryAmount: salary });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const inces = lines.find((l) => l.conceptCode === "INCES_OBR");
+    // base cappada = min(1000, 5×130) = 650; 650 * 0.005 = 3.25
+    expect(inces!.amount.toFixed(2)).toBe("3.25");
+    expect(inces!.basis!.toFixed(2)).toBe("650.00");
+  });
+
   it("RPE: capped a 5×salaryMin cuando salario supera el tope", () => {
     const salary = new Decimal("1000");
     const config: PayrollCalculatorConfig = {
@@ -358,5 +372,128 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     // Sin recorte: 500 * 0.04 = 20 (500 < 650)
     expect(ivss!.amount.toFixed(2)).toBe("20.00");
     expect(ivss!.basis!.toFixed(2)).toBe("500.00");
+  });
+});
+
+// ─── F-03: Aportes patronales — EMPLOYER_COST ─────────────────────────────────
+
+const SYSTEM_CONCEPTS_WITH_PAT = [
+  ...SYSTEM_CONCEPTS,
+  { code: "IVSS_PAT", conceptId: "c-ivss-pat" },
+  { code: "INCES_PAT", conceptId: "c-inces-pat" },
+  { code: "FAOV_PAT", conceptId: "c-faov-pat" },
+  { code: "RPE_PAT", conceptId: "c-rpe-pat" },
+];
+
+const CONFIG_WITH_PAT: PayrollCalculatorConfig = {
+  ...BASE_CONFIG,
+  systemConcepts: SYSTEM_CONCEPTS_WITH_PAT,
+};
+
+describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
+  it("calcula IVSS patronal 9% (LSS Art. 62)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "IVSS_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.09 = 2700
+    expect(line!.amount.toFixed(2)).toBe("2700.00");
+    expect(line!.rate!.toFixed(4)).toBe("0.0900");
+  });
+
+  it("calcula INCES patronal 2% (Ley INCES Art. 30)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "INCES_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("calcula FAOV patronal 2% (LAH Art. 172)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "FAOV_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("calcula RPE patronal 2% (LSSO Art. 7)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "RPE_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("totalEmployerCosts excluye EARNING y DEDUCTION — no afecta neto del empleado", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const result = PayrollCalculatorService.calculate([emp], [], CONFIG_WITH_PAT);
+    // Aportes patronales no deben estar en totalEarnings ni totalDeductions
+    expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
+    // IVSS 4% + INCES 0.5% + FAOV 1% + RPE 0.5% = 6% = 1800
+    expect(result.totalDeductions.toFixed(2)).toBe("1800.00");
+    // totalEmployerCosts = IVSS 9% + INCES 2% + FAOV 2% + RPE 2% = 15% = 4500
+    expect(result.totalEmployerCosts.toFixed(2)).toBe("4500.00");
+    // totalNet no incluye aportes patronales
+    expect(result.totalNet.toFixed(2)).toBe("28200.00");
+  });
+
+  it("aplica tope salario mínimo a aportes patronales (igual que obreros)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const configWithMin: PayrollCalculatorConfig = {
+      ...CONFIG_WITH_PAT,
+      salaryMinimumVes: new Decimal("130"), // 5×130=650 tope IVSS
+    };
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, configWithMin);
+    const ivssPatLine = lines.find((l) => l.conceptCode === "IVSS_PAT");
+    expect(ivssPatLine).toBeDefined();
+    // Con salaryMin=130 → tope 5×130=650 → 650×0.09=58.50
+    expect(ivssPatLine!.amount.toFixed(2)).toBe("58.50");
+  });
+
+  it("no genera EMPLOYER_COST cuando ivssEnabled=false", () => {
+    const config = { ...CONFIG_WITH_PAT, ivssEnabled: false };
+    const emp = makeEmp();
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    expect(lines.find((l) => l.conceptCode === "IVSS_PAT")).toBeUndefined();
+  });
+});
+
+// ─── C-01: Monedas mixtas — guard multimoneda ─────────────────────────────────
+
+describe("PayrollCalculatorService.calculate — monedas mixtas (C-01)", () => {
+  it("lanza error descriptivo cuando se mezclan VES y USD en un solo run", () => {
+    const empVes = makeEmp({ employeeId: "emp-ves", salaryCurrency: "VES" });
+    const empUsd = makeEmp({
+      employeeId: "emp-usd",
+      salaryHistoryId: "sal-usd",
+      salaryCurrency: "USD",
+    });
+    expect(() =>
+      PayrollCalculatorService.calculate([empVes, empUsd], [], BASE_CONFIG)
+    ).toThrow("Nómina con monedas mixtas");
+  });
+
+  it("no lanza error cuando todos los empleados tienen la misma moneda (VES)", () => {
+    const emp1 = makeEmp({ employeeId: "emp-1", salaryCurrency: "VES" });
+    const emp2 = makeEmp({ employeeId: "emp-2", salaryHistoryId: "sal-2", salaryCurrency: "VES" });
+    expect(() =>
+      PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)
+    ).not.toThrow();
+  });
+
+  it("no lanza error cuando todos los empleados tienen la misma moneda (USD)", () => {
+    const emp1 = makeEmp({ employeeId: "emp-1", salaryCurrency: "USD" });
+    const emp2 = makeEmp({ employeeId: "emp-2", salaryHistoryId: "sal-2", salaryCurrency: "USD" });
+    expect(() =>
+      PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)
+    ).not.toThrow();
   });
 });

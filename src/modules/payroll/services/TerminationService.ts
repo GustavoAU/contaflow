@@ -40,6 +40,9 @@ export interface TerminationRow {
   profitSharingFractionalAmount: string;
   profitSharingBaseSalary: string | null;
   indemnificationAmount: string;
+  // Preaviso Art. 86 LOTTT (solo DISMISSAL_UNJUSTIFIED — tramos por antigüedad)
+  noticePeriodDays: string;
+  noticePeriodAmount: string;
   pendingConceptsAmount: string;
   pendingConceptsNotes: string | null;
   totalGrossAmount: string;
@@ -81,6 +84,8 @@ function serializeTermination(t: {
   profitSharingFractionalAmount: Decimal;
   profitSharingBaseSalary: Decimal | null;
   indemnificationAmount: Decimal;
+  noticePeriodDays: Decimal;
+  noticePeriodAmount: Decimal;
   pendingConceptsAmount: Decimal;
   pendingConceptsNotes: string | null;
   totalGrossAmount: Decimal;
@@ -111,6 +116,8 @@ function serializeTermination(t: {
     profitSharingFractionalAmount: t.profitSharingFractionalAmount.toString(),
     profitSharingBaseSalary: t.profitSharingBaseSalary?.toString() ?? null,
     indemnificationAmount: t.indemnificationAmount.toString(),
+    noticePeriodDays: t.noticePeriodDays.toString(),
+    noticePeriodAmount: t.noticePeriodAmount.toString(),
     pendingConceptsAmount: t.pendingConceptsAmount.toString(),
     pendingConceptsNotes: t.pendingConceptsNotes,
     totalGrossAmount: t.totalGrossAmount.toString(),
@@ -124,6 +131,22 @@ function serializeTermination(t: {
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };
+}
+
+// Preaviso por tramo de antigüedad — LOTTT Art. 86 (solo DISMISSAL_UNJUSTIFIED)
+function computeNoticePeriodDays(
+  hireDate: Date,
+  terminationDate: Date,
+  reason: TerminationReason
+): Decimal {
+  if (reason !== "DISMISSAL_UNJUSTIFIED") return new Decimal(0);
+  const seniorityDays = Math.floor(
+    (terminationDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (seniorityDays < 90) return new Decimal(15);   // < 3 meses: 15 días
+  if (seniorityDays < 180) return new Decimal(30);  // 3–6 meses: 1 mes
+  if (seniorityDays < 365) return new Decimal(45);  // 6–12 meses: 45 días
+  return new Decimal(60);                           // > 1 año: 2 meses
 }
 
 // ─── TerminationService ───────────────────────────────────────────────────────
@@ -247,12 +270,21 @@ export const TerminationService = {
         ? benefitsAccumulatedAmount.add(benefitsInterestAmount)
         : new Decimal(0);
 
-    // ── 5. Otros conceptos pendientes (usuario ajusta en DRAFT) ────────────
+    // ── 5. Preaviso (solo DISMISSAL_UNJUSTIFIED — Art. 86 LOTTT) ──────────
+    // Tramos: <3m=15d, 3-6m=30d, 6-12m=45d, >1a=60d (calculado sobre salario diario)
+    const noticePeriodDays = computeNoticePeriodDays(
+      employee.hireDate,
+      terminationDate,
+      input.reason
+    );
+    const noticePeriodAmount = noticePeriodDays.mul(dailyNormalWage).toDecimalPlaces(4);
+
+    // ── 6. Otros conceptos pendientes (usuario ajusta en DRAFT) ────────────
     const pendingConceptsAmount = input.pendingConceptsAmount
       ? new Decimal(input.pendingConceptsAmount)
       : new Decimal(0);
 
-    // ── 6. Totales ────────────────────────────────────────────────────────
+    // ── 7. Totales ────────────────────────────────────────────────────────
     const deductionsAmount = input.deductionsAmount
       ? new Decimal(input.deductionsAmount)
       : new Decimal(0);
@@ -263,6 +295,7 @@ export const TerminationService = {
       .add(vacationBonusFractionalAmount)
       .add(profitSharingFractionalAmount)
       .add(indemnificationAmount)
+      .add(noticePeriodAmount)
       .add(pendingConceptsAmount);
 
     const totalNetAmount = totalGrossAmount.sub(deductionsAmount);
@@ -285,6 +318,8 @@ export const TerminationService = {
           profitSharingFractionalAmount: profitSharingFractionalAmount.toFixed(4),
           profitSharingBaseSalary: profitSharingBaseSalary?.toFixed(4) ?? null,
           indemnificationAmount: indemnificationAmount.toFixed(4),
+          noticePeriodDays: noticePeriodDays.toFixed(2),
+          noticePeriodAmount: noticePeriodAmount.toFixed(4),
           pendingConceptsAmount: pendingConceptsAmount.toFixed(4),
           pendingConceptsNotes: input.pendingConceptsNotes ?? null,
           totalGrossAmount: totalGrossAmount.toFixed(4),
@@ -359,12 +394,14 @@ export const TerminationService = {
       : new Decimal(existing.deductionsAmount.toString());
 
     // Recalcular totales con los conceptos actualizados
+    // noticePeriodAmount es server-side fixed — no cambia en updates
     const totalGrossAmount = new Decimal(existing.benefitsAccumulatedAmount.toString())
       .add(new Decimal(existing.benefitsInterestAmount.toString()))
       .add(new Decimal(existing.vacationFractionalAmount.toString()))
       .add(new Decimal(existing.vacationBonusFractionalAmount.toString()))
       .add(new Decimal(existing.profitSharingFractionalAmount.toString()))
       .add(new Decimal(existing.indemnificationAmount.toString()))
+      .add(new Decimal(existing.noticePeriodAmount.toString()))
       .add(pendingConceptsAmount);
 
     const totalNetAmount = totalGrossAmount.sub(deductionsAmount);
@@ -475,6 +512,7 @@ export const TerminationService = {
         .add(new Decimal(termination.vacationBonusFractionalAmount.toString()));
       const profitTotal = new Decimal(termination.profitSharingFractionalAmount.toString());
       const indemTotal = new Decimal(termination.indemnificationAmount.toString());
+      const noticeTotal = new Decimal(termination.noticePeriodAmount.toString());
       const pendingTotal = new Decimal(termination.pendingConceptsAmount.toString());
 
       // Entradas de débito (eliminación de pasivos) + crédito (pago neto + deducciones)
@@ -509,6 +547,14 @@ export const TerminationService = {
           accountId: config.benefitsPayableAccountId,
           amount: indemTotal.toDecimalPlaces(4),
           description: `Liquidación final — indemnización Art.92 LOTTT — ${empName} — ${liqDate}`,
+        });
+      }
+      if (noticeTotal.gt(0) && config.benefitsExpenseAccountId) {
+        // Preaviso Art. 86 LOTTT — gasto laboral (no hay pasivo previo)
+        journalEntries.push({
+          accountId: config.benefitsExpenseAccountId,
+          amount: noticeTotal.toDecimalPlaces(4),
+          description: `Liquidación final — preaviso Art.86 LOTTT — ${empName} — ${liqDate}`,
         });
       }
       if (pendingTotal.gt(0) && config.benefitsExpenseAccountId) {

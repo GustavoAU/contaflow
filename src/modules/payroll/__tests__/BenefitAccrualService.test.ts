@@ -16,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     benefitAccrualLine: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
     },
     bcvBenefitRate: {
@@ -401,6 +402,87 @@ describe("BenefitAccrualService.postBenefitInterest", () => {
   });
 });
 
+describe("BenefitAccrualService.backfillAllQuarters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-bf" } as never);
+    vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.create).mockResolvedValue(BASE_BALANCE as never);
+  });
+
+  it("throws if no open period", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
+    await expect(
+      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
+    ).rejects.toThrow("No hay período contable abierto");
+  });
+
+  it("throws if benefit accounts not configured", async () => {
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ...BASE_CONFIG,
+      benefitsExpenseAccountId: null,
+    } as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
+    await expect(
+      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
+    ).rejects.toThrow("Configure las cuentas contables");
+  });
+
+  it("skips employees without salary history", async () => {
+    const emp = { ...BASE_EMPLOYEE, salaryHistory: [], benefitBalance: null };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.employeesProcessed).toBe(0);
+    expect(result.quartersProcessed).toBe(0);
+  });
+
+  it("no procesa trimestres futuros (empleado contratado el año siguiente)", async () => {
+    // Si el empleado fue contratado el año próximo, no hay trimestres históricos a procesar
+    const nextYear = new Date().getFullYear() + 1;
+    const emp = {
+      ...BASE_EMPLOYEE,
+      hireDate: new Date(`${nextYear}-01-01`),
+      benefitBalance: null,
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.quartersProcessed).toBe(0);
+    expect(result.employeesProcessed).toBe(0);
+    expect(vi.mocked(prisma.$transaction)).not.toHaveBeenCalled();
+  });
+
+  it("procesa trimestres faltantes para empleado sin balance previo (ADR-015)", async () => {
+    // Empleado contratado en el trimestre actual — debe procesar al menos 1 trimestre
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const emp = {
+      ...BASE_EMPLOYEE,
+      hireDate: new Date(`${currentYear}-01-01`),
+      benefitBalance: null,
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([emp] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+    expect(result.employeesProcessed).toBe(1);
+    expect(result.quartersProcessed).toBeGreaterThanOrEqual(1);
+    // Verifica que postea al período activo (ADR-015)
+    expect(vi.mocked(prisma.transaction.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: BASE_PERIOD.id }),
+      })
+    );
+  });
+});
+
 describe("BenefitAccrualService.createBcvRate", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -420,5 +502,82 @@ describe("BenefitAccrualService.createBcvRate", () => {
     expect(result.year).toBe(2026);
     expect(result.month).toBe(3);
     expect(result.annualRate).toBe("24");
+  });
+});
+
+// ─── F-05: getQuarterlyHistory — salario integral histórico por trimestre ──────
+
+describe("BenefitAccrualService.getQuarterlyHistory (F-05)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const QUARTERLY_LINE = {
+    id: "line-q1",
+    type: "QUARTERLY_ACCRUAL",
+    year: 2026,
+    quarter: 1,
+    month: null,
+    accrualAmount: new Decimal("1500.0000"),
+    runningBalance: new Decimal("1500.0000"),
+    dailyNormalWage: new Decimal("100.0000"),
+    profitDaysAliquot: new Decimal("4.1667"),
+    vacationBonusDaysAliquot: new Decimal("1.9444"),
+    integralDailyWage: new Decimal("106.1111"),
+    accrualDays: 5,
+    additionalDays: new Decimal("0"),
+    appliedRate: null,
+    transactionId: "tx-q1",
+    createdAt: new Date("2026-03-31"),
+    createdByUserId: "user-1",
+    companyId: COMPANY,
+    benefitBalanceId: "bal-1",
+    bcvRateId: null,
+  };
+
+  it("returns empty array when employee has no balance", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(null);
+
+    const result = await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+    expect(result).toHaveLength(0);
+  });
+
+  it("returns QUARTERLY_ACCRUAL lines with full aliquot detail (F-05)", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([QUARTERLY_LINE] as never);
+
+    const result = await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("QUARTERLY_ACCRUAL");
+    expect(result[0].year).toBe(2026);
+    expect(result[0].quarter).toBe(1);
+    // F-05: alícuotas detalladas deben estar presentes
+    expect(result[0].dailyNormalWage).toBe("100");
+    expect(result[0].profitDaysAliquot).toBe("4.1667");
+    expect(result[0].vacationBonusDaysAliquot).toBe("1.9444");
+    expect(result[0].integralDailyWage).toBe("106.1111");
+    expect(result[0].accrualDays).toBe(5);
+  });
+
+  it("queries only QUARTERLY_ACCRUAL lines ordered by year+quarter", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([]);
+
+    await BenefitAccrualService.getQuarterlyHistory(COMPANY, EMP_ID);
+
+    expect(vi.mocked(prisma.benefitAccrualLine.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "QUARTERLY_ACCRUAL" }),
+        orderBy: [{ year: "asc" }, { quarter: "asc" }],
+      })
+    );
+  });
+
+  it("IDOR: verifica benefitBalance con companyId antes de retornar líneas", async () => {
+    vi.mocked(prisma.benefitBalance.findFirst).mockResolvedValue(null);
+
+    await BenefitAccrualService.getQuarterlyHistory("other-company", EMP_ID);
+
+    // No debe consultar líneas si el balance no pertenece a la empresa
+    expect(vi.mocked(prisma.benefitAccrualLine.findMany)).not.toHaveBeenCalled();
   });
 });

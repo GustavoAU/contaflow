@@ -323,6 +323,11 @@ model Account {
   payrollConfigsAsProfitPayable        PayrollConfig[]          @relation("PayrollProfitPayable")
   payrollConfigsAsLoanReceivable       PayrollConfig[]          @relation("PayrollLoanReceivable")
   payrollConfigsAsDisbursementBank     PayrollConfig[]          @relation("PayrollDisbursementBank")
+  // F-02/F-03: Cuentas aportes patronales
+  payrollConfigsAsIvssPatronal         PayrollConfig[]          @relation("PayrollIvssPatronal")
+  payrollConfigsAsIncesPatronal        PayrollConfig[]          @relation("PayrollIncesPatronal")
+  payrollConfigsAsFaovPatronal         PayrollConfig[]          @relation("PayrollFaovPatronal")
+  payrollConfigsAsRpePatronal          PayrollConfig[]          @relation("PayrollRpePatronal")
   // Fase 37B: Módulo Gastos
   expensesAsAccount                    Expense[]                @relation("ExpenseAccount")
   expenseCategoryDefaults              ExpenseCategory[]        @relation("ExpenseCategoryAccount")
@@ -1521,6 +1526,13 @@ enum LottRegime {
   MIXED // Empleados de ambos regímenes (pre-1997 LOT + post-2012)
 }
 
+// Tipo de jornada laboral (LOTTT Arts. 173-177) — distinto de WorkSchedule (días semana)
+enum JornadaType {
+  DIURNA
+  NOCTURNA
+  MIXTA
+}
+
 enum PayrollPaymentCurrency {
   VES
   USD
@@ -1600,6 +1612,11 @@ model PayrollConfig {
   benefitsPayableAccountId      String? // LIABILITY — Prestaciones Sociales por Pagar
   vacationPayableAccountId      String? // LIABILITY — Vacaciones por Pagar
   profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
+  // F-02/F-03: Aportes patronales — cuentas GL para causación de contribuciones del patrono
+  ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (LSS Art. 62: 9%)
+  incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 30: 2%)
+  faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LAH Art. 172: 2%)
+  rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LSSO Art. 7: 2%)
   // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
   disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
@@ -1633,6 +1650,10 @@ model PayrollConfig {
   profitSharingPayableAccount Account? @relation("PayrollProfitPayable", fields: [profitSharingPayableAccountId], references: [id], onDelete: Restrict)
   loanReceivableAccount       Account? @relation("PayrollLoanReceivable", fields: [loanReceivableAccountId], references: [id], onDelete: Restrict)
   disbursementBankAccount     Account? @relation("PayrollDisbursementBank", fields: [disbursementBankAccountId], references: [id], onDelete: Restrict)
+  ivssPatronalAccount         Account? @relation("PayrollIvssPatronal", fields: [ivssPatronalAccountId], references: [id], onDelete: Restrict)
+  incesPatronalAccount        Account? @relation("PayrollIncesPatronal", fields: [incesPatronalAccountId], references: [id], onDelete: Restrict)
+  faovPatronalAccount         Account? @relation("PayrollFaovPatronal", fields: [faovPatronalAccountId], references: [id], onDelete: Restrict)
+  rpePatronalAccount          Account? @relation("PayrollRpePatronal", fields: [rpePatronalAccountId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {
@@ -1675,7 +1696,8 @@ enum LoanStatus {
 
 enum ConceptType {
   EARNING // Ingreso / asignación
-  DEDUCTION // Deducción / descuento
+  DEDUCTION // Deducción / descuento del trabajador
+  EMPLOYER_COST // Aporte patronal — no afecta neto del empleado (IVSS/INCES/FAOV/RPE patronal)
 }
 
 enum AbsenceCategory {
@@ -1714,6 +1736,12 @@ model Employee {
   // Datos bancarios (para nómina)
   bankName        String?
   bankAccount     String?
+  // Parafiscal (F-01 — IVSS/Banavih/ISLR D.1808)
+  ivssNumber      String? // Número afiliación IVSS (Forma 14-02)
+  banavihNumber   String? // Número afiliación Banavih/FAOV (FAOVWeb)
+  dependents      Int? // Cargas familiares para ISLR (D. 1808)
+  birthDate       DateTime?      @db.Date
+  workSchedule    JornadaType? // Jornada laboral LOTTT Arts. 173-177
   // Timestamps
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -1834,28 +1862,31 @@ enum PayrollRunStatus {
 // totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
 
 model PayrollRun {
-  id                String           @id @default(cuid())
-  companyId         String
-  periodStart       DateTime         @db.Date
-  periodEnd         DateTime         @db.Date
-  status            PayrollRunStatus @default(DRAFT)
+  id                 String           @id @default(cuid())
+  companyId          String
+  periodStart        DateTime         @db.Date
+  periodEnd          DateTime         @db.Date
+  status             PayrollRunStatus @default(DRAFT)
   // Totales calculados server-side al momento del cálculo (inmutables post-APPROVED)
-  totalEarnings     Decimal          @db.Decimal(18, 2)
-  totalDeductions   Decimal          @db.Decimal(18, 2)
-  totalNet          Decimal          @db.Decimal(18, 2)
-  employeeCount     Int
+  totalEarnings      Decimal          @db.Decimal(18, 2)
+  totalDeductions    Decimal          @db.Decimal(18, 2)
+  totalNet           Decimal          @db.Decimal(18, 2)
+  totalEmployerCosts Decimal          @default(0) @db.Decimal(18, 2) // F-03: aportes patronales
+  employeeCount      Int
+  // C-05: tasa BCV activa del período — snapshot para auditoría histórica
+  bcvRateAtRun       Decimal?         @db.Decimal(16, 4)
   // Vínculo al asiento contable (nullable hasta APPROVED — ADR-013 Decisión 4)
-  transactionId     String?          @unique
+  transactionId      String?          @unique
   // Auditoría
-  createdByUserId   String
-  approvedByUserId  String?
-  cancelledByUserId String?
-  approvedAt        DateTime?
-  cancelledAt       DateTime?
+  createdByUserId    String
+  approvedByUserId   String?
+  cancelledByUserId  String?
+  approvedAt         DateTime?
+  cancelledAt        DateTime?
   // Previene doble submit desde UI (idempotencyKey único por request)
-  idempotencyKey    String           @unique
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  idempotencyKey     String           @unique
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   transaction Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
@@ -2010,6 +2041,13 @@ enum BenefitAdvanceReason {
   EDUCATION // Pago de estudios del trabajador o sus hijos
 }
 
+// F-04: Estado del anticipo en el flujo solicitud/aprobación (Art. 144 LOTTT)
+enum BenefitAdvanceStatus {
+  PENDING // Solicitud creada, pendiente de aprobación del patrono
+  APPROVED // Aprobado: asiento GL generado y saldo descontado
+  REJECTED // Rechazado: sin impacto en saldo
+}
+
 model BenefitAdvance {
   id               String               @id @default(cuid())
   companyId        String
@@ -2017,9 +2055,14 @@ model BenefitAdvance {
   benefitBalanceId String
   amount           Decimal              @db.Decimal(19, 4) // monto del anticipo
   reason           BenefitAdvanceReason
+  status           BenefitAdvanceStatus @default(APPROVED) // APPROVED para compatibilidad con registros directos
   notes            String?
-  transactionId    String?              @unique // asiento débito al saldo (obligatorio)
+  rejectionReason  String? // solo si status = REJECTED
+  transactionId    String?              @unique // asiento débito al saldo (solo si APPROVED)
   createdByUserId  String
+  approvedByUserId String? // quién aprobó (si flujo dos pasos)
+  approvedAt       DateTime? // cuándo se aprobó
+  rejectedAt       DateTime? // cuándo se rechazó
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -2029,7 +2072,7 @@ model BenefitAdvance {
   transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([companyId, employeeId])
-  @@index([companyId])
+  @@index([companyId, status])
 }
 
 // Préstamos otorgados por la empresa al empleado, con descuento automático en nómina.
@@ -2162,6 +2205,9 @@ model Termination {
   profitSharingBaseSalary       Decimal?          @db.Decimal(19, 4) // promedio snapshot (ADR-014 Dec. 8)
   // Indemnización Art. 92 (solo DISMISSAL_UNJUSTIFIED)
   indemnificationAmount         Decimal           @default(0) @db.Decimal(19, 4)
+  // Preaviso Art. 86 LOTTT (solo DISMISSAL_UNJUSTIFIED — tramos por antigüedad)
+  noticePeriodDays              Decimal           @default(0) @db.Decimal(5, 2)
+  noticePeriodAmount            Decimal           @default(0) @db.Decimal(19, 4)
   // Otros conceptos pendientes
   pendingConceptsAmount         Decimal           @default(0) @db.Decimal(19, 4)
   pendingConceptsNotes          String?
