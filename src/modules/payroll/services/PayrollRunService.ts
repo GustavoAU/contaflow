@@ -52,7 +52,9 @@ export interface PayrollRunRow {
   totalEarnings: string;
   totalDeductions: string;
   totalNet: string;
+  totalEmployerCosts: string; // F-03: aportes patronales
   employeeCount: number;
+  bcvRateAtRun: string | null; // C-05: tasa BCV activa del período
   transactionId: string | null;
   createdByUserId: string;
   approvedByUserId: string | null;
@@ -76,7 +78,9 @@ function serializeRun(r: {
   totalEarnings: Decimal;
   totalDeductions: Decimal;
   totalNet: Decimal;
+  totalEmployerCosts: Decimal;
   employeeCount: number;
+  bcvRateAtRun: Decimal | null;
   transactionId: string | null;
   createdByUserId: string;
   approvedByUserId: string | null;
@@ -93,7 +97,9 @@ function serializeRun(r: {
     totalEarnings: r.totalEarnings.toString(),
     totalDeductions: r.totalDeductions.toString(),
     totalNet: r.totalNet.toString(),
+    totalEmployerCosts: r.totalEmployerCosts.toString(),
     employeeCount: r.employeeCount,
+    bcvRateAtRun: r.bcvRateAtRun?.toString() ?? null,
     transactionId: r.transactionId,
     createdByUserId: r.createdByUserId,
     approvedByUserId: r.approvedByUserId,
@@ -306,6 +312,17 @@ export const PayrollRunService = {
     // ── Calcular (servicio puro — lanza si netPayable < 0) ────────────────
     const result = PayrollCalculatorService.calculate(empInputs, manualInputs, calcConfig);
 
+    // C-05: lookup tasa BCV activa del período para snapshot de auditoría
+    const bcvRate = await prisma.bcvBenefitRate.findFirst({
+      where: {
+        companyId,
+        year: periodStart.getUTCFullYear(),
+        month: periodStart.getUTCMonth() + 1,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { annualRate: true },
+    });
+
     // ── Persistir en $transaction ──────────────────────────────────────────
     return prisma.$transaction(async (tx) => {
       const run = await tx.payrollRun.create({
@@ -317,7 +334,9 @@ export const PayrollRunService = {
           totalEarnings: result.totalEarnings,
           totalDeductions: result.totalDeductions,
           totalNet: result.totalNet,
+          totalEmployerCosts: result.totalEmployerCosts,
           employeeCount: empInputs.length,
+          bcvRateAtRun: bcvRate ? new Decimal(bcvRate.annualRate.toString()) : null,
           createdByUserId: userId,
           idempotencyKey: input.idempotencyKey,
         },
@@ -415,6 +434,11 @@ export const PayrollRunService = {
         incesPayableAccountId: true,
         rpePayableAccountId: true,
         loanReceivableAccountId: true,
+        // F-02/F-03: cuentas aportes patronales
+        ivssPatronalAccountId: true,
+        incesPatronalAccountId: true,
+        faovPatronalAccountId: true,
+        rpePatronalAccountId: true,
         ivssEnabled: true,
         incesEnabled: true,
         banavihEnabled: true,
@@ -479,6 +503,29 @@ export const PayrollRunService = {
             .filter((l) => l.conceptCode === "RPE_OBR" && l.conceptType === "DEDUCTION")
             .reduce((s, l) => s.plus(l.amount), new Decimal(0))
         : new Decimal(0);
+
+      // F-03: Aportes patronales (EMPLOYER_COST — no afectan neto del empleado)
+      const ivssPatTotal = config.ivssEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "IVSS_PAT" && l.conceptType === "EMPLOYER_COST")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+        : new Decimal(0);
+      const incesPatTotal = config.incesEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "INCES_PAT" && l.conceptType === "EMPLOYER_COST")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+        : new Decimal(0);
+      const faovPatTotal = config.banavihEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "FAOV_PAT" && l.conceptType === "EMPLOYER_COST")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+        : new Decimal(0);
+      const rpePatTotal = config.rpeEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "RPE_PAT" && l.conceptType === "EMPLOYER_COST")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+        : new Decimal(0);
+      const totalPatronal = ivssPatTotal.plus(incesPatTotal).plus(faovPatTotal).plus(rpePatTotal);
 
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
       // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
@@ -549,6 +596,23 @@ export const PayrollRunService = {
               // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
               ...(config.loanReceivableAccountId && loanTotal.greaterThan(0)
                 ? [{ accountId: config.loanReceivableAccountId, amount: loanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados` }]
+                : []),
+              // F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
+              // Solo se registran si las cuentas patronales están configuradas en PayrollConfig
+              ...(config.ivssPatronalAccountId && ivssPatTotal.greaterThan(0) && totalPatronal.greaterThan(0)
+                ? [{ accountId: expenseAccountId, amount: totalPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE` }]
+                : []),
+              ...(config.ivssPatronalAccountId && ivssPatTotal.greaterThan(0)
+                ? [{ accountId: config.ivssPatronalAccountId, amount: ivssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%` }]
+                : []),
+              ...(config.incesPatronalAccountId && incesPatTotal.greaterThan(0)
+                ? [{ accountId: config.incesPatronalAccountId, amount: incesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%` }]
+                : []),
+              ...(config.faovPatronalAccountId && faovPatTotal.greaterThan(0)
+                ? [{ accountId: config.faovPatronalAccountId, amount: faovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%` }]
+                : []),
+              ...(config.rpePatronalAccountId && rpePatTotal.greaterThan(0)
+                ? [{ accountId: config.rpePatronalAccountId, amount: rpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%` }]
                 : []),
             ],
           },

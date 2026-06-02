@@ -38,6 +38,9 @@ vi.mock("@/lib/prisma", () => ({
     legalThreshold: {
       findFirst: vi.fn(),
     },
+    bcvBenefitRate: {
+      findFirst: vi.fn(),
+    },
     employeeLoan: {
       findMany: vi.fn(),
       update: vi.fn(),
@@ -75,7 +78,9 @@ const BASE_RUN = {
   totalEarnings: new Decimal("30000"),
   totalDeductions: new Decimal("2100"),
   totalNet: new Decimal("27900"),
+  totalEmployerCosts: new Decimal("0"),
   employeeCount: 1,
+  bcvRateAtRun: null,
   transactionId: null,
   createdByUserId: USER_ID,
   approvedByUserId: null,
@@ -157,6 +162,7 @@ describe("PayrollRunService.create", () => {
       { id: "c-inces", code: "INCES_OBR" },
       { id: "c-faov", code: "FAOV_OBR" },
     ] as never);
+    vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 4 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -228,6 +234,52 @@ describe("PayrollRunService.create", () => {
     expect(ivssLine).toBeDefined();
     // Sin tope: 1000×0.04=40. Con salaryMin=130 → tope=5×130=650 → 650×0.04=26
     expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("26.00");
+  });
+
+  it("C-05: almacena tasa BCV cuando existe BcvBenefitRate para el período", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue({
+      annualRate: new Decimal("17.50"),
+    } as never);
+    vi.mocked(prisma.payrollRun.create).mockResolvedValue({
+      ...BASE_RUN,
+      bcvRateAtRun: new Decimal("17.50"),
+    } as never);
+
+    const result = await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    expect(vi.mocked(prisma.payrollRun.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          bcvRateAtRun: expect.any(Decimal),
+        }),
+      })
+    );
+    expect(result.bcvRateAtRun).toBe("17.5");
+  });
+
+  it("F-03: almacena totalEmployerCosts calculado por PayrollCalculatorService", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE" },
+      { id: "c-ivss", code: "IVSS_OBR" },
+      { id: "c-ivss-pat", code: "IVSS_PAT" },
+    ] as never);
+    vi.mocked(prisma.payrollRun.create).mockResolvedValue({
+      ...BASE_RUN,
+      totalEmployerCosts: new Decimal("2700"), // 30000 × 9%
+    } as never);
+
+    const result = await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    expect(vi.mocked(prisma.payrollRun.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          totalEmployerCosts: expect.any(Decimal),
+        }),
+      })
+    );
+    expect(result.totalEmployerCosts).toBeDefined();
   });
 
   it("llama seedDefaults antes de calcular para garantizar RPE_OBR — regresión ítem 54", async () => {

@@ -375,6 +375,97 @@ describe("PayrollCalculatorService — topes de cotización", () => {
   });
 });
 
+// ─── F-03: Aportes patronales — EMPLOYER_COST ─────────────────────────────────
+
+const SYSTEM_CONCEPTS_WITH_PAT = [
+  ...SYSTEM_CONCEPTS,
+  { code: "IVSS_PAT", conceptId: "c-ivss-pat" },
+  { code: "INCES_PAT", conceptId: "c-inces-pat" },
+  { code: "FAOV_PAT", conceptId: "c-faov-pat" },
+  { code: "RPE_PAT", conceptId: "c-rpe-pat" },
+];
+
+const CONFIG_WITH_PAT: PayrollCalculatorConfig = {
+  ...BASE_CONFIG,
+  systemConcepts: SYSTEM_CONCEPTS_WITH_PAT,
+};
+
+describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
+  it("calcula IVSS patronal 9% (LSS Art. 62)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "IVSS_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.09 = 2700
+    expect(line!.amount.toFixed(2)).toBe("2700.00");
+    expect(line!.rate!.toFixed(4)).toBe("0.0900");
+  });
+
+  it("calcula INCES patronal 2% (Ley INCES Art. 30)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "INCES_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("calcula FAOV patronal 2% (LAH Art. 172)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "FAOV_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("calcula RPE patronal 2% (LSSO Art. 7)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+    const line = lines.find((l) => l.conceptCode === "RPE_PAT");
+    expect(line).toBeDefined();
+    expect(line!.conceptType).toBe("EMPLOYER_COST");
+    // 30000 × 0.02 = 600
+    expect(line!.amount.toFixed(2)).toBe("600.00");
+  });
+
+  it("totalEmployerCosts excluye EARNING y DEDUCTION — no afecta neto del empleado", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const result = PayrollCalculatorService.calculate([emp], [], CONFIG_WITH_PAT);
+    // Aportes patronales no deben estar en totalEarnings ni totalDeductions
+    expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
+    // IVSS 4% + INCES 0.5% + FAOV 1% + RPE 0.5% = 6% = 1800
+    expect(result.totalDeductions.toFixed(2)).toBe("1800.00");
+    // totalEmployerCosts = IVSS 9% + INCES 2% + FAOV 2% + RPE 2% = 15% = 4500
+    expect(result.totalEmployerCosts.toFixed(2)).toBe("4500.00");
+    // totalNet no incluye aportes patronales
+    expect(result.totalNet.toFixed(2)).toBe("28200.00");
+  });
+
+  it("aplica tope salario mínimo a aportes patronales (igual que obreros)", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const configWithMin: PayrollCalculatorConfig = {
+      ...CONFIG_WITH_PAT,
+      salaryMinimumVes: new Decimal("130"), // 5×130=650 tope IVSS
+    };
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, configWithMin);
+    const ivssPatLine = lines.find((l) => l.conceptCode === "IVSS_PAT");
+    expect(ivssPatLine).toBeDefined();
+    // Con salaryMin=130 → tope 5×130=650 → 650×0.09=58.50
+    expect(ivssPatLine!.amount.toFixed(2)).toBe("58.50");
+  });
+
+  it("no genera EMPLOYER_COST cuando ivssEnabled=false", () => {
+    const config = { ...CONFIG_WITH_PAT, ivssEnabled: false };
+    const emp = makeEmp();
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    expect(lines.find((l) => l.conceptCode === "IVSS_PAT")).toBeUndefined();
+  });
+});
+
 // ─── C-01: Monedas mixtas — guard multimoneda ─────────────────────────────────
 
 describe("PayrollCalculatorService.calculate — monedas mixtas (C-01)", () => {

@@ -47,7 +47,12 @@ const SYSTEM_CONCEPTS: Array<{
   { code: "RPE_OBR",    name: "Paro Forzoso RPE (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
   { code: "ISLR_RET",   name: "Retención ISLR Empleado",           type: "DEDUCTION", affectsSalaryIntegral: false },
   // Cuota de préstamo empresa — no afecta salario integral (es recuperación de deuda, no gasto salarial)
-  { code: "PRESTAMO_EMP", name: "Cuota Préstamo Empresa",          type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "PRESTAMO_EMP", name: "Cuota Préstamo Empresa",          type: "DEDUCTION",     affectsSalaryIntegral: false },
+  // F-03: Aportes patronales — no afectan neto del empleado (EMPLOYER_COST)
+  { code: "IVSS_PAT",   name: "IVSS Patronal (9%)",                type: "EMPLOYER_COST", affectsSalaryIntegral: false },
+  { code: "INCES_PAT",  name: "INCES Patronal (2%)",               type: "EMPLOYER_COST", affectsSalaryIntegral: false },
+  { code: "FAOV_PAT",   name: "Banavih / FAOV Patronal (2%)",      type: "EMPLOYER_COST", affectsSalaryIntegral: false },
+  { code: "RPE_PAT",    name: "Paro Forzoso Patronal (2%)",        type: "EMPLOYER_COST", affectsSalaryIntegral: false },
 ];
 
 // ─── Serialización ────────────────────────────────────────────────────────────

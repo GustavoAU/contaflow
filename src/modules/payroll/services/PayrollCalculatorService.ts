@@ -14,18 +14,21 @@ import Decimal from "decimal.js";
 import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@prisma/client";
 
 // ─── Tasas legales venezolanas (inmutables — ADR-006 D-3) ────────────────────
-// LSS Art. 62: IVSS obrero 4% | tope: 5 × salario mínimo
+// LSS Art. 62: IVSS obrero 4% | patronal 9% | tope: 5 × salario mínimo
 const IVSS_WORKER_RATE = new Decimal("0.04");
+const IVSS_PAT_RATE    = new Decimal("0.09");
 const IVSS_CAP_MULTIPLES = new Decimal("5");
-// Ley INCES Art. 30: trabajador 0.5% | tope: 5 × salario mínimo (igual que IVSS)
-// Nota: el 2% es la tasa PATRONAL (INCES_PAT), no la del trabajador
+// Ley INCES Art. 30: trabajador 0.5% | patronal 2% | tope: 5 × salario mínimo
 const INCES_WORKER_RATE = new Decimal("0.005");
+const INCES_PAT_RATE    = new Decimal("0.02");
 const INCES_CAP_MULTIPLES = new Decimal("5");
-// LAH Art. 172: FAOV obrero 1% | tope: 10 × salario mínimo
+// LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
 const FAOV_WORKER_RATE = new Decimal("0.01");
+const FAOV_PAT_RATE    = new Decimal("0.02");
 const FAOV_CAP_MULTIPLES = new Decimal("10");
-// LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | tope: 5 × salario mínimo
+// LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | patronal 2% | tope: 5 × salario mínimo
 const RPE_WORKER_RATE = new Decimal("0.005");
+const RPE_PAT_RATE    = new Decimal("0.02");
 const RPE_CAP_MULTIPLES = new Decimal("5");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
@@ -96,6 +99,7 @@ export interface PayrollCalculatorResult {
   totalEarnings: Decimal;
   totalDeductions: Decimal;
   totalNet: Decimal;
+  totalEmployerCosts: Decimal; // F-03: aportes patronales — no afectan neto del empleado
 }
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
@@ -168,6 +172,11 @@ export const PayrollCalculatorService = {
       .filter((l) => l.conceptType === "DEDUCTION")
       .reduce((s, l) => s.plus(l.amount), new Decimal(0));
 
+    // EMPLOYER_COST nunca entra en totalEarnings/Deductions/Net — es costo patronal separado
+    const totalEmployerCosts = allLines
+      .filter((l) => l.conceptType === "EMPLOYER_COST")
+      .reduce((s, l) => s.plus(l.amount), new Decimal(0));
+
     const totalNet = totalEarnings.minus(totalDeductions);
 
     if (totalNet.lessThan(0)) {
@@ -176,7 +185,7 @@ export const PayrollCalculatorService = {
       );
     }
 
-    return { lines: allLines, totalEarnings, totalDeductions, totalNet };
+    return { lines: allLines, totalEarnings, totalDeductions, totalNet, totalEmployerCosts };
   },
 
   /**
@@ -322,6 +331,75 @@ export const PayrollCalculatorService = {
         amount,
         basis,
         rate: RPE_WORKER_RATE,
+        ...salaryBase,
+      });
+    }
+
+    // ── F-03: Aportes patronales — EMPLOYER_COST (no afectan neto del empleado) ─
+    // ── IVSS_PAT (9%, tope 5×salMin — LSS Art. 62) ───────────────────────────
+    const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
+    if (ivssEnabled && ivssPatId) {
+      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const amount = basis.times(IVSS_PAT_RATE).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "IVSS_PAT",
+        conceptId: ivssPatId,
+        employeeId: emp.employeeId,
+        conceptType: "EMPLOYER_COST",
+        amount,
+        basis,
+        rate: IVSS_PAT_RATE,
+        ...salaryBase,
+      });
+    }
+
+    // ── INCES_PAT (2%, tope 5×salMin — Ley INCES Art. 30) ────────────────────
+    const incesPatId = findConcept(systemConcepts, "INCES_PAT");
+    if (incesEnabled && incesPatId) {
+      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const amount = basis.times(INCES_PAT_RATE).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "INCES_PAT",
+        conceptId: incesPatId,
+        employeeId: emp.employeeId,
+        conceptType: "EMPLOYER_COST",
+        amount,
+        basis,
+        rate: INCES_PAT_RATE,
+        ...salaryBase,
+      });
+    }
+
+    // ── FAOV_PAT (2%, tope 10×salMin — LAH Art. 172) ─────────────────────────
+    const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
+    if (banavihEnabled && faovPatId) {
+      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const amount = basis.times(FAOV_PAT_RATE).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "FAOV_PAT",
+        conceptId: faovPatId,
+        employeeId: emp.employeeId,
+        conceptType: "EMPLOYER_COST",
+        amount,
+        basis,
+        rate: FAOV_PAT_RATE,
+        ...salaryBase,
+      });
+    }
+
+    // ── RPE_PAT (2%, tope 5×salMin — LSSO Art. 7) ────────────────────────────
+    const rpePatId = findConcept(systemConcepts, "RPE_PAT");
+    if (rpeEnabled && rpePatId) {
+      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const amount = basis.times(RPE_PAT_RATE).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "RPE_PAT",
+        conceptId: rpePatId,
+        employeeId: emp.employeeId,
+        conceptType: "EMPLOYER_COST",
+        amount,
+        basis,
+        rate: RPE_PAT_RATE,
         ...salaryBase,
       });
     }
