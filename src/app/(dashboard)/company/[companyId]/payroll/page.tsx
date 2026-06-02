@@ -14,6 +14,7 @@ import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import PayrollWizard from "@/modules/payroll/components/PayrollWizard";
 import PayrollConfigSummary from "@/modules/payroll/components/PayrollConfigSummary";
 import { NavigationCard } from "@/components/ui/NavigationCard";
+import PayrollCompliancePanel from "@/modules/payroll/components/PayrollCompliancePanel";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -81,6 +82,23 @@ export default async function PayrollPage({ params }: Props) {
       ? benefitBalancesActive - benefitLinesThisQuarter
       : null;
 
+  // U-05: datos para panel de cumplimiento
+  const [latestBcvBenefitRate, latestThreshold, latestExchangeRate] = config && canReadAccounting
+    ? await Promise.all([
+        prisma.bcvBenefitRate.findFirst({ where: { companyId, year: currentYear }, select: { id: true } }),
+        prisma.legalThreshold.findFirst({ where: { companyId }, orderBy: { effectiveFrom: "desc" }, select: { effectiveFrom: true } }),
+        prisma.exchangeRate.findFirst({ where: { companyId, currency: "USD" }, orderBy: { date: "desc" }, select: { date: true } }),
+      ])
+    : [null, null, null];
+
+  // Threshold desactualizado: si tiene más de 90 días sin actualizar
+  const thresholdAge = latestThreshold
+    ? Math.floor((Date.now() - new Date(latestThreshold.effectiveFrom).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const exchangeRateAge = latestExchangeRate
+    ? Math.floor((Date.now() - new Date(latestExchangeRate.date).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-8 px-4">
       <div>
@@ -89,6 +107,84 @@ export default async function PayrollPage({ params }: Props) {
           Gestión de nómina según LOTTT, IVSS, INCES y Banavih.
         </p>
       </div>
+
+      {/* U-05: Panel de cumplimiento legal */}
+      {config && canReadAccounting && (
+        <PayrollCompliancePanel
+          companyId={companyId}
+          checks={[
+            {
+              label: "Salario mínimo / Topes Legales",
+              status: !latestThreshold
+                ? "red"
+                : thresholdAge !== null && thresholdAge > 120
+                  ? "amber"
+                  : "green",
+              detail: !latestThreshold
+                ? "Sin topes registrados — configura el salario mínimo vigente."
+                : thresholdAge !== null && thresholdAge > 120
+                  ? `Último registro hace ${thresholdAge} días — verifica si hubo decreto presidencial reciente.`
+                  : `Actualizado (hace ${thresholdAge} días).`,
+              href: "/payroll/legal-thresholds",
+              hrefLabel: "Configurar",
+            },
+            {
+              label: "Tasa BCV intereses prestaciones",
+              status: !latestBcvBenefitRate ? "amber" : "green",
+              detail: !latestBcvBenefitRate
+                ? `Sin tasa BCV registrada para ${currentYear} — necesaria para calcular intereses del Art. 143 LOTTT.`
+                : `Registrada para ${currentYear}.`,
+              href: "/payroll/benefits",
+              hrefLabel: "Registrar",
+            },
+            {
+              label: `Prestaciones sociales — Q${currentQuarter}/${currentYear}`,
+              status:
+                benefitsGap === null
+                  ? "gray"
+                  : benefitsGap > 0
+                    ? "amber"
+                    : "green",
+              detail:
+                benefitsGap === null
+                  ? "Sin datos."
+                  : benefitsGap > 0
+                    ? `${benefitsGap} empleado${benefitsGap !== 1 ? "s" : ""} sin acumulación trimestral Q${currentQuarter} — Art. 143 LOTTT.`
+                    : `Todos los empleados acumulados para Q${currentQuarter}.`,
+              href: "/payroll/benefits",
+              hrefLabel: "Acumular",
+            },
+            {
+              label: "Tasa de cambio USD/VES",
+              status:
+                !latestExchangeRate
+                  ? "gray"
+                  : exchangeRateAge !== null && exchangeRateAge > 30
+                    ? "amber"
+                    : "green",
+              detail: !latestExchangeRate
+                ? "Sin tasa USD registrada — necesaria para nómina en dólares."
+                : exchangeRateAge !== null && exchangeRateAge > 30
+                  ? `Última tasa hace ${exchangeRateAge} días — actualiza la tasa BCV para reflejar correctamente los salarios USD.`
+                  : `Tasa actualizada (hace ${exchangeRateAge} días).`,
+              href: "/accounting/exchange-rates",
+              hrefLabel: "Actualizar",
+            },
+            {
+              label: "Procesos de nómina en borrador",
+              status: draftRunsCount !== null && draftRunsCount > 0 ? "amber" : "green",
+              detail:
+                draftRunsCount === null
+                  ? "Sin datos."
+                  : draftRunsCount > 0
+                    ? `${draftRunsCount} nómina${draftRunsCount !== 1 ? "s" : ""} en borrador sin aprobar.`
+                    : "No hay borradores pendientes de aprobación.",
+              href: "/payroll/runs",
+              hrefLabel: "Ver",
+            },
+          ]}
+        />
+      )}
 
       {/* Configuración de Nómina */}
       <section>

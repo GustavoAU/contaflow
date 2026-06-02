@@ -38,6 +38,8 @@ export interface PayrollRunLineRow {
   conceptType: ConceptType;
   amount: string;
   hours: string | null;
+  // U-02: base imponible y tasa para mostrar "4% sobre 130,00 = 5,20"
+  basis: string | null;
   rate: string | null;
   salarySnapshotAmount: string | null;
 }
@@ -146,6 +148,7 @@ export const PayrollRunService = {
         conceptType: l.conceptType,
         amount: l.amount.toString(),
         hours: l.hours?.toString() ?? null,
+        basis: l.basis?.toString() ?? null,
         rate: l.rate?.toString() ?? null,
         salarySnapshotAmount: l.salarySnapshotAmount?.toString() ?? null,
       })),
