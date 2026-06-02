@@ -16,6 +16,8 @@ interface Props {
   run: PayrollRunDetailRow;
   canAdmin: boolean;
   currency: string;
+  // IV: salario mínimo vigente al período — para verificar topes de cotización
+  salaryMinCap?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -35,7 +37,7 @@ const CONCEPT_LABELS: Record<string, string> = {
   SAL_BASE:    "Salario Básico",
   IVSS_OBR:   "Seg. Social IVSS (4%)",
   FAOV_OBR:   "Banavih FAOV (1%)",
-  INCES_OBR:  "INCES (2%)",
+  INCES_OBR:  "INCES Trabajador (0.5%)",
   RPE_OBR:    "Paro Forzoso RPE (0.5%)",
   HE_DIA:     "Horas Extra Diurnas",
   HE_NOC:     "Horas Extra Nocturnas",
@@ -54,7 +56,7 @@ function conceptLabel(code: string): string {
   return CONCEPT_LABELS[code] ?? code;
 }
 
-export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) {
+export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRecalculating, startRecalculate] = useTransition();
@@ -184,6 +186,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
                   Tasa BCV prestaciones: {Number(run.bcvRateAtRun).toFixed(2)}%
                 </span>
               )}
+              {salaryMinCap && (
+                <span
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600"
+                  title="Salario mínimo vigente al período — tope base cotización IVSS/INCES/RPE (5×) y FAOV (10×)"
+                >
+                  Sal. mín.: Bs. {Number(salaryMinCap).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -290,6 +300,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency }: Props) 
           <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
             {error}
           </p>
+        )}
+
+        {/* IV: alerta cuando no hay aportes patronales — posible config incompleta */}
+        {run.employeeCount > 0 && Number(run.totalEmployerCosts) === 0 && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+            <strong>Sin aportes patronales registrados.</strong>{" "}
+            Si la empresa está obligada a cotizar IVSS/INCES/FAOV/RPE, verifica que los conceptos patronales
+            estén activos en <em>Configuración → Conceptos de Nómina</em>.
+          </div>
         )}
       </div>
 

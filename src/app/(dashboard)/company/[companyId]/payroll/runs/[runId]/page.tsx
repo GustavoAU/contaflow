@@ -9,6 +9,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunService } from "@/modules/payroll/services/PayrollRunService";
 import { PayrollRunDetail } from "@/modules/payroll/components/PayrollRunDetail";
 import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigService";
+import { LegalThresholdService } from "@/modules/payroll/services/LegalThresholdService";
 
 interface Props {
   params: Promise<{ companyId: string; runId: string }>;
@@ -40,6 +41,14 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   ]);
   if (!run) notFound();
 
+  // IV: salario mínimo vigente al período para verificar topes IVSS/INCES/FAOV/RPE
+  const salaryMinDecimal = await LegalThresholdService.getActive(
+    companyId,
+    "SALARY_MIN_VES",
+    new Date(run.periodStart),
+  );
+  const salaryMinCap = salaryMinDecimal?.toString() ?? null;
+
   const canAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
   const currency = config?.paymentCurrency ?? "VES";
 
@@ -54,7 +63,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} />
+      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} />
     </div>
   );
 }
