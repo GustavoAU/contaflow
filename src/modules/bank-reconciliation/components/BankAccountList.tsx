@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PlusIcon, BuildingIcon, ChevronRightIcon, XIcon, Loader2Icon } from "lucide-react";
 import { createBankAccountAction } from "../actions/banking.actions";
 import { fmtVen } from "@/lib/fmt-ven";
+import { VENEZUELA_BANKS } from "../../payments/constants/venezuela-banks";
 
 type BankAccountListItem = {
   id: string;
@@ -142,15 +143,18 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
               <label htmlFor="ba-bank" className="mb-1 block text-sm font-medium text-zinc-700">
                 Banco
               </label>
-              <input
+              <select
                 id="ba-bank"
-                type="text"
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
-                placeholder="Ej. Banesco, Mercantil, Provincial"
                 required
                 className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+              >
+                <option value="">— Seleccionar banco —</option>
+                {VENEZUELA_BANKS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label htmlFor="ba-account" className="mb-1 block text-sm font-medium text-zinc-700">
