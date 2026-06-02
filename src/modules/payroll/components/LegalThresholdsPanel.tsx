@@ -14,6 +14,7 @@ interface Props {
   companyId: string;
   initialThresholds: LegalThresholdRow[];
   isAdmin: boolean;
+  salMinStale: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function LegalThresholdsPanel({
   companyId,
   initialThresholds,
   isAdmin,
+  salMinStale,
 }: Props) {
   const [thresholds, setThresholds] = useState<LegalThresholdRow[]>(initialThresholds);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -71,9 +73,6 @@ export default function LegalThresholdsPanel({
 
   // U-05: alerta si el salario mínimo no ha sido actualizado en más de 180 días
   const lastSalMin = byType.SALARY_MIN_VES[0];
-  const salMinStale = lastSalMin
-    ? (Date.now() - new Date(lastSalMin.effectiveFrom).getTime()) > 180 * 24 * 60 * 60 * 1000
-    : true;
 
   return (
     <div className="space-y-6">

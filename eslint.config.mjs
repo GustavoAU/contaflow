@@ -23,6 +23,10 @@ const eslintConfig = defineConfig([
       // Downgradeado a warn para no bloquear CI. Refactorizar a useMemo/useCallback
       // en sprint de performance post-lanzamiento.
       "react-hooks/set-state-in-effect": "warn",
+      // react-hooks/purity: React Compiler flagea Date.now() / new Date() como impuro
+      // incluso en server components (async functions que ejecutan una sola vez por request).
+      // En server components el patrón es totalmente legítimo. Downgradeado a warn.
+      "react-hooks/purity": "warn",
     },
   },
 ]);
