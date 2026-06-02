@@ -106,8 +106,6 @@ export class KpiDashboardService {
     const now = new Date();
     now.setUTCHours(0, 0, 0, 0);
 
-    const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const d60 = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
     const d90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
     const invoices = await prisma.invoice.findMany({

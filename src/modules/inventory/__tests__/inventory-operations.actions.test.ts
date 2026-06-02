@@ -3,32 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const { mockMember, mockItem, mockMovement } = vi.hoisted(() => ({
+const { mockMember } = vi.hoisted(() => ({
   mockMember: { role: "ADMINISTRATIVE" as const },
-  mockItem: {
-    id: "item-001",
-    companyId: "company-001",
-    sku: "PROD-001",
-    name: "Producto Test",
-    unit: "unidad",
-    averageCost: "100.00",
-    stockQuantity: "10.00",
-    deletedAt: null,
-  },
-  mockMovement: {
-    id: "mov-001",
-    companyId: "company-001",
-    itemId: "item-001",
-    type: "ENTRADA",
-    status: "DRAFT",
-    quantity: "5.00",
-    unitCost: "100.00",
-    totalCost: "500.00",
-    idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
-    date: new Date(),
-    createdBy: "user-test",
-    createdAt: new Date(),
-  },
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));

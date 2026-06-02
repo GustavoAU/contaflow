@@ -106,7 +106,7 @@ function readFile(relPath: string): string {
  */
 function detectFindManyWithoutCompanyId(
   content: string,
-  relPath: string,
+  _relPath: string,
 ): Array<{ lineNumber: number; operation: string; context: string }> {
   const WINDOW_LINES = 15;
   const lines = content.split("\n");

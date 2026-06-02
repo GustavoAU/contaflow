@@ -322,7 +322,6 @@ export async function voidPostedMovement(
         const item = movement.item;
         const qty = new Decimal(movement.quantity);
         const currentStock = new Decimal(item.stockQuantity);
-        const currentAvgCost = new Decimal(item.averageCost);
         const totalCost = new Decimal(movement.totalCost);
 
         // Revertir stock según tipo

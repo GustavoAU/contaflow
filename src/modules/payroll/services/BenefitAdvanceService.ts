@@ -151,7 +151,7 @@ export const BenefitAdvanceService = {
     const amount = new Decimal(input.amount);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
 
-    const { employee, balance } = await loadAndValidateForAdvance(companyId, input.employeeId, amount);
+    const { employee: _employee, balance } = await loadAndValidateForAdvance(companyId, input.employeeId, amount);
 
     // Crear solicitud PENDING — sin GL, sin descuento de saldo
     return prisma.$transaction(async (tx) => {

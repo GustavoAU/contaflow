@@ -130,11 +130,6 @@ export interface ArcReportData {
 
 // ─── Helpers internos ──────────────────────────────────────────────────────────
 
-/** Retorna el trimestre (1-4) que contiene el mes dado (1-12). */
-function monthToQuarter(month: number): number {
-  return Math.ceil(month / 3);
-}
-
 /** Meses del trimestre 1-4: [[1,2,3],[4,5,6],[7,8,9],[10,11,12]] */
 function quarterMonths(quarter: number): number[] {
   const base = (quarter - 1) * 3 + 1;

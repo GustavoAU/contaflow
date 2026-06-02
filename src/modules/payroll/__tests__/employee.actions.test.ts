@@ -45,7 +45,6 @@ import { EmployeeService } from "../services/EmployeeService";
 import {
   listEmployeesAction,
   createEmployeeAction,
-  updateEmployeeAction,
   terminateEmployeeAction,
   addSalaryAction,
   getSalaryHistoryAction,

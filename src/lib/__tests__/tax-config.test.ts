@@ -5,10 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   getFiscalConfig,
   getTaxRates,
-  FISCAL_CONFIGS,
-  VEN_FISCAL_CONFIG,
   VEN_RIF_REGEX,
-  VEN_TAX_RATES,
   VEN_CONTROL_NUMBER_REGEX,
   SUPPORTED_COUNTRIES,
 } from "../tax-config";

@@ -33,19 +33,12 @@ describe("CsvParserService", () => {
 
   // 2. Formato venezolano: "1.000,50" → Decimal(1000.50)
   it("parseBankCsv — formato venezolano de montos", () => {
-    const csv = buildCsv([
-      "15/01/2026,Transferencia,1.000,50,500,00,1.500,75",
-    ]);
-
     // Con comas en los valores necesitamos que el parser las maneje correctamente
     // Los valores con separador de miles (punto) y decimal (coma):
     // "1.000" (debit), "50" (credit luego de la coma), "500" (balance), "00" — esto se parsea por columnas
     // El CSV real para formato venezolano necesita quotes o manejo especial
     // Dado que el formato es coma como separador de columnas Y como decimal,
     // el test debe reflejar el formato real que acepta el parser (sin ambigüedad)
-    const csv2 = buildCsv([
-      '15/01/2026,Transferencia BCV,"1.000,50","500,00","2.500,75"',
-    ]);
 
     // El parser actual usa split(',') simple — testeamos el formato sin ambigüedad
     // usando valores sin coma decimal para este test de integración básico

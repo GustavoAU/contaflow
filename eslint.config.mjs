@@ -27,6 +27,17 @@ const eslintConfig = defineConfig([
       // incluso en server components (async functions que ejecutan una sola vez por request).
       // En server components el patrón es totalmente legítimo. Downgradeado a warn.
       "react-hooks/purity": "warn",
+      // Ignorar variables con prefijo _ (convención de "intencionalmente no usado")
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
 ]);

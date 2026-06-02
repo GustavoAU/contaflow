@@ -253,7 +253,7 @@ export function InvoiceForm({
     } catch {
       // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Duplicate pre-fill (InvoiceBook "Dup" button) ───────────────────────────
   useEffect(() => {
@@ -291,7 +291,7 @@ export function InvoiceForm({
     } catch {
       // sessionStorage no disponible o JSON inválido — continuar sin pre-fill
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (currency === "VES") return;

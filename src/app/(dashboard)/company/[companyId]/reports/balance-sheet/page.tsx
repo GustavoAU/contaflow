@@ -12,15 +12,6 @@ type Props = {
   searchParams: Promise<{ to?: string }>;
 };
 
-function formatAmount(value: string): string {
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-}
-
 function fmtAccounting(value: string): { display: string; negative: boolean } {
   const num = parseFloat(value);
   if (isNaN(num)) return { display: value, negative: false };

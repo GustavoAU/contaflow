@@ -59,7 +59,7 @@ Sentry.init({
       event.breadcrumbs = event.breadcrumbs.map((bc) => {
         if (bc.category === "fetch" || bc.category === "xhr") {
           // Mantener método + URL pero eliminar body (puede tener montos/RIF)
-          const { body: _body, ...safeData } = bc.data ?? {};
+          const { body: _, ...safeData } = bc.data ?? {};
           return { ...bc, data: safeData };
         }
         return bc;

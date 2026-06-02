@@ -20,7 +20,6 @@ import {
   InvoicePaymentStatus,
   PaymentMethod,
   BankTransactionType,
-  BankStatementStatus,
   DepreciationMethod,
   FixedAssetStatus,
   MovementType,

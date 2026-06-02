@@ -4,7 +4,7 @@
 // Tabla "Últimos pagos registrados" con botón Anular (#14), overflow-x-auto (#10) y adjuntos (ADR-029)
 
 import { useState, useTransition, useEffect, useCallback, Fragment } from "react";
-import { Loader2Icon, PaperclipIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { Loader2Icon, PaperclipIcon, ChevronDownIcon } from "lucide-react";
 import { voidPaymentRecordAction, getPaymentAttachmentsAction } from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import type { PaymentRecordSummary } from "../services/PaymentService";

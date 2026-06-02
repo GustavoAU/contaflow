@@ -23,10 +23,6 @@ import prisma from "@/lib/prisma";
 import {
   PayrollReportService,
   calcularIslr,
-  IVSS_EMPLOYER_RATE,
-  FAOV_EMPLOYER_RATE,
-  INCES_EMPLOYER_PROFIT_RATE,
-  ISLR_DESGRAVAMEN_UT,
 } from "../services/PayrollReportService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

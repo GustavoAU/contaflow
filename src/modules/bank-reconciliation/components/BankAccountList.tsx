@@ -37,7 +37,7 @@ const CURRENCY_BADGE: Record<string, string> = {
   EUR: "bg-indigo-100 text-indigo-700",
 };
 
-function fmtAmount(value: string | null, currency: string) {
+function fmtAmount(value: string | null, _currency: string) {
   return fmtVen(value);
 }
 

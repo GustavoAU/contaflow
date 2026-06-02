@@ -2,6 +2,7 @@
 // src/modules/ai-assistant/components/AIAssistantChat.tsx
 
 import { useState, useRef, useTransition, useEffect } from "react";
+import Image from "next/image";
 import { SendIcon, ImageIcon, BotIcon, UserIcon, ShieldCheckIcon, XIcon, SparklesIcon } from "lucide-react";
 import { sendMessageAction } from "../actions/ai-assistant.actions";
 
@@ -152,9 +153,12 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
 
             <div className={`max-w-4/5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
               {msg.imagePreview && (
-                <img
+                <Image
                   src={msg.imagePreview}
                   alt="Imagen adjunta"
+                  width={320}
+                  height={160}
+                  unoptimized
                   className="max-h-40 rounded-lg object-contain border border-zinc-200"
                 />
               )}
@@ -204,9 +208,12 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
       <div className="border-t border-zinc-200 px-4 py-3">
         {imagePreview && (
           <div className="mb-2 flex items-center gap-2">
-            <img
+            <Image
               src={imagePreview}
               alt="Vista previa"
+              width={48}
+              height={48}
+              unoptimized
               className="h-12 w-12 rounded-lg object-cover border border-zinc-200"
             />
             <button

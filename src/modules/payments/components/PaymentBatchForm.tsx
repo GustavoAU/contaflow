@@ -43,8 +43,6 @@ let lineKeySeq = 0;
 
 // Métodos que requieren campos de banco
 const BANK_METHODS: PaymentMethodType[] = ["TRANSFERENCIA", "PAGOMOVIL"];
-// Métodos que operan en USD con IGTF automático
-const USD_METHODS: PaymentMethodType[] = ["ZELLE"];
 
 export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();

@@ -49,7 +49,7 @@ export class MockDigitalInvoiceProvider implements DigitalInvoiceProvider {
     };
   }
 
-  async voidInvoice(controlNumber: string, _reason: string): Promise<DigitalVoidResult> {
+  async voidInvoice(_controlNumber: string, _reason: string): Promise<DigitalVoidResult> {
     await this.delay();
     return {
       success:  true,

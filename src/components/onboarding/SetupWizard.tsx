@@ -860,7 +860,7 @@ function MigrateSystemChoice({
 // ── Migration: Guide ──────────────────────────────────────────────────────────
 
 function MigrationGuide({
-  system, companyId, onBack, onStartSetup,
+  system, companyId: _companyId, onBack, onStartSetup,
 }: {
   system: MigrationSystem;
   companyId: string;

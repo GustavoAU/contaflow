@@ -106,7 +106,6 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
       if (res.success) setResult(res.data);
       else toast.error(res.error);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, type, year, month, filterMode, rangeStart, rangeEnd]);
 
   function handleDuplicate(row: InvoiceBookRow) {

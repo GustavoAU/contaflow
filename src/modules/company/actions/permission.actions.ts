@@ -7,7 +7,6 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import { RolePermissionService } from "../services/RolePermissionService";
 import { MODULE_KEYS } from "@/lib/app-modules";
 import type { AppModule } from "@/lib/app-modules";
 import type { UserRole } from "@prisma/client";

@@ -1,7 +1,7 @@
 // src/modules/payments/__tests__/PaymentGLService.test.ts
 // ADR-030 — tests unitarios para PaymentGLService
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Decimal } from "decimal.js";
 
 vi.mock("@/lib/prisma", () => ({

@@ -8,7 +8,6 @@
 //   26B-05 MEDIUM   — Rol mínimo: ROLES.ACCOUNTING
 
 import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";

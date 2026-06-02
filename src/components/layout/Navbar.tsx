@@ -72,7 +72,6 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
     : { primary: [], sections: [] };
 
   const allSecondaryItems = sections.flatMap((s) => s.items);
-  const allItems = [...primary, ...allSecondaryItems];
 
   const isActive = (href: string) =>
     href === `/company/${companyId}`

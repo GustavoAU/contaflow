@@ -16,7 +16,6 @@ import Decimal from "decimal.js";
 import * as Sentry from "@sentry/nextjs";
 import type {
   PayrollRunStatus,
-  PayrollPaymentCurrency,
   ConceptType,
 } from "@prisma/client";
 import {
