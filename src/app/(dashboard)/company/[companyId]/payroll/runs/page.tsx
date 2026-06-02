@@ -32,8 +32,27 @@ export default async function PayrollRunsPage({ params }: Props) {
     );
   }
 
-  const runs = await PayrollRunService.list(companyId);
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentQuarter = Math.ceil(currentMonth / 3);
+
+  const [runs, activeEmpCount, currentQAccrualCount] = await Promise.all([
+    PayrollRunService.list(companyId),
+    prisma.employee.count({ where: { companyId, status: "ACTIVE" } }),
+    prisma.benefitAccrualLine.count({
+      where: {
+        companyId,
+        type: "QUARTERLY_ACCRUAL",
+        year: currentYear,
+        quarter: currentQuarter,
+      },
+    }),
+  ]);
+
   const canAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
+  // C-03: mostrar banner si hay empleados activos y Q aún no fue acumulado (Art. 142 LOTTT)
+  const showAccrualBanner = activeEmpCount > 0 && currentQAccrualCount === 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -56,6 +75,30 @@ export default async function PayrollRunsPage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* C-03: Alerta prestaciones sociales Q pendiente (Art. 142 LOTTT) */}
+      {showAccrualBanner && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div>
+            <p className="font-medium">
+              Q{currentQuarter}-{currentYear} sin acumular — obligación Art. 142 LOTTT
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              La garantía de prestaciones de este trimestre (5 días de salario integral por trimestre) no ha sido registrada.
+              Esto genera un pasivo laboral no reconocido en libros.{" "}
+              <Link
+                href={`/company/${companyId}/payroll/benefits`}
+                className="underline hover:text-amber-900"
+              >
+                Ir a Prestaciones Sociales →
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
 
       <PayrollRunList
         companyId={companyId}

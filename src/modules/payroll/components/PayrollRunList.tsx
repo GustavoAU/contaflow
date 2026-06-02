@@ -68,6 +68,12 @@ function ApproveDialog({ run, onConfirm, onCancel, isPending }: ApproveDialogPro
             <dt className="font-semibold text-gray-900">Neto a pagar</dt>
             <dd className="font-mono font-semibold text-gray-900">{formatAmount(Number(run.totalNet))}</dd>
           </div>
+          {Number(run.totalEmployerCosts) > 0 && (
+            <div className="flex justify-between bg-orange-50 px-4 py-2">
+              <dt className="text-orange-700 text-xs">Costo patronal (IVSS/INCES/FAOV/RPE)</dt>
+              <dd className="font-mono font-medium text-orange-900 text-xs">{formatAmount(Number(run.totalEmployerCosts))}</dd>
+            </div>
+          )}
         </dl>
         {/* Alerta si deducciones anómalas */}
         {Number(run.totalEarnings) > 0 &&
@@ -174,7 +180,7 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Empleados</th>
               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Asignaciones</th>
               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Deducciones</th>
-              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Neto a Pagar</th>
+              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Neto / Costo Patronal</th>
               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
@@ -211,8 +217,15 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
                 <td className="px-4 py-3 text-sm text-red-600 text-right font-mono">
                   {formatAmount(Number(run.totalDeductions))}
                 </td>
-                <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right font-mono">
-                  {formatAmount(Number(run.totalNet))}
+                <td className="px-4 py-3 text-right">
+                  <span className="text-sm font-semibold text-gray-900 font-mono block">
+                    {formatAmount(Number(run.totalNet))}
+                  </span>
+                  {Number(run.totalEmployerCosts) > 0 && (
+                    <span className="text-xs text-orange-600 font-mono block">
+                      +{formatAmount(Number(run.totalEmployerCosts))} pat.
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex items-center gap-2">

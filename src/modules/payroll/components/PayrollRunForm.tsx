@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // src/modules/payroll/components/PayrollRunForm.tsx
 // Fase NOM-C: formulario para crear un nuevo proceso de nómina
@@ -14,6 +14,11 @@ interface Props {
   activeEmployeeCount?: number;
   initialStart?: string;
   initialEnd?: string;
+  // C-01: threshold salario mínimo vigente
+  salMinLastUpdate?: string | null;
+  salMinValue?: string | null;
+  // C-02: indica si existe tasa BCV para el mes actual
+  hasBcvRateForMonth?: boolean;
 }
 
 function generateIdempotencyKey(): string {
@@ -29,13 +34,11 @@ function getDefaultPeriod(): { start: string; end: string } {
   const day = now.getDate();
 
   if (day <= 15) {
-    // Primera quincena
     return {
       start: `${year}-${mm}-01`,
       end: `${year}-${mm}-15`,
     };
   } else {
-    // Segunda quincena
     return {
       start: `${year}-${mm}-16`,
       end: `${year}-${mm}-${lastDay}`,
@@ -53,7 +56,15 @@ function computeEndFromStart(startISO: string): string {
   return `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 }
 
-export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, initialEnd }: Props) {
+export function PayrollRunForm({
+  companyId,
+  activeEmployeeCount,
+  initialStart,
+  initialEnd,
+  salMinLastUpdate,
+  salMinValue,
+  hasBcvRateForMonth = true,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const defaults = getDefaultPeriod();
@@ -87,6 +98,24 @@ export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, i
     });
   }
 
+  // C-01: salario mínimo desactualizado si es null o tiene >30 días sin actualizar
+  const salMinIsStale = !salMinLastUpdate
+    || (Date.now() - new Date(salMinLastUpdate).getTime()) > 30 * 24 * 60 * 60 * 1000;
+
+  const salMinFormatted = salMinValue
+    ? `Bs. ${parseFloat(salMinValue).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
+  const ivssCapFormatted = salMinValue
+    ? `Bs. ${(parseFloat(salMinValue) * 5).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
+  const faovCapFormatted = salMinValue
+    ? `Bs. ${(parseFloat(salMinValue) * 10).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
+
+  const salMinLastUpdateFormatted = salMinLastUpdate
+    ? new Date(salMinLastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
       <div>
@@ -106,6 +135,61 @@ export function PayrollRunForm({ companyId, activeEmployeeCount, initialStart, i
           </p>
         )}
       </div>
+
+      {/* C-01: Alerta salario mínimo desactualizado */}
+      {salMinIsStale && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">
+            Salario mínimo desactualizado — bases de cotización incorrectas
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            {salMinLastUpdate
+              ? `Último registro: ${salMinLastUpdateFormatted} (hace más de 30 días).`
+              : "No hay registro de salario mínimo vigente para esta empresa."}
+            {salMinFormatted && (
+              <> Valor actual: <span className="font-mono font-semibold">{salMinFormatted}</span>.</>
+            )}
+          </p>
+          {ivssCapFormatted && faovCapFormatted && (
+            <p className="mt-1 text-xs text-amber-800">
+              Topes actuales: IVSS/INCES/RPE = <span className="font-mono">{ivssCapFormatted}</span> (5×) ·{" "}
+              FAOV = <span className="font-mono">{faovCapFormatted}</span> (10×).
+              Consulta el decreto vigente en MINPPTRASS y actualiza en{" "}
+              <a
+                href={`/company/${companyId}/payroll/thresholds`}
+                className="underline hover:text-amber-900"
+              >
+                Topes Legales
+              </a>.
+            </p>
+          )}
+          {!salMinFormatted && (
+            <a
+              href={`/company/${companyId}/payroll/thresholds`}
+              className="mt-1 block text-xs underline hover:text-amber-900"
+            >
+              Registrar salario mínimo vigente →
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* C-02: Sin tasa BCV para el período — intereses Art. 143 LOTTT no se calcularán */}
+      {!hasBcvRateForMonth && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <p className="font-medium">Sin tasa BCV para el mes actual (Art. 143 LOTTT)</p>
+          <p className="mt-0.5 text-xs text-blue-700">
+            No hay tasa BCV registrada para este período. El snapshot <span className="font-mono">bcvRateAtRun</span>{" "}
+            quedará vacío y los intereses sobre prestaciones no podrán calcularse para este proceso.{" "}
+            <a
+              href={`/company/${companyId}/payroll/benefits`}
+              className="underline hover:text-blue-900"
+            >
+              Registrar tasa BCV →
+            </a>
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
