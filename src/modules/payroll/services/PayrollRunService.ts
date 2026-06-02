@@ -381,6 +381,12 @@ export const PayrollRunService = {
             totalEarnings: result.totalEarnings.toString(),
             totalDeductions: result.totalDeductions.toString(),
             totalNet: result.totalNet.toString(),
+            // VI: conceptos manuales para trazabilidad de fiscalización
+            manualConcepts: (input.manualConcepts ?? []).map((m) => ({
+              conceptId: m.conceptId,
+              employeeId: m.employeeId,
+              amount: m.amount,
+            })),
           },
         },
       });

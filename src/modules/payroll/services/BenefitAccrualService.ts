@@ -556,32 +556,50 @@ export const BenefitAccrualService = {
   },
 
   // ── createBcvRate — registrar tasa BCV mensual (ADMIN-only) ──────────────
+  // R-6: AuditLog en mismo $transaction con ipAddress + userAgent
   async createBcvRate(
     companyId: string,
     userId: string,
     year: number,
     month: number,
     annualRate: number,
-    rateType: "ACTIVA" | "PROMEDIO" = "ACTIVA"
+    rateType: "ACTIVA" | "PROMEDIO" = "ACTIVA",
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<BcvRateRow> {
-    const rate = await prisma.bcvBenefitRate.create({
-      data: {
-        companyId,
-        year,
-        month,
-        annualRate: new Decimal(annualRate).toFixed(2),
-        rateType,
-        createdByUserId: userId,
-      },
+    return prisma.$transaction(async (tx) => {
+      const rate = await tx.bcvBenefitRate.create({
+        data: {
+          companyId,
+          year,
+          month,
+          annualRate: new Decimal(annualRate).toFixed(2),
+          rateType,
+          createdByUserId: userId,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "BcvBenefitRate",
+          entityId: rate.id,
+          action: "CREATE_BCV_RATE",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: Prisma.JsonNull,
+          newValue: { year, month, annualRate: rate.annualRate.toString(), rateType },
+        },
+      });
+      return {
+        id: rate.id,
+        year: rate.year,
+        month: rate.month,
+        annualRate: rate.annualRate.toString(),
+        rateType: rate.rateType,
+        source: rate.source,
+      };
     });
-    return {
-      id: rate.id,
-      year: rate.year,
-      month: rate.month,
-      annualRate: rate.annualRate.toString(),
-      rateType: rate.rateType,
-      source: rate.source,
-    };
   },
 
   // ── backfillAllQuarters — acumula trimestres históricos faltantes (ADR-015) ──

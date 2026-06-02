@@ -85,6 +85,10 @@ export async function createBcvRateAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
   try {
     const data = await BenefitAccrualService.createBcvRate(
       companyId,
@@ -92,7 +96,9 @@ export async function createBcvRateAction(
       parsed.data.year,
       parsed.data.month,
       parsed.data.annualRate,
-      parsed.data.rateType
+      parsed.data.rateType,
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };

@@ -377,17 +377,26 @@ export const EmployeeService = {
           userId,
           ipAddress,
           userAgent,
+          // VI: campos extendidos para fiscalización (cargo/departamento + parafiscales)
           oldValue: {
             firstName: previous.firstName,
             lastName: previous.lastName,
             contractType: previous.contractType,
             position: previous.position,
+            department: previous.department,
+            payrollWorkerType: previous.payrollWorkerType,
+            ivssNumber: previous.ivssNumber,
+            banavihNumber: previous.banavihNumber,
           },
           newValue: {
             firstName: input.firstName,
             lastName: input.lastName,
             contractType: input.contractType,
             position: input.position,
+            department: input.department ?? null,
+            payrollWorkerType: input.payrollWorkerType ?? null,
+            ivssNumber: input.ivssNumber ?? null,
+            banavihNumber: input.banavihNumber ?? null,
           },
         },
       });
