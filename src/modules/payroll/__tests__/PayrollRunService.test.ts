@@ -45,6 +45,9 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    exchangeRate: {
+      findFirst: vi.fn(),
+    },
     transaction: {
       create: vi.fn(),
     },
@@ -382,6 +385,118 @@ describe("PayrollRunService.approve", () => {
     await expect(
       PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)
     ).rejects.toThrow("Configure las cuentas contables");
+  });
+
+  // V-1: descuadre GL patronal
+  it("V-1: patronal debit equals sum of configured credits only (no ivssPatronalAccount)", async () => {
+    mockTx();
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(BASE_RUN as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssPayableAccountId: null,
+      faovPayableAccountId: null,
+      incesPayableAccountId: null,
+      rpePayableAccountId: null,
+      loanReceivableAccountId: null,
+      ivssEnabled: false,
+      incesEnabled: true,
+      banavihEnabled: false,
+      rpeEnabled: false,
+      // INCES patronal configurado, IVSS NO
+      ivssPatronalAccountId: null,
+      incesPatronalAccountId: "acct-inces-pat",
+      faovPatronalAccountId: null,
+      rpePatronalAccountId: null,
+    } as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { conceptCode: "SAL_BASE", conceptType: "EARNING", amount: new Decimal("1000"), salarySnapshotCurrency: "VES" },
+      { conceptCode: "INCES_PAT", conceptType: "EMPLOYER_COST", amount: new Decimal("20"), salarySnapshotCurrency: "VES" },
+    ] as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-v1" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({ ...BASE_RUN, status: "APPROVED", transactionId: "tx-v1" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never);
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    type GL = { accountId: string; amount: Decimal; description: string };
+    const entries = (txCall?.data?.entries?.create ?? []) as GL[];
+    // El debit patronal tiene "aportes patronales" en la descripción — Bs. 20 (solo INCES configurado)
+    const patronalDebit = entries.find((e) => e.description?.includes("aportes patronales"));
+    const incesCredit = entries.find((e) => e.accountId === "acct-inces-pat");
+    // Debit = 20 (solo INCES), crédito = -20 → asiento cuadrado
+    expect(patronalDebit?.amount.toNumber()).toBe(20);
+    expect(incesCredit?.amount.toNumber()).toBe(-20);
+  });
+
+  // V-2: conversión USD→VES en GL
+  it("V-2: USD payroll amounts are converted to VES using exchange rate", async () => {
+    mockTx();
+    // Run con totalEarnings = $100 USD
+    const USD_RUN = { ...BASE_RUN, totalEarnings: new Decimal("100"), totalDeductions: new Decimal("0"), totalNet: new Decimal("100") };
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(USD_RUN as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssPayableAccountId: null,
+      faovPayableAccountId: null,
+      incesPayableAccountId: null,
+      rpePayableAccountId: null,
+      loanReceivableAccountId: null,
+      ivssEnabled: false,
+      incesEnabled: false,
+      banavihEnabled: false,
+      rpeEnabled: false,
+      ivssPatronalAccountId: null,
+      incesPatronalAccountId: null,
+      faovPatronalAccountId: null,
+      rpePatronalAccountId: null,
+    } as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { conceptCode: "SAL_BASE", conceptType: "EARNING", amount: new Decimal("100"), salarySnapshotCurrency: "USD" },
+    ] as never);
+    // Tasa BCV: 1 USD = 40 Bs.
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("40") } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-usd" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({ ...USD_RUN, status: "APPROVED", transactionId: "tx-usd" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never);
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    type GL = { accountId: string; amount: Decimal };
+    const entries = (txCall?.data?.entries?.create ?? []) as GL[];
+    const debitEntry = entries.find((e) => e.accountId === "acct-exp");
+    // $100 × 40 = Bs. 4000
+    expect(debitEntry?.amount.toNumber()).toBe(4000);
+  });
+
+  // V-2: USD sin tasa registrada → lanza error
+  it("V-2: USD payroll throws when no exchange rate registered", async () => {
+    mockTx();
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(BASE_RUN as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssEnabled: false, incesEnabled: false, banavihEnabled: false, rpeEnabled: false,
+    } as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { conceptCode: "SAL_BASE", conceptType: "EARNING", amount: new Decimal("100"), salarySnapshotCurrency: "USD" },
+    ] as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)
+    ).rejects.toThrow("Nómina en USD: registra la tasa BCV USD/VES");
   });
 });
 
