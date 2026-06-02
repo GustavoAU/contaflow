@@ -99,6 +99,7 @@ export default async function ProfitSharingPage({ params }: Props) {
                   employeeId={emp.id}
                   initialRecords={records}
                   canAdmin={isAdmin}
+                  hireDate={emp.hireDate}
                 />
               </div>
             </details>

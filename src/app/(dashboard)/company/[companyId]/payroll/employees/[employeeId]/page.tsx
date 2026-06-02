@@ -277,6 +277,8 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
               balance={benefitBalance}
               initialAdvances={advances}
               canAdmin={canWrite}
+              hireDate={emp.hireDate}
+              oldestSalaryDate={history.length > 0 ? history[history.length - 1].effectiveFrom : undefined}
             />
           )}
           {activeTab === "prestaciones" && !benefitBalance && (

@@ -32,6 +32,9 @@ interface Props {
   canAdmin?: boolean;
   companyId?: string;
   employeeId?: string;
+  // F-01: detectar brechas en historial salarial relativas a la antigüedad
+  hireDate?: string;
+  oldestSalaryDate?: string;
 }
 
 export default function BenefitBalancePanel({
@@ -40,6 +43,8 @@ export default function BenefitBalancePanel({
   canAdmin = false,
   companyId,
   employeeId,
+  hireDate,
+  oldestSalaryDate,
 }: Props) {
   const [advances, setAdvances] = useState<BenefitAdvanceRow[]>(initialAdvances);
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
@@ -49,6 +54,12 @@ export default function BenefitBalancePanel({
   const totalInitial = Number(balance.initialBalance) + Number(balance.initialInterestBalance);
   const total = Number(balance.currentBalance) + Number(balance.interestBalance) + totalInitial;
   const totalAdvances = advances.reduce((s, a) => s + Number(a.amount), 0);
+
+  // F-01: brecha en historial salarial — el salario más antiguo no cubre toda la antigüedad
+  const salaryHistoryGap = hireDate && (
+    !oldestSalaryDate ||
+    (new Date(oldestSalaryDate).getTime() - new Date(hireDate).getTime() > 90 * 24 * 60 * 60 * 1000)
+  );
 
   function toggleExpand(id: string) {
     setExpandedLines((prev) => {
@@ -61,6 +72,25 @@ export default function BenefitBalancePanel({
 
   return (
     <div className="space-y-4">
+      {/* F-01: advertencia brecha de historial salarial */}
+      {salaryHistoryGap && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div>
+            <p className="font-medium">Historial salarial incompleto — cálculos históricos pueden ser imprecisos</p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              {oldestSalaryDate
+                ? `El registro salarial más antiguo es del ${new Date(oldestSalaryDate).toLocaleDateString("es-VE")}, pero el empleado ingresó el ${new Date(hireDate!).toLocaleDateString("es-VE")}.`
+                : "No hay registros salariales para este empleado."}
+              {" "}Los trimestres anteriores al primer registro usaron el salario disponible como proxy, lo que puede subestimar o sobrestimar las prestaciones históricas.
+              Registre el historial completo de salarios en la pestaña <strong>Historial Salarial</strong> para garantizar la auditabilidad ante el MINPPTRASS.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Resumen de saldos */}
       <div className={`grid gap-3 ${hasInitial ? "grid-cols-4" : "grid-cols-3"}`}>
         {hasInitial && (
@@ -203,6 +233,14 @@ export default function BenefitBalancePanel({
                           {line.appliedRate && (
                             <p className="mt-1.5 text-xs text-purple-700">
                               Tasa BCV aplicada: <strong>{line.appliedRate}%</strong>
+                            </p>
+                          )}
+                          {line.originalCurrency && (
+                            <p className="mt-1.5 text-xs text-blue-700">
+                              Salario original en <strong>{line.originalCurrency}</strong>
+                              {line.exchangeRateAtAccrual
+                                ? <> — tasa usada: <strong className="font-mono">Bs. {fmt(line.exchangeRateAtAccrual)}/{line.originalCurrency}</strong></>
+                                : <span className="ml-1 text-amber-600"> — sin tasa registrada (monto puede ser incorrecto)</span>}
                             </p>
                           )}
                         </td>

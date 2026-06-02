@@ -16,11 +16,13 @@ interface Props {
   employeeId: string;
   initialRecords: ProfitSharingRecordRow[];
   canAdmin?: boolean;
+  // F-04: fecha de ingreso para calcular antigüedad y alertar 0 registros
+  hireDate?: string;
 }
 
 const currentYear = new Date().getFullYear();
 
-export default function ProfitSharingPanel({ companyId, employeeId, initialRecords, canAdmin }: Props) {
+export default function ProfitSharingPanel({ companyId, employeeId, initialRecords, canAdmin, hireDate }: Props) {
   const [records, setRecords] = useState<ProfitSharingRecordRow[]>(initialRecords);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -36,6 +38,11 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
   });
 
   const alreadyExistsForYear = records.some((r) => r.fiscalYear === form.fiscalYear);
+
+  // F-04: antigüedad para alertar 0 registros cuando corresponde
+  const yearsOfService = hireDate
+    ? Math.floor((Date.now() - new Date(hireDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : 0;
 
   // F-07: preview días dinámicos desde utilidad neta
   const dynamicDaysPreview = (() => {
@@ -69,6 +76,24 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
 
   return (
     <div className="space-y-3">
+      {/* F-04: advertencia 0 registros con antigüedad > 1 año */}
+      {yearsOfService >= 1 && records.length === 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div>
+            <p className="font-medium">Sin registros de utilidades — pasivo laboral no reconocido</p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              {yearsOfService} año{yearsOfService !== 1 ? "s" : ""} de antigüedad sin ningún registro de utilidades.
+              La LOTTT Art. 131–132 exige un mínimo de 15 días de utilidades por año trabajado.
+              La ausencia implica un pasivo laboral no contabilizado en libros.
+              Registra los años faltantes usando el formulario de cálculo.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Historial */}
       {records.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border">
