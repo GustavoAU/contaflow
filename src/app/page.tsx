@@ -501,7 +501,7 @@ export default async function LandingPage() {
           <div className={`${styles.secHead} ${styles.reveal}`} data-reveal>
             <p className={styles.eyebrow}>Sin sorpresas</p>
             <h2>Precios transparentes</h2>
-            <p>Cancela cuando quieras. Pago en USDT (crypto).</p>
+            <p>Pago en USDT · Mensual: cancela cuando quieras · Anual: cancela antes del próximo período</p>
             <details className={styles.usdtExpand}>
               <summary className={styles.usdtExpandSummary}>
                 ¿Cómo funciona el pago en USDT?
