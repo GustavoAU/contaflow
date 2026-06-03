@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { esES } from "@clerk/localizations";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { headers } from "next/headers";
@@ -45,8 +46,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Nonce injected by middleware — passed to ClerkProvider so Clerk stamps it on its inline scripts.
   const nonce = (await headers()).get("x-nonce") ?? "";
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const localization = esES as any;
+
   return (
-    <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in">
+    <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in" localization={localization}>
       <html lang={locale}>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
           <ThemeProvider>
