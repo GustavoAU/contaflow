@@ -63,8 +63,11 @@ interface PageProps {
 
 export default async function SignUpPage({ searchParams }: PageProps) {
   const { plan } = await searchParams;
+  const normalizedPlan = plan?.replace(/-/g, "_");
   const validPlan =
-    plan && plan in PLAN_SUMMARIES ? (plan as PlanKey) : null;
+    normalizedPlan && normalizedPlan in PLAN_SUMMARIES
+      ? (normalizedPlan as PlanKey)
+      : null;
   const summary = validPlan ? PLAN_SUMMARIES[validPlan] : null;
 
   return (
