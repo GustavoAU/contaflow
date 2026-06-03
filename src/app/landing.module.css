@@ -642,6 +642,54 @@
 .usdtTip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--lnd-fg); color: var(--lnd-bg); font-size: 12px; line-height: 1.55; white-space: normal; width: 260px; padding: 10px 14px; border-radius: 8px; box-shadow: var(--lnd-sh2); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 10; text-align: left; font-weight: 400; }
 .usdtTip:hover::after { opacity: 1; }
 
+/* ─── USDT expandable ─── */
+.usdtExpand {
+  display: inline-block; margin-top: 14px;
+  border: 1px solid var(--lnd-border); border-radius: var(--lnd-r-sm);
+  background: var(--lnd-tint); max-width: 440px; text-align: left;
+}
+.usdtExpandSummary {
+  cursor: pointer; list-style: none;
+  padding: 9px 16px; font-size: 13px; font-weight: 500;
+  color: var(--lnd-blue); display: flex; align-items: center; gap: 6px;
+  user-select: none;
+}
+.usdtExpandSummary::-webkit-details-marker { display: none; }
+.usdtExpandSummary::before { content: '💡'; font-style: normal; }
+.usdtExpand[open] .usdtExpandSummary { border-bottom: 1px solid var(--lnd-border); }
+.usdtExpandBody {
+  padding: 12px 16px; font-size: 13px;
+  color: var(--lnd-muted); line-height: 1.65;
+}
+
+/* ─── FAQ ─── */
+.faqWrap { margin-top: 48px; border-top: 1px solid var(--lnd-border); padding-top: 40px; }
+.faqTitle {
+  text-align: center; font-size: 17px; font-weight: 700;
+  letter-spacing: -0.3px; color: var(--lnd-fg); margin-bottom: 20px;
+}
+.faqItem {
+  border: 1px solid var(--lnd-border); border-radius: var(--lnd-r-sm);
+  margin-bottom: 8px; background: var(--lnd-surface);
+}
+.faqItem summary {
+  cursor: pointer; list-style: none; padding: 15px 20px;
+  font-size: 14px; font-weight: 600; color: var(--lnd-fg);
+  display: flex; justify-content: space-between; align-items: center;
+  user-select: none; gap: 12px;
+}
+.faqItem summary::-webkit-details-marker { display: none; }
+.faqItem summary::after {
+  content: '+'; font-size: 20px; font-weight: 300;
+  color: var(--lnd-muted); flex-shrink: 0; line-height: 1;
+}
+.faqItem[open] summary { border-bottom: 1px solid var(--lnd-border); }
+.faqItem[open] summary::after { content: '−'; }
+.faqBody {
+  padding: 14px 20px; font-size: 14px;
+  color: var(--lnd-muted); line-height: 1.7;
+}
+
 /* ─── Early Adopter progress bar ─── */
 .eaProgressWrap { margin: 10px 0 6px; }
 .eaProgressTrack { height: 6px; background: var(--lnd-gold-dim); border-radius: 999px; overflow: hidden; }

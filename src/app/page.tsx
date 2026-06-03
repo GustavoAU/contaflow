@@ -158,6 +158,29 @@ const PLANS = [
   },
 ];
 
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: "¿Puedo cambiar de plan mensual a anual después?",
+    a: "Sí, en cualquier momento desde tu panel de cuenta. El cambio se aplica en el próximo período de facturación.",
+  },
+  {
+    q: "¿Qué pasa si no uso los 14 días de prueba completos?",
+    a: "Simplemente no continúas. No se requiere tarjeta de crédito y no se genera ningún cargo.",
+  },
+  {
+    q: "¿El precio en USDT equivale exactamente a los dólares mostrados?",
+    a: "Sí. USDT (Tether) es una stablecoin: 1 USDT = 1 USD. No hay conversiones ni tasas de cambio variables.",
+  },
+  {
+    q: "¿Puedo cancelar antes del próximo cobro?",
+    a: "Sí, cancela en cualquier momento desde tu panel de cuenta. Nunca se te cobrará sin confirmación previa.",
+  },
+  {
+    q: "¿El monto en USDT cambia si el mercado cripto varía?",
+    a: "No. USDT está anclado al dólar. Siempre pagas exactamente el monto en USD mostrado — sin sorpresas por volatilidad.",
+  },
+];
+
 type ComparisonValue = boolean | string;
 const COMPARISON_ROWS: { label: string; values: ComparisonValue[] }[] = [
   { label: "Empresas (RIF) incluidas",      values: ["1",       "1",          "1",           "1"] },
@@ -477,6 +500,16 @@ export default async function LandingPage() {
             <p className={styles.eyebrow}>Sin sorpresas</p>
             <h2>Precios transparentes</h2>
             <p>Cancela cuando quieras. Pago en USDT (crypto).</p>
+            <details className={styles.usdtExpand}>
+              <summary className={styles.usdtExpandSummary}>
+                ¿Cómo funciona el pago en USDT?
+              </summary>
+              <div className={styles.usdtExpandBody}>
+                USDT es una criptomoneda estable equivalente al dólar (1 USDT = 1 USD).
+                Puedes obtenerla en cualquier exchange local como Binance P2P.
+                El cobro se procesa vía NOWPayments — el proceso toma menos de 5 minutos.
+              </div>
+            </details>
           </div>
 
           <div className={styles.priceGrid}>
@@ -580,6 +613,17 @@ export default async function LandingPage() {
                 Contáctanos para planes multi-empresa con descuento por volumen.
               </a>
             </p>
+
+            {/* FAQ */}
+            <div className={styles.faqWrap}>
+              <div className={styles.faqTitle}>Preguntas frecuentes</div>
+              {FAQ_ITEMS.map(({ q, a }) => (
+                <details key={q} className={styles.faqItem}>
+                  <summary>{q}</summary>
+                  <div className={styles.faqBody}>{a}</div>
+                </details>
+              ))}
+            </div>
           </div>
         </div>
       </section>
