@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "clean": "node -e \"const fs=require('fs');const p='.next';if(fs.existsSync(p)){fs.rmSync(p,{recursive:true,force:true});console.log('.next eliminado')}else{console.log('.next no existe')}\""
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.64",
