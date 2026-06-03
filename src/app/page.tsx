@@ -92,6 +92,8 @@ const PLANS = [
       { text: "Todas las funcionalidades", gold: false },
       { text: "Hasta 3 usuarios", gold: false },
       { text: "Soporte por email", gold: false },
+      { text: "Sin tarjeta de crédito requerida", gold: false },
+      { text: "Conversión al plan de pago con un clic", gold: false },
     ],
     cta: "Crear cuenta gratis",
     ctaHref: "/sign-up",
