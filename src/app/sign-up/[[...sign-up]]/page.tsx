@@ -153,10 +153,16 @@ export default async function SignUpPage({ searchParams }: PageProps) {
 
           {/* Clerk form */}
           <div className="flex w-full flex-col items-center lg:flex-1">
-            <p className="mb-3 text-sm text-slate-500">
-              <span className="font-semibold text-slate-700">Paso 1 de 2:</span>{" "}
-              Crea tu cuenta para activar el plan
-            </p>
+            <div className="mb-4 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+              <p className="text-slate-700">
+                <span className="font-semibold">Paso 1 de 2:</span> Crea tu cuenta
+              </p>
+              <p className="mt-1 text-slate-500">
+                <span className="font-semibold text-slate-600">Paso 2:</span>{" "}
+                Recibirás una dirección de wallet USDT. Tienes 30 minutos para
+                completar la transferencia desde Binance u otra billetera.
+              </p>
+            </div>
             <SignUp />
           </div>
         </div>
