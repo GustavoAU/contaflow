@@ -497,6 +497,11 @@
   background: var(--lnd-blue-d);
   box-shadow: 0 6px 28px oklch(0.50 0.25 258 / 0.5);
 }
+.btnPcSolid {
+  background: var(--lnd-fg); color: var(--lnd-bg);
+  border-color: var(--lnd-fg);
+}
+.btnPcSolid:hover { opacity: 0.82; color: var(--lnd-bg); }
 
 /* ─── Comparison table ─── */
 .cmpWrap { margin-top: 60px; }
@@ -883,7 +888,8 @@
 .btnGhost:focus-visible,
 .btnLgGhost:focus-visible,
 .btnPc:focus-visible,
-.btnPcHl:focus-visible {
+.btnPcHl:focus-visible,
+.btnPcSolid:focus-visible {
   outline: 2px solid var(--lnd-blue);
   outline-offset: 3px;
 }

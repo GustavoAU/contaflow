@@ -556,7 +556,7 @@ export default async function LandingPage() {
                   </ul>
                   <Link
                     href={plan.ctaHref}
-                    className={`${styles.btnPc} ${plan.highlighted ? styles.btnPcHl : ""}`}
+                    className={`${styles.btnPc} ${plan.highlighted ? styles.btnPcHl : ""} ${plan.key === "monthly" ? styles.btnPcSolid : ""}`}
                   >
                     {plan.cta}
                   </Link>
