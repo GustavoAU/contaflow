@@ -142,8 +142,8 @@ const PLANS = [
     name: "Early Adopter",
     price: "$19",
     period: "/mes · año 1",
-    priceSub: "Año 2+: $47/mes · facturado anualmente",
-    description: `Oferta para los primeros ${EARLY_ADOPTER_SLOTS_TOTAL} clientes. Solo quedan ${SLOTS_LEFT} cupos.`,
+    priceSub: "Total año 1: $228 USDT · Año 2+: $47/mes facturado anualmente",
+    description: `Ahorras $480 en el primer año vs plan mensual. Al vencer, te avisamos 30 días antes — renueva o cancela sin penalización. Solo quedan ${SLOTS_LEFT} cupos.`,
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Sesión de onboarding 1.5h (videollamada)", gold: false },
