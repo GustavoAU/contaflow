@@ -113,7 +113,7 @@ const PLANS = [
       { text: "Soporte por email", gold: false },
     ],
     cta: "Activar plan mensual",
-    ctaHref: "/sign-up",
+    ctaHref: "/sign-up?plan=mensual",
     highlighted: false,
     badge: null,
     badgeVariant: null,
@@ -121,18 +121,18 @@ const PLANS = [
   {
     key: "annual",
     name: "Anual",
-    price: "$565",
-    period: "/año",
-    priceSub: "$47/mes — 2 meses gratis incluidos",
-    description: "Equivale a 2 meses gratis respecto al plan mensual.",
+    price: "$47",
+    period: "/mes",
+    priceSub: "Facturado como $565/año en USDT · 2 meses gratis incluidos",
+    description: "Ahorra $143 vs el plan mensual. Cancela antes del próximo período.",
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Facturas, nómina e inventario ilimitados", gold: false },
-      { text: "Ahorra $143 al año", gold: false },
-      { text: "Soporte prioritario", gold: false },
+      { text: "Usuarios ilimitados", gold: false },
+      { text: "Soporte prioritario — respuesta < 4 h hábiles", gold: false },
     ],
     cta: "Suscribirme anual",
-    ctaHref: "/sign-up",
+    ctaHref: "/sign-up?plan=anual",
     highlighted: true,
     badge: "Más popular",
     badgeVariant: "pop" as const,
@@ -142,8 +142,8 @@ const PLANS = [
     name: "Early Adopter",
     price: "$19",
     period: "/mes · año 1",
-    priceSub: "Año 2+: $47/mes · facturado anualmente",
-    description: `Oferta para los primeros ${EARLY_ADOPTER_SLOTS_TOTAL} clientes. Solo quedan ${SLOTS_LEFT} cupos.`,
+    priceSub: "Total año 1: $228 USDT · Año 2+: $47/mes facturado anualmente",
+    description: `Ahorras $480 en el primer año vs plan mensual. Al vencer, te avisamos 30 días antes — renueva o cancela sin penalización. Solo quedan ${SLOTS_LEFT} cupos.`,
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Sesión de onboarding 1.5h (videollamada)", gold: false },
@@ -151,10 +151,33 @@ const PLANS = [
       { text: "Precio especial bloqueado para siempre", gold: true },
     ],
     cta: "Reclamar mi slot",
-    ctaHref: "/sign-up",
+    ctaHref: "/sign-up?plan=early_adopter",
     highlighted: false,
     badge: `${SLOTS_LEFT}/${EARLY_ADOPTER_SLOTS_TOTAL} slots`,
     badgeVariant: "ea" as const,
+  },
+];
+
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: "¿Puedo cambiar de plan mensual a anual después?",
+    a: "Sí, en cualquier momento desde tu panel de cuenta. El cambio se aplica en el próximo período de facturación.",
+  },
+  {
+    q: "¿Qué pasa si no uso los 14 días de prueba completos?",
+    a: "Simplemente no continúas. No se requiere tarjeta de crédito y no se genera ningún cargo.",
+  },
+  {
+    q: "¿El precio en USDT equivale exactamente a los dólares mostrados?",
+    a: "Sí. USDT (Tether) es una stablecoin: 1 USDT = 1 USD. No hay conversiones ni tasas de cambio variables.",
+  },
+  {
+    q: "¿Puedo cancelar antes del próximo cobro?",
+    a: "Sí, cancela en cualquier momento desde tu panel de cuenta. Nunca se te cobrará sin confirmación previa.",
+  },
+  {
+    q: "¿El monto en USDT cambia si el mercado cripto varía?",
+    a: "No. USDT está anclado al dólar. Siempre pagas exactamente el monto en USD mostrado — sin sorpresas por volatilidad.",
   },
 ];
 
@@ -164,7 +187,7 @@ const COMPARISON_ROWS: { label: string; values: ComparisonValue[] }[] = [
   { label: "Todos los módulos incluidos",   values: [true,      true,         true,          true] },
   { label: "Usuarios",                      values: ["3",       "Ilimitados", "Ilimitados",  "Ilimitados"] },
   { label: "Período",                       values: ["14 días", "Mensual",    "Anual",       "Año 1"] },
-  { label: "Soporte",                       values: ["Email",   "Email",      "Prioritario", "Prioritario"] },
+  { label: "Soporte",                       values: ["Email",   "Email",      "< 4 h hábiles", "< 4 h hábiles"] },
   { label: "Onboarding videollamada 1.5 h", values: [false,     false,        false,         true] },
   { label: "Precio especial bloqueado",     values: [false,     false,        false,         true] },
 ];
@@ -477,6 +500,16 @@ export default async function LandingPage() {
             <p className={styles.eyebrow}>Sin sorpresas</p>
             <h2>Precios transparentes</h2>
             <p>Cancela cuando quieras. Pago en USDT (crypto).</p>
+            <details className={styles.usdtExpand}>
+              <summary className={styles.usdtExpandSummary}>
+                ¿Cómo funciona el pago en USDT?
+              </summary>
+              <div className={styles.usdtExpandBody}>
+                USDT es una criptomoneda estable equivalente al dólar (1 USDT = 1 USD).
+                Puedes obtenerla en cualquier exchange local como Binance P2P.
+                El cobro se procesa vía NOWPayments — el proceso toma menos de 5 minutos.
+              </div>
+            </details>
           </div>
 
           <div className={styles.priceGrid}>
@@ -523,7 +556,7 @@ export default async function LandingPage() {
                   </ul>
                   <Link
                     href={plan.ctaHref}
-                    className={`${styles.btnPc} ${plan.highlighted ? styles.btnPcHl : ""}`}
+                    className={`${styles.btnPc} ${plan.highlighted ? styles.btnPcHl : ""} ${plan.key === "monthly" ? styles.btnPcSolid : ""}`}
                   >
                     {plan.cta}
                   </Link>
@@ -580,6 +613,17 @@ export default async function LandingPage() {
                 Contáctanos para planes multi-empresa con descuento por volumen.
               </a>
             </p>
+
+            {/* FAQ */}
+            <div className={styles.faqWrap}>
+              <div className={styles.faqTitle}>Preguntas frecuentes</div>
+              {FAQ_ITEMS.map(({ q, a }) => (
+                <details key={q} className={styles.faqItem}>
+                  <summary>{q}</summary>
+                  <div className={styles.faqBody}>{a}</div>
+                </details>
+              ))}
+            </div>
           </div>
         </div>
       </section>
