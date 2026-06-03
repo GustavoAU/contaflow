@@ -117,8 +117,8 @@ const PLANS = [
     cta: "Activar plan mensual",
     ctaHref: "/sign-up?plan=mensual",
     highlighted: false,
-    badge: null,
-    badgeVariant: null,
+    badge: "Sin compromiso",
+    badgeVariant: "mo" as const,
   },
   {
     key: "annual",
@@ -524,7 +524,7 @@ export default async function LandingPage() {
                   data-reveal
                 >
                   {plan.badge && (
-                    <span className={`${styles.pcBadge} ${plan.badgeVariant === "pop" ? styles.pcBadgePop : styles.pcBadgeEa}`}>
+                    <span className={`${styles.pcBadge} ${plan.badgeVariant === "pop" ? styles.pcBadgePop : plan.badgeVariant === "mo" ? styles.pcBadgeMo : styles.pcBadgeEa}`}>
                       {plan.badge}
                     </span>
                   )}
