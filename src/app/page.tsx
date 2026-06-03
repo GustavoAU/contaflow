@@ -92,6 +92,8 @@ const PLANS = [
       { text: "Todas las funcionalidades", gold: false },
       { text: "Hasta 3 usuarios", gold: false },
       { text: "Soporte por email", gold: false },
+      { text: "Sin tarjeta de crédito requerida", gold: false },
+      { text: "Conversión al plan de pago con un clic", gold: false },
     ],
     cta: "Crear cuenta gratis",
     ctaHref: "/sign-up",
@@ -115,16 +117,16 @@ const PLANS = [
     cta: "Activar plan mensual",
     ctaHref: "/sign-up?plan=mensual",
     highlighted: false,
-    badge: null,
-    badgeVariant: null,
+    badge: "Sin compromiso",
+    badgeVariant: "mo" as const,
   },
   {
     key: "annual",
     name: "Anual",
     price: "$47",
     period: "/mes",
-    priceSub: "Facturado como $565/año en USDT · 2 meses gratis incluidos",
-    description: "Ahorra $143 vs el plan mensual. Cancela antes del próximo período.",
+    priceSub: "Un solo cobro de $565 USDT al año · 12 meses pagados, 14 de acceso",
+    description: "Pagas $565 USDT ahora y accedes todo el año. Equivale a $47/mes vs $59 mensual — ahorras $143. Cancela antes del próximo período.",
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Facturas, nómina e inventario ilimitados", gold: false },
@@ -499,7 +501,7 @@ export default async function LandingPage() {
           <div className={`${styles.secHead} ${styles.reveal}`} data-reveal>
             <p className={styles.eyebrow}>Sin sorpresas</p>
             <h2>Precios transparentes</h2>
-            <p>Cancela cuando quieras. Pago en USDT (crypto).</p>
+            <p>Pago en USDT · Mensual: cancela cuando quieras · Anual: cancela antes del próximo período</p>
             <details className={styles.usdtExpand}>
               <summary className={styles.usdtExpandSummary}>
                 ¿Cómo funciona el pago en USDT?
@@ -522,7 +524,7 @@ export default async function LandingPage() {
                   data-reveal
                 >
                   {plan.badge && (
-                    <span className={`${styles.pcBadge} ${plan.badgeVariant === "pop" ? styles.pcBadgePop : styles.pcBadgeEa}`}>
+                    <span className={`${styles.pcBadge} ${plan.badgeVariant === "pop" ? styles.pcBadgePop : plan.badgeVariant === "mo" ? styles.pcBadgeMo : styles.pcBadgeEa}`}>
                       {plan.badge}
                     </span>
                   )}
