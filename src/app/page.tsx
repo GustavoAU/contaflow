@@ -129,7 +129,7 @@ const PLANS = [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Facturas, nómina e inventario ilimitados", gold: false },
       { text: "Usuarios ilimitados", gold: false },
-      { text: "Soporte prioritario", gold: false },
+      { text: "Soporte prioritario — respuesta < 4 h hábiles", gold: false },
     ],
     cta: "Suscribirme anual",
     ctaHref: "/sign-up?plan=anual",
@@ -187,7 +187,7 @@ const COMPARISON_ROWS: { label: string; values: ComparisonValue[] }[] = [
   { label: "Todos los módulos incluidos",   values: [true,      true,         true,          true] },
   { label: "Usuarios",                      values: ["3",       "Ilimitados", "Ilimitados",  "Ilimitados"] },
   { label: "Período",                       values: ["14 días", "Mensual",    "Anual",       "Año 1"] },
-  { label: "Soporte",                       values: ["Email",   "Email",      "Prioritario", "Prioritario"] },
+  { label: "Soporte",                       values: ["Email",   "Email",      "< 4 h hábiles", "< 4 h hábiles"] },
   { label: "Onboarding videollamada 1.5 h", values: [false,     false,        false,         true] },
   { label: "Precio especial bloqueado",     values: [false,     false,        false,         true] },
 ];
