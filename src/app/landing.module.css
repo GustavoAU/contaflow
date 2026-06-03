@@ -457,19 +457,19 @@
 }
 
 .pcName { font-size: 13px; font-weight: 600; color: var(--lnd-muted); margin-bottom: 8px; }
-.pcHl .pcName { color: oklch(0.60 0.06 258); }
+.pcHl .pcName { color: oklch(0.82 0.05 258); }
 
 .pcPrice { display: flex; align-items: baseline; gap: 3px; margin-bottom: 3px; }
 .pcPrice .amt { font-size: 40px; font-weight: 800; letter-spacing: -1.8px; color: var(--lnd-fg); }
 .pcHl .pcPrice .amt { color: #fff; }
 .pcPrice .per { font-size: 14px; color: var(--lnd-muted); font-weight: 500; }
-.pcHl .pcPrice .per { color: oklch(0.50 0.06 258); }
+.pcHl .pcPrice .per { color: oklch(0.75 0.05 258); }
 
 .pcSub { font-size: 12px; color: var(--lnd-subtle); }
-.pcHl .pcSub { color: oklch(0.50 0.06 258); }
+.pcHl .pcSub { color: oklch(0.73 0.05 258); }
 
 .pcDesc { font-size: 13px; color: var(--lnd-muted); margin: 10px 0 20px; }
-.pcHl .pcDesc { color: oklch(0.55 0.05 258); }
+.pcHl .pcDesc { color: oklch(0.75 0.04 258); }
 
 .pcFeats {
   flex: 1; list-style: none; padding: 0; margin: 0;
