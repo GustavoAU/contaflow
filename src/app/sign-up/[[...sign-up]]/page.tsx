@@ -9,6 +9,7 @@ const PLAN_SUMMARIES: Record<
     displayPrice: string;
     billingNote: string;
     totalToday: string;
+    chargeNote?: string;
     features: string[];
     badge?: string;
     badgeColor?: "blue" | "amber";
@@ -29,8 +30,9 @@ const PLAN_SUMMARIES: Record<
   anual: {
     name: "Plan Anual",
     displayPrice: "$47/mes",
-    billingNote: "Facturado como $565/año en USDT · Incluye 2 meses gratis",
-    totalToday: "$565 USDT / año",
+    billingNote: "Pagas $565 USDT una sola vez al año — equivale a $47/mes",
+    totalToday: "$565 USDT",
+    chargeNote: "Cobro único anual (no mensual) · 12 meses pagados, 14 de acceso",
     features: [
       "1 empresa (RIF) incluida",
       "Facturas, nómina e inventario ilimitados",
@@ -105,6 +107,9 @@ export default async function SignUpPage({ searchParams }: PageProps) {
               <p className="text-lg font-bold text-blue-900">
                 {summary.totalToday}
               </p>
+              {summary.chargeNote && (
+                <p className="mt-1 text-xs text-blue-600">{summary.chargeNote}</p>
+              )}
             </div>
 
             <ul className="mb-5 space-y-2">

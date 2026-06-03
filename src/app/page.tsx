@@ -123,8 +123,8 @@ const PLANS = [
     name: "Anual",
     price: "$47",
     period: "/mes",
-    priceSub: "Facturado como $565/año en USDT · 2 meses gratis incluidos",
-    description: "Ahorra $143 vs el plan mensual. Cancela antes del próximo período.",
+    priceSub: "Un solo cobro de $565 USDT al año · 12 meses pagados, 14 de acceso",
+    description: "Pagas $565 USDT ahora y accedes todo el año. Equivale a $47/mes vs $59 mensual — ahorras $143. Cancela antes del próximo período.",
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Facturas, nómina e inventario ilimitados", gold: false },
