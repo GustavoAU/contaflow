@@ -8,6 +8,7 @@ const PLAN_SUMMARIES: Record<
     name: string;
     displayPrice: string;
     billingNote: string;
+    expandDetails?: string;
     totalToday: string;
     chargeNote?: string;
     features: string[];
@@ -45,8 +46,9 @@ const PLAN_SUMMARIES: Record<
   early_adopter: {
     name: "Plan Early Adopter",
     displayPrice: "$19/mes",
-    billingNote:
-      "Año 1 · Facturado como $228/año en USDT. A partir del año 2: $565/año.",
+    billingNote: "Año 1 · Facturado como $228 USDT/año",
+    expandDetails:
+      "A partir del año 2: $565/año (precio regular de $47/mes). Tu precio de $19/mes queda fijo de por vida mientras mantengas la suscripción activa.",
     totalToday: "$228 USDT / año 1",
     features: [
       "1 empresa (RIF) incluida",
@@ -98,7 +100,22 @@ export default async function SignUpPage({ searchParams }: PageProps) {
             <div className="mb-0.5 text-3xl font-extrabold text-slate-900">
               {summary.displayPrice}
             </div>
-            <p className="mb-5 text-xs text-slate-500">{summary.billingNote}</p>
+            {summary.expandDetails ? (
+              <details className="mb-5 group">
+                <summary className="cursor-pointer list-none text-xs text-slate-500">
+                  {summary.billingNote} ·{" "}
+                  <span className="font-semibold text-blue-600 group-open:hidden">
+                    Ver detalles ▸
+                  </span>
+                  <span className="hidden font-semibold text-blue-600 group-open:inline">
+                    Ocultar ▴
+                  </span>
+                </summary>
+                <p className="mt-1.5 text-xs text-slate-500">{summary.expandDetails}</p>
+              </details>
+            ) : (
+              <p className="mb-5 text-xs text-slate-500">{summary.billingNote}</p>
+            )}
 
             <div className="mb-5 rounded-lg bg-blue-50 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">
@@ -176,15 +193,33 @@ export default async function SignUpPage({ searchParams }: PageProps) {
 
           {/* Clerk form */}
           <div className="flex w-full flex-col items-center lg:flex-1">
-            <div className="mb-4 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
-              <p className="text-slate-700">
-                <span className="font-semibold">Paso 1 de 2:</span> Crea tu cuenta
-              </p>
-              <p className="mt-1 text-slate-500">
-                <span className="font-semibold text-slate-600">Paso 2:</span>{" "}
-                Recibirás una dirección de wallet USDT. Tienes 30 minutos para
-                completar la transferencia desde Binance u otra billetera.
-              </p>
+            <div className="mb-5 w-full max-w-sm rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+              <div className="flex items-start">
+                {/* Step 1 — active */}
+                <div className="flex flex-col items-center">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white shadow-sm">
+                    1
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-xs font-semibold text-slate-900">Crea tu cuenta</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Regístrate en ContaFlow</p>
+                  </div>
+                </div>
+
+                {/* Connector */}
+                <div className="mt-4 flex-1 border-t-2 border-slate-100 mx-3" />
+
+                {/* Step 2 — pending */}
+                <div className="flex flex-col items-center">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-200 bg-slate-50 text-sm font-semibold text-slate-400">
+                    2
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-xs font-semibold text-slate-400">Realiza el pago</p>
+                    <p className="mt-0.5 text-xs text-slate-400">Transferencia USDT</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <SignUp />
           </div>
