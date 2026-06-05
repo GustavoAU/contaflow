@@ -15,9 +15,11 @@ import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import Decimal from "decimal.js";
 import { BenefitAccrualService, type BenefitBalanceRow, type BcvRateRow } from "../services/BenefitAccrualService";
 import { BenefitAdvanceService, type BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import { VacationService, type VacationRecordRow } from "../services/VacationService";
@@ -609,6 +611,74 @@ export async function getVacationAlertsAction(
   try {
     const data = await VacationService.getEmployeesWithLowVacationBalance(companyId);
     return { success: true, data };
+  } catch (err) {
+    return { success: false, error: handlePrismaError(err) };
+  }
+}
+
+// ─── Feature 4: Saldo inicial de prestaciones (migración desde otro sistema) ──
+export async function setInitialBenefitBalanceAction(
+  companyId: string,
+  rawInput: unknown
+): Promise<Result<void>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado" };
+  if (!canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Se requiere rol Administrador o Contador" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+  const schema = z.object({
+    employeeId: z.string().min(1),
+    initialBalance: z.string().refine((v) => {
+      try { return new Decimal(v).gte(0); } catch { return false; }
+    }, "Saldo debe ser un número no negativo"),
+    initialInterestBalance: z.string().refine((v) => {
+      try { return new Decimal(v).gte(0); } catch { return false; }
+    }, "Saldo de intereses debe ser un número no negativo").optional(),
+  });
+
+  const parsed = schema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  const { employeeId, initialBalance, initialInterestBalance } = parsed.data;
+  const h = await headers();
+  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.benefitBalance.upsert({
+        where: { employeeId },
+        create: {
+          companyId,
+          employeeId,
+          initialBalance: new Decimal(initialBalance),
+          initialInterestBalance: new Decimal(initialInterestBalance ?? "0"),
+        },
+        update: {
+          initialBalance: new Decimal(initialBalance),
+          initialInterestBalance: new Decimal(initialInterestBalance ?? "0"),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          userId,
+          action: "EMPLOYEE_INITIAL_BENEFIT_SET",
+          entityName: "BenefitBalance",
+          entityId: employeeId,
+          newValue: { initialBalance, initialInterestBalance: initialInterestBalance ?? "0" },
+          ipAddress,
+          userAgent,
+        },
+      });
+    });
+
+    revalidateNomD(companyId);
+    return { success: true, data: undefined };
   } catch (err) {
     return { success: false, error: handlePrismaError(err) };
   }

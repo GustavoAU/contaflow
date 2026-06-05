@@ -11,12 +11,14 @@ import {
   WalletCardsIcon,
   ChevronRightIcon,
   CheckCircle2Icon,
+  SunIcon,
 } from "lucide-react";
 import type { PayrollRunRow } from "@/modules/payroll/services/PayrollRunService";
 
 export type ApprovalInboxData = {
   draftPayrollRuns: PayrollRunRow[];
   draftBudgetsCount: number;
+  pendingVacationRequestsCount: number;
 };
 
 type Props = {
@@ -84,8 +86,8 @@ function ApprovalCard({
 // ── ManagerApprovalInbox ──────────────────────────────────────────────────────
 
 export function ManagerApprovalInbox({ companyId, data }: Props) {
-  const { draftPayrollRuns, draftBudgetsCount } = data;
-  const totalItems = draftPayrollRuns.length + draftBudgetsCount;
+  const { draftPayrollRuns, draftBudgetsCount, pendingVacationRequestsCount } = data;
+  const totalItems = draftPayrollRuns.length + draftBudgetsCount + pendingVacationRequestsCount;
 
   if (totalItems === 0) return null;
 
@@ -135,6 +137,18 @@ export function ManagerApprovalInbox({ companyId, data }: Props) {
           iconBg="bg-violet-50 text-violet-600"
           title={`${draftBudgetsCount} presupuesto${draftBudgetsCount !== 1 ? "s" : ""} en borrador`}
           subtitle="Pendientes de activación"
+          cta="Revisar"
+        />
+      )}
+
+      {/* Vacation requests pending approval */}
+      {pendingVacationRequestsCount > 0 && (
+        <ApprovalCard
+          href={`/company/${companyId}/payroll/vacation-requests`}
+          icon={SunIcon}
+          iconBg="bg-amber-50 text-amber-600"
+          title={`${pendingVacationRequestsCount} solicitud${pendingVacationRequestsCount !== 1 ? "es" : ""} de vacaciones`}
+          subtitle="Pendientes de aprobación"
           cta="Revisar"
         />
       )}
