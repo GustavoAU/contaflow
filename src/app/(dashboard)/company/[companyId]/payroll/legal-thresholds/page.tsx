@@ -20,7 +20,7 @@ export default async function LegalThresholdsPage({ params }: Props) {
   });
   if (!member || !canAccess(member.role, ROLES.ALL)) redirect("/");
 
-  const isAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
+  const isAdmin = canAccess(member.role, ROLES.ACCOUNTING);
   const thresholds = await LegalThresholdService.list(companyId);
   const lastSalMin = thresholds.find((t) => t.type === "SALARY_MIN_VES");
   const salMinStale = !lastSalMin ||

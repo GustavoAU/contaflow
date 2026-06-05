@@ -4,7 +4,7 @@
 //
 // Seguridad:
 //   - getLegalThresholdsAction: cualquier miembro (ROLES.ALL)
-//   - createLegalThresholdAction / deleteLegalThresholdAction: ADMIN_ONLY
+//   - createLegalThresholdAction / deleteLegalThresholdAction: ROLES.ACCOUNTING (OWNER+ADMIN+ACCOUNTANT)
 //   - companyMember.findFirst siempre verifica pertenencia (IDOR guard)
 //   - rate limit con limiters.fiscal en escrituras
 
@@ -22,7 +22,13 @@ import type { LegalThresholdType } from "@prisma/client";
 type Result<T> = { success: true; data: T } | { success: false; error: string };
 
 const CreateSchema = z.object({
-  type: z.enum(["SALARY_MIN_VES", "UT_VALUE"]),
+  type: z.enum([
+    "SALARY_MIN_VES", "UT_VALUE",
+    "IVSS_OBR_RATE", "IVSS_PAT_RATE",
+    "INCES_OBR_RATE", "INCES_PAT_RATE",
+    "FAOV_OBR_RATE", "FAOV_PAT_RATE",
+    "RPE_OBR_RATE", "RPE_PAT_RATE",
+  ]),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD requerido"),
   value: z.string().refine((v) => {
     try { return new Decimal(v).gt(0); } catch { return false; }
@@ -30,13 +36,13 @@ const CreateSchema = z.object({
   notes: z.string().max(200).optional(),
 });
 
-async function guardAdmin(companyId: string, userId: string): Promise<{ success: false; error: string } | null> {
+async function guardAccounting(companyId: string, userId: string): Promise<{ success: false; error: string } | null> {
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
-  if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Se requiere rol Administrador" };
+  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Se requiere rol Administrador o Contador" };
   return null;
 }
 
@@ -66,7 +72,7 @@ export async function getLegalThresholdsAction(
   }
 }
 
-// ── createLegalThresholdAction — ADMIN_ONLY + rate limit ──────────────────────
+// ── createLegalThresholdAction — ROLES.ACCOUNTING + rate limit ───────────────
 export async function createLegalThresholdAction(
   companyId: string,
   rawInput: unknown,
@@ -78,7 +84,7 @@ export async function createLegalThresholdAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-    const guard = await guardAdmin(companyId, userId);
+    const guard = await guardAccounting(companyId, userId);
     if (guard) return guard;
 
     const parsed = CreateSchema.safeParse(rawInput);
@@ -109,7 +115,7 @@ export async function createLegalThresholdAction(
   }
 }
 
-// ── deleteLegalThresholdAction — ADMIN_ONLY ───────────────────────────────────
+// ── deleteLegalThresholdAction — ROLES.ACCOUNTING ────────────────────────────
 export async function deleteLegalThresholdAction(
   companyId: string,
   id: string,
@@ -121,7 +127,7 @@ export async function deleteLegalThresholdAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-    const guard = await guardAdmin(companyId, userId);
+    const guard = await guardAccounting(companyId, userId);
     if (guard) return guard;
 
     const h2 = await headers();

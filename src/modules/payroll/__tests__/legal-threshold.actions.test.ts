@@ -114,8 +114,18 @@ describe("createLegalThresholdAction", () => {
     expect(LegalThresholdService.create).not.toHaveBeenCalled();
   });
 
-  it("bloquea si rol es ACCOUNTANT (no ADMIN)", async () => {
+  it("permite crear si rol es ACCOUNTANT", async () => {
     setupOk("ACCOUNTANT");
+    vi.mocked(LegalThresholdService.create).mockResolvedValue(SAMPLE);
+
+    const res = await createLegalThresholdAction(COMPANY_ID, VALID_INPUT);
+
+    expect(res.success).toBe(true);
+    expect(LegalThresholdService.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloquea si rol es VIEWER", async () => {
+    setupOk("VIEWER");
 
     const res = await createLegalThresholdAction(COMPANY_ID, VALID_INPUT);
 
@@ -155,8 +165,18 @@ describe("deleteLegalThresholdAction", () => {
     expect(LegalThresholdService.delete).toHaveBeenCalledWith(COMPANY_ID, "th-1", USER_ID, null, null);
   });
 
-  it("bloquea si ACCOUNTANT intenta eliminar", async () => {
+  it("permite eliminar si rol es ACCOUNTANT", async () => {
     setupOk("ACCOUNTANT");
+    vi.mocked(LegalThresholdService.delete).mockResolvedValue(undefined);
+
+    const res = await deleteLegalThresholdAction(COMPANY_ID, "th-1");
+
+    expect(res.success).toBe(true);
+    expect(LegalThresholdService.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloquea si VIEWER intenta eliminar", async () => {
+    setupOk("VIEWER");
 
     const res = await deleteLegalThresholdAction(COMPANY_ID, "th-1");
 
