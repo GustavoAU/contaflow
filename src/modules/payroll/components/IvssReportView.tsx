@@ -9,6 +9,7 @@ import { PeriodSelector } from "./PeriodSelector";
 import {
   getIvssReportAction,
   exportIvssPdfAction,
+  exportIvssExcelAction,
 } from "../actions/payroll-reports.actions";
 import type { IvssReportData } from "../services/PayrollReportService";
 
@@ -29,6 +30,7 @@ export function IvssReportView({ companyId }: Props) {
   const [data, setData] = useState<IvssReportData | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isPdf, startPdfTransition] = useTransition();
+  const [isXls, startXlsTransition] = useTransition();
 
   function handleLoad() {
     startTransition(async () => {
@@ -55,6 +57,23 @@ export function IvssReportView({ companyId }: Props) {
     });
   }
 
+  function handleExcel() {
+    startXlsTransition(async () => {
+      const res = await exportIvssExcelAction(companyId, year, month);
+      if (res.success) {
+        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `IVSS_${year}_${String(month).padStart(2, "0")}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
@@ -69,14 +88,18 @@ export function IvssReportView({ companyId }: Props) {
           Generar reporte
         </button>
         {data && (
-          <button
-            onClick={handlePdf}
-            disabled={isPdf}
-            className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            {isPdf ? "Generando PDF..." : "Descargar PDF"}
-          </button>
+          <>
+            <button onClick={handlePdf} disabled={isPdf}
+              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isPdf ? "Generando..." : "PDF"}
+            </button>
+            <button onClick={handleExcel} disabled={isXls}
+              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isXls ? "Generando..." : "Excel"}
+            </button>
+          </>
         )}
       </div>
 

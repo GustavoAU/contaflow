@@ -729,12 +729,23 @@ export const PayrollRunService = {
             const applied = Decimal.min(remaining, balance);
             const newBalance = balance.minus(applied);
             remaining = remaining.minus(applied);
+
+            // MIXED loans: also reduce the USD balance by the USD installment amount
+            let newBalanceUsd: string | undefined;
+            if (loan.currency === "MIXED" && loan.remainingBalanceUsd && loan.installmentAmountUsd) {
+              const usdBalance = new Decimal(loan.remainingBalanceUsd.toString());
+              const usdInstallment = new Decimal(loan.installmentAmountUsd.toString());
+              newBalanceUsd = Decimal.max(usdBalance.minus(usdInstallment), new Decimal(0)).toFixed(2);
+            }
+
+            const isPaid = newBalance.isZero() && (!newBalanceUsd || new Decimal(newBalanceUsd).isZero());
             await tx.employeeLoan.update({
               where: { id: loan.id },
               data: {
                 remainingBalance: newBalance.toFixed(2),
+                ...(newBalanceUsd !== undefined && { remainingBalanceUsd: newBalanceUsd }),
                 paidInstallments: loan.paidInstallments + 1,
-                status: newBalance.isZero() ? "PAID" : "ACTIVE",
+                status: isPaid ? "PAID" : "ACTIVE",
               },
             });
           }

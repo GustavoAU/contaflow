@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PeriodSelector } from "./PeriodSelector";
-import { getBanavihReportAction, exportBanavihPdfAction } from "../actions/payroll-reports.actions";
+import { getBanavihReportAction, exportBanavihPdfAction, exportBanavihExcelAction, exportBanavihTxtAction } from "../actions/payroll-reports.actions";
 import type { BanavihReportData } from "../services/PayrollReportService";
 
 const MONTHS = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -26,6 +26,8 @@ export function BanavihReportView({ companyId }: Props) {
   const [data, setData] = useState<BanavihReportData | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isPdf, startPdfTransition] = useTransition();
+  const [isXls, startXlsTransition] = useTransition();
+  const [isTxt, startTxtTransition] = useTransition();
 
   function handleLoad() {
     startTransition(async () => {
@@ -63,11 +65,37 @@ export function BanavihReportView({ companyId }: Props) {
           Generar reporte
         </button>
         {data && (
-          <button onClick={handlePdf} disabled={isPdf}
-            className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
-            <Download className="h-4 w-4" />
-            {isPdf ? "Generando PDF..." : "Descargar PDF"}
-          </button>
+          <>
+            <button onClick={handlePdf} disabled={isPdf}
+              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isPdf ? "Generando..." : "PDF"}
+            </button>
+            <button onClick={() => startXlsTransition(async () => {
+              const res = await exportBanavihExcelAction(companyId, year, month);
+              if (res.success) {
+                const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `FAOV_${year}_${String(month).padStart(2, "0")}.xlsx` });
+                a.click();
+              } else { toast.error(res.error); }
+            })} disabled={isXls}
+              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isXls ? "Generando..." : "Excel"}
+            </button>
+            <button onClick={() => startTxtTransition(async () => {
+              const res = await exportBanavihTxtAction(companyId, year, month);
+              if (res.success) {
+                const blob = new Blob([res.txt], { type: "text/plain;charset=utf-8" });
+                const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: res.filename });
+                a.click();
+              } else { toast.error(res.error); }
+            })} disabled={isTxt}
+              className="flex items-center gap-2 rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isTxt ? "Generando..." : "TXT BANAVIH"}
+            </button>
+          </>
         )}
       </div>
 

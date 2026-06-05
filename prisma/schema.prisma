@@ -1707,9 +1707,11 @@ enum EmployeeStatus {
 }
 
 enum LoanStatus {
-  ACTIVE
-  PAID
-  CANCELLED
+  PENDING // Esperando aprobación del ADMIN
+  ACTIVE // Aprobado — se descuenta en nómina
+  PAID // Saldo cancelado completamente
+  CANCELLED // Cancelado antes de completarse
+  REJECTED // Rechazado por ADMIN
 }
 
 enum ConceptType {
@@ -2124,22 +2126,36 @@ model BenefitAdvance {
 // Préstamos otorgados por la empresa al empleado, con descuento automático en nómina.
 // La cuota se inyecta en cada PayrollRun como concepto PRESTAMO_EMP (DEDUCTION).
 // Append-only en cuanto al saldo: remainingBalance decrece en approve(); nunca se edita directamente.
+// currency: "VES" | "USD" | "MIXED" — MIXED tiene parte VES (campos base) + parte USD (campos *Usd)
+// interestRate: tasa anual decimal (0.30 = 30%). NULL = sin interés.
+//   Si hay interés: cuota calculada por método francés (amortización constante).
+//   Referencia BCV tasa activa ~59% anual (sin tope legal específico para préstamos patronales).
+// LOTTT Art. 154: cuota no puede exceder 1/3 del salario neto mensual.
 model EmployeeLoan {
-  id                String     @id @default(cuid())
-  companyId         String
-  employeeId        String
-  totalAmount       Decimal    @db.Decimal(20, 2)
-  currency          String // "VES" | "USD"
-  installments      Int // número total de cuotas
-  installmentAmount Decimal    @db.Decimal(20, 2) // cuota fija = ceil(totalAmount / installments, 2)
-  paidInstallments  Int        @default(0)
-  remainingBalance  Decimal    @db.Decimal(20, 2)
-  status            LoanStatus @default(ACTIVE)
-  description       String?
-  approvedAt        DateTime   @default(now())
-  createdByUserId   String
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  id                   String     @id @default(cuid())
+  companyId            String
+  employeeId           String
+  totalAmount          Decimal    @db.Decimal(20, 2) // VES (o USD para currency="USD")
+  currency             String // "VES" | "USD" | "MIXED"
+  installments         Int // número total de cuotas
+  installmentAmount    Decimal    @db.Decimal(20, 2) // cuota VES (método francés si hay interés)
+  paidInstallments     Int        @default(0)
+  remainingBalance     Decimal    @db.Decimal(20, 2) // saldo VES
+  // Campos USD — solo para currency="USD" o "MIXED"
+  amountUsd            Decimal?   @db.Decimal(20, 2) // monto USD (MIXED: parte USD)
+  installmentAmountUsd Decimal?   @db.Decimal(20, 2) // cuota USD
+  remainingBalanceUsd  Decimal?   @db.Decimal(20, 2) // saldo USD
+  // Interés — opcional
+  interestRate         Decimal?   @db.Decimal(5, 4) // tasa anual decimal (ej: 0.30 = 30%)
+  // Aprobación
+  status               LoanStatus @default(PENDING)
+  approvedByUserId     String? // quien aprobó (null mientras PENDING)
+  approvedAt           DateTime? // null mientras PENDING
+  rejectionReason      String?    @db.VarChar(500)
+  description          String?
+  createdByUserId      String
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)

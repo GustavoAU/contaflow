@@ -18,6 +18,8 @@ interface Props {
   currency: string;
   // IV: salario mínimo vigente al período — para verificar topes de cotización
   salaryMinCap?: string | null;
+  // Tasa de cambio USD/VES para mostrar equivalente en divisas
+  usdRate?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,7 +58,7 @@ function conceptLabel(code: string): string {
   return CONCEPT_LABELS[code] ?? code;
 }
 
-export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap }: Props) {
+export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRecalculating, startRecalculate] = useTransition();
@@ -65,6 +67,13 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
   const [showConfirm, setShowConfirm] = useState(false);
   // U-03: checklist obligatorio antes de aprobar
   const [salMinChecked, setSalMinChecked] = useState(false);
+
+  // Doble moneda: convierte VES → USD cuando currency=VES y hay tasa disponible
+  const fxRate = usdRate ? parseFloat(usdRate) : null;
+  function toUsd(ves: number): string | null {
+    if (!fxRate || currency !== "VES" || fxRate <= 0) return null;
+    return (ves / fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 
   // Agrupar líneas por empleado
   const byEmployee = run.lines.reduce<Record<string, typeof run.lines>>((acc, line) => {
@@ -194,6 +203,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                   Sal. mín.: Bs. {Number(salaryMinCap).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
                 </span>
               )}
+              {fxRate && currency === "VES" && (
+                <span
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-xs font-mono text-emerald-700"
+                  title="Tasa BCV USD/VES — se muestra el equivalente en dólares en cada tarjeta"
+                >
+                  1 USD = Bs. {fxRate.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -237,6 +254,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalEarnings))}
             </p>
+            {toUsd(Number(run.totalEarnings)) && <p className="mt-0.5 text-xs text-green-600 font-mono">≈ ${toUsd(Number(run.totalEarnings))} USD</p>}
           </div>
           <div className="bg-red-50 rounded-lg p-4">
             <p className="text-xs font-medium text-red-700 uppercase tracking-wide">Total Deducciones</p>
@@ -244,6 +262,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalDeductions))}
             </p>
+            {toUsd(Number(run.totalDeductions)) && <p className="mt-0.5 text-xs text-red-600 font-mono">≈ ${toUsd(Number(run.totalDeductions))} USD</p>}
           </div>
           <div className="bg-blue-50 rounded-lg p-4">
             <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Neto a Pagar</p>
@@ -251,6 +270,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalNet))}
             </p>
+            {toUsd(Number(run.totalNet)) && <p className="mt-0.5 text-xs text-blue-600 font-mono">≈ ${toUsd(Number(run.totalNet))} USD</p>}
           </div>
           {Number(run.totalEmployerCosts) > 0 && (
             <div className="bg-orange-50 rounded-lg p-4">
@@ -260,6 +280,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                 {formatAmount(Number(run.totalEmployerCosts))}
               </p>
               <p className="mt-0.5 text-xs text-orange-600">IVSS/INCES/FAOV/RPE patronal</p>
+              {toUsd(Number(run.totalEmployerCosts)) && <p className="mt-0.5 text-xs text-orange-600 font-mono">≈ ${toUsd(Number(run.totalEmployerCosts))} USD</p>}
             </div>
           )}
         </div>

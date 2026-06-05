@@ -3,7 +3,7 @@
 //
 // Seguridad:
 //   - companyMember.findFirst verifica tenant antes de toda query // ADR-004-EXCEPTION: IDOR guard — where:{userId,companyId}
-//   - write = ADMIN_ONLY; read = ACCOUNTING
+//   - create = ACCOUNTING o superior; approve/reject/cancel = ADMIN_ONLY
 //   - checkRateLimit(limiters.fiscal) en toda acción write
 //   - R-6: ipAddress + userAgent en AuditLog en todo write
 
@@ -16,7 +16,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { EmployeeLoanService, type EmployeeLoanRow } from "../services/EmployeeLoanService";
-import { createLoanSchema } from "../schemas/employee-loan.schema";
+import { createLoanSchema, rejectLoanSchema } from "../schemas/employee-loan.schema";
 import type { LoanStatus } from "@prisma/client";
 
 type Result<T> = { success: true; data: T } | { success: false; error: string };
@@ -40,11 +40,10 @@ async function getAuditMeta() {
 
 function revalidateLoans(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/loans`);
-  // U-04: actualiza la ficha del empleado (tab préstamos)
   revalidatePath(`/company/${companyId}/payroll/employees`, "layout");
 }
 
-// ─── Crear préstamo ───────────────────────────────────────────────────────────
+// ─── Crear préstamo (ACCOUNTING o superior) ────────────────────────────────────
 
 export async function createLoanAction(
   companyId: string,
@@ -52,7 +51,7 @@ export async function createLoanAction(
 ): Promise<Result<EmployeeLoanRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
   if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado. Intente más tarde." };
@@ -63,6 +62,56 @@ export async function createLoanAction(
   try {
     const meta = await getAuditMeta();
     const loan = await EmployeeLoanService.create(companyId, parsed.data, userId, meta);
+    revalidateLoans(companyId);
+    return { success: true, data: loan };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+  }
+}
+
+// ─── Aprobar préstamo (ADMIN_ONLY) ─────────────────────────────────────────────
+
+export async function approveLoanAction(
+  companyId: string,
+  loanId: string,
+): Promise<Result<EmployeeLoanRow>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado." };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado." };
+
+  try {
+    const meta = await getAuditMeta();
+    const loan = await EmployeeLoanService.approve(companyId, loanId, userId, meta);
+    revalidateLoans(companyId);
+    return { success: true, data: loan };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+  }
+}
+
+// ─── Rechazar préstamo (ADMIN_ONLY) ────────────────────────────────────────────
+
+export async function rejectLoanAction(
+  companyId: string,
+  loanId: string,
+  rawInput: unknown,
+): Promise<Result<EmployeeLoanRow>> {
+  const { userId, member } = await resolveAuth(companyId);
+  if (!userId || !member) return { success: false, error: "No autorizado." };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado." };
+
+  const parsed = rejectLoanSchema.safeParse(rawInput);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  try {
+    const meta = await getAuditMeta();
+    const loan = await EmployeeLoanService.reject(companyId, loanId, userId, parsed.data.rejectionReason, meta);
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -88,7 +137,7 @@ export async function listLoansAction(
   }
 }
 
-// ─── Cancelar préstamo ────────────────────────────────────────────────────────
+// ─── Cancelar préstamo (ADMIN_ONLY) ───────────────────────────────────────────
 
 export async function cancelLoanAction(
   companyId: string,
