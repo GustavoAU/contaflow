@@ -232,6 +232,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
               <AlreadySignedInPanel
                 planName={summary.name}
                 displayPrice={summary.displayPrice}
+                toPlanKey={(validPlan ?? "MONTHLY").toUpperCase()}
               />
             ) : (
               <SignUp />
