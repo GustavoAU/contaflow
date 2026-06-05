@@ -369,6 +369,8 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Auditoría Nómina Parte VII — Automatizaciones** ✅ merged (2026-06-02): 4 alertas en PendingTasksWidget (NOM_SALARIO_MINIMO_VENCIDO / NOM_PRESTACIONES_POR_ACUMULAR / NOM_INTERESES_BCV_PENDIENTES / NOM_PRUEBA_POR_VENCER) + AccrueQuarterForm badge acumulado/pendiente + BcvRateForm indicador meses faltantes — 2336 tests
 
+**Sprint Softnetcorp F4/F5/F7/F8/F9/F10** ✅ merged (2026-06-05): SEMANAL en PayrollFrequency + VacationRequest model (PENDING/APPROVED/REJECTED/CANCELLED) + balance LOTTT Art.190 acumulado + flujo aprobación manager + EmployeeHistoricalImportDialog (días vacaciones + prestaciones) + payslip email fire-and-forget post-aprobación + ManagerApprovalInbox vacaciones pendientes + /payroll/vacation-requests page — 2359 tests
+
 **2336 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-02)
 
 ### middleware.ts
