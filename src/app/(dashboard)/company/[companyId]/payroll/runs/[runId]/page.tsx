@@ -42,15 +42,19 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   if (!run) notFound();
 
   // IV: salario mínimo vigente al período para verificar topes IVSS/INCES/FAOV/RPE
-  const salaryMinDecimal = await LegalThresholdService.getActive(
-    companyId,
-    "SALARY_MIN_VES",
-    new Date(run.periodStart),
-  );
+  const [salaryMinDecimal, usdRateRow] = await Promise.all([
+    LegalThresholdService.getActive(companyId, "SALARY_MIN_VES", new Date(run.periodStart)),
+    prisma.exchangeRate.findFirst({
+      where: { companyId, currency: "USD", date: { lte: new Date(run.periodEnd) } },
+      orderBy: { date: "desc" },
+      select: { rate: true },
+    }),
+  ]);
   const salaryMinCap = salaryMinDecimal?.toString() ?? null;
 
   const canAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
   const currency = config?.paymentCurrency ?? "VES";
+  const usdRate = usdRateRow?.rate?.toString() ?? null;
 
   return (
     <div className="space-y-6 p-6">
@@ -63,7 +67,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} />
+      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} usdRate={usdRate} />
     </div>
   );
 }

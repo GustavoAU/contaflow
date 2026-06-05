@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PeriodSelector } from "./PeriodSelector";
-import { getIncesReportAction, exportIncesPdfAction } from "../actions/payroll-reports.actions";
+import { getIncesReportAction, exportIncesPdfAction, exportIncesExcelAction } from "../actions/payroll-reports.actions";
 import type { IncesReportData } from "../services/PayrollReportService";
 
 const QUARTER_LABELS = ["", "I Trimestre", "II Trimestre", "III Trimestre", "IV Trimestre"];
@@ -25,6 +25,7 @@ export function IncesReportView({ companyId }: Props) {
   const [data, setData] = useState<IncesReportData | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isPdf, startPdfTransition] = useTransition();
+  const [isXls, startXlsTransition] = useTransition();
 
   function handleLoad() {
     startTransition(async () => {
@@ -62,11 +63,25 @@ export function IncesReportView({ companyId }: Props) {
           Generar reporte
         </button>
         {data && (
-          <button onClick={handlePdf} disabled={isPdf}
-            className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
-            <Download className="h-4 w-4" />
-            {isPdf ? "Generando PDF..." : "Descargar PDF"}
-          </button>
+          <>
+            <button onClick={handlePdf} disabled={isPdf}
+              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isPdf ? "Generando..." : "PDF"}
+            </button>
+            <button onClick={() => startXlsTransition(async () => {
+              const res = await exportIncesExcelAction(companyId, year, quarter);
+              if (res.success) {
+                const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `INCES_${year}_Q${quarter}.xlsx` });
+                a.click();
+              } else { toast.error(res.error); }
+            })} disabled={isXls}
+              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60">
+              <Download className="h-4 w-4" />
+              {isXls ? "Generando..." : "Excel"}
+            </button>
+          </>
         )}
       </div>
 

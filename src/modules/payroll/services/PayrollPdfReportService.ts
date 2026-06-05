@@ -310,6 +310,66 @@ function buildArcPdf(data: ArcReportData) {
   );
 }
 
+// ─── Constancia de Trabajo IVSS (Forma 14-100) ───────────────────────────────
+// Documento individual por empleado para acreditar relación laboral ante el IVSS.
+
+export interface ConstanciaTrabajoData {
+  companyName: string;
+  companyRif: string;
+  employeeName: string;
+  cedulaType: string;
+  cedulaNumber: string;
+  ivssNumber: string | null;
+  position: string;
+  payrollWorkerType: string;
+  contractType: string;
+  hireDate: string;       // YYYY-MM-DD
+  terminationDate: string | null;
+  salaryMensual: string;  // Bs serializado
+  issueDate: string;      // YYYY-MM-DD
+}
+
+function buildConstanciaPdf(d: ConstanciaTrabajoData) {
+  const row = (label: string, value: string) =>
+    e(View, { style: { flexDirection: "row", padding: "4pt 0pt", borderBottom: "0.5pt solid #e5e7eb" } },
+      e(Text, { style: { fontSize: 8, flex: 1.5, color: "#6b7280" } }, label),
+      e(Text, { style: { fontSize: 8, flex: 2, fontWeight: "bold" } }, value),
+    );
+
+  return e(Document, null,
+    e(Page, { size: "A4", style: { ...S.page, padding: 40 } },
+      e(Text, { style: { ...S.title, fontSize: 13, marginBottom: 4 } }, "CONSTANCIA DE TRABAJO"),
+      e(Text, { style: { ...S.subtitle, fontSize: 9, marginBottom: 2 } }, "Para fines del IVSS — Forma 14-100 (Referencia Patronal)"),
+      e(Text, { style: { ...S.notice, marginBottom: 16 } },
+        "Documento emitido por el patrono. La inscripción oficial se realiza en el sistema TIUNA del IVSS."),
+
+      e(View, { style: { border: "1pt solid #d1d5db", borderRadius: 4, padding: 16, marginBottom: 12 } },
+        e(Text, { style: { fontSize: 10, fontWeight: "bold", marginBottom: 8, color: "#374151" } }, "DATOS DEL PATRONO"),
+        row("Razón Social:", d.companyName),
+        row("RIF:", d.companyRif),
+      ),
+
+      e(View, { style: { border: "1pt solid #d1d5db", borderRadius: 4, padding: 16, marginBottom: 12 } },
+        e(Text, { style: { fontSize: 10, fontWeight: "bold", marginBottom: 8, color: "#374151" } }, "DATOS DEL TRABAJADOR"),
+        row("Apellidos y Nombres:", d.employeeName),
+        row("Cédula de Identidad:", `${d.cedulaType}-${d.cedulaNumber}`),
+        row("N° Asegurado IVSS:", d.ivssNumber ?? "No registrado"),
+        row("Cargo / Función:", d.position),
+        row("Tipo de Trabajador:", d.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"),
+        row("Tipo de Contrato:", d.contractType === "INDEFINIDO" ? "Tiempo Indeterminado" : d.contractType === "DETERMINADO" ? "Tiempo Determinado" : "Por Obra Determinada"),
+        row("Fecha de Ingreso:", d.hireDate),
+        row("Fecha de Egreso:", d.terminationDate ?? "Activo"),
+        row("Salario Mensual:", `Bs. ${parseFloat(d.salaryMensual).toLocaleString("es-VE", { minimumFractionDigits: 2 })}`),
+      ),
+
+      e(View, { style: { marginTop: 24, borderTop: "1pt solid #e5e7eb", paddingTop: 12 } },
+        e(Text, { style: { fontSize: 8, color: "#6b7280", textAlign: "center" } },
+          `Emitido el ${d.issueDate} por el sistema ContaFlow. Documento válido como referencia patronal.`),
+      ),
+    ),
+  );
+}
+
 // ─── PayrollPdfReportService ──────────────────────────────────────────────────
 
 export const PayrollPdfReportService = {
@@ -324,5 +384,8 @@ export const PayrollPdfReportService = {
   },
   async generateArcPdf(data: ArcReportData): Promise<Buffer> {
     return renderToBuffer(buildArcPdf(data));
+  },
+  async generateConstanciaPdf(data: ConstanciaTrabajoData): Promise<Buffer> {
+    return renderToBuffer(buildConstanciaPdf(data));
   },
 };

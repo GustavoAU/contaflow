@@ -1,22 +1,21 @@
 // src/modules/payroll/services/EmployeeLoanService.ts
-// Préstamos otorgados por la empresa al empleado con descuento automático en nómina.
+// Préstamos patronales con descuento automático en nómina.
 //
 // Reglas de negocio:
-//   - La cuota fija = ceil(totalAmount / installments, 2 decimales)
-//   - En cada PayrollRun APPROVED se descuenta min(installmentAmount, remainingBalance)
-//   - Cuando remainingBalance llega a 0 → status = PAID automáticamente
-//   - Solo ADMIN_ONLY puede crear / cancelar préstamos
-//   - Un empleado puede tener múltiples préstamos ACTIVE simultáneos
+//   - Todo préstamo inicia en PENDING → ADMIN_ONLY aprueba → ACTIVE
+//   - Cuota sin interés: ceil(totalAmount / installments, 2 dec)
+//   - Cuota con interés: método francés — cuota fija total (principal + interés)
+//     Referencia tasa activa BCV ~59% anual. Sin tope legal específico para préstamos patronales.
+//     LOTTT Art. 154: cuota ≤ 1/3 del salario neto mensual.
+//   - currency: "VES" | "USD" | "MIXED"
+//     MIXED: parte VES (campos base) + parte USD (campos *Usd)
 //   - Append-only: no se editan montos. Corrección vía cancel + nuevo préstamo.
-//
-// Security:
-//   - companyId siempre filtrado en cada query → aislamiento multi-tenant
-//   - employeeId validado contra companyId antes de mutación
-//   - Montos en Decimal.js — nunca number nativo (R-5)
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import type { LoanStatus } from "@prisma/client";
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface EmployeeLoanRow {
   id: string;
@@ -29,61 +28,126 @@ export interface EmployeeLoanRow {
   installmentAmount: string;
   paidInstallments: number;
   remainingBalance: string;
+  // USD fields (MIXED / USD loans)
+  amountUsd: string | null;
+  installmentAmountUsd: string | null;
+  remainingBalanceUsd: string | null;
+  // Interest
+  interestRate: string | null;
+  // Approval
   status: LoanStatus;
+  approvedByUserId: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
   description: string | null;
-  approvedAt: string;
   createdByUserId: string;
   createdAt: string;
 }
 
 export interface CreateLoanInput {
   employeeId: string;
-  totalAmount: string; // string → Decimal en service
-  currency: "VES" | "USD";
+  currency: "VES" | "USD" | "MIXED";
+  // VES / primary amount (VES for MIXED)
+  totalAmount: string;
+  // USD amount (for USD or MIXED loans)
+  amountUsd?: string | null;
   installments: number;
+  interestRate?: string | null; // tasa anual decimal ("0.30" = 30%). null = sin interés
   description?: string | null;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Método francés: cuota fija = P × r(1+r)^n / ((1+r)^n − 1)
+ * Si interestRate es null o 0 → cuota = ceil(total / n, 2 dec).
+ * Retorna la cuota mensual fija en Decimal.
+ */
+function calcInstallment(principal: Decimal, installments: number, annualRate: Decimal | null): Decimal {
+  if (!annualRate || annualRate.isZero()) {
+    return principal.dividedBy(installments).toDecimalPlaces(2, Decimal.ROUND_UP);
+  }
+  const r = annualRate.dividedBy(12); // tasa mensual
+  const rn = r.plus(1).pow(installments); // (1+r)^n
+  const cuota = principal.times(r.times(rn)).dividedBy(rn.minus(1));
+  return cuota.toDecimalPlaces(2, Decimal.ROUND_UP);
+}
+
+function serializeLoan(row: {
+  id: string; companyId: string; employeeId: string;
+  totalAmount: Decimal; currency: string; installments: number;
+  installmentAmount: Decimal; paidInstallments: number; remainingBalance: Decimal;
+  amountUsd: Decimal | null; installmentAmountUsd: Decimal | null; remainingBalanceUsd: Decimal | null;
+  interestRate: Decimal | null;
+  status: LoanStatus; approvedByUserId: string | null; approvedAt: Date | null;
+  rejectionReason: string | null; description: string | null;
+  createdByUserId: string; createdAt: Date;
+  employee: { firstName: string; lastName: string };
+}): EmployeeLoanRow {
+  return {
+    id: row.id, companyId: row.companyId, employeeId: row.employeeId,
+    employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
+    totalAmount: row.totalAmount.toString(),
+    currency: row.currency,
+    installments: row.installments,
+    installmentAmount: row.installmentAmount.toString(),
+    paidInstallments: row.paidInstallments,
+    remainingBalance: row.remainingBalance.toString(),
+    amountUsd: row.amountUsd?.toString() ?? null,
+    installmentAmountUsd: row.installmentAmountUsd?.toString() ?? null,
+    remainingBalanceUsd: row.remainingBalanceUsd?.toString() ?? null,
+    interestRate: row.interestRate?.toString() ?? null,
+    status: row.status,
+    approvedByUserId: row.approvedByUserId,
+    approvedAt: row.approvedAt?.toISOString() ?? null,
+    rejectionReason: row.rejectionReason,
+    description: row.description,
+    createdByUserId: row.createdByUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+const INCLUDE_EMP = { employee: { select: { firstName: true, lastName: true } } } as const;
+
+// ─── EmployeeLoanService ──────────────────────────────────────────────────────
+
 export const EmployeeLoanService = {
+  // ── create ──────────────────────────────────────────────────────────────────
   async create(
     companyId: string,
     input: CreateLoanInput,
     userId: string,
     auditMeta: { ipAddress?: string; userAgent?: string },
   ): Promise<EmployeeLoanRow> {
-    const [employee, payrollConfig] = await Promise.all([
-      prisma.employee.findFirst({
-        where: { id: input.employeeId, companyId },
-        select: { id: true, firstName: true, lastName: true },
-      }),
-      prisma.payrollConfig.findUnique({
-        where: { companyId },
-        select: { loanReceivableAccountId: true, disbursementBankAccountId: true },
-      }),
-    ]);
+    const employee = await prisma.employee.findFirst({
+      where: { id: input.employeeId, companyId },
+      select: { id: true, firstName: true, lastName: true },
+    });
     if (!employee) throw new Error("Empleado no encontrado en esta empresa.");
 
-    const total = new Decimal(input.totalAmount);
-    if (total.lte(0)) throw new Error("El monto total debe ser mayor que cero.");
+    const principal = new Decimal(input.totalAmount);
+    if (principal.lte(0)) throw new Error("El monto total debe ser mayor que cero.");
     if (input.installments < 1) throw new Error("El número de cuotas debe ser al menos 1.");
 
-    // Cuota fija = ceil(totalAmount / cuotas, 2 dec)
-    const installmentAmount = total.dividedBy(input.installments).toDecimalPlaces(2, Decimal.ROUND_UP);
+    const annualRate = input.interestRate ? new Decimal(input.interestRate) : null;
+    if (annualRate && annualRate.lt(0)) throw new Error("La tasa de interés no puede ser negativa.");
+    if (annualRate && annualRate.gt(2)) throw new Error("La tasa anual no puede superar 200%.");
 
-    // Si ambas cuentas GL están configuradas, crear asiento de desembolso.
-    // DÉBITO: Préstamos a Empleados (activo ↑) / CRÉDITO: Banco de Desembolso (activo ↓)
-    const canJournalize =
-      payrollConfig?.loanReceivableAccountId && payrollConfig?.disbursementBankAccountId;
+    const installmentVes = calcInstallment(principal, input.installments, annualRate);
 
-    // Período contable: solo se necesita si se va a crear asiento
-    let openPeriod: { id: string } | null = null;
-    if (canJournalize) {
-      const now = new Date();
-      openPeriod = await prisma.accountingPeriod.findFirst({
-        where: { companyId, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, status: "OPEN" },
-        select: { id: true },
-      });
-      if (!openPeriod) throw new Error("No hay período contable abierto en el mes actual. Abra el período antes de registrar el préstamo.");
+    let installmentUsd: Decimal | null = null;
+    let principalUsd: Decimal | null = null;
+    if (input.currency === "MIXED" || input.currency === "USD") {
+      if (input.currency === "MIXED") {
+        if (!input.amountUsd) throw new Error("Préstamo MIXTO requiere un monto en USD.");
+        principalUsd = new Decimal(input.amountUsd);
+        if (principalUsd.lte(0)) throw new Error("El monto USD debe ser mayor que cero.");
+        installmentUsd = calcInstallment(principalUsd, input.installments, annualRate);
+      } else {
+        // currency=USD — totalAmount ya está en USD; installmentAmount también en USD
+        principalUsd = principal;
+        installmentUsd = installmentVes;
+      }
     }
 
     const loan = await prisma.$transaction(async (tx) => {
@@ -91,65 +155,35 @@ export const EmployeeLoanService = {
         data: {
           companyId,
           employeeId: input.employeeId,
-          totalAmount: total.toFixed(2),
+          totalAmount: input.currency === "USD" ? new Decimal(0) : principal,
           currency: input.currency,
           installments: input.installments,
-          installmentAmount: installmentAmount.toFixed(2),
+          installmentAmount: input.currency === "USD" ? new Decimal(0) : installmentVes,
           paidInstallments: 0,
-          remainingBalance: total.toFixed(2),
-          status: "ACTIVE",
+          remainingBalance: input.currency === "USD" ? new Decimal(0) : principal,
+          amountUsd: principalUsd,
+          installmentAmountUsd: installmentUsd,
+          remainingBalanceUsd: principalUsd,
+          interestRate: annualRate,
+          status: "PENDING",
           description: input.description ?? null,
           createdByUserId: userId,
         },
-        include: { employee: { select: { firstName: true, lastName: true } } },
+        include: INCLUDE_EMP,
       });
-
-      // Asiento de desembolso (R-1: Libro Diario — Transaction)
-      if (canJournalize && openPeriod) {
-        const empName = `${created.employee.firstName} ${created.employee.lastName}`;
-        await tx.transaction.create({
-          data: {
-            companyId,
-            number: `PREST-${created.id.slice(-8).toUpperCase()}`,
-            date: new Date(),
-            description: `Desembolso préstamo — ${empName} — ${input.installments} cuota(s) de ${installmentAmount.toFixed(2)} ${input.currency}`,
-            reference: created.id,
-            userId,
-            periodId: openPeriod.id,
-            type: "DIARIO",
-            entries: {
-              create: [
-                // DÉBITO: Préstamos a Empleados (activo sube — positivo)
-                {
-                  accountId: payrollConfig!.loanReceivableAccountId!,
-                  amount: total,
-                  description: `Préstamo ${empName}`,
-                },
-                // CRÉDITO: Banco de Desembolso (activo baja — negativo)
-                {
-                  accountId: payrollConfig!.disbursementBankAccountId!,
-                  amount: total.negated(),
-                  description: `Salida banco — préstamo ${empName}`,
-                },
-              ],
-            },
-          },
-        });
-      }
 
       await tx.auditLog.create({
         data: {
-          companyId,
-          entityId: created.id,
+          companyId, userId,
+          action: "LOAN_CREATED",
           entityName: "EmployeeLoan",
-          action: "CREATE",
-          userId,
-          newValue: JSON.stringify({
-            totalAmount: total.toFixed(2),
+          entityId: created.id,
+          newValue: {
+            totalAmount: principal.toFixed(2),
             currency: input.currency,
             installments: input.installments,
-            journalized: canJournalize,
-          }),
+            interestRate: annualRate?.toString() ?? null,
+          },
           ipAddress: auditMeta.ipAddress ?? null,
           userAgent: auditMeta.userAgent ?? null,
         },
@@ -161,6 +195,119 @@ export const EmployeeLoanService = {
     return serializeLoan(loan);
   },
 
+  // ── approve ─────────────────────────────────────────────────────────────────
+  async approve(
+    companyId: string,
+    loanId: string,
+    approverId: string,
+    auditMeta: { ipAddress?: string; userAgent?: string },
+  ): Promise<EmployeeLoanRow> {
+    const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
+    if (!loan) throw new Error("Préstamo no encontrado.");
+    if (loan.status !== "PENDING") throw new Error("Solo se pueden aprobar préstamos en estado PENDIENTE.");
+
+    const payrollConfig = await prisma.payrollConfig.findUnique({
+      where: { companyId },
+      select: { loanReceivableAccountId: true, disbursementBankAccountId: true },
+    });
+    const canJournalize = !!(payrollConfig?.loanReceivableAccountId && payrollConfig?.disbursementBankAccountId);
+
+    let openPeriod: { id: string } | null = null;
+    if (canJournalize) {
+      const now = new Date();
+      openPeriod = await prisma.accountingPeriod.findFirst({
+        where: { companyId, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, status: "OPEN" },
+        select: { id: true },
+      });
+      if (!openPeriod) throw new Error("No hay período contable abierto. Abra el período antes de aprobar el préstamo.");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.employeeLoan.update({
+        where: { id: loanId },
+        data: { status: "ACTIVE", approvedByUserId: approverId, approvedAt: new Date() },
+        include: INCLUDE_EMP,
+      });
+
+      if (canJournalize && openPeriod) {
+        const empName = `${u.employee.firstName} ${u.employee.lastName}`;
+        const vesAmount = new Decimal(loan.totalAmount.toString());
+        await tx.transaction.create({
+          data: {
+            companyId,
+            number: `PREST-${u.id.slice(-8).toUpperCase()}`,
+            date: new Date(),
+            description: `Desembolso préstamo — ${empName} — ${loan.installments} cuota(s)`,
+            reference: u.id,
+            userId: approverId,
+            periodId: openPeriod.id,
+            type: "DIARIO",
+            entries: {
+              create: [
+                { accountId: payrollConfig!.loanReceivableAccountId!, amount: vesAmount, description: `Préstamo ${empName}` },
+                { accountId: payrollConfig!.disbursementBankAccountId!, amount: vesAmount.negated(), description: `Salida banco — préstamo ${empName}` },
+              ],
+            },
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          companyId, userId: approverId,
+          action: "LOAN_APPROVED",
+          entityName: "EmployeeLoan",
+          entityId: loanId,
+          newValue: { status: "ACTIVE", journalized: canJournalize },
+          ipAddress: auditMeta.ipAddress ?? null,
+          userAgent: auditMeta.userAgent ?? null,
+        },
+      });
+
+      return u;
+    });
+
+    return serializeLoan(updated);
+  },
+
+  // ── reject ──────────────────────────────────────────────────────────────────
+  async reject(
+    companyId: string,
+    loanId: string,
+    reviewerId: string,
+    rejectionReason: string,
+    auditMeta: { ipAddress?: string; userAgent?: string },
+  ): Promise<EmployeeLoanRow> {
+    const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
+    if (!loan) throw new Error("Préstamo no encontrado.");
+    if (loan.status !== "PENDING") throw new Error("Solo se pueden rechazar préstamos en estado PENDIENTE.");
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.employeeLoan.update({
+        where: { id: loanId },
+        data: { status: "REJECTED", rejectionReason, approvedByUserId: reviewerId, approvedAt: new Date() },
+        include: INCLUDE_EMP,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId, userId: reviewerId,
+          action: "LOAN_REJECTED",
+          entityName: "EmployeeLoan",
+          entityId: loanId,
+          newValue: { status: "REJECTED", rejectionReason },
+          ipAddress: auditMeta.ipAddress ?? null,
+          userAgent: auditMeta.userAgent ?? null,
+        },
+      });
+
+      return u;
+    });
+
+    return serializeLoan(updated);
+  },
+
+  // ── list ─────────────────────────────────────────────────────────────────────
   async list(companyId: string, filters?: { employeeId?: string; status?: LoanStatus }): Promise<EmployeeLoanRow[]> {
     const rows = await prisma.employeeLoan.findMany({
       where: {
@@ -168,38 +315,34 @@ export const EmployeeLoanService = {
         ...(filters?.employeeId ? { employeeId: filters.employeeId } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
       },
-      include: { employee: { select: { firstName: true, lastName: true } } },
+      include: INCLUDE_EMP,
       orderBy: { createdAt: "desc" },
     });
     return rows.map(serializeLoan);
   },
 
+  // ── cancel ───────────────────────────────────────────────────────────────────
   async cancel(
     companyId: string,
     loanId: string,
     userId: string,
     auditMeta: { ipAddress?: string; userAgent?: string },
   ): Promise<void> {
-    const loan = await prisma.employeeLoan.findFirst({
-      where: { id: loanId, companyId },
-    });
+    const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
     if (!loan) throw new Error("Préstamo no encontrado.");
-    if (loan.status !== "ACTIVE") throw new Error("Solo se pueden cancelar préstamos activos.");
+    if (loan.status !== "ACTIVE" && loan.status !== "PENDING")
+      throw new Error("Solo se pueden cancelar préstamos activos o pendientes.");
 
     await prisma.$transaction(async (tx) => {
-      await tx.employeeLoan.update({
-        where: { id: loanId },
-        data: { status: "CANCELLED" },
-      });
+      await tx.employeeLoan.update({ where: { id: loanId }, data: { status: "CANCELLED" } });
 
       await tx.auditLog.create({
         data: {
-          companyId,
-          entityId: loanId,
+          companyId, userId,
+          action: "LOAN_CANCELLED",
           entityName: "EmployeeLoan",
-          action: "CANCEL",
-          userId,
-          oldValue: JSON.stringify({ status: "ACTIVE", remainingBalance: loan.remainingBalance.toString() }),
+          entityId: loanId,
+          oldValue: JSON.stringify({ status: loan.status, remainingBalance: loan.remainingBalance.toString() }),
           newValue: JSON.stringify({ status: "CANCELLED" }),
           ipAddress: auditMeta.ipAddress ?? null,
           userAgent: auditMeta.userAgent ?? null,
@@ -208,69 +351,36 @@ export const EmployeeLoanService = {
     });
   },
 
-  // Usado por PayrollRunService.approve() para actualizar balances tras descontar cuotas.
+  // ── applyInstallments — llamado por PayrollRunService.approve() ──────────────
+  // Descuenta cuota(s) de los préstamos ACTIVE. Para MIXED: descuenta VES y USD por separado.
   async applyInstallments(
     companyId: string,
-    deductions: Array<{ loanId: string; amount: Decimal }>,
+    deductions: Array<{ loanId: string; amountVes: Decimal; amountUsd?: Decimal }>,
     tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   ): Promise<void> {
-    for (const { loanId, amount } of deductions) {
+    for (const { loanId, amountVes, amountUsd } of deductions) {
       const loan = await tx.employeeLoan.findUnique({ where: { id: loanId } });
       if (!loan || loan.companyId !== companyId) continue;
 
-      const remaining = new Decimal(loan.remainingBalance.toString()).minus(amount);
-      const newRemaining = remaining.lt(0) ? new Decimal(0) : remaining;
-      const newPaid = loan.paidInstallments + 1;
-      const isPaid = newRemaining.isZero();
+      const newRemVes = Decimal.max(
+        new Decimal(0),
+        new Decimal(loan.remainingBalance.toString()).minus(amountVes),
+      );
+      const newRemUsd = loan.remainingBalanceUsd && amountUsd
+        ? Decimal.max(new Decimal(0), new Decimal(loan.remainingBalanceUsd.toString()).minus(amountUsd))
+        : (loan.remainingBalanceUsd ? new Decimal(loan.remainingBalanceUsd.toString()) : null);
+
+      const isPaid = newRemVes.isZero() && (!newRemUsd || newRemUsd.isZero());
 
       await tx.employeeLoan.update({
         where: { id: loanId },
         data: {
-          remainingBalance: newRemaining.toFixed(2),
-          paidInstallments: newPaid,
+          remainingBalance: newRemVes.toFixed(2),
+          remainingBalanceUsd: newRemUsd ? newRemUsd.toFixed(2) : undefined,
+          paidInstallments: loan.paidInstallments + 1,
           status: isPaid ? "PAID" : "ACTIVE",
         },
       });
     }
   },
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function serializeLoan(
-  row: {
-    id: string;
-    companyId: string;
-    employeeId: string;
-    totalAmount: { toString(): string };
-    currency: string;
-    installments: number;
-    installmentAmount: { toString(): string };
-    paidInstallments: number;
-    remainingBalance: { toString(): string };
-    status: LoanStatus;
-    description: string | null;
-    approvedAt: Date;
-    createdByUserId: string;
-    createdAt: Date;
-    employee: { firstName: string; lastName: string };
-  }
-): EmployeeLoanRow {
-  return {
-    id: row.id,
-    companyId: row.companyId,
-    employeeId: row.employeeId,
-    employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
-    totalAmount: row.totalAmount.toString(),
-    currency: row.currency,
-    installments: row.installments,
-    installmentAmount: row.installmentAmount.toString(),
-    paidInstallments: row.paidInstallments,
-    remainingBalance: row.remainingBalance.toString(),
-    status: row.status,
-    description: row.description,
-    approvedAt: row.approvedAt.toISOString(),
-    createdByUserId: row.createdByUserId,
-    createdAt: row.createdAt.toISOString(),
-  };
-}
