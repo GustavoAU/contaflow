@@ -14,6 +14,8 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
 import * as Sentry from "@sentry/nextjs";
+import { sendEmail } from "@/lib/email";
+import { signEmployeeToken } from "@/lib/employee-portal-jwt";
 import type {
   PayrollRunStatus,
   ConceptType,
@@ -487,7 +489,7 @@ export const PayrollRunService = {
       );
     }
 
-    return Sentry.startSpan(
+    const result = await Sentry.startSpan(
       {
         name: "payroll_run.approve",
         op: "db.transaction",
@@ -768,6 +770,58 @@ export const PayrollRunService = {
 
       return serializeRun(approvedRun);
     }));
+
+    // Feature 7: enviar recibos por email a empleados (fire-and-forget post-commit)
+    // Degradación graceful: si email no configurado o empleado sin email, no lanza error.
+    void this._sendPayslipEmails(companyId, runId).catch((err) => {
+      console.warn("[PayrollRunService] Error al enviar recibos por email:", err);
+    });
+
+    return result;
+  },
+
+  async _sendPayslipEmails(companyId: string, runId: string): Promise<void> {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    if (!appUrl) return; // no configurado — silencioso
+
+    const employees = await prisma.payrollRunLine.findMany({
+      where: { payrollRunId: runId, companyId },
+      select: {
+        employee: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+      distinct: ["employeeId"],
+    });
+
+    const periodLabel = runId; // usamos el runId como ref en el subject; overwritten below
+    const run = await prisma.payrollRun.findFirst({
+      where: { id: runId, companyId },
+      select: { periodStart: true, periodEnd: true },
+    });
+    const period = run
+      ? `${run.periodStart.toISOString().slice(0, 10)} — ${run.periodEnd.toISOString().slice(0, 10)}`
+      : periodLabel;
+
+    const seen = new Set<string>();
+    for (const line of employees) {
+      const emp = line.employee;
+      if (!emp?.email || seen.has(emp.id)) continue;
+      seen.add(emp.id);
+
+      const token = signEmployeeToken(emp.id, companyId);
+      const portalUrl = `${appUrl}/employee/${token}`;
+
+      await sendEmail({
+        to: emp.email,
+        subject: `Tu recibo de nómina — ${period}`,
+        html: `
+          <p>Hola ${emp.firstName},</p>
+          <p>Tu proceso de nómina del período <strong>${period}</strong> ha sido aprobado.</p>
+          <p>Puedes consultar tu recibo de pago en el siguiente enlace (válido 30 días):</p>
+          <p><a href="${portalUrl}" style="color:#2563eb">Ver mi recibo</a></p>
+          <p style="color:#6b7280;font-size:12px">ContaFlow — Sistema de Gestión Contable</p>
+        `.trim(),
+      });
+    }
   },
 
   // ── cancel — DRAFT → CANCELLED ────────────────────────────────────────────

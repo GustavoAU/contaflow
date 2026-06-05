@@ -17,6 +17,11 @@ import VacationPanel from "@/modules/payroll/components/VacationPanel";
 import LoanTable from "@/modules/payroll/components/LoanTable";
 import BenefitBalancePanel from "@/modules/payroll/components/BenefitBalancePanel";
 import { EmployeePortalTokenButton } from "@/modules/payroll/components/EmployeePortalTokenButton";
+import { VacationBalanceWidget } from "@/modules/payroll/components/VacationBalanceWidget";
+import { VacationRequestForm } from "@/modules/payroll/components/VacationRequestForm";
+import { VacationRequestList } from "@/modules/payroll/components/VacationRequestList";
+import { EmployeeHistoricalImportDialog } from "@/modules/payroll/components/EmployeeHistoricalImportDialog";
+import { VacationRequestService } from "@/modules/payroll/services/VacationRequestService";
 import { fmtDate } from "@/lib/format";
 
 interface Props {
@@ -62,12 +67,14 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
   const canWrite = canAccess(member.role, ROLES.ADMIN_ONLY);
 
   // U-02: fetch de datos para cada tab
-  const [history, vacationRecords, loans, benefitBalance, advances] = await Promise.all([
+  const [history, vacationRecords, loans, benefitBalance, advances, vacationBalance, vacationRequests] = await Promise.all([
     EmployeeService.getSalaryHistory(companyId, employeeId),
     VacationService.listByEmployee(companyId, employeeId),
     EmployeeLoanService.list(companyId, { employeeId }),
     BenefitAccrualService.getBalance(companyId, employeeId),
     BenefitAdvanceService.listAdvances(companyId, employeeId),
+    VacationRequestService.getBalance(companyId, employeeId),
+    VacationRequestService.listByEmployee(companyId, employeeId),
   ]);
 
   // Calcular años de servicio para vacaciones
@@ -206,20 +213,28 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         </div>
       </dl>
 
-      {/* Portal del empleado */}
+      {/* Portal del empleado + saldos históricos */}
       {canWrite && (
-        <div className="rounded-lg border bg-indigo-50 p-5">
-          <p className="mb-2 text-sm font-medium text-indigo-800">
+        <div className="rounded-lg border bg-indigo-50 p-5 space-y-3">
+          <p className="text-sm font-medium text-indigo-800">
             Enlace de autoservicio para el empleado
           </p>
-          <p className="mb-3 text-xs text-indigo-600">
+          <p className="text-xs text-indigo-600">
             Genera un enlace seguro con validez de 30 días. El empleado puede ver sus recibos de pago, vacaciones y préstamos sin necesitar cuenta en la plataforma.
           </p>
-          <EmployeePortalTokenButton
-            companyId={companyId}
-            employeeId={emp.id}
-            employeeName={emp.fullName}
-          />
+          <div className="flex flex-wrap gap-2">
+            <EmployeePortalTokenButton
+              companyId={companyId}
+              employeeId={emp.id}
+              employeeName={emp.fullName}
+            />
+            <EmployeeHistoricalImportDialog
+              companyId={companyId}
+              employeeId={emp.id}
+              employeeName={emp.fullName}
+              currentVacationDays={vacationBalance.initialBalance}
+            />
+          </div>
         </div>
       )}
 
@@ -252,15 +267,43 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
           )}
 
           {activeTab === "vacaciones" && (
-            <VacationPanel
-              companyId={companyId}
-              employeeId={emp.id}
-              initialRecords={vacationRecords}
-              canAdmin={canWrite}
-              vacationEntitlement={vacationEntitlement}
-              vacationUsedThisYear={vacationUsedThisYear}
-              yearsOfService={yearsOfService}
-            />
+            <div className="space-y-6">
+              {/* Feature 9: balance de días disponibles */}
+              <VacationBalanceWidget balance={vacationBalance} />
+
+              {/* Feature 8: nueva solicitud */}
+              <div className="rounded-xl border bg-white p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-zinc-700">Nueva solicitud de vacaciones</h3>
+                <VacationRequestForm
+                  companyId={companyId}
+                  employeeId={emp.id}
+                  balance={vacationBalance}
+                />
+              </div>
+
+              {/* Feature 8/10: historial de solicitudes */}
+              {vacationRequests.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-zinc-700">Solicitudes de vacaciones</h3>
+                  <VacationRequestList
+                    companyId={companyId}
+                    requests={vacationRequests}
+                    canApprove={canWrite}
+                  />
+                </div>
+              )}
+
+              {/* Historial de vacaciones procesadas (VacationRecord) */}
+              <VacationPanel
+                companyId={companyId}
+                employeeId={emp.id}
+                initialRecords={vacationRecords}
+                canAdmin={canWrite}
+                vacationEntitlement={vacationEntitlement}
+                vacationUsedThisYear={vacationUsedThisYear}
+                yearsOfService={yearsOfService}
+              />
+            </div>
           )}
 
           {activeTab === "prestamos" && (

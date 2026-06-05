@@ -205,6 +205,7 @@ model Company {
   benefitAccrualLines        BenefitAccrualLine[]
   benefitAdvances            BenefitAdvance[]
   vacationRecords            VacationRecord[]
+  vacationRequests           VacationRequest[]
   profitSharingRecords       ProfitSharingRecord[]
   terminations               Termination[]
   // Fase 35A: Vendor / Customer
@@ -1542,6 +1543,14 @@ enum PayrollPaymentCurrency {
 enum PayrollFrequency {
   BIWEEKLY // Quincenal
   MONTHLY // Mensual
+  SEMANAL // Semanal
+}
+
+enum VacationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum CestaTicketType {
@@ -1735,44 +1744,46 @@ enum PayrollWorkerType {
 // onDelete: Restrict — nunca eliminar empleados con historial contable
 
 model Employee {
-  id                String            @id @default(cuid())
-  companyId         String
+  id                  String            @id @default(cuid())
+  companyId           String
   // Identificación
-  firstName         String
-  lastName          String
-  cedulaType        String // "V" | "E"
-  cedulaNumber      String // solo dígitos
+  firstName           String
+  lastName            String
+  cedulaType          String // "V" | "E"
+  cedulaNumber        String // solo dígitos
   // Contrato LOTTT
-  contractType      ContractType
-  employeeRegime    LottRegime // por empleado — empresa MIXED puede tener ambos
-  hireDate          DateTime          @db.Date
-  terminationDate   DateTime?         @db.Date
-  status            EmployeeStatus    @default(ACTIVE)
+  contractType        ContractType
+  employeeRegime      LottRegime // por empleado — empresa MIXED puede tener ambos
+  hireDate            DateTime          @db.Date
+  terminationDate     DateTime?         @db.Date
+  status              EmployeeStatus    @default(ACTIVE)
   // Cargo
-  position          String
-  department        String?
-  costCenter        String? // centro de costo (Ítem 52)
+  position            String
+  department          String?
+  costCenter          String? // centro de costo (Ítem 52)
   // Contacto
-  email             String?
-  phone             String?
+  email               String?
+  phone               String?
   // Datos bancarios (para nómina)
-  bankName          String?
-  bankAccount       String?
+  bankName            String?
+  bankAccount         String?
   // Parafiscal (F-01 — IVSS/Banavih/ISLR D.1808)
-  ivssNumber        String? // Número afiliación IVSS (Forma 14-02)
-  banavihNumber     String? // Número afiliación Banavih/FAOV (FAOVWeb)
-  dependents        Int? // Cargas familiares para ISLR (D. 1808)
-  birthDate         DateTime?         @db.Date
-  workSchedule      JornadaType? // Jornada laboral LOTTT Arts. 173-177
+  ivssNumber          String? // Número afiliación IVSS (Forma 14-02)
+  banavihNumber       String? // Número afiliación Banavih/FAOV (FAOVWeb)
+  dependents          Int? // Cargas familiares para ISLR (D. 1808)
+  birthDate           DateTime?         @db.Date
+  workSchedule        JornadaType? // Jornada laboral LOTTT Arts. 173-177
   // Clasificación LOTTT y estado civil (auditoria 2026-06-02)
-  maritalStatus     MaritalStatus? // Estado civil — ISLR D. 1808
-  payrollWorkerType PayrollWorkerType @default(EMPLEADO) // Tipo trabajador LOTTT Art. 1
-  contractEndDate   DateTime?         @db.Date // Vencimiento contrato DETERMINADO (LOTTT Art. 64)
+  maritalStatus       MaritalStatus? // Estado civil — ISLR D. 1808
+  payrollWorkerType   PayrollWorkerType @default(EMPLEADO) // Tipo trabajador LOTTT Art. 1
+  contractEndDate     DateTime?         @db.Date // Vencimiento contrato DETERMINADO (LOTTT Art. 64)
   // Fideicomiso: si el trabajador optó por fideicomiso bancario real (Art. 143 LOTTT parte final)
-  useFideicomiso    Boolean           @default(false)
+  useFideicomiso      Boolean           @default(false)
+  // Saldo inicial de vacaciones al migrar desde otro sistema (Feature 4)
+  initialVacationDays Decimal?          @db.Decimal(5, 2)
   // Timestamps
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   salaryHistory        SalaryHistory[]
@@ -1782,6 +1793,7 @@ model Employee {
   benefitBalance       BenefitBalance?
   benefitAdvances      BenefitAdvance[]
   vacationRecords      VacationRecord[]
+  vacationRequests     VacationRequest[]
   profitSharingRecords ProfitSharingRecord[]
   terminations         Termination[]
   loans                EmployeeLoan[]
@@ -2166,6 +2178,31 @@ model VacationRecord {
   @@unique([companyId, employeeId, periodYear, isFractional])
   @@index([companyId, employeeId])
   @@index([companyId, periodYear])
+}
+
+// Solicitud de vacaciones — flujo aprobación LOTTT (Feature 8/9/10).
+// Append-only: nunca se eliminan, se cancelan.
+model VacationRequest {
+  id               String                @id @default(cuid())
+  companyId        String
+  employeeId       String
+  startDate        DateTime              @db.Date
+  endDate          DateTime              @db.Date
+  daysRequested    Decimal               @db.Decimal(5, 2)
+  status           VacationRequestStatus @default(PENDING)
+  notes            String?               @db.VarChar(500)
+  rejectionReason  String?               @db.VarChar(500)
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdByUserId  String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId, status])
+  @@index([companyId, status])
 }
 
 // Utilidades causadas por empleado por año fiscal (Art. 131-132 LOTTT).
@@ -2692,10 +2729,10 @@ enum BillingPaymentStatus {
 
 enum PlanChangeStatus {
   PENDING_PAYMENT // Solicitud creada — esperando pago del nuevo plan
-  CONFIRMED       // Pago confirmado — esperando effectiveDate
-  APPLYING        // Cron la tomó — mutex anti doble-apply (ADR-032 D-5)
-  APPLIED         // Aplicada — Subscription ya refleja el nuevo plan
-  CANCELED        // Cancelada antes de effectiveDate
+  CONFIRMED // Pago confirmado — esperando effectiveDate
+  APPLYING // Cron la tomó — mutex anti doble-apply (ADR-032 D-5)
+  APPLIED // Aplicada — Subscription ya refleja el nuevo plan
+  CANCELED // Cancelada antes de effectiveDate
 }
 
 model Subscription {
@@ -2751,30 +2788,30 @@ model SubscriptionPayment {
 /// Solicitud de cambio de plan. effectiveDate = primer día del próximo mes UTC (ADR-032 D-3).
 /// Solo puede haber una solicitud activa por suscripción — guard en la action de creación.
 model PlanChangeRequest {
-  id                String           @id @default(cuid())
-  subscriptionId    String
-  subscription      Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
-  fromPlan          SubscriptionPlan
-  toPlan            SubscriptionPlan
-  newPriceUsdCents  Int              // Snapshot del precio al momento de la solicitud
+  fromPlan         SubscriptionPlan
+  toPlan           SubscriptionPlan
+  newPriceUsdCents Int // Snapshot del precio al momento de la solicitud
 
   // Primer día del próximo mes UTC (ADR-032 D-3)
-  effectiveDate     DateTime
+  effectiveDate DateTime
 
-  status            PlanChangeStatus @default(PENDING_PAYMENT)
+  status PlanChangeStatus @default(PENDING_PAYMENT)
 
-  requestedByUserId String           // userId Clerk del OWNER que solicitó el cambio
-  confirmedByUserId String?          // userId Clerk del admin que confirmó (null = automático)
+  requestedByUserId String // userId Clerk del OWNER que solicitó el cambio
+  confirmedByUserId String? // userId Clerk del admin que confirmó (null = automático)
   confirmedAt       DateTime?
-  appliedByUserId   String?          // userId Clerk o "cron"
+  appliedByUserId   String? // userId Clerk o "cron"
   appliedAt         DateTime?
   cancelReason      String?
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  payments          SubscriptionPayment[]
+  payments SubscriptionPayment[]
 
   // D-4: index para el cron — status=CONFIRMED AND effectiveDate <= now()
   @@index([status, effectiveDate])

@@ -30,7 +30,7 @@ const LOTT_LABELS: Record<string, string> = {
   MIXED: "Mixto (pre-1997 + post-2012)",
 };
 const CURRENCY_LABELS: Record<string, string> = { VES: "VES", USD: "USD", MIXED: "VES + USD" };
-const FREQUENCY_LABELS: Record<string, string> = { BIWEEKLY: "Quincenal", MONTHLY: "Mensual" };
+const FREQUENCY_LABELS: Record<string, string> = { BIWEEKLY: "Quincenal", MONTHLY: "Mensual", SEMANAL: "Semanal" };
 const FIDEICOMISO_LABELS: Record<string, string> = {
   EXTERNAL_BANK: "Banco externo",
   INTERNAL: "Contabilidad interna",

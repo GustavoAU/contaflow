@@ -44,6 +44,7 @@ const CURRENCY_LABELS: Record<string, string> = {
 const FREQUENCY_LABELS: Record<string, string> = {
   BIWEEKLY: "Quincenal (días 15 y último)",
   MONTHLY: "Mensual",
+  SEMANAL: "Semanal",
 };
 
 const FIDEICOMISO_LABELS: Record<string, string> = {

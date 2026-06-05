@@ -34,6 +34,7 @@ import { FiscalDeadlineWidget } from "@/modules/dashboard/components/FiscalDeadl
 import { ManagerApprovalInbox } from "@/modules/dashboard/components/ManagerApprovalInbox";
 import { getPayrollRunsAction } from "@/modules/payroll/actions/payroll-run.actions";
 import { listBudgetsAction } from "@/modules/budgets/actions/budget.actions";
+import { VacationRequestService } from "@/modules/payroll/services/VacationRequestService";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -212,14 +213,15 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   // Fetch pending tasks for ACCOUNTING+ roles (non-blocking — falls back gracefully)
   const pendingTasksResult = showKpis ? await getPendingTasksAction(companyId) : null;
 
-  // Fetch vacation alerts + payroll drafts + budgets for ADMIN+ roles only
+  // Fetch vacation alerts + payroll drafts + budgets + vacation requests for ADMIN+ roles only
   const isAdmin = canAccess(role, ROLES.ADMIN_ONLY);
-  const [vacationAlertsResult, p2034Result, payrollRunsResult, budgetsResult] = await Promise.all([
+  const [vacationAlertsResult, p2034Result, payrollRunsResult, budgetsResult, pendingVacationCount] = await Promise.all([
     isAdmin ? getVacationAlertsAction(companyId) : Promise.resolve(null),
     isAdmin ? getP2034CountersAction(companyId) : Promise.resolve(null),
     // Q3-4 ManagerApprovalInbox: corridas de nómina DRAFT para aprobación del gerente
     isAdmin ? getPayrollRunsAction(companyId) : Promise.resolve(null),
     isAdmin ? listBudgetsAction(companyId) : Promise.resolve(null),
+    isAdmin ? VacationRequestService.pendingCount(companyId) : Promise.resolve(0),
   ]);
   const vacationAlerts = vacationAlertsResult?.success ? vacationAlertsResult.data : [];
   const p2034Data = p2034Result?.success ? p2034Result.data : [];
@@ -230,6 +232,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   const draftBudgetsCount = budgetsResult?.success
     ? budgetsResult.data.filter((b) => b.status === "DRAFT").length
     : 0;
+  const pendingVacationRequestsCount = pendingVacationCount ?? 0;
 
   const openDays = m.activePeriod
     // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
@@ -574,7 +577,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       {isAdmin && (
         <ManagerApprovalInbox
           companyId={companyId}
-          data={{ draftPayrollRuns, draftBudgetsCount }}
+          data={{ draftPayrollRuns, draftBudgetsCount, pendingVacationRequestsCount }}
         />
       )}
 
