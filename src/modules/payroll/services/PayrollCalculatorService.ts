@@ -2,7 +2,7 @@
 // Fase NOM-C: Motor de cálculo de nómina — servicio puro (sin DB, sin efectos secundarios)
 //
 // Seguridad (ADR-013 / NOM-C-12):
-//   Las tasas legales son CONSTANTES INTERNAS — nunca se aceptan del cliente (ADR-006 D-3).
+//   Las tasas legales vienen de LegalThreshold (DB, server-side) — nunca del cliente (ADR-006 D-3).
 //   Los flags ivssEnabled/incesEnabled/banavihEnabled de PayrollConfig controlan
 //   si el concepto aplica (booleano), no la tasa.
 //
@@ -13,22 +13,23 @@
 import Decimal from "decimal.js";
 import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@prisma/client";
 
-// ─── Tasas legales venezolanas (inmutables — ADR-006 D-3) ────────────────────
+// ─── Tasas legales venezolanas — defaults (ADR-006 D-3) ──────────────────────
+// Usadas cuando no hay registro en LegalThreshold para la empresa/período.
 // LSS Art. 62: IVSS obrero 4% | patronal 9% | tope: 5 × salario mínimo
-const IVSS_WORKER_RATE = new Decimal("0.04");
-const IVSS_PAT_RATE    = new Decimal("0.09");
+const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
+const DEFAULT_IVSS_PAT_RATE    = new Decimal("0.09");
 const IVSS_CAP_MULTIPLES = new Decimal("5");
 // Ley INCES Art. 30: trabajador 0.5% | patronal 2% | tope: 5 × salario mínimo
-const INCES_WORKER_RATE = new Decimal("0.005");
-const INCES_PAT_RATE    = new Decimal("0.02");
+const DEFAULT_INCES_WORKER_RATE = new Decimal("0.005");
+const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
 const INCES_CAP_MULTIPLES = new Decimal("5");
 // LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
-const FAOV_WORKER_RATE = new Decimal("0.01");
-const FAOV_PAT_RATE    = new Decimal("0.02");
+const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
+const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 const FAOV_CAP_MULTIPLES = new Decimal("10");
 // LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | patronal 2% | tope: 5 × salario mínimo
-const RPE_WORKER_RATE = new Decimal("0.005");
-const RPE_PAT_RATE    = new Decimal("0.02");
+const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
+const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
 const RPE_CAP_MULTIPLES = new Decimal("5");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
@@ -78,6 +79,17 @@ export interface PayrollCalculatorConfig {
   // Cuando 0 o null: sin tope (retro-compatible con empresas sin configurar).
   salaryMinimumVes: Decimal;
   systemConcepts: SystemConceptRef[];
+  // Alícuotas parafiscales como fracción decimal (ej: 0.04 = 4%).
+  // Si no se proveen, el calculador usa los defaults hardcodeados.
+  // PayrollRunService las obtiene de LegalThreshold server-side (nunca del cliente).
+  ivssObrRate?: Decimal;
+  ivssPatRate?: Decimal;
+  incesObrRate?: Decimal;
+  incesPatRate?: Decimal;
+  faovObrRate?: Decimal;
+  faovPatRate?: Decimal;
+  rpeObrRate?: Decimal;
+  rpePatRate?: Decimal;
 }
 
 export interface CalculatorLineOutput {
@@ -198,6 +210,16 @@ export const PayrollCalculatorService = {
   ): CalculatorLineOutput[] {
     const lines: CalculatorLineOutput[] = [];
     const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
+    // Tasas efectivas: usa las configuradas por el admin (LegalThreshold) si existen,
+    // o los defaults legales hardcodeados como fallback.
+    const ivssWorkerRate  = config.ivssObrRate  ?? DEFAULT_IVSS_WORKER_RATE;
+    const ivssPatRate     = config.ivssPatRate  ?? DEFAULT_IVSS_PAT_RATE;
+    const incesWorkerRate = config.incesObrRate ?? DEFAULT_INCES_WORKER_RATE;
+    const incesPatRate    = config.incesPatRate ?? DEFAULT_INCES_PAT_RATE;
+    const faovWorkerRate  = config.faovObrRate  ?? DEFAULT_FAOV_WORKER_RATE;
+    const faovPatRate     = config.faovPatRate  ?? DEFAULT_FAOV_PAT_RATE;
+    const rpeWorkerRate   = config.rpeObrRate   ?? DEFAULT_RPE_WORKER_RATE;
+    const rpePatRate      = config.rpePatRate   ?? DEFAULT_RPE_PAT_RATE;
     const salary = emp.salaryAmount;
 
     const salaryBase = {
@@ -267,11 +289,11 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── IVSS_OBR (4%, tope 5×salMin — solo si ivssEnabled) ──────────────────
+    // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
       const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
-      const amount = basis.times(IVSS_WORKER_RATE).toDecimalPlaces(2);
+      const amount = basis.times(ivssWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
         conceptId: ivssObrId,
@@ -279,16 +301,16 @@ export const PayrollCalculatorService = {
         conceptType: "DEDUCTION",
         amount,
         basis,
-        rate: IVSS_WORKER_RATE,
+        rate: ivssWorkerRate,
         ...salaryBase,
       });
     }
 
-    // ── INCES_OBR (2%, tope 5×salMin — solo si incesEnabled) ────────────────
+    // ── INCES_OBR (default 0.5%, tope 5×salMin — solo si incesEnabled) ────────
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
       const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
-      const amount = basis.times(INCES_WORKER_RATE).toDecimalPlaces(2);
+      const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
         conceptId: incesObrId,
@@ -296,16 +318,16 @@ export const PayrollCalculatorService = {
         conceptType: "DEDUCTION",
         amount,
         basis,
-        rate: INCES_WORKER_RATE,
+        rate: incesWorkerRate,
         ...salaryBase,
       });
     }
 
-    // ── FAOV_OBR (1%, tope 10×salMin — solo si banavihEnabled) ──────────────
+    // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
       const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
-      const amount = basis.times(FAOV_WORKER_RATE).toDecimalPlaces(2);
+      const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
         conceptId: faovObrId,
@@ -313,16 +335,16 @@ export const PayrollCalculatorService = {
         conceptType: "DEDUCTION",
         amount,
         basis,
-        rate: FAOV_WORKER_RATE,
+        rate: faovWorkerRate,
         ...salaryBase,
       });
     }
 
-    // ── RPE_OBR (0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────────
+    // ── RPE_OBR (default 0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
       const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
-      const amount = basis.times(RPE_WORKER_RATE).toDecimalPlaces(2);
+      const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_OBR",
         conceptId: rpeObrId,
@@ -330,17 +352,17 @@ export const PayrollCalculatorService = {
         conceptType: "DEDUCTION",
         amount,
         basis,
-        rate: RPE_WORKER_RATE,
+        rate: rpeWorkerRate,
         ...salaryBase,
       });
     }
 
     // ── F-03: Aportes patronales — EMPLOYER_COST (no afectan neto del empleado) ─
-    // ── IVSS_PAT (9%, tope 5×salMin — LSS Art. 62) ───────────────────────────
+    // ── IVSS_PAT (default 9%, tope 5×salMin — LSS Art. 62) ──────────────────────
     const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
     if (ivssEnabled && ivssPatId) {
       const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
-      const amount = basis.times(IVSS_PAT_RATE).toDecimalPlaces(2);
+      const amount = basis.times(ivssPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_PAT",
         conceptId: ivssPatId,
@@ -348,16 +370,16 @@ export const PayrollCalculatorService = {
         conceptType: "EMPLOYER_COST",
         amount,
         basis,
-        rate: IVSS_PAT_RATE,
+        rate: ivssPatRate,
         ...salaryBase,
       });
     }
 
-    // ── INCES_PAT (2%, tope 5×salMin — Ley INCES Art. 30) ────────────────────
+    // ── INCES_PAT (default 2%, tope 5×salMin — Ley INCES Art. 30) ───────────────
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
     if (incesEnabled && incesPatId) {
       const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
-      const amount = basis.times(INCES_PAT_RATE).toDecimalPlaces(2);
+      const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_PAT",
         conceptId: incesPatId,
@@ -365,16 +387,16 @@ export const PayrollCalculatorService = {
         conceptType: "EMPLOYER_COST",
         amount,
         basis,
-        rate: INCES_PAT_RATE,
+        rate: incesPatRate,
         ...salaryBase,
       });
     }
 
-    // ── FAOV_PAT (2%, tope 10×salMin — LAH Art. 172) ─────────────────────────
+    // ── FAOV_PAT (default 2%, tope 10×salMin — LAH Art. 172) ────────────────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
       const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
-      const amount = basis.times(FAOV_PAT_RATE).toDecimalPlaces(2);
+      const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",
         conceptId: faovPatId,
@@ -382,16 +404,16 @@ export const PayrollCalculatorService = {
         conceptType: "EMPLOYER_COST",
         amount,
         basis,
-        rate: FAOV_PAT_RATE,
+        rate: faovPatRate,
         ...salaryBase,
       });
     }
 
-    // ── RPE_PAT (2%, tope 5×salMin — LSSO Art. 7) ────────────────────────────
+    // ── RPE_PAT (default 2%, tope 5×salMin — LSSO Art. 7) ───────────────────────
     const rpePatId = findConcept(systemConcepts, "RPE_PAT");
     if (rpeEnabled && rpePatId) {
       const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
-      const amount = basis.times(RPE_PAT_RATE).toDecimalPlaces(2);
+      const amount = basis.times(rpePatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_PAT",
         conceptId: rpePatId,
@@ -399,7 +421,7 @@ export const PayrollCalculatorService = {
         conceptType: "EMPLOYER_COST",
         amount,
         basis,
-        rate: RPE_PAT_RATE,
+        rate: rpePatRate,
         ...salaryBase,
       });
     }
