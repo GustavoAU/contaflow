@@ -146,6 +146,7 @@ export async function applyDuePlanChanges(): Promise<{ applied: number; errors: 
   const now = new Date();
   const errors: string[] = [];
 
+  // ADR-004-EXCEPTION: cron job del sistema — procesa cambios de todas las empresas intencionalmente
   const due = await prisma.planChangeRequest.findMany({
     where: { status: "CONFIRMED", effectiveDate: { lte: now } },
     orderBy: { effectiveDate: "asc" },
