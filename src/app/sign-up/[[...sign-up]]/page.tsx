@@ -1,4 +1,7 @@
 import { SignUp } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { AlreadySignedInPanel } from "./AlreadySignedInPanel";
 
 type PlanKey = "mensual" | "anual" | "early_adopter";
 
@@ -73,6 +76,10 @@ export default async function SignUpPage({ searchParams }: PageProps) {
       ? (normalizedPlan as PlanKey)
       : null;
   const summary = validPlan ? PLAN_SUMMARIES[validPlan] : null;
+
+  const { userId } = await auth();
+  // Usuario ya logueado sin plan seleccionado → ir al dashboard
+  if (userId && !validPlan) redirect("/dashboard");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
@@ -221,7 +228,14 @@ export default async function SignUpPage({ searchParams }: PageProps) {
                 </div>
               </div>
             </div>
-            <SignUp />
+            {userId ? (
+              <AlreadySignedInPanel
+                planName={summary.name}
+                displayPrice={summary.displayPrice}
+              />
+            ) : (
+              <SignUp />
+            )}
           </div>
         </div>
       ) : (
