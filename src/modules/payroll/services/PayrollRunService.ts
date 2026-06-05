@@ -224,16 +224,33 @@ export const PayrollRunService = {
       select: { id: true, code: true },
     });
 
-    // Tope salario mínimo: LegalThreshold vigente al inicio del período,
-    // con fallback a PayrollConfig.salaryMinimumVes para retrocompatibilidad.
-    const thresholdSalMin = await LegalThresholdService.getActive(
-      companyId,
-      "SALARY_MIN_VES",
-      new Date(input.periodStart),
-    );
+    // Topes y alícuotas legales: LegalThreshold vigente al inicio del período.
+    // Las alícuotas tienen fallback a los defaults del calculador si no hay registro.
+    const periodDate = new Date(input.periodStart);
+    const [
+      thresholdSalMin,
+      ivssObrPct, ivssPatPct,
+      incesObrPct, incesPatPct,
+      faovObrPct, faovPatPct,
+      rpeObrPct, rpePatPct,
+    ] = await Promise.all([
+      LegalThresholdService.getActive(companyId, "SALARY_MIN_VES",  periodDate),
+      LegalThresholdService.getActive(companyId, "IVSS_OBR_RATE",  periodDate),
+      LegalThresholdService.getActive(companyId, "IVSS_PAT_RATE",  periodDate),
+      LegalThresholdService.getActive(companyId, "INCES_OBR_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "INCES_PAT_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "FAOV_OBR_RATE",  periodDate),
+      LegalThresholdService.getActive(companyId, "FAOV_PAT_RATE",  periodDate),
+      LegalThresholdService.getActive(companyId, "RPE_OBR_RATE",   periodDate),
+      LegalThresholdService.getActive(companyId, "RPE_PAT_RATE",   periodDate),
+    ]);
+
     const salaryMinimumVes =
       thresholdSalMin ??
       (config.salaryMinimumVes ? new Decimal(config.salaryMinimumVes.toString()) : new Decimal(0));
+
+    // LegalThreshold almacena alícuotas como porcentaje (ej: 4.00 = 4%) → dividir /100
+    const toRate = (pct: Decimal | null) => pct ? pct.dividedBy(100) : undefined;
 
     const calcConfig: PayrollCalculatorConfig = {
       frequency: config.frequency,
@@ -243,6 +260,14 @@ export const PayrollRunService = {
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
       systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
+      ivssObrRate:  toRate(ivssObrPct),
+      ivssPatRate:  toRate(ivssPatPct),
+      incesObrRate: toRate(incesObrPct),
+      incesPatRate: toRate(incesPatPct),
+      faovObrRate:  toRate(faovObrPct),
+      faovPatRate:  toRate(faovPatPct),
+      rpeObrRate:   toRate(rpeObrPct),
+      rpePatRate:   toRate(rpePatPct),
     };
 
     // ── Construir inputs del calculador ────────────────────────────────────

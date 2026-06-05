@@ -18,12 +18,48 @@ interface Props {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  SALARY_MIN_VES: "Salario Mínimo (Bs/mes)",
-  UT_VALUE: "Unidad Tributaria (Bs)",
+  SALARY_MIN_VES:  "Salario Mínimo (Bs/mes)",
+  UT_VALUE:        "Unidad Tributaria (Bs)",
+  IVSS_OBR_RATE:   "IVSS Obrero (%)",
+  IVSS_PAT_RATE:   "IVSS Patronal (%)",
+  INCES_OBR_RATE:  "INCES Obrero (%)",
+  INCES_PAT_RATE:  "INCES Patronal (%)",
+  FAOV_OBR_RATE:   "FAOV/Banavih Obrero (%)",
+  FAOV_PAT_RATE:   "FAOV/Banavih Patronal (%)",
+  RPE_OBR_RATE:    "RPE/Paro Forzoso Obrero (%)",
+  RPE_PAT_RATE:    "RPE/Paro Forzoso Patronal (%)",
 };
 
+const TYPE_DEFAULTS: Record<string, string> = {
+  SALARY_MIN_VES:  "",
+  UT_VALUE:        "",
+  IVSS_OBR_RATE:   "4.00",
+  IVSS_PAT_RATE:   "9.00",
+  INCES_OBR_RATE:  "0.50",
+  INCES_PAT_RATE:  "2.00",
+  FAOV_OBR_RATE:   "1.00",
+  FAOV_PAT_RATE:   "2.00",
+  RPE_OBR_RATE:    "0.50",
+  RPE_PAT_RATE:    "2.00",
+};
+
+const RATE_TYPES = new Set([
+  "IVSS_OBR_RATE", "IVSS_PAT_RATE",
+  "INCES_OBR_RATE", "INCES_PAT_RATE",
+  "FAOV_OBR_RATE", "FAOV_PAT_RATE",
+  "RPE_OBR_RATE", "RPE_PAT_RATE",
+]);
+
+const MONETARY_TYPES = ["SALARY_MIN_VES", "UT_VALUE"] as const;
+const PARAFISCAL_RATE_TYPES = [
+  "IVSS_OBR_RATE", "IVSS_PAT_RATE",
+  "INCES_OBR_RATE", "INCES_PAT_RATE",
+  "FAOV_OBR_RATE", "FAOV_PAT_RATE",
+  "RPE_OBR_RATE", "RPE_PAT_RATE",
+] as const;
+
 const EMPTY_FORM = {
-  type: "SALARY_MIN_VES" as const,
+  type: "SALARY_MIN_VES" as string,
   effectiveFrom: "",
   value: "",
   notes: "",
@@ -66,13 +102,15 @@ export default function LegalThresholdsPanel({
     });
   }
 
-  const byType = {
-    SALARY_MIN_VES: thresholds.filter((t) => t.type === "SALARY_MIN_VES"),
-    UT_VALUE: thresholds.filter((t) => t.type === "UT_VALUE"),
-  };
+  const byType = Object.fromEntries(
+    [...MONETARY_TYPES, ...PARAFISCAL_RATE_TYPES].map((t) => [
+      t,
+      thresholds.filter((r) => r.type === t),
+    ])
+  ) as Record<string, typeof thresholds>;
 
   // U-05: alerta si el salario mínimo no ha sido actualizado en más de 180 días
-  const lastSalMin = byType.SALARY_MIN_VES[0];
+  const lastSalMin = byType["SALARY_MIN_VES"]?.[0];
 
   return (
     <div className="space-y-6">
@@ -113,8 +151,8 @@ export default function LegalThresholdsPanel({
           </div>
         </div>
       )}
-      {/* Tabla por tipo */}
-      {(["SALARY_MIN_VES", "UT_VALUE"] as const).map((type) => (
+      {/* Tabla — valores monetarios */}
+      {MONETARY_TYPES.map((type) => (
         <div key={type} className="border rounded-lg overflow-hidden">
           <div className="bg-muted px-4 py-2 font-medium text-sm">{TYPE_LABELS[type]}</div>
           {byType[type].length === 0 ? (
@@ -141,11 +179,8 @@ export default function LegalThresholdsPanel({
                     <td className="px-4 py-2 text-muted-foreground">{t.notes ?? "—"}</td>
                     {isAdmin && (
                       <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => handleDelete(t.id)}
-                          disabled={isPending}
-                          className="text-red-500 hover:text-red-700 text-xs disabled:opacity-50"
-                        >
+                        <button onClick={() => handleDelete(t.id)} disabled={isPending}
+                          className="text-red-500 hover:text-red-700 text-xs disabled:opacity-50">
                           Eliminar
                         </button>
                       </td>
@@ -157,6 +192,54 @@ export default function LegalThresholdsPanel({
           )}
         </div>
       ))}
+
+      {/* Tabla — alícuotas parafiscales */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-muted px-4 py-2 font-medium text-sm flex items-center justify-between">
+          <span>Alícuotas parafiscales (%)</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            Valor en %; sin registro = default legal vigente
+          </span>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="border-b bg-muted/50">
+            <tr>
+              <th scope="col" className="text-left px-4 py-2">Organismo</th>
+              <th scope="col" className="text-right px-4 py-2">Default</th>
+              <th scope="col" className="text-right px-4 py-2">Vigente (desde)</th>
+              {isAdmin && <th scope="col" className="px-4 py-2" />}
+            </tr>
+          </thead>
+          <tbody>
+            {PARAFISCAL_RATE_TYPES.map((type) => {
+              const latest = byType[type]?.[0];
+              return (
+                <tr key={type} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-2">{TYPE_LABELS[type]}</td>
+                  <td className="px-4 py-2 text-right font-mono text-muted-foreground">
+                    {TYPE_DEFAULTS[type]}%
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono">
+                    {latest
+                      ? <span className="font-semibold text-blue-700">{Number(latest.value).toFixed(2)}% <span className="text-xs font-normal text-muted-foreground">desde {latest.effectiveFrom}</span></span>
+                      : <span className="text-muted-foreground text-xs">usando default</span>}
+                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2 text-right">
+                      {latest && (
+                        <button onClick={() => handleDelete(latest.id)} disabled={isPending}
+                          className="text-red-500 hover:text-red-700 text-xs disabled:opacity-50">
+                          Eliminar
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {/* Formulario — solo ADMIN */}
       {isAdmin && (
@@ -175,11 +258,30 @@ export default function LegalThresholdsPanel({
               <select
                 name="type"
                 value={form.type}
-                onChange={handleChange}
-                className="w-full border rounded px-3 py-2 text-sm"
+                onChange={(e) => {
+                  const newType = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    type: newType,
+                    value: RATE_TYPES.has(newType) ? (TYPE_DEFAULTS[newType] ?? "") : "",
+                  }));
+                }}
+                className="w-full border rounded px-3 py-2 text-sm bg-white"
               >
-                <option value="SALARY_MIN_VES">Salario Mínimo</option>
-                <option value="UT_VALUE">Unidad Tributaria</option>
+                <optgroup label="Valores monetarios">
+                  <option value="SALARY_MIN_VES">Salario Mínimo (Bs)</option>
+                  <option value="UT_VALUE">Unidad Tributaria (Bs)</option>
+                </optgroup>
+                <optgroup label="Alícuotas parafiscales (%)">
+                  <option value="IVSS_OBR_RATE">IVSS Obrero</option>
+                  <option value="IVSS_PAT_RATE">IVSS Patronal</option>
+                  <option value="INCES_OBR_RATE">INCES Obrero</option>
+                  <option value="INCES_PAT_RATE">INCES Patronal</option>
+                  <option value="FAOV_OBR_RATE">FAOV/Banavih Obrero</option>
+                  <option value="FAOV_PAT_RATE">FAOV/Banavih Patronal</option>
+                  <option value="RPE_OBR_RATE">RPE/Paro Forzoso Obrero</option>
+                  <option value="RPE_PAT_RATE">RPE/Paro Forzoso Patronal</option>
+                </optgroup>
               </select>
             </div>
 
@@ -196,20 +298,34 @@ export default function LegalThresholdsPanel({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Valor (Bs)</label>
-              <input
-                type="text"
-                name="value"
-                value={form.value}
-                onChange={handleChange}
-                placeholder="Ej: 130.00"
-                required
-                className="w-full border rounded px-3 py-2 text-sm font-mono"
-              />
+              <label className="text-xs font-medium text-muted-foreground">
+                {RATE_TYPES.has(form.type) ? "Alícuota (%)" : "Valor (Bs)"}
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  name="value"
+                  value={form.value}
+                  onChange={handleChange}
+                  placeholder={RATE_TYPES.has(form.type)
+                    ? `Ej: ${TYPE_DEFAULTS[form.type] ?? "4.00"}`
+                    : "Ej: 130.00"}
+                  required
+                  className="w-full border rounded px-3 py-2 text-sm font-mono pr-8"
+                />
+                {RATE_TYPES.has(form.type) && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                )}
+              </div>
+              {RATE_TYPES.has(form.type) && (
+                <p className="text-xs text-muted-foreground">
+                  Default actual: {TYPE_DEFAULTS[form.type]}% — solo registra si hay un decreto que modifique la alícuota.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Notas (opcional)</label>
+              <label className="text-xs font-medium text-muted-foreground">Notas / Gaceta Oficial (opcional)</label>
               <input
                 type="text"
                 name="notes"

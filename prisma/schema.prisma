@@ -1558,6 +1558,15 @@ enum FideicomisoType {
 enum LegalThresholdType {
   SALARY_MIN_VES // Salario mínimo mensual nacional (Bs.) — Decreto presidencial
   UT_VALUE // Unidad Tributaria (Bs.) — Providencia SENIAT
+  // Alícuotas parafiscales — valor almacenado como porcentaje (ej: 4.00 = 4%)
+  IVSS_OBR_RATE // IVSS obrero — LSS Art. 62 — default 4%
+  IVSS_PAT_RATE // IVSS patronal — LSS Art. 62 — default 9%
+  INCES_OBR_RATE // INCES obrero — Ley INCES Art. 30 — default 0.5%
+  INCES_PAT_RATE // INCES patronal — Ley INCES Art. 30 — default 2%
+  FAOV_OBR_RATE // FAOV/Banavih obrero — LAH Art. 172 — default 1%
+  FAOV_PAT_RATE // FAOV/Banavih patronal — LAH Art. 172 — default 2%
+  RPE_OBR_RATE // RPE/Paro Forzoso obrero — LSSO Art. 7 — default 0.5%
+  RPE_PAT_RATE // RPE/Paro Forzoso patronal — LSSO Art. 7 — default 2%
 }
 
 // ─── LegalThreshold ───────────────────────────────────────────────────────────
@@ -2681,6 +2690,14 @@ enum BillingPaymentStatus {
   REFUNDED // Reembolsado
 }
 
+enum PlanChangeStatus {
+  PENDING_PAYMENT // Solicitud creada — esperando pago del nuevo plan
+  CONFIRMED       // Pago confirmado — esperando effectiveDate
+  APPLYING        // Cron la tomó — mutex anti doble-apply (ADR-032 D-5)
+  APPLIED         // Aplicada — Subscription ya refleja el nuevo plan
+  CANCELED        // Cancelada antes de effectiveDate
+}
+
 model Subscription {
   id                  String             @id @default(cuid())
   companyId           String             @unique
@@ -2698,7 +2715,8 @@ model Subscription {
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
-  payments SubscriptionPayment[]
+  payments       SubscriptionPayment[]
+  changeRequests PlanChangeRequest[]
 
   @@index([status, currentPeriodEnd])
   @@map("subscriptions")
@@ -2708,18 +2726,60 @@ model SubscriptionPayment {
   id                   String               @id @default(cuid())
   subscriptionId       String
   subscription         Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  // Referencia al cambio de plan que originó este pago (null = renovación normal)
+  planChangeRequestId  String?
+  planChangeRequest    PlanChangeRequest?   @relation(fields: [planChangeRequestId], references: [id], onDelete: Restrict)
   nowpaymentsOrderId   String?              @unique
   nowpaymentsPaymentId String?              @unique
   amountUsdCents       Int
   currency             String // "USDT", "BTC", etc.
+  // Hash de tx on-chain USDT — @unique porque null != null en PostgreSQL (ADR-032)
+  txHash               String?              @unique
   status               BillingPaymentStatus @default(PENDING)
   paidAt               DateTime?
-  metadata             Json? // Raw webhook payload NOWPayments
+  // Quién confirmó manualmente (userId Clerk) — null para confirmación automática vía webhook
+  confirmedByUserId    String?
+  metadata             Json? // Raw webhook payload NOWPayments / notas admin
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
   @@index([subscriptionId])
+  @@index([status, createdAt])
   @@map("subscription_payments")
+}
+
+/// Solicitud de cambio de plan. effectiveDate = primer día del próximo mes UTC (ADR-032 D-3).
+/// Solo puede haber una solicitud activa por suscripción — guard en la action de creación.
+model PlanChangeRequest {
+  id                String           @id @default(cuid())
+  subscriptionId    String
+  subscription      Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  fromPlan          SubscriptionPlan
+  toPlan            SubscriptionPlan
+  newPriceUsdCents  Int              // Snapshot del precio al momento de la solicitud
+
+  // Primer día del próximo mes UTC (ADR-032 D-3)
+  effectiveDate     DateTime
+
+  status            PlanChangeStatus @default(PENDING_PAYMENT)
+
+  requestedByUserId String           // userId Clerk del OWNER que solicitó el cambio
+  confirmedByUserId String?          // userId Clerk del admin que confirmó (null = automático)
+  confirmedAt       DateTime?
+  appliedByUserId   String?          // userId Clerk o "cron"
+  appliedAt         DateTime?
+  cancelReason      String?
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  payments          SubscriptionPayment[]
+
+  // D-4: index para el cron — status=CONFIRMED AND effectiveDate <= now()
+  @@index([status, effectiveDate])
+  @@index([subscriptionId])
+  @@map("plan_change_requests")
 }
 
 // ─── Fase 36D: IncomeDistribution — Distribución de Ingresos (ADR-023) ────────
