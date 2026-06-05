@@ -2692,10 +2692,10 @@ enum BillingPaymentStatus {
 
 enum PlanChangeStatus {
   PENDING_PAYMENT // Solicitud creada — esperando pago del nuevo plan
-  CONFIRMED       // Pago confirmado — esperando effectiveDate
-  APPLYING        // Cron la tomó — mutex anti doble-apply (ADR-032 D-5)
-  APPLIED         // Aplicada — Subscription ya refleja el nuevo plan
-  CANCELED        // Cancelada antes de effectiveDate
+  CONFIRMED // Pago confirmado — esperando effectiveDate
+  APPLYING // Cron la tomó — mutex anti doble-apply (ADR-032 D-5)
+  APPLIED // Aplicada — Subscription ya refleja el nuevo plan
+  CANCELED // Cancelada antes de effectiveDate
 }
 
 model Subscription {
@@ -2751,30 +2751,30 @@ model SubscriptionPayment {
 /// Solicitud de cambio de plan. effectiveDate = primer día del próximo mes UTC (ADR-032 D-3).
 /// Solo puede haber una solicitud activa por suscripción — guard en la action de creación.
 model PlanChangeRequest {
-  id                String           @id @default(cuid())
-  subscriptionId    String
-  subscription      Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
 
-  fromPlan          SubscriptionPlan
-  toPlan            SubscriptionPlan
-  newPriceUsdCents  Int              // Snapshot del precio al momento de la solicitud
+  fromPlan         SubscriptionPlan
+  toPlan           SubscriptionPlan
+  newPriceUsdCents Int // Snapshot del precio al momento de la solicitud
 
   // Primer día del próximo mes UTC (ADR-032 D-3)
-  effectiveDate     DateTime
+  effectiveDate DateTime
 
-  status            PlanChangeStatus @default(PENDING_PAYMENT)
+  status PlanChangeStatus @default(PENDING_PAYMENT)
 
-  requestedByUserId String           // userId Clerk del OWNER que solicitó el cambio
-  confirmedByUserId String?          // userId Clerk del admin que confirmó (null = automático)
+  requestedByUserId String // userId Clerk del OWNER que solicitó el cambio
+  confirmedByUserId String? // userId Clerk del admin que confirmó (null = automático)
   confirmedAt       DateTime?
-  appliedByUserId   String?          // userId Clerk o "cron"
+  appliedByUserId   String? // userId Clerk o "cron"
   appliedAt         DateTime?
   cancelReason      String?
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  payments          SubscriptionPayment[]
+  payments SubscriptionPayment[]
 
   // D-4: index para el cron — status=CONFIRMED AND effectiveDate <= now()
   @@index([status, effectiveDate])
