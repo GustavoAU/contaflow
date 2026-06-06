@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "ContaFlow",
     short_name: "ContaFlow",
     description: "Sistema contable profesional venezolano",
@@ -23,6 +24,26 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+    ],
+    screenshots: [
+      {
+        src: "/screenshots/dashboard-ejecutivo.jpg",
+        type: "image/jpeg",
+        form_factor: "wide",
+        label: "Dashboard Ejecutivo",
+      },
+      {
+        src: "/screenshots/libro-iva.jpg",
+        type: "image/jpeg",
+        form_factor: "wide",
+        label: "Libro de IVA",
+      },
+      {
+        src: "/screenshots/estado-resultados.jpg",
+        type: "image/jpeg",
+        form_factor: "wide",
+        label: "Estado de Resultados",
       },
     ],
   };
