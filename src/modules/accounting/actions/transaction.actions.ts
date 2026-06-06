@@ -15,12 +15,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-
-// ─── Tipo de respuesta estandar ───────────────────────────────────────────────
-
-type ActionResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: Record<string, string[]> };
+import type { ActionResult } from "../types/action-result";
 
 // ─── Crear asiento ────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -47,12 +48,6 @@ const RANGES: Record<string, { start: number; end: number }> = {
   REVENUE: { start: 4000, end: 4999 },
   EXPENSE: { start: 5000, end: 5999 },
 };
-
-// ─── Tipo de respuesta estandar ───────────────────────────────────────────────
-
-type ActionResult<T> =
-  | { success: true; data: T; warning?: string }
-  | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
 // ─── Obtener todas las cuentas ────────────────────────────────────────────────
 

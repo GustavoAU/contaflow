@@ -7,6 +7,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { PeriodService } from "../services/PeriodService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import type { ActionResult } from "../types/action-result";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -21,10 +22,6 @@ const ClosePeriodSchema = z.object({
   companyId: z.string().min(1),
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
 });
-
-// ─── Tipo de respuesta ────────────────────────────────────────────────────────
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Obtener período activo ───────────────────────────────────────────────────
 

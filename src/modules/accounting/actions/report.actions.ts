@@ -15,8 +15,9 @@ import type {
   IncomeStatementResult,
   BalanceSheet,
 } from "../types/report-types";
+import type { ActionResult } from "../types/action-result";
 
-// Re-exportamos todos los tipos desde el archivo de tipos centralizado para que
+// Re-exportamos todos los tipos desde los archivos centralizados para que
 // los importadores existentes (páginas, componentes, PDF service) no necesiten
 // cambiar su ruta de importación si ya apuntan a este archivo.
 export type {
@@ -31,11 +32,6 @@ export type {
   BalanceSheetRow,
   BalanceSheet,
 } from "../types/report-types";
-
-// ActionResult es el contrato de respuesta de todas las acciones de este módulo.
-// success: true  → data contiene el resultado
-// success: false → error contiene el mensaje legible para el usuario
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Guard de acceso al módulo de Contabilidad ────────────────────────────────
 
