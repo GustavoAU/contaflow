@@ -113,6 +113,7 @@ export function SeniatAccessPanel({
   const [assignError, setAssignError] = useState<string | null>(null);
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentialText, setCredentialText] = useState("");
+  const [copied, setCopied] = useState(false);
   const [isPendingAssign, startAssignTransition] = useTransition();
   const [isPendingRevoke, startRevokeTransition] = useTransition();
 
@@ -179,9 +180,10 @@ export function SeniatAccessPanel({
     setShowCredentials(true);
   }
 
-  function handleCopyCredentials() {
-    void navigator.clipboard.writeText(credentialText);
-    toast.success("Credenciales copiadas al portapapeles.");
+  async function handleCopyCredentials() {
+    await navigator.clipboard.writeText(credentialText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   function handlePrintCredentials() {
@@ -289,7 +291,7 @@ export function SeniatAccessPanel({
                   {seniatMember.user.email}
                 </p>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -317,10 +319,25 @@ export function SeniatAccessPanel({
               </div>
             </div>
 
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Módulos disponibles: Informe de Facturas · Registro de Caja. Sin acceso operativo al
-              resto del sistema.
-            </p>
+            <div className="rounded-md bg-muted/50 px-3 py-2.5 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Acceso de lectura incluye
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-0.5">
+                <li className="flex items-center gap-1.5">
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  Informe de Auditoría de Facturas (Libros de Ventas y Compras)
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  Informe de Auditoría de Caja (Registros de Cobro/Pago)
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  Estado de transmisiones PA-121 (PENDING / SENT / FAILED)
+                </li>
+              </ul>
+            </div>
           </div>
         )}
       </div>
@@ -349,8 +366,12 @@ export function SeniatAccessPanel({
               onClick={handleCopyCredentials}
               className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             >
-              <CopyIcon className="h-4 w-4 mr-1.5" aria-hidden />
-              Copiar al portapapeles
+              {copied ? (
+                <CheckCircle2Icon className="h-4 w-4 mr-1.5 text-emerald-500" aria-hidden />
+              ) : (
+                <CopyIcon className="h-4 w-4 mr-1.5" aria-hidden />
+              )}
+              {copied ? "Copiado" : "Copiar al portapapeles"}
             </Button>
             <Button
               onClick={handlePrintCredentials}

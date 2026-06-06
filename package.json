@@ -7,9 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
+    "test": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest",
+    "test:ui": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest --ui",
+    "test:run": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest run",
     "postinstall": "prisma generate",
     "clean": "node -e \"const fs=require('fs');const p='.next';if(fs.existsSync(p)){fs.rmSync(p,{recursive:true,force:true});console.log('.next eliminado')}else{console.log('.next no existe')}\""
   },
