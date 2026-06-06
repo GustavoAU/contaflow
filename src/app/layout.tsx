@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { headers } from "next/headers";
 import { PWARegistration } from "@/components/pwa/PWARegistration";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { PageTransitionProvider } from "@/components/layout/PageTransitionProvider";
 import { PageTransitionBar } from "@/components/layout/PageTransitionBar";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </PageTransitionProvider>
           </ThemeProvider>
           <PWARegistration />
+          <PWAInstallBanner />
         </body>
       </html>
     </ClerkProvider>
