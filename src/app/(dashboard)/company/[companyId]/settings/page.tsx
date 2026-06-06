@@ -21,6 +21,7 @@ import { PaymentTermsForm } from "@/modules/receivables/components/PaymentTermsF
 import { CertificatePanel } from "@/modules/certificates/components/CertificatePanel";
 import { getCertificateStatusAction } from "@/modules/certificates/actions/certificate.actions";
 import { MembersPanel } from "@/modules/company/components/MembersPanel";
+import { SeniatAccessPanel } from "@/modules/company/components/SeniatAccessPanel";
 import { getMembersAction } from "@/modules/company/actions/member.actions";
 import { PermissionsMatrix } from "@/modules/company/components/PermissionsMatrix";
 import { getGrantsAction } from "@/modules/company/actions/permission.actions";
@@ -111,8 +112,9 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   const accountantConfig = accountantConfigResult?.success
     ? accountantConfigResult.data
     : { accountantName: null, accountantTitle: null, accountantCpcNumber: null };
-  const members  = membersResult?.success  ? membersResult.data  : [];
-  const grants   = grantsResult?.success   ? grantsResult.data   : [];
+  const members      = membersResult?.success  ? membersResult.data  : [];
+  const grants       = grantsResult?.success   ? grantsResult.data   : [];
+  const seniatMember = members.find((m) => m.role === "SENIAT") ?? null;
 
   // ── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -302,6 +304,15 @@ export default async function SettingsPage({ params, searchParams }: Props) {
             currentUserId={user.id}
             currentUserRole={company.role}
             initialMembers={members}
+          />
+
+          {/* Acceso Auditoría SENIAT — PA 121 */}
+          <SeniatAccessPanel
+            companyId={companyId}
+            currentUserRole={company.role}
+            companyName={company.name}
+            companyRif={company.rif ?? null}
+            initialSeniatMember={seniatMember}
           />
 
           {/* Permisos por Rol */}

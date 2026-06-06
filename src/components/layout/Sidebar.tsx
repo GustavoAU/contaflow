@@ -21,6 +21,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { ViewModeToggle } from "@/components/layout/ViewModeToggle";
 import { getNavItems, type UserRole } from "@/lib/nav-items";
 import type { ViewMode } from "@/lib/view-mode";
+import { CERTIFIED_VERSION_LABEL } from "@/lib/version";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import type { LucideIcon } from "lucide-react";
@@ -507,6 +508,12 @@ export function Sidebar({
 
       {/* Footer: modo · tema · logout — siempre visible al fondo */}
       <div className="px-2 py-2 border-t border-sidebar-border shrink-0 space-y-1">
+        {/* Etiqueta de versión certificada SENIAT — visible solo si el sidebar está expandido */}
+        {!collapsed && (
+          <p className="px-2 pb-0.5 text-10 text-zinc-400 dark:text-zinc-600 truncate" title={CERTIFIED_VERSION_LABEL}>
+            {CERTIFIED_VERSION_LABEL}
+          </p>
+        )}
         {canToggleMode && (
           <ViewModeToggle current={viewMode} collapsed={collapsed} />
         )}

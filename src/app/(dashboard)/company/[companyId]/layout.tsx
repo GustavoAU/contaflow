@@ -13,6 +13,8 @@ import { getActivePeriodAction } from "@/modules/accounting/actions/period.actio
 import { FloatingAIAssistant } from "@/modules/ai-assistant/components/FloatingAIAssistant";
 import type { UserRole } from "@/lib/nav-items";
 import { getViewMode } from "@/lib/view-mode";
+import { APP_VERSION, CERTIFIED_VERSION } from "@/lib/version";
+import { AlertTriangleIcon } from "lucide-react";
 
 type Props = {
   children: React.ReactNode;
@@ -87,6 +89,21 @@ export default async function CompanyLayout({ children, params }: Props) {
             showNotifications ? <NotificationBell companyId={companyId} /> : null
           }
         />
+
+        {/* Banner: versión en uso ≠ versión homologada SENIAT (equivalente al aviso de Gálac Adm. 30.0) */}
+        {CERTIFIED_VERSION !== null && APP_VERSION !== CERTIFIED_VERSION && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm"
+          >
+            <AlertTriangleIcon className="h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              <strong>Versión no homologada en uso.</strong> La versión certificada ante el SENIAT es{" "}
+              <strong>v{CERTIFIED_VERSION}</strong>. Versión actual:{" "}
+              <strong>v{APP_VERSION}</strong>. Actualiza o contacta al administrador.
+            </span>
+          </div>
+        )}
 
         {/* Contenido de página — scroll global (body) */}
         <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 outline-none">
