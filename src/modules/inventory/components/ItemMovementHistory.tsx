@@ -138,7 +138,7 @@ export function ItemMovementHistory({
                       className={`hover:bg-gray-50 ${mov.status === "VOIDED" ? "opacity-50" : ""}`}
                     >
                       <td className="px-3 py-2 whitespace-nowrap text-gray-500">
-                        {new Date(String(mov.date)).toLocaleDateString("es-VE")}
+                        {new Date(String(mov.date)).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}
                       </td>
                       <td className="px-3 py-2">
                         <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${typeInfo.color}`}>

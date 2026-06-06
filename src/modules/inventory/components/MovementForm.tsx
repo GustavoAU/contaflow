@@ -336,7 +336,7 @@ export function MovementForm({ companyId, items, counterpartAccounts, currentBcv
             required={movType === "ENTRADA"}
             defaultValue={currentBcvRate ?? ""}
             className={fieldClass}
-            placeholder="523.68"
+            placeholder="Ej: 549.3716"
           />
           <p className="mt-1 text-xs text-gray-400">
             Tasa BCV oficial a la fecha del movimiento. Se archiva permanentemente para trazabilidad.

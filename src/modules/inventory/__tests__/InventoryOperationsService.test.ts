@@ -107,7 +107,7 @@ beforeEach(() => {
 describe("createInventoryItem", () => {
   it("crea un ítem con los datos correctos", async () => {
     const result = await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test", itemType: "GOODS" },
+      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test", itemType: "GOODS", defaultTaxRate: "GENERAL" },
       USER_ID
     );
     expect(result).toBeDefined();
@@ -126,6 +126,7 @@ describe("createInventoryItem", () => {
           sku: "X",
           name: "Test",
           itemType: "GOODS",
+          defaultTaxRate: "GENERAL",
           accountId: "acc-other-company",
           cogsAccountId: "acc-cogs",
         },
@@ -145,6 +146,7 @@ describe("createInventoryItem", () => {
           sku: "X",
           name: "Test",
           itemType: "GOODS",
+          defaultTaxRate: "GENERAL",
           accountId: "acc-inv",
           cogsAccountId: "acc-other-company-cogs",
         },
@@ -155,7 +157,7 @@ describe("createInventoryItem", () => {
 
   it("no verifica accounts si no se proporcionan (SERVICE)", async () => {
     await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas", itemType: "SERVICE" },
+      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas", itemType: "SERVICE", defaultTaxRate: "EXEMPT" },
       USER_ID
     );
     expect(vi.mocked(prisma.account.findFirstOrThrow)).not.toHaveBeenCalled();

@@ -7,6 +7,18 @@ export type ItemTypeValue = (typeof ITEM_TYPES)[number];
 // Tipos que requieren movimientos físicos y cuentas contables
 export const PHYSICAL_ITEM_TYPES = new Set<ItemTypeValue>(["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"]);
 
+// BC-001: Alícuota IVA por defecto — Ley IVA venezolana Art. 27
+export const TAX_RATE_OPTIONS = ["GENERAL", "REDUCED", "LUXURY", "EXEMPT", "EXONERATED"] as const;
+export type DefaultTaxRate = (typeof TAX_RATE_OPTIONS)[number];
+
+export const TAX_RATE_LABELS: Record<DefaultTaxRate, string> = {
+  GENERAL:    "16% — Alícuota general",
+  REDUCED:    "8% — Reducida (canasta básica, medicamentos)",
+  LUXURY:     "31% — Lujo (16% + 15% adicional)",
+  EXEMPT:     "0% — Exento (Ley IVA Art. 15)",
+  EXONERATED: "0% — Exonerado por decreto presidencial (Ley IVA Art. 19)",
+};
+
 export const CreateInventoryItemSchema = z
   .object({
     companyId: z.string().min(1),
@@ -14,6 +26,7 @@ export const CreateInventoryItemSchema = z
     name: z.string().min(1).max(120).trim(),
     description: z.string().max(500).trim().optional().nullable(),
     itemType: z.enum(ITEM_TYPES).default("GOODS"),
+    defaultTaxRate: z.enum(TAX_RATE_OPTIONS).default("GENERAL"),
     minimumStock: z.number().min(0).optional().nullable(),
     accountId: z.string().min(1).optional().nullable(),
     cogsAccountId: z.string().min(1).optional().nullable(),
@@ -39,6 +52,7 @@ export const UpdateInventoryItemSchema = z.object({
   name: z.string().min(1).max(120).trim().optional(),
   description: z.string().max(500).trim().optional().nullable(),
   itemType: z.enum(ITEM_TYPES).optional(),
+  defaultTaxRate: z.enum(TAX_RATE_OPTIONS).optional(),
   minimumStock: z.number().min(0).optional().nullable(),
   accountId: z.string().min(1).optional().nullable(),
   cogsAccountId: z.string().min(1).optional().nullable(),

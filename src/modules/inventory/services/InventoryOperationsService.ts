@@ -19,7 +19,7 @@ export async function createInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { companyId, accountId, cogsAccountId, itemType, minimumStock, ...rest } = input;
+  const { companyId, accountId, cogsAccountId, itemType, defaultTaxRate, minimumStock, ...rest } = input;
 
   // CRITICAL-2: verificar que accountId y cogsAccountId pertenecen a la empresa
   if (accountId) {
@@ -42,6 +42,7 @@ export async function createInventoryItem(
         accountId: accountId ?? null,
         cogsAccountId: cogsAccountId ?? null,
         itemType: itemType ?? "GOODS",
+        defaultTaxRate: defaultTaxRate ?? "GENERAL",
         minimumStock: minimumStock != null ? new Decimal(minimumStock) : null,
         createdBy: userId,
         // baseUnit denorm — se establece al crear la unidad base via UomManager → InventoryUomService
@@ -78,7 +79,7 @@ export async function updateInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { itemId, companyId, accountId, cogsAccountId, itemType, minimumStock, ...rest } = input;
+  const { itemId, companyId, accountId, cogsAccountId, itemType, defaultTaxRate, minimumStock, ...rest } = input;
 
   // CRITICAL-1: verificar que el ítem pertenece a la empresa
   const existing = await prisma.inventoryItem.findFirstOrThrow({
@@ -107,6 +108,7 @@ export async function updateInventoryItem(
         ...(rest.name !== undefined && { name: rest.name }),
         ...(rest.description !== undefined && { description: rest.description }),
         ...(itemType !== undefined && { itemType }),
+        ...(defaultTaxRate !== undefined && { defaultTaxRate }),
         ...(minimumStock !== undefined && { minimumStock: minimumStock != null ? new Decimal(minimumStock) : null }),
         ...(accountId !== undefined && { accountId: accountId ?? null }),
         ...(cogsAccountId !== undefined && { cogsAccountId: cogsAccountId ?? null }),

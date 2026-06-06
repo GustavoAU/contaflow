@@ -1037,6 +1037,15 @@ model InflationAdjustment {
 
 // ─── Fase 28D: Módulo Inventario ─────────────────────────────────────────────
 
+// Alícuota IVA por defecto del producto — Ley IVA venezolana Art. 27 (BC-001)
+enum DefaultInventoryTaxRate {
+  GENERAL // 16% — alícuota general
+  REDUCED // 8%  — canasta básica, medicamentos, etc.
+  LUXURY // 31% — bienes de lujo (16% + 15% adicional)
+  EXEMPT // 0%  — exento por naturaleza (Ley IVA Art. 15)
+  EXONERATED // 0%  — exonerado por decreto presidencial (Ley IVA Art. 19)
+}
+
 // Tipo de producto — NIIF para PYMES Sección 13 (Inventarios aplica solo a activos tangibles)
 enum ItemType {
   GOODS // Mercancía para reventa (default) — movimientos físicos permitidos
@@ -1066,9 +1075,9 @@ enum StockControlLevel {
 }
 
 model InventoryItem {
-  id             String              @id @default(cuid())
+  id             String                  @id @default(cuid())
   companyId      String
-  company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company        Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
   sku            String
   name           String
   description    String?
@@ -1076,23 +1085,24 @@ model InventoryItem {
   baseUnitName   String // sincronizado con InventoryItemUnit.name donde isBase = true
   baseUnitAbbr   String // sincronizado con InventoryItemUnit.abbreviation
   baseUnitId     String?
-  baseUnit       InventoryItemUnit?  @relation("ItemBaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
-  averageCost    Decimal             @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
-  stockQuantity  Decimal             @default(0) @db.Decimal(19, 4) // existencia en unidad base
-  minimumStock   Decimal?            @db.Decimal(19, 4) // umbral para alerta de bajo stock
-  itemType       ItemType            @default(GOODS) // NIIF Sec.13 — SERVICE bloquea movimientos físicos
+  baseUnit       InventoryItemUnit?      @relation("ItemBaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
+  averageCost    Decimal                 @default(0) @db.Decimal(19, 4) // CPP vigente — siempre en unidad base
+  stockQuantity  Decimal                 @default(0) @db.Decimal(19, 4) // existencia en unidad base
+  minimumStock   Decimal?                @db.Decimal(19, 4) // umbral para alerta de bajo stock
+  itemType       ItemType                @default(GOODS) // NIIF Sec.13 — SERVICE bloquea movimientos físicos
+  defaultTaxRate DefaultInventoryTaxRate @default(GENERAL) // BC-001: alícuota IVA previa — Ley IVA Art. 27
   accountId      String?
-  account        Account?            @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  account        Account?                @relation("InventoryItemAccount", fields: [accountId], references: [id], onDelete: Restrict)
   cogsAccountId  String?
-  cogsAccount    Account?            @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
+  cogsAccount    Account?                @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: Restrict)
   deletedAt      DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
   createdBy      String
   // Fase 35G: Lot/Serial Tracking — ADR-021 D-1
-  trackingType   TrackingType        @default(NONE)
+  trackingType   TrackingType            @default(NONE)
   movements      InventoryMovement[]
-  units          InventoryItemUnit[] @relation("ItemUnits")
+  units          InventoryItemUnit[]     @relation("ItemUnits")
   lots           InventoryLot[]
   serials        InventorySerial[]
   // Fase 37A: líneas de factura que referenciaron este ítem

@@ -26,7 +26,8 @@ export type InventoryItemRow = {
   unit: string;           // baseUnitName — solo lectura, gestionado vía UomManager
   stockQuantity: string;
   averageCost: string;
-  itemType: string;       // R-06: GOODS | SERVICE | RAW_MATERIAL | FINISHED_GOOD
+  itemType: string;         // R-06: GOODS | SERVICE | RAW_MATERIAL | FINISHED_GOOD
+  defaultTaxRate: string;   // BC-001: alícuota IVA por defecto — Ley IVA Art. 27
   minimumStock: string | null; // R-10: alerta bajo stock
   accountId: string | null;
   cogsAccountId: string | null;
@@ -326,6 +327,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                               name: item.name,
                               description: item.description,
                               itemType: item.itemType,
+                              defaultTaxRate: item.defaultTaxRate,
                               minimumStock: item.minimumStock,
                               accountId: item.accountId,
                               cogsAccountId: item.cogsAccountId,

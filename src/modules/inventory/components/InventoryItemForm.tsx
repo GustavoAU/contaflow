@@ -10,8 +10,8 @@
 
 import { useState, useTransition } from "react";
 import { createInventoryItemAction, updateInventoryItemAction } from "../actions/inventory-operations.actions";
-import type { ItemTypeValue } from "../schemas/inventory-item.schema";
-import { PHYSICAL_ITEM_TYPES } from "../schemas/inventory-item.schema";
+import type { ItemTypeValue, DefaultTaxRate } from "../schemas/inventory-item.schema";
+import { PHYSICAL_ITEM_TYPES, TAX_RATE_LABELS, TAX_RATE_OPTIONS } from "../schemas/inventory-item.schema";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
 
@@ -21,6 +21,7 @@ type ExistingItem = {
   name: string;
   description: string | null;
   itemType: string;
+  defaultTaxRate: string;
   minimumStock: string | null;
   accountId: string | null;
   cogsAccountId: string | null;
@@ -51,6 +52,9 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
   const [itemType, setItemType] = useState<ItemTypeValue>(
     (item?.itemType as ItemTypeValue | undefined) ?? "GOODS"
   );
+  const [taxRate, setTaxRate] = useState<DefaultTaxRate>(
+    (item?.defaultTaxRate as DefaultTaxRate | undefined) ?? "GENERAL"
+  );
 
   const isEditing = !!item;
   const isPhysical = PHYSICAL_ITEM_TYPES.has(itemType);
@@ -78,6 +82,7 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           name: fd.get("name") as string,
           description: (fd.get("description") as string) || null,
           itemType,
+          defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
           accountId: isPhysical ? ((fd.get("accountId") as string) || null) : null,
           cogsAccountId: isPhysical ? ((fd.get("cogsAccountId") as string) || null) : null,
@@ -89,6 +94,7 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           name: fd.get("name") as string,
           description: (fd.get("description") as string) || null,
           itemType,
+          defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
           accountId: isPhysical ? ((fd.get("accountId") as string) || null) : null,
           cogsAccountId: isPhysical ? ((fd.get("cogsAccountId") as string) || null) : null,
@@ -136,6 +142,28 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
             ⚠️ Los servicios no tienen stock físico (NIIF para PYMES Sec. 13). Solo se permiten Ajustes de corrección. No requieren cuentas contables de inventario.
           </p>
         )}
+      </div>
+
+      {/* BC-001: Alícuota IVA por defecto — Ley IVA Art. 27 */}
+      <div>
+        <label className={labelClass}>
+          Alícuota IVA por defecto <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={taxRate}
+          onChange={(e) => setTaxRate(e.target.value as DefaultTaxRate)}
+          className={fieldClass}
+          required
+        >
+          {TAX_RATE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {TAX_RATE_LABELS[opt]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-400">
+          Ley IVA Art. 27 — Pre-clasifica el bien para aplicar la alícuota correcta al facturar.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

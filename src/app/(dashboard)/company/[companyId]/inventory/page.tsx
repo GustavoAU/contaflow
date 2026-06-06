@@ -105,19 +105,20 @@ export default async function InventoryPage({ params, searchParams }: Props) {
   // ── Serializaciones ──────────────────────────────────────────────────────────
 
   const serializedItems: InventoryItemRow[] = rawItems.map((item) => ({
-    id:            item.id,
-    sku:           item.sku,
-    name:          item.name,
-    description:   item.description,
-    unit:          item.baseUnitName,
-    stockQuantity: item.stockQuantity.toString(),
-    averageCost:   item.averageCost.toString(),
-    itemType:      item.itemType,
-    minimumStock:  item.minimumStock ? item.minimumStock.toString() : null,
-    accountId:     item.accountId,
-    cogsAccountId: item.cogsAccountId,
-    accountCode:   item.account?.code ?? null,
-    accountName:   item.account?.name ?? null,
+    id:             item.id,
+    sku:            item.sku,
+    name:           item.name,
+    description:    item.description,
+    unit:           item.baseUnitName,
+    stockQuantity:  item.stockQuantity.toString(),
+    averageCost:    item.averageCost.toString(),
+    itemType:       item.itemType,
+    defaultTaxRate: item.defaultTaxRate,
+    minimumStock:   item.minimumStock ? item.minimumStock.toString() : null,
+    accountId:      item.accountId,
+    cogsAccountId:  item.cogsAccountId,
+    accountCode:    item.account?.code ?? null,
+    accountName:    item.account?.name ?? null,
   }));
 
   const itemsForMovement = serializedItems.map((i) => ({
