@@ -364,7 +364,7 @@ describe("updateAccountAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBe("Datos invalidos");
+      expect(result.error).toBe("Datos inválidos");
       expect(result.fieldErrors).toBeDefined();
     }
   });
