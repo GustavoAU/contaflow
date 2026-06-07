@@ -3,7 +3,8 @@
 
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import type { BalanceSheet, IncomeStatement, LedgerAccount, TrialBalanceRow } from "../actions/report.actions";
+import { Decimal } from "decimal.js";
+import type { BalanceSheet, IncomeStatement, LedgerAccount, TrialBalanceRow } from "../types/report-types";
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -347,15 +348,18 @@ export async function generateIncomeStatementPDF(params: IncomeStatementPDFParam
   return renderToBuffer(doc) as Promise<Buffer>;
 }
 
-// ─── Libro Mayor PDF ──────────────────────────────────────────────────────────
+// ─── Etiquetas de tipo de cuenta (compartidas por Libro Mayor y Balance de Comprobación) ──
 
-const TYPE_LABELS: Record<string, string> = {
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   ASSET: "Activo",
+  CONTRA_ASSET: "Contra-activo",
   LIABILITY: "Pasivo",
   EQUITY: "Patrimonio",
   REVENUE: "Ingreso",
   EXPENSE: "Gasto",
 };
+
+// ─── Libro Mayor PDF ──────────────────────────────────────────────────────────
 
 export interface LedgerPDFParams {
   companyName: string;
@@ -381,7 +385,7 @@ function LedgerColHeader() {
 }
 
 function LedgerAccountBlock(account: LedgerAccount) {
-  const typeLabel = TYPE_LABELS[account.type] ?? account.type;
+  const typeLabel = ACCOUNT_TYPE_LABELS[account.type] ?? account.type;
   const hasOpening = account.openingBalance !== "0.00";
   const balanceNum = parseFloat(account.balance);
   const balanceColor = balanceNum < 0 ? "#dc2626" : "#1f2937";
@@ -542,15 +546,6 @@ export async function generateLedgerPDF(params: LedgerPDFParams): Promise<Buffer
 
 // ─── Balance de Comprobación PDF ──────────────────────────────────────────────
 
-const TYPE_LABELS_TB: Record<string, string> = {
-  ASSET: "Activo",
-  CONTRA_ASSET: "Contra-activo",
-  LIABILITY: "Pasivo",
-  EQUITY: "Patrimonio",
-  REVENUE: "Ingreso",
-  EXPENSE: "Gasto",
-};
-
 const TB = StyleSheet.create({
   colCode: { width: 44, fontSize: 7, fontFamily: "Helvetica", color: "#2563eb" },
   colName: { flex: 1, fontSize: 7, color: "#374151" },
@@ -594,10 +589,10 @@ export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Pr
 
   const TYPE_ORDER = ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
-  const grandDebit = data.reduce((acc, r) => acc + parseFloat(r.totalDebit), 0);
-  const grandCredit = data.reduce((acc, r) => acc + parseFloat(r.totalCredit), 0);
-  const grandBalance = grandDebit - grandCredit;
-  const isBalanced = Math.abs(grandBalance) < 0.01;
+  const grandDebit = data.reduce((acc, r) => acc.plus(new Decimal(r.totalDebit)), new Decimal(0));
+  const grandCredit = data.reduce((acc, r) => acc.plus(new Decimal(r.totalCredit)), new Decimal(0));
+  const grandBalance = grandDebit.minus(grandCredit);
+  const isBalanced = grandBalance.abs().lessThan(new Decimal("0.01"));
 
   const groups = TYPE_ORDER
     .map((type) => ({ type, rows: data.filter((r) => r.type === type) }))
@@ -615,16 +610,16 @@ export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Pr
   );
 
   const groupRows = groups.flatMap(({ type, rows }) => {
-    const gDebit = rows.reduce((a, r) => a + parseFloat(r.totalDebit), 0);
-    const gCredit = rows.reduce((a, r) => a + parseFloat(r.totalCredit), 0);
-    const gBal = gDebit - gCredit;
+    const gDebit = rows.reduce((a, r) => a.plus(new Decimal(r.totalDebit)), new Decimal(0));
+    const gCredit = rows.reduce((a, r) => a.plus(new Decimal(r.totalCredit)), new Decimal(0));
+    const gBal = gDebit.minus(gCredit);
     const rowEls = rows.map((row, i) =>
       React.createElement(
         View,
         { key: row.id, style: i % 2 === 0 ? TB.tbRow : TB.tbRowAlt },
         React.createElement(Text, { style: TB.colCode }, row.code),
         React.createElement(Text, { style: TB.colName }, row.name),
-        React.createElement(Text, { style: TB.colType }, TYPE_LABELS_TB[row.type] ?? row.type),
+        React.createElement(Text, { style: TB.colType }, ACCOUNT_TYPE_LABELS[row.type] ?? row.type),
         React.createElement(Text, { style: TB.colAmt }, fmt(row.totalDebit)),
         React.createElement(Text, { style: TB.colAmt }, fmt(row.totalCredit)),
         React.createElement(Text, { style: { ...TB.colAmt, color: parseFloat(row.balance) < 0 ? "#dc2626" : "#1f2937" } }, fmt(row.balance)),
@@ -634,7 +629,7 @@ export async function generateTrialBalancePDF(params: TrialBalancePDFParams): Pr
       View,
       { key: `sub-${type}`, style: TB.tbSubtotal },
       React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colCode } }, ""),
-      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colName } }, `Subtotal ${TYPE_LABELS_TB[type] ?? type}`),
+      React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colName } }, `Subtotal ${ACCOUNT_TYPE_LABELS[type] ?? type}`),
       React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colType } }, ""),
       React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colAmt } }, fmt(gDebit.toFixed(2))),
       React.createElement(Text, { style: { ...TB.tbSubtotalText, ...TB.colAmt } }, fmt(gCredit.toFixed(2))),

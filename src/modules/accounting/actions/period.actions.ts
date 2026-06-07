@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { PeriodService } from "../services/PeriodService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -25,39 +26,41 @@ const ClosePeriodSchema = z.object({
 
 // ─── Obtener período activo ───────────────────────────────────────────────────
 
-export async function getActivePeriodAction(companyId: string) {
+export async function getActivePeriodAction(
+  companyId: string
+): Promise<ActionResult<Awaited<ReturnType<typeof PeriodService.getActivePeriod>>>> {
   try {
     const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" } as const;
+    if (!userId) return { success: false, error: "No autorizado" };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
     });
-    if (!member) return { success: false, error: "No autorizado" } as const;
+    if (!member) return { success: false, error: "No autorizado" };
     const period = await PeriodService.getActivePeriod(companyId);
-    return { success: true, data: period } as const;
+    return { success: true, data: period };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message } as const;
-    return { success: false, error: "Error al obtener el período" } as const;
+    return toActionError(error);
   }
 }
 
 // ─── Obtener todos los períodos ───────────────────────────────────────────────
 
-export async function getPeriodsAction(companyId: string) {
+export async function getPeriodsAction(
+  companyId: string
+): Promise<ActionResult<Awaited<ReturnType<typeof PeriodService.getPeriods>>>> {
   try {
     const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" } as const;
+    if (!userId) return { success: false, error: "No autorizado" };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
     });
-    if (!member) return { success: false, error: "No autorizado" } as const;
+    if (!member) return { success: false, error: "No autorizado" };
     const periods = await PeriodService.getPeriods(companyId);
-    return { success: true, data: periods } as const;
+    return { success: true, data: periods };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message } as const;
-    return { success: false, error: "Error al obtener los períodos" } as const;
+    return toActionError(error);
   }
 }
 
@@ -89,9 +92,7 @@ export async function openPeriodAction(
 
     return { success: true, data: { id: period.id, year: period.year, month: period.month } };
   } catch (error) {
-    if (error instanceof z.ZodError) return { success: false, error: "Datos invalidos" };
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al abrir el período" };
+    return toActionError(error);
   }
 }
 
@@ -118,8 +119,6 @@ export async function closePeriodAction(
 
     return { success: true, data: { id: period.id } };
   } catch (error) {
-    if (error instanceof z.ZodError) return { success: false, error: "Datos invalidos" };
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al cerrar el período" };
+    return toActionError(error);
   }
 }
