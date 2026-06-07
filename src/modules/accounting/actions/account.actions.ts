@@ -9,8 +9,8 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import { mapPrismaError } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ export async function getAccountsAction(
     });
     return { success: true, data: accounts };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -180,16 +180,7 @@ export async function createAccountAction(
 
     return { success: true, data: { id: account.id, name: account.name } };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos invalidos", fieldErrors };
-    }
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -268,16 +259,7 @@ export async function updateAccountAction(
 
     return { success: true, data: { id: account.id, name: account.name } };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos invalidos", fieldErrors };
-    }
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -322,6 +304,6 @@ export async function getNextAccountCodeAction(
 
     return { success: true, data: { code: String(nextCode) } };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }

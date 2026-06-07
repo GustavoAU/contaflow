@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import prisma from "@/lib/prisma";
-import { mapPrismaError } from "@/lib/prisma-errors";
 import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
@@ -16,6 +15,7 @@ import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Crear asiento ────────────────────────────────────────────────────────────
 
@@ -50,16 +50,7 @@ export async function createTransactionAction(
       data: { id: transaction.id, number: transaction.number },
     };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos invalidos", fieldErrors };
-    }
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -111,16 +102,7 @@ export async function voidTransactionAction(
       data: { id: transaction.id, number: transaction.number },
     };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos invalidos", fieldErrors };
-    }
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -146,7 +128,7 @@ export async function getTransactionsByCompanyAction(
 
     return { success: true, data: transactions };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -173,7 +155,7 @@ export async function getTransactionsPaginatedAction(
     const page = await TransactionService.getTransactionsPaginated(companyId, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -232,7 +214,7 @@ export async function getTransactionsByPeriodAction(
 
     return { success: true, data: page };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -309,6 +291,6 @@ export async function getTransactionByIdAction(
       },
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
