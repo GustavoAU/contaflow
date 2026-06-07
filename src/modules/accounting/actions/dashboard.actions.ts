@@ -6,22 +6,39 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-export async function getDashboardMetricsAction(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" } as const;
+type DashboardMetrics = {
+  totalAccounts: number;
+  totalTransactions: number;
+  monthTransactions: number;
+  activePeriod: Awaited<ReturnType<typeof prisma.accountingPeriod.findFirst>>;
+  lastTransaction: { number: string; description: string; date: Date } | null;
+  totalAssets: string;
+  totalLiabilities: string;
+  totalRevenue: string;
+  totalExpenses: string;
+  netIncome: string;
+};
 
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." } as const;
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ALL))
-    return { success: false, error: "Acceso denegado" } as const;
-
+export async function getDashboardMetricsAction(
+  companyId: string
+): Promise<ActionResult<DashboardMetrics>> {
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member || !canAccess(member.role, ROLES.ALL))
+      return { success: false, error: "Acceso denegado" };
+
     const now = new Date();
     const year = now.getUTCFullYear();
     const month = now.getUTCMonth() + 1;
@@ -90,9 +107,8 @@ export async function getDashboardMetricsAction(companyId: string) {
         totalExpenses: totalExpenses.toFixed(2),
         netIncome: totalRevenue.minus(totalExpenses).toFixed(2),
       },
-    } as const;
+    };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message } as const;
-    return { success: false, error: "Error al obtener métricas" } as const;
+    return toActionError(error);
   }
 }

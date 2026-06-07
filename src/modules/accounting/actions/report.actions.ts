@@ -16,6 +16,7 @@ import type {
   BalanceSheet,
 } from "../types/report-types";
 import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // Re-exportamos todos los tipos desde los archivos centralizados para que
 // los importadores existentes (páginas, componentes, PDF service) no necesiten
@@ -32,6 +33,20 @@ export type {
   BalanceSheetRow,
   BalanceSheet,
 } from "../types/report-types";
+
+// ─── Utilidades locales ───────────────────────────────────────────────────────
+
+// Construye el filtro de rango de fechas para queries Prisma.
+// Retorna {} si ninguna fecha está definida, lo que Prisma interpreta como sin filtro.
+function dateRange(dateFrom?: Date, dateTo?: Date) {
+  if (!dateFrom && !dateTo) return {};
+  return {
+    date: {
+      ...(dateFrom && { gte: dateFrom }),
+      ...(dateTo && { lte: dateTo }),
+    },
+  };
+}
 
 // ─── Guard de acceso al módulo de Contabilidad ────────────────────────────────
 
@@ -80,14 +95,7 @@ export async function getJournalAction(
       where: {
         companyId,
         status: "POSTED",
-        ...(dateFrom || dateTo
-          ? {
-              date: {
-                ...(dateFrom ? { gte: dateFrom } : {}),
-                ...(dateTo ? { lte: dateTo } : {}),
-              },
-            }
-          : {}),
+        ...dateRange(dateFrom, dateTo),
         ...(searchTerm
           ? {
               OR: [
@@ -150,8 +158,7 @@ export async function getJournalAction(
 
     return { success: true, data: journalTransactions };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el Libro Diario" };
+    return toActionError(error);
   }
 }
 
@@ -201,14 +208,7 @@ export async function getLedgerAction(
           where: {
             transaction: {
               status: "POSTED",
-              ...(dateFrom || dateTo
-                ? {
-                    date: {
-                      ...(dateFrom ? { gte: dateFrom } : {}),
-                      ...(dateTo ? { lte: dateTo } : {}),
-                    },
-                  }
-                : {}),
+              ...dateRange(dateFrom, dateTo),
             },
           },
           // Error 5 SENIAT-dictamen: desempate por número de transacción dentro del mismo día
@@ -267,8 +267,7 @@ export async function getLedgerAction(
 
     return { success: true, data: ledgerAccounts };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el Libro Mayor" };
+    return toActionError(error);
   }
 }
 
@@ -293,14 +292,7 @@ export async function getTrialBalanceAction(
           where: {
             transaction: {
               status: "POSTED",
-              ...(dateFrom || dateTo
-                ? {
-                    date: {
-                      ...(dateFrom ? { gte: dateFrom } : {}),
-                      ...(dateTo ? { lte: dateTo } : {}),
-                    },
-                  }
-                : {}),
+              ...dateRange(dateFrom, dateTo),
             },
           },
         },
@@ -335,8 +327,7 @@ export async function getTrialBalanceAction(
 
     return { success: true, data: rows };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el Balance de Comprobación" };
+    return toActionError(error);
   }
 }
 
@@ -367,8 +358,7 @@ export async function getIncomeStatementAction(
 
     return { success: true, data: { current, compare } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el Estado de Resultados" };
+    return toActionError(error);
   }
 }
 
@@ -387,8 +377,7 @@ export async function getBalanceSheetAction(
     const data = await computeBalanceSheet(companyId, dateTo);
     return { success: true, data };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el Balance General" };
+    return toActionError(error);
   }
 }
 
@@ -409,7 +398,6 @@ export async function getCompanyHeaderAction(
     if (!company) return { success: false, error: "Empresa no encontrada" };
     return { success: true, data: { name: company.name, rif: company.rif } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener datos de empresa" };
+    return toActionError(error);
   }
 }
