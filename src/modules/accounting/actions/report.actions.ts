@@ -8,6 +8,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { IncomeStatementService } from "../services/IncomeStatementService";
 import { BalanceSheetService } from "../services/BalanceSheetService";
+import { TX_STATUS } from "../constants";
 import type {
   JournalTransaction,
   LedgerAccount,
@@ -106,7 +107,7 @@ export async function getJournalAction(
     const transactions = await prisma.transaction.findMany({
       where: {
         companyId,
-        status: "POSTED",
+        status: TX_STATUS.POSTED,
         ...dateRange(dateFrom, dateTo),
         ...(searchTerm
           ? {
@@ -200,7 +201,7 @@ export async function getLedgerAction(
         by: ["accountId"],
         where: {
           account: { companyId },
-          transaction: { status: "POSTED", date: { lt: dateFrom } },
+          transaction: { status: TX_STATUS.POSTED, date: { lt: dateFrom } },
         },
         _sum: { amount: true },
       });
@@ -222,7 +223,7 @@ export async function getLedgerAction(
           },
           where: {
             transaction: {
-              status: "POSTED",
+              status: TX_STATUS.POSTED,
               ...dateRange(dateFrom, dateTo),
             },
           },
@@ -309,7 +310,7 @@ export async function getTrialBalanceAction(
         journalEntries: {
           where: {
             transaction: {
-              status: "POSTED",
+              status: TX_STATUS.POSTED,
               ...dateRange(dateFrom, dateTo),
             },
           },

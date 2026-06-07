@@ -17,6 +17,7 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import type { BalanceSheet, BalanceSheetRow } from "../types/report-types";
+import { TX_STATUS } from "../constants";
 
 // Diferencia mínima aceptable para considerar el balance cuadrado.
 // Los redondeos a 2 decimales pueden generar discrepancias de hasta 0.01 Bs. por cuenta.
@@ -210,9 +211,13 @@ function computeNetIncome(incomeAccounts: AccountWithEntries[]): Decimal {
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export class BalanceSheetService {
-// Consulta la BD y construye el Balance General completo para la empresa
-// a la fecha de corte indicada (o a la fecha actual si no se especifica).
-static async compute(
+  /**
+   * Consulta la BD y construye el Balance General completo para la empresa.
+   * @param companyId - empresa propietaria (aislamiento multi-tenant, ADR-004)
+   * @param dateTo    - fecha de corte; si se omite usa todos los movimientos disponibles
+   * @returns Balance General con activos, pasivos, patrimonio y flag `isBalanced`
+   */
+  static async compute(
   companyId: string,
   dateTo?: Date,
 ): Promise<BalanceSheet> {
@@ -227,7 +232,7 @@ static async compute(
       orderBy: { code: "asc" },
       include: {
         journalEntries: {
-          where: { transaction: { status: "POSTED", ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
         },
       },
     }),
@@ -235,7 +240,7 @@ static async compute(
       where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
       include: {
         journalEntries: {
-          where: { transaction: { status: "POSTED", ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
         },
       },
     }),

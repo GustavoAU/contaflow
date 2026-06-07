@@ -7,6 +7,7 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import type { IncomeStatement, IncomeStatementRow } from "../types/report-types";
+import { TX_STATUS } from "../constants";
 
 // Construye el filtro de fecha para las queries de Prisma.
 // Retorna undefined si no se pasó ninguna fecha (sin restricción temporal).
@@ -28,6 +29,13 @@ function buildDateFilter(dateFrom?: Date, dateTo?: Date) {
 //   positivo → utilidad del período
 //   negativo → pérdida del período
 export class IncomeStatementService {
+  /**
+   * Calcula el Estado de Resultados para el período indicado.
+   * @param companyId - empresa propietaria (aislamiento multi-tenant, ADR-004)
+   * @param dateFrom  - inicio del período; si se omite no hay límite inferior
+   * @param dateTo    - fin del período; si se omite no hay límite superior
+   * @returns Ingresos, gastos y utilidad/pérdida neta del período
+   */
   static async compute(
     companyId: string,
     dateFrom?: Date,
@@ -42,7 +50,7 @@ export class IncomeStatementService {
         journalEntries: {
           where: {
             transaction: {
-              status: "POSTED",
+              status: TX_STATUS.POSTED,
               ...(dateFilter ? { date: dateFilter } : {}),
             },
           },

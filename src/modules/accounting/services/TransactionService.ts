@@ -4,11 +4,12 @@ import { Decimal } from "decimal.js";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+import { TX_STATUS, MAX_PAGE_SIZE } from "../constants";
 
 // ─── Tipos de paginación ──────────────────────────────────────────────────────
 
-// Used by the paginated endpoints (includes entry lines for per-entry display).
-export type TransactionRow = {
+// Full transaction row including journal entry lines — used by the paginated list UI.
+export type TransactionWithEntries = {
   id: string;
   number: string;
   date: Date;
@@ -23,8 +24,8 @@ export type TransactionRow = {
   }[];
 };
 
-// Used by the Libro Diario list — header-only, no entry detail (R-1 separation).
-export type TransactionSummaryRow = {
+// Header-only row without entry detail — used by the Libro Diario list (R-1 separation).
+export type TransactionHeader = {
   id: string;
   number: string;
   date: Date;
@@ -35,7 +36,7 @@ export type TransactionSummaryRow = {
 };
 
 export type TransactionPage = {
-  data: TransactionRow[];
+  data: TransactionWithEntries[];
   nextCursor: string | null;
   hasNextPage: boolean;
 };
@@ -46,7 +47,7 @@ export type TransactionListParams = {
   companyId: string;
   periodId?: string;   // filtro opcional por período contable
   cursor?: string;     // id del último registro visto (cursor opaco)
-  limit?: number;      // default 50, max 50
+  limit?: number;      // default MAX_PAGE_SIZE
 };
 
 export class TransactionService {
@@ -220,7 +221,7 @@ export class TransactionService {
     }
 
     // 3. Verificar que no este ya anulada
-    if (original.status === "VOIDED") {
+    if (original.status === TX_STATUS.VOIDED) {
       throw new Error("Esta transaccion ya fue anulada anteriormente");
     }
 
@@ -280,7 +281,7 @@ export class TransactionService {
           reference: original.reference ?? undefined,
           date: voidDate,
           type: original.type,
-          status: "POSTED",
+          status: TX_STATUS.POSTED,
           periodId: activePeriodForVoid.id,
           entries: {
             create: original.entries.map((entry) => ({
@@ -301,7 +302,7 @@ export class TransactionService {
       await tx.transaction.update({
         where: { id: original.id },
         data: {
-          status: "VOIDED",
+          status: TX_STATUS.VOIDED,
           voidedById: voidTx.id,
         },
       });
@@ -332,7 +333,7 @@ export class TransactionService {
    * NO incluye el detalle de líneas (JournalEntry) — eso es Libro Mayor (R-1).
    * El totalDebit se calcula server-side con Decimal.js (R-5).
    */
-  static async getTransactionsByCompany(companyId: string): Promise<TransactionSummaryRow[]> {
+  static async getTransactionsByCompany(companyId: string): Promise<TransactionHeader[]> {
     const rows = await prisma.transaction.findMany({
       where: { companyId },
       orderBy: { date: "desc" },
@@ -359,19 +360,18 @@ export class TransactionService {
 
   /**
    * Retorna una página de transacciones usando cursor-based pagination.
-   * Máximo 50 registros por query.
    * @param companyId - empresa propietaria de los asientos (ADR-004)
    * @param cursor    - id del último elemento de la página anterior (opcional)
-   * @param limit     - cantidad de registros por página (default 50, max 50)
+   * @param limit     - cantidad de registros por página (default/max: MAX_PAGE_SIZE)
    * @param periodId  - filtro opcional por período contable
    */
   static async getTransactionsPaginated(
     companyId: string,
     cursor?: string,
-    limit: number = 50,
+    limit: number = MAX_PAGE_SIZE,
     periodId?: string
   ): Promise<TransactionPage> {
-    const safeLimit = Math.min(limit, 50);
+    const safeLimit = Math.min(limit, MAX_PAGE_SIZE);
 
     const where = {
       companyId,
@@ -413,7 +413,7 @@ export class TransactionService {
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
     return {
-      data: data as TransactionRow[],
+      data: data as TransactionWithEntries[],
       nextCursor,
       hasNextPage,
     };
@@ -427,7 +427,7 @@ export class TransactionService {
     return TransactionService.getTransactionsPaginated(
       params.companyId,
       params.cursor,
-      params.limit ?? 50,
+      params.limit ?? MAX_PAGE_SIZE,
       params.periodId
     );
   }
