@@ -211,9 +211,13 @@ function computeNetIncome(incomeAccounts: AccountWithEntries[]): Decimal {
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export class BalanceSheetService {
-// Consulta la BD y construye el Balance General completo para la empresa
-// a la fecha de corte indicada (o a la fecha actual si no se especifica).
-static async compute(
+  /**
+   * Consulta la BD y construye el Balance General completo para la empresa.
+   * @param companyId - empresa propietaria (aislamiento multi-tenant, ADR-004)
+   * @param dateTo    - fecha de corte; si se omite usa todos los movimientos disponibles
+   * @returns Balance General con activos, pasivos, patrimonio y flag `isBalanced`
+   */
+  static async compute(
   companyId: string,
   dateTo?: Date,
 ): Promise<BalanceSheet> {
