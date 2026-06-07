@@ -7,8 +7,8 @@
 
 // Deben coincidir exactamente con los valores del enum `TransactionStatus` en Prisma.
 // Cambiar un valor aquí requiere también una migración de BD.
+// Nota: el schema solo tiene POSTED y VOIDED — no existe DRAFT como status de transacción.
 export const TX_STATUS = {
-  DRAFT:  "DRAFT",
   POSTED: "POSTED",
   VOIDED: "VOIDED",
 } as const;
