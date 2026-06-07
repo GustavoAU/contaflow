@@ -7,6 +7,7 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import type { IncomeStatement, IncomeStatementRow } from "../types/report-types";
+import { TX_STATUS } from "../constants";
 
 // Construye el filtro de fecha para las queries de Prisma.
 // Retorna undefined si no se pasó ninguna fecha (sin restricción temporal).
@@ -42,7 +43,7 @@ export class IncomeStatementService {
         journalEntries: {
           where: {
             transaction: {
-              status: "POSTED",
+              status: TX_STATUS.POSTED,
               ...(dateFilter ? { date: dateFilter } : {}),
             },
           },

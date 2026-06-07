@@ -17,6 +17,7 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import type { BalanceSheet, BalanceSheetRow } from "../types/report-types";
+import { TX_STATUS } from "../constants";
 
 // Diferencia mínima aceptable para considerar el balance cuadrado.
 // Los redondeos a 2 decimales pueden generar discrepancias de hasta 0.01 Bs. por cuenta.
@@ -227,7 +228,7 @@ static async compute(
       orderBy: { code: "asc" },
       include: {
         journalEntries: {
-          where: { transaction: { status: "POSTED", ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
         },
       },
     }),
@@ -235,7 +236,7 @@ static async compute(
       where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
       include: {
         journalEntries: {
-          where: { transaction: { status: "POSTED", ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
         },
       },
     }),

@@ -5,6 +5,7 @@ import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-p
 import React from "react";
 import { Decimal } from "decimal.js";
 import type { BalanceSheet, IncomeStatement, LedgerAccount, TrialBalanceRow } from "../types/report-types";
+import { fmt, fmtAccounting } from "../utils/number-format";
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -12,27 +13,6 @@ export interface AccountantInfo {
   accountantName?: string | null;
   accountantTitle?: string | null;
   accountantCpcNumber?: string | null;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(value: string): string {
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  return new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-}
-
-function fmtAccounting(value: string): string {
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  const abs = new Intl.NumberFormat("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(num));
-  return num < 0 ? `(${abs})` : abs;
 }
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────────

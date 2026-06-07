@@ -9,6 +9,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { TransactionService } from "../services/TransactionService";
 import type { TransactionPage } from "../services/TransactionService";
+import { MAX_PAGE_SIZE } from "../constants";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
@@ -145,7 +146,7 @@ export async function getTransactionsByCompanyAction(
 export async function getTransactionsPaginatedAction(
   companyId: string,
   cursor?: string,
-  limit: number = 50
+  limit: number = MAX_PAGE_SIZE
 ): Promise<ActionResult<TransactionPage>> {
   try {
     const { userId } = await auth();
@@ -183,7 +184,7 @@ export async function getTransactionsByPeriodAction(
   companyId: string,
   periodId: string,
   cursor?: string,
-  limit: number = 50
+  limit: number = MAX_PAGE_SIZE
 ): Promise<ActionResult<TransactionPage>> {
   try {
     const { userId } = await auth();
