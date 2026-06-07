@@ -40,6 +40,14 @@ const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
 
 // ─── Rangos por tipo ──────────────────────────────────────────────────────────
 
+// Clasificación de códigos de cuenta según el Plan de Cuentas VEN-NIF.
+// Fuente: DPC-0 (Declaración de Principios de Contabilidad) + VEN-NIF Marco Conceptual §4.4.
+//   1xxx → Activo (ASSET y CONTRA_ASSET comparten el rango; ej: 1105 Bancos, 1199 Dep. Acum.)
+//   2xxx → Pasivo
+//   3xxx → Patrimonio
+//   4xxx → Ingreso
+//   5xxx → Gasto
+// Los códigos fuera de rango son válidos (el sistema crea la cuenta con advertencia).
 const RANGES: Record<string, { start: number; end: number }> = {
   ASSET: { start: 1000, end: 1999 },
   CONTRA_ASSET: { start: 1000, end: 1999 },
