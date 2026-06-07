@@ -84,7 +84,11 @@ export class TransactionService {
    * Crea un asiento contable validando la regla de partida doble.
    * Convencion: Debito = positivo, Credito = negativo
    */
-  static async createBalancedTransaction(input: CreateTransactionInput) {
+  static async createBalancedTransaction(
+    input: CreateTransactionInput,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ) {
     // 1. Validar con Zod — incluye validacion de partida doble
     const validated = CreateTransactionSchema.parse(input);
 
@@ -171,8 +175,8 @@ export class TransactionService {
           entityName: "Transaction",
           action: "CREATE",
           userId: validated.userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
           newValue: created as object,
         },
       });

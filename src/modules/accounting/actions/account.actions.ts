@@ -57,6 +57,8 @@ export async function getAccountsAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
@@ -190,13 +192,12 @@ export async function updateAccountAction(
   input: z.infer<typeof UpdateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    const validated = UpdateAccountSchema.parse(input);
-    const { id, ...data } = validated;
-
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
     const h = await headers();
+    const validated = UpdateAccountSchema.parse(input);
+    const { id, ...data } = validated;
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
@@ -272,6 +273,8 @@ export async function getNextAccountCodeAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },

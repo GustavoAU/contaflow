@@ -2,6 +2,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -81,11 +82,17 @@ export async function openPeriodAction(
     if (!member) return { success: false, error: "Empresa no encontrada" };
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
     const period = await PeriodService.openPeriod(
       validated.companyId,
       validated.year,
       validated.month,
-      userId // always use auth() userId, never client-provided
+      userId,
+      ipAddress,
+      userAgent,
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);
@@ -113,7 +120,11 @@ export async function closePeriodAction(
     if (!member) return { success: false, error: "Empresa no encontrada" };
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
 
-    const period = await PeriodService.closePeriod(validated.companyId, userId);
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    const period = await PeriodService.closePeriod(validated.companyId, userId, ipAddress, userAgent);
 
     revalidatePath(`/company/${validated.companyId}/settings`);
 

@@ -38,10 +38,15 @@ export async function createTransactionAction(
       return { success: false, error: moduleAccessError("accounting") };
     }
 
-    const transaction = await TransactionService.createBalancedTransaction({
-      ...input,
-      userId, // override client-provided userId with authenticated userId
-    });
+    const h = await headers();
+    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+
+    const transaction = await TransactionService.createBalancedTransaction(
+      { ...input, userId },
+      ipAddress,
+      userAgent,
+    );
 
     revalidatePath(`/company/${input.companyId}/transactions`);
 
@@ -117,6 +122,9 @@ export async function getTransactionsByCompanyAction(
 
     if (!companyId) return { success: false, error: "Company ID es requerido" };
 
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },
     });
@@ -139,19 +147,19 @@ export async function getTransactionsPaginatedAction(
   cursor?: string,
   limit: number = 50
 ): Promise<ActionResult<TransactionPage>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  if (!companyId) return { success: false, error: "Company ID es requerido" };
-
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-  });
-  if (!member || !canAccess(member.role, ROLES.ALL)) {
-    return { success: false, error: "No autorizado" };
-  }
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    if (!companyId) return { success: false, error: "Company ID es requerido" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId } },
+    });
+    if (!member || !canAccess(member.role, ROLES.ALL)) {
+      return { success: false, error: "No autorizado" };
+    }
+
     const page = await TransactionService.getTransactionsPaginated(companyId, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
@@ -177,13 +185,12 @@ export async function getTransactionsByPeriodAction(
   cursor?: string,
   limit: number = 50
 ): Promise<ActionResult<TransactionPage>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  if (!companyId) return { success: false, error: "Company ID es requerido" };
-  if (!periodId) return { success: false, error: "Period ID es requerido" };
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    if (!companyId) return { success: false, error: "Company ID es requerido" };
+    if (!periodId) return { success: false, error: "Period ID es requerido" };
     // Role intent: ROLES.ALL — cualquier miembro autenticado puede leer el libro diario.
     // VIEWER y ADMINISTRATIVE necesitan ver los asientos aunque no puedan crearlos.
     const member = await prisma.companyMember.findFirst({
@@ -246,16 +253,16 @@ export async function getTransactionByIdAction(
   status: string;
   entries: { id: string; amount: string; account: { id: string; code: string; name: string; type: string } }[];
 }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "No autorizado" };
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "No autorizado" };
+
     // Acepta tanto el CUID (id) como el número legible (ej: T-2026-003)
     // para que URLs compartidas por número no arrojen 404.
     const tx = await prisma.transaction.findFirst({
