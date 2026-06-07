@@ -22,35 +22,39 @@ type GuardResult =
   | { success: false; error: string };
 
 async function guardAccounting(companyId: string): Promise<GuardResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
 
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-  const [member, company, settings] = await Promise.all([
-    prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } }),
-    prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
-    prisma.companySettings.findUnique({
-      where: { companyId },
-      select: { accountantName: true, accountantTitle: true, accountantCpcNumber: true },
-    }),
-  ]);
+    const [member, company, settings] = await Promise.all([
+      prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } }),
+      prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
+      prisma.companySettings.findUnique({
+        where: { companyId },
+        select: { accountantName: true, accountantTitle: true, accountantCpcNumber: true },
+      }),
+    ]);
 
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
-  if (!company) return { success: false, error: "Empresa no encontrada" };
+    if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
+      return { success: false, error: "Acceso denegado" };
+    if (!company) return { success: false, error: "Empresa no encontrada" };
 
-  return {
-    userId,
-    companyName: company.name,
-    companyRif: company.rif,
-    accountant: {
-      accountantName: settings?.accountantName,
-      accountantTitle: settings?.accountantTitle,
-      accountantCpcNumber: settings?.accountantCpcNumber,
-    },
-  };
+    return {
+      userId,
+      companyName: company.name,
+      companyRif: company.rif,
+      accountant: {
+        accountantName: settings?.accountantName,
+        accountantTitle: settings?.accountantTitle,
+        accountantCpcNumber: settings?.accountantCpcNumber,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Error de autenticación" };
+  }
 }
 
 // ─── Balance General ──────────────────────────────────────────────────────────

@@ -6,8 +6,8 @@ import { auth } from "@clerk/nextjs/server";
 import { Decimal } from "decimal.js";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import { computeIncomeStatement } from "../services/IncomeStatementService";
-import { computeBalanceSheet } from "../services/BalanceSheetService";
+import { IncomeStatementService } from "../services/IncomeStatementService";
+import { BalanceSheetService } from "../services/BalanceSheetService";
 import type {
   JournalTransaction,
   LedgerAccount,
@@ -46,6 +46,15 @@ function dateRange(dateFrom?: Date, dateTo?: Date) {
       ...(dateTo && { lte: dateTo }),
     },
   };
+}
+
+// Valida que el rango de fechas sea coherente (from ≤ to).
+// Retorna un mensaje de error si el rango es inválido, null si es válido.
+function validateDateRange(dateFrom?: Date, dateTo?: Date): string | null {
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return "La fecha de inicio debe ser anterior o igual a la fecha de fin";
+  }
+  return null;
 }
 
 // ─── Guard de acceso al módulo de Contabilidad ────────────────────────────────
@@ -87,6 +96,9 @@ export async function getJournalAction(
 ): Promise<ActionResult<JournalTransaction[]>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
+
+  const dateError = validateDateRange(dateFrom, dateTo);
+  if (dateError) return { success: false, error: dateError };
 
   const searchTerm = search?.trim();
 
@@ -174,6 +186,9 @@ export async function getLedgerAction(
 ): Promise<ActionResult<LedgerAccount[]>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
+
+  const dateError = validateDateRange(dateFrom, dateTo);
+  if (dateError) return { success: false, error: dateError };
 
   try {
     // Calcular el saldo acumulado antes de dateFrom para cada cuenta (saldo anterior).
@@ -283,6 +298,9 @@ export async function getTrialBalanceAction(
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
 
+  const dateError = validateDateRange(dateFrom, dateTo);
+  if (dateError) return { success: false, error: dateError };
+
   try {
     const accounts = await prisma.account.findMany({
       where: { companyId },
@@ -350,9 +368,9 @@ export async function getIncomeStatementAction(
     const hasComparePeriod = !!(compareDateFrom || compareDateTo);
 
     const [current, compare] = await Promise.all([
-      computeIncomeStatement(companyId, dateFrom, dateTo),
+      IncomeStatementService.compute(companyId, dateFrom, dateTo),
       hasComparePeriod
-        ? computeIncomeStatement(companyId, compareDateFrom, compareDateTo)
+        ? IncomeStatementService.compute(companyId, compareDateFrom, compareDateTo)
         : Promise.resolve(undefined),
     ]);
 
@@ -374,7 +392,7 @@ export async function getBalanceSheetAction(
   if ("error" in guard) return guard;
 
   try {
-    const data = await computeBalanceSheet(companyId, dateTo);
+    const data = await BalanceSheetService.compute(companyId, dateTo);
     return { success: true, data };
   } catch (error) {
     return toActionError(error);

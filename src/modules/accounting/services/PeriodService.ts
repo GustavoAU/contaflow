@@ -32,7 +32,14 @@ export class PeriodService {
    * Abre un nuevo período contable.
    * Regla: solo puede haber un período OPEN por empresa a la vez.
    */
-  static async openPeriod(companyId: string, year: number, month: number, userId: string) {
+  static async openPeriod(
+    companyId: string,
+    year: number,
+    month: number,
+    userId: string,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ) {
     // 1. Verificar que el ejercicio económico no esté cerrado (Fase 15)
     const isClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, year);
     if (isClosed) {
@@ -70,8 +77,8 @@ export class PeriodService {
           entityName: "AccountingPeriod",
           action: "OPEN",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
           newValue: created as object,
         },
       });
@@ -87,7 +94,12 @@ export class PeriodService {
    * Genera snapshots de saldos para todas las cuentas con movimientos (Fase 13C-B4).
    * Regla: debe existir un período OPEN para cerrar.
    */
-  static async closePeriod(companyId: string, userId: string) {
+  static async closePeriod(
+    companyId: string,
+    userId: string,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ) {
     // 1. Buscar período activo
     const activePeriod = await PeriodService.getActivePeriod(companyId);
     if (!activePeriod) {
@@ -116,8 +128,8 @@ export class PeriodService {
           entityName: "AccountingPeriod",
           action: "CLOSE",
           userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
           oldValue: activePeriod as object,
           newValue: updated as object,
         },

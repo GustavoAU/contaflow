@@ -207,11 +207,12 @@ function computeNetIncome(incomeAccounts: AccountWithEntries[]): Decimal {
   return totalRevenues.minus(totalExpenses);
 }
 
-// ─── Función principal exportada ──────────────────────────────────────────────
+// ─── Servicio principal ───────────────────────────────────────────────────────
 
+export class BalanceSheetService {
 // Consulta la BD y construye el Balance General completo para la empresa
 // a la fecha de corte indicada (o a la fecha actual si no se especifica).
-export async function computeBalanceSheet(
+static async compute(
   companyId: string,
   dateTo?: Date,
 ): Promise<BalanceSheet> {
@@ -279,4 +280,5 @@ export async function computeBalanceSheet(
     totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
     isBalanced,
   };
+}
 }

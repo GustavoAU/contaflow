@@ -82,13 +82,25 @@ export class TransactionService {
 
   /**
    * Crea un asiento contable validando la regla de partida doble.
-   * Convencion: Debito = positivo, Credito = negativo
+   *
+   * Convención de signos de JournalEntry.amount:
+   *   Débito  → amount positivo  (aumenta Activo/Gasto, disminuye Pasivo/Patrimonio/Ingreso)
+   *   Crédito → amount negativo  (aumenta Pasivo/Patrimonio/Ingreso, disminuye Activo/Gasto)
+   *
+   * Esta convención es usada de forma consistente en todo el módulo: getLedgerAction,
+   * getTrialBalanceAction, BalanceSheetService y IncomeStatementService esperan este signo
+   * para calcular saldos correctamente.
    */
-  static async createBalancedTransaction(input: CreateTransactionInput) {
-    // 1. Validar con Zod — incluye validacion de partida doble
+  static async createBalancedTransaction(
+    input: CreateTransactionInput,
+    ipAddress?: string | null,
+    userAgent?: string | null,
+  ) {
+    // 1. Validar con Zod — verifica partida doble: Σdébitos = Σcréditos
     const validated = CreateTransactionSchema.parse(input);
 
-    // 2. Convertir debit/credit a amount
+    // 2. Mapear debit/credit del formulario → amount con convención de signos
+    //    debit > 0 → amount positivo | credit > 0 → amount negativo (negated)
     const entries = validated.entries.map((entry) => ({
       accountId: entry.accountId,
       description: entry.description || undefined,
@@ -171,8 +183,8 @@ export class TransactionService {
           entityName: "Transaction",
           action: "CREATE",
           userId: validated.userId,
-          ipAddress: null,
-          userAgent: null,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
           newValue: created as object,
         },
       });

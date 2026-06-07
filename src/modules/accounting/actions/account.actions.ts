@@ -40,6 +40,14 @@ const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
 
 // ─── Rangos por tipo ──────────────────────────────────────────────────────────
 
+// Clasificación de códigos de cuenta según el Plan de Cuentas VEN-NIF.
+// Fuente: DPC-0 (Declaración de Principios de Contabilidad) + VEN-NIF Marco Conceptual §4.4.
+//   1xxx → Activo (ASSET y CONTRA_ASSET comparten el rango; ej: 1105 Bancos, 1199 Dep. Acum.)
+//   2xxx → Pasivo
+//   3xxx → Patrimonio
+//   4xxx → Ingreso
+//   5xxx → Gasto
+// Los códigos fuera de rango son válidos (el sistema crea la cuenta con advertencia).
 const RANGES: Record<string, { start: number; end: number }> = {
   ASSET: { start: 1000, end: 1999 },
   CONTRA_ASSET: { start: 1000, end: 1999 },
@@ -57,6 +65,8 @@ export async function getAccountsAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
@@ -190,13 +200,12 @@ export async function updateAccountAction(
   input: z.infer<typeof UpdateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    const validated = UpdateAccountSchema.parse(input);
-    const { id, ...data } = validated;
-
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
     const h = await headers();
+    const validated = UpdateAccountSchema.parse(input);
+    const { id, ...data } = validated;
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
@@ -272,6 +281,8 @@ export async function getNextAccountCodeAction(
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },
