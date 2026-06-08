@@ -1,7 +1,6 @@
 // src/modules/bank-reconciliation/actions/banking.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Decimal } from "decimal.js";
@@ -14,9 +13,9 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { CsvParserService } from "../services/CsvParserService";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountSchema } from "../schemas/bank-account.schema";
-import type { UserRole } from "@prisma/client";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
+import { getAuthUserId, getMemberRole } from "../utils/bank-action-guard";
 
 // ─── Schemas Zod ─────────────────────────────────────────────────────────────
 
@@ -85,28 +84,6 @@ const SearchPaymentRecordsSchema = z.object({
   method: z.string().optional(),
 });
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function getAuthUserId(): Promise<string | null> {
-  const { userId } = await auth();
-  return userId ?? null;
-}
-
-/**
- * Verifica membresía y retorna el role del usuario en la empresa.
- * Retorna null si el usuario no es miembro (ADR-006 D-1, LL-009).
- */
-async function getMemberRole(
-  userId: string,
-  companyId: string
-): Promise<UserRole | null> {
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-    select: { role: true },
-  });
-  return member?.role ?? null;
-}
-
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 /**
@@ -139,8 +116,7 @@ export async function createBankAccountAction(
 
     return { success: true, data: { id: account.id, name: account.name } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al crear la cuenta bancaria";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -168,10 +144,8 @@ export async function importStatementAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
-    // Parsear CSV
     const csvRows = CsvParserService.parseBankCsv(csvContent, columnMap);
 
-    // Importar extracto
     const result = await BankingService.importStatement(
       bankAccountId,
       companyId,
@@ -185,8 +159,7 @@ export async function importStatementAction(
 
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al importar el extracto";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -225,8 +198,7 @@ export async function reconcileTransactionAction(
 
     return { success: true, data: { id: updated.id, isReconciled: updated.isReconciled } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al conciliar la transacción";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -260,8 +232,7 @@ export async function unreconcileTransactionAction(
 
     return { success: true, data: { id: updated.id, isReconciled: updated.isReconciled } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al desconciliar la transacción";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -297,8 +268,7 @@ export async function getUnreconciledTransactionsAction(
 
     return { success: true, data: serialized };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener transacciones";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -339,8 +309,7 @@ export async function matchBankTransactionAction(
 
     return { success: true, data: { id: updated.id, isReconciled: updated.isReconciled } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al conciliar la transacción";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -393,8 +362,7 @@ export async function searchJournalEntriesAction(
 
     return { success: true, data: serialized };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al buscar asientos";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -464,8 +432,7 @@ export async function searchPaymentRecordsAction(
 
     return { success: true, data: serialized };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al buscar pagos";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -496,7 +463,6 @@ export async function getReconciliationSummaryAction(
 
     return { success: true, data: summary };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener el resumen";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }

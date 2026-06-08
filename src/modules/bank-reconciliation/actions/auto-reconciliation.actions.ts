@@ -1,7 +1,6 @@
 // src/modules/bank-reconciliation/actions/auto-reconciliation.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -19,25 +18,29 @@ import {
   type AutoReconciliationResult,
 } from "../schemas/auto-reconciliation.schema";
 import { Decimal } from "decimal.js";
-import type { UserRole } from "@prisma/client";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
+import { getAuthUserId, getMemberRole } from "../utils/bank-action-guard";
 
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getAuthUserId(): Promise<string | null> {
-  const { userId } = await auth();
-  return userId ?? null;
+// Parsea fechas en formato dd/mm/yyyy (Gemini) o ISO (fallback).
+// Usa UTC para evitar desplazamientos de zona horaria al comparar períodos.
+function parseStatementDate(dateStr: string): Date {
+  const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateStr.trim());
+  if (ddmmyyyy) {
+    return new Date(
+      Date.UTC(
+        parseInt(ddmmyyyy[3]!, 10),
+        parseInt(ddmmyyyy[2]!, 10) - 1,
+        parseInt(ddmmyyyy[1]!, 10),
+      ),
+    );
+  }
+  return new Date(dateStr);
 }
 
-async function getMemberRole(
-  userId: string,
-  companyId: string
-): Promise<UserRole | null> {
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-    select: { role: true },
-  });
-  return member?.role ?? null;
-}
+// ─── Actions ─────────────────────────────────────────────────────────────────
 
 /**
  * Analiza un PDF de extracto bancario con Gemini Vision.
@@ -72,8 +75,7 @@ export async function parseBankStatementAction(
 
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al analizar el PDF";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -106,20 +108,7 @@ export async function runAutoReconciliationAction(
     if (!rl.allowed) return { success: false, error: rl.error };
 
     // Calcular el período a partir de las fechas de las filas
-    const dates = rows.map((r) => {
-      const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(r.date.trim());
-      if (ddmmyyyy) {
-        return new Date(
-          Date.UTC(
-            parseInt(ddmmyyyy[3], 10),
-            parseInt(ddmmyyyy[2], 10) - 1,
-            parseInt(ddmmyyyy[1], 10)
-          )
-        );
-      }
-      return new Date(r.date);
-    });
-
+    const dates = rows.map((r) => parseStatementDate(r.date));
     const periodStart = new Date(Math.min(...dates.map((d) => d.getTime())));
     const periodEnd = new Date(Math.max(...dates.map((d) => d.getTime())));
 
@@ -144,29 +133,13 @@ export async function runAutoReconciliationAction(
     }
 
     // Convertir filas a CsvRow para importStatement
-    const csvRows = rows.map((r) => {
-      const date = (() => {
-        const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(r.date.trim());
-        if (ddmmyyyy) {
-          return new Date(
-            Date.UTC(
-              parseInt(ddmmyyyy[3], 10),
-              parseInt(ddmmyyyy[2], 10) - 1,
-              parseInt(ddmmyyyy[1], 10)
-            )
-          );
-        }
-        return new Date(r.date);
-      })();
-
-      return {
-        date,
-        description: r.description,
-        debit: r.debit ? (parseAmount(r.debit) ?? null) : null,
-        credit: r.credit ? (parseAmount(r.credit) ?? null) : null,
-        balance: r.balance ? (parseAmount(r.balance) ?? null) : null,
-      };
-    });
+    const csvRows = rows.map((r) => ({
+      date: parseStatementDate(r.date),
+      description: r.description,
+      debit: r.debit ? (parseAmount(r.debit) ?? null) : null,
+      credit: r.credit ? (parseAmount(r.credit) ?? null) : null,
+      balance: r.balance ? (parseAmount(r.balance) ?? null) : null,
+    }));
 
     // Importar el extracto
     const openingDec = new Decimal(openingBalance.replace(/\./g, "").replace(",", "."));
@@ -226,8 +199,7 @@ export async function runAutoReconciliationAction(
 
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al ejecutar la conciliación";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -275,7 +247,6 @@ export async function confirmSuggestedAction(
 
     return { success: true, data: { confirmed } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al confirmar las coincidencias";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
