@@ -8,6 +8,8 @@ overrides:
   '@hono/node-server@<1.19.13': ^1.19.13
   postcss@<8.5.10: ^8.5.10
   uuid@<11.1.1: ^11.1.1
+  js-cookie: 3.0.7
+  '@clerk/shared>js-cookie': 3.0.7
 
 importers:
 
@@ -5014,10 +5016,6 @@ packages:
   jose@6.2.3:
     resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
-  js-cookie@3.0.5:
-    resolution: {integrity: sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw==}
-    engines: {node: '>=14'}
-
   js-cookie@3.0.7:
     resolution: {integrity: sha512-z/wZZgDrkNV1eA0ULjM/F9/50Ya8fbzgKneSpoPsXSGd0KnpdtHfOZWK+GcwLk+EZbS4F9RBhU+K2RgzuDaItw==}
     engines: {node: '>=20'}
@@ -7378,7 +7376,7 @@ snapshots:
       '@tanstack/query-core': 5.100.11
       dequal: 2.0.3
       glob-to-regexp: 0.4.1
-      js-cookie: 3.0.5
+      js-cookie: 3.0.7
       std-env: 3.10.0
     optionalDependencies:
       react: 19.2.3
@@ -12096,8 +12094,6 @@ snapshots:
   jose@5.10.0: {}
 
   jose@6.2.3: {}
-
-  js-cookie@3.0.5: {}
 
   js-cookie@3.0.7: {}
 
