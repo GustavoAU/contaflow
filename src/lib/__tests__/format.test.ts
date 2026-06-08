@@ -113,8 +113,15 @@ describe("mapPrismaError", () => {
     expect(mapPrismaError(err)).toBe("Datos de referencia inválidos");
   });
 
-  it("devuelve message para errores genéricos", () => {
-    expect(mapPrismaError(new Error("timeout"))).toBe("timeout");
+  it("devuelve mensaje amigable para errores de conexión/timeout", () => {
+    const friendly = "La base de datos tardó en responder. Intenta de nuevo en unos segundos.";
+    expect(mapPrismaError(new Error("timeout"))).toBe(friendly);
+    expect(mapPrismaError(new Error("Connection terminated"))).toBe(friendly);
+    expect(mapPrismaError(new Error("ECONNRESET"))).toBe(friendly);
+  });
+
+  it("devuelve message para errores genéricos no relacionados con conexión", () => {
+    expect(mapPrismaError(new Error("validation failed"))).toBe("validation failed");
   });
 
   it("devuelve 'Error inesperado' para tipos desconocidos", () => {

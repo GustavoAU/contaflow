@@ -26,6 +26,9 @@ export function NewCompanyForm({ userId }: Props) {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = "El nombre es obligatorio";
     if (name.trim().length < 2) newErrors.name = "El nombre debe tener al menos 2 caracteres";
+    if (rif.trim() && !/^[JVEGCP]-\d{8}-?\d?$/i.test(rif.trim())) {
+      newErrors.rif = "RIF inválido (ej: J-12345678-9)";
+    }
     return newErrors;
   }
 
@@ -86,8 +89,11 @@ export function NewCompanyForm({ userId }: Props) {
             value={rif}
             onChange={(e) => setRif(e.target.value)}
             placeholder="Ej: J-12345678-9"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+              errors.rif ? "border-red-400" : "border-zinc-300"
+            }`}
           />
+          {errors.rif && <p className="mt-1 text-xs text-red-500">{errors.rif}</p>}
         </div>
 
         {/* Dirección */}
@@ -106,8 +112,8 @@ export function NewCompanyForm({ userId }: Props) {
         </div>
 
         {/* Botón */}
-        <Button onClick={handleSubmit} disabled={isPending} className="w-full">
-          {isPending && <Loader2Icon className="animate-spin" />}
+        <Button onClick={handleSubmit} disabled={isPending} aria-busy={isPending} className="w-full gap-2">
+          {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
           {isPending ? "Creando empresa..." : "Crear Empresa"}
         </Button>
       </div>
