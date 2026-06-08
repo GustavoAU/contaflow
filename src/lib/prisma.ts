@@ -69,13 +69,17 @@ function isRetryable(err: unknown): boolean {
   return RETRYABLE.some((kw) => msg.includes(kw));
 }
 
-export async function withDbRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+// Neon cold start takes 5-20s (PgBouncer gives up at ~20s). Delays must exceed that
+// so the second attempt hits a fully-started compute, not one still initializing.
+const RETRY_DELAYS = [8_000, 15_000]; // ms to wait before attempt 1, then attempt 2
+
+export async function withDbRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       return await fn();
     } catch (err) {
       if (attempt < retries - 1 && isRetryable(err)) {
-        await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt] ?? 15_000));
         continue;
       }
       throw err;
