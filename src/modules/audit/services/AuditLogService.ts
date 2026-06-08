@@ -35,43 +35,57 @@ export type AuditLogFilters = {
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type WhereFilters = Pick<AuditLogFilters, "companyId" | "entityName" | "entityNames" | "userId" | "dateFrom" | "dateTo">;
+
+function buildAuditWhere(filters: WhereFilters) {
+  const { companyId, entityName, entityNames, userId, dateFrom, dateTo } = filters;
+
+  const entityFilter =
+    entityNames && entityNames.length > 0
+      ? { entityName: { in: entityNames } }
+      : entityName
+      ? { entityName }
+      : {};
+
+  return {
+    companyId,
+    ...entityFilter,
+    ...(userId ? { userId } : {}),
+    ...(dateFrom || dateTo
+      ? {
+          createdAt: {
+            ...(dateFrom ? { gte: new Date(dateFrom + "T00:00:00.000Z") } : {}),
+            ...(dateTo ? { lte: new Date(dateTo + "T23:59:59.999Z") } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+const AUDIT_LOG_SELECT = {
+  id: true,
+  entityId: true,
+  entityName: true,
+  action: true,
+  userId: true,
+  oldValue: true,
+  newValue: true,
+  createdAt: true,
+} as const;
+
+// ─── Service ──────────────────────────────────────────────────────────────────
+
 export class AuditLogService {
   static async list(filters: AuditLogFilters): Promise<AuditLogPage> {
-    const {
-      companyId,
-      entityName,
-      entityNames,
-      userId,
-      dateFrom,
-      dateTo,
-      page = 1,
-      pageSize = DEFAULT_PAGE_SIZE,
-    } = filters;
+    const { page = 1, pageSize = DEFAULT_PAGE_SIZE } = filters;
 
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
     const skip = (safePage - 1) * safePageSize;
 
-    const entityFilter =
-      entityNames && entityNames.length > 0
-        ? { entityName: { in: entityNames } }
-        : entityName
-        ? { entityName }
-        : {};
-
-    const where = {
-      companyId,
-      ...entityFilter,
-      ...(userId ? { userId } : {}),
-      ...(dateFrom || dateTo
-        ? {
-            createdAt: {
-              ...(dateFrom ? { gte: new Date(dateFrom + "T00:00:00.000Z") } : {}),
-              ...(dateTo ? { lte: new Date(dateTo + "T23:59:59.999Z") } : {}),
-            },
-          }
-        : {}),
-    };
+    const where = buildAuditWhere(filters);
 
     const [rows, total] = await Promise.all([
       prisma.auditLog.findMany({
@@ -79,16 +93,7 @@ export class AuditLogService {
         orderBy: { createdAt: "desc" },
         skip,
         take: safePageSize,
-        select: {
-          id: true,
-          entityId: true,
-          entityName: true,
-          action: true,
-          userId: true,
-          oldValue: true,
-          newValue: true,
-          createdAt: true,
-        },
+        select: AUDIT_LOG_SELECT,
       }),
       prisma.auditLog.count({ where }),
     ]);
@@ -113,43 +118,13 @@ export class AuditLogService {
 
   // OM-04: listAll para export PDF/CSV — hasta 1000 registros, sin paginación
   static async listAll(filters: Omit<AuditLogFilters, "page" | "pageSize">): Promise<AuditLogRow[]> {
-    const { companyId, entityName, entityNames, userId, dateFrom, dateTo } = filters;
-
-    const entityFilter =
-      entityNames && entityNames.length > 0
-        ? { entityName: { in: entityNames } }
-        : entityName
-        ? { entityName }
-        : {};
-
-    const where = {
-      companyId,
-      ...entityFilter,
-      ...(userId ? { userId } : {}),
-      ...(dateFrom || dateTo
-        ? {
-            createdAt: {
-              ...(dateFrom ? { gte: new Date(dateFrom + "T00:00:00.000Z") } : {}),
-              ...(dateTo ? { lte: new Date(dateTo + "T23:59:59.999Z") } : {}),
-            },
-          }
-        : {}),
-    };
+    const where = buildAuditWhere(filters);
 
     const rows = await prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 1000,  // límite de seguridad — no exportar volúmenes ilimitados
-      select: {
-        id: true,
-        entityId: true,
-        entityName: true,
-        action: true,
-        userId: true,
-        oldValue: true,
-        newValue: true,
-        createdAt: true,
-      },
+      select: AUDIT_LOG_SELECT,
     });
 
     return rows as AuditLogRow[];

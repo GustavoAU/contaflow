@@ -12,59 +12,62 @@ import { createHash } from "crypto";
 import { AuditLogService, type AuditLogFilters, type AuditLogPage } from "../services/AuditLogService";
 import { generateAuditLogPDF } from "../services/AuditLogPDFService";
 import { DocumentSigningService } from "@/modules/certificates/services/DocumentSigningService";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+// ─── Guard compartido ─────────────────────────────────────────────────────────
+// Verifica auth, rate limit, membresía y rol ADMIN_ONLY para todas las acciones
+// de auditoría. Retorna { userId } si el acceso está permitido.
+
+type AuditGuardResult = { userId: string } | { success: false; error: string };
+
+async function guardAuditAccess(companyId: string): Promise<AuditGuardResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+  const member = await prisma.companyMember.findUnique({
+    where: { userId_companyId: { userId, companyId } },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
+    return { success: false, error: "Solo OWNER y ADMIN pueden acceder al registro de auditoría" };
+  }
+  return { userId };
+}
+
+// ─── Listar registros de auditoría ────────────────────────────────────────────
 
 export async function listAuditLogsAction(
   filters: Omit<AuditLogFilters, "companyId"> & { companyId: string }
 ): Promise<ActionResult<AuditLogPage>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: filters.companyId } },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo OWNER y ADMIN pueden ver el registro de auditoría" };
-    }
+    const guard = await guardAuditAccess(filters.companyId);
+    if ("error" in guard) return guard;
 
     const data = await AuditLogService.list(filters);
     return { success: true, data };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener el registro de auditoría";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
+
+// ─── Obtener nombres de entidades distintas ───────────────────────────────────
 
 export async function getAuditEntityNamesAction(
   companyId: string
 ): Promise<ActionResult<string[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "No autorizado" };
-    }
+    const guard = await guardAuditAccess(companyId);
+    if ("error" in guard) return guard;
 
     const names = await AuditLogService.getDistinctEntityNames(companyId);
     return { success: true, data: names };
-  } catch {
-    return { success: false, error: "Error al obtener entidades" };
+  } catch (err) {
+    return toActionError(err);
   }
 }
 
@@ -94,24 +97,14 @@ export async function exportAuditLogPDFAction(
   filters: AuditLogPDFFilters
 ): Promise<ActionResult<PDFExportResult>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const guard = await guardAuditAccess(companyId);
+    if ("error" in guard) return guard;
+    const { userId } = guard;
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const [member, company] = await Promise.all([
-      prisma.companyMember.findUnique({
-        where: { userId_companyId: { userId, companyId } },
-        select: { role: true },
-      }),
-      prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
-    ]);
-
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo OWNER y ADMIN pueden exportar el registro de auditoría" };
-    }
+    const company = await prisma.company.findFirst({
+      where: { id: companyId },
+      select: { name: true, rif: true },
+    });
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
     // Obtener todos los registros según filtros (hasta 1000)
@@ -200,8 +193,7 @@ export async function exportAuditLogPDFAction(
       },
     };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al exportar el registro de auditoría";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -218,20 +210,9 @@ export async function exportAuditLogCSVAction(
   filters: AuditLogPDFFilters
 ): Promise<ActionResult<CSVExportResult>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo OWNER y ADMIN pueden exportar el registro de auditoría" };
-    }
+    const guard = await guardAuditAccess(companyId);
+    if ("error" in guard) return guard;
+    const { userId } = guard;
 
     const rows = await AuditLogService.listAll({ companyId, ...filters });
 
@@ -271,7 +252,6 @@ export async function exportAuditLogCSVAction(
 
     return { success: true, data: { csv, filename, rowCount: rows.length } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al exportar el registro de auditoría";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }

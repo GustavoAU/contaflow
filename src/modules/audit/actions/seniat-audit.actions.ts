@@ -11,8 +11,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import prisma from "@/lib/prisma";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
 
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
 
