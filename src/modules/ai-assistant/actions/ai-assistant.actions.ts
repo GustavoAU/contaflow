@@ -14,10 +14,10 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { AIContextBuilderService } from "../services/AIContextBuilderService";
 import { FiscalAnomalyDetectorService } from "../services/FiscalAnomalyDetectorService";
+import type { FiscalAnomalyReport } from "../services/FiscalAnomalyDetectorService";
 
-const GEMINI_TEXT_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
-const GEMINI_VISION_URL =
+// Texto y visión usan el mismo modelo — una sola constante evita divergencias silenciosas.
+const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 
 interface GeminiResponse {
@@ -39,7 +39,7 @@ async function callGemini(
   userMessage: string,
   imageBase64?: string,
 ): Promise<string | null> {
-  const url = `${imageBase64 ? GEMINI_VISION_URL : GEMINI_TEXT_URL}?key=${apiKey}`;
+  const url = `${GEMINI_API_URL}?key=${apiKey}`;
 
   // El sistema y la pregunta van en partes SEPARADAS — (26-02)
   const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
@@ -71,6 +71,29 @@ async function callGemini(
   }
 }
 
+// ─── Guard de acceso al módulo AI ────────────────────────────────────────────
+// Verifica autenticación, membresía a la empresa y rol mínimo (ACCOUNTING).
+// Retorna { userId } si el acceso está permitido, o { success: false, error } si no.
+type AIGuardResult = { userId: string } | { success: false; error: string };
+
+async function guardAIAccess(companyId: string): Promise<AIGuardResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autenticado" };
+
+  // IDOR guard (26-01 CRITICAL): el usuario debe ser miembro de esta empresa
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+  });
+  if (!member) return { success: false, error: "Sin acceso" };
+
+  // Role guard (26-05 MEDIUM): mínimo rol Contador
+  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
+    return { success: false, error: "Rol insuficiente" };
+  }
+
+  return { userId };
+}
+
 // ─── Modo auditoría — fallback con PendingTasksService ────────────────────────
 
 function buildAuditFallbackMessage(
@@ -85,6 +108,18 @@ function buildAuditFallbackMessage(
   return `Auditoría de tareas pendientes (modo básico):\n\n${lines.join("\n")}\n\n⚠️ El módulo de auditoría avanzada (FiscalAnomalyDetectorService) se habilitará en la próxima actualización.`;
 }
 
+// Construye la respuesta de modo auditoría sin necesitar a Gemini.
+// Si hay un reporte de anomalías usa ese; de lo contrario usa el fallback de tareas pendientes.
+function buildAuditModeReply(
+  anomalyReport: FiscalAnomalyReport | null,
+  pendingTasks: { type: string; severity: string; count: number }[],
+): SendMessageResult {
+  const reply = anomalyReport
+    ? FiscalAnomalyDetectorService.formatForPrompt(anomalyReport)
+    : buildAuditFallbackMessage(pendingTasks);
+  return { success: true, reply, isAuditMode: true };
+}
+
 // ─── Action pública ────────────────────────────────────────────────────────────
 
 export async function sendMessageAction(
@@ -93,20 +128,10 @@ export async function sendMessageAction(
   imageBase64?: string,
 ): Promise<SendMessageResult> {
   try {
-  // Auth (26-01)
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
-
-  // IDOR guard (26-01 CRITICAL)
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Sin acceso" };
-
-  // Role guard (26-05 MEDIUM)
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Rol insuficiente" };
-  }
+  // Auth + IDOR + Role (26-01 CRITICAL / 26-05 MEDIUM)
+  const guard = await guardAIAccess(companyId);
+  if ("error" in guard) return guard;
+  const { userId } = guard;
 
   // Rate limit (26-03 HIGH)
   const rl = await checkRateLimit(userId, limiters.ocr);
@@ -131,52 +156,18 @@ export async function sendMessageAction(
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    // Fallback sin IA: modo auditoría devuelve reporte de anomalías, resto devuelve aviso
-    if (isAuditMode && anomalyReport) {
-      return {
-        success: true,
-        reply: FiscalAnomalyDetectorService.formatForPrompt(anomalyReport),
-        isAuditMode: true,
-      };
-    }
-    if (isAuditMode) {
-      return {
-        success: true,
-        reply: buildAuditFallbackMessage(ctx.pendingTasks),
-        isAuditMode: true,
-      };
-    }
-    return {
-      success: true,
-      reply: "El asistente IA no está configurado. Contacta al administrador.",
-      isAuditMode: false,
-    };
+    // Fallback sin IA: modo auditoría devuelve reporte local, resto devuelve aviso al usuario
+    if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
+    return { success: true, reply: "El asistente IA no está configurado. Contacta al administrador.", isAuditMode: false };
   }
 
   // Llamar a Gemini
   const reply = await callGemini(apiKey, systemPrompt, userMessage, imageBase64);
 
   if (!reply) {
-    // Graceful fallback
-    if (isAuditMode && anomalyReport) {
-      return {
-        success: true,
-        reply: FiscalAnomalyDetectorService.formatForPrompt(anomalyReport),
-        isAuditMode: true,
-      };
-    }
-    if (isAuditMode) {
-      return {
-        success: true,
-        reply: buildAuditFallbackMessage(ctx.pendingTasks),
-        isAuditMode: true,
-      };
-    }
-    return {
-      success: true,
-      reply: "No pude obtener respuesta del asistente en este momento. Intenta de nuevo.",
-      isAuditMode: false,
-    };
+    // Graceful fallback cuando Gemini no responde
+    if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
+    return { success: true, reply: "No pude obtener respuesta del asistente en este momento. Intenta de nuevo.", isAuditMode: false };
   }
 
   return { success: true, reply, isAuditMode };
@@ -195,17 +186,9 @@ export type AnomalySummaryResult =
 
 export async function getAnomalySummaryAction(companyId: string): Promise<AnomalySummaryResult> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autenticado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-    });
-    if (!member) return { success: false, error: "Sin acceso" };
-
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "Rol insuficiente" };
-    }
+    // Auth + IDOR + Role (26-01 CRITICAL / 26-05 MEDIUM)
+    const guard = await guardAIAccess(companyId);
+    if ("error" in guard) return guard;
 
     const report = await FiscalAnomalyDetectorService.detect(companyId);
     return {

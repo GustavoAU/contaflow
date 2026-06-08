@@ -2,7 +2,6 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -17,6 +16,7 @@ import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { extractRequestContext } from "../utils/request-context";
 
 // ─── Crear asiento ────────────────────────────────────────────────────────────
 
@@ -39,9 +39,7 @@ export async function createTransactionAction(
       return { success: false, error: moduleAccessError("accounting") };
     }
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await extractRequestContext();
 
     const transaction = await TransactionService.createBalancedTransaction(
       { ...input, userId },
@@ -90,9 +88,7 @@ export async function voidTransactionAction(
     // Anular asiento requiere ADMIN_ONLY (más estricto que acceso al módulo)
     if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Anular asientos requiere rol Administrador o Propietario" };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await extractRequestContext();
 
     const transaction = await TransactionService.voidTransaction(
       { ...input, userId },

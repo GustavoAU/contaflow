@@ -17,6 +17,13 @@ import {
 
 type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
 
+// Convierte un error de generacion de PDF al formato de respuesta estandar.
+// El mensaje del Error (si lo hay) es mas especifico que el fallback generico.
+function toPDFError(error: unknown, fallback = "Error al generar el PDF"): PDFResult {
+  if (error instanceof Error) return { success: false, error: error.message };
+  return { success: false, error: fallback };
+}
+
 type GuardResult =
   | { userId: string; companyName: string; companyRif: string | null; accountant: AccountantInfo }
   | { success: false; error: string };
@@ -84,17 +91,9 @@ export async function exportBalanceSheetPDFAction(companyId: string): Promise<PD
       data: reportResult.data,
       accountant: guard.accountant,
     });
-
-    return {
-      success: true,
-      data: {
-        pdf: buffer.toString("base64"),
-        filename: `Balance-General-${today}.pdf`,
-      },
-    };
+    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Balance-General-${today}.pdf` } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF" };
+    return toPDFError(error);
   }
 }
 
@@ -119,17 +118,9 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
       data: reportResult.data.current,
       accountant: guard.accountant,
     });
-
-    return {
-      success: true,
-      data: {
-        pdf: buffer.toString("base64"),
-        filename: `Estado-Resultados-${today}.pdf`,
-      },
-    };
+    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Estado-Resultados-${today}.pdf` } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF" };
+    return toPDFError(error);
   }
 }
 
@@ -152,17 +143,9 @@ export async function exportTrialBalancePDFAction(companyId: string): Promise<PD
       data: reportResult.data,
       accountant: guard.accountant,
     });
-
-    return {
-      success: true,
-      data: {
-        pdf: buffer.toString("base64"),
-        filename: `Balance-Comprobacion-${today}.pdf`,
-      },
-    };
+    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Balance-Comprobacion-${today}.pdf` } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF" };
+    return toPDFError(error);
   }
 }
 
@@ -204,16 +187,8 @@ export async function exportLedgerPDFAction(
       generatedAt,
       accountant: guard.accountant,
     });
-
-    return {
-      success: true,
-      data: {
-        pdf: buffer.toString("base64"),
-        filename,
-      },
-    };
+    return { success: true, data: { pdf: buffer.toString("base64"), filename } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF del Libro Mayor" };
+    return toPDFError(error, "Error al generar el PDF del Libro Mayor");
   }
 }
