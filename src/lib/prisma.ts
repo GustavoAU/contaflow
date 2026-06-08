@@ -1,45 +1,27 @@
 // lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
-// ✅ Validar que DATABASE_URL existe antes de continuar
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL no está definida en las variables de entorno");
 }
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// Root cause Neon cold start: PgBouncer acepta la TCP pero Neon manda FIN mientras
-// su compute arranca → "Server has closed the connection". No es un timeout, es un
-// cierre activo. connect_timeout solo cubre el handshake inicial, no esto.
-// La solución es: Pool explícito con error handler + retry via withDbRetry().
-function withNeonTimeouts(url: string): string {
-  const u = new URL(url);
-  u.searchParams.set("connect_timeout", "30");
-  return u.toString();
-}
-
-const pool = new Pool({
-  connectionString: withNeonTimeouts(process.env.DATABASE_URL),
-  connectionTimeoutMillis: 30_000,
-  idleTimeoutMillis: 60_000, // 60s — da tiempo al usuario de llenar un form sin reconectar
-  max: 5,
-  query_timeout: 30_000,
-});
-
-// Evitar crash de Node.js cuando una conexión idle muere en background.
-// pg emite "error" en el Pool; sin handler => process crash en Node.js.
-pool.on("error", () => {
-  // pg elimina el cliente muerto del pool automáticamente.
-  // El próximo checkout creará una conexión nueva.
-});
-
-// Note: query events ($on "query") are not supported with @prisma/adapter-pg (Prisma 7.x).
+// Switched from pg+PgBouncer to @neondatabase/serverless WebSocket.
+// pg+PgBouncer root cause: PgBouncer has a hardcoded ~20s server_connect_timeout;
+// every cold-start attempt hangs 20s then fails, retries never succeed in time.
+// Neon's WS proxy handles cold starts natively — it queues the connection request
+// while the compute wakes up instead of timing out at 20s.
+// Node 22+ has built-in WebSocket; no external 'ws' package needed.
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
-    adapter: new PrismaPg(pool),
+    adapter: new PrismaNeon({
+      connectionString: process.env.DATABASE_URL,
+      max: 5,
+      idleTimeoutMillis: 60_000,
+    }),
     log: [
       { emit: "stdout", level: "error" },
       { emit: "stdout", level: "warn" },
@@ -51,9 +33,8 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 export default prisma;
 
 // ─── Retry helper ─────────────────────────────────────────────────────────────
-// Neon cold start: PgBouncer manda "Server has closed the connection" mientras
-// el compute arranca. Esperar 2s y reintentar suele ser suficiente.
-// Uso: return withDbRetry(() => prisma.foo.create({...}))
+// Safety net for transient network errors. With the Neon WS driver, cold starts
+// are handled by the driver itself, so this is rarely triggered.
 
 const RETRYABLE = [
   "server has closed the connection",
@@ -69,17 +50,13 @@ function isRetryable(err: unknown): boolean {
   return RETRYABLE.some((kw) => msg.includes(kw));
 }
 
-// Neon cold start takes 5-20s (PgBouncer gives up at ~20s). Delays must exceed that
-// so the second attempt hits a fully-started compute, not one still initializing.
-const RETRY_DELAYS = [8_000, 15_000]; // ms to wait before attempt 1, then attempt 2
-
-export async function withDbRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+export async function withDbRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       return await fn();
     } catch (err) {
       if (attempt < retries - 1 && isRetryable(err)) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt] ?? 15_000));
+        await new Promise((r) => setTimeout(r, 3_000));
         continue;
       }
       throw err;
