@@ -2,7 +2,6 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -11,6 +10,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { extractRequestContext } from "../utils/request-context";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -92,9 +92,7 @@ export async function createAccountAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await extractRequestContext();
 
     const validated = CreateAccountSchema.parse(input);
 
@@ -203,11 +201,9 @@ export async function updateAccountAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const h = await headers();
+    const { ipAddress, userAgent } = await extractRequestContext();
     const validated = UpdateAccountSchema.parse(input);
     const { id, ...data } = validated;
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const before = await prisma.account.findUnique({
       where: { id },
