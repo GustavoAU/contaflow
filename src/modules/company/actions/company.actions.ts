@@ -6,10 +6,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import prisma, { withDbRetry } from "@/lib/prisma";
-import { mapPrismaError } from "@/lib/prisma-errors";
 import { CompanyService } from "../services/CompanyService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -40,10 +41,6 @@ const CreateCompanySchema = z.object({
     .or(z.undefined()),
   address: z.string().optional(),
 });
-
-// ─── Tipo de respuesta ────────────────────────────────────────────────────────
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Actualizar datos SENIAT ──────────────────────────────────────────────────
 
@@ -82,7 +79,7 @@ export async function updateCompanySeniatDataAction(
     return { success: true, data: { id: company.id } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -125,7 +122,7 @@ export async function createCompanyAction(
         error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
       };
     }
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -154,7 +151,7 @@ export async function archiveCompanyAction(
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -178,6 +175,6 @@ export async function reactivateCompanyAction(
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }

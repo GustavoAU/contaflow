@@ -14,8 +14,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
 
 // ─── Schema ────────────────────────────────────────────────────────────────────
 

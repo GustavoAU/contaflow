@@ -20,11 +20,29 @@ import {
 import type { UserRole } from "@prisma/client";
 import type { AddMemberInput, UpdateMemberRoleInput, RemoveMemberInput } from "../schemas/member.schema";
 
-// ─── Tipo de respuesta estándar ───────────────────────────────────────────────
+// ─── Tipos y helpers ──────────────────────────────────────────────────────────
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
+
+function toZodFieldErrors(error: z.ZodError): ActionResult<never> {
+  const fieldErrors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const path = issue.path.join(".");
+    if (!fieldErrors[path]) fieldErrors[path] = [];
+    fieldErrors[path].push(issue.message);
+  }
+  return { success: false, error: "Datos inválidos", fieldErrors };
+}
+
+async function resolveIpUa() {
+  const h = await headers();
+  const ipAddress =
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { ipAddress, userAgent };
+}
 
 // ─── Listar miembros ──────────────────────────────────────────────────────────
 
@@ -71,10 +89,7 @@ export async function addMemberAction(
       return { success: false, error: "Solo Administrador o Propietario puede gestionar miembros." };
     }
 
-    const h = await headers();
-    const ipAddress =
-      h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const member = await MemberService.addMember(
       validated.companyId,
@@ -88,15 +103,7 @@ export async function addMemberAction(
     revalidatePath(`/company/${validated.companyId}/settings`);
     return { success: true, data: { id: member.id } };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos inválidos", fieldErrors };
-    }
+    if (error instanceof z.ZodError) return toZodFieldErrors(error);
     return { success: false, error: mapPrismaError(error) };
   }
 }
@@ -133,15 +140,7 @@ export async function updateMemberRoleAction(
     revalidatePath(`/company/${validated.companyId}/settings`);
     return { success: true, data: { id: updated.id } };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos inválidos", fieldErrors };
-    }
+    if (error instanceof z.ZodError) return toZodFieldErrors(error);
     return { success: false, error: mapPrismaError(error) };
   }
 }
@@ -173,10 +172,7 @@ export async function removeMemberAction(
       return { success: false, error: "Solo Administrador o Propietario puede gestionar miembros." };
     }
 
-    const h = await headers();
-    const ipAddress =
-      h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     await MemberService.removeMember(
       validated.companyId,
@@ -189,15 +185,7 @@ export async function removeMemberAction(
     revalidatePath(`/company/${validated.companyId}/settings`);
     return { success: true, data: null };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) fieldErrors[path] = [];
-        fieldErrors[path].push(issue.message);
-      }
-      return { success: false, error: "Datos inválidos", fieldErrors };
-    }
+    if (error instanceof z.ZodError) return toZodFieldErrors(error);
     return { success: false, error: mapPrismaError(error) };
   }
 }
