@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
+import type { UserRole } from "@prisma/client";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -44,8 +45,10 @@ import {
   listReimbursements,
   type ReimbursementSummary,
 } from "../services/CajaCajaReimbursementService";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function getIpAndUa() {
   const h = await headers();
@@ -55,40 +58,35 @@ async function getIpAndUa() {
   return { ipAddress, userAgent };
 }
 
-async function guardAdmin(companyId: string) {
+type GuardResult = { ok: true; userId: string } | { ok: false; error: string };
+
+async function guardRole(
+  companyId: string,
+  roles: UserRole[],
+  roleError: string,
+): Promise<GuardResult> {
   const { userId } = await auth();
-  if (!userId) return { ok: false as const, error: "No autenticado" };
+  if (!userId) return { ok: false, error: "No autenticado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { ok: false as const, error: "Límite de solicitudes superado" };
+  if (!rl.allowed) return { ok: false, error: "Límite de solicitudes superado" };
 
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
-  if (!member) return { ok: false as const, error: "No eres miembro de esta empresa" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { ok: false as const, error: "Se requiere rol ADMIN o superior" };
+  if (!member) return { ok: false, error: "No eres miembro de esta empresa" };
+  if (!canAccess(member.role, roles)) return { ok: false, error: roleError };
 
-  return { ok: true as const, userId };
+  return { ok: true, userId };
 }
 
-async function guardOperations(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { ok: false as const, error: "No autenticado" };
+function guardAdmin(companyId: string): Promise<GuardResult> {
+  return guardRole(companyId, ROLES.ADMIN_ONLY, "Se requiere rol ADMIN o superior");
+}
 
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { ok: false as const, error: "Límite de solicitudes superado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { ok: false as const, error: "No eres miembro de esta empresa" };
-  if (!canAccess(member.role, ROLES.WRITERS))
-    return { ok: false as const, error: "Rol insuficiente" };
-
-  return { ok: true as const, userId };
+function guardOperations(companyId: string): Promise<GuardResult> {
+  return guardRole(companyId, ROLES.WRITERS, "Rol insuficiente");
 }
 
 // ─── CajaCaja ─────────────────────────────────────────────────────────────────
@@ -107,7 +105,7 @@ export async function createCajaCajaAction(
     const data = await createCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear Caja Chica" };
+    return toActionError(e);
   }
 }
 
@@ -121,7 +119,7 @@ export async function listCajasCajasAction(
     const data = await listCajasCajas(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al listar cajas" };
+    return toActionError(e);
   }
 }
 
@@ -136,7 +134,7 @@ export async function getCajaCajaByIdAction(
     const data = await getCajaCajaById(cajaCajaId, companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -154,7 +152,7 @@ export async function closeCajaCajaAction(
     await closeCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al cerrar Caja Chica" };
+    return toActionError(e);
   }
 }
 
@@ -174,7 +172,7 @@ export async function createDepositAction(
     const data = await createDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al registrar depósito" };
+    return toActionError(e);
   }
 }
 
@@ -192,7 +190,7 @@ export async function voidDepositAction(
     await voidDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al anular depósito" };
+    return toActionError(e);
   }
 }
 
@@ -207,7 +205,7 @@ export async function listDepositsAction(
     const data = await listDeposits(cajaCajaId, companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -227,7 +225,7 @@ export async function createMovementAction(
     const data = await createMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al registrar gasto" };
+    return toActionError(e);
   }
 }
 
@@ -245,7 +243,7 @@ export async function approveMovementAction(
     const data = await approveMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al aprobar gasto" };
+    return toActionError(e);
   }
 }
 
@@ -263,7 +261,7 @@ export async function voidMovementAction(
     await voidMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al anular gasto" };
+    return toActionError(e);
   }
 }
 
@@ -278,7 +276,7 @@ export async function listMovementsAction(
     const data = await listMovements(cajaCajaId, companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -298,7 +296,7 @@ export async function createReimbursementAction(
     const data = await createReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear reembolso" };
+    return toActionError(e);
   }
 }
 
@@ -316,7 +314,7 @@ export async function postReimbursementAction(
     const data = await postReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al publicar reembolso" };
+    return toActionError(e);
   }
 }
 
@@ -334,7 +332,7 @@ export async function voidReimbursementAction(
     await voidReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al anular reembolso" };
+    return toActionError(e);
   }
 }
 
@@ -349,6 +347,6 @@ export async function listReimbursementsAction(
     const data = await listReimbursements(cajaCajaId, companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }

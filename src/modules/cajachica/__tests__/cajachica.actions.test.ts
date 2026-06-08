@@ -22,11 +22,15 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: { findFirst: vi.fn() },
   },
 }));
+const mockCloseCajaCaja = vi.hoisted(() => vi.fn());
+const mockListDeposits = vi.hoisted(() => vi.fn());
+const mockListReimbursements = vi.hoisted(() => vi.fn());
+
 vi.mock("../services/CajaCajaService", () => ({
   createCajaCaja: mockCreateCajaCaja,
   listCajasCajas: mockListCajasCajas,
   getCajaCajaById: vi.fn(),
-  closeCajaCaja: vi.fn(),
+  closeCajaCaja: mockCloseCajaCaja,
 }));
 vi.mock("../services/CajaCajaMovementService", () => ({
   createMovement: mockCreateMovement,
@@ -37,21 +41,25 @@ vi.mock("../services/CajaCajaMovementService", () => ({
 vi.mock("../services/CajaCajaDepositService", () => ({
   createDeposit: vi.fn(),
   voidDeposit: vi.fn(),
-  listDeposits: vi.fn(),
+  listDeposits: mockListDeposits,
 }));
 vi.mock("../services/CajaCajaReimbursementService", () => ({
   createReimbursement: vi.fn(),
   postReimbursement: vi.fn(),
   voidReimbursement: vi.fn(),
-  listReimbursements: vi.fn(),
+  listReimbursements: mockListReimbursements,
 }));
 
 import prisma from "@/lib/prisma";
 import {
   listCajasCajasAction,
   createCajaCajaAction,
+  closeCajaCajaAction,
   createMovementAction,
   approveMovementAction,
+  listMovementsAction,
+  listDepositsAction,
+  listReimbursementsAction,
 } from "../actions/cajachica.actions";
 
 const COMPANY_ID = "comp-1";
@@ -243,6 +251,73 @@ describe("createMovementAction", () => {
     });
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/soporte/i);
+  });
+});
+
+// ─── closeCajaCajaAction ──────────────────────────────────────────────────────
+
+describe("closeCajaCajaAction", () => {
+  it("cierra caja correctamente (requiere ADMIN)", async () => {
+    setupAdmin();
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction({
+      cajaCajaId: "caja-1",
+      companyId: COMPANY_ID,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza cierre para ADMINISTRATIVE (requiere ADMIN)", async () => {
+    setupWriter();
+    const result = await closeCajaCajaAction({
+      cajaCajaId: "caja-1",
+      companyId: COMPANY_ID,
+    });
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+  });
+
+  it("falla con Zod si falta cajaCajaId", async () => {
+    setupAdmin();
+    const result = await closeCajaCajaAction({ companyId: COMPANY_ID });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ─── listDepositsAction ───────────────────────────────────────────────────────
+
+describe("listDepositsAction", () => {
+  it("lista depósitos para ADMINISTRATIVE", async () => {
+    setupWriter();
+    mockListDeposits.mockResolvedValue([]);
+    const result = await listDepositsAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(Array.isArray(result.data)).toBe(true);
+  });
+});
+
+// ─── listMovementsAction ──────────────────────────────────────────────────────
+
+describe("listMovementsAction", () => {
+  it("lista movimientos para ADMINISTRATIVE", async () => {
+    setupWriter();
+    mockListMovements.mockResolvedValue([]);
+    const result = await listMovementsAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(Array.isArray(result.data)).toBe(true);
+  });
+});
+
+// ─── listReimbursementsAction ─────────────────────────────────────────────────
+
+describe("listReimbursementsAction", () => {
+  it("lista reembolsos para ADMINISTRATIVE", async () => {
+    setupWriter();
+    mockListReimbursements.mockResolvedValue([]);
+    const result = await listReimbursementsAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(Array.isArray(result.data)).toBe(true);
   });
 });
 
