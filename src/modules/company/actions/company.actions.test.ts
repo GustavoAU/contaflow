@@ -28,6 +28,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     $transaction: vi.fn(),
   },
+  withDbRetry: vi.fn((fn: () => unknown) => fn()),
 }));
 
 import prisma from "@/lib/prisma";

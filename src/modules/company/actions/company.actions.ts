@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
-import prisma from "@/lib/prisma";
+import prisma, { withDbRetry } from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { CompanyService } from "../services/CompanyService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -101,30 +101,30 @@ export async function createCompanyAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    // Límite del plan: 1 empresa (RIF) por usuario. Billing P-2 lo ampliará.
-    const ownedCount = await prisma.companyMember.count({
-      where: { userId, role: "OWNER", company: { status: { not: "ARCHIVED" } } },
-    });
-    if (ownedCount >= COMPANY_LIMIT_PER_USER) {
-      return {
-        success: false,
-        error:
-          "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
-      };
-    }
-
     const validated = CreateCompanySchema.parse(input);
-    const company = await CompanyService.createCompany(
-      validated.name,
-      userId, // always use auth() userId
-      validated.rif,
-      validated.address
-    );
+
+    // withDbRetry: reintenta hasta 2 veces si Neon cierra la conexión durante cold start.
+    // El retry espera 2s entre intentos para que PgBouncer tenga tiempo de reconectar.
+    const company = await withDbRetry(async () => {
+      const ownedCount = await prisma.companyMember.count({
+        where: { userId, role: "OWNER", company: { status: { not: "ARCHIVED" } } },
+      });
+      if (ownedCount >= COMPANY_LIMIT_PER_USER) {
+        throw Object.assign(new Error("PLAN_LIMIT"), { isPlanLimit: true });
+      }
+      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address);
+    });
 
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id, name: company.name } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
+    if (error instanceof Error && (error as Error & { isPlanLimit?: boolean }).isPlanLimit) {
+      return {
+        success: false,
+        error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
+      };
+    }
     return { success: false, error: mapPrismaError(error) };
   }
 }
