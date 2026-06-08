@@ -1,0 +1,32 @@
+{
+  "recommendations": [
+    // TypeScript / Next.js / React
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+
+    // Prisma ORM
+    "Prisma.prisma",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Testing (Vitest)
+    "vitest.explorer",
+
+    // Git
+    "eamodio.gitlens",
+
+    // Vim keybindings
+    "vscodevim.vim",
+
+    // Claude Code
+    "anthropics.claude-code",
+
+    // Productividad
+    "mikestead.dotenv",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+    "usernamehw.errorlens",
+    "yoavbls.pretty-ts-errors"
+  ]
+}

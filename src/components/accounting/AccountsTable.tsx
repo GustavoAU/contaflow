@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -116,6 +116,8 @@ export function AccountsTable({
     resolver: zodResolver(AccountFormSchema),
     defaultValues: { name: "", code: "", type: "ASSET", description: "", isMonetary: false, isCurrent: false },
   });
+
+  const watchedType = useWatch({ control: form.control, name: "type" });
 
   const loadAccounts = async () => {
     const result = await getAccountsAction(companyId);
@@ -318,7 +320,7 @@ export function AccountsTable({
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="ASSET">Activo</SelectItem>
                         <SelectItem value="CONTRA_ASSET">Contra-activo (Dep. Acumulada)</SelectItem>
                         <SelectItem value="LIABILITY">Pasivo</SelectItem>
@@ -395,7 +397,7 @@ export function AccountsTable({
                   </FormItem>
                 )}
               />
-              {BALANCE_TYPES.has(form.watch("type")) && (
+              {BALANCE_TYPES.has(watchedType) && (
                 <FormField
                   control={form.control}
                   name="isCurrent"
@@ -424,8 +426,9 @@ export function AccountsTable({
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isPending}>
-                  {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Cuenta"}
+                <Button type="submit" disabled={isPending} aria-busy={isPending} className="gap-2">
+                  {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+                  {isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Cuenta"}
                 </Button>
               </DialogFooter>
             </form>

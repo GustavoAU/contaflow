@@ -1,0 +1,65 @@
+{
+  // ── TypeScript Language Server ──────────────────────────────────────────────
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.tsserver.watchOptions": {
+    "watchFile": "useFsEventsOnParentDirectory",
+    "watchDirectory": "useFsEvents",
+    "fallbackPolling": "dynamicPriority"
+  },
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.suggest.autoImports": true,
+
+  // ── File Watcher — excluir carpetas pesadas ──────────────────────────────────
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.turbo/**": true,
+    "**/coverage/**": true,
+    "**/.vitest-cache/**": true
+  },
+
+  // ── File Explorer — ocultar ruido ────────────────────────────────────────────
+  "files.exclude": {
+    "**/.git": true,
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/.turbo": true,
+    "**/coverage": true
+  },
+
+  // ── Search — excluir para reducir I/O ────────────────────────────────────────
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/.turbo": true,
+    "**/*.lock": true,
+    "**/pnpm-lock.yaml": true
+  },
+
+  // ── Editor — reducir operaciones costosas ────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.quickSuggestionsDelay": 300,
+  "editor.suggestOnTriggerCharacters": true,
+
+  // ── Extensions — reducir carga ───────────────────────────────────────────────
+  "extensions.experimental.affinity": {
+    "vscodevim.vim": 1
+  },
+
+  // ── Git — reducir overhead ───────────────────────────────────────────────────
+  "git.autoRepositoryDetection": "openEditors",
+  "git.decorations.enabled": true,
+
+  // ── Claude Code — límite de contexto ─────────────────────────────────────────
+  "claude.maxFileSize": 500000,
+
+  // ── Telemetría ───────────────────────────────────────────────────────────────
+  "telemetry.telemetryLevel": "off"
+}
