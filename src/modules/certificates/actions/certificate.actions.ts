@@ -7,9 +7,9 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { CertificateService } from "../services/CertificateService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import { CertificateService, type CertificateStatusDTO } from "../services/CertificateService";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,26 @@ async function resolveIpUserAgent() {
   return { ipAddress, userAgent };
 }
 
+type CertGuardResult = { userId: string } | { success: false; error: string };
+
+// Guards the two write-only ADMIN actions (generate + upload) — includes rate limit.
+async function guardAdminCert(companyId: string): Promise<CertGuardResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "No autorizado" };
+
+  const rl = await checkRateLimit(userId, limiters.fiscal);
+  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+
+  const member = await prisma.companyMember.findFirst({
+    where: { companyId, userId },
+    select: { role: true },
+  });
+  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+
+  return { userId };
+}
+
 // ─── generateDemoCertificateAction ────────────────────────────────────────────
 
 export async function generateDemoCertificateAction(
@@ -47,20 +67,10 @@ export async function generateDemoCertificateAction(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
+  const g = await guardAdminCert(parsed.data.companyId);
+  if ("success" in g) return g;
+
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
     const company = await prisma.company.findUnique({
       where: { id: parsed.data.companyId },
       select: { name: true, rif: true },
@@ -75,7 +85,7 @@ export async function generateDemoCertificateAction(
         parsed.data.companyId,
         company.name,
         company.rif ?? "",
-        userId,
+        g.userId,
         ipAddress,
         userAgent,
       );
@@ -84,8 +94,7 @@ export async function generateDemoCertificateAction(
     revalidatePath(`/company/${parsed.data.companyId}/settings`);
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error generando certificado";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -99,20 +108,10 @@ export async function uploadOfficialCertificateAction(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
+  const g = await guardAdminCert(parsed.data.companyId);
+  if ("success" in g) return g;
+
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
     const p12Buffer = Buffer.from(parsed.data.p12Base64, "base64");
     if (p12Buffer.length > 100_000) {
       return { success: false, error: "El archivo .p12 no puede superar 100 KB" };
@@ -125,7 +124,7 @@ export async function uploadOfficialCertificateAction(
         tx,
         parsed.data.companyId,
         p12Buffer,
-        userId,
+        g.userId,
         ipAddress,
         userAgent,
       );
@@ -134,34 +133,35 @@ export async function uploadOfficialCertificateAction(
     revalidatePath(`/company/${parsed.data.companyId}/settings`);
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error cargando certificado";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
 // ─── getCertificateStatusAction ────────────────────────────────────────────────
 
-export async function getCertificateStatusAction(input: unknown) {
+export async function getCertificateStatusAction(
+  input: unknown,
+): Promise<ActionResult<CertificateStatusDTO>> {
   const parsed = GetCertStatusSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues[0].message };
+    return { success: false, error: parsed.error.issues[0].message };
   }
 
   try {
     const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
+    if (!userId) return { success: false, error: "No autorizado" };
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
       select: { role: true },
     });
-    if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // VIEWER no accede (solo lectura de estado de certificado requiere ACCOUNTANT+)
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false as const, error: "No autorizado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
-    const status = await CertificateService.getCertificateStatus(parsed.data.companyId);
-    return { success: true as const, data: status };
-  } catch {
-    return { success: false as const, error: "Error obteniendo estado del certificado" };
+    const data = await CertificateService.getCertificateStatus(parsed.data.companyId);
+    return { success: true, data };
+  } catch (err) {
+    return toActionError(err);
   }
 }
