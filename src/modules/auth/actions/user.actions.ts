@@ -28,24 +28,28 @@ export async function syncUserAction() {
   }
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// ADR-004-EXCEPTION: cross-company intencional — lista empresas del usuario por status
+// (company switcher y panel de archivadas necesitan ver todas las empresas del usuario)
+async function getCompaniesByStatus(status: "ACTIVE" | "ARCHIVED") {
+  const clerkUser = await currentUser();
+  if (!clerkUser) return [];
+
+  const memberships = await prisma.companyMember.findMany({
+    where: { userId: clerkUser.id, company: { status } },
+    include: { company: true },
+    orderBy: { company: { name: "asc" } },
+  });
+
+  return memberships.map((m) => ({ ...m.company, role: m.role }));
+}
+
+// ─── Acciones públicas ────────────────────────────────────────────────────────
+
 export async function getUserCompaniesAction() {
   try {
-    const clerkUser = await currentUser();
-    if (!clerkUser) return [];
-
-    const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista todas las empresas del usuario (company switcher)
-      where: {
-        userId: clerkUser.id,
-        company: { status: "ACTIVE" },
-      },
-      include: { company: true },
-      orderBy: { company: { name: "asc" } },
-    });
-
-    return memberships.map((m) => ({
-      ...m.company,
-      role: m.role,
-    }));
+    return await getCompaniesByStatus("ACTIVE");
   } catch {
     // Neon cold start u otro error de conexión — el layout recibe [] y
     // redirige a /dashboard; la UI muestra "reconectando" en lugar de crashear.
@@ -55,22 +59,7 @@ export async function getUserCompaniesAction() {
 
 export async function getArchivedCompaniesAction() {
   try {
-    const clerkUser = await currentUser();
-    if (!clerkUser) return [];
-
-    const memberships = await prisma.companyMember.findMany({ // ADR-004-EXCEPTION: cross-company intencional — lista empresas archivadas del usuario
-      where: {
-        userId: clerkUser.id,
-        company: { status: "ARCHIVED" },
-      },
-      include: { company: true },
-      orderBy: { company: { name: "asc" } },
-    });
-
-    return memberships.map((m) => ({
-      ...m.company,
-      role: m.role,
-    }));
+    return await getCompaniesByStatus("ARCHIVED");
   } catch {
     return [];
   }
