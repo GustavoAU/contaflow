@@ -1,10 +1,17 @@
 // src/modules/accounting/services/TransactionService.ts
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import type { PrismaClient } from "@prisma/client";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { TX_STATUS, MAX_PAGE_SIZE } from "../constants";
+
+// Cliente de Prisma dentro de $transaction — igual al patrón de PeriodSnapshotService.
+type PrismaTransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 // ─── Tipos de paginación ──────────────────────────────────────────────────────
 

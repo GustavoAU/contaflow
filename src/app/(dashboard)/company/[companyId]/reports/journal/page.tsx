@@ -108,12 +108,19 @@ export default async function JournalPage({ params, searchParams }: Props) {
   if (!from && !to) {
     let openPeriod: { year: number; month: number } | undefined;
     try {
-      const periodsForRedirect = await getPeriodsAction(companyId);
+      // 5 s de timeout: si Neon está en cold start, no bloqueamos el worker de Next.js.
+      // Al expirar, continuamos sin redirigir; el usuario puede elegir el período manualmente.
+      const periodsForRedirect = await Promise.race([
+        getPeriodsAction(companyId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 5_000),
+        ),
+      ]);
       if (periodsForRedirect.success) {
         openPeriod = periodsForRedirect.data.find((p) => p.status === "OPEN");
       }
     } catch {
-      // Cold start u otro error de conexión — continúa sin redirigir
+      // Cold start, timeout u otro error — continúa sin redirigir
     }
     if (openPeriod) {
       const mm = String(openPeriod.month).padStart(2, "0");
