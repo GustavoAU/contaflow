@@ -32,6 +32,8 @@ export type CashFlowBucket = {
 
 export type CashFlowProjection = CashFlowBucket[];
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class KpiDashboardService {
@@ -40,7 +42,7 @@ export class KpiDashboardService {
    */
   static async getKpiSummary(companyId: string): Promise<KpiSummary> {
     const now = new Date();
-    const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const since30d = new Date(now.getTime() - 30 * MS_PER_DAY);
 
     const [unpaidInvoices, recentSales] = await Promise.all([
       // Todas las facturas activas no pagadas / parciales
@@ -106,7 +108,7 @@ export class KpiDashboardService {
     const now = new Date();
     now.setUTCHours(0, 0, 0, 0);
 
-    const d90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const d90 = new Date(now.getTime() + 90 * MS_PER_DAY);
 
     const invoices = await prisma.invoice.findMany({
       where: {
@@ -129,7 +131,7 @@ export class KpiDashboardService {
       if (!inv.dueDate || !inv.pendingAmount) continue;
 
       const daysAhead = Math.ceil(
-        (inv.dueDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+        (inv.dueDate.getTime() - now.getTime()) / MS_PER_DAY,
       );
 
       const key: keyof typeof buckets =

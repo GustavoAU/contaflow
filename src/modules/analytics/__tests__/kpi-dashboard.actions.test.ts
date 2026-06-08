@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import prisma from "@/lib/prisma";
 import { KpiDashboardService } from "../services/KpiDashboardService";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 const { emptyKpi } = vi.hoisted(() => ({
   emptyKpi: {
@@ -25,6 +26,11 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn().mockResolvedValue({ userId: "user-1" }),
 }));
 
+vi.mock("@/lib/ratelimit", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  limiters: { fiscal: {}, ocr: {} },
+}));
+
 vi.mock("../services/KpiDashboardService", () => ({
   KpiDashboardService: {
     getKpiSummary: vi.fn().mockResolvedValue(emptyKpi.summary),
@@ -41,6 +47,7 @@ describe("getKpiDashboardAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(KpiDashboardService.getKpiSummary).mockResolvedValue(emptyKpi.summary);
     vi.mocked(KpiDashboardService.getCashFlowProjection).mockResolvedValue(emptyKpi.cashFlow);
@@ -90,5 +97,11 @@ describe("getKpiDashboardAction", () => {
     vi.mocked(KpiDashboardService.getKpiSummary).mockRejectedValueOnce(new Error("DB error"));
     const r = await getKpiDashboardAction(COMPANY_ID);
     expect(r).toEqual({ success: false, error: "DB error" });
+  });
+
+  it("rate limit excedido retorna error", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false } as never);
+    const r = await getKpiDashboardAction(COMPANY_ID);
+    expect(r).toEqual({ success: false, error: "Demasiadas solicitudes. Intente más tarde." });
   });
 });

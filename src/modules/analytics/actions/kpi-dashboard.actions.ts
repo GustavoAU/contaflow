@@ -10,8 +10,8 @@ import {
   type KpiSummary,
   type CashFlowProjection,
 } from "../services/KpiDashboardService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type KpiDashboardData = {
   summary: KpiSummary;
@@ -42,7 +42,6 @@ export async function getKpiDashboardAction(
     ]);
     return { success: true, data: { summary, cashFlow } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
