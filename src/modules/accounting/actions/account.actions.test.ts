@@ -403,12 +403,12 @@ describe("getAccountsAction", () => {
   });
 
   it("retorna error cuando falla la query", async () => {
-    vi.mocked(prisma.account.findMany).mockRejectedValue(new Error("DB connection failed"));
+    vi.mocked(prisma.account.findMany).mockRejectedValue(new Error("query execution failed"));
 
     const result = await getAccountsAction("company-1");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("DB connection failed");
+    if (!result.success) expect(result.error).toBe("query execution failed");
   });
 });
 

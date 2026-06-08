@@ -32,7 +32,12 @@ const UpdateCompanySeniatSchema = z.object({
 const CreateCompanySchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
-  rif: z.string().optional(),
+  rif: z
+    .string()
+    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, "RIF inválido (ej: J-12345678-9)")
+    .optional()
+    .or(z.literal(""))
+    .or(z.undefined()),
   address: z.string().optional(),
 });
 
