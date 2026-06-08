@@ -30,6 +30,7 @@ vi.mock("../services/BillingService", () => ({
 
 import * as BillingService from "../services/BillingService";
 import { auth } from "@clerk/nextjs/server";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -141,6 +142,19 @@ describe("createCheckoutAction", () => {
 
     expect(result.success).toBe(false);
     expect((result as { error: string }).error).toContain("Early Adopter");
+  });
+
+  it("rechaza si se supera el rate limit", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false, error: "Demasiadas solicitudes. Intente más tarde." });
+
+    const result = await createCheckoutAction({
+      companyId: COMPANY_ID,
+      plan: "MONTHLY",
+      payCurrency: "usdterc20",
+    });
+
+    expect(result.success).toBe(false);
+    expect((result as { error: string }).error).toContain("Demasiadas solicitudes");
   });
 
   it("crea checkout para plan ANNUAL con precio correcto", async () => {

@@ -3,19 +3,14 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import * as BillingService from "../services/BillingService";
 import { CreateCheckoutSchema, type CreateCheckoutInput } from "../schemas/billing.schema";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-// ─── Tipo de respuesta estándar ───────────────────────────────────────────────
-
-type ActionResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
-
-// ─── createCheckoutAction ─────────────────────────────────────────────────────
+// ─── createCheckoutAction ────────────────────────────────────────────────────
 
 export async function createCheckoutAction(
   input: CreateCheckoutInput,
@@ -54,10 +49,6 @@ export async function createCheckoutAction(
 
     return { success: true, data: result };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error: "Datos inválidos" };
-    }
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al crear el checkout" };
+    return toActionError(error);
   }
 }
