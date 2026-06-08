@@ -44,6 +44,7 @@ import {
   updateBudgetAction,
   deleteBudgetAction,
   upsertBudgetLineAction,
+  deleteBudgetLineAction,
   getBudgetVsActualAction,
   getCashFlowProjectionAction,
 } from "../actions/budget.actions";
@@ -277,6 +278,50 @@ describe("upsertBudgetLineAction", () => {
     const r = await upsertBudgetLineAction("c1", "bgt1", { accountId: "acc-ajena", amount: "1000" });
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("no válidos");
+  });
+});
+
+// ── deleteBudgetLineAction ────────────────────────────────────────────────────
+describe("deleteBudgetLineAction", () => {
+  beforeEach(() => {
+    setAuth("user1");
+    setMember("ACCOUNTANT");
+  });
+
+  it("elimina línea correctamente", async () => {
+    vi.mocked(BudgetService.deleteLine).mockResolvedValue(true as never);
+    const r = await deleteBudgetLineAction("c1", "bgt1", "acc1");
+    expect(r.success).toBe(true);
+  });
+
+  it("retorna error si la línea no existe", async () => {
+    vi.mocked(BudgetService.deleteLine).mockResolvedValue(false as never);
+    const r = await deleteBudgetLineAction("c1", "bgt1", "acc-ghost");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("no encontrada");
+  });
+
+  it("rechaza si no está autenticado", async () => {
+    setAuth(null);
+    const r = await deleteBudgetLineAction("c1", "bgt1", "acc1");
+    expect(r.success).toBe(false);
+  });
+});
+
+// ── createBudgetAction P2002 ──────────────────────────────────────────────────
+describe("createBudgetAction — P2002 nombre duplicado", () => {
+  beforeEach(() => {
+    setAuth("user1");
+    setMember("ACCOUNTANT");
+  });
+
+  it("devuelve mensaje de negocio si ya existe el nombre para ese año", async () => {
+    vi.mocked(BudgetService.create).mockRejectedValueOnce(
+      Object.assign(new Error("Unique constraint"), { code: "P2002" }),
+    );
+    const r = await createBudgetAction("c1", { periodYear: 2026, name: "Dup" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("Ya existe un presupuesto");
   });
 });
 

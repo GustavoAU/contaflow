@@ -5,6 +5,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import type { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -18,83 +19,60 @@ import {
   type UpdateBudgetInput,
   type UpsertBudgetLineInput,
 } from "../schemas/budget.schemas";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+// ── Auth helper ───────────────────────────────────────────────────────────────
 
-// ── Auth helpers ──────────────────────────────────────────────────────────────
-
-async function resolveAccounting(companyId: string): Promise<{ userId: string; allowed: boolean }> {
+async function resolveRole(
+  companyId: string,
+  requiredRoles: UserRole[],
+): Promise<{ userId: string; allowed: boolean }> {
   const { userId } = await auth();
   if (!userId) return { userId: "", allowed: false };
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
     select: { role: true },
   });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) return { userId, allowed: false };
-  return { userId, allowed: true };
-}
-
-async function resolveWriters(companyId: string): Promise<{ userId: string; allowed: boolean }> {
-  const { userId } = await auth();
-  if (!userId) return { userId: "", allowed: false };
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.WRITERS)) return { userId, allowed: false };
-  return { userId, allowed: true };
-}
-
-async function resolveAdmin(companyId: string): Promise<{ userId: string; allowed: boolean }> {
-  const { userId } = await auth();
-  if (!userId) return { userId: "", allowed: false };
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) return { userId, allowed: false };
+  if (!member || !canAccess(member.role, requiredRoles)) return { userId, allowed: false };
   return { userId, allowed: true };
 }
 
 // ── Budget CRUD ───────────────────────────────────────────────────────────────
 
-export async function listBudgetsAction(companyId: string): Promise<Result<BudgetRow[]>> {
+export async function listBudgetsAction(companyId: string): Promise<ActionResult<BudgetRow[]>> {
   try {
     // Read-only: ROLES.ALL (VIEWER incluido — solo consulta)
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
-    if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const { allowed } = await resolveRole(companyId, ROLES.ALL);
+    if (!allowed) return { success: false, error: "No autorizado" };
     const data = await BudgetService.list(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 export async function getBudgetAction(
   companyId: string,
   budgetId: string,
-): Promise<Result<BudgetRow>> {
+): Promise<ActionResult<BudgetRow>> {
   try {
     // Read-only: ROLES.ALL
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const member = await prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } });
-    if (!member || !canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const { allowed } = await resolveRole(companyId, ROLES.ALL);
+    if (!allowed) return { success: false, error: "No autorizado" };
     const data = await BudgetService.get(companyId, budgetId);
     if (!data) return { success: false, error: "Presupuesto no encontrado" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 export async function createBudgetAction(
   companyId: string,
   input: CreateBudgetInput,
-): Promise<Result<BudgetRow>> {
-  const { userId, allowed } = await resolveWriters(companyId);
+): Promise<ActionResult<BudgetRow>> {
+  const { userId, allowed } = await resolveRole(companyId, ROLES.WRITERS);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
@@ -106,11 +84,11 @@ export async function createBudgetAction(
   try {
     const data = await BudgetService.create(companyId, parsed.data, userId);
     return { success: true, data };
-  } catch (e: unknown) {
+  } catch (e) {
     if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
       return { success: false, error: "Ya existe un presupuesto con ese nombre para ese año." };
     }
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -118,8 +96,8 @@ export async function updateBudgetAction(
   companyId: string,
   budgetId: string,
   input: UpdateBudgetInput,
-): Promise<Result<BudgetRow>> {
-  const { userId, allowed } = await resolveWriters(companyId);
+): Promise<ActionResult<BudgetRow>> {
+  const { userId, allowed } = await resolveRole(companyId, ROLES.WRITERS);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
@@ -133,15 +111,15 @@ export async function updateBudgetAction(
     if (!data) return { success: false, error: "Presupuesto no encontrado" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 export async function deleteBudgetAction(
   companyId: string,
   budgetId: string,
-): Promise<Result<true>> {
-  const { userId, allowed } = await resolveAdmin(companyId);
+): Promise<ActionResult<true>> {
+  const { userId, allowed } = await resolveRole(companyId, ROLES.ADMIN_ONLY);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
@@ -152,7 +130,7 @@ export async function deleteBudgetAction(
     if (!ok) return { success: false, error: "Presupuesto no encontrado" };
     return { success: true, data: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -162,8 +140,8 @@ export async function upsertBudgetLineAction(
   companyId: string,
   budgetId: string,
   input: UpsertBudgetLineInput,
-): Promise<Result<BudgetLineRow>> {
-  const { userId, allowed } = await resolveWriters(companyId);
+): Promise<ActionResult<BudgetLineRow>> {
+  const { userId, allowed } = await resolveRole(companyId, ROLES.WRITERS);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
@@ -177,7 +155,7 @@ export async function upsertBudgetLineAction(
     if (!data) return { success: false, error: "Presupuesto o cuenta no válidos para esta empresa" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -185,8 +163,8 @@ export async function deleteBudgetLineAction(
   companyId: string,
   budgetId: string,
   accountId: string,
-): Promise<Result<true>> {
-  const { userId, allowed } = await resolveWriters(companyId);
+): Promise<ActionResult<true>> {
+  const { userId, allowed } = await resolveRole(companyId, ROLES.WRITERS);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   const rl = await checkRateLimit(userId, limiters.fiscal);
@@ -197,7 +175,7 @@ export async function deleteBudgetLineAction(
     if (!ok) return { success: false, error: "Línea no encontrada" };
     return { success: true, data: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -206,9 +184,9 @@ export async function deleteBudgetLineAction(
 export async function getBudgetVsActualAction(
   companyId: string,
   budgetId: string,
-): Promise<Result<BudgetVsActualLine[]>> {
+): Promise<ActionResult<BudgetVsActualLine[]>> {
   // Read-only report: ROLES.ACCOUNTING (requiere comprensión contable)
-  const { allowed } = await resolveAccounting(companyId);
+  const { allowed } = await resolveRole(companyId, ROLES.ACCOUNTING);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   try {
@@ -216,21 +194,21 @@ export async function getBudgetVsActualAction(
     if (!data) return { success: false, error: "Presupuesto no encontrado" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 export async function getCashFlowProjectionAction(
   companyId: string,
-): Promise<Result<CashFlowProjection>> {
+): Promise<ActionResult<CashFlowProjection>> {
   // Read-only report: ROLES.ACCOUNTING
-  const { allowed } = await resolveAccounting(companyId);
+  const { allowed } = await resolveRole(companyId, ROLES.ACCOUNTING);
   if (!allowed) return { success: false, error: "No autorizado" };
 
   try {
     const data = await CashFlowProjectionService.project(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
