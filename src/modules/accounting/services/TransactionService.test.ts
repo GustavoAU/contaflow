@@ -65,7 +65,8 @@ describe("generateTransactionNumber", () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
-      new Date("2026-03-10")
+      new Date("2026-03-10"),
+      prisma as never,
     );
     expect(number).toBe("2026-03-000001");
   });
@@ -76,7 +77,8 @@ describe("generateTransactionNumber", () => {
     } as never);
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
-      new Date("2026-03-10")
+      new Date("2026-03-10"),
+      prisma as never,
     );
     expect(number).toBe("2026-03-000006");
   });
@@ -85,7 +87,8 @@ describe("generateTransactionNumber", () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
-      new Date("2026-04-01")
+      new Date("2026-04-01"),
+      prisma as never,
     );
     expect(number).toBe("2026-04-000001");
   });
@@ -94,7 +97,8 @@ describe("generateTransactionNumber", () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
     const number = await TransactionService.generateTransactionNumber(
       "company-2",
-      new Date("2026-03-10")
+      new Date("2026-03-10"),
+      prisma as never,
     );
     expect(number).toBe("2026-03-000001");
     expect(prisma.transaction.findFirst).toHaveBeenCalledWith(
@@ -219,7 +223,7 @@ describe("voidTransaction", () => {
   };
 
   it("anula la transaccion correctamente en el happy path", async () => {
-    // findFirst: primera llamada = outer void lookup, segunda = generateTransactionNumber
+    // findFirst: 1ª = outer void lookup, 2ª = generateTransactionNumber dentro del $transaction (via tx spread)
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);

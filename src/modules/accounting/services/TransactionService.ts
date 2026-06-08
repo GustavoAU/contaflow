@@ -63,13 +63,13 @@ export class TransactionService {
    * Formato: YYYY-MM-XXXXXX (ej: 2026-03-000001)
    * Es unico por empresa y por mes.
    */
-  static async generateTransactionNumber(companyId: string, date: Date): Promise<string> {
+  static async generateTransactionNumber(companyId: string, date: Date, tx: PrismaTransactionClient): Promise<string> {
     const year = date.getFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const prefix = `${year}-${month}-`;
 
-    // Buscar el ultimo numero del mes para esta empresa
-    const last = await prisma.transaction.findFirst({
+    // Buscar el ultimo numero del mes para esta empresa (debe correr dentro del $transaction Serializable)
+    const last = await tx.transaction.findFirst({
       where: {
         companyId,
         number: { startsWith: prefix },
@@ -158,12 +158,12 @@ export class TransactionService {
       );
     }
 
-    // 5. Generar numero correlativo
+    // 5. Generar numero correlativo y crear transaccion + AuditLog de forma atómica.
+    // Serializable garantiza que ningún otro worker puede leer/escribir el mismo prefijo
+    // entre el findFirst y el create — elimina la race condition de correlativo duplicado (Z-1).
     const date = validated.date ?? new Date();
-    const number = await TransactionService.generateTransactionNumber(validated.companyId, date);
-
-    // 6. Crear transaccion + AuditLog de forma atómica
     const transaction = await prisma.$transaction(async (tx) => {
+      const number = await TransactionService.generateTransactionNumber(validated.companyId, date, tx);
       const created = await tx.transaction.create({
         data: {
           number,
@@ -198,7 +198,7 @@ export class TransactionService {
       });
 
       return created;
-    });
+    }, { isolationLevel: "Serializable" });
 
     return transaction;
   }
@@ -269,15 +269,15 @@ export class TransactionService {
       );
     }
 
-    // 5. Generar numero para el asiento de anulacion
+    // 5. Crear asiento de contrapartida y marcar original como VOIDED.
+    // Serializable garantiza que el correlativo de anulación no genera duplicado (Z-1).
     const voidDate = new Date();
-    const voidNumber = await TransactionService.generateTransactionNumber(
-      original.companyId,
-      voidDate
-    );
-
-    // 6. Crear asiento de contrapartida y marcar original como VOIDED
     const voidTransaction = await prisma.$transaction(async (tx) => {
+      const voidNumber = await TransactionService.generateTransactionNumber(
+        original.companyId,
+        voidDate,
+        tx,
+      );
       // Crear asiento espejo con montos invertidos
       const voidTx = await tx.transaction.create({
         data: {
@@ -330,7 +330,7 @@ export class TransactionService {
       });
 
       return voidTx;
-    });
+    }, { isolationLevel: "Serializable" });
 
     return voidTransaction;
   }
