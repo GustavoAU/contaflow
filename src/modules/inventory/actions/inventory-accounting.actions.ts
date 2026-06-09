@@ -16,8 +16,8 @@ import {
   getInventoryValuation,
   getPendingMovements,
 } from "../services/InventoryAccountingService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function getInventoryAuthContext() {
   const { userId } = await auth();
@@ -64,8 +64,7 @@ export async function postMovementAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al contabilizar" };
+    return toActionError(error);
   }
 }
 
@@ -97,8 +96,7 @@ export async function voidPostedMovementAction(
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: true };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -123,8 +121,7 @@ export async function getInventoryValuationAction(
     const valuation = await getInventoryValuation(companyId);
     return { success: true, data: valuation };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -147,8 +144,7 @@ export async function getPendingMovementsAction(
     const movements = await getPendingMovements(companyId);
     return { success: true, data: movements };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 

@@ -11,8 +11,8 @@ import {
   type MovementReportItem,
   type RotationReportItem,
 } from "../services/InventoryReportService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Resumen de existencias ───────────────────────────────────────────────────
 
@@ -33,8 +33,8 @@ export async function getStockSummaryAction(
   try {
     const data = await InventoryReportService.getStockSummary(companyId);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener reporte de existencias" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -77,8 +77,8 @@ export async function getMovementReportAction(
       status: status || undefined,
     });
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener reporte de movimientos" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -112,7 +112,7 @@ export async function getRotationReportAction(
   try {
     const data = await InventoryReportService.getRotationReport(companyId, fromDate, toDate);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener reporte de rotación" };
+  } catch (error) {
+    return toActionError(error);
   }
 }

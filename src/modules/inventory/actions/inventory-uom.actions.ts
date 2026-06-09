@@ -8,7 +8,6 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/prisma";
-import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import {
@@ -23,8 +22,8 @@ import {
   softDeleteUnit,
   listUnits,
 } from "../services/InventoryUomService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Captura de red ───────────────────────────────────────────────────────────
 
@@ -66,7 +65,7 @@ export async function createUomAction(input: unknown): Promise<ActionResult<stri
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: unit.id };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -99,7 +98,7 @@ export async function updateUomAction(input: unknown): Promise<ActionResult<stri
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: unit.id };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -132,7 +131,7 @@ export async function softDeleteUomAction(input: unknown): Promise<ActionResult<
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: true };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -159,6 +158,6 @@ export async function listUomsAction(
     const units = await listUnits(parsed.data);
     return { success: true, data: units };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
