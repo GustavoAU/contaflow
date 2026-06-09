@@ -2,7 +2,6 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { Currency } from "@prisma/client";
@@ -11,8 +10,8 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { ExchangeRateService, ExchangeRateSummary } from "../services/ExchangeRateService";
 import { BcvFetchService } from "../services/BcvFetchService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError, resolveIpUa } from "../utils/action-errors";
 
 // ─── Upsert tasa BCV ──────────────────────────────────────────────────────────
 export async function upsertExchangeRateAction(
@@ -22,9 +21,7 @@ export async function upsertExchangeRateAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const parsed = UpsertExchangeRateSchema.safeParse(input);
     if (!parsed.success) {
@@ -52,7 +49,7 @@ export async function upsertExchangeRateAction(
         dateObj,
         rateDecimal,
         source ?? "BCV",
-        userId, // always use authenticated userId
+        userId,
       );
       await tx.auditLog.create({
         data: {
@@ -72,8 +69,7 @@ export async function upsertExchangeRateAction(
     revalidatePath(`/company/${companyId}/exchange-rates`);
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al guardar tasa";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -95,44 +91,43 @@ export async function listExchangeRatesAction(
 
     const data = await ExchangeRateService.list(companyId, currency);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener tasas" };
+  } catch (err) {
+    return toActionError(err);
   }
 }
 
-// ─── Auto-fetch tasa BCV (Fase 14C) ──────────────────────────────────────────
-export async function fetchBcvRateAction(
+// ─── Fetch BCV interno — shared by USD and EUR actions ───────────────────────
+type BcvFetcher = () => Promise<{ rate: Decimal; date: Date }>;
+
+async function fetchBcvCurrencyRateInternal(
   companyId: string,
+  currency: Currency,
+  fetchBcv: BcvFetcher,
 ): Promise<ActionResult<ExchangeRateSummary>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error };
 
     if (!companyId) return { success: false, error: "companyId requerido" };
 
-    // Verificar membresía y rol
     const member = await prisma.companyMember.findUnique({
       where: { userId_companyId: { userId, companyId } },
     });
     if (!member) return { success: false, error: "Empresa no encontrada" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
-    // Obtener tasa desde la API del BCV
-    const { rate, date } = await BcvFetchService.fetchUsdVes();
+    const { rate, date } = await fetchBcv();
 
-    // Guardar (upsert) en ExchangeRate con AuditLog
     const result = await prisma.$transaction(async (tx) => {
       const record = await ExchangeRateService.upsert(
         tx as typeof prisma,
         companyId,
-        Currency.USD,
+        currency,
         date,
         rate,
         "BCV-AUTO",
@@ -149,7 +144,7 @@ export async function fetchBcvRateAction(
           userAgent,
           newValue: {
             companyId,
-            currency: "USD",
+            currency: currency as string,
             rate: rate.toString(),
             date: date.toISOString().split("T")[0],
             source: "BCV-AUTO",
@@ -162,67 +157,22 @@ export async function fetchBcvRateAction(
     revalidatePath(`/company/${companyId}/exchange-rates`);
     return { success: true, data: result };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener tasa BCV";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
+}
+
+// ─── Auto-fetch tasa BCV (USD) ────────────────────────────────────────────────
+export async function fetchBcvRateAction(
+  companyId: string,
+): Promise<ActionResult<ExchangeRateSummary>> {
+  return fetchBcvCurrencyRateInternal(companyId, Currency.USD, () => BcvFetchService.fetchUsdVes());
 }
 
 // ─── Auto-fetch tasa EUR (BCV) ────────────────────────────────────────────────
 export async function fetchBcvEurRateAction(
   companyId: string,
 ): Promise<ActionResult<ExchangeRateSummary>> {
-  try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    if (!companyId) return { success: false, error: "companyId requerido" };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
-
-    const { rate, date } = await BcvFetchService.fetchEurVes();
-
-    const result = await prisma.$transaction(async (tx) => {
-      const record = await ExchangeRateService.upsert(
-        tx as typeof prisma,
-        companyId,
-        Currency.EUR,
-        date,
-        rate,
-        "BCV-AUTO",
-        userId,
-      );
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityId: record.id,
-          entityName: "ExchangeRate",
-          action: "UPSERT",
-          userId,
-          ipAddress,
-          userAgent,
-          newValue: { companyId, currency: "EUR", rate: rate.toString(), date: date.toISOString().split("T")[0], source: "BCV-AUTO" },
-        },
-      });
-      return record;
-    });
-
-    revalidatePath(`/company/${companyId}/exchange-rates`);
-    return { success: true, data: result };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener tasa EUR";
-    return { success: false, error: msg };
-  }
+  return fetchBcvCurrencyRateInternal(companyId, Currency.EUR, () => BcvFetchService.fetchEurVes());
 }
 
 // ─── Obtener las 2 tasas más recientes (para calcular delta en el widget) ──────
@@ -263,8 +213,8 @@ export async function getLatestRatesWithDeltaAction(
     ]);
 
     return { success: true, data: { usd, eur } };
-  } catch {
-    return { success: false, error: "Error al obtener tasas" };
+  } catch (err) {
+    return toActionError(err);
   }
 }
 
@@ -293,7 +243,7 @@ export async function getLatestRateAction(
 
     const data = await ExchangeRateService.getLatestRate(companyId, currency);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener tasa" };
+  } catch (err) {
+    return toActionError(err);
   }
 }

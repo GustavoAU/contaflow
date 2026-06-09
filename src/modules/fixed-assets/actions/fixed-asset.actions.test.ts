@@ -38,11 +38,14 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
       postMonthlyDepreciation: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, errors: [] }),
       dispose: vi.fn().mockResolvedValue(undefined),
       getSummary: vi.fn().mockResolvedValue([]),
-      getSchedule: vi.fn().mockResolvedValue({ asset: {}, projected: [], posted: [] }),
+      getSchedule: vi.fn().mockResolvedValue({ asset: { name: "Vehículo Toyota" }, projected: [], posted: [] }),
+      postDepreciation: vi.fn().mockResolvedValue({ created: true }),
+      postClosedYearCatchUpDepreciation: vi.fn().mockResolvedValue({ processed: 0 }),
       postINPCRestatement: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, totalAdjustment: { toFixed: () => "1200.00" } }),
       getGLReconciliation: vi.fn().mockResolvedValue([]),
       getINPCRestatementHistory: vi.fn().mockResolvedValue([]),
     },
+    generateDepreciationSchedule: vi.fn().mockReturnValue([]),
   };
 });
 
@@ -51,6 +54,9 @@ vi.mock("@/lib/prisma", () => ({
     companyMember:    { findFirst: vi.fn().mockResolvedValue(mockMember) },
     accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
     expense:          { findMany: vi.fn().mockResolvedValue([]) },
+    fixedAsset:       { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    depreciationEntry: { findUnique: vi.fn().mockResolvedValue(null) },
+    fiscalYearClose:  { findMany: vi.fn().mockResolvedValue([]) },
     $transaction:     mockTransaction,
   },
 }));
@@ -60,6 +66,10 @@ import {
   postMonthlyDepreciationAction,
   disposeFixedAssetAction,
   getFixedAssetsAction,
+  getDepreciationScheduleAction,
+  catchUpAssetDepreciationAction,
+  catchUpAllAssetsDepreciationAction,
+  previewDepreciationScheduleAction,
   postFixedAssetINPCRestatementAction,
   getFixedAssetGLReconciliationAction,
   getFixedAssetINPCHistoryAction,
@@ -67,8 +77,9 @@ import {
 } from "./fixed-asset.actions";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
-import { FixedAssetService } from "../services/FixedAssetService";
+import { FixedAssetService, generateDepreciationSchedule } from "../services/FixedAssetService";
 
 const BASE_INPUT = {
   companyId: "company-001",
@@ -91,6 +102,10 @@ beforeEach(() => {
   vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
   vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.fixedAsset.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.fiscalYearClose.findMany).mockResolvedValue([]);
+  vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true });
 });
 
 // ─── createFixedAssetAction ───────────────────────────────────────────────────
@@ -567,5 +582,164 @@ describe("getExpensesForAssetImportAction", () => {
       expect(r.data[0]!.vendorRif).toBeNull();
       expect(r.data[0]!.invoiceDate).toBeNull();
     }
+  });
+});
+
+// ─── getDepreciationScheduleAction ───────────────────────────────────────────
+
+describe("getDepreciationScheduleAction", () => {
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await getDepreciationScheduleAction("asset-001", "company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si no hay membresía", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const r = await getDepreciationScheduleAction("asset-001", "company-001");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("acceso denegado");
+  });
+
+  it("happy path — retorna tabla de depreciación serializada", async () => {
+    const { Decimal } = await import("decimal.js");
+    vi.mocked(FixedAssetService.getSchedule).mockResolvedValue({
+      asset: { name: "Vehículo Toyota" },
+      projected: [
+        { year: 2026, month: 2, amount: new Decimal("750.00"), accumulated: new Decimal("750.00"), bookValue: new Decimal("49250.00") },
+      ],
+      posted: [{ periodYear: 2026, periodMonth: 1 }],
+    } as never);
+    const r = await getDepreciationScheduleAction("asset-001", "company-001");
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.asset.name).toBe("Vehículo Toyota");
+      expect(r.data.projected).toHaveLength(1);
+      expect(r.data.projected[0]!.amount).toBe("750.00");
+      expect(r.data.posted).toHaveLength(1);
+    }
+  });
+});
+
+// ─── previewDepreciationScheduleAction ───────────────────────────────────────
+
+describe("previewDepreciationScheduleAction", () => {
+  const PREVIEW_INPUT = {
+    acquisitionCost: "50000.00",
+    residualValue: "5000.00",
+    usefulLifeMonths: 60,
+    depreciationMethod: "LINEA_RECTA" as const,
+    acquisitionDate: new Date("2026-01-01"),
+  };
+
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await previewDepreciationScheduleAction(PREVIEW_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si rate limit agotado", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes." });
+    const r = await previewDepreciationScheduleAction(PREVIEW_INPUT);
+    expect(r.success).toBe(false);
+  });
+
+  it("happy path — delega a generateDepreciationSchedule y retorna resultado", async () => {
+    vi.mocked(generateDepreciationSchedule).mockReturnValue([{ year: 2026, month: 2 }] as never);
+    const r = await previewDepreciationScheduleAction(PREVIEW_INPUT);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toHaveLength(1);
+    expect(generateDepreciationSchedule).toHaveBeenCalled();
+  });
+});
+
+// ─── catchUpAssetDepreciationAction ──────────────────────────────────────────
+
+describe("catchUpAssetDepreciationAction", () => {
+  const ASSET_ROW = {
+    id: "asset-001",
+    status: "ACTIVE",
+    acquisitionDate: new Date("2025-01-01"),
+    name: "Vehículo Toyota",
+  };
+
+  const CATCH_UP_INPUT = { assetId: "asset-001", companyId: "company-001" };
+
+  beforeEach(() => {
+    vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue(ASSET_ROW as never);
+  });
+
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si activo no encontrado", async () => {
+    vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue(null);
+    const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("no encontrado");
+  });
+
+  it("retorna error si activo no está ACTIVE", async () => {
+    vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue({ ...ASSET_ROW, status: "DISPOSED" } as never);
+    const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("activo");
+  });
+
+  it("VIEWER no puede ejecutar catch-up", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
+    expect(r.success).toBe(false);
+  });
+
+  it("happy path — sin períodos abiertos: retorna processed >= 0", async () => {
+    vi.mocked(FixedAssetService.postDepreciation).mockResolvedValue({ created: true } as never);
+    const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(typeof r.data.processed).toBe("number");
+      expect(Array.isArray(r.data.errors)).toBe(true);
+    }
+  });
+});
+
+// ─── catchUpAllAssetsDepreciationAction ──────────────────────────────────────
+
+describe("catchUpAllAssetsDepreciationAction", () => {
+  const ALL_INPUT = { companyId: "company-001" };
+
+  it("retorna error si no hay sesión", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await catchUpAllAssetsDepreciationAction(ALL_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("VIEWER no puede ejecutar catch-up masivo", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await catchUpAllAssetsDepreciationAction(ALL_INPUT);
+    expect(r.success).toBe(false);
+  });
+
+  it("happy path — sin activos activos: retorna ceros", async () => {
+    vi.mocked(prisma.fixedAsset.findMany).mockResolvedValue([]);
+    const r = await catchUpAllAssetsDepreciationAction(ALL_INPUT);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.totalProcessed).toBe(0);
+      expect(r.data.totalSkipped).toBe(0);
+      expect(r.data.assetErrors).toEqual({});
+    }
+  });
+
+  it("retorna error si input inválido (Zod)", async () => {
+    const r = await catchUpAllAssetsDepreciationAction({ companyId: "" });
+    expect(r.success).toBe(false);
   });
 });

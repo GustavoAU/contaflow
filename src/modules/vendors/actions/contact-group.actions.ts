@@ -7,8 +7,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { VendorGroupService, CustomerGroupService, type ContactGroupRow } from "../services/ContactGroupService";
 import { CreateContactGroupSchema } from "../schemas/vendor.schemas";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
 
 async function resolveWriters(companyId: string): Promise<{ userId: string; allowed: boolean }> {
   const { userId } = await auth();
@@ -37,7 +36,7 @@ async function resolveAdmin(companyId: string): Promise<{ userId: string; allowe
 export async function createVendorGroupAction(
   companyId: string,
   name: string,
-): Promise<Result<ContactGroupRow>> {
+): Promise<ActionResult<ContactGroupRow>> {
   const { userId, allowed } = await resolveWriters(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 
@@ -58,7 +57,7 @@ export async function createVendorGroupAction(
 export async function deleteVendorGroupAction(
   companyId: string,
   groupId: string,
-): Promise<Result<true>> {
+): Promise<ActionResult<true>> {
   const { userId, allowed } = await resolveAdmin(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 
@@ -75,7 +74,7 @@ export async function deleteVendorGroupAction(
 export async function createCustomerGroupAction(
   companyId: string,
   name: string,
-): Promise<Result<ContactGroupRow>> {
+): Promise<ActionResult<ContactGroupRow>> {
   const { userId, allowed } = await resolveWriters(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 
@@ -96,7 +95,7 @@ export async function createCustomerGroupAction(
 export async function deleteCustomerGroupAction(
   companyId: string,
   groupId: string,
-): Promise<Result<true>> {
+): Promise<ActionResult<true>> {
   const { userId, allowed } = await resolveAdmin(companyId);
   if (!allowed) return { success: false, error: "No autorizado" };
 

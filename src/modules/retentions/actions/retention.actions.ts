@@ -25,8 +25,9 @@ import {
 } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type RetentionSummary = {
   id: string;
@@ -335,18 +336,15 @@ export async function createRetentionAction(
 
     return { success: true, data: serializeRetention(retention) };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("P2002") && input.idempotencyKey) {
-        const existing = await prisma.retencion.findFirst({
-          where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
-        });
-        if (existing) {
-          return { success: true, data: serializeRetention(existing) };
-        }
+    if (error instanceof Error && error.message.includes("P2002") && input.idempotencyKey) {
+      const existing = await prisma.retencion.findFirst({
+        where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
+      });
+      if (existing) {
+        return { success: true, data: serializeRetention(existing) };
       }
-      return { success: false, error: error.message };
     }
-    return { success: false, error: "Error al crear la retención" };
+    return toActionError(error);
   }
 }
 
@@ -386,8 +384,7 @@ export async function enterRetentionAction(
 
     return { success: true, data: { retentionId: data.retentionId } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al enterar la retención" };
+    return toActionError(error);
   }
 }
 
@@ -447,8 +444,8 @@ export async function exportRetentionVoucherPDFAction(
     });
 
     return { success: true, buffer: Array.from(pdfBuffer) };
-  } catch {
-    return { success: false, error: "Error al generar comprobante PDF" };
+  } catch (e) {
+    return { success: false, error: mapPrismaError(e) };
   }
 }
 
@@ -476,16 +473,13 @@ export async function linkRetentionToInvoiceAction(
     revalidatePath("/accounting/retentions");
     return { success: true };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("P2002")) {
-        return { success: false, error: "La retención ya está vinculada a una factura" };
-      }
-      if (error.message.includes("P2003")) {
-        return { success: false, error: "Factura o retención no válida" };
-      }
-      return { success: false, error: error.message };
+    if (error instanceof Error && error.message.includes("P2002")) {
+      return { success: false, error: "La retención ya está vinculada a una factura" };
     }
-    return { success: false, error: "Error al vincular retención" };
+    if (error instanceof Error && error.message.includes("P2003")) {
+      return { success: false, error: "Factura o retención no válida" };
+    }
+    return toActionError(error);
   }
 }
 
@@ -556,8 +550,8 @@ export async function findInvoiceByNumberAction(
     }));
 
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al buscar factura" };
+  } catch (e) {
+    return toActionError(e);
   }
 }
 
@@ -578,8 +572,8 @@ export async function getActivePeriodAction(
     });
 
     return { success: true, data: period ?? null };
-  } catch {
-    return { success: false, error: "Error al obtener período activo" };
+  } catch (e) {
+    return toActionError(e);
   }
 }
 
@@ -607,8 +601,7 @@ export async function getRetentionsAction(
       data: retentions.map(serializeRetention),
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener las retenciones" };
+    return toActionError(error);
   }
 }
 
@@ -643,8 +636,8 @@ export async function getAccountsForEnteramientoAction(
     });
 
     return { success: true, data: accounts };
-  } catch {
-    return { success: false, error: "Error al obtener cuentas" };
+  } catch (e) {
+    return toActionError(e);
   }
 }
 
@@ -800,8 +793,7 @@ export async function getRetentionReconciliationAction(
 
     return { success: true, data: rows };
   } catch (e) {
-    console.error("getRetentionReconciliationAction:", e);
-    return { success: false, error: "Error al obtener conciliación" };
+    return toActionError(e);
   }
 }
 

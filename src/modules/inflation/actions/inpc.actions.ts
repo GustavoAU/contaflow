@@ -16,8 +16,8 @@ import {
   SetInflationBaseSchema,
 } from "../schemas/inpc.schema";
 import type { AdjustmentPreviewRow, RepomoPreview, InflationAdjustmentSummary } from "../services/INPCService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type SerializedPreviewRow = {
   accountId: string;
@@ -115,8 +115,7 @@ export async function upsertINPCRateAction(input: unknown): Promise<ActionResult
     revalidatePath(`/company/${parsed.data.companyId}/inflation`);
     return { success: true, data: result };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al guardar el índice INPC" };
+    return toActionError(error);
   }
 }
 
@@ -139,8 +138,7 @@ export async function getINPCRatesAction(companyId: string): Promise<ActionResul
     );
     return { success: true, data: rates.map((r) => ({ ...r, indexValue: r.indexValue.toFixed(6), createdAt: r.createdAt.toISOString() })) };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los índices INPC" };
+    return toActionError(error);
   }
 }
 
@@ -177,8 +175,7 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
     revalidatePath(`/company/${parsed.data.companyId}/inflation`);
     return { success: true, data: undefined };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al configurar el período base" };
+    return toActionError(error);
   }
 }
 
@@ -222,8 +219,7 @@ export async function previewInflationAdjustmentAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al calcular el preview del ajuste" };
+    return toActionError(error);
   }
 }
 
@@ -323,7 +319,6 @@ export async function runInflationAdjustmentAction(
     revalidatePath(`/company/${parsed.data.companyId}/inflation`);
     return { success: true, data: serializeSummary(result) };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al ejecutar el ajuste por inflación" };
+    return toActionError(error);
   }
 }

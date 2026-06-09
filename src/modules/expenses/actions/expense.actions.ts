@@ -26,8 +26,8 @@ import {
   type ExpensePage,
   type ExpenseCategorySummary,
 } from "../services/ExpenseService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function getAuthContext() {
   const { userId } = await auth();
@@ -83,7 +83,7 @@ export async function createExpenseAction(
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }
 
@@ -110,7 +110,7 @@ export async function confirmExpenseAction(
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }
 
@@ -138,7 +138,7 @@ export async function voidExpenseAction(
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }
 
@@ -165,7 +165,7 @@ export async function listExpensesAction(
     const data = await listExpenses(parsed.data);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }
 
@@ -192,7 +192,7 @@ export async function createExpenseCategoryAction(
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }
 
@@ -213,6 +213,6 @@ export async function listExpenseCategoriesAction(
     const data = await listExpenseCategories(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error interno" };
+    return toActionError(err);
   }
 }

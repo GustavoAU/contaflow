@@ -21,8 +21,9 @@ import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService"
 import { SeniatXMLService } from "../services/SeniatXMLService";
 import { Decimal } from "decimal.js";
 import qrcode from "qrcode";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -96,10 +97,7 @@ export async function createInvoiceAction(input: unknown) {
         );
         resolvedExchangeRateId = rateRecord.id;
       } catch (e) {
-        return {
-          success: false as const,
-          error: e instanceof Error ? e.message : "Tasa de cambio no encontrada",
-        };
+        return toActionError(e);
       }
     }
 
@@ -206,8 +204,7 @@ export async function getInvoicesPaginatedAction(
     const page = await InvoiceService.getInvoicesPaginated(companyId, filters, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener las facturas" };
+    return toActionError(error);
   }
 }
 
@@ -257,8 +254,8 @@ export async function exportInvoiceBookPDFAction(params: {
     });
 
     return { success: true, buffer: Array.from(pdfBuffer) };
-  } catch {
-    return { success: false, error: "Error al generar PDF" };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -330,8 +327,8 @@ export async function exportInvoiceVoucherPDFAction(
     });
 
     return { success: true, buffer: Array.from(pdfBuffer) };
-  } catch {
-    return { success: false, error: "Error al generar PDF de factura" };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -391,8 +388,8 @@ export async function exportInvoiceXMLAction(
     });
 
     return { success: true, xml, filename };
-  } catch {
-    return { success: false, error: "Error al generar XML de factura" };
+  } catch (error) {
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -645,7 +642,7 @@ export async function getInvoiceBookAction(input: unknown) {
 
     const result = await InvoiceService.getBook(parsed.data);
     return { success: true as const, data: result };
-  } catch {
-    return { success: false as const, error: "Error al obtener el libro" };
+  } catch (error) {
+    return toActionError(error);
   }
 }

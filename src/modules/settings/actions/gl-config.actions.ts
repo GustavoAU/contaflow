@@ -12,8 +12,8 @@ import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 const SaveGLConfigSchema = z.object({
   companyId: z.string().min(1),
@@ -106,8 +106,7 @@ export async function getGLConfigAction(companyId: string): Promise<
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la configuración contable" };
+    return toActionError(error);
   }
 }
 
@@ -163,8 +162,7 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
     revalidatePath(`/company/${companyId}/settings`);
     return { success: true, data: { saved: true } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al guardar la configuración contable" };
+    return toActionError(error);
   }
 }
 
@@ -276,7 +274,6 @@ export async function postUnbookedInvoicesAction(
     revalidatePath(`/company/${companyId}/reports`);
     return { success: true, data: { posted, skipped } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al causar las facturas" };
+    return toActionError(error);
   }
 }

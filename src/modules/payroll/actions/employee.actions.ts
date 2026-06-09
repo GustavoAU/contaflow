@@ -22,8 +22,8 @@ import {
 } from "../schemas/employee.schema";
 import { EmployeeService } from "../services/EmployeeService";
 import type { EmployeeRow, EmployeeListRow, SalaryHistoryRow } from "../services/EmployeeService";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ function revalidate(companyId: string) {
 // ── listEmployeesAction ───────────────────────────────────────────────────────
 export async function listEmployeesAction(
   companyId: string
-): Promise<Result<EmployeeListRow[]>> {
+): Promise<ActionResult<EmployeeListRow[]>> {
   try {
     const { userId, member } = await resolveAuth(companyId);
     if (!userId || !member) return { success: false, error: "No autorizado" };
@@ -56,7 +56,7 @@ export async function listEmployeesAction(
     const rows = await EmployeeService.list(companyId);
     return { success: true, data: rows };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -64,7 +64,7 @@ export async function listEmployeesAction(
 export async function getEmployeeAction(
   companyId: string,
   employeeId: string
-): Promise<Result<EmployeeRow | null>> {
+): Promise<ActionResult<EmployeeRow | null>> {
   try {
     const { userId, member } = await resolveAuth(companyId);
     if (!userId || !member) return { success: false, error: "No autorizado" };
@@ -73,7 +73,7 @@ export async function getEmployeeAction(
     const emp = await EmployeeService.getById(companyId, employeeId);
     return { success: true, data: emp };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -81,7 +81,7 @@ export async function getEmployeeAction(
 export async function createEmployeeAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<EmployeeRow>> {
+): Promise<ActionResult<EmployeeRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
 
@@ -110,8 +110,7 @@ export async function createEmployeeAction(
     // NOM-B-02: P2002 → cédula duplicada
     if (err instanceof Error && err.message.includes("P2002"))
       return { success: false, error: "Ya existe un empleado con esa cédula en esta empresa" };
-    const msg = err instanceof Error ? err.message : "Error al crear empleado";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -120,7 +119,7 @@ export async function updateEmployeeAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<EmployeeRow>> {
+): Promise<ActionResult<EmployeeRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -143,8 +142,7 @@ export async function updateEmployeeAction(
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al actualizar empleado";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -153,7 +151,7 @@ export async function terminateEmployeeAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<EmployeeRow>> {
+): Promise<ActionResult<EmployeeRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -176,8 +174,7 @@ export async function terminateEmployeeAction(
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al registrar egreso";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -186,7 +183,7 @@ export async function addSalaryAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<SalaryHistoryRow>> {
+): Promise<ActionResult<SalaryHistoryRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -209,8 +206,7 @@ export async function addSalaryAction(
     revalidate(companyId);
     return { success: true, data: entry };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al agregar salario";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -218,7 +214,7 @@ export async function addSalaryAction(
 export async function getSalaryHistoryAction(
   companyId: string,
   employeeId: string
-): Promise<Result<SalaryHistoryRow[]>> {
+): Promise<ActionResult<SalaryHistoryRow[]>> {
   try {
     const { userId, member } = await resolveAuth(companyId);
     if (!userId || !member) return { success: false, error: "No autorizado" };
@@ -227,6 +223,6 @@ export async function getSalaryHistoryAction(
     const rows = await EmployeeService.getSalaryHistory(companyId, employeeId);
     return { success: true, data: rows };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }

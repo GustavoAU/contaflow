@@ -38,7 +38,8 @@ import {
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,21 +59,13 @@ function revalidateNomD(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/employees`, "layout");
 }
 
-function handlePrismaError(err: unknown): string {
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === "P2002") return "Ya existe un registro con estos datos (duplicado)";
-    if (err.code === "P2003") return "Datos de referencia inválidos";
-  }
-  if (err instanceof Error) return err.message;
-  return "Error inesperado";
-}
 
 // ─── BCV Rate ─────────────────────────────────────────────────────────────────
 
 export async function createBcvRateAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<BcvRateRow>> {
+): Promise<ActionResult<BcvRateRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -114,13 +107,13 @@ export async function createBcvRateAction(
         error: `Ya existe una tasa BCV registrada para ${parsed.data.year}-${String(parsed.data.month).padStart(2, "0")}`,
       };
     }
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function listBcvRatesAction(
   companyId: string
-): Promise<Result<BcvRateRow[]>> {
+): Promise<ActionResult<BcvRateRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -131,7 +124,7 @@ export async function listBcvRatesAction(
     const data = await BenefitAccrualService.listBcvRates(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -140,7 +133,7 @@ export async function listBcvRatesAction(
 export async function accrueQuarterAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<{ employeesProcessed: number; totalAccrued: string }>> {
+): Promise<ActionResult<{ employeesProcessed: number; totalAccrued: string }>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -171,7 +164,7 @@ export async function accrueQuarterAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -181,7 +174,7 @@ export async function accrueQuarterAction(
 export async function postBenefitInterestAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<{ employeesProcessed: number; totalInterest: string }>> {
+): Promise<ActionResult<{ employeesProcessed: number; totalInterest: string }>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -212,7 +205,7 @@ export async function postBenefitInterestAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -221,7 +214,7 @@ export async function postBenefitInterestAction(
 export async function getBenefitBalanceAction(
   companyId: string,
   employeeId: string
-): Promise<Result<BenefitBalanceRow | null>> {
+): Promise<ActionResult<BenefitBalanceRow | null>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -232,7 +225,7 @@ export async function getBenefitBalanceAction(
     const data = await BenefitAccrualService.getBalance(companyId, employeeId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -242,7 +235,7 @@ export async function createVacationAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<VacationRecordRow>> {
+): Promise<ActionResult<VacationRecordRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -275,14 +268,14 @@ export async function createVacationAction(
         error: `Ya existe un registro de vacaciones para el período ${parsed.data.periodYear} de este empleado`,
       };
     }
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function listVacationsAction(
   companyId: string,
   employeeId: string
-): Promise<Result<VacationRecordRow[]>> {
+): Promise<ActionResult<VacationRecordRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -293,7 +286,7 @@ export async function listVacationsAction(
     const data = await VacationService.listByEmployee(companyId, employeeId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -303,7 +296,7 @@ export async function calculateProfitSharingAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<ProfitSharingRecordRow>> {
+): Promise<ActionResult<ProfitSharingRecordRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -343,14 +336,14 @@ export async function calculateProfitSharingAction(
         error: `Ya existe un registro de utilidades para el año fiscal ${parsed.data.fiscalYear} de este empleado`,
       };
     }
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function listProfitSharingAction(
   companyId: string,
   employeeId: string
-): Promise<Result<ProfitSharingRecordRow[]>> {
+): Promise<ActionResult<ProfitSharingRecordRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -361,7 +354,7 @@ export async function listProfitSharingAction(
     const data = await ProfitSharingService.listByEmployee(companyId, employeeId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -371,7 +364,7 @@ export async function createTerminationAction(
   companyId: string,
   employeeId: string,
   rawInput: unknown
-): Promise<Result<TerminationRow>> {
+): Promise<ActionResult<TerminationRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -411,7 +404,7 @@ export async function createTerminationAction(
         error: "Ya existe una liquidación en proceso (clave de idempotencia duplicada)",
       };
     }
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -419,7 +412,7 @@ export async function updateTerminationAction(
   companyId: string,
   terminationId: string,
   rawInput: unknown
-): Promise<Result<TerminationRow>> {
+): Promise<ActionResult<TerminationRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -450,14 +443,14 @@ export async function updateTerminationAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function finalizeTerminationAction(
   companyId: string,
   terminationId: string
-): Promise<Result<TerminationRow>> {
+): Promise<ActionResult<TerminationRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -476,14 +469,14 @@ export async function finalizeTerminationAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function getTerminationAction(
   companyId: string,
   terminationId: string
-): Promise<Result<TerminationRow | null>> {
+): Promise<ActionResult<TerminationRow | null>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -494,13 +487,13 @@ export async function getTerminationAction(
     const data = await TerminationService.getById(companyId, terminationId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function listTerminationsAction(
   companyId: string
-): Promise<Result<TerminationRow[]>> {
+): Promise<ActionResult<TerminationRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -511,7 +504,7 @@ export async function listTerminationsAction(
     const data = await TerminationService.list(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -520,7 +513,7 @@ export async function listTerminationsAction(
 export async function registerBenefitAdvanceAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<BenefitAdvanceRow>> {
+): Promise<ActionResult<BenefitAdvanceRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -549,14 +542,14 @@ export async function registerBenefitAdvanceAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function listBenefitAdvancesAction(
   companyId: string,
   employeeId: string
-): Promise<Result<BenefitAdvanceRow[]>> {
+): Promise<ActionResult<BenefitAdvanceRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
@@ -567,7 +560,7 @@ export async function listBenefitAdvancesAction(
     const data = await BenefitAdvanceService.listAdvances(companyId, employeeId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -577,7 +570,7 @@ export async function listBenefitAdvancesAction(
 
 export async function backfillBenefitsAction(
   companyId: string
-): Promise<Result<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }>> {
+): Promise<ActionResult<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -596,13 +589,13 @@ export async function backfillBenefitsAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
 export async function getVacationAlertsAction(
   companyId: string
-): Promise<Result<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {
+): Promise<ActionResult<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
@@ -612,7 +605,7 @@ export async function getVacationAlertsAction(
     const data = await VacationService.getEmployeesWithLowVacationBalance(companyId);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 
@@ -620,7 +613,7 @@ export async function getVacationAlertsAction(
 export async function setInitialBenefitBalanceAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING))
@@ -680,7 +673,7 @@ export async function setInitialBenefitBalanceAction(
     revalidateNomD(companyId);
     return { success: true, data: undefined };
   } catch (err) {
-    return { success: false, error: handlePrismaError(err) };
+    return toActionError(err);
   }
 }
 

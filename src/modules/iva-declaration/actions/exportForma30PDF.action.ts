@@ -8,8 +8,9 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
 import { generateForma30PDF } from "../services/Forma30PDFService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import { Decimal } from "decimal.js";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 /**
  * Server Action — exporta el PDF de la Forma 30 SENIAT para un período mensual.
@@ -60,7 +61,6 @@ export async function exportForma30PDFAction(
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
     // 5. Calcular Forma 30 (con crédito anterior si aplica)
-    const { Decimal } = await import("decimal.js");
     const creditoDecimal = new Decimal(parsed.data.creditoFiscalPeriodoAnterior ?? 0);
     const result = await DeclaracionIVAService.calculate(
       parsed.data.companyId,
@@ -91,7 +91,6 @@ export async function exportForma30PDFAction(
 
     return { success: true, data: pdfBuffer.toString("base64") };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al generar el PDF de la declaración" };
+    return toActionError(err);
   }
 }

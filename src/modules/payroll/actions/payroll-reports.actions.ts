@@ -25,8 +25,10 @@ import {
 import { PayrollPdfReportService, type ConstanciaTrabajoData } from "../services/PayrollPdfReportService";
 import { PayrollBankTxtService } from "../services/PayrollBankTxtService";
 import { MintraReportService } from "../services/MintraReportService";
+import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type Result<T> = { success: true; data: T } | { success: false; error: string };
 type PdfResult = { success: true; buffer: string } | { success: false; error: string };
 type TxtResult = { success: true; txt: string; filename: string } | { success: false; error: string };
 
@@ -50,7 +52,7 @@ export async function getIvssReportAction(
   companyId: string,
   year: number,
   month: number
-): Promise<Result<IvssReportData>> {
+): Promise<ActionResult<IvssReportData>> {
   const { ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
 
@@ -58,7 +60,7 @@ export async function getIvssReportAction(
     const data = await PayrollReportService.getIvssReport(companyId, year, month);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar reporte IVSS" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -78,7 +80,7 @@ export async function exportIvssPdfAction(
     const buffer = await PayrollPdfReportService.generateIvssPdf(data);
     return { success: true, buffer: buffer.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar PDF IVSS" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -88,7 +90,7 @@ export async function getBanavihReportAction(
   companyId: string,
   year: number,
   month: number
-): Promise<Result<BanavihReportData>> {
+): Promise<ActionResult<BanavihReportData>> {
   const { ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
 
@@ -96,7 +98,7 @@ export async function getBanavihReportAction(
     const data = await PayrollReportService.getBanavihReport(companyId, year, month);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar reporte Banavih" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -116,7 +118,7 @@ export async function exportBanavihPdfAction(
     const buffer = await PayrollPdfReportService.generateBanavihPdf(data);
     return { success: true, buffer: buffer.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar PDF Banavih" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -126,7 +128,7 @@ export async function getIncesReportAction(
   companyId: string,
   year: number,
   quarter: number
-): Promise<Result<IncesReportData>> {
+): Promise<ActionResult<IncesReportData>> {
   const { ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
 
@@ -134,7 +136,7 @@ export async function getIncesReportAction(
     const data = await PayrollReportService.getIncesReport(companyId, year, quarter);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar reporte INCES" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -154,7 +156,7 @@ export async function exportIncesPdfAction(
     const buffer = await PayrollPdfReportService.generateIncesPdf(data);
     return { success: true, buffer: buffer.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar PDF INCES" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -164,7 +166,7 @@ export async function getArcReportAction(
   companyId: string,
   employeeId: string,
   year: number
-): Promise<Result<ArcReportData>> {
+): Promise<ActionResult<ArcReportData>> {
   const { ok } = await resolveAccounting(companyId);
   if (!ok) return { success: false, error: "No autorizado" };
 
@@ -179,7 +181,7 @@ export async function getArcReportAction(
     const data = await PayrollReportService.getArcReport(companyId, employeeId, year);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar ARC" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -206,7 +208,7 @@ export async function exportArcPdfAction(
     const buffer = await PayrollPdfReportService.generateArcPdf(data);
     return { success: true, buffer: buffer.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar PDF ARC" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -252,7 +254,7 @@ export async function exportIvssExcelAction(
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar Excel IVSS" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -296,7 +298,7 @@ export async function exportBanavihExcelAction(
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar Excel FAOV" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -338,7 +340,7 @@ export async function exportIncesExcelAction(
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar Excel INCES" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -387,7 +389,7 @@ export async function exportConstanciaTrabajoAction(
     const buffer = await PayrollPdfReportService.generateConstanciaPdf(data);
     return { success: true, buffer: buffer.toString("base64") };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar Constancia de Trabajo" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -406,7 +408,7 @@ export async function exportBanavihTxtAction(
     const filename = `BANAVIH_FAOV_${year}_${String(month).padStart(2, "0")}.txt`;
     return { success: true, txt, filename };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar TXT BANAVIH" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
 
@@ -425,6 +427,6 @@ export async function exportMintraCsvAction(
     const filename = `MINTRA_T${quarter}_${year}.csv`;
     return { success: true, txt: result.csv, filename };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error al generar CSV MINTRA" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }

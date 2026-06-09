@@ -14,8 +14,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { PaymentAttachmentService, AttachmentSummary } from "../services/PaymentAttachmentService";
 import { PaymentGLService } from "../services/PaymentGLService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Crear registro de pago ───────────────────────────────────────────────────
 export async function createPaymentAction(
@@ -249,8 +249,7 @@ export async function voidPaymentRecordAction(
     revalidatePath(`/company/${companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al anular el pago" };
+    return toActionError(err);
   }
 }
 
@@ -275,8 +274,8 @@ export async function getPaymentAttachmentsAction(
       companyId,
     );
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener adjuntos" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -322,8 +321,7 @@ export async function deleteAttachmentAction(
     revalidatePath(`/company/${companyId}/payments`);
     return { success: true, data: undefined };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al eliminar el comprobante" };
+    return toActionError(err);
   }
 }
 
@@ -364,8 +362,8 @@ export async function listBankAccountsAction(
         currency: a.currency,
       })),
     };
-  } catch {
-    return { success: false, error: "Error al obtener cuentas bancarias" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -568,7 +566,7 @@ export async function listPaymentsAction(
 
     const data = await PaymentService.list(companyId);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener pagos" };
+  } catch (error) {
+    return toActionError(error);
   }
 }

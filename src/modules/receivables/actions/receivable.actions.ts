@@ -16,8 +16,8 @@ import {
   UpdatePaymentTermsSchema,
 } from "../schemas/receivable.schema";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Obtener cartera CxC (Aging) ───────────────────────────────────────────────
 export async function getReceivablesAction(
@@ -44,8 +44,7 @@ export async function getReceivablesAction(
     const report = await ReceivableService.getReceivables(companyId, parsed.data.asOf);
     return { success: true, data: report };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la cartera CxC" };
+    return toActionError(error);
   }
 }
 
@@ -74,8 +73,7 @@ export async function getPayablesAction(
     const report = await ReceivableService.getPayables(companyId, parsed.data.asOf);
     return { success: true, data: report };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la cartera CxP" };
+    return toActionError(error);
   }
 }
 
@@ -101,8 +99,7 @@ export async function getReceivablesPaginatedAction(
     const page = await ReceivableService.getReceivablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la cartera CxC paginada" };
+    return toActionError(error);
   }
 }
 
@@ -128,8 +125,7 @@ export async function getPayablesPaginatedAction(
     const page = await ReceivableService.getPayablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la cartera CxP paginada" };
+    return toActionError(error);
   }
 }
 
@@ -180,13 +176,10 @@ export async function recordPaymentAction(
     revalidatePath(`/company/${parsed.data.companyId}/payables`);
     return { success: true, data: payment };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("P2002")) {
-        return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
-      }
-      return { success: false, error: error.message };
+    if (error instanceof Error && error.message.includes("P2002")) {
+      return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
     }
-    return { success: false, error: "Error al registrar el pago" };
+    return toActionError(error);
   }
 }
 
@@ -226,8 +219,7 @@ export async function cancelPaymentAction(
     revalidatePath(`/company/${parsed.data.companyId}/payables`);
     return { success: true, data: { ok: true } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al cancelar el pago" };
+    return toActionError(error);
   }
 }
 
@@ -254,8 +246,7 @@ export async function getPaymentsByInvoiceAction(
     const payments = await ReceivableService.getPaymentsByInvoice(invoiceId, companyId);
     return { success: true, data: payments };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los pagos" };
+    return toActionError(error);
   }
 }
 
@@ -319,7 +310,6 @@ export async function updatePaymentTermsAction(
     revalidatePath(`/company/${parsed.data.companyId}/settings`);
     return { success: true, data: { paymentTermDays: company.paymentTermDays } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al actualizar el plazo de pago" };
+    return toActionError(error);
   }
 }

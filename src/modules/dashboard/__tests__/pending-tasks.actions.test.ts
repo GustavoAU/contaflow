@@ -171,4 +171,26 @@ describe("getPendingTasksAction", () => {
       expect(result.data.aiSummary).toBeNull();
     }
   });
+
+  it("llama a Gemini cuando hay tareas y GEMINI_API_KEY está configurada", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    vi.mocked(PendingTasksService.getPendingTasks).mockResolvedValue(TASKS_WITH_ERROR as never);
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: false,
+    } as Response);
+    const result = await getPendingTasksAction(COMPANY_ID);
+    delete process.env.GEMINI_API_KEY;
+    expect(result.success).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    if (result.success) expect(result.data.aiSummary).toBeNull(); // ok:false → null
+  });
+
+  it("devuelve error estructurado si PendingTasksService lanza excepción", async () => {
+    vi.mocked(PendingTasksService.getPendingTasks).mockRejectedValueOnce(
+      new Error("DB no disponible"),
+    );
+    const result = await getPendingTasksAction(COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBeTruthy();
+  });
 });

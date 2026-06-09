@@ -4,7 +4,6 @@
 // ADR-027: Acciones server para cálculo y registro del diferencial cambiario (NIC 21).
 
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import { Decimal } from "decimal.js";
@@ -15,8 +14,8 @@ import {
   type FxDiffSummary,
   type FxDiffLine,
 } from "../services/ExchangeDifferentialService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError, resolveIpUa } from "../utils/action-errors";
 
 export type FxDiffLineDto = {
   invoiceId: string;
@@ -88,32 +87,36 @@ export async function calculateFxDifferentialAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
 
-  const { companyId, currency, revalRate } = parsed.data;
+    const { companyId, currency, revalRate } = parsed.data;
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "No autorizado" };
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const rate = new Decimal(revalRate);
+    if (rate.lessThanOrEqualTo(0)) {
+      return { success: false, error: "La tasa debe ser mayor que cero." };
+    }
+
+    const summary = await ExchangeDifferentialService.calculate(
+      companyId,
+      currency,
+      rate,
+      prisma as Parameters<typeof ExchangeDifferentialService.calculate>[3]
+    );
+
+    return { success: true, data: serializeSummary(summary) };
+  } catch (err) {
+    return toActionError(err);
   }
-
-  const rate = new Decimal(revalRate);
-  if (rate.lessThanOrEqualTo(0)) {
-    return { success: false, error: "La tasa debe ser mayor que cero." };
-  }
-
-  const summary = await ExchangeDifferentialService.calculate(
-    companyId,
-    currency,
-    rate,
-    prisma as Parameters<typeof ExchangeDifferentialService.calculate>[3]
-  );
-
-  return { success: true, data: serializeSummary(summary) };
 }
 
 // ─── Registrar asiento de revaluación ────────────────────────────────────────
@@ -125,70 +128,67 @@ export async function postFxDifferentialAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-  const { companyId, currency, revalRate, revaluationDate, periodId } = parsed.data;
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "No autorizado" };
-  }
-
-  const settings = await prisma.companySettings.findUnique({
-    where: { companyId },
-    select: {
-      arAccountId: true,
-      apAccountId: true,
-      fxGainAccountId: true,
-      fxLossAccountId: true,
-    },
-  });
-
-  if (!settings?.fxGainAccountId || !settings.fxLossAccountId) {
-    return {
-      success: false,
-      error: "Configure las cuentas de Ganancia y Pérdida Cambiaria en Configuración → Libro Mayor.",
-    };
-  }
-  if (!settings.arAccountId || !settings.apAccountId) {
-    return {
-      success: false,
-      error: "Configure las cuentas CxC y CxP en Configuración → Libro Mayor.",
-    };
-  }
-
-  const rate = new Decimal(revalRate);
-  if (rate.lessThanOrEqualTo(0)) {
-    return { success: false, error: "La tasa debe ser mayor que cero." };
-  }
-
-  const dateObj = new Date(revaluationDate + "T00:00:00.000Z");
-  const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
-  const yyyy = dateObj.getFullYear();
-  const txNumber = `FX-REVAL-${yyyy}${mm}`;
-
-  // Guard: evitar doble-registro del mismo período
-  const existing = await prisma.transaction.findFirst({
-    where: { companyId, number: txNumber },
-    select: { id: true },
-  });
-  if (existing) {
-    return {
-      success: false,
-      error: `Ya existe un asiento de revaluación para ${mm}/${yyyy} (${txNumber}). Anule el anterior antes de registrar uno nuevo.`,
-    };
-  }
-
   try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const { ipAddress, userAgent } = await resolveIpUa();
+
+    const { companyId, currency, revalRate, revaluationDate, periodId } = parsed.data;
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const settings = await prisma.companySettings.findUnique({
+      where: { companyId },
+      select: {
+        arAccountId: true,
+        apAccountId: true,
+        fxGainAccountId: true,
+        fxLossAccountId: true,
+      },
+    });
+
+    if (!settings?.fxGainAccountId || !settings.fxLossAccountId) {
+      return {
+        success: false,
+        error: "Configure las cuentas de Ganancia y Pérdida Cambiaria en Configuración → Libro Mayor.",
+      };
+    }
+    if (!settings.arAccountId || !settings.apAccountId) {
+      return {
+        success: false,
+        error: "Configure las cuentas CxC y CxP en Configuración → Libro Mayor.",
+      };
+    }
+
+    const rate = new Decimal(revalRate);
+    if (rate.lessThanOrEqualTo(0)) {
+      return { success: false, error: "La tasa debe ser mayor que cero." };
+    }
+
+    const dateObj = new Date(revaluationDate + "T00:00:00.000Z");
+    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const yyyy = dateObj.getFullYear();
+    const txNumber = `FX-REVAL-${yyyy}${mm}`;
+
+    // Guard: evitar doble-registro del mismo período
+    const existing = await prisma.transaction.findFirst({
+      where: { companyId, number: txNumber },
+      select: { id: true },
+    });
+    if (existing) {
+      return {
+        success: false,
+        error: `Ya existe un asiento de revaluación para ${mm}/${yyyy} (${txNumber}). Anule el anterior antes de registrar uno nuevo.`,
+      };
+    }
+
     const result = await prisma.$transaction(async (db) => {
       const summary = await ExchangeDifferentialService.calculate(
         companyId,
@@ -240,7 +240,6 @@ export async function postFxDifferentialAction(
     revalidatePath(`/company/${companyId}/fx-revaluation`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al registrar el diferencial cambiario." };
+    return toActionError(err);
   }
 }

@@ -14,8 +14,8 @@ import {
   VoidBatchSchema,
 } from "../schemas/payment-batch.schema";
 import { PaymentBatchService, PaymentBatchSummary } from "../services/PaymentBatchService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type UnpaidPurchaseInvoice = {
   id: string;
@@ -224,8 +224,8 @@ export async function getPaymentBatchAction(
 
     const data = await PaymentBatchService.getById(batchId, companyId);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener el lote" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -250,8 +250,8 @@ export async function listPaymentBatchesAction(
 
     const data = await PaymentBatchService.list(companyId, cursor);
     return { success: true, data };
-  } catch {
-    return { success: false, error: "Error al obtener lotes" };
+  } catch (error) {
+    return toActionError(error);
   }
 }
 
@@ -303,7 +303,7 @@ export async function listUnpaidPurchaseInvoicesAction(
         date: inv.date.toISOString().slice(0, 10),
       })),
     };
-  } catch {
-    return { success: false, error: "Error al obtener facturas pendientes" };
+  } catch (error) {
+    return toActionError(error);
   }
 }

@@ -12,6 +12,8 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { PendingTasksService, type PendingTasksData } from "../services/PendingTasksService";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
@@ -60,13 +62,11 @@ Responde ÚNICAMENTE con el resumen en español.`;
 
 // ─── Action pública ────────────────────────────────────────────────────────────
 
-type GetPendingTasksResult =
-  | { success: true; data: PendingTasksData & { aiSummary: string | null } }
-  | { success: false; error: string };
+type DashboardTasksResult = ActionResult<PendingTasksData & { aiSummary: string | null }>;
 
 export async function getPendingTasksAction(
   companyId: string,
-): Promise<GetPendingTasksResult> {
+): Promise<DashboardTasksResult> {
   try {
     // Auth (26B-01)
     const { userId } = await auth();
@@ -101,6 +101,6 @@ export async function getPendingTasksAction(
 
     return { success: true, data: { ...data, aiSummary } };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error de conexión" };
+    return toActionError(err);
   }
 }

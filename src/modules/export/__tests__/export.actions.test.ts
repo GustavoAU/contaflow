@@ -26,9 +26,14 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("../services/ExportService", () => ({
   generateExportZip: mockGenerateExportZip,
 }));
+vi.mock("../services/SIVITExportService", () => ({
+  generateSIVITZip: vi.fn(),
+}));
 
 import prisma from "@/lib/prisma";
 import { createExportJobAction, listExportJobsAction } from "../actions/export.actions";
+import { generateSIVITAction } from "../actions/sivit-export.actions";
+import { generateSIVITZip } from "../services/SIVITExportService";
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
@@ -142,6 +147,73 @@ describe("createExportJobAction", () => {
         data: expect.objectContaining({ status: "ERROR" }),
       })
     );
+  });
+});
+
+// ─── generateSIVITAction ──────────────────────────────────────────────────────
+
+describe("generateSIVITAction", () => {
+  const VALID_SIVIT = {
+    companyId: COMPANY_ID,
+    dateFrom: "2026-01-01",
+    dateTo: "2026-01-31",
+  };
+
+  beforeEach(() => {
+    vi.mocked(generateSIVITZip).mockResolvedValue(Buffer.from("zip-data") as never);
+  });
+
+  it("rechaza si no está autenticado", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const r = await generateSIVITAction(VALID_SIVIT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("rechaza si rate limit excedido", async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes." });
+    const r = await generateSIVITAction(VALID_SIVIT);
+    expect(r.success).toBe(false);
+  });
+
+  it("rechaza VIEWER (requiere ACCOUNTING)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
+    const r = await generateSIVITAction(VALID_SIVIT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("Sin permisos");
+  });
+
+  it("rechaza si fecha fin anterior a fecha inicio", async () => {
+    const r = await generateSIVITAction({ ...VALID_SIVIT, dateFrom: "2026-02-01", dateTo: "2026-01-01" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("posterior");
+  });
+
+  it("rechaza si rango supera 366 días", async () => {
+    const r = await generateSIVITAction({ ...VALID_SIVIT, dateFrom: "2024-01-01", dateTo: "2026-01-01" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("366");
+  });
+
+  it("retorna base64Zip y filename en camino feliz", async () => {
+    const r = await generateSIVITAction(VALID_SIVIT);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.base64Zip).toBeTruthy();
+      expect(r.data.filename).toMatch(/^SIVIT_2026-01-01_2026-01-31\.zip$/);
+    }
+  });
+
+  it("devuelve error estructurado si generateSIVITZip lanza", async () => {
+    vi.mocked(generateSIVITZip).mockRejectedValueOnce(new Error("ZIP failed"));
+    const r = await generateSIVITAction(VALID_SIVIT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBeTruthy();
+  });
+
+  it("rechaza input con schema inválido (fecha mal formada)", async () => {
+    const r = await generateSIVITAction({ ...VALID_SIVIT, dateFrom: "01/01/2026" });
+    expect(r.success).toBe(false);
   });
 });
 

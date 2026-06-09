@@ -388,7 +388,7 @@ describe("getInvoiceBookAction", () => {
     const result = await getInvoiceBookAction(BASE_FILTER);
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Error al obtener el libro");
+    if (!result.success) expect(result.error).toBe("DB error");
   });
 });
 
@@ -532,7 +532,7 @@ describe("exportInvoiceVoucherPDFAction", () => {
     const result = await exportInvoiceVoucherPDFAction("inv-1", "company-1");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Error al generar PDF de factura");
+    if (!result.success) expect(result.error).toBe("render failed");
   });
 });
 
@@ -611,7 +611,7 @@ describe("getInvoicesPaginatedAction", () => {
     const result = await getInvoicesPaginatedAction("company-1");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Error al obtener las facturas");
+    if (!result.success) expect(result.error).toBe("Error inesperado");
   });
 });
 
@@ -695,6 +695,6 @@ describe("exportInvoiceXMLAction", () => {
     const result = await exportInvoiceXMLAction("inv-1", "company-1");
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Error al generar XML de factura");
+    if (!result.success) expect(result.error).toBe("XML error");
   });
 });

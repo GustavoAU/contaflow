@@ -23,8 +23,8 @@ import {
   getDraftMovements,
   getItemMovements,
 } from "../services/InventoryOperationsService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function getInventoryAuthContext() {
   const { userId } = await auth();
@@ -65,8 +65,7 @@ export async function createInventoryItemAction(
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: item.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -97,8 +96,7 @@ export async function updateInventoryItemAction(
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: item.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -128,8 +126,7 @@ export async function softDeleteInventoryItemAction(
     revalidatePath(`/company/${companyId}/inventory`);
     return { success: true, data: true };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -161,8 +158,7 @@ export async function createMovementAction(
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: movement.id };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -193,8 +189,7 @@ export async function voidDraftMovementAction(
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: true };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -218,8 +213,7 @@ export async function getInventoryItemsAction(
     const items = await getInventoryItems(companyId);
     return { success: true, data: items };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -242,8 +236,7 @@ export async function getItemMovementsAction(
     const movements = await getItemMovements(companyId, itemId);
     return { success: true, data: movements };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -265,8 +258,7 @@ export async function getDraftMovementsAction(
     const movements = await getDraftMovements(companyId);
     return { success: true, data: movements };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }
 
@@ -308,6 +300,6 @@ export async function searchInventoryItemsAction(
       data: items.map((i) => ({ ...i, stockQuantity: i.stockQuantity.toString() })),
     };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }

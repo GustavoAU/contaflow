@@ -12,8 +12,8 @@ import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
 import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type IGTFSummary = {
   id: string;
@@ -121,8 +121,7 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al registrar el IGTF" };
+    return toActionError(error);
   }
 }
 
@@ -157,7 +156,6 @@ export async function getIGTFAction(companyId: string): Promise<ActionResult<IGT
       })),
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener los registros IGTF" };
+    return toActionError(error);
   }
 }

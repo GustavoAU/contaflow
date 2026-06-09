@@ -18,8 +18,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { EmployeeLoanService, type EmployeeLoanRow } from "../services/EmployeeLoanService";
 import { createLoanSchema, rejectLoanSchema } from "../schemas/employee-loan.schema";
 import type { LoanStatus } from "@prisma/client";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function resolveAuth(companyId: string) {
   const { userId } = await auth();
@@ -48,7 +48,7 @@ function revalidateLoans(companyId: string) {
 export async function createLoanAction(
   companyId: string,
   rawInput: unknown,
-): Promise<Result<EmployeeLoanRow>> {
+): Promise<ActionResult<EmployeeLoanRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
@@ -65,7 +65,7 @@ export async function createLoanAction(
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+    return toActionError(err);
   }
 }
 
@@ -74,7 +74,7 @@ export async function createLoanAction(
 export async function approveLoanAction(
   companyId: string,
   loanId: string,
-): Promise<Result<EmployeeLoanRow>> {
+): Promise<ActionResult<EmployeeLoanRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
@@ -88,7 +88,7 @@ export async function approveLoanAction(
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+    return toActionError(err);
   }
 }
 
@@ -98,7 +98,7 @@ export async function rejectLoanAction(
   companyId: string,
   loanId: string,
   rawInput: unknown,
-): Promise<Result<EmployeeLoanRow>> {
+): Promise<ActionResult<EmployeeLoanRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
@@ -115,7 +115,7 @@ export async function rejectLoanAction(
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+    return toActionError(err);
   }
 }
 
@@ -124,7 +124,7 @@ export async function rejectLoanAction(
 export async function listLoansAction(
   companyId: string,
   filters?: { employeeId?: string; status?: LoanStatus },
-): Promise<Result<EmployeeLoanRow[]>> {
+): Promise<ActionResult<EmployeeLoanRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
@@ -133,7 +133,7 @@ export async function listLoansAction(
     const loans = await EmployeeLoanService.list(companyId, filters);
     return { success: true, data: loans };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+    return toActionError(err);
   }
 }
 
@@ -142,7 +142,7 @@ export async function listLoansAction(
 export async function cancelLoanAction(
   companyId: string,
   loanId: string,
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado." };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
@@ -156,6 +156,6 @@ export async function cancelLoanAction(
     revalidateLoans(companyId);
     return { success: true, data: undefined };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado." };
+    return toActionError(err);
   }
 }

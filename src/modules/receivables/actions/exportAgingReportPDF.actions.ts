@@ -8,10 +8,10 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
 import { ReceivableService } from "../services/ReceivableService";
 import { generateAgingReportPDF } from "../services/AgingReportPDFService";
+import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
 
-type PDFResult =
-  | { success: true; data: { pdf: string; filename: string } }
-  | { success: false; error: string };
+type PDFResult = ActionResult<{ pdf: string; filename: string }>;
 
 // ─── Guard compartido ─────────────────────────────────────────────────────────
 
@@ -63,8 +63,7 @@ export async function exportReceivablesAgingPDFAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF de cartera CxC" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }
 
@@ -96,7 +95,6 @@ export async function exportPayablesAgingPDFAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF de cartera CxP" };
+    return { success: false, error: mapPrismaError(error) };
   }
 }

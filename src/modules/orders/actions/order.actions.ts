@@ -16,14 +16,14 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateOrderSchema, ConvertOrderSchema } from "../schemas/order.schema";
 import { OrderService } from "../services/OrderService";
 import { type QuotationType, type OrderStatus } from "@prisma/client";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ── createOrderAction — ROLES.OPERATIONS ─────────────────────────────────────
 export async function createOrderAction(
   companyId: string,
   raw: unknown
-): Promise<Result<{ id: string; number: string }>> {
+): Promise<ActionResult<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -52,7 +52,7 @@ export async function createOrderAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: order.id, number: order.number } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear orden" };
+    return toActionError(e);
   }
 }
 
@@ -60,7 +60,7 @@ export async function createOrderAction(
 export async function approveOrderAction(
   companyId: string,
   orderId: string
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -81,7 +81,7 @@ export async function approveOrderAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al aprobar orden" };
+    return toActionError(e);
   }
 }
 
@@ -92,7 +92,7 @@ export async function approveOrderAction(
 export async function convertOrderToInvoiceAction(
   companyId: string,
   raw: unknown
-): Promise<Result<{ invoiceId: string }>> {
+): Promise<ActionResult<{ invoiceId: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -134,10 +134,7 @@ export async function convertOrderToInvoiceAction(
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true, data: result };
   } catch (e) {
-    return {
-      success: false,
-      error: e instanceof Error ? e.message : "Error al convertir orden a factura",
-    };
+    return toActionError(e);
   }
 }
 
@@ -145,7 +142,7 @@ export async function convertOrderToInvoiceAction(
 export async function getOrdersAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: OrderStatus }
-): Promise<Result<Awaited<ReturnType<typeof OrderService.getOrders>>>> {
+): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrders>>>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -158,7 +155,7 @@ export async function getOrdersAction(
     const data = await OrderService.getOrders(companyId, filters);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -166,7 +163,7 @@ export async function getOrdersAction(
 export async function getOrderAction(
   companyId: string,
   orderId: string
-): Promise<Result<Awaited<ReturnType<typeof OrderService.getOrder>>>> {
+): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrder>>>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -180,7 +177,7 @@ export async function getOrderAction(
     const data = await OrderService.getOrder(companyId, orderId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -188,7 +185,7 @@ export async function getOrderAction(
 export async function cloneOrderAction(
   companyId: string,
   orderId: string
-): Promise<Result<{ id: string; number: string }>> {
+): Promise<ActionResult<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -223,6 +220,6 @@ export async function cloneOrderAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al clonar orden" };
+    return toActionError(e);
   }
 }

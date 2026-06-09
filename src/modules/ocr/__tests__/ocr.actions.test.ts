@@ -3,12 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mocks hoisted (vi.mock se eleva al tope) ────────────────────────────────
 
-const { mockAuth, mockCheckRateLimit, mockFindFirst, mockExtractFromImage, mockAuditLogCreate } = vi.hoisted(() => ({
+const { mockAuth, mockCheckRateLimit, mockFindFirst, mockExtractFromImage, mockAuditLogCreate, mockFindUnique, mockGeneratePDF } = vi.hoisted(() => ({
   mockAuth: vi.fn().mockResolvedValue({ userId: "user_test" }),
   mockCheckRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   mockFindFirst: vi.fn(),
   mockExtractFromImage: vi.fn(),
   mockAuditLogCreate: vi.fn().mockResolvedValue({}),
+  mockFindUnique: vi.fn(),
+  mockGeneratePDF: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
@@ -31,7 +33,12 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: (...args: unknown[]) => mockFindFirst(...args) },
     auditLog: { create: (...args: unknown[]) => mockAuditLogCreate(...args) },
+    company: { findUnique: (...args: unknown[]) => mockFindUnique(...args) },
   },
+}));
+
+vi.mock("../services/OcrDraftPDFService", () => ({
+  generateOcrDraftPDF: (...args: unknown[]) => mockGeneratePDF(...args),
 }));
 
 vi.mock("../services/GeminiOCRService", () => ({
@@ -40,7 +47,7 @@ vi.mock("../services/GeminiOCRService", () => ({
   },
 }));
 
-import { extractInvoiceAction } from "../actions/ocr.actions";
+import { extractInvoiceAction, exportOcrDraftPDFAction } from "../actions/ocr.actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -165,7 +172,7 @@ describe("extractInvoiceAction — OCR-v2 (Gemini Vision)", () => {
 
     const result = await extractInvoiceAction("company-1", "base64data==");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Error al procesar");
+    if (!result.success) expect(result.error).toBe("Error inesperado");
   });
 
   it("verifica que auth se llame ANTES del rate limit (ADR-006 D-1)", async () => {
@@ -182,5 +189,84 @@ describe("extractInvoiceAction — OCR-v2 (Gemini Vision)", () => {
     await extractInvoiceAction("company-1", "base64data==");
     expect(callOrder[0]).toBe("auth");
     expect(callOrder[1]).toBe("rateLimit");
+  });
+});
+
+// ─── exportOcrDraftPDFAction ──────────────────────────────────────────────────
+
+const EXTRACTED_INVOICE = {
+  razonSocial: "Empresa Test C.A.",
+  rif: "J-12345678-9",
+  numeroFactura: "0001234",
+  numeroControl: "00-0001234",
+  fechaEmision: "2026-04-07",
+  baseImponibleGeneral: "100.00",
+  ivaGeneral: "16.00",
+  montoTotal: "116.00",
+  currency: "VES" as const,
+  paymentMethod: "TRANSFERENCIA" as const,
+};
+
+describe("exportOcrDraftPDFAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: "user_test" });
+    mockFindFirst.mockResolvedValue({ role: "ACCOUNTANT" });
+    mockFindUnique.mockResolvedValue({ name: "Empresa Demo C.A.", rif: "J-99999999-9", address: "Caracas" });
+    mockGeneratePDF.mockResolvedValue(Buffer.from("fake-pdf-content"));
+  });
+
+  it("sin sesión retorna error No autorizado", async () => {
+    mockAuth.mockResolvedValueOnce({ userId: null });
+
+    const result = await exportOcrDraftPDFAction("company-1", EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("sin membresía retorna acceso denegado", async () => {
+    mockFindFirst.mockResolvedValueOnce(null);
+
+    const result = await exportOcrDraftPDFAction("company-1", EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("happy path: retorna PDF base64 y filename con número de factura", async () => {
+    const result = await exportOcrDraftPDFAction("company-1", EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(typeof result.data.pdf).toBe("string");
+      expect(result.data.pdf.length).toBeGreaterThan(0);
+      expect(result.data.filename).toBe("OCR-Borrador-0001234.pdf");
+    }
+  });
+
+  it("filename sin número de factura omite el sufijo", async () => {
+    const { numeroFactura: _, ...withoutFactura } = EXTRACTED_INVOICE;
+    const result = await exportOcrDraftPDFAction("company-1", withoutFactura as typeof EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.filename).toBe("OCR-Borrador.pdf");
+  });
+
+  it("si generateOcrDraftPDF lanza excepción propaga el error", async () => {
+    mockGeneratePDF.mockRejectedValueOnce(new Error("render error"));
+
+    const result = await exportOcrDraftPDFAction("company-1", EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("render error");
+  });
+
+  it("VIEWER puede exportar PDF (operación de lectura)", async () => {
+    mockFindFirst.mockResolvedValueOnce({ role: "VIEWER" });
+
+    const result = await exportOcrDraftPDFAction("company-1", EXTRACTED_INVOICE);
+
+    expect(result.success).toBe(true);
   });
 });

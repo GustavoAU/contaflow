@@ -6,8 +6,8 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { NotificationService, type NotificationAlert } from "../services/NotificationService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export async function getNotificationsAction(
   companyId: string
@@ -31,7 +31,6 @@ export async function getNotificationsAction(
     const alerts = await NotificationService.getAlerts(companyId);
     return { success: true, data: alerts };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado" };
+    return toActionError(error);
   }
 }

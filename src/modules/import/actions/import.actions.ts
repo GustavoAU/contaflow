@@ -8,8 +8,8 @@ import { ImportService } from "../services/ImportService";
 import type { ImportAccountRow } from "../schemas/import.schema";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export async function importAccountsAction(
   companyId: string,
@@ -37,8 +37,7 @@ export async function importAccountsAction(
     revalidatePath(`/company/${companyId}/accounts`);
     return { success: true, data: result };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al importar las cuentas" };
+    return toActionError(error);
   }
 }
 
@@ -50,7 +49,6 @@ export async function downloadTemplateAction(): Promise<ActionResult<string>> {
     const base64 = buffer.toString("base64");
     return { success: true, data: base64 };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar la plantilla" };
+    return toActionError(error);
   }
 }

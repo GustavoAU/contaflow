@@ -13,14 +13,14 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateQuotationSchema } from "../schemas/quotation.schema";
 import { QuotationService } from "../services/QuotationService";
 import { type QuotationType, type QuotationStatus } from "@prisma/client";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ── createQuotationAction — ROLES.OPERATIONS (ADMINISTRATIVE+) ───────────────
 export async function createQuotationAction(
   companyId: string,
   raw: unknown
-): Promise<Result<{ id: string; number: string }>> {
+): Promise<ActionResult<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -47,7 +47,7 @@ export async function createQuotationAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: quotation.id, number: quotation.number } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear cotización" };
+    return toActionError(e);
   }
 }
 
@@ -55,7 +55,7 @@ export async function createQuotationAction(
 export async function submitForApprovalAction(
   companyId: string,
   quotationId: string
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -74,7 +74,7 @@ export async function submitForApprovalAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -82,7 +82,7 @@ export async function submitForApprovalAction(
 export async function approveQuotationAction(
   companyId: string,
   quotationId: string
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -102,7 +102,7 @@ export async function approveQuotationAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -110,7 +110,7 @@ export async function approveQuotationAction(
 export async function rejectQuotationAction(
   companyId: string,
   quotationId: string
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -129,7 +129,7 @@ export async function rejectQuotationAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -137,7 +137,7 @@ export async function rejectQuotationAction(
 export async function getQuotationsAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: QuotationStatus }
-): Promise<Result<Awaited<ReturnType<typeof QuotationService.getQuotations>>>> {
+): Promise<ActionResult<Awaited<ReturnType<typeof QuotationService.getQuotations>>>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -150,7 +150,7 @@ export async function getQuotationsAction(
     const data = await QuotationService.getQuotations(companyId, filters);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error" };
+    return toActionError(e);
   }
 }
 
@@ -158,7 +158,7 @@ export async function getQuotationsAction(
 export async function cloneQuotationAction(
   companyId: string,
   quotationId: string
-): Promise<Result<{ id: string; number: string }>> {
+): Promise<ActionResult<{ id: string; number: string }>> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
 
@@ -197,6 +197,6 @@ export async function cloneQuotationAction(
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al clonar cotización" };
+    return toActionError(e);
   }
 }
