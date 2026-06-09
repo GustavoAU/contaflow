@@ -33,7 +33,7 @@ const USER_ID = "user-1";
 const ADMIN_MEMBER = { role: "ADMIN" };
 
 const SAMPLE_ROWS: ImportAccountRow[] = [
-  { code: "1.1.01", name: "Caja", type: "ASSET", parentCode: null },
+  { codigo: "1.1.01", nombre: "Caja", tipo: "ASSET" },
 ];
 
 beforeEach(() => {
@@ -78,10 +78,9 @@ describe("importAccountsAction", () => {
 
   it("retorna error si rows supera 1000", async () => {
     const bigRows = Array.from({ length: 1001 }, (_, i) => ({
-      code: `1.1.${i}`,
-      name: `Cuenta ${i}`,
-      type: "ASSET" as const,
-      parentCode: null,
+      codigo: `1.1.${i}`,
+      nombre: `Cuenta ${i}`,
+      tipo: "ASSET" as const,
     }));
     const r = await importAccountsAction(COMPANY_ID, USER_ID, bigRows);
     expect(r.success).toBe(false);
