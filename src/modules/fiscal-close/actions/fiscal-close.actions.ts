@@ -15,8 +15,16 @@ import {
   AppropriateResultSchema,
   UpdateFiscalConfigSchema,
 } from "../schemas/fiscal-close.schema";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+async function resolveIpUa() {
+  const h = await headers();
+  const ipAddress =
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { ipAddress, userAgent };
+}
 
 // ─── Obtener historial de cierres ──────────────────────────────────────────────
 export async function getFiscalYearCloseHistoryAction(
@@ -36,8 +44,7 @@ export async function getFiscalYearCloseHistoryAction(
     const history = await FiscalYearCloseService.getFiscalYearCloseHistory(companyId);
     return { success: true, data: history };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener el historial de cierres" };
+    return toActionError(error);
   }
 }
 
@@ -70,9 +77,7 @@ export async function closeFiscalYearAction(
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     // Solo ADMIN puede ejecutar el cierre de ejercicio
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
@@ -110,8 +115,7 @@ export async function closeFiscalYearAction(
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al cerrar el ejercicio" };
+    return toActionError(error);
   }
 }
 
@@ -136,9 +140,7 @@ export async function appropriateFiscalYearResultAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const member = await prisma.companyMember.findFirst({
       where: { companyId: parsed.data.companyId, userId },
@@ -168,8 +170,7 @@ export async function appropriateFiscalYearResultAction(
 
     return { success: true, data: result };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al registrar la apropiación" };
+    return toActionError(error);
   }
 }
 
@@ -186,9 +187,7 @@ export async function updateFiscalConfigAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
@@ -274,8 +273,7 @@ export async function updateFiscalConfigAction(
     revalidatePath(`/company/${parsed.data.companyId}/settings`);
     return { success: true, data: { companyId: parsed.data.companyId } };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error inesperado al actualizar la configuración" };
+    return toActionError(error);
   }
 }
 
@@ -321,7 +319,6 @@ export async function getFiscalConfigAction(companyId: string): Promise<
       },
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al obtener la configuración contable" };
+    return toActionError(error);
   }
 }
