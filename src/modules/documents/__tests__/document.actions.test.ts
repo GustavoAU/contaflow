@@ -119,6 +119,16 @@ describe("listDocumentsAction", () => {
     const res = await listDocumentsAction(COMPANY_ID, {});
     expect(res.success).toBe(true);
   });
+
+  it("devuelve error estructurado si DocumentService.list lanza excepción", async () => {
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTING as never);
+    vi.mocked(DocumentService.list).mockRejectedValueOnce(new Error("DB no disponible"));
+
+    const res = await listDocumentsAction(COMPANY_ID, {});
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBeTruthy();
+  });
 });
 
 // ─── generateDocShareTokenAction ──────────────────────────────────────────────
@@ -220,7 +230,6 @@ describe("generateDocShareTokenAction", () => {
     mockAuth.mockResolvedValue({ userId: USER_ID });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTING as never);
 
-    // Forzar tipo inválido para el test
     const res = await generateDocShareTokenAction(
       COMPANY_ID,
       "INVALID_TYPE" as "INVOICE" | "RETENTION",
@@ -228,5 +237,17 @@ describe("generateDocShareTokenAction", () => {
     );
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("Tipo de documento inválido");
+  });
+
+  it("devuelve error estructurado si auditLog.create lanza excepción", async () => {
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTING as never);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({ id: DOC_ID } as never);
+    mockSignDocShareToken.mockReturnValue("tok");
+    vi.mocked(prisma.auditLog.create).mockRejectedValueOnce(new Error("write failed"));
+
+    const res = await generateDocShareTokenAction(COMPANY_ID, "INVOICE", DOC_ID);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBeTruthy();
   });
 });

@@ -7,15 +7,22 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { signDocShareToken } from "@/lib/document-share-jwt";
 import type { DocShareType } from "@/lib/document-share-jwt";
 import { DocumentService, type DocumentRow, type DocumentFilters } from "../services/DocumentService";
-import { headers } from "next/headers";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+async function resolveIpUa() {
+  const h = await headers();
+  const ipAddress = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null;
+  const userAgent = h.get("user-agent") ?? null;
+  return { ipAddress, userAgent };
+}
 
 const FiltersSchema = z.object({
   docType: z.string().optional(),
@@ -50,8 +57,7 @@ export async function listDocumentsAction(
 
     return { success: true, data: { ...result, page } };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al obtener documentos" };
+    return toActionError(err);
   }
 }
 
@@ -101,9 +107,7 @@ export async function generateDocShareTokenAction(
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     // AuditLog — R-6: trazabilidad de documento compartido
-    const hdrs = await headers();
-    const ipAddress = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? hdrs.get("x-real-ip") ?? null;
-    const userAgent = hdrs.get("user-agent") ?? null;
+    const { ipAddress, userAgent } = await resolveIpUa();
 
     await prisma.auditLog.create({
       data: {
@@ -121,7 +125,6 @@ export async function generateDocShareTokenAction(
     revalidatePath(`/company/${companyId}/documents`);
     return { success: true, data: { url, expiresAt } };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al generar el enlace" };
+    return toActionError(err);
   }
 }
