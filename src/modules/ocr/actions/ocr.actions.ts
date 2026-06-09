@@ -15,6 +15,8 @@ import { GeminiOCRService } from "../services/GeminiOCRService";
 import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
 import { generateOcrDraftPDF } from "../services/OcrDraftPDFService";
 import prisma from "@/lib/prisma";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
@@ -26,8 +28,6 @@ const Schema = z.object({
     .enum(["image/jpeg", "image/png", "image/webp"])
     .catch("image/jpeg"),
 });
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 // ─── Server Action ────────────────────────────────────────────────────────────
 
@@ -106,8 +106,7 @@ export async function extractInvoiceAction(
 
     return { success: true, data };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al procesar la factura" };
+    return toActionError(error);
   }
 }
 
