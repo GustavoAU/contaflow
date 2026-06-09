@@ -14,8 +14,8 @@ import {
   type CreateVendorInput,
   type UpdateVendorInput,
 } from "../schemas/vendor.schemas";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function resolveWriters(companyId: string): Promise<{ userId: string; allowed: boolean }> {
   const { userId } = await auth();
@@ -51,19 +51,19 @@ async function resolveAdmin(companyId: string): Promise<{ userId: string; allowe
 }
 
 // ── List (read-only, ACCOUNTING+) ──────────────────────────────────────────
-export async function listVendorsAction(companyId: string): Promise<Result<VendorRow[]>> {
+export async function listVendorsAction(companyId: string): Promise<ActionResult<VendorRow[]>> {
   try {
     const { allowed } = await resolveAccounting(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
     const data = await VendorService.list(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 // ── Get (read-only, ACCOUNTING+) ───────────────────────────────────────────
-export async function getVendorAction(companyId: string, vendorId: string): Promise<Result<VendorRow>> {
+export async function getVendorAction(companyId: string, vendorId: string): Promise<ActionResult<VendorRow>> {
   try {
     const { allowed } = await resolveAccounting(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -71,7 +71,7 @@ export async function getVendorAction(companyId: string, vendorId: string): Prom
     if (!data) return { success: false, error: "Proveedor no encontrado" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -79,7 +79,7 @@ export async function getVendorAction(companyId: string, vendorId: string): Prom
 export async function createVendorAction(
   companyId: string,
   input: CreateVendorInput,
-): Promise<Result<VendorRow>> {
+): Promise<ActionResult<VendorRow>> {
   try {
     const { userId, allowed } = await resolveWriters(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -93,7 +93,7 @@ export async function createVendorAction(
     const data = await VendorService.create(companyId, parsed.data);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -102,7 +102,7 @@ export async function updateVendorAction(
   companyId: string,
   vendorId: string,
   input: UpdateVendorInput,
-): Promise<Result<VendorRow>> {
+): Promise<ActionResult<VendorRow>> {
   try {
     const { userId, allowed } = await resolveWriters(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -117,7 +117,7 @@ export async function updateVendorAction(
     if (!data) return { success: false, error: "Proveedor no encontrado o sin acceso" };
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -125,7 +125,7 @@ export async function updateVendorAction(
 export async function deleteVendorAction(
   companyId: string,
   vendorId: string,
-): Promise<Result<{ linkedCount: number }>> {
+): Promise<ActionResult<{ linkedCount: number }>> {
   try {
     const { userId, allowed } = await resolveAdmin(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -137,7 +137,7 @@ export async function deleteVendorAction(
     if (!result.deleted) return { success: false, error: "Proveedor no encontrado o ya eliminado" };
     return { success: true, data: { linkedCount: result.linkedCount } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -146,14 +146,14 @@ export async function deleteVendorAction(
 export async function listVendorNotesAction(
   companyId: string,
   vendorId: string,
-): Promise<Result<ContactNoteRow[]>> {
+): Promise<ActionResult<ContactNoteRow[]>> {
   try {
     const { allowed } = await resolveAccounting(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
     const data = await ContactNoteService.list(companyId, "VENDOR", vendorId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -161,7 +161,7 @@ export async function addVendorNoteAction(
   companyId: string,
   vendorId: string,
   input: unknown,
-): Promise<Result<ContactNoteRow>> {
+): Promise<ActionResult<ContactNoteRow>> {
   try {
     const { userId, allowed } = await resolveWriters(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -179,14 +179,14 @@ export async function addVendorNoteAction(
     const data = await ContactNoteService.create(companyId, "VENDOR", vendorId, parsed.data.content, userId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
 export async function deleteVendorNoteAction(
   companyId: string,
   noteId: string,
-): Promise<Result<true>> {
+): Promise<ActionResult<true>> {
   try {
     const { userId, allowed } = await resolveWriters(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -198,7 +198,7 @@ export async function deleteVendorNoteAction(
     if (!deleted) return { success: false, error: "Nota no encontrada" };
     return { success: true, data: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
 
@@ -207,7 +207,7 @@ export async function linkVendorToInvoiceAction(
   companyId: string,
   invoiceId: string,
   vendorId: string,
-): Promise<Result<true>> {
+): Promise<ActionResult<true>> {
   try {
     const { userId, allowed } = await resolveWriters(companyId);
     if (!allowed) return { success: false, error: "No autorizado" };
@@ -219,6 +219,6 @@ export async function linkVendorToInvoiceAction(
     if (!ok) return { success: false, error: "Factura o proveedor no válidos para esta empresa" };
     return { success: true, data: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
