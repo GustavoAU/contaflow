@@ -4,6 +4,8 @@
 
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type ContactSuggestion = {
   rif: string;
@@ -12,8 +14,6 @@ export type ContactSuggestion = {
   isSpecialContributor: boolean;
   source: "vendor" | "customer";
 };
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 export async function searchContactsByRifAction(
   companyId: string,
@@ -72,6 +72,6 @@ export async function searchContactsByRifAction(
     return { success: true, data: results };
   } catch (e) {
     console.error("searchContactsByRifAction:", e);
-    return { success: false, error: "Error al buscar contactos" };
+    return toActionError(e);
   }
 }

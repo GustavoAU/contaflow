@@ -9,6 +9,8 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { InvoiceService } from "../services/InvoiceService";
 import { hasModuleAccess } from "@/lib/module-access";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 import { Decimal } from "decimal.js";
 
 export type BatchRow = {
@@ -30,8 +32,6 @@ export type BatchImportResult = {
   created: number;
   errors: { row: number; message: string }[];
 };
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 export async function importInvoiceBatchAction(
   companyId: string,
@@ -144,6 +144,6 @@ export async function importInvoiceBatchAction(
 
     return { success: true, data: { created: createdCount, errors } };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado" };
+    return toActionError(e);
   }
 }
