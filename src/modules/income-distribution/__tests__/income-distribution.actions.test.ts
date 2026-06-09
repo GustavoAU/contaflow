@@ -34,6 +34,7 @@ import {
   applyDistributionAction,
   voidDistributionAction,
   listDistributionsAction,
+  getDistributionByIdAction,
 } from "../actions/income-distribution.actions";
 import * as Service from "../services/IncomeDistributionService";
 
@@ -211,5 +212,49 @@ describe("listDistributionsAction", () => {
       expect(result.data.distributions).toHaveLength(1);
       expect(result.data.nextCursor).toBeNull();
     }
+  });
+});
+
+// ─── getDistributionByIdAction ────────────────────────────────────────────────
+
+describe("getDistributionByIdAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupHappyPath();
+    vi.mocked(Service.getDistributionById).mockResolvedValue(MOCK_DIST as never);
+  });
+
+  it("retorna error si no hay sesión", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna error si acceso denegado (VIEWER)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("denegado");
+  });
+
+  it("happy path — retorna distribución por id", async () => {
+    const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data?.id).toBe(DIST_ID);
+  });
+
+  it("retorna null si la distribución no existe", async () => {
+    vi.mocked(Service.getDistributionById).mockResolvedValue(null as never);
+    const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBeNull();
+  });
+
+  it("propaga error del service", async () => {
+    vi.mocked(Service.getDistributionById).mockRejectedValue(new Error("Not found"));
+    const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBeTruthy();
   });
 });

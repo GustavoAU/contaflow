@@ -23,8 +23,8 @@ import {
   computeTotalVes,
   type IncomeDistributionSummary,
 } from "../services/IncomeDistributionService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Guard compartido ─────────────────────────────────────────────────────────
 
@@ -98,8 +98,7 @@ export async function createDistributionAction(
 
     return { success: true, data: dist };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al crear la distribución" };
+    return toActionError(err);
   }
 }
 
@@ -124,8 +123,7 @@ export async function applyDistributionAction(
     );
     return { success: true, data: dist };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al aplicar la distribución" };
+    return toActionError(err);
   }
 }
 
@@ -151,8 +149,7 @@ export async function voidDistributionAction(
     );
     return { success: true, data: dist };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al anular la distribución" };
+    return toActionError(err);
   }
 }
 
@@ -167,8 +164,7 @@ export async function listDistributionsAction(
     const result = await listDistributions(companyId, cursor);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al listar las distribuciones" };
+    return toActionError(err);
   }
 }
 
@@ -183,7 +179,6 @@ export async function getDistributionByIdAction(
     const dist = await getDistributionById(distributionId, companyId);
     return { success: true, data: dist };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al obtener la distribución" };
+    return toActionError(err);
   }
 }
