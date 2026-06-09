@@ -5,7 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/prisma";
-import { mapPrismaError } from "@/lib/prisma-errors";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
@@ -20,8 +19,8 @@ import {
   PostINPCRestatementSchema,
 } from "../schemas/fixed-asset.schema";
 import { generateDepreciationSchedule } from "../services/FixedAssetService";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Crear activo fijo ─────────────────────────────────────────────────────────
 
@@ -62,7 +61,7 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: asset.id };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -131,7 +130,7 @@ export async function postMonthlyDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: result };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -194,7 +193,7 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: undefined };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -218,7 +217,7 @@ export async function getFixedAssetsAction(
     const assets = await FixedAssetService.getSummary(companyId);
     return { success: true, data: assets };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -267,7 +266,7 @@ export async function getDepreciationScheduleAction(
       },
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -415,7 +414,7 @@ export async function catchUpAssetDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: { processed, skipped, errors, closedYearCount } };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -535,7 +534,7 @@ export async function catchUpAllAssetsDepreciationAction(
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return { success: true, data: { totalProcessed, totalSkipped, assetErrors } };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -567,7 +566,7 @@ export async function previewDepreciationScheduleAction(input: {
 
     return { success: true, data: schedule };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -633,7 +632,7 @@ export async function postFixedAssetINPCRestatementAction(
       },
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -681,7 +680,7 @@ export async function getFixedAssetGLReconciliationAction(
       })),
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -733,7 +732,7 @@ export async function getFixedAssetINPCHistoryAction(
       })),
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
 
@@ -786,6 +785,6 @@ export async function getExpensesForAssetImportAction(
       })),
     };
   } catch (error) {
-    return { success: false, error: mapPrismaError(error) };
+    return toActionError(error);
   }
 }
