@@ -7,8 +7,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateExportJobSchema } from "../schemas/export.schema";
 import { generateExportZip } from "../services/ExportService";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Crear y ejecutar job de exportación ─────────────────────────────────────
 
@@ -98,11 +98,8 @@ export async function createExportJobAction(
     revalidatePath("/export");
     return { success: true, data: { jobId: job.id } };
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Error desconocido")) {
-      return { success: false, error: error.message };
-    }
-    console.error("[createExportJobAction]", error instanceof Error ? error.message : "Error");
-    return { success: false, error: "Error al generar la exportación" };
+    console.error("[createExportJobAction]", error instanceof Error ? error.message : String(error));
+    return toActionError(error);
   }
 }
 
@@ -147,7 +144,6 @@ export async function listExportJobsAction(
 
     return { success: true, data: jobs };
   } catch (error) {
-    console.error("[listExportJobsAction]", error instanceof Error ? error.message : "Error");
-    return { success: false, error: "Error al obtener historial de exportaciones" };
+    return toActionError(error);
   }
 }
