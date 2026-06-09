@@ -10,6 +10,7 @@ vi.mock("next/headers", () => ({
 const mockAuth = vi.hoisted(() => vi.fn());
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 const mockFetchUsdVes = vi.hoisted(() => vi.fn());
+const mockFetchEurVes = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -18,7 +19,7 @@ vi.mock("@/lib/ratelimit", () => ({
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("../services/BcvFetchService", () => ({
-  BcvFetchService: { fetchUsdVes: mockFetchUsdVes },
+  BcvFetchService: { fetchUsdVes: mockFetchUsdVes, fetchEurVes: mockFetchEurVes },
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -32,6 +33,7 @@ vi.mock("@/lib/prisma", () => ({
 import prisma from "@/lib/prisma";
 import {
   fetchBcvRateAction,
+  fetchBcvEurRateAction,
   upsertExchangeRateAction,
   listExchangeRatesAction,
 } from "../actions/exchange-rate.actions";
@@ -242,6 +244,43 @@ describe("upsertExchangeRateAction", () => {
         data: expect.objectContaining({ userId: USER_ID }),
       }),
     );
+  });
+});
+
+// ─── fetchBcvEurRateAction ────────────────────────────────────────────────────
+describe("fetchBcvEurRateAction", () => {
+  const EUR_RATE_RECORD = { ...RATE_RECORD, currency: "EUR" as const, source: "BCV-AUTO" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(MEMBER as never);
+    mockFetchEurVes.mockResolvedValue({ rate: new Decimal("1.08"), date: TODAY });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ exchangeRate: prisma.exchangeRate, auditLog: prisma.auditLog })) as never,
+    );
+    vi.mocked(prisma.exchangeRate.upsert).mockResolvedValue(EUR_RATE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("retorna { success: true } con currency EUR", async () => {
+    const result = await fetchBcvEurRateAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.currency).toBe("EUR");
+  });
+
+  it("llama a BcvFetchService.fetchEurVes (no fetchUsdVes)", async () => {
+    await fetchBcvEurRateAction(COMPANY_ID);
+    expect(mockFetchEurVes).toHaveBeenCalledTimes(1);
+    expect(mockFetchUsdVes).not.toHaveBeenCalled();
+  });
+
+  it("retorna { success: false } si no hay sesión", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const result = await fetchBcvEurRateAction(COMPANY_ID);
+    expect(result.success).toBe(false);
   });
 });
 
