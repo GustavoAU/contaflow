@@ -42,6 +42,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+import { checkRateLimit } from "@/lib/ratelimit";
 import { createIGTFAction, getIGTFAction } from "./igtf.actions";
 
 const mockIGTF = {
@@ -56,14 +57,49 @@ const mockIGTF = {
   createdBy: "user-1",
 };
 
+const VALID_INPUT = {
+  companyId: "company-1",
+  amount: "1000.00",
+  currency: "USD" as const,
+  concept: "Pago a proveedor en USD",
+};
+
 describe("createIGTFAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) => fn({ iGTFTransaction: prisma.iGTFTransaction, auditLog: prisma.auditLog })) as never
     );
+  });
+
+  it("retorna error si no autenticado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await createIGTFAction(VALID_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si rate limit agotado", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes." });
+    const r = await createIGTFAction(VALID_INPUT);
+    expect(r.success).toBe(false);
+  });
+
+  it("retorna error si no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
+    const r = await createIGTFAction(VALID_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("Empresa no encontrada");
+  });
+
+  it("retorna error si rol VIEWER no tiene acceso contable", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await createIGTFAction(VALID_INPUT);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
   });
 
   it("crea registro IGTF correctamente", async () => {
@@ -134,6 +170,27 @@ describe("getIGTFAction", () => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
+
+  it("retorna error si no autenticado", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    const r = await getIGTFAction("company-1");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("retorna error si no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const r = await getIGTFAction("company-1");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("acceso denegado");
+  });
+
+  it("retorna error si rol VIEWER no tiene acceso contable", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
+    const r = await getIGTFAction("company-1");
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("contable");
   });
 
   it("retorna lista de registros IGTF", async () => {
