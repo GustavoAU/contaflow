@@ -15,6 +15,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    invoice: { findMany: vi.fn() },
   },
 }));
 vi.mock("@/modules/fiscal-close/services/FiscalYearCloseService", () => ({
@@ -27,7 +28,7 @@ vi.mock("../services/DeclaracionIVAService", () => ({
 import prisma from "@/lib/prisma";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
-import { generarForma30Action } from "../actions/generarForma30.action";
+import { generarForma30Action, getRetencionesSufridas } from "../actions/generarForma30.action";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const COMPANY_ID = "company-1";
@@ -202,5 +203,92 @@ describe("generarForma30Action — security", () => {
     if (result.success) {
       expect(result.data.seccionE.creditoFiscalPeriodoAnterior).toBe("0.00");
     }
+  });
+});
+
+// ─── getRetencionesSufridas ────────────────────────────────────────────────────
+
+const MOCK_INVOICE = {
+  id: "inv-1",
+  invoiceNumber: "0000001",
+  controlNumber: "00-00000001",
+  counterpartName: "Cliente Demo C.A.",
+  counterpartRif: "J-12345678-9",
+  date: new Date("2026-03-15T00:00:00.000Z"),
+  ivaRetentionAmount: { toString: () => "75.00" },
+  currency: "VES",
+};
+
+describe("getRetencionesSufridas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([MOCK_INVOICE] as never);
+  });
+
+  it("retorna { success: false } si no hay sesión autenticada", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+
+    const result = await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("No autorizado");
+  });
+
+  it("retorna { success: false } si el usuario no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
+
+    const result = await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
+
+  it("happy path: retorna filas serializadas correctamente", async () => {
+    const result = await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toHaveLength(1);
+      const row = result.data[0];
+      expect(row.id).toBe("inv-1");
+      expect(row.invoiceNumber).toBe("0000001");
+      expect(row.ivaRetentionAmount).toBe("75.00");
+      expect(row.currency).toBe("VES");
+      expect(typeof row.date).toBe("string");
+    }
+  });
+
+  it("filtra correctamente por companyId y tipo SALE en el query", async () => {
+    await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(prisma.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: COMPANY_ID,
+          type: "SALE",
+        }),
+      }),
+    );
+  });
+
+  it("devuelve lista vacía si no hay facturas con retención en el período", async () => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+
+    const result = await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toHaveLength(0);
+  });
+
+  it("propaga el error si la consulta DB falla", async () => {
+    vi.mocked(prisma.invoice.findMany).mockRejectedValue(new Error("query failed") as never);
+
+    const result = await getRetencionesSufridas(COMPANY_ID, YEAR, MONTH);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("query failed");
   });
 });

@@ -10,8 +10,8 @@ import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
 import { Decimal } from "decimal.js";
 import type { Forma30Result, TaxLineRow } from "../types/forma30.types";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 export type SerializedTaxLine = { base: string; tax: string };
 export type SerializedBaseOnly = { base: string };
@@ -159,8 +159,7 @@ export async function generarForma30Action(
       data: serializeForma30(result, fiscalYearClosed),
     };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al calcular la declaración de IVA" };
+    return toActionError(err);
   }
 }
 
@@ -231,7 +230,6 @@ export async function getRetencionesSufridas(
       })),
     };
   } catch (err) {
-    if (err instanceof Error) return { success: false, error: err.message };
-    return { success: false, error: "Error al consultar retenciones sufridas" };
+    return toActionError(err);
   }
 }
