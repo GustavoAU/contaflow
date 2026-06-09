@@ -84,7 +84,7 @@ describe("enterRetentionAction", () => {
     companyId: COMPANY_ID,
     liabilityAccountId: "acc-liability-1",
     bankAccountId: "acc-bank-1",
-    enterDate: new Date().toISOString(),
+    enterDate: new Date(),
   };
 
   it("sin sesión → error", async () => {

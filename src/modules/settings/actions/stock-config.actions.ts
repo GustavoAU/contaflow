@@ -12,8 +12,9 @@ import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
-
-type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+import { mapPrismaError } from "@/lib/prisma-errors";
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 const StockControlLevelSchema = z.enum(["WARN", "CONFIRM", "BLOCK"]);
 
@@ -45,7 +46,7 @@ export async function getStockControlLevelAction(
       data: { level: (settings?.stockControlLevel ?? "WARN") as StockControlLevel },
     };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado" };
+    return toActionError(err);
   }
 }
 
@@ -101,6 +102,6 @@ export async function updateStockControlLevelAction(input: unknown): Promise<
     revalidatePath(`/company/${parsed.data.companyId}/settings`);
     return { success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error inesperado" };
+    return { success: false, error: mapPrismaError(err) };
   }
 }
