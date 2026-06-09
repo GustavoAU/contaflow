@@ -28,7 +28,8 @@ import {
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ function revalidate(companyId: string) {
 // ─── getPayrollRunsAction — ACCOUNTING ────────────────────────────────────────
 export async function getPayrollRunsAction(
   companyId: string
-): Promise<Result<PayrollRunRow[]>> {
+): Promise<ActionResult<PayrollRunRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING))
@@ -58,8 +59,7 @@ export async function getPayrollRunsAction(
     const runs = await PayrollRunService.list(companyId);
     return { success: true, data: runs };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener procesos de nómina";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -68,7 +68,7 @@ export async function getPayrollRunsAction(
 export async function getPayrollRunDetailAction(
   companyId: string,
   runId: string
-): Promise<Result<PayrollRunDetailRow>> {
+): Promise<ActionResult<PayrollRunDetailRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING))
@@ -79,8 +79,7 @@ export async function getPayrollRunDetailAction(
     if (!run) return { success: false, error: "Proceso de nómina no encontrado" };
     return { success: true, data: run };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al obtener detalle";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -91,7 +90,7 @@ export async function getPayrollRunDetailAction(
 export async function createPayrollRunAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<PayrollRunRow>> {
+): Promise<ActionResult<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina
@@ -127,8 +126,7 @@ export async function createPayrollRunAction(
         error: "Ya existe un proceso de nómina para este período. Revisa los borradores existentes.",
       };
     }
-    const msg = err instanceof Error ? err.message : "Error al crear proceso de nómina";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -139,7 +137,7 @@ export async function createPayrollRunAction(
 export async function approvePayrollRunAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<PayrollRunRow>> {
+): Promise<ActionResult<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina
@@ -165,8 +163,7 @@ export async function approvePayrollRunAction(
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al aprobar proceso de nómina";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -177,7 +174,7 @@ export async function approvePayrollRunAction(
 export async function cancelPayrollRunAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<PayrollRunRow>> {
+): Promise<ActionResult<PayrollRunRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina
@@ -210,8 +207,7 @@ export async function cancelPayrollRunAction(
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al cancelar proceso de nómina";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -222,7 +218,7 @@ export async function cancelPayrollRunAction(
 export async function exportPayrollBankTxtAction(
   companyId: string,
   runId: string,
-): Promise<Result<BankPaymentFile>> {
+): Promise<ActionResult<BankPaymentFile>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING))
@@ -236,7 +232,6 @@ export async function exportPayrollBankTxtAction(
     const file = await PayrollBankTxtService.generate(companyId, runId);
     return { success: true, data: file };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al generar archivo de pago";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }

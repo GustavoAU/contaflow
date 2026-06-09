@@ -18,8 +18,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import Decimal from "decimal.js";
 import { LegalThresholdService, type LegalThresholdRow } from "../services/LegalThresholdService";
 import type { LegalThresholdType } from "@prisma/client";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 const CreateSchema = z.object({
   type: z.enum([
@@ -61,14 +61,14 @@ async function guardAny(companyId: string): Promise<{ userId: string } | { succe
 // ── getLegalThresholdsAction ──────────────────────────────────────────────────
 export async function getLegalThresholdsAction(
   companyId: string,
-): Promise<Result<LegalThresholdRow[]>> {
+): Promise<ActionResult<LegalThresholdRow[]>> {
   try {
     const guard = await guardAny(companyId);
     if ("error" in guard) return guard;
     const data = await LegalThresholdService.list(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al obtener topes legales" };
+    return toActionError(e);
   }
 }
 
@@ -76,7 +76,7 @@ export async function getLegalThresholdsAction(
 export async function createLegalThresholdAction(
   companyId: string,
   rawInput: unknown,
-): Promise<Result<LegalThresholdRow>> {
+): Promise<ActionResult<LegalThresholdRow>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -111,7 +111,7 @@ export async function createLegalThresholdAction(
     if (e instanceof Error && e.message.includes("Unique constraint")) {
       return { success: false, error: "Ya existe un registro para ese tipo y fecha de vigencia" };
     }
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear tope legal" };
+    return toActionError(e);
   }
 }
 
@@ -119,7 +119,7 @@ export async function createLegalThresholdAction(
 export async function deleteLegalThresholdAction(
   companyId: string,
   id: string,
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -138,6 +138,6 @@ export async function deleteLegalThresholdAction(
     revalidatePath(`/payroll/legal-thresholds`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al eliminar tope legal" };
+    return toActionError(e);
   }
 }

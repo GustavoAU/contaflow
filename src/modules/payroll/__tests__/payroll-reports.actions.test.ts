@@ -13,7 +13,11 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
-    employee: { findFirst: vi.fn() },
+    employee: {
+      findFirst: vi.fn(),
+      findFirstOrThrow: vi.fn(),
+    },
+    company: { findUniqueOrThrow: vi.fn() },
   },
 }));
 vi.mock("../services/PayrollReportService", () => ({
@@ -30,11 +34,32 @@ vi.mock("../services/PayrollPdfReportService", () => ({
     generateBanavihPdf: vi.fn().mockResolvedValue(Buffer.from("pdf")),
     generateIncesPdf: vi.fn().mockResolvedValue(Buffer.from("pdf")),
     generateArcPdf: vi.fn().mockResolvedValue(Buffer.from("pdf")),
+    generateConstanciaPdf: vi.fn().mockResolvedValue(Buffer.from("pdf")),
   },
 }));
+vi.mock("../services/PayrollBankTxtService", () => ({
+  PayrollBankTxtService: {
+    generateBanavihTxt: vi.fn().mockResolvedValue("TXT_CONTENT"),
+  },
+}));
+vi.mock("../services/MintraReportService", () => ({
+  MintraReportService: {
+    generateCsv: vi.fn().mockResolvedValue({ csv: "CSV_CONTENT" }),
+  },
+}));
+vi.mock("exceljs", () => {
+  const ws = { columns: [], addRow: vi.fn() };
+  const wb = {
+    addWorksheet: vi.fn().mockReturnValue(ws),
+    xlsx: { writeBuffer: vi.fn().mockResolvedValue(Buffer.from("xlsx")) },
+  };
+  return { default: { Workbook: vi.fn().mockImplementation(() => wb) } };
+});
 
 import prisma from "@/lib/prisma";
 import { PayrollReportService } from "../services/PayrollReportService";
+import { PayrollBankTxtService } from "../services/PayrollBankTxtService";
+import { MintraReportService } from "../services/MintraReportService";
 import {
   getIvssReportAction,
   exportIvssPdfAction,
@@ -44,6 +69,12 @@ import {
   exportIncesPdfAction,
   getArcReportAction,
   exportArcPdfAction,
+  exportIvssExcelAction,
+  exportBanavihExcelAction,
+  exportIncesExcelAction,
+  exportConstanciaTrabajoAction,
+  exportBanavihTxtAction,
+  exportMintraCsvAction,
 } from "../actions/payroll-reports.actions";
 
 const COMPANY_ID = "co-1";
@@ -219,5 +250,170 @@ describe("acceso exitoso — OWNER", () => {
   it("getIvssReportAction como OWNER → success", async () => {
     const res = await getIvssReportAction(COMPANY_ID, 2026, 4);
     expect(res.success).toBe(true);
+  });
+});
+
+// ─── Excel IVSS / FAOV / INCES ────────────────────────────────────────────────
+
+describe("exportIvssExcelAction", () => {
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportIvssExcelAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+  });
+
+  it("VIEWER → error", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(VIEWER_MEMBER as never);
+    const res = await exportIvssExcelAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+  });
+
+  it("service falla → error con mapPrismaError", async () => {
+    vi.mocked(PayrollReportService.getIvssReport).mockRejectedValue(new Error("ivss failed") as never);
+    const res = await exportIvssExcelAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("ivss failed");
+  });
+});
+
+describe("exportBanavihExcelAction", () => {
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportBanavihExcelAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+  });
+
+  it("service falla → error con mapPrismaError", async () => {
+    vi.mocked(PayrollReportService.getBanavihReport).mockRejectedValue(new Error("banavih failed") as never);
+    const res = await exportBanavihExcelAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("banavih failed");
+  });
+});
+
+describe("exportIncesExcelAction", () => {
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportIncesExcelAction(COMPANY_ID, 2026, 1);
+    expect(res.success).toBe(false);
+  });
+
+  it("service falla → error con mapPrismaError", async () => {
+    vi.mocked(PayrollReportService.getIncesReport).mockRejectedValue(new Error("inces failed") as never);
+    const res = await exportIncesExcelAction(COMPANY_ID, 2026, 1);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("inces failed");
+  });
+});
+
+// ─── Constancia de Trabajo ─────────────────────────────────────────────────────
+
+describe("exportConstanciaTrabajoAction", () => {
+  const MOCK_EMP = {
+    firstName: "Juan", lastName: "Pérez", cedulaType: "V", cedulaNumber: "12345678",
+    ivssNumber: "IV-001", position: "Analista", payrollWorkerType: "PERMANENT",
+    contractType: "INDEFINITE", hireDate: new Date("2020-01-01"), terminationDate: null,
+    salaryHistory: [{ amount: new Decimal("500.00") }],
+  };
+
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+    vi.mocked(prisma.company.findUniqueOrThrow).mockResolvedValue({ name: "Mi Empresa", rif: "J-12345678-9" } as never);
+    vi.mocked(prisma.employee.findFirstOrThrow).mockResolvedValue(MOCK_EMP as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportConstanciaTrabajoAction(COMPANY_ID, EMP_ID);
+    expect(res.success).toBe(false);
+  });
+
+  it("ACCOUNTANT + empleado válido → success, retorna base64", async () => {
+    const res = await exportConstanciaTrabajoAction(COMPANY_ID, EMP_ID);
+    expect(res.success).toBe(true);
+    if (res.success) expect(typeof res.buffer).toBe("string");
+  });
+
+  it("empleado no encontrado (findFirstOrThrow lanza) → error", async () => {
+    vi.mocked(prisma.employee.findFirstOrThrow).mockRejectedValue(new Error("Not found") as never);
+    const res = await exportConstanciaTrabajoAction(COMPANY_ID, "emp-otro");
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("Not found");
+  });
+});
+
+// ─── TXT BANAVIH / CSV MINTRA ─────────────────────────────────────────────────
+
+describe("exportBanavihTxtAction", () => {
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportBanavihTxtAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+  });
+
+  it("ACCOUNTANT → success, retorna txt y filename", async () => {
+    const res = await exportBanavihTxtAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.txt).toBe("TXT_CONTENT");
+      expect(res.filename).toContain("BANAVIH");
+    }
+  });
+
+  it("service falla → error con mapPrismaError", async () => {
+    vi.mocked(PayrollBankTxtService.generateBanavihTxt).mockRejectedValue(new Error("gen failed") as never);
+    const res = await exportBanavihTxtAction(COMPANY_ID, 2026, 4);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("gen failed");
+  });
+});
+
+describe("exportMintraCsvAction", () => {
+  beforeEach(() => {
+    mockAuth.mockResolvedValue({ userId: "user-1" });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
+  });
+
+  it("sin sesión → error", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const res = await exportMintraCsvAction(COMPANY_ID, 2026, 1);
+    expect(res.success).toBe(false);
+  });
+
+  it("ACCOUNTANT → success, retorna csv y filename", async () => {
+    const res = await exportMintraCsvAction(COMPANY_ID, 2026, 1);
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.txt).toBe("CSV_CONTENT");
+      expect(res.filename).toContain("MINTRA");
+    }
+  });
+
+  it("service falla → error con mapPrismaError", async () => {
+    vi.mocked(MintraReportService.generateCsv).mockRejectedValue(new Error("csv failed") as never);
+    const res = await exportMintraCsvAction(COMPANY_ID, 2026, 1);
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toBe("csv failed");
   });
 });

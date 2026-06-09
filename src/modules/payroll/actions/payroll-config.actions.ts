@@ -19,8 +19,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { PayrollConfigSchema } from "../schemas/payroll-config.schema";
 import { PayrollConfigService } from "../services/PayrollConfigService";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ── savePayrollConfigAction — ADMIN_ONLY + rate limit ─────────────────────────
 // NOM-A-05: Solo OWNER y ADMIN pueden crear/actualizar la configuración de nómina.
@@ -28,7 +28,7 @@ type Result<T> = { success: true; data: T } | { success: false; error: string };
 export async function savePayrollConfigAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<PayrollConfigRow>> {
+): Promise<ActionResult<PayrollConfigRow>> {
   // 1. Autenticación
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
@@ -64,8 +64,7 @@ export async function savePayrollConfigAction(
     revalidatePath(`/company/${companyId}/payroll`);
     return { success: true, data: cfg };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al guardar configuración";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -73,7 +72,7 @@ export async function savePayrollConfigAction(
 // Un ACCOUNTANT necesita leer la config para entender qué contribuciones se calculan.
 export async function getPayrollConfigAction(
   companyId: string
-): Promise<Result<PayrollConfigRow | null>> {
+): Promise<ActionResult<PayrollConfigRow | null>> {
   // 1. Auth
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };
@@ -97,7 +96,7 @@ export async function getPayrollConfigAction(
 // Retorna solo si el wizard fue completado. Usado para mostrar "Configuración pendiente".
 export async function getPayrollConfigStatusAction(
   companyId: string
-): Promise<Result<{ configured: boolean }>> {
+): Promise<ActionResult<{ configured: boolean }>> {
   // 1. Auth
   const { userId } = await auth();
   if (!userId) return { success: false, error: "No autorizado" };

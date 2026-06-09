@@ -25,8 +25,8 @@ import {
   type VacationRequestRow,
   type VacationBalanceRow,
 } from "../services/VacationRequestService";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 // ─── Guards ───────────────────────────────────────────────────────────────────
 
@@ -78,7 +78,7 @@ const InitialBalanceSchema = z.object({
 export async function getVacationRequestsAction(
   companyId: string,
   employeeId?: string
-): Promise<Result<VacationRequestRow[]>> {
+): Promise<ActionResult<VacationRequestRow[]>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -87,7 +87,7 @@ export async function getVacationRequestsAction(
       : await VacationRequestService.listPending(companyId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al obtener solicitudes" };
+    return toActionError(e);
   }
 }
 
@@ -95,14 +95,14 @@ export async function getVacationRequestsAction(
 export async function getVacationBalanceAction(
   companyId: string,
   employeeId: string
-): Promise<Result<VacationBalanceRow>> {
+): Promise<ActionResult<VacationBalanceRow>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
     const data = await VacationRequestService.getBalance(companyId, employeeId);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al obtener saldo de vacaciones" };
+    return toActionError(e);
   }
 }
 
@@ -110,7 +110,7 @@ export async function getVacationBalanceAction(
 export async function createVacationRequestAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<VacationRequestRow>> {
+): Promise<ActionResult<VacationRequestRow>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -145,7 +145,7 @@ export async function createVacationRequestAction(
     revalidatePath(`/company/${companyId}`);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al crear solicitud" };
+    return toActionError(e);
   }
 }
 
@@ -153,7 +153,7 @@ export async function createVacationRequestAction(
 export async function approveVacationRequestAction(
   companyId: string,
   requestId: string
-): Promise<Result<VacationRequestRow>> {
+): Promise<ActionResult<VacationRequestRow>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -172,7 +172,7 @@ export async function approveVacationRequestAction(
     revalidatePath(`/company/${companyId}`);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al aprobar solicitud" };
+    return toActionError(e);
   }
 }
 
@@ -181,7 +181,7 @@ export async function rejectVacationRequestAction(
   companyId: string,
   requestId: string,
   rawInput: unknown
-): Promise<Result<VacationRequestRow>> {
+): Promise<ActionResult<VacationRequestRow>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -203,7 +203,7 @@ export async function rejectVacationRequestAction(
     revalidatePath(`/company/${companyId}`);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al rechazar solicitud" };
+    return toActionError(e);
   }
 }
 
@@ -211,7 +211,7 @@ export async function rejectVacationRequestAction(
 export async function cancelVacationRequestAction(
   companyId: string,
   requestId: string
-): Promise<Result<VacationRequestRow>> {
+): Promise<ActionResult<VacationRequestRow>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -227,7 +227,7 @@ export async function cancelVacationRequestAction(
     revalidatePath(`/company/${companyId}`);
     return { success: true, data };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al cancelar solicitud" };
+    return toActionError(e);
   }
 }
 
@@ -235,7 +235,7 @@ export async function cancelVacationRequestAction(
 export async function setInitialVacationBalanceAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<void>> {
+): Promise<ActionResult<void>> {
   try {
     const guard = await guardMember(companyId);
     if ("error" in guard) return guard;
@@ -261,6 +261,6 @@ export async function setInitialVacationBalanceAction(
     revalidatePath(`/company/${companyId}/payroll/employees/${parsed.data.employeeId}`);
     return { success: true, data: undefined };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al registrar saldo inicial" };
+    return toActionError(e);
   }
 }

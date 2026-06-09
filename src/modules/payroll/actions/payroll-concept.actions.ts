@@ -15,8 +15,8 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { CreateConceptSchema, UpdateConceptSchema } from "../schemas/payroll-concept.schema";
 import { PayrollConceptService } from "../services/PayrollConceptService";
 import type { PayrollConceptRow } from "../services/PayrollConceptService";
-
-type Result<T> = { success: true; data: T } | { success: false; error: string };
+import type { ActionResult } from "../types/action-result";
+import { toActionError } from "../utils/action-errors";
 
 async function resolveAuth(companyId: string) {
   const { userId } = await auth();
@@ -35,7 +35,7 @@ function revalidate(companyId: string) {
 // ── listConceptsAction — ACCOUNTING (contador necesita verlos) ────────────────
 export async function listConceptsAction(
   companyId: string
-): Promise<Result<PayrollConceptRow[]>> {
+): Promise<ActionResult<PayrollConceptRow[]>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Acceso denegado" };
@@ -50,7 +50,7 @@ export async function listConceptsAction(
 export async function createConceptAction(
   companyId: string,
   rawInput: unknown
-): Promise<Result<PayrollConceptRow>> {
+): Promise<ActionResult<PayrollConceptRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -74,8 +74,7 @@ export async function createConceptAction(
   } catch (err) {
     if (err instanceof Error && err.message.includes("P2002"))
       return { success: false, error: "Ya existe un concepto con ese código" };
-    const msg = err instanceof Error ? err.message : "Error al crear concepto";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -84,7 +83,7 @@ export async function updateConceptAction(
   companyId: string,
   conceptId: string,
   rawInput: unknown
-): Promise<Result<PayrollConceptRow>> {
+): Promise<ActionResult<PayrollConceptRow>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -106,8 +105,7 @@ export async function updateConceptAction(
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al actualizar concepto";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
 
@@ -115,7 +113,7 @@ export async function updateConceptAction(
 export async function deleteConceptAction(
   companyId: string,
   conceptId: string
-): Promise<Result<{ deleted: true }>> {
+): Promise<ActionResult<{ deleted: true }>> {
   const { userId, member } = await resolveAuth(companyId);
   if (!userId || !member) return { success: false, error: "No autorizado" };
   if (!canAccess(member.role, ROLES.ADMIN_ONLY))
@@ -133,7 +131,6 @@ export async function deleteConceptAction(
     revalidate(companyId);
     return { success: true, data: { deleted: true } };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Error al eliminar concepto";
-    return { success: false, error: msg };
+    return toActionError(err);
   }
 }
