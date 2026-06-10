@@ -344,7 +344,8 @@ model Account {
   companySettingsAsFxGain              CompanySettings[]        @relation("SettingsFxGainAccount")
   companySettingsAsFxLoss              CompanySettings[]        @relation("SettingsFxLossAccount")
   // GAP-03 auditoría SENIAT: Retenciones IVA por Pagar — split CR en asientos de compra con retención
-  companySettingsAsIVARetentionPayable CompanySettings[]        @relation("SettingsIVARetentionPayableAccount")
+  companySettingsAsIVARetentionPayable  CompanySettings[]        @relation("SettingsIVARetentionPayableAccount")
+  companySettingsAsISLRRetentionPayable CompanySettings[]        @relation("SettingsISLRRetentionPayableAccount")
   // Fase 36D: Distribución de Ingresos
   incomeDistributionOrigins            IncomeDistribution[]     @relation("IncomeDistributionOrigin")
   incomeDistributionLineAccounts       IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
@@ -395,7 +396,8 @@ model Transaction {
   voids                          Transaction[]          @relation("VoidRelation")
   periodId                       String?
   period                         AccountingPeriod?      @relation(fields: [periodId], references: [id])
-  retenciones                    Retencion[]
+  retenciones                    Retencion[]              @relation("RetencionIssuanceTx")
+  retencionesEnteradas           Retencion[]              @relation("RetencionEnteramientoTx")
   igtfTransactions               IGTFTransaction[]
   invoices                       Invoice[]
   // Fase 15: relaciones inversas para asientos de cierre
@@ -440,6 +442,9 @@ model JournalEntry {
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   accountId     String
   account       Account     @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([transactionId])
 }
 
 model User {
@@ -510,8 +515,11 @@ model Retencion {
   totalRetention    Decimal         @db.Decimal(19, 4)
   type              RetentionType
   status            RetentionStatus @default(PENDING)
-  transactionId     String?
-  transaction       Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transactionId          String?
+  transaction            Transaction?    @relation("RetencionIssuanceTx", fields: [transactionId], references: [id], onDelete: Restrict)
+  // Asiento GL del enteramiento (Dr Ret.X por Pagar / Cr Banco) — separado del asiento de emisión
+  enteradoTransactionId  String?
+  enteradoTransaction    Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict)
   invoiceId         String?
   invoice           Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   voucherNumber     String?
@@ -2607,6 +2615,7 @@ model CompanySettings {
   ivaDFAccountId                  String? // LIABILITY — IVA Débito Fiscal (facturas venta)
   ivaCFAccountId                  String? // ASSET — IVA Crédito Fiscal (facturas compra)
   ivaRetentionPayableAccountId    String? // LIABILITY — Retenciones IVA por Pagar (GAP-03: split retención en GL compra)
+  islrRetentionPayableAccountId   String? // LIABILITY — Retenciones ISLR por Pagar (Decreto 1808: Dr CxP / Cr ISLR Ret. al emitir comprobante)
   ivaRetentionReceivableAccountId String? // ASSET — IVA Retenido por Cobrar (Riesgo-6 audit: Dr al cobrar factura a CE que retiene)
   // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
   fxGainAccountId                 String? // REVENUE — Ganancia por diferencial cambiario
@@ -2620,6 +2629,7 @@ model CompanySettings {
   ivaDFAccount                  Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
   ivaCFAccount                  Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
   ivaRetentionPayableAccount    Account? @relation("SettingsIVARetentionPayableAccount", fields: [ivaRetentionPayableAccountId], references: [id], onDelete: Restrict)
+  islrRetentionPayableAccount   Account? @relation("SettingsISLRRetentionPayableAccount", fields: [islrRetentionPayableAccountId], references: [id], onDelete: Restrict)
   ivaRetentionReceivableAccount Account? @relation("SettingsIVARetentionReceivableAccount", fields: [ivaRetentionReceivableAccountId], references: [id], onDelete: Restrict)
   fxGainAccount                 Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)
   fxLossAccount                 Account? @relation("SettingsFxLossAccount", fields: [fxLossAccountId], references: [id], onDelete: Restrict)

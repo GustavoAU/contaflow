@@ -64,7 +64,8 @@ export class TransactionService {
    * Es unico por empresa y por mes.
    */
   static async generateTransactionNumber(companyId: string, date: Date, tx: PrismaTransactionClient): Promise<string> {
-    const year = date.getFullYear();
+    // Usar siempre componentes UTC — las fechas se almacenan como UTC midnight en Prisma/PostgreSQL.
+    const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const prefix = `${year}-${month}-`;
 
@@ -138,8 +139,9 @@ export class TransactionService {
     }
 
     // 4. Verificar que el ejercicio económico no esté cerrado (Fase 15)
+    // Usar UTC para ser consistente con generateTransactionNumber y el almacenamiento en BD.
     const txDate = validated.date ?? new Date();
-    const txYear = txDate.getFullYear();
+    const txYear = txDate.getUTCFullYear();
     const isClosed = await FiscalYearCloseService.isFiscalYearClosed(validated.companyId, txYear);
     if (isClosed) {
       throw new Error(
@@ -147,7 +149,9 @@ export class TransactionService {
       );
     }
 
-    // 5. Verificar que hay un período abierto
+    // 5. Verificar que hay un período abierto y que la fecha del asiento cae en él.
+    // Sin esta validación sería posible registrar un asiento backdateado a un período
+    // cerrado mientras otro período está abierto, violando el Art. 36 del Código de Comercio.
     const activePeriod = await prisma.accountingPeriod.findFirst({
       where: { companyId: validated.companyId, status: "OPEN" },
     });
@@ -158,7 +162,16 @@ export class TransactionService {
       );
     }
 
-    // 5. Generar numero correlativo y crear transaccion + AuditLog de forma atómica.
+    const txMonth = txDate.getUTCMonth() + 1;
+    if (txYear !== activePeriod.year || txMonth !== activePeriod.month) {
+      throw new Error(
+        `La fecha del asiento (${txYear}-${String(txMonth).padStart(2, "0")}) no corresponde ` +
+        `al período abierto (${activePeriod.year}-${String(activePeriod.month).padStart(2, "0")}). ` +
+        `Abre el período correcto antes de registrar.`
+      );
+    }
+
+    // 6. Generar numero correlativo y crear transaccion + AuditLog de forma atómica.
     // Serializable garantiza que ningún otro worker puede leer/escribir el mismo prefijo
     // entre el findFirst y el create — elimina la race condition de correlativo duplicado (Z-1).
     const date = validated.date ?? new Date();

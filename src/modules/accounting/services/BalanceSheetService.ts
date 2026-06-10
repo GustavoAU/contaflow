@@ -267,6 +267,25 @@ export class BalanceSheetService {
     .abs()
     .lessThan(BALANCE_TOLERANCE);
 
+  // Advertencias contables: condiciones que no impiden generar el balance pero
+  // deben revisarse antes de presentarlo al SENIAT o en una fiscalización.
+  const warnings: string[] = [];
+  if (categorized.totalNonCurrentAssets.isNegative()) {
+    warnings.push(
+      "El total de Activos No Corrientes es negativo. " +
+      "Verifique que existan cuentas de costo original (ASSET) para cada cuenta de " +
+      "depreciación acumulada (CONTRA_ASSET) configurada en el Plan de Cuentas. " +
+      "Un activo no corriente negativo causará rechazo en una fiscalización SENIAT."
+    );
+  }
+  if (!isBalanced) {
+    warnings.push(
+      `El Balance General no cuadra: Activos (${categorized.totalAssets.toFixed(2)} Bs.) ≠ ` +
+      `Pasivos + Patrimonio (${totalLiabilitiesAndEquity.toFixed(2)} Bs.). ` +
+      "Revise que todos los asientos estén registrados con partida doble correcta."
+    );
+  }
+
   return {
     currentAssets: categorized.currentAssets,
     nonCurrentAssets: categorized.nonCurrentAssets,
@@ -284,6 +303,7 @@ export class BalanceSheetService {
     totalEquity: categorized.totalEquity.toFixed(2),
     totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
     isBalanced,
+    warnings,
   };
 }
 }

@@ -132,4 +132,7 @@ export type BalanceSheet = {
   totalLiabilitiesAndEquity: string;
   // Validación de cuadre: |Activos - (Pasivos + Patrimonio)| < 0.02
   isBalanced: boolean;
+  // Advertencias contables detectadas por el servicio (ej: activo no corriente negativo).
+  // Array vacío si no hay problemas. Mostrar en UI antes de exportar o imprimir.
+  warnings: string[];
 };

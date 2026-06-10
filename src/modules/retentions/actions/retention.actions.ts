@@ -246,54 +246,92 @@ export async function createRetentionAction(
               });
 
               // H-13: auto-vincular retención a la factura encontrada (Prov. 0049 Art. 11)
-              // La vinculación permite la conciliación exacta y habilita el split GL en futuros postings
               if (matchedInvoice?.id) {
                 await tx.retencion.update({
                   where: { id: ret.id },
                   data: { invoiceId: matchedInvoice.id },
                 });
+              }
 
-                // H-7: asiento GL suplementario si la factura ya tiene transacción y la cuenta CxP está configurada
-                // Asiento: Dr CxP (ivaRetention) — Cr Ret.IVA por Enterar (ivaRetention)
-                // Corrige el pasivo de la factura original para reflejar que parte se retiene
-                if (data.type !== "ISLR" && new Decimal(calc.ivaRetention).greaterThan(0) && matchedInvoice.transactionId) {
-                  const glSettings = await tx.companySettings.findUnique({
-                    where: { companyId: data.companyId },
-                    select: { apAccountId: true, ivaRetentionPayableAccountId: true },
+              // GL de emisión: Dr CxP / Cr Ret.X por Enterar
+              // Se genera siempre que las cuentas estén configuradas — independientemente de si
+              // la factura fue encontrada o si ya tiene asiento GL propio. La retención es un
+              // documento fiscal independiente (Prov. SNAT/2005/0056) y su obligación contable
+              // nace al momento de la emisión del comprobante, no al causarse la factura.
+              const glSettings = await tx.companySettings.findUnique({
+                where: { companyId: data.companyId },
+                select: {
+                  apAccountId: true,
+                  ivaRetentionPayableAccountId: true,
+                  islrRetentionPayableAccountId: true,
+                },
+              });
+
+              if (glSettings?.apAccountId) {
+                const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+                let totalGlRetention = new Decimal(0);
+
+                // IVA: Dr CxP / Cr Ret.IVA por Enterar (Prov. SNAT/2005/0056)
+                if (
+                  data.type !== "ISLR" &&
+                  glSettings.ivaRetentionPayableAccountId &&
+                  new Decimal(calc.ivaRetention).greaterThan(0)
+                ) {
+                  const ivaRet = new Decimal(calc.ivaRetention);
+                  totalGlRetention = totalGlRetention.plus(ivaRet);
+                  glEntries.push(
+                    {
+                      accountId: glSettings.ivaRetentionPayableAccountId,
+                      // Cr Ret.IVA: obligación por enterar al SENIAT
+                      amount: ivaRet.negated(),
+                      description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
+                    },
+                  );
+                }
+
+                // ISLR: Dr CxP / Cr Ret.ISLR por Enterar (Decreto 1808)
+                if (
+                  data.type !== "IVA" &&
+                  glSettings.islrRetentionPayableAccountId &&
+                  calc.islrAmount &&
+                  new Decimal(calc.islrAmount).greaterThan(0)
+                ) {
+                  const islrRet = new Decimal(calc.islrAmount);
+                  totalGlRetention = totalGlRetention.plus(islrRet);
+                  glEntries.push(
+                    {
+                      accountId: glSettings.islrRetentionPayableAccountId,
+                      // Cr Ret.ISLR: obligación por enterar al SENIAT
+                      amount: islrRet.negated(),
+                      description: `Retención ISLR ${voucherNumber} — Ret. por enterar`,
+                    },
+                  );
+                }
+
+                if (glEntries.length > 0 && totalGlRetention.greaterThan(0)) {
+                  // Dr CxP por el total retenido (IVA + ISLR combinados en un solo débito)
+                  glEntries.unshift({
+                    accountId: glSettings.apAccountId,
+                    // Dr CxP: reduce lo que se le pagará al proveedor
+                    amount: totalGlRetention,
+                    description: `Retenciones ${voucherNumber} — CxP`,
                   });
-                  if (glSettings?.apAccountId && glSettings.ivaRetentionPayableAccountId) {
-                    const ivaRet = new Decimal(calc.ivaRetention);
-                    const retGlTx = await tx.transaction.create({
-                      data: {
-                        companyId: data.companyId,
-                        number: `RET-${voucherNumber}`,
-                        date: data.invoiceDate,
-                        description: `Retención IVA ${voucherNumber} — ${data.providerName} (Factura ${data.invoiceNumber})`,
-                        type: "DIARIO",
-                        userId,
-                        entries: {
-                          create: [
-                            {
-                              accountId: glSettings.apAccountId,
-                              // Dr CxP: reduce lo que se le pagará al proveedor
-                              amount: ivaRet,
-                              description: `Retención IVA ${voucherNumber} — CxP`,
-                            },
-                            {
-                              accountId: glSettings.ivaRetentionPayableAccountId,
-                              // Cr Ret.IVA por Enterar: obligación por enterar al SENIAT
-                              amount: ivaRet.negated(),
-                              description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
-                            },
-                          ],
-                        },
-                      },
-                    });
-                    await tx.retencion.update({
-                      where: { id: ret.id },
-                      data: { transactionId: retGlTx.id },
-                    });
-                  }
+
+                  const retGlTx = await tx.transaction.create({
+                    data: {
+                      companyId: data.companyId,
+                      number: `RET-${voucherNumber}`,
+                      date: data.invoiceDate,
+                      description: `Retenciones ${voucherNumber} — ${data.providerName} (Factura ${data.invoiceNumber})`,
+                      type: "DIARIO",
+                      userId,
+                      entries: { create: glEntries },
+                    },
+                  });
+                  await tx.retencion.update({
+                    where: { id: ret.id },
+                    data: { transactionId: retGlTx.id },
+                  });
                 }
               }
 

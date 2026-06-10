@@ -232,7 +232,9 @@ export async function enterRetention(
         status: "ENTERADO",
         enteradoAt: new Date(),
         enteradoBy: userId,
-        transactionId: transaction.id,
+        // enteradoTransactionId guarda el asiento de pago al SENIAT separado del
+        // asiento de emisión (transactionId) — evita sobreescribir la trazabilidad GL (R-1).
+        enteradoTransactionId: transaction.id,
       },
     });
 

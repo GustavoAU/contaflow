@@ -5,12 +5,18 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
 }));
 
+vi.mock("@/lib/module-access", () => ({
+  hasModuleAccess: vi.fn().mockResolvedValue(true),
+  moduleAccessError: vi.fn().mockReturnValue("Módulo no habilitado"),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   default: {
     retencion: {
       create: vi.fn(),
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      update: vi.fn(),
     },
     companyMember: {
       findFirst: vi.fn(),
@@ -34,6 +40,12 @@ vi.mock("@/lib/prisma", () => ({
     },
     accountingPeriod: {
       findFirst: vi.fn(),
+    },
+    companySettings: {
+      findUnique: vi.fn(),
+    },
+    transaction: {
+      create: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -171,10 +183,18 @@ describe("createRetentionAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    // Por defecto: sin factura vinculada y sin cuentas GL → no genera asiento GL
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.$transaction).mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
       const tx = {
-        retencion: { create: vi.mocked(prisma.retencion.create) },
+        retencion: {
+          create: vi.mocked(prisma.retencion.create),
+          update: vi.mocked(prisma.retencion.update),
+        },
         auditLog: { create: vi.mocked(prisma.auditLog.create) },
+        companySettings: { findUnique: vi.mocked(prisma.companySettings.findUnique) },
+        transaction: { create: vi.mocked(prisma.transaction.create) },
         retentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
       };
       return fn(tx as never);
@@ -318,6 +338,108 @@ describe("createRetentionAction", () => {
 
     // Sin idempotencyKey el recovery path no aplica → retorna el error
     expect(result.success).toBe(false);
+  });
+
+  // ── GL: IVA incondicional (sin factura vinculada) ─────────────────────────
+  it("GL-1: crea asiento Dr CxP / Cr Ret.IVA aunque no haya factura vinculada", async () => {
+    // Configura cuentas GL — sin factura en BD
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+      apAccountId: "acc-cxp",
+      ivaRetentionPayableAccountId: "acc-ret-iva",
+      islrRetentionPayableAccountId: null,
+    } as never);
+    vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetention as never);
+    vi.mocked(prisma.retencion.update).mockResolvedValue(mockRetention as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-gl-1" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await createRetentionAction(VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    // El asiento GL debe crearse aunque invoice.findFirst retornó null
+    expect(prisma.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          number: "RET-CR-00000001",
+          type: "DIARIO",
+          entries: expect.objectContaining({
+            create: expect.arrayContaining([
+              expect.objectContaining({ accountId: "acc-cxp" }),     // Dr CxP
+              expect.objectContaining({ accountId: "acc-ret-iva" }), // Cr Ret.IVA
+            ]),
+          }),
+        }),
+      })
+    );
+    // transactionId vinculado al asiento GL de emisión
+    expect(prisma.retencion.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ transactionId: "tx-gl-1" }),
+      })
+    );
+  });
+
+  // ── GL: ISLR ──────────────────────────────────────────────────────────────
+  it("GL-2: crea asiento Dr CxP / Cr Ret.ISLR para retención tipo ISLR", async () => {
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+      apAccountId: "acc-cxp",
+      ivaRetentionPayableAccountId: "acc-ret-iva",
+      islrRetentionPayableAccountId: "acc-ret-islr",
+    } as never);
+
+    const mockCalcIslr = {
+      taxBase: "1000.00",
+      ivaAmount: "0.00",
+      ivaRetention: "0.00",
+      ivaRetentionPct: 0,
+      islrAmount: "30.00",  // 3% de 1000
+      islrRetentionPct: 3,
+      incesAmount: null,
+      incesRetentionPct: null,
+      fatAmount: null,
+      fatRetentionPct: null,
+      totalRetention: "30.00",
+    };
+
+    const { RetentionService } = await import("../services/RetentionService");
+    vi.mocked(RetentionService.calculate).mockReturnValueOnce(mockCalcIslr);
+
+    const mockRetIslr = {
+      ...mockRetention,
+      type: "ISLR",
+      ivaRetention: { toString: () => "0.00" },
+      islrAmount: { toString: () => "30.00" },
+      totalRetention: { toString: () => "30.00" },
+    };
+    vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetIslr as never);
+    vi.mocked(prisma.retencion.update).mockResolvedValue(mockRetIslr as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-gl-islr" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      type: "ISLR",
+      islrCode: "HONORARIOS_PN",
+    });
+
+    expect(result.success).toBe(true);
+    // Asiento solo tiene CxP y ISLR — NO IVA
+    expect(prisma.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entries: expect.objectContaining({
+            create: expect.arrayContaining([
+              expect.objectContaining({ accountId: "acc-cxp" }),      // Dr CxP
+              expect.objectContaining({ accountId: "acc-ret-islr" }), // Cr Ret.ISLR
+            ]),
+          }),
+        }),
+      })
+    );
+    // Cuenta de IVA NO debe aparecer en el asiento ISLR
+    const callArgs = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    const entries = (callArgs?.data as { entries?: { create?: { accountId: string }[] } })?.entries?.create ?? [];
+    expect(entries.some((e) => e.accountId === "acc-ret-iva")).toBe(false);
   });
 });
 
@@ -666,6 +788,8 @@ describe("createRetentionAction — ALERTA 20: período contable activo", () => 
         fn({
           retencion: prisma.retencion,
           auditLog: prisma.auditLog,
+          companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
+          transaction: { create: vi.fn() },
         })) as never
     );
     vi.mocked(prisma.retencion.create).mockResolvedValue({
@@ -774,7 +898,12 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null); // sin restricción de período
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ retencion: prisma.retencion, auditLog: prisma.auditLog })) as never
+        fn({
+          retencion: prisma.retencion,
+          auditLog: prisma.auditLog,
+          companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
+          transaction: { create: vi.fn() },
+        })) as never
     );
     vi.mocked(prisma.retencion.create).mockResolvedValue({
       ...mockRetention,

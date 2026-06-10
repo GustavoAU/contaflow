@@ -89,7 +89,11 @@ describe("enterRetention", () => {
     );
     expect(prisma.retencion.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "ENTERADO" }),
+        data: expect.objectContaining({
+          status: "ENTERADO",
+          // enteradoTransactionId preserva el asiento de emisión en transactionId (R-1)
+          enteradoTransactionId: mockTransaction.id,
+        }),
       })
     );
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
