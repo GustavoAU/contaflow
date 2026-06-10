@@ -249,19 +249,23 @@ export class InvoiceService {
     // ─── Escrituras DB atomizadas + GL posting (ADR-026) ─────────────────────
     const doCreate = async (db: Prisma.TransactionClient) => {
       // OM-05: bloquear fechas en períodos contables CERRADOS
-      // (misma guarda que R-09 en InventoryOperationsService)
+      // Hallazgo #9: auto-asignar periodId desde el período del mes de la factura cuando el
+      // caller no lo provee — garantiza que `getInvoiceBookPaginated` y reportes por período
+      // encuentren la factura aunque la UI use filtro por fecha.
       const invoiceDate = new Date(input.date);
       const invYear = invoiceDate.getFullYear();
       const invMonth = invoiceDate.getMonth() + 1; // getMonth() es 0-based
-      const closedPeriod = await db.accountingPeriod.findFirst({
-        where: { companyId: input.companyId, status: "CLOSED", year: invYear, month: invMonth },
-        select: { year: true, month: true },
+      const periodForDate = await db.accountingPeriod.findFirst({
+        where: { companyId: input.companyId, year: invYear, month: invMonth },
+        select: { id: true, status: true, year: true, month: true },
       });
-      if (closedPeriod) {
+      if (periodForDate?.status === "CLOSED") {
         throw new Error(
-          `No se puede registrar una factura en el período ${String(closedPeriod.month).padStart(2, "0")}/${closedPeriod.year} porque está CERRADO. Use una fecha en el período activo.`
+          `No se puede registrar una factura en el período ${String(periodForDate.month).padStart(2, "0")}/${periodForDate.year} porque está CERRADO. Use una fecha en el período activo.`
         );
       }
+      // Auto-asignar: si el caller no proveyó periodId, usar el período encontrado (si existe)
+      const resolvedPeriodId = input.periodId ?? periodForDate?.id ?? null;
 
       // H-12: validar unicidad de Nº Control por proveedor (COT Art. 101 — ilícito formal)
       // Solo aplica a compras con controlNumber presente
@@ -354,7 +358,7 @@ export class InvoiceService {
           currency: input.currency ?? "VES",
           exchangeRateId: input.exchangeRateId,
           transactionId: input.transactionId,
-          periodId: input.periodId,
+          periodId: resolvedPeriodId,
           createdBy: input.createdBy ?? "",
           idempotencyKey: input.idempotencyKey,
           // Fase 16: campos de cartera
