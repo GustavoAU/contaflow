@@ -7,13 +7,14 @@ import type { Prisma, IvaLineRate, StockControlLevel } from "@prisma/client";
 import { resolveQuantity } from "@/modules/inventory/services/InventoryUomService";
 import { createHash } from "crypto";
 import type { InvoiceLineInput } from "../schemas/invoice.schema";
+import { VEN_TAX_RATES } from "@/lib/tax-config";
 
 // ─── Tasas decimales por IvaLineRate ─────────────────────────────────────────
 const IVA_RATES: Record<IvaLineRate, Decimal> = {
   EXENTO: new Decimal("0"),
-  REDUCIDO_8: new Decimal("0.08"),
-  GENERAL_16: new Decimal("0.16"),
-  ADICIONAL_31: new Decimal("0.31"),
+  REDUCIDO_8: new Decimal(VEN_TAX_RATES.ivaReduced),
+  GENERAL_16: new Decimal(VEN_TAX_RATES.ivaGeneral),
+  ADICIONAL_31: new Decimal(VEN_TAX_RATES.ivaCombined),
 };
 
 // Mapeo IvaLineRate → TaxLineType(s) para derivar InvoiceTaxLine (ADR-024 D-1.3)
@@ -66,8 +67,8 @@ export function deriveInvoiceTaxLines(computed: ComputedLine[]): DerivedTaxLineI
       // Misma base para ambos — ver CLAUDE.md Z-2 y best-practices.md §3.1
       const generalKey = `IVA_GENERAL::${c.luxuryGroupId}`;
       const additionalKey = `IVA_ADICIONAL::${c.luxuryGroupId}`;
-      const generalAmt = c.subtotal.mul(new Decimal("0.16"));
-      const additionalAmt = c.subtotal.mul(new Decimal("0.15"));
+      const generalAmt = c.subtotal.mul(new Decimal(VEN_TAX_RATES.ivaGeneral));
+      const additionalAmt = c.subtotal.mul(new Decimal(VEN_TAX_RATES.ivaLuxury));
 
       const existing = map.get(generalKey);
       if (existing) {
@@ -103,7 +104,7 @@ export function deriveInvoiceTaxLines(computed: ComputedLine[]): DerivedTaxLineI
       result.push({
         taxType: "IVA_GENERAL",
         base: val.base,
-        rate: new Decimal("16"),
+        rate: new Decimal(VEN_TAX_RATES.ivaGeneral).times(100),
         amount: val.amount,
         luxuryGroupId: val.luxuryGroupId,
       });
@@ -111,7 +112,7 @@ export function deriveInvoiceTaxLines(computed: ComputedLine[]): DerivedTaxLineI
       result.push({
         taxType: "IVA_ADICIONAL",
         base: val.base,
-        rate: new Decimal("15"),
+        rate: new Decimal(VEN_TAX_RATES.ivaLuxury).times(100),
         amount: val.amount,
         luxuryGroupId: val.luxuryGroupId,
       });
@@ -139,8 +140,8 @@ function rateTaxType(rate: IvaLineRate): "IVA_GENERAL" | "IVA_REDUCIDO" | "EXENT
 
 function ratePercent(taxType: "IVA_GENERAL" | "IVA_REDUCIDO" | "EXENTO"): Decimal {
   switch (taxType) {
-    case "IVA_GENERAL": return new Decimal("16");
-    case "IVA_REDUCIDO": return new Decimal("8");
+    case "IVA_GENERAL": return new Decimal(VEN_TAX_RATES.ivaGeneral).times(100);
+    case "IVA_REDUCIDO": return new Decimal(VEN_TAX_RATES.ivaReduced).times(100);
     case "EXENTO": return new Decimal("0");
   }
 }

@@ -1,6 +1,7 @@
 // src/modules/expenses/schemas/expense.schema.ts
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 const MAX_AMOUNT = "999999999999999"; // 19 dígitos, compatible con @db.Decimal(19,4)
 
@@ -38,7 +39,7 @@ export const CreateExpenseSchema = z
         { error: "El monto debe ser mayor a cero y dentro del rango permitido" }
       ),
 
-    currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+    currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
 
     exchangeRate: z
       .string()

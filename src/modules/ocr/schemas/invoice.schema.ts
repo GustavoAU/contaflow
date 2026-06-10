@@ -1,5 +1,6 @@
 // src/modules/ocr/schemas/invoice.schema.ts
 import { z } from "zod";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 // ─── Riesgo de campo extraído por OCR ─────────────────────────────────────────
 // Generado en GeminiOCRService cuando un campo fiscal crítico no supera
@@ -29,7 +30,7 @@ export const ExtractedInvoiceSchema = z.object({
   ivaAdicional: z.string().optional(),           // IVA adicional lujo
   montoTotal: z.string().optional(),
   // ── Metadatos del pago ─────────────────────────────────────────────────────
-  currency: z.enum(["VES", "USD", "EUR"]).optional().catch(undefined),
+  currency: z.enum(SUPPORTED_CURRENCIES).optional().catch(undefined),
   paymentMethod: z
     .enum(["EFECTIVO", "TARJETA", "PAGO_MOVIL", "ZELLE", "CASHEA", "TRANSFERENCIA", "OTRO"])
     .optional()

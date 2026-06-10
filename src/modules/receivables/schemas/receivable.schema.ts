@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const RecordPaymentSchema = z.object({
   companyId:      z.string().min(1, { error: "companyId requerido" }),
@@ -20,7 +21,7 @@ export const RecordPaymentSchema = z.object({
       },
       { error: "Monto inválido o fuera del rango permitido" }
     ),
-  currency:       z.enum(["VES", "USD", "EUR"]).default("VES"),
+  currency:       z.enum(SUPPORTED_CURRENCIES).default("VES"),
   amountOriginal: z
     .string()
     .refine(

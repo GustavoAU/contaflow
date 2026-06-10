@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { zMoneyPositive } from "@/lib/zod-helpers";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 // ─── CajaCaja ────────────────────────────────────────────────────────────────
 
@@ -7,7 +8,7 @@ export const CreateCajaCajaSchema = z.object({
   companyId: z.string().min(1),
   name: z.string().min(1).max(255),
   accountId: z.string().min(1),
-  currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+  currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
   maxBalance: zMoneyPositive,
 });
 
@@ -44,7 +45,7 @@ export const CreateMovementSchema = z
     description: z.string().max(2000).optional(),
     expenseAccountId: z.string().min(1),
     amount: zMoneyPositive,
-    currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+    currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
     supportingDocumentId: z.string().optional(),
     notes: z.string().max(2000).optional(),
   })

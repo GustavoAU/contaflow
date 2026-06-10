@@ -1,6 +1,7 @@
 // src/modules/orders/schemas/quotation.schema.ts
 import { z } from "zod";
 import { zMoneyPositive } from "@/lib/zod-helpers";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const QuotationItemSchema = z.object({
   description: z.string().trim().min(1, "Descripción requerida").max(200),
@@ -26,7 +27,7 @@ export const CreateQuotationSchema = z.object({
     error: "Fecha de validez inválida",
   }),
   notes: z.string().trim().max(500).optional(),
-  currency: z.enum(["VES", "USD", "EUR"]).optional(),
+  currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   items: z
     .array(QuotationItemSchema)
     .min(1, "Debe incluir al menos un ítem")

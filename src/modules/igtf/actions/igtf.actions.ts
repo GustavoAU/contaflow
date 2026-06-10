@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import type { ActionResult } from "../types/action-result";
@@ -38,7 +39,7 @@ const CreateIGTFSchema = z.object({
     },
     { error: "Monto inválido o fuera del rango permitido" }
   ),
-  currency: z.enum(["USD", "EUR", "VES"]),
+  currency: z.enum(SUPPORTED_CURRENCIES),
   concept: z.string().min(1, { error: "Concepto requerido" }),
   transactionId: z.string().optional(),
   createdBy: z.string().optional(), // kept for backward compat — action uses auth() userId

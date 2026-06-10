@@ -129,3 +129,12 @@ export const VEN_TAX_RATES        = FISCAL_CONFIGS.VEN.taxRates;
 
 /** Regex Nº Control SENIAT */
 export const VEN_CONTROL_NUMBER_REGEX = FISCAL_CONFIGS.VEN.controlNumberRegex!;
+
+// ── Monedas ───────────────────────────────────────────────────────────────────
+
+/**
+ * Monedas soportadas (ISO 4217) — fuente única de verdad para z.enum en schemas.
+ * Agregar aquí cuando se soporte una nueva moneda funcional.
+ */
+export const SUPPORTED_CURRENCIES = ["VES", "USD", "EUR"] as const;
+export type SupportedCurrency = typeof SUPPORTED_CURRENCIES[number];

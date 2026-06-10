@@ -1,6 +1,7 @@
 // src/modules/fixed-assets/schemas/fixed-asset.schema.ts
 import { z } from "zod";
 import { zMoneyAmount, zMoneyPositive } from "@/lib/zod-helpers";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const CreateFixedAssetSchema = z.object({
   companyId: z.string().min(1, "Empresa requerida"),
@@ -12,7 +13,7 @@ export const CreateFixedAssetSchema = z.object({
   acquisitionDate: z.coerce.date({ error: "Fecha de adquisición requerida" }),
   acquisitionCost: zMoneyPositive,
   // N2: moneda de adquisición y tasa BCV histórica
-  acquisitionCurrency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+  acquisitionCurrency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
   bcvRateAtAcquisition: zMoneyAmount.optional().nullable(), // tasa BCV a la fecha de compra
   residualValue: zMoneyAmount.default("0"),
   usefulLifeMonths: z

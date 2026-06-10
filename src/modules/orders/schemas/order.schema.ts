@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { QuotationItemSchema } from "./quotation.schema";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const CreateOrderSchema = z.object({
   type: z.enum(["PURCHASE", "SALE"], { error: "Tipo de orden inválido" }),
@@ -13,7 +14,7 @@ export const CreateOrderSchema = z.object({
     error: "Fecha esperada inválida",
   }).optional(),
   notes: z.string().trim().max(500).optional(),
-  currency: z.enum(["VES", "USD", "EUR"]).optional(),
+  currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   items: z
     .array(QuotationItemSchema)
     .min(1, "Debe incluir al menos un ítem")
