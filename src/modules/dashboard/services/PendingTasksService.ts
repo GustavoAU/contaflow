@@ -24,7 +24,8 @@ export type PendingTaskType =
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
-  | "PAGOS_SIN_ASIENTO_GL";        // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
+  | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
+  | "RETENCIONES_SIN_ASIENTO_GL";  // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -79,6 +80,8 @@ export const PendingTasksService = {
       glConfigIgtf,
       // Hallazgo #12
       pagosSinAsientoCount,
+      // Hallazgo #1
+      retencionesSinAsientoCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -266,6 +269,17 @@ export const PendingTasksService = {
           status: "APPLIED",
           glTransactionId: null,
           bankAccountId: { not: null },
+          deletedAt: null,
+        },
+      }),
+
+      // 22. Hallazgo #1: retenciones (RIVA/RISLR) sin asiento de emisión en Libro Diario
+      // createRetentionAction omite GL silenciosamente si las cuentas de retención no están configuradas
+      prisma.retencion.count({
+        where: {
+          companyId,
+          transactionId: null,
+          status: { not: "VOIDED" },
           deletedAt: null,
         },
       }),
@@ -477,6 +491,19 @@ export const PendingTasksService = {
         title: "Pagos a proveedores sin asiento contable",
         description: `${pagosSinAsientoCount} lote${pl ? "s" : ""} de pago aplicado${pl ? "s" : ""} no ${pl ? "tienen" : "tiene"} asiento GL. Configure la cuenta CxP en Ajustes > Contabilidad para que los pagos a proveedores se registren en el Libro Diario.`,
         count: pagosSinAsientoCount,
+        href: "/settings",
+      });
+    }
+
+    // Hallazgo #1: retenciones (RIVA/RISLR) sin asiento de emisión en Libro Diario
+    if (retencionesSinAsientoCount > 0) {
+      const pl = retencionesSinAsientoCount > 1;
+      tasks.push({
+        type: "RETENCIONES_SIN_ASIENTO_GL",
+        severity: "error",
+        title: "Retenciones sin asiento contable",
+        description: `${retencionesSinAsientoCount} retención${pl ? "es" : ""} sin asiento en el Libro Diario. Configure las cuentas de retención en Ajustes > Contabilidad para que los comprobantes se registren automáticamente (Prov. SNAT/2005/0056).`,
+        count: retencionesSinAsientoCount,
         href: "/settings",
       });
     }
