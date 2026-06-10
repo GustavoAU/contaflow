@@ -12,6 +12,7 @@ vi.mock("@/lib/prisma", () => ({
     order: { count: vi.fn() },               // GAP-02
     inventoryItem: { count: vi.fn() },       // PC-03
     company: { findFirst: vi.fn() },         // ADR-030 audit: isSpecialContributor
+    companySettings: { findUnique: vi.fn() }, // Hallazgo #5: igtfPayableAccountId
     $queryRaw: vi.fn(),
     // Parte VII: nómina
     employee: { count: vi.fn() },
@@ -32,6 +33,7 @@ function mockAllZero() {
   vi.mocked(prisma.order.count).mockResolvedValue(0 as never);           // GAP-02
   vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
   vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
+  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ igtfPayableAccountId: "acc-configured" } as never);
   // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
   // Parte VII: nómina — sin empleados por defecto → no dispara alertas de nómina
@@ -335,6 +337,34 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(task?.count).toBe(1);
     expect(task?.href).toBe("/payroll/employees");
     expect(task?.description).toContain("Art. 45");
+  });
+
+  // Hallazgo #5: IGTF con igtfPayableAccountId no configurado
+  it("detecta IGTF sin cuenta GL configurada (IGTF_SIN_CUENTA_GL) — severity error", async () => {
+    vi.mocked(prisma.invoice.count)
+      .mockResolvedValueOnce(0 as never)         // invoicesSinCausarCount
+      .mockResolvedValueOnce(3 as never);        // igtfSinCuentaCount — 3 facturas con IGTF
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(
+      { igtfPayableAccountId: null } as never   // cuenta no configurada
+    );
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "IGTF_SIN_CUENTA_GL");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(3);
+    expect(task?.description).toContain("IGTF por Pagar");
+    expect(task?.href).toBe("/settings");
+  });
+
+  it("NO emite IGTF_SIN_CUENTA_GL cuando la cuenta está configurada", async () => {
+    vi.mocked(prisma.invoice.count)
+      .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(5 as never);       // igtfSinCuentaCount = 5
+    // companySettings.findUnique ya retorna igtfPayableAccountId: "acc-configured" por mockAllZero
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "IGTF_SIN_CUENTA_GL")).toBeUndefined();
   });
 
   it("NO emite alertas de nómina cuando la empresa no tiene empleados activos", async () => {
