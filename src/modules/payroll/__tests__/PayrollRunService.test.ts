@@ -360,6 +360,14 @@ describe("PayrollRunService.approve", () => {
     expect(vi.mocked(prisma.transaction.create)).toHaveBeenCalled();
   });
 
+  it("hallazgo #11: asiento GL usa run.periodEnd como fecha (no new Date())", async () => {
+    setupApproveMocks();
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    expect(txCall?.data?.date).toEqual(BASE_RUN.periodEnd);
+  });
+
   it("throws when run already approved (updateMany returns count 0)", async () => {
     vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue({ ...BASE_RUN, status: "APPROVED" } as never);
     await expect(

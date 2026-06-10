@@ -646,7 +646,10 @@ export const PayrollRunService = {
         data: {
           companyId,
           number: `NOM-${run.periodStart.toISOString().split("T")[0]}-${runId.slice(-6)}`,
-          date: new Date(),
+          // Hallazgo #11: fecha del asiento = fin del período de nómina, no la fecha de aprobación.
+          // Si se usara new Date(), el asiento aparece en el Ledger del mes de aprobación
+          // en lugar del mes del período, rompiendo la coincidencia InvoiceBook ↔ Ledger.
+          date: run.periodEnd,
           description: `Causación nómina ${run.periodStart.toISOString().split("T")[0]} — ${run.periodEnd.toISOString().split("T")[0]} (${run.employeeCount} empleados)`,
           reference: runId,
           userId,

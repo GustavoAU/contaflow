@@ -23,7 +23,8 @@ export type PendingTaskType =
   | "NOM_PRESTACIONES_POR_ACUMULAR" // Trimestre actual sin acumular prestaciones (Art. 142 LOTTT)
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
-  | "IGTF_SIN_CUENTA_GL";          // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
+  | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
+  | "PAGOS_SIN_ASIENTO_GL";        // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -76,6 +77,8 @@ export const PendingTasksService = {
       // Hallazgo #5
       igtfSinCuentaCount,
       glConfigIgtf,
+      // Hallazgo #12
+      pagosSinAsientoCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -253,6 +256,18 @@ export const PendingTasksService = {
       prisma.companySettings.findUnique({
         where: { companyId },
         select: { igtfPayableAccountId: true },
+      }),
+
+      // 21. Hallazgo #12: lotes A/P aplicados sin asiento GL
+      // PaymentBatchService silenciosamente omite GL si apAccountId no está configurado
+      prisma.paymentBatch.count({
+        where: {
+          companyId,
+          status: "APPLIED",
+          glTransactionId: null,
+          bankAccountId: { not: null },
+          deletedAt: null,
+        },
       }),
     ]);
 
@@ -450,6 +465,19 @@ export const PendingTasksService = {
         description: `La tasa BCV de ${MONTH_NAMES[prevMonth - 1]}-${prevYear} está registrada pero no se han calculado los intereses sobre prestaciones. Art. 143 LOTTT — calcúlelos en Prestaciones Sociales.`,
         count: nomActiveEmployeesCount,
         href: "/payroll/benefits",
+      });
+    }
+
+    // Hallazgo #12: lotes A/P aplicados sin GL (apAccountId faltante → GL se omite silenciosamente)
+    if (pagosSinAsientoCount > 0) {
+      const pl = pagosSinAsientoCount > 1;
+      tasks.push({
+        type: "PAGOS_SIN_ASIENTO_GL",
+        severity: "error",
+        title: "Pagos a proveedores sin asiento contable",
+        description: `${pagosSinAsientoCount} lote${pl ? "s" : ""} de pago aplicado${pl ? "s" : ""} no ${pl ? "tienen" : "tiene"} asiento GL. Configure la cuenta CxP en Ajustes > Contabilidad para que los pagos a proveedores se registren en el Libro Diario.`,
+        count: pagosSinAsientoCount,
+        href: "/settings",
       });
     }
 

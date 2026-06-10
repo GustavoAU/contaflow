@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
     inventoryItem: { count: vi.fn() },       // PC-03
     company: { findFirst: vi.fn() },         // ADR-030 audit: isSpecialContributor
     companySettings: { findUnique: vi.fn() }, // Hallazgo #5: igtfPayableAccountId
+    paymentBatch: { count: vi.fn() },         // Hallazgo #12: lotes A/P sin GL
     $queryRaw: vi.fn(),
     // Parte VII: nómina
     employee: { count: vi.fn() },
@@ -34,6 +35,7 @@ function mockAllZero() {
   vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
   vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
   vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ igtfPayableAccountId: "acc-configured" } as never);
+  vi.mocked(prisma.paymentBatch.count).mockResolvedValue(0 as never);      // Hallazgo #12
   // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
   // Parte VII: nómina — sin empleados por defecto → no dispara alertas de nómina
@@ -365,6 +367,27 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "IGTF_SIN_CUENTA_GL")).toBeUndefined();
+  });
+
+  // Hallazgo #12: lotes de pago aplicados sin asiento GL
+  it("detecta lotes de pago A/P aplicados sin GL (PAGOS_SIN_ASIENTO_GL) — severity error", async () => {
+    vi.mocked(prisma.paymentBatch.count).mockResolvedValue(4 as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+
+    const task = result.tasks.find((t) => t.type === "PAGOS_SIN_ASIENTO_GL");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(4);
+    expect(task?.href).toBe("/settings");
+    expect(task?.description).toContain("CxP");
+  });
+
+  it("NO emite PAGOS_SIN_ASIENTO_GL cuando todos los lotes tienen asiento GL", async () => {
+    vi.mocked(prisma.paymentBatch.count).mockResolvedValue(0 as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "PAGOS_SIN_ASIENTO_GL")).toBeUndefined();
   });
 
   it("NO emite alertas de nómina cuando la empresa no tiene empleados activos", async () => {
