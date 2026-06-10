@@ -168,7 +168,7 @@ describe("InvoiceService.create", () => {
   it("OM-05: rechaza factura en período contable CERRADO", async () => {
     // El período 2026-03 está cerrado
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
-      { year: 2026, month: 3 } as never
+      { id: "period-closed", status: "CLOSED", year: 2026, month: 3 } as never
     );
 
     await expect(InvoiceService.create(BASE_INPUT)).rejects.toThrow(
@@ -182,6 +182,49 @@ describe("InvoiceService.create", () => {
     vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
 
     await expect(InvoiceService.create(BASE_INPUT)).resolves.toBeDefined();
+  });
+
+  it("hallazgo #9: auto-asigna periodId desde el período OPEN del mes de la factura", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
+      { id: "period-open", status: "OPEN", year: 2026, month: 3 } as never
+    );
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+
+    await InvoiceService.create({ ...BASE_INPUT, periodId: undefined });
+
+    expect(prisma.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: "period-open" }),
+      })
+    );
+  });
+
+  it("hallazgo #9: respeta periodId explícito del caller (no lo sobreescribe)", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
+      { id: "period-open", status: "OPEN", year: 2026, month: 3 } as never
+    );
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+
+    await InvoiceService.create({ ...BASE_INPUT, periodId: "explicit-period-id" });
+
+    expect(prisma.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: "explicit-period-id" }),
+      })
+    );
+  });
+
+  it("hallazgo #9: periodId queda null cuando no existe período para el mes de la factura", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+
+    await InvoiceService.create({ ...BASE_INPUT, periodId: undefined });
+
+    expect(prisma.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: null }),
+      })
+    );
   });
 });
 
