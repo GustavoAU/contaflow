@@ -399,4 +399,27 @@ describe("PendingTasksService.getPendingTasks", () => {
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type?.startsWith("NOM_"))).toBeUndefined();
   });
+
+  // Hallazgo #1: retenciones sin asiento GL
+  it("detecta retenciones sin asiento GL (RETENCIONES_SIN_ASIENTO_GL) — severity error", async () => {
+    // retencion.count se llama 3 veces en Promise.all (sinVincular, porEnterar, sinAsientoGL)
+    vi.mocked(prisma.retencion.count)
+      .mockResolvedValueOnce(0 as never)  // RETENCIONES_SIN_VINCULAR
+      .mockResolvedValueOnce(0 as never)  // RETENCIONES_POR_ENTERAR
+      .mockResolvedValueOnce(3 as never); // RETENCIONES_SIN_ASIENTO_GL
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "RETENCIONES_SIN_ASIENTO_GL");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(3);
+    expect(task?.href).toBe("/settings");
+    expect(task?.description).toContain("Prov. SNAT/2005/0056");
+  });
+
+  it("NO emite RETENCIONES_SIN_ASIENTO_GL cuando todas las retenciones tienen asiento GL", async () => {
+    // mockAllZero ya pone retencion.count = 0 para todas las llamadas
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "RETENCIONES_SIN_ASIENTO_GL")).toBeUndefined();
+  });
 });
