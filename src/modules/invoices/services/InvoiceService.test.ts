@@ -29,6 +29,10 @@ vi.mock("@/lib/prisma", () => {
     customer: {
       findFirst: vi.fn().mockResolvedValue(null),
     },
+    // ADR-019 D-1: outbox PA-121 — SeniatSubmission en el mismo $transaction
+    seniatSubmission: {
+      create: vi.fn(),
+    },
     $transaction: vi.fn().mockImplementation(
       (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)
     ),
@@ -163,6 +167,43 @@ describe("InvoiceService.create", () => {
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ paymentTermDays: 30 } as never);
 
     await expect(InvoiceService.create(BASE_INPUT)).rejects.toThrow("DB error");
+  });
+
+  // ── ADR-019 D-1: outbox PA-121 — SeniatSubmission en el mismo $transaction ──
+  it("crea SeniatSubmission para factura de VENTA en la misma transacción (PA-121)", async () => {
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(
+      { paymentTermDays: 30, rif: "J-99999999-9" } as never
+    );
+
+    await InvoiceService.create(BASE_INPUT);
+
+    expect(prisma.seniatSubmission.create).toHaveBeenCalledTimes(1);
+    expect(prisma.seniatSubmission.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: "company-1",
+          invoiceId: "inv-1",
+          payload: expect.objectContaining({
+            companyRif: "J-99999999-9",
+            // El payload serializa taxType (no `type`) — fix auditoría 2026-06-10
+            taxLines: expect.arrayContaining([
+              expect.objectContaining({ taxType: "IVA_GENERAL" }),
+            ]),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("NO crea SeniatSubmission para facturas de COMPRA (ADR-019 D-1.1d)", async () => {
+    vi.mocked(prisma.invoice.create).mockResolvedValue(
+      makeInvoiceRow({ docType: "FACTURA" }) as never
+    );
+
+    await InvoiceService.create({ ...BASE_INPUT, type: "PURCHASE" as const });
+
+    expect(prisma.seniatSubmission.create).not.toHaveBeenCalled();
   });
 
   it("OM-05: rechaza factura en período contable CERRADO", async () => {

@@ -80,17 +80,29 @@ const validNoteData = {
 const mockNcInvoice = {
   id: "nc-1",
   companyId: COMPANY_ID,
+  type: "SALE",
   docType: "NOTA_CREDITO",
   invoiceNumber: "NC-0000001",
+  controlNumber: "00-00000002",
   relatedInvoiceId: "inv-original",
   relatedDocNumber: "0000001",
   totalAmountVes: new Decimal("1000"),
   pendingAmount: new Decimal("0"),
   paymentStatus: "PAID",
+  // ADR-019: buildPayload requiere date/currency/counterpart del documento creado
+  date: new Date("2026-04-10"),
+  currency: "VES",
+  counterpartName: "Cliente ABC",
+  counterpartRif: "J-12345678-9",
+  taxLines: [],
 };
 
 // ─── Interactive $transaction mock ───────────────────────────────────────────
 // Passes a tx object that proxies back to the mocked prisma methods
+// ADR-019 D-1: seniatSubmission.create se invoca dentro del mismo $transaction
+// para NC/ND de venta — el mock se expone para poder asertar sobre él.
+const mockSeniatSubmissionCreate = vi.fn();
+
 function setupTransactionMock() {
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (tx: unknown) => unknown) =>
@@ -102,6 +114,9 @@ function setupTransactionMock() {
         transactionLine: { createMany: vi.fn() },
         // H-002: controlNumberSequence para auto-generación de Nº Control en NC/ND SALE
         controlNumberSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+        // ADR-019 D-1/D-1.1d: outbox PA-121 para NC/ND de venta
+        seniatSubmission: { create: mockSeniatSubmissionCreate },
+        company: { findUnique: vi.fn().mockResolvedValue({ rif: "J-99999999-9" }) },
       })) as never,
   );
 }
@@ -272,6 +287,21 @@ describe("InvoiceService.createCreditNote", () => {
       }),
     );
   });
+
+  // ── ADR-019 D-1/D-1.1d: SeniatSubmission en el mismo $transaction (PA-121) ──
+  it("crea SeniatSubmission para NC de venta en la misma transacción", async () => {
+    await createCreditNote(COMPANY_ID, validNoteData, CREATED_BY);
+
+    expect(mockSeniatSubmissionCreate).toHaveBeenCalledTimes(1);
+    expect(mockSeniatSubmissionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: COMPANY_ID,
+          invoiceId: "nc-1",
+        }),
+      }),
+    );
+  });
 });
 
 // ─── createDebitNote tests ────────────────────────────────────────────────────
@@ -279,11 +309,19 @@ describe("InvoiceService.createDebitNote", () => {
   const mockNdInvoice = {
     id: "nd-1",
     companyId: COMPANY_ID,
+    type: "SALE",
     docType: "NOTA_DEBITO",
     invoiceNumber: "ND-0000001",
+    controlNumber: "00-00000003",
     relatedInvoiceId: "inv-original",
     relatedDocNumber: "0000001",
     totalAmountVes: new Decimal("200"),
+    // ADR-019: buildPayload requiere date/currency/counterpart del documento creado
+    date: new Date("2026-04-10"),
+    currency: "VES",
+    counterpartName: "Cliente ABC",
+    counterpartRif: "J-12345678-9",
+    taxLines: [],
   };
 
   beforeEach(() => {
@@ -328,6 +366,21 @@ describe("InvoiceService.createDebitNote", () => {
         where: { id: "inv-original" },
         data: expect.objectContaining({
           pendingAmount: expect.anything(), // Decimal increased
+        }),
+      }),
+    );
+  });
+
+  // ── ADR-019 D-1/D-1.1d: SeniatSubmission en el mismo $transaction (PA-121) ──
+  it("crea SeniatSubmission para ND de venta en la misma transacción", async () => {
+    await createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY);
+
+    expect(mockSeniatSubmissionCreate).toHaveBeenCalledTimes(1);
+    expect(mockSeniatSubmissionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: COMPANY_ID,
+          invoiceId: "nd-1",
         }),
       }),
     );

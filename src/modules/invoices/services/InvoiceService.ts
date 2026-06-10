@@ -15,6 +15,7 @@ import {
 import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 import { getNextControlNumber } from "./InvoiceSequenceService";
+import { SeniatReportingService } from "./SeniatReportingService";
 
 // ─── Types for NC/ND ─────────────────────────────────────────────────────────
 export type CreateCreditDebitNoteInput = {
@@ -288,9 +289,10 @@ export class InvoiceService {
       }
 
       // Fase 16: obtener paymentTermDays para calcular dueDate
+      // ADR-019: rif necesario para el payload de SeniatSubmission (PA-121)
       const company = await db.company.findUnique({
         where: { id: input.companyId },
-        select: { paymentTermDays: true },
+        select: { paymentTermDays: true, rif: true },
       });
       const paymentTermDays = company?.paymentTermDays ?? 30;
       const dueDate = new Date(input.date);
@@ -451,6 +453,16 @@ export class InvoiceService {
             m.type === "ENTRADA" ? glTransactionId : null
           );
         }
+      }
+
+      // ─── PA-121: SeniatSubmission en el MISMO $transaction (ADR-019 D-1) ────
+      // Solo documentos de VENTA se transmiten al SENIAT (las compras no son
+      // documentos emitidos por el contribuyente — ADR-019 D-1.1d).
+      // El publish a QStash ocurre POST-COMMIT en la action (D-1.1a: nunca
+      // I/O HTTP dentro del $transaction).
+      if (input.type === "SALE") {
+        const payload = SeniatReportingService.buildPayload(invoice, company?.rif ?? null);
+        await SeniatReportingService.createSubmission(db, input.companyId, invoice.id, payload);
       }
 
       // Re-fetch para incluir transactionId actualizado (si GL posting ocurrió)
@@ -737,6 +749,17 @@ export class InvoiceService {
           },
         });
 
+        // PA-121: SeniatSubmission en el MISMO $transaction (ADR-019 D-1 / D-1.1d)
+        // NC de venta es documento emitido → se transmite. Publish post-commit en la action.
+        if (ncType === "SALE") {
+          const ncCompany = await tx.company.findUnique({
+            where: { id: companyId },
+            select: { rif: true },
+          });
+          const payload = SeniatReportingService.buildPayload(nc, ncCompany?.rif ?? null);
+          await SeniatReportingService.createSubmission(tx, companyId, nc.id, payload);
+        }
+
         // AuditLog #1: NC creation
         await tx.auditLog.create({
           data: {
@@ -907,6 +930,17 @@ export class InvoiceService {
             paymentStatus: newStatus,
           },
         });
+
+        // PA-121: SeniatSubmission en el MISMO $transaction (ADR-019 D-1 / D-1.1d)
+        // ND de venta es documento emitido → se transmite. Publish post-commit en la action.
+        if (ndType === "SALE") {
+          const ndCompany = await tx.company.findUnique({
+            where: { id: companyId },
+            select: { rif: true },
+          });
+          const payload = SeniatReportingService.buildPayload(nd, ndCompany?.rif ?? null);
+          await SeniatReportingService.createSubmission(tx, companyId, nd.id, payload);
+        }
 
         // AuditLog #1: ND creation
         await tx.auditLog.create({
