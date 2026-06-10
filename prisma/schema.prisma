@@ -278,85 +278,85 @@ model RolePermission {
 }
 
 model Account {
-  id                                   String                   @id @default(cuid())
-  name                                 String
-  code                                 String
-  type                                 AccountType
-  description                          String?
+  id                                    String                   @id @default(cuid())
+  name                                  String
+  code                                  String
+  type                                  AccountType
+  description                           String?
   // VEN-NIF 3: true = Caja/Bancos/CxC/CxP — no se reexpresa por INPC; genera REPOMO
-  isMonetary                           Boolean                  @default(false)
+  isMonetary                            Boolean                  @default(false)
   // VEN-NIF BA-10 / IAS 1: true = corriente (realizable/exigible en ≤12 meses)
-  isCurrent                            Boolean                  @default(false)
-  companyId                            String
-  company                              Company                  @relation(fields: [companyId], references: [id])
-  journalEntries                       JournalEntry[]
-  deletedAt                            DateTime?
-  createdAt                            DateTime                 @default(now())
-  updatedAt                            DateTime                 @updatedAt
+  isCurrent                             Boolean                  @default(false)
+  companyId                             String
+  company                               Company                  @relation(fields: [companyId], references: [id])
+  journalEntries                        JournalEntry[]
+  deletedAt                             DateTime?
+  createdAt                             DateTime                 @default(now())
+  updatedAt                             DateTime                 @updatedAt
   // Fase 15: relaciones inversas para cuentas de cierre
-  companiesAsResult                    Company[]                @relation("ResultAccount")
-  companiesAsRetainedEarnings          Company[]                @relation("RetainedEarningsAccount")
+  companiesAsResult                     Company[]                @relation("ResultAccount")
+  companiesAsRetainedEarnings           Company[]                @relation("RetainedEarningsAccount")
   // Fase 17: Conciliación Bancaria
-  bankAccount                          BankAccount?
+  bankAccount                           BankAccount?
   // Fase 13C Bloque 3: Snapshots de saldos por período
-  periodSnapshots                      PeriodSnapshot[]
+  periodSnapshots                       PeriodSnapshot[]
   // Fase 21: Activos Fijos
-  fixedAssetsAsAsset                   FixedAsset[]             @relation("FixedAssetAccount")
-  fixedAssetsAsDepreciation            FixedAsset[]             @relation("DepreciationExpenseAccount")
-  fixedAssetsAsAccDepreciation         FixedAsset[]             @relation("AccumulatedDepreciationAccount")
+  fixedAssetsAsAsset                    FixedAsset[]             @relation("FixedAssetAccount")
+  fixedAssetsAsDepreciation             FixedAsset[]             @relation("DepreciationExpenseAccount")
+  fixedAssetsAsAccDepreciation          FixedAsset[]             @relation("AccumulatedDepreciationAccount")
   // Fase 22: Ajuste por Inflación
-  inflationAdjustments                 InflationAdjustment[]
+  inflationAdjustments                  InflationAdjustment[]
   // Fase 28D: Inventario
-  inventoryItems                       InventoryItem[]          @relation("InventoryItemAccount")
-  inventoryItemsAsCogs                 InventoryItem[]          @relation("CogsAccount")
-  inventoryMovementsAsCounterpart      InventoryMovement[]      @relation("InventoryMovementCounterpart")
+  inventoryItems                        InventoryItem[]          @relation("InventoryItemAccount")
+  inventoryItemsAsCogs                  InventoryItem[]          @relation("CogsAccount")
+  inventoryMovementsAsCounterpart       InventoryMovement[]      @relation("InventoryMovementCounterpart")
   // Fase NOM-C: Cuentas contables de nómina
-  payrollConfigsAsExpense              PayrollConfig[]          @relation("PayrollExpenseAccount")
-  payrollConfigsAsPayable              PayrollConfig[]          @relation("PayrollPayableAccount")
-  payrollConfigsAsIvss                 PayrollConfig[]          @relation("PayrollIvssPayable")
-  payrollConfigsAsFaov                 PayrollConfig[]          @relation("PayrollFaovPayable")
-  payrollConfigsAsInces                PayrollConfig[]          @relation("PayrollIncesPayable")
-  payrollConfigsAsRpe                  PayrollConfig[]          @relation("PayrollRpePayable")
+  payrollConfigsAsExpense               PayrollConfig[]          @relation("PayrollExpenseAccount")
+  payrollConfigsAsPayable               PayrollConfig[]          @relation("PayrollPayableAccount")
+  payrollConfigsAsIvss                  PayrollConfig[]          @relation("PayrollIvssPayable")
+  payrollConfigsAsFaov                  PayrollConfig[]          @relation("PayrollFaovPayable")
+  payrollConfigsAsInces                 PayrollConfig[]          @relation("PayrollIncesPayable")
+  payrollConfigsAsRpe                   PayrollConfig[]          @relation("PayrollRpePayable")
   // Fase NOM-D: cuentas de prestaciones
-  payrollConfigsAsBenefitsExpense      PayrollConfig[]          @relation("PayrollBenefitsExpense")
-  payrollConfigsAsBenefitsPayable      PayrollConfig[]          @relation("PayrollBenefitsPayable")
-  payrollConfigsAsVacationPayable      PayrollConfig[]          @relation("PayrollVacationPayable")
-  payrollConfigsAsProfitPayable        PayrollConfig[]          @relation("PayrollProfitPayable")
-  payrollConfigsAsLoanReceivable       PayrollConfig[]          @relation("PayrollLoanReceivable")
-  payrollConfigsAsDisbursementBank     PayrollConfig[]          @relation("PayrollDisbursementBank")
+  payrollConfigsAsBenefitsExpense       PayrollConfig[]          @relation("PayrollBenefitsExpense")
+  payrollConfigsAsBenefitsPayable       PayrollConfig[]          @relation("PayrollBenefitsPayable")
+  payrollConfigsAsVacationPayable       PayrollConfig[]          @relation("PayrollVacationPayable")
+  payrollConfigsAsProfitPayable         PayrollConfig[]          @relation("PayrollProfitPayable")
+  payrollConfigsAsLoanReceivable        PayrollConfig[]          @relation("PayrollLoanReceivable")
+  payrollConfigsAsDisbursementBank      PayrollConfig[]          @relation("PayrollDisbursementBank")
   // F-02/F-03: Cuentas aportes patronales
-  payrollConfigsAsIvssPatronal         PayrollConfig[]          @relation("PayrollIvssPatronal")
-  payrollConfigsAsIncesPatronal        PayrollConfig[]          @relation("PayrollIncesPatronal")
-  payrollConfigsAsFaovPatronal         PayrollConfig[]          @relation("PayrollFaovPatronal")
-  payrollConfigsAsRpePatronal          PayrollConfig[]          @relation("PayrollRpePatronal")
+  payrollConfigsAsIvssPatronal          PayrollConfig[]          @relation("PayrollIvssPatronal")
+  payrollConfigsAsIncesPatronal         PayrollConfig[]          @relation("PayrollIncesPatronal")
+  payrollConfigsAsFaovPatronal          PayrollConfig[]          @relation("PayrollFaovPatronal")
+  payrollConfigsAsRpePatronal           PayrollConfig[]          @relation("PayrollRpePatronal")
   // Fase 37B: Módulo Gastos
-  expensesAsAccount                    Expense[]                @relation("ExpenseAccount")
-  expenseCategoryDefaults              ExpenseCategory[]        @relation("ExpenseCategoryAccount")
+  expensesAsAccount                     Expense[]                @relation("ExpenseAccount")
+  expenseCategoryDefaults               ExpenseCategory[]        @relation("ExpenseCategoryAccount")
   // ADR-026: Configuración GL para causación automática de facturas
-  companySettingsAsAR                  CompanySettings[]        @relation("SettingsARAccount")
-  companySettingsAsAP                  CompanySettings[]        @relation("SettingsAPAccount")
-  companySettingsAsSales               CompanySettings[]        @relation("SettingsSalesAccount")
-  companySettingsAsPurchaseExpense     CompanySettings[]        @relation("SettingsPurchaseExpenseAccount")
-  companySettingsAsInventory           CompanySettings[]        @relation("SettingsInventoryAccount")
-  companySettingsAsIVADF               CompanySettings[]        @relation("SettingsIVADFAccount")
-  companySettingsAsIVACF               CompanySettings[]        @relation("SettingsIVACFAccount")
+  companySettingsAsAR                   CompanySettings[]        @relation("SettingsARAccount")
+  companySettingsAsAP                   CompanySettings[]        @relation("SettingsAPAccount")
+  companySettingsAsSales                CompanySettings[]        @relation("SettingsSalesAccount")
+  companySettingsAsPurchaseExpense      CompanySettings[]        @relation("SettingsPurchaseExpenseAccount")
+  companySettingsAsInventory            CompanySettings[]        @relation("SettingsInventoryAccount")
+  companySettingsAsIVADF                CompanySettings[]        @relation("SettingsIVADFAccount")
+  companySettingsAsIVACF                CompanySettings[]        @relation("SettingsIVACFAccount")
   // ADR-027: Diferencial cambiario NIC 21 / VEN-NIF BA-5
-  companySettingsAsFxGain              CompanySettings[]        @relation("SettingsFxGainAccount")
-  companySettingsAsFxLoss              CompanySettings[]        @relation("SettingsFxLossAccount")
+  companySettingsAsFxGain               CompanySettings[]        @relation("SettingsFxGainAccount")
+  companySettingsAsFxLoss               CompanySettings[]        @relation("SettingsFxLossAccount")
   // GAP-03 auditoría SENIAT: Retenciones IVA por Pagar — split CR en asientos de compra con retención
   companySettingsAsIVARetentionPayable  CompanySettings[]        @relation("SettingsIVARetentionPayableAccount")
   companySettingsAsISLRRetentionPayable CompanySettings[]        @relation("SettingsISLRRetentionPayableAccount")
   // Fase 36D: Distribución de Ingresos
-  incomeDistributionOrigins            IncomeDistribution[]     @relation("IncomeDistributionOrigin")
-  incomeDistributionLineAccounts       IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
+  incomeDistributionOrigins             IncomeDistribution[]     @relation("IncomeDistributionOrigin")
+  incomeDistributionLineAccounts        IncomeDistributionLine[] @relation("IncomeDistributionLineAccounts")
   // Fase 35D: Caja Chica
-  cajaCajas                            CajaCaja[]               @relation("CajaCajaAccount")
-  cajaCajaMovements                    CajaCajaMovement[]       @relation("CajaCajaExpenseAccount")
+  cajaCajas                             CajaCaja[]               @relation("CajaCajaAccount")
+  cajaCajaMovements                     CajaCajaMovement[]       @relation("CajaCajaExpenseAccount")
   // ADR-030: cuenta IGTF por Pagar en configuración GL
-  companySettingsAsIGTFPayable         CompanySettings[]        @relation("SettingsIGTFPayableAccount")
-  companySettingsAsIVARetReceivable    CompanySettings[]        @relation("SettingsIVARetentionReceivableAccount")
+  companySettingsAsIGTFPayable          CompanySettings[]        @relation("SettingsIGTFPayableAccount")
+  companySettingsAsIVARetReceivable     CompanySettings[]        @relation("SettingsIVARetentionReceivableAccount")
   // Q3-3: Presupuestos
-  budgetLines                          BudgetLine[]
+  budgetLines                           BudgetLine[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -396,8 +396,8 @@ model Transaction {
   voids                          Transaction[]          @relation("VoidRelation")
   periodId                       String?
   period                         AccountingPeriod?      @relation(fields: [periodId], references: [id])
-  retenciones                    Retencion[]              @relation("RetencionIssuanceTx")
-  retencionesEnteradas           Retencion[]              @relation("RetencionEnteramientoTx")
+  retenciones                    Retencion[]            @relation("RetencionIssuanceTx")
+  retencionesEnteradas           Retencion[]            @relation("RetencionEnteramientoTx")
   igtfTransactions               IGTFTransaction[]
   invoices                       Invoice[]
   // Fase 15: relaciones inversas para asientos de cierre
@@ -494,41 +494,41 @@ model AccountingPeriod {
 }
 
 model Retencion {
-  id                String          @id @default(cuid())
-  companyId         String
-  company           Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  providerName      String
-  providerRif       String
-  invoiceNumber     String
-  invoiceDate       DateTime
-  invoiceAmount     Decimal         @db.Decimal(19, 4)
-  taxBase           Decimal         @db.Decimal(19, 4)
-  ivaAmount         Decimal         @db.Decimal(19, 4)
-  ivaRetention      Decimal         @db.Decimal(19, 4)
-  ivaRetentionPct   Decimal         @db.Decimal(5, 2)
-  islrAmount        Decimal?        @db.Decimal(19, 4)
-  islrRetentionPct  Decimal?        @db.Decimal(5, 2)
-  incesAmount       Decimal?        @db.Decimal(19, 4) // INCES 2% — Ley INCES Art. 14
-  incesRetentionPct Decimal?        @db.Decimal(5, 2)
-  fatAmount         Decimal?        @db.Decimal(19, 4) // FAT 0.75%
-  fatRetentionPct   Decimal?        @db.Decimal(5, 2)
-  totalRetention    Decimal         @db.Decimal(19, 4)
-  type              RetentionType
-  status            RetentionStatus @default(PENDING)
-  transactionId          String?
-  transaction            Transaction?    @relation("RetencionIssuanceTx", fields: [transactionId], references: [id], onDelete: Restrict)
+  id                    String          @id @default(cuid())
+  companyId             String
+  company               Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  providerName          String
+  providerRif           String
+  invoiceNumber         String
+  invoiceDate           DateTime
+  invoiceAmount         Decimal         @db.Decimal(19, 4)
+  taxBase               Decimal         @db.Decimal(19, 4)
+  ivaAmount             Decimal         @db.Decimal(19, 4)
+  ivaRetention          Decimal         @db.Decimal(19, 4)
+  ivaRetentionPct       Decimal         @db.Decimal(5, 2)
+  islrAmount            Decimal?        @db.Decimal(19, 4)
+  islrRetentionPct      Decimal?        @db.Decimal(5, 2)
+  incesAmount           Decimal?        @db.Decimal(19, 4) // INCES 2% — Ley INCES Art. 14
+  incesRetentionPct     Decimal?        @db.Decimal(5, 2)
+  fatAmount             Decimal?        @db.Decimal(19, 4) // FAT 0.75%
+  fatRetentionPct       Decimal?        @db.Decimal(5, 2)
+  totalRetention        Decimal         @db.Decimal(19, 4)
+  type                  RetentionType
+  status                RetentionStatus @default(PENDING)
+  transactionId         String?
+  transaction           Transaction?    @relation("RetencionIssuanceTx", fields: [transactionId], references: [id], onDelete: Restrict)
   // Asiento GL del enteramiento (Dr Ret.X por Pagar / Cr Banco) — separado del asiento de emisión
-  enteradoTransactionId  String?
-  enteradoTransaction    Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict)
-  invoiceId         String?
-  invoice           Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  voucherNumber     String?
-  idempotencyKey    String          @unique
-  enteradoAt        DateTime?
-  enteradoBy        String? // userId que ejecutó el enteramiento
-  deletedAt         DateTime?
-  createdAt         DateTime        @default(now())
-  createdBy         String
+  enteradoTransactionId String?
+  enteradoTransaction   Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict)
+  invoiceId             String?
+  invoice               Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  voucherNumber         String?
+  idempotencyKey        String          @unique
+  enteradoAt            DateTime?
+  enteradoBy            String? // userId que ejecutó el enteramiento
+  deletedAt             DateTime?
+  createdAt             DateTime        @default(now())
+  createdBy             String
 
   @@index([companyId])
   @@index([invoiceId])
