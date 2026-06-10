@@ -31,8 +31,21 @@ vi.mock("@/modules/invoices/services/InvoiceLineService", () => ({
   createInvoiceLinesInTx: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Hallazgo #2: mock GL posting y auto-post de movimientos
+vi.mock("@/modules/invoices/services/InvoiceGLPostingService", () => ({
+  InvoiceGLPostingService: {
+    canPost: vi.fn().mockReturnValue(false),
+    postInvoice: vi.fn().mockResolvedValue("tx-gl-1"),
+  },
+}));
+vi.mock("@/modules/inventory/services/InventoryAccountingService", () => ({
+  autoPostMovementInTx: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { OrderService } from "../services/OrderService";
 import { computeLineTotals, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
+import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
+import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 
 const COMPANY_ID = "company-test";
 const USER_ID = "user-test";
@@ -178,8 +191,15 @@ describe("OrderService.approveOrder", () => {
 describe("OrderService.convertOrderToInvoice", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Full $transaction mock with tx helpers
-    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ stockControlLevel: "WARN" } as never);
+    // GL posting desactivado por defecto (canPost = false) para no romper tests existentes
+    vi.mocked(InvoiceGLPostingService.canPost).mockReturnValue(false);
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+      stockControlLevel: "WARN",
+      arAccountId: null, apAccountId: null, salesAccountId: null,
+      purchaseExpenseAccountId: null, inventoryAccountId: null,
+      ivaDFAccountId: null, ivaCFAccountId: null,
+      ivaRetentionPayableAccountId: null, igtfPayableAccountId: null,
+    } as never);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         order: prisma.order,
@@ -187,7 +207,8 @@ describe("OrderService.convertOrderToInvoice", () => {
         invoiceTaxLine: prisma.invoiceTaxLine,
         invoiceLine: prisma.invoiceLine,
         auditLog: prisma.auditLog,
-        companySettings: prisma.companySettings, // H-8
+        companySettings: prisma.companySettings,
+        inventoryMovement: { findMany: vi.fn().mockResolvedValue([]) }, // hallazgo #2
       })) as never
     );
   });
@@ -339,6 +360,58 @@ describe("OrderService.convertOrderToInvoice", () => {
     vi.mocked(prisma.order.findMany).mockResolvedValue([] as never);
     const result = await OrderService.getOrders(COMPANY_ID);
     expect(result).toHaveLength(0);
+  });
+
+  it("hallazgo #2: postea GL y auto-postea movimientos cuando GL está configurado", async () => {
+    vi.mocked(InvoiceGLPostingService.canPost).mockReturnValue(true);
+    vi.mocked(InvoiceGLPostingService.postInvoice).mockResolvedValue("tx-gl-1");
+
+    const mockDraftMovement = { id: "mov-1", type: "ENTRADA" };
+    const mockTx = {
+      order: prisma.order,
+      invoice: prisma.invoice,
+      invoiceTaxLine: prisma.invoiceTaxLine,
+      invoiceLine: prisma.invoiceLine,
+      auditLog: prisma.auditLog,
+      companySettings: prisma.companySettings,
+      inventoryMovement: { findMany: vi.fn().mockResolvedValue([mockDraftMovement]) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn(mockTx)) as never);
+
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb({ status: "APPROVED" }) as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-gl" } as never);
+    vi.mocked(prisma.order.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA);
+
+    expect(InvoiceGLPostingService.postInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "inv-gl", type: "PURCHASE" }),
+      expect.any(Object),
+      COMPANY_ID,
+      USER_ID,
+      mockTx
+    );
+    expect(autoPostMovementInTx).toHaveBeenCalledWith(
+      mockTx,
+      "mov-1",
+      COMPANY_ID,
+      USER_ID,
+      "tx-gl-1" // ENTRADA reutiliza el GL transaction ID
+    );
+  });
+
+  it("hallazgo #2: no llama postInvoice si GL no está configurado (graceful degradation)", async () => {
+    vi.mocked(InvoiceGLPostingService.canPost).mockReturnValue(false);
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb({ status: "APPROVED" }) as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-nogl" } as never);
+    vi.mocked(prisma.order.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA);
+
+    expect(InvoiceGLPostingService.postInvoice).not.toHaveBeenCalled();
+    expect(autoPostMovementInTx).not.toHaveBeenCalled(); // ENTRADA sin GL → skip
   });
 });
 
