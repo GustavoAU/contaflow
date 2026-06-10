@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { VEN_TAX_RATES } from "@/lib/tax-config";
 import prisma from "@/lib/prisma";
 import {
   CreateExpenseSchema,
@@ -71,7 +72,7 @@ export async function createExpenseAction(
 
     // MEDIUM-08: IVA siempre computado server-side — Z-2, nunca confiar en el cliente
     const computedIva = parsed.data.hasIva
-      ? new Decimal(parsed.data.amount).times(new Decimal("0.16")).toFixed(2)
+      ? new Decimal(parsed.data.amount).times(new Decimal(VEN_TAX_RATES.ivaGeneral)).toFixed(2)
       : undefined;
 
     const data = await createExpense(

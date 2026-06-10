@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 function isPositiveDecimal(v: string) {
   try {
@@ -52,7 +53,7 @@ export const CreateBatchSchema = z
     totalAmountVes: z
       .string()
       .refine(isPositiveDecimal, { error: "totalAmountVes debe ser un número positivo dentro del rango permitido" }),
-    currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+    currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
     totalAmountOriginal: z
       .string()
       .refine(isPositiveDecimal, { error: "totalAmountOriginal fuera del rango permitido" })

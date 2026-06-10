@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
+import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const InvoiceTypeSchema = z.enum(["SALE", "PURCHASE"]);
@@ -171,7 +172,7 @@ export const CreateInvoiceSchema = z.object({
     ),
 
   // Multimoneda — Fase 14
-  currency: z.enum(["VES", "USD", "EUR"]).default("VES"),
+  currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
   exchangeRateId: z.string().optional(),
 
   // Relaciones opcionales
