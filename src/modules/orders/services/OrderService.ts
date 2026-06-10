@@ -15,6 +15,8 @@ import { type OrderStatus, type QuotationType, type IvaLineRate } from "@prisma/
 import { type QuotationItemInput } from "./QuotationService";
 import type { InvoiceLineInput } from "@/modules/invoices/schemas/invoice.schema";
 import { computeLineTotals, deriveInvoiceTaxLines, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
+import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
+import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -301,10 +303,21 @@ export const OrderService = {
       // Determine invoice type
       const invoiceType = order.type === "PURCHASE" ? "PURCHASE" : "SALE";
 
-      // H-8: respetar stockControlLevel de la empresa (NIC 2 / Art. 13 Ley IVA)
+      // H-8: respetar stockControlLevel + config GL para causación automática (hallazgo #2)
       const settings = await tx.companySettings.findUnique({
         where: { companyId },
-        select: { stockControlLevel: true },
+        select: {
+          stockControlLevel: true,
+          arAccountId: true,
+          apAccountId: true,
+          salesAccountId: true,
+          purchaseExpenseAccountId: true,
+          inventoryAccountId: true,
+          ivaDFAccountId: true,
+          ivaCFAccountId: true,
+          ivaRetentionPayableAccountId: true,
+          igtfPayableAccountId: true,
+        },
       });
       const stockLevel = settings?.stockControlLevel ?? "WARN";
 
@@ -375,6 +388,56 @@ export const OrderService = {
         tx,
         invoiceType  // OM-01: "PURCHASE" → ENTRADA, "SALE" → SALIDA
       );
+
+      // ─── Hallazgo #2: GL auto-posting (mismo patrón que InvoiceService.create) ────
+      // Sin esto, las compras convertidas desde órdenes nunca generaban Dr Inventario / Cr CxP
+      // y los movimientos ENTRADA quedaban en DRAFT sin actualizar stock ni CPP.
+      let glTransactionId: string | null = null;
+      if (settings && InvoiceGLPostingService.canPost(invoiceType, settings)) {
+        const totalAmountVes = computed.length > 0
+          ? computed.reduce((acc, c) => acc.plus(c.total), new Decimal(0))
+          : new Decimal(order.total.toString());
+
+        glTransactionId = await InvoiceGLPostingService.postInvoice(
+          {
+            id: invoice.id,
+            type: invoiceType,
+            invoiceNumber: invoiceData.invoiceNumber,
+            counterpartName: order.counterpartName,
+            date: invoiceData.date,
+            periodId: invoiceData.periodId ?? null,
+            totalAmountVes,
+            taxLines: derivedTaxLines.map((tl) => ({
+              taxType: tl.taxType,
+              base: tl.base,
+              amount: tl.amount,
+            })),
+            currency: order.currency,
+            exchangeRateVes: null,
+            igtfAmount: new Decimal(0),
+          },
+          settings,
+          companyId,
+          userId,
+          tx
+        );
+      }
+
+      // Auto-post ENTRADA/SALIDA movements (actualiza stock/CPP y vincula al asiento GL)
+      const draftMovements = await tx.inventoryMovement.findMany({
+        where: { invoiceId: invoice.id, status: "DRAFT" },
+        select: { id: true, type: true },
+      });
+      for (const m of draftMovements) {
+        if (m.type === "ENTRADA" && !glTransactionId) continue;
+        await autoPostMovementInTx(
+          tx,
+          m.id,
+          companyId,
+          userId,
+          m.type === "ENTRADA" ? glTransactionId : null
+        );
+      }
 
       // Mark order as CONVERTED
       await tx.order.update({
