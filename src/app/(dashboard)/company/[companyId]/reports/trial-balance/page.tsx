@@ -38,6 +38,15 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
   const { companyId } = await params;
   const { from, to } = await searchParams;
 
+  // Hallazgo #4: misma guarda que Ledger — sin fechas el Balance de Comprobación
+  // mostraría acumulados históricos mezclando todos los períodos.
+  if (!from && !to) {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const today = now.toISOString().split("T")[0];
+    redirect(`/company/${companyId}/reports/trial-balance?from=${year}-01-01&to=${today}`);
+  }
+
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
   const result = await getTrialBalanceAction(companyId, dateFrom, dateTo);
