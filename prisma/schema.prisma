@@ -2492,6 +2492,7 @@ model BudgetLine {
 enum SubmissionStatus {
   PENDING
   SENT
+  ACKNOWLEDGED
   FAILED
 }
 

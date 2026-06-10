@@ -3010,3 +3010,31 @@ Nav: agregar "Asistente IA" en `src/lib/nav-items.ts` para roles ACCOUNTANT+.
 | Rol mínimo | MEDIUM | `canAccess(member.role, ROLES.ACCOUNTING)` |
 
 **1354 tests GREEN** | **0 TS errors**
+
+<!-- HANDOFF 2026-06-10 Auditoría + Fix #1 outbox SENIAT -->
+## HANDOFF 2026-06-10
+
+**Sesión:** auditoría exhaustiva 6 pilares + inicio de remediación priorizada.
+**Memoria persistente Claude:** hallazgos completos y priorización en memoria del agente
+(auditoria-2026-06-hallazgos / auditoria-2026-06-priorizacion).
+
+**Branches pendientes de merge a main (en orden, apiladas):**
+1. `chore/tax-config-centralization` — refactor huérfano del working tree commiteado
+   (SUPPORTED_CURRENCIES + VEN_TAX_RATES) + cron health. 2704 tests GREEN.
+2. `feat/seniat-outbox-wiring` — Fix crítico C1: outbox PA-121 cableado
+   (createSubmission en tx + publish post-commit + poller /api/cron/seniat-outbox +
+   ACKNOWLEDGED + ADR-019 Addendum D-1.1). 2723 tests GREEN, tsc 0.
+
+**PENDIENTE INMEDIATO (requiere BD accesible — Neon no respondió en la sesión):**
+```
+npx prisma db execute --file prisma/migrations/20260610_submission_acknowledged/migration.sql
+npx prisma migrate resolve --applied 20260610_submission_acknowledged
+```
+
+**Siguiente en la priorización (decisiones del usuario requeridas antes de codear):**
+- Fix #2 (crítico C2): unificar InvoicePayment (receivables, actualiza pendingAmount sin GL)
+  vs PaymentRecord (payments, GL+IGTF sin pendingAmount). DECIDIR: ¿cuál entidad es canónica?
+  Árbol [∞] + PROMPT_V8 + arch-agent para el ADR.
+- Fix #7 (alto A5): regla IGTF applies() sobre-aplica — requiere validación asesor fiscal.
+- Fix #3 (alto A1): verificar RLS con BD viva: ¿rol de DATABASE_URL es owner? → FORCE RLS.
+<!-- /HANDOFF -->

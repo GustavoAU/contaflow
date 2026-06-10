@@ -19,6 +19,7 @@ import type { Currency } from "@prisma/client";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
 import { SeniatXMLService } from "../services/SeniatXMLService";
+import { SeniatReportingService } from "../services/SeniatReportingService";
 import { Decimal } from "decimal.js";
 import qrcode from "qrcode";
 import { mapPrismaError } from "@/lib/prisma-errors";
@@ -138,6 +139,13 @@ export async function createInvoiceAction(input: unknown) {
         return inv;
       })
     , txIsolation);
+
+    // ADR-019 D-1.1a: publish a QStash POST-COMMIT (nunca dentro del $transaction).
+    // publishForInvoice nunca lanza — si falla, la SeniatSubmission queda PENDING
+    // y el poller /api/cron/seniat-outbox la rescata.
+    if (parsed.data.type === "SALE") {
+      await SeniatReportingService.publishForInvoice(invoice.id);
+    }
 
     revalidatePath(`/company/${parsed.data.companyId}/invoices`);
     return {
@@ -426,6 +434,11 @@ export async function createCreditNoteAction(input: unknown) {
 
     const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
+    // ADR-019 D-1.1a/D-1.1d: publish post-commit para NC de venta (nunca lanza)
+    if (nc.type === "SALE") {
+      await SeniatReportingService.publishForInvoice(nc.id);
+    }
+
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nc };
   } catch (error) {
@@ -474,6 +487,11 @@ export async function createDebitNoteAction(input: unknown) {
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId, ipAddress, userAgent);
+
+    // ADR-019 D-1.1a/D-1.1d: publish post-commit para ND de venta (nunca lanza)
+    if (nd.type === "SALE") {
+      await SeniatReportingService.publishForInvoice(nd.id);
+    }
 
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nd };

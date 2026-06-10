@@ -290,3 +290,89 @@ No hay lección documentada sobre integración con APIs gubernamentales venezola
 5. El enum `UserRole` se extiende en el schema Prisma — revisar que no haya `switch` exhaustivos sin rama `default` que fallen silenciosamente al agregar `SENIAT`.
 
 6. `SeniatReportingService` vive en `src/modules/invoices/services/SeniatReportingService.ts`. No debe importar desde otros módulos excepto `src/lib/prisma.ts` y `src/lib/ratelimit.ts` (DDD — bounded context).
+
+---
+
+## Addendum 2026-06-10 — D-1.1: Relay post-commit y poller de huérfanos
+
+**Estado:** DECIDIDO
+**Fecha:** 2026-06-10
+**Branch de implementación:** `feat/seniat-outbox-wiring`
+
+### Contexto
+
+La auditoría del 2026-06-10 descubrió dos defectos en la implementación de D-1:
+
+1. **Código muerto:** `SeniatReportingService.enqueue()` nunca fue cableado a las Server Actions de emisión. Ninguna factura, NC o ND creaba `SeniatSubmission` — el outbox de D-1 existía pero no recibía registros. Incumplimiento efectivo de PA-121 desde Fase 35H.
+2. **Defecto de diseño en `enqueue` original:** ejecutaba `qstash.publishJSON` (I/O HTTP externo) DENTRO del `$transaction` Prisma. Tres problemas:
+   - (a) Mantiene la transacción DB abierta durante I/O de red — agota conexiones del pool Neon y alarga la ventana de contención.
+   - (b) Si la transacción hace rollback después del publish, QStash entrega un mensaje para una submission que no existe en DB.
+   - (c) Si QStash falla, aborta la emisión de la factura — acopla la disponibilidad de Upstash al flujo fiscal, contradiciendo el espíritu de D-1 ("la API externa no es prerrequisito del flujo de negocio").
+
+Adicionalmente se detectó un bug de mapeo: `buildPayload` leía `tl.type` cuando el campo real del modelo `InvoiceTaxLine` es `taxType` — el payload transmitía `undefined` como tipo de impuesto.
+
+### Decisiones
+
+#### D-1.1a: Separación createSubmission / publish — relay post-commit
+
+`enqueue()` se divide en dos operaciones con responsabilidades transaccionales opuestas:
+
+- **`SeniatReportingService.createSubmission(tx, companyId, invoiceId, payload)`** — crea la fila `SeniatSubmission` DENTRO del mismo `$transaction` que persiste el documento fiscal. La invariante D-1 permanece intacta: documento y submission son atómicos.
+- **`SeniatReportingService.publishForInvoice(invoiceId)`** — publica a QStash DESPUÉS del commit, invocado desde la Server Action, envuelto en try/catch. Si el publish falla, la submission queda `PENDING` y el poller (D-1.1b) la recoge. **La emisión de la factura nunca falla por Upstash.**
+
+```
+Server Action (createInvoiceAction / createCreditNote / createDebitNote)
+  → $transaction {
+      crear documento + JournalEntry + AuditLog
+      createSubmission(tx, ...)          ← atómico con el documento
+    }
+  → commit
+  → try { publishForInvoice(invoiceId) } ← fuera de la transacción
+    catch { log Sentry; submission queda PENDING }
+```
+
+#### D-1.1b: Poller de huérfanos — relay del outbox
+
+Route `GET /api/cron/seniat-outbox` (autenticada por `CRON_SECRET`, mismo patrón que `daily-notifications`):
+
+- Query: `SeniatSubmission` con `status = PENDING AND attempts = 0 AND createdAt < now() - 10min` — es decir, submissions nunca publicadas o cuyo publish post-commit falló.
+- Acción: re-publica cada una a QStash.
+- Idempotencia: garantizada porque `transmit()` descarta duplicados (`status IN [SENT, ACKNOWLEDGED]` — comentario Z-4 obligatorio en el handler).
+- Performance: usa el índice existente `@@index([status, createdAt])` — sin migración de índices.
+
+#### D-1.1c: Estado ACKNOWLEDGED en SubmissionStatus
+
+Se añade `ACKNOWLEDGED` al enum `SubmissionStatus` para cumplir Z-4 / decision-tree árbol [5]: la verificación de idempotencia es `status IN [SENT, ACKNOWLEDGED]`.
+
+- `SENT` = aceptado por la API SENIAT en la llamada de transmisión.
+- `ACKNOWLEDGED` = confirmación posterior del SENIAT (reservado para cuando exista la API real — hoy ningún flujo escribe este estado).
+
+Migración additiva, no destructiva (`20260610_submission_acknowledged`):
+
+```sql
+ALTER TYPE "SubmissionStatus" ADD VALUE IF NOT EXISTS 'ACKNOWLEDGED';
+```
+
+Nota de riesgo: en Neon (PG 15+) `ALTER TYPE ... ADD VALUE` es seguro como statement aislado, pero no debe ejecutarse dentro de un bloque de transacción que use el valor inmediatamente. Rollback: PostgreSQL no permite eliminar valores de un enum de forma simple — es inocuo porque ningún registro usa `ACKNOWLEDGED` hasta que exista la API real.
+
+#### D-1.1d: Alcance NC/ND
+
+`createCreditNote` y `createDebitNote` también invocan `createSubmission` + `publishForInvoice` cuando el documento es de tipo `SALE`. PA-121 cubre facturas, notas de crédito y notas de débito emitidas. Los documentos de tipo `PURCHASE` (registro de compras) NO se transmiten — no son documentos emitidos por el contribuyente.
+
+#### Fix de payload (corrección, no decisión nueva)
+
+`buildPayload` corregido: mapea `tl.taxType` (campo real de `InvoiceTaxLine`) en lugar de `tl.type`. Sin impacto de schema.
+
+### Consecuencias
+
+- **Latencia post-commit:** `publishForInvoice` añade ~100-300ms a la Server Action después del commit. Tolerado: el documento ya está persistido y el botón usa `disabled={isPending}` + `aria-busy`.
+- **Ventana de recuperación de huérfanos:** máximo 10 min de antigüedad + frecuencia del cron. Con cron horario, un huérfano se recupera en ≤ ~70 min.
+- **Límite de crons en Vercel Hobby:** si el plan solo permite crons diarios, la ventana de recuperación es 24h. Aceptable: PA-121 admite transmisión con "retardo razonable" y el documento es válido desde que la submission está en `PENDING` (consecuencia ya documentada en D-1).
+- El filtro `attempts = 0` evita que el poller compita con el ciclo de reintentos del webhook QStash (que incrementa `attempts`): el poller solo rescata submissions que nunca entraron a QStash.
+
+### Invariantes nuevas (se suman a las de D-1)
+
+- `qstash.publishJSON` (o cualquier I/O HTTP externo) **NUNCA** dentro de un `$transaction` Prisma.
+- `createSubmission` **NUNCA** fuera del `$transaction` que persiste el documento fiscal.
+- El fallo de `publishForInvoice` jamás propaga error al usuario — solo log Sentry + submission en `PENDING`.
+- `/api/cron/seniat-outbox` rechaza requests sin `CRON_SECRET` válido (401), consulta por el índice `[status, createdAt]` y lleva comentario `ADR-004-EXCEPTION` (query cross-company de sistema, precedente AuditLogService).
