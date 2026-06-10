@@ -159,6 +159,16 @@ describe("createFixedAssetAction", () => {
       expect.anything(),
     );
   });
+
+  it("hallazgo #8: pasa acquisitionCounterpartAccountId a FixedAssetService.create", async () => {
+    const inputWithCounterpart = { ...BASE_INPUT, acquisitionCounterpartAccountId: "acc-cxp-001" };
+    await createFixedAssetAction(inputWithCounterpart);
+    expect(FixedAssetService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ acquisitionCounterpartAccountId: "acc-cxp-001" }),
+      "user-test",
+      expect.anything(),
+    );
+  });
 });
 
 // ─── postMonthlyDepreciationAction ────────────────────────────────────────────

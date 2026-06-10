@@ -1,10 +1,11 @@
 // src/modules/fixed-assets/services/FixedAssetService.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Decimal } from "decimal.js";
 import {
   calcMonthlyDepreciation,
   calcDepreciationForPeriod,
   generateDepreciationSchedule,
+  FixedAssetService,
 } from "./FixedAssetService";
 import type { FixedAsset } from "@prisma/client";
 
@@ -185,5 +186,73 @@ describe("generateDepreciationSchedule", () => {
     expect(schedule[0]!).toMatchObject({ year: 2026, month: 12 });
     expect(schedule[1]!).toMatchObject({ year: 2027, month: 1 });
     expect(schedule[2]!).toMatchObject({ year: 2027, month: 2 });
+  });
+});
+
+// ─── FixedAssetService.create — GL posting (hallazgo #8) ─────────────────────
+
+describe("FixedAssetService.create — GL posting adquisición", () => {
+  function makeTx(txCreate = vi.fn().mockResolvedValue({ id: "gl-tx-1" })) {
+    return {
+      fixedAsset: { create: vi.fn().mockResolvedValue({ id: "asset-1" }) },
+      transaction: { create: txCreate, count: vi.fn().mockResolvedValue(5) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+  }
+
+  const BASE = {
+    companyId: "c-1",
+    name: "Compresor",
+    assetAccountId: "acc-asset",
+    depreciationAccountId: "acc-dep-exp",
+    accDepreciationAccountId: "acc-acc-dep",
+    acquisitionDate: new Date("2026-01-01"),
+    acquisitionCost: "30000.00",
+    acquisitionCurrency: "VES" as const,
+    residualValue: "0",
+    usefulLifeMonths: 12,
+    depreciationMethod: "LINEA_RECTA" as const,
+  };
+
+  it("crea asiento GL Dr Activos / Cr Contrapartida cuando acquisitionCounterpartAccountId está presente", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-tx-1" });
+    const tx = makeTx(txCreate);
+
+    await FixedAssetService.create(
+      { ...BASE, acquisitionCounterpartAccountId: "acc-cxp" },
+      "user-1",
+      tx as never
+    );
+
+    expect(txCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entries: {
+            create: expect.arrayContaining([
+              expect.objectContaining({ accountId: "acc-asset" }),     // Dr
+              expect.objectContaining({ accountId: "acc-cxp" }),       // Cr
+            ]),
+          },
+        }),
+      })
+    );
+  });
+
+  it("NO crea asiento GL si acquisitionCounterpartAccountId es null", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-tx-1" });
+    const tx = makeTx(txCreate);
+
+    await FixedAssetService.create({ ...BASE, acquisitionCounterpartAccountId: null }, "user-1", tx as never);
+
+    expect(txCreate).not.toHaveBeenCalled();
+  });
+
+  it("NO crea asiento GL si acquisitionCounterpartAccountId se omite (campo opcional)", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-tx-1" });
+    const tx = makeTx(txCreate);
+
+    await FixedAssetService.create(BASE, "user-1", tx as never);
+
+    expect(txCreate).not.toHaveBeenCalled();
   });
 });
