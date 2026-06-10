@@ -87,6 +87,7 @@ export class AuditLogService {
 
     const where = buildAuditWhere(filters);
 
+    // ADR-004-EXCEPTION: companyId incluido en buildAuditWhere(filters) — siempre presente como campo requerido
     const [rows, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
@@ -120,6 +121,7 @@ export class AuditLogService {
   static async listAll(filters: Omit<AuditLogFilters, "page" | "pageSize">): Promise<AuditLogRow[]> {
     const where = buildAuditWhere(filters);
 
+    // ADR-004-EXCEPTION: companyId incluido en buildAuditWhere(filters) — siempre presente como campo requerido
     const rows = await prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
