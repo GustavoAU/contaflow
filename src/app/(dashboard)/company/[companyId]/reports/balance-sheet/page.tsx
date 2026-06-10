@@ -88,7 +88,13 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const dateTo = to ? new Date(to + "T23:59:59") : undefined;
+  // Sin fecha de corte → redirige a hoy para que la URL siempre refleje el período real (hallazgo #6)
+  if (!to) {
+    const today = new Date().toISOString().split("T")[0];
+    redirect(`/company/${companyId}/reports/balance-sheet?to=${today}`);
+  }
+
+  const dateTo = new Date(to + "T23:59:59");
   const result = await getBalanceSheetAction(companyId, dateTo);
 
   return (
@@ -104,7 +110,7 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Balance General</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            {to ? `Corte al ${to}` : "Estado de Situación Financiera (acumulado)"}
+            {`Corte al ${to} — Resultado del ejercicio ${new Date(to).getUTCFullYear()}`}
           </p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="balance-sheet" />

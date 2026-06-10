@@ -152,6 +152,14 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
+  // Sin rango → redirige al año fiscal corriente para alinear con Balance General (hallazgo #6/#7)
+  if (!from && !to) {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const today = now.toISOString().split("T")[0];
+    redirect(`/company/${companyId}/reports/income-statement?from=${year}-01-01&to=${today}`);
+  }
+
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
   const compareDateFrom = cmpFrom ? new Date(cmpFrom) : undefined;
@@ -194,7 +202,7 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
           <p className="text-muted-foreground mt-1 text-sm">
             {showCompare
               ? `${periodLabel(from, to)} vs. ${periodLabel(cmpFrom, cmpTo)}`
-              : "Ingresos y gastos del período"}
+              : periodLabel(from, to)}
           </p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="income-statement" />
