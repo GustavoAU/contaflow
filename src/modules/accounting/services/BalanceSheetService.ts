@@ -213,15 +213,29 @@ function computeNetIncome(incomeAccounts: AccountWithEntries[]): Decimal {
 export class BalanceSheetService {
   /**
    * Consulta la BD y construye el Balance General completo para la empresa.
-   * @param companyId - empresa propietaria (aislamiento multi-tenant, ADR-004)
-   * @param dateTo    - fecha de corte; si se omite usa todos los movimientos disponibles
+   * @param companyId      - empresa propietaria (aislamiento multi-tenant, ADR-004)
+   * @param dateTo         - fecha de corte; si se omite usa la fecha actual
+   * @param incomeDateFrom - inicio del período para "Resultado del Ejercicio" (debe coincidir
+   *                         con el dateFrom usado en getIncomeStatementAction — hallazgo #3)
    * @returns Balance General con activos, pasivos, patrimonio y flag `isBalanced`
    */
   static async compute(
   companyId: string,
   dateTo?: Date,
+  incomeDateFrom?: Date,
 ): Promise<BalanceSheet> {
-  const dateFilter = dateTo ? { date: { lte: dateTo } } : {};
+  // Activos/Pasivos/Patrimonio: acumulados desde el inicio hasta dateTo (sin límite inferior)
+  const balanceDateFilter = dateTo ? { date: { lte: dateTo } } : {};
+  // Resultado del Ejercicio: solo el año fiscal corriente — evita mezclar resultados históricos
+  const incomeDateFilter =
+    incomeDateFrom || dateTo
+      ? {
+          date: {
+            ...(incomeDateFrom ? { gte: incomeDateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
+      : {};
 
   // Dos queries en paralelo para minimizar latencia:
   //   1. Cuentas de balance (Activo, Contra-Activo, Pasivo, Patrimonio)
@@ -232,7 +246,7 @@ export class BalanceSheetService {
       orderBy: { code: "asc" },
       include: {
         journalEntries: {
-          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...balanceDateFilter } },
         },
       },
     }),
@@ -240,7 +254,7 @@ export class BalanceSheetService {
       where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
       include: {
         journalEntries: {
-          where: { transaction: { status: TX_STATUS.POSTED, ...dateFilter } },
+          where: { transaction: { status: TX_STATUS.POSTED, ...incomeDateFilter } },
         },
       },
     }),

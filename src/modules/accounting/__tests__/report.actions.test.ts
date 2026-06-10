@@ -469,4 +469,39 @@ describe("getBalanceSheetAction", () => {
     const depRow = result.data.assets.find((r) => r.code === "1691");
     expect(depRow?.balance).toBe("-4000.00");
   });
+
+  // H-3: "Resultado del Ejercicio" en Balance usa el año fiscal del corte, no all-time (hallazgo #3)
+  it("Resultado del Ejercicio refleja solo el año del dateTo, no acumulado histórico", async () => {
+    vi.mocked(prisma.account.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "acc-1", code: "1105", name: "Caja", type: "ASSET", isCurrent: true,
+          journalEntries: [{ amount: { toString: () => "1600" } }],
+        },
+        {
+          id: "acc-2", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false,
+          journalEntries: [{ amount: { toString: () => "-1000" } }],
+        },
+      ] as never)
+      // Income accounts scoped to fiscal year → utilidad 600
+      .mockResolvedValueOnce([
+        {
+          id: "acc-3", code: "4135", name: "Ventas", type: "REVENUE", isCurrent: false,
+          journalEntries: [{ amount: { toString: () => "-1000" } }],
+        },
+        {
+          id: "acc-4", code: "5105", name: "Gastos", type: "EXPENSE", isCurrent: false,
+          journalEntries: [{ amount: { toString: () => "400" } }],
+        },
+      ] as never);
+
+    const result = await getBalanceSheetAction(COMPANY_ID, new Date("2026-12-31"));
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // Resultado del Ejercicio = 1000 - 400 = 600
+    const resultadoRow = result.data.equity.find((r) => r.id === "net-income");
+    expect(resultadoRow?.balance).toBe("600.00");
+    // Balance cuadrado: Activos(1600) = Pasivos(0) + Patrimonio(1000 + 600)
+    expect(result.data.isBalanced).toBe(true);
+  });
 });

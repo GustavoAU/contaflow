@@ -368,8 +368,17 @@ export async function getIncomeStatementAction(
   try {
     const hasComparePeriod = !!(compareDateFrom || compareDateTo);
 
+    // Sin fechas → defaultea al año fiscal corriente para coincidir con Balance General (hallazgo #3)
+    let resolvedFrom = dateFrom;
+    let resolvedTo = dateTo;
+    if (!dateFrom && !dateTo) {
+      const now = new Date();
+      resolvedFrom = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      resolvedTo = now;
+    }
+
     const [current, compare] = await Promise.all([
-      IncomeStatementService.compute(companyId, dateFrom, dateTo),
+      IncomeStatementService.compute(companyId, resolvedFrom, resolvedTo),
       hasComparePeriod
         ? IncomeStatementService.compute(companyId, compareDateFrom, compareDateTo)
         : Promise.resolve(undefined),
@@ -392,13 +401,14 @@ export async function getBalanceSheetAction(
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
 
-  // Solo valida que dateTo sea una fecha válida cuando se proporciona.
-  // No hay rango (no hay dateFrom), pero mantenemos consistencia con las otras acciones.
   const dateError = validateDateRange(undefined, dateTo);
   if (dateError) return { success: false, error: dateError };
 
   try {
-    const data = await BalanceSheetService.compute(companyId, dateTo);
+    const resolvedTo = dateTo ?? new Date();
+    // "Resultado del Ejercicio" acotado al año fiscal del corte — alinea con Income Statement (hallazgo #3)
+    const incomeDateFrom = new Date(Date.UTC(resolvedTo.getUTCFullYear(), 0, 1));
+    const data = await BalanceSheetService.compute(companyId, resolvedTo, incomeDateFrom);
     return { success: true, data };
   } catch (error) {
     return toActionError(error);
