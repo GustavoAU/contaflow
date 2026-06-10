@@ -7,6 +7,7 @@ import { LedgerPDFExportButton } from "@/components/reports/LedgerPDFExportButto
 import { LedgerAccountBlock } from "@/components/reports/LedgerAccountBlock";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
+import { redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -16,6 +17,16 @@ type Props = {
 export default async function LedgerPage({ params, searchParams }: Props) {
   const { companyId } = await params;
   const { from, to } = await searchParams;
+
+  // Hallazgo #4: sin fechas explícitas el Mayor mostraría datos de todos los períodos históricos,
+  // contaminando la vista con asientos de períodos anteriores (ej. FAC-TESA-007 enero 2026).
+  // Redirigir al año fiscal corriente cuando no hay filtro de fechas.
+  if (!from && !to) {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const today = now.toISOString().split("T")[0];
+    redirect(`/company/${companyId}/reports/ledger?from=${year}-01-01&to=${today}`);
+  }
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
