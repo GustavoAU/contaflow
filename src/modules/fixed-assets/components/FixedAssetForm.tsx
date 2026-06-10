@@ -59,6 +59,7 @@ type AssetInput = {
   serialNumber: string | null;
   serviceStartDate: Date | null;
   internalCode: string | null;
+  acquisitionCounterpartAccountId: string | null;
 };
 
 export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Props) {
@@ -97,6 +98,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const [accDepreciationAccountId, setAccDepreciationAccountId] = useState(() =>
     findBestMatch(contraAssetAccounts, ["acumul", "depreci", "amortiz"])
   );
+  const [acquisitionCounterpartAccountId, setAcquisitionCounterpartAccountId] = useState("");
 
   function doSubmit(input: AssetInput) {
     startTransition(async () => {
@@ -169,6 +171,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       serialNumber:     (fd.get("serialNumber") as string) || null,
       serviceStartDate: fd.get("serviceStartDate") ? new Date(fd.get("serviceStartDate") as string) : null,
       internalCode:     (fd.get("internalCode") as string) || null,
+      acquisitionCounterpartAccountId: acquisitionCounterpartAccountId || null,
     };
 
     // FC-03: si faltan ambos campos de deducibilidad SENIAT, advertir antes de guardar
@@ -443,6 +446,24 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
               </select>
             )}
             <p className="mt-1 text-11 text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
+          </div>
+          <div className="col-span-full">
+            <label className={labelClass}>Cuenta origen adquisición (GL)</label>
+            <select
+              value={acquisitionCounterpartAccountId}
+              onChange={(e) => setAcquisitionCounterpartAccountId(e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">Sin asiento automático (registrar manualmente)</option>
+              {accounts
+                .filter((a) => a.id !== assetAccountId)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                ))}
+            </select>
+            <p className="mt-1 text-11 text-zinc-400">
+              Opcional — genera Dr Activos Fijos / Cr cuenta seleccionada al guardar (hallazgo #8)
+            </p>
           </div>
         </div>
       </fieldset>

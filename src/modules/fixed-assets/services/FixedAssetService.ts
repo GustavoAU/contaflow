@@ -219,6 +219,38 @@ export class FixedAssetService {
       },
     });
 
+    // Hallazgo #8: asiento de adquisición GL — Dr Activos Fijos Brutos / Cr Origen
+    // Solo si se proporcionó acquisitionCounterpartAccountId (campo opcional).
+    // Evita que la cuenta de Activos Fijos Brutos quede en cero en el Balance General.
+    if (input.acquisitionCounterpartAccountId) {
+      const acqCost = new Decimal(input.acquisitionCost);
+      const txCount = await tx.transaction.count({ where: { companyId: input.companyId } });
+      await tx.transaction.create({
+        data: {
+          companyId: input.companyId,
+          number: `AF-ACQ-${String(txCount + 1).padStart(6, "0")}`,
+          date: input.acquisitionDate,
+          description: `Adquisición ${input.name} — costo ${acqCost.toFixed(2)}`,
+          type: "DIARIO",
+          userId,
+          entries: {
+            create: [
+              {
+                accountId: input.assetAccountId,
+                amount:     acqCost,
+                description: `Activo fijo adquirido — ${input.name}`,
+              },
+              {
+                accountId: input.acquisitionCounterpartAccountId,
+                amount:     acqCost.negated(),
+                description: `Origen adquisición — ${input.name}`,
+              },
+            ],
+          },
+        },
+      });
+    }
+
     await tx.auditLog.create({
       data: {
         companyId: input.companyId,
@@ -231,6 +263,7 @@ export class FixedAssetService {
           acquisitionCost: input.acquisitionCost,
           companyId: input.companyId,
           depreciationMethod: input.depreciationMethod,
+          acquisitionCounterpartAccountId: input.acquisitionCounterpartAccountId ?? null,
         },
       },
     });

@@ -31,6 +31,10 @@ export const CreateFixedAssetSchema = z.object({
   serialNumber:     z.string().max(100).optional().nullable(),
   serviceStartDate: z.coerce.date().optional().nullable(),
   internalCode:     z.string().max(50).optional().nullable(),
+  // Hallazgo #8: cuenta origen de la adquisición para el asiento GL inicial
+  // Dr Activos Fijos Brutos (assetAccountId) / Cr acquisitionCounterpartAccountId
+  // Si se omite, no se genera asiento de adquisición (el usuario debe crearlo manualmente).
+  acquisitionCounterpartAccountId: z.string().optional().nullable(),
 });
 
 export type CreateFixedAssetInput = z.infer<typeof CreateFixedAssetSchema>;
