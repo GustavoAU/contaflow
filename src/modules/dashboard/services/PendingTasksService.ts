@@ -22,7 +22,8 @@ export type PendingTaskType =
   | "NOM_SALARIO_MINIMO_VENCIDO"    // SALARY_MIN_VES sin actualizar > 30 días
   | "NOM_PRESTACIONES_POR_ACUMULAR" // Trimestre actual sin acumular prestaciones (Art. 142 LOTTT)
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
-  | "NOM_PRUEBA_POR_VENCER";        // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
+  | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
+  | "IGTF_SIN_CUENTA_GL";          // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -72,6 +73,9 @@ export const PendingTasksService = {
       nomLastSalMin,
       nomBcvRatePrevMonth,
       nomBcvInterestPrevMonthCount,
+      // Hallazgo #5
+      igtfSinCuentaCount,
+      glConfigIgtf,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -239,6 +243,17 @@ export const PendingTasksService = {
       prisma.benefitAccrualLine.count({
         where: { companyId, type: "BCV_INTEREST", year: prevYear, month: prevMonth },
       }),
+
+      // 19. Hallazgo #5: facturas con IGTF calculado (igtfAmount > 0) — para comparar con cuenta GL
+      prisma.invoice.count({
+        where: { companyId, deletedAt: null, igtfAmount: { gt: 0 } },
+      }),
+
+      // 20. Hallazgo #5: ¿está configurada la cuenta IGTF por Pagar?
+      prisma.companySettings.findUnique({
+        where: { companyId },
+        select: { igtfPayableAccountId: true },
+      }),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -364,6 +379,19 @@ export const PendingTasksService = {
         description: `${igtfPagosSinRegistrarCount} cobro${pl ? "s" : ""} en divisas de los últimos 90 días ${pl ? "no tienen" : "no tiene"} IGTF registrado. Como Contribuyente Especial, debe percibir y enterar el 3% IGTF (Ley IGTF Art. 4 — multa 100%–300% del tributo omitido).`,
         count: igtfPagosSinRegistrarCount,
         href: "/payments",
+      });
+    }
+
+    // Hallazgo #5: IGTF calculado en facturas pero cuenta GL no configurada → asientos omitidos
+    if (igtfSinCuentaCount > 0 && !glConfigIgtf?.igtfPayableAccountId) {
+      const pl = igtfSinCuentaCount > 1;
+      tasks.push({
+        type: "IGTF_SIN_CUENTA_GL",
+        severity: "error",
+        title: "IGTF sin cuenta contable configurada",
+        description: `${igtfSinCuentaCount} factura${pl ? "s tienen" : " tiene"} IGTF calculado pero ningún asiento contable fue generado porque la cuenta "IGTF por Pagar" no está configurada en Ajustes GL. Configure la cuenta para regularizar los ${pl ? "movimientos" : "el movimiento"} (Art. 4 LIGTF + PA-121).`,
+        count: igtfSinCuentaCount,
+        href: "/settings",
       });
     }
 
