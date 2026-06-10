@@ -126,6 +126,8 @@ describe("createBalancedTransaction", () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
       id: "period-1",
       status: "OPEN",
+      year: 2026,
+      month: 3,
     } as never);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
 

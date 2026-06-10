@@ -200,7 +200,7 @@ export async function getLedgerAction(
       const priorEntries = await prisma.journalEntry.groupBy({
         by: ["accountId"],
         where: {
-          account: { companyId },
+          account: { companyId, deletedAt: null },
           transaction: { status: TX_STATUS.POSTED, date: { lt: dateFrom } },
         },
         _sum: { amount: true },
@@ -391,6 +391,11 @@ export async function getBalanceSheetAction(
 ): Promise<ActionResult<BalanceSheet>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
+
+  // Solo valida que dateTo sea una fecha válida cuando se proporciona.
+  // No hay rango (no hay dateFrom), pero mantenemos consistencia con las otras acciones.
+  const dateError = validateDateRange(undefined, dateTo);
+  if (dateError) return { success: false, error: dateError };
 
   try {
     const data = await BalanceSheetService.compute(companyId, dateTo);
