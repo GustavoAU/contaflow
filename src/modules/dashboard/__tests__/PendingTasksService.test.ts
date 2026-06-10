@@ -422,4 +422,28 @@ describe("PendingTasksService.getPendingTasks", () => {
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "RETENCIONES_SIN_ASIENTO_GL")).toBeUndefined();
   });
+
+  // Hallazgo #5 legacy: facturas con IGTF causadas sin línea IGTF en asiento GL
+  it("detecta facturas con IGTF causadas pero sin línea IGTF en asiento (IGTF_GL_INCOMPLETO) — severity error", async () => {
+    // $queryRaw: stockBajo(0), igtfPagosSinRegistrar(0), clientesInactivos(0), igtfGlIncompleto(2)
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // stockBajo
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // igtfPagosSinRegistrar
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // clientesInactivos
+      .mockResolvedValueOnce([{ count: BigInt(2) }] as never); // igtfGlIncompleto
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "IGTF_GL_INCOMPLETO");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(2);
+    expect(task?.href).toBe("/accounting/journal");
+    expect(task?.description).toContain("IGTF");
+  });
+
+  it("NO emite IGTF_GL_INCOMPLETO cuando todas las facturas con IGTF tienen asiento completo", async () => {
+    // mockAllZero already sets $queryRaw to return 0 for all calls → igtfGlIncompleto = 0
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "IGTF_GL_INCOMPLETO")).toBeUndefined();
+  });
 });

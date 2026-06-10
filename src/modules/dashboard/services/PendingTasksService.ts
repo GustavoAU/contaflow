@@ -24,6 +24,7 @@ export type PendingTaskType =
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
+  | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
   | "RETENCIONES_SIN_ASIENTO_GL";  // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
 
@@ -82,6 +83,8 @@ export const PendingTasksService = {
       pagosSinAsientoCount,
       // Hallazgo #1
       retencionesSinAsientoCount,
+      // Hallazgo #5 legacy
+      igtfGlIncompletoCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -283,6 +286,25 @@ export const PendingTasksService = {
           deletedAt: null,
         },
       }),
+
+      // 23. Hallazgo #5 legacy: facturas con IGTF ya causadas pero sin línea IGTF en el asiento GL.
+      // Ocurre cuando igtfPayableAccountId estaba null al momento del posting y se configuró después.
+      // Solo cuenta cuando la cuenta está configurada ahora (si no, IGTF_SIN_CUENTA_GL lo cubre).
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) AS count
+        FROM "Invoice" i
+        JOIN "CompanySettings" cs ON cs."companyId" = i."companyId"
+        WHERE i."companyId" = ${companyId}
+          AND cs."igtfPayableAccountId" IS NOT NULL
+          AND i."deletedAt" IS NULL
+          AND CAST(i."igtfAmount" AS numeric) > 0
+          AND i."transactionId" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "JournalEntry" je
+            WHERE je."transactionId" = i."transactionId"
+              AND je."accountId" = cs."igtfPayableAccountId"
+          )
+      `.then(([r]) => Number(r?.count ?? 0)),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -421,6 +443,19 @@ export const PendingTasksService = {
         description: `${igtfSinCuentaCount} factura${pl ? "s tienen" : " tiene"} IGTF calculado pero ningún asiento contable fue generado porque la cuenta "IGTF por Pagar" no está configurada en Ajustes GL. Configure la cuenta para regularizar los ${pl ? "movimientos" : "el movimiento"} (Art. 4 LIGTF + PA-121).`,
         count: igtfSinCuentaCount,
         href: "/settings",
+      });
+    }
+
+    // Hallazgo #5 legacy: facturas con IGTF causadas pero sin línea IGTF en asiento (igtfPayableAccountId se configuró después)
+    if (igtfGlIncompletoCount > 0) {
+      const pl = igtfGlIncompletoCount > 1;
+      tasks.push({
+        type: "IGTF_GL_INCOMPLETO",
+        severity: "error",
+        title: "IGTF sin registrar en asiento contable",
+        description: `${igtfGlIncompletoCount} factura${pl ? "s tienen" : " tiene"} IGTF pendiente de registrar en el Libro Diario (asiento de causación original no incluyó la línea IGTF). Cree un asiento manual de corrección: Dr CxC o Banco / Cr IGTF por Enterar (Ley IGTF Art. 4).`,
+        count: igtfGlIncompletoCount,
+        href: "/accounting/journal",
       });
     }
 
