@@ -17,6 +17,10 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
       findFirst: vi.fn(),
     },
+    // ADR-032 F2: getPaymentsByInvoice une legacy + PaymentRecord canónico
+    paymentRecord: {
+      findMany: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -550,16 +554,66 @@ describe("ReceivableService.getPaymentsByInvoice", () => {
         idempotencyKey: "key-1",
       },
     ] as never);
+    vi.mocked(prisma.paymentRecord.findMany).mockResolvedValue([] as never);
 
     const payments = await ReceivableService.getPaymentsByInvoice(INVOICE_ID, COMPANY_ID);
 
     expect(payments).toHaveLength(1);
     expect(payments[0].amount).toBe(new Decimal("300.00").toString());
+    expect(payments[0].source).toBe("legacy");
     expect(prisma.invoicePayment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ invoiceId: INVOICE_ID, deletedAt: null }),
         orderBy: { date: "asc" },
       })
     );
+  });
+
+  // ADR-032 F2: unión legacy + canónico ordenada por fecha
+  it("une InvoicePayment legacy + PaymentRecord canónico ordenados por fecha", async () => {
+    vi.mocked(prisma.invoicePayment.findMany).mockResolvedValue([
+      {
+        id: "p-legacy",
+        invoiceId: INVOICE_ID,
+        amount: new Decimal("300.00"),
+        currency: "VES",
+        amountOriginal: null,
+        method: "TRANSFERENCIA",
+        referenceNumber: null,
+        igtfAmount: null,
+        date: new Date("2026-02-05"),
+        notes: null,
+        createdBy: "user-1",
+        createdAt: new Date("2026-02-05"),
+        idempotencyKey: "key-1",
+      },
+    ] as never);
+    vi.mocked(prisma.paymentRecord.findMany).mockResolvedValue([
+      {
+        id: "p-canonical",
+        invoiceId: INVOICE_ID,
+        amountVes: new Decimal("700.00"),
+        currency: "VES",
+        amountOriginal: null,
+        method: "PAGOMOVIL",
+        referenceNumber: "REF-9",
+        igtfAmount: null,
+        date: new Date("2026-02-01"),
+        notes: null,
+        createdBy: "user-1",
+        createdAt: new Date("2026-02-01"),
+        idempotencyKey: "key-2",
+      },
+    ] as never);
+
+    const payments = await ReceivableService.getPaymentsByInvoice(INVOICE_ID, COMPANY_ID);
+
+    expect(payments).toHaveLength(2);
+    // Ordenado por fecha: el canónico (02-01) antes que el legacy (02-05)
+    expect(payments[0].id).toBe("p-canonical");
+    expect(payments[0].source).toBe("canonical");
+    expect(payments[0].amount).toBe("700");
+    expect(payments[1].id).toBe("p-legacy");
+    expect(payments[1].source).toBe("legacy");
   });
 });

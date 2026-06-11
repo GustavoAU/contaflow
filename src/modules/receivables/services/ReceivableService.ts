@@ -63,6 +63,9 @@ export type InvoicePaymentSummary = {
   createdBy: string;
   createdAt: Date;
   idempotencyKey: string;
+  // ADR-032 F2: origen del registro — "canonical" = PaymentRecord (vía nueva),
+  // "legacy" = InvoicePayment (histórico, solo lectura desde F2)
+  source: "canonical" | "legacy";
 };
 
 export type RecordPaymentInput = {
@@ -423,6 +426,12 @@ export class ReceivableService {
   }
 
   // ─── Registrar pago sobre una factura ───────────────────────────────────────
+  /**
+   * @deprecated ADR-032 F2: la vía canónica es PaymentRecord (recordPaymentAction
+   * delega en PaymentService.applyPaymentToInvoice + create + GL). Este método
+   * crea InvoicePayment legacy y NO postea GL — no añadir nuevos callers.
+   * Se congela definitivamente en F3 (D-6).
+   */
   static async recordPayment(
     input: RecordPaymentInput,
     ipAddress: string | null = null,
@@ -543,6 +552,7 @@ export class ReceivableService {
         createdBy: payment.createdBy,
         createdAt: payment.createdAt,
         idempotencyKey: payment.idempotencyKey,
+        source: "legacy" as const,
       };
     };
 
@@ -627,16 +637,24 @@ export class ReceivableService {
   }
 
   // ─── Obtener pagos activos de una factura ────────────────────────────────────
+  // ADR-032 F2 (D-5): unión de InvoicePayment legacy (solo lectura) + PaymentRecord
+  // canónico, ordenada por fecha. La UI distingue origen con `source`.
   static async getPaymentsByInvoice(
     invoiceId: string,
     companyId: string
   ): Promise<InvoicePaymentSummary[]> {
-    const payments = await prisma.invoicePayment.findMany({
-      where: { invoiceId, companyId, deletedAt: null },
-      orderBy: { date: "asc" },
-    });
+    const [legacy, canonical] = await Promise.all([
+      prisma.invoicePayment.findMany({
+        where: { invoiceId, companyId, deletedAt: null },
+        orderBy: { date: "asc" },
+      }),
+      prisma.paymentRecord.findMany({
+        where: { invoiceId, companyId, deletedAt: null },
+        orderBy: { date: "asc" },
+      }),
+    ]);
 
-    return payments.map((p) => ({
+    const legacyRows: InvoicePaymentSummary[] = legacy.map((p) => ({
       id: p.id,
       invoiceId: p.invoiceId,
       amount: p.amount.toString(),
@@ -650,6 +668,28 @@ export class ReceivableService {
       createdBy: p.createdBy,
       createdAt: p.createdAt,
       idempotencyKey: p.idempotencyKey,
+      source: "legacy" as const,
     }));
+
+    const canonicalRows: InvoicePaymentSummary[] = canonical.map((r) => ({
+      id: r.id,
+      invoiceId: r.invoiceId ?? invoiceId,
+      amount: r.amountVes.toString(),
+      currency: r.currency,
+      amountOriginal: r.amountOriginal?.toString() ?? null,
+      method: r.method,
+      referenceNumber: r.referenceNumber,
+      igtfAmount: r.igtfAmount?.toString() ?? null,
+      date: r.date,
+      notes: r.notes,
+      createdBy: r.createdBy,
+      createdAt: r.createdAt,
+      idempotencyKey: r.idempotencyKey ?? "",
+      source: "canonical" as const,
+    }));
+
+    return [...legacyRows, ...canonicalRows].sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
   }
 }

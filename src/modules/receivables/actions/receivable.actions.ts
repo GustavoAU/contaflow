@@ -4,7 +4,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { Decimal } from "decimal.js";
+import type { Currency, PaymentMethod } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { ReceivableService } from "../services/ReceivableService";
 import type { AgingReport, InvoicePaymentSummary, ReceivablePage } from "../services/ReceivableService";
@@ -16,6 +19,9 @@ import {
   UpdatePaymentTermsSchema,
 } from "../schemas/receivable.schema";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
+// ADR-032 F2: la vía canónica de pagos vive en el módulo payments — receivables delega
+import { PaymentService, type PaymentRecordSummary } from "@/modules/payments/services/PaymentService";
+import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -130,9 +136,11 @@ export async function getPayablesPaginatedAction(
 }
 
 // ─── Registrar pago sobre una factura ──────────────────────────────────────────
+// ADR-032 F2 (D-5): vía CANÓNICA — crea PaymentRecord (saldo + IGTF + GL),
+// ya NO crea InvoicePayment (entidad legacy, solo lectura desde F2).
 export async function recordPaymentAction(
   input: unknown
-): Promise<ActionResult<InvoicePaymentSummary>> {
+): Promise<ActionResult<PaymentRecordSummary>> {
   const parsed = RecordPaymentSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -145,8 +153,10 @@ export async function recordPaymentAction(
     const rl = await checkRateLimit(userId, limiters.fiscal);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
 
+    const d = parsed.data;
+
     const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
+      where: { companyId: d.companyId, userId },
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
@@ -154,29 +164,164 @@ export async function recordPaymentAction(
 
     // IGTF: computar server-side con Decimal.js — nunca confiar en el valor del cliente
     const company = await prisma.company.findFirst({
-      where: { id: parsed.data.companyId },
+      where: { id: d.companyId },
       select: { isSpecialContributor: true },
     });
-    const igtfApplies = IGTFService.applies(parsed.data.currency, company?.isSpecialContributor ?? false);
+    const igtfApplies = IGTFService.applies(d.currency, company?.isSpecialContributor ?? false);
     const computedIgtf = igtfApplies
-      ? IGTFService.calculate(parsed.data.amount, IGTF_RATE).igtfAmount
+      ? new Decimal(IGTFService.calculate(d.amount, IGTF_RATE).igtfAmount)
       : undefined;
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
-    const payment = await ReceivableService.recordPayment({
-      ...parsed.data,
-      createdBy: userId,
-      igtfAmount: computedIgtf, // computed server-side, overwrites any client value
-    }, ipAddress, userAgent);
+    const result = await prisma.$transaction(
+      async (tx) =>
+        withCompanyContext(d.companyId, tx, async (tx) => {
+          // Idempotencia: paridad con el flujo legacy (InvoicePayment.idempotencyKey)
+          const existing = await tx.paymentRecord.findUnique({
+            where: { idempotencyKey: d.idempotencyKey },
+            select: { id: true },
+          });
+          if (existing) {
+            throw new Error("Pago duplicado — ya existe un pago con esta clave de idempotencia");
+          }
 
-    revalidatePath(`/company/${parsed.data.companyId}/receivables`);
-    revalidatePath(`/company/${parsed.data.companyId}/payables`);
-    return { success: true, data: payment };
+          // ADR-032 F1: saldo + guards (FOR UPDATE, sobre-pago tolerancia 0,
+          // año fiscal cerrado R-3, factura anulada) — mismo $transaction
+          await PaymentService.applyPaymentToInvoice(
+            tx,
+            d.companyId,
+            d.invoiceId,
+            new Decimal(d.amount),
+          );
+
+          const record = await PaymentService.create(tx as typeof prisma, {
+            companyId: d.companyId,
+            invoiceId: d.invoiceId,
+            method: d.method as PaymentMethod,
+            amountVes: new Decimal(d.amount),
+            currency: d.currency as Currency,
+            amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
+            exchangeRateId: d.exchangeRateId,
+            referenceNumber: d.referenceNumber,
+            originBank: d.originBank,
+            destBank: d.destBank,
+            commissionPct: d.commissionPct ? new Decimal(d.commissionPct) : undefined,
+            igtfAmount: computedIgtf,
+            date: d.date,
+            notes: d.notes,
+            createdBy: userId, // siempre el userId autenticado — nunca el del cliente
+            bankAccountId: d.bankAccountId,
+            appliedToInvoice: true,
+            idempotencyKey: d.idempotencyKey,
+          });
+
+          // Leer tipo de factura para IGTF acumulado y dirección del asiento GL
+          const inv = await tx.invoice.findFirst({
+            where: { id: d.invoiceId, companyId: d.companyId },
+            select: { type: true, igtfBase: true, igtfAmount: true, invoiceNumber: true },
+          });
+
+          // IGTF acumulado en la factura SALE (paridad con createPaymentAction)
+          if (computedIgtf && inv?.type === "SALE") {
+            await tx.invoice.update({
+              where: { id: d.invoiceId },
+              data: {
+                igtfBase: new Decimal(inv.igtfBase.toString()).plus(d.amount),
+                igtfAmount: new Decimal(inv.igtfAmount.toString()).plus(computedIgtf),
+              },
+            });
+          }
+
+          // ADR-032 F2 (D-5): GL según dirección — SALE → COBRO (Dr Banco / Cr CxC),
+          // PURCHASE → PAGO (Dr CxP / Cr Banco). Sin bankAccountId → sin asiento
+          // (degradación graceful, igual que el módulo payments — ADR-030).
+          if (d.bankAccountId && inv) {
+            const settings = await tx.companySettings.findUnique({
+              where: { companyId: d.companyId },
+              select: {
+                arAccountId: true,
+                apAccountId: true,
+                igtfPayableAccountId: true,
+                fxGainAccountId: true,
+                fxLossAccountId: true,
+                ivaRetentionReceivableAccountId: true,
+              },
+            });
+
+            const glInput = {
+              paymentRecordId: record.id,
+              bankAccountId: d.bankAccountId,
+              amountVes: new Decimal(d.amount),
+              igtfAmount: computedIgtf ?? null,
+              invoiceId: d.invoiceId,
+              amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
+              currency: d.currency,
+              context: {
+                companyId: d.companyId,
+                date: d.date,
+                createdBy: userId,
+                description: `${inv.type === "SALE" ? "Cobro" : "Pago"} factura ${inv.invoiceNumber} — ${d.method}`,
+                ipAddress,
+                userAgent,
+              },
+            };
+
+            if (inv.type === "SALE" && settings?.arAccountId) {
+              await PaymentGLService.postPaymentRecordGL(tx, glInput, {
+                arAccountId: settings.arAccountId,
+                igtfPayableAccountId: settings.igtfPayableAccountId,
+                fxGainAccountId: settings.fxGainAccountId,
+                fxLossAccountId: settings.fxLossAccountId,
+                ivaRetentionReceivableAccountId: settings.ivaRetentionReceivableAccountId,
+              });
+            } else if (inv.type === "PURCHASE" && settings?.apAccountId) {
+              await PaymentGLService.postVendorPaymentRecordGL(tx, glInput, {
+                apAccountId: settings.apAccountId,
+                igtfPayableAccountId: settings.igtfPayableAccountId,
+              });
+            }
+          }
+
+          // R-6: AuditLog con IP/UA en el mismo $transaction
+          await tx.auditLog.create({
+            data: {
+              companyId: d.companyId,
+              entityId: record.id,
+              entityName: "PaymentRecord",
+              action: "CREATE",
+              userId,
+              ipAddress,
+              userAgent,
+              newValue: {
+                source: "receivables", // ADR-032 F2: vía canónica desde cartera
+                method: d.method,
+                amountVes: d.amount,
+                currency: d.currency,
+                date: d.date.toISOString(),
+                invoiceId: d.invoiceId,
+                bankAccountId: d.bankAccountId ?? null,
+                appliedToInvoice: true,
+              },
+            },
+          });
+
+          return record;
+        }),
+      { timeout: 30000 },
+    );
+
+    revalidatePath(`/company/${d.companyId}/receivables`);
+    revalidatePath(`/company/${d.companyId}/payables`);
+    return { success: true, data: result };
   } catch (error) {
+    if (error instanceof Error && error.message.includes("clave de idempotencia")) {
+      return { success: false, error: error.message };
+    }
     if (error instanceof Error && error.message.includes("P2002")) {
+      // Race: dos submits simultáneos con la misma key — el unique de BD ganó
       return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
     }
     return toActionError(error);
@@ -213,7 +358,66 @@ export async function cancelPaymentAction(
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
     const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
-    await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId, ipAddress, userAgent);
+    // ADR-032 F2: detectar el origen del pago. Los pagos canónicos (PaymentRecord)
+    // se anulan con reverso GL + restauración de saldo; los legacy (InvoicePayment)
+    // siguen el flujo histórico de ReceivableService.
+    const canonical = await prisma.paymentRecord.findFirst({
+      where: { id: parsed.data.paymentId, companyId: parsed.data.companyId },
+      select: { id: true, deletedAt: true, invoiceId: true, appliedToInvoice: true, amountVes: true },
+    });
+
+    if (canonical) {
+      if (canonical.deletedAt) return { success: false, error: "El pago ya está anulado" };
+
+      await prisma.$transaction(async (tx) => {
+        // ADR-030: reverso del asiento GL si existe
+        await PaymentGLService.reversePaymentRecordGL(
+          tx, parsed.data.paymentId, parsed.data.companyId, userId,
+          {
+            companyId: parsed.data.companyId,
+            date: new Date(),
+            createdBy: userId,
+            description: "Anulación de pago desde cartera (CxC/CxP)",
+            ipAddress,
+            userAgent,
+          },
+        );
+
+        await PaymentService.void(
+          tx as typeof prisma, parsed.data.paymentId, parsed.data.companyId,
+          "Anulado desde cartera (CxC/CxP)",
+        );
+
+        // ADR-032 D-4: restaurar saldo SOLO si este pago lo decrementó
+        if (canonical.appliedToInvoice && canonical.invoiceId) {
+          await PaymentService.revertPaymentFromInvoice(
+            tx, parsed.data.companyId, canonical.invoiceId, parsed.data.paymentId,
+            new Decimal(canonical.amountVes.toString()),
+          );
+        }
+
+        // R-6: AuditLog en el mismo $transaction
+        await tx.auditLog.create({
+          data: {
+            companyId: parsed.data.companyId,
+            entityId: parsed.data.paymentId,
+            entityName: "PaymentRecord",
+            action: "VOID",
+            userId,
+            ipAddress,
+            userAgent,
+            newValue: {
+              source: "receivables",
+              voidReason: "Anulado desde cartera (CxC/CxP)",
+              saldoRestaurado: canonical.appliedToInvoice && !!canonical.invoiceId,
+            },
+          },
+        });
+      });
+    } else {
+      // Pago legacy (InvoicePayment) — flujo histórico
+      await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId, ipAddress, userAgent);
+    }
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);
     revalidatePath(`/company/${parsed.data.companyId}/payables`);
