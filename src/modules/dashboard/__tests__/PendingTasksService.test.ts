@@ -36,8 +36,9 @@ function mockAllZero() {
   vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
   vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ igtfPayableAccountId: "acc-configured" } as never);
   vi.mocked(prisma.paymentBatch.count).mockResolvedValue(0 as never);      // Hallazgo #12
-  // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos
-  vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0) }] as never);
+  // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos + igtfGlIncompleto + cxcGlDescuadre
+  // gap_ves "0.0000" → ≤ tolerancia → sin alerta; count: BigInt(0) cubre los demás
+  vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0), gap_ves: "0.0000" }] as never);
   // Parte VII: nómina — sin empleados por defecto → no dispara alertas de nómina
   vi.mocked(prisma.employee.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null as never);
@@ -445,5 +446,49 @@ describe("PendingTasksService.getPendingTasks", () => {
     // mockAllZero already sets $queryRaw to return 0 for all calls → igtfGlIncompleto = 0
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "IGTF_GL_INCOMPLETO")).toBeUndefined();
+  });
+
+  // ── ADR-032 F3: CXC_GL_DESCUADRE ─────────────────────────────────────────────
+
+  it("emite CXC_GL_DESCUADRE cuando la brecha subledger↔GL supera Bs. 1 (severity error)", async () => {
+    // 5 $queryRaw calls in order: stockBajo, igtfPagosSin, clientesInactivos, igtfGlIncompleto, cxcGlDescuadre
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // stockBajo
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // igtfPagosSinRegistrar
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // clientesInactivos
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // igtfGlIncompleto
+      .mockResolvedValueOnce([{ gap_ves: "1500.2500" }] as never); // cxcGlDescuadre
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "CXC_GL_DESCUADRE");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("error");
+    expect(task?.count).toBe(1);
+    expect(task?.href).toBe("/accounting/journal");
+    expect(task?.description).toContain("1500.25");
+  });
+
+  it("NO emite CXC_GL_DESCUADRE cuando la brecha es null (arAccountId no configurado)", async () => {
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ gap_ves: null }] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "CXC_GL_DESCUADRE")).toBeUndefined();
+  });
+
+  it("NO emite CXC_GL_DESCUADRE cuando la brecha es ≤ Bs. 1 (tolerancia redondeo)", async () => {
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+      .mockResolvedValueOnce([{ gap_ves: "0.9999" }] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "CXC_GL_DESCUADRE")).toBeUndefined();
   });
 });

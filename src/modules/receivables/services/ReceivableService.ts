@@ -427,137 +427,20 @@ export class ReceivableService {
 
   // ─── Registrar pago sobre una factura ───────────────────────────────────────
   /**
-   * @deprecated ADR-032 F2: la vía canónica es PaymentRecord (recordPaymentAction
-   * delega en PaymentService.applyPaymentToInvoice + create + GL). Este método
-   * crea InvoicePayment legacy y NO postea GL — no añadir nuevos callers.
-   * Se congela definitivamente en F3 (D-6).
+   * @deprecated ADR-032 F3: CONGELADO — InvoicePayment writes deshabilitados.
+   * La vía canónica es PaymentRecord (recordPaymentAction). Este método lanza
+   * un error en runtime para prevenir regresiones. InvoicePayment permanece
+   * como archivo de solo lectura (D-6).
    */
   static async recordPayment(
-    input: RecordPaymentInput,
-    ipAddress: string | null = null,
-    userAgent: string | null = null,
-    tx?: Prisma.TransactionClient
+    _input: RecordPaymentInput,
+    _ipAddress?: string | null,
+    _userAgent?: string | null,
+    _tx?: Prisma.TransactionClient
   ): Promise<InvoicePaymentSummary> {
-    const run = async (db: Prisma.TransactionClient): Promise<InvoicePaymentSummary> => {
-      // Verificar idempotencia
-      const existing = await db.invoicePayment.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
-      });
-      if (existing) {
-        throw new Error("Pago duplicado — ya existe un pago con esta clave de idempotencia");
-      }
-
-      // Verificar factura
-      const invoice = await db.invoice.findFirst({
-        where: { id: input.invoiceId, companyId: input.companyId, deletedAt: null },
-        select: {
-          id: true,
-          date: true,
-          paymentStatus: true,
-          pendingAmount: true,
-          totalAmountVes: true,
-        },
-      });
-      if (!invoice) throw new Error("Factura no encontrada o eliminada");
-      if (invoice.paymentStatus === "PAID")
-        throw new Error("La factura ya está completamente pagada");
-
-      // Guard: año fiscal cerrado
-      const invoiceYear = invoice.date.getFullYear();
-      const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
-        input.companyId,
-        invoiceYear
-      );
-      if (yearClosed) {
-        throw new Error(
-          `El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar pagos en facturas de ese año`
-        );
-      }
-
-      const paymentAmount = new Decimal(input.amount);
-      const currentPending = invoice.pendingAmount
-        ? new Decimal(invoice.pendingAmount.toString())
-        : invoice.totalAmountVes
-          ? new Decimal(invoice.totalAmountVes.toString())
-          : new Decimal(0);
-
-      if (paymentAmount.greaterThan(currentPending)) {
-        throw new Error("El monto del pago excede el saldo pendiente");
-      }
-
-      // Crear InvoicePayment
-      const payment = await db.invoicePayment.create({
-        data: {
-          companyId: input.companyId,
-          invoiceId: input.invoiceId,
-          amount: paymentAmount,
-          currency: input.currency as never,
-          amountOriginal: input.amountOriginal ? new Decimal(input.amountOriginal) : null,
-          exchangeRateId: input.exchangeRateId,
-          method: input.method as never,
-          referenceNumber: input.referenceNumber,
-          originBank: input.originBank,
-          destBank: input.destBank,
-          commissionPct: input.commissionPct ? new Decimal(input.commissionPct) : null,
-          igtfAmount: input.igtfAmount ? new Decimal(input.igtfAmount) : null,
-          date: input.date,
-          notes: input.notes,
-          createdBy: input.createdBy,
-          idempotencyKey: input.idempotencyKey,
-        },
-      });
-
-      // Actualizar pendingAmount y paymentStatus en Invoice
-      const newPending = currentPending.minus(paymentAmount);
-      const newStatus = newPending.isZero() ? "PAID" : "PARTIAL";
-
-      await db.invoice.update({
-        where: { id: input.invoiceId },
-        data: { pendingAmount: newPending, paymentStatus: newStatus },
-      });
-
-      // AuditLog
-      await db.auditLog.create({
-        data: {
-          companyId: input.companyId,
-          entityId: payment.id,
-          entityName: "InvoicePayment",
-          action: "CREATE",
-          userId: input.createdBy,
-          ipAddress,
-          userAgent,
-          newValue: {
-            invoiceId: input.invoiceId,
-            amount: paymentAmount.toFixed(4),
-            currency: input.currency,
-            method: input.method,
-            date: input.date.toISOString(),
-            newPendingAmount: newPending.toFixed(4),
-            newPaymentStatus: newStatus,
-          },
-        },
-      });
-
-      return {
-        id: payment.id,
-        invoiceId: payment.invoiceId,
-        amount: payment.amount.toString(),
-        currency: payment.currency,
-        amountOriginal: payment.amountOriginal?.toString() ?? null,
-        method: payment.method,
-        referenceNumber: payment.referenceNumber,
-        igtfAmount: payment.igtfAmount?.toString() ?? null,
-        date: payment.date,
-        notes: payment.notes,
-        createdBy: payment.createdBy,
-        createdAt: payment.createdAt,
-        idempotencyKey: payment.idempotencyKey,
-        source: "legacy" as const,
-      };
-    };
-
-    if (tx) return run(tx);
-    return withRetry(() => prisma.$transaction(run, { isolationLevel: "ReadCommitted" }));
+    throw new Error(
+      "ADR-032 F3: InvoicePayment writes están congelados. Usa recordPaymentAction (vía canónica PaymentRecord)."
+    );
   }
 
   // ─── Cancelar (soft delete) un pago ─────────────────────────────────────────
