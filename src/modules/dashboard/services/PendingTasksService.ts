@@ -5,6 +5,7 @@
 // El servicio devuelve counts y metadata; el resumen en lenguaje natural lo genera la action.
 
 import prisma from "@/lib/prisma";
+import Decimal from "decimal.js";
 
 export type PendingTaskType =
   | "INVOICES_SIN_CAUSAR"
@@ -26,7 +27,8 @@ export type PendingTaskType =
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
   | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
-  | "RETENCIONES_SIN_ASIENTO_GL";  // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
+  | "RETENCIONES_SIN_ASIENTO_GL"   // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
+  | "CXC_GL_DESCUADRE";            // ADR-032 F3: subledger CxC ≠ saldo GL cuenta CxC (Art. 32-35 Cód. Comercio)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -85,6 +87,8 @@ export const PendingTasksService = {
       retencionesSinAsientoCount,
       // Hallazgo #5 legacy
       igtfGlIncompletoCount,
+      // ADR-032 F3
+      cxcGlDescuadreGap,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -305,6 +309,35 @@ export const PendingTasksService = {
               AND je."accountId" = cs."igtfPayableAccountId"
           )
       `.then(([r]) => Number(r?.count ?? 0)),
+
+      // 24. ADR-032 F3: brecha subledger CxC vs saldo GL de la cuenta arAccountId.
+      // Retorna NULL si arAccountId no está configurado (sin cuenta, sin check posible).
+      // Positivo = InvoicePayment legacy sin GL + posibles asientos manuales sin invoice.
+      prisma.$queryRaw<[{ gap_ves: string | null }]>`
+        WITH settings AS (
+          SELECT "arAccountId" FROM "CompanySettings" WHERE "companyId" = ${companyId}
+        ),
+        subledger AS (
+          SELECT COALESCE(SUM(CAST("pendingAmount" AS NUMERIC)), 0) AS total
+          FROM "Invoice"
+          WHERE "companyId" = ${companyId}
+            AND "type" = 'SALE'
+            AND "deletedAt" IS NULL
+        ),
+        gl_cxc AS (
+          SELECT COALESCE(SUM(je.amount), 0) AS balance
+          FROM "JournalEntry" je
+          JOIN "Transaction" t ON t.id = je."transactionId"
+          WHERE je."accountId" = (SELECT "arAccountId" FROM settings)
+            AND t."companyId" = ${companyId}
+            AND t."status" = 'POSTED'
+            AND (SELECT "arAccountId" FROM settings) IS NOT NULL
+        )
+        SELECT
+          CASE WHEN (SELECT "arAccountId" FROM settings) IS NULL THEN NULL
+          ELSE ABS((SELECT total FROM subledger) - (SELECT balance FROM gl_cxc))::TEXT
+          END AS gap_ves
+      `.then(([r]) => r?.gap_ves ?? null),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -554,6 +587,21 @@ export const PendingTasksService = {
         count: nomProbationCount,
         href: "/payroll/employees",
       });
+    }
+
+    // ADR-032 F3: subledger CxC vs GL — tolerancia Bs. 1 para diferencias de redondeo acumulado
+    if (cxcGlDescuadreGap !== null) {
+      const gap = new Decimal(cxcGlDescuadreGap);
+      if (gap.gt(new Decimal("1.00"))) {
+        tasks.push({
+          type: "CXC_GL_DESCUADRE",
+          severity: "error",
+          title: "Descuadre CxC: cartera ≠ Libro Mayor",
+          description: `Diferencia de Bs. ${gap.toDecimalPlaces(2).toFixed(2)} entre el saldo de facturas pendientes y la cuenta Cuentas por Cobrar del Libro Mayor. Posible causa: cobros registrados sin asiento GL (Art. 32-35 Código de Comercio).`,
+          count: 1,
+          href: "/accounting/journal",
+        });
+      }
     }
 
     return {
