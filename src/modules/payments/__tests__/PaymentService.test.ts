@@ -13,6 +13,13 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// ADR-032 F1: guard de año fiscal cerrado en applyPaymentToInvoice/revertPaymentFromInvoice
+vi.mock("@/modules/fiscal-close/services/FiscalYearCloseService", () => ({
+  FiscalYearCloseService: { isFiscalYearClosed: vi.fn() },
+}));
+
+import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+
 const DATE = new Date("2026-03-30T00:00:00.000Z");
 
 const PAYMENT_ROW = {
@@ -151,6 +158,152 @@ describe("PaymentService.list", () => {
 
     const result = await PaymentService.list("company-1");
     expect(result).toHaveLength(0);
+  });
+});
+
+// ─── ADR-032 F1: aplicación y reversa de saldo ────────────────────────────────
+
+// tx stub: el método recibe el TransactionClient como parámetro — no usa el singleton
+function makeTx(invoice: Record<string, unknown> | null) {
+  return {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    invoice: {
+      findFirst: vi.fn().mockResolvedValue(invoice),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    paymentRecord: { count: vi.fn().mockResolvedValue(0) },
+    invoicePayment: { count: vi.fn().mockResolvedValue(0) },
+  };
+}
+
+const OPEN_INVOICE = {
+  date: new Date("2026-03-01"),
+  paymentStatus: "UNPAID",
+  pendingAmount: new Decimal("1000"),
+  totalAmountVes: new Decimal("1000"),
+};
+
+describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
+  });
+
+  it("toma FOR UPDATE antes de leer y decrementa el saldo (pago parcial → PARTIAL)", async () => {
+    const tx = makeTx(OPEN_INVOICE);
+
+    const result = await PaymentService.applyPaymentToInvoice(
+      tx as never, "company-1", "inv-1", new Decimal("400"),
+    );
+
+    // Row lock primero — serializa pagos concurrentes
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(result.newStatus).toBe("PARTIAL");
+    expect(result.newPending.toString()).toBe("600");
+    const updateArg = tx.invoice.update.mock.calls[0][0] as {
+      data: { pendingAmount: Decimal; paymentStatus: string };
+    };
+    expect(updateArg.data.pendingAmount.toString()).toBe("600");
+    expect(updateArg.data.paymentStatus).toBe("PARTIAL");
+  });
+
+  it("pago por el saldo completo → PAID", async () => {
+    const tx = makeTx(OPEN_INVOICE);
+
+    const result = await PaymentService.applyPaymentToInvoice(
+      tx as never, "company-1", "inv-1", new Decimal("1000"),
+    );
+
+    expect(result.newStatus).toBe("PAID");
+    expect(result.newPending.isZero()).toBe(true);
+  });
+
+  it("rechaza sobre-pago con tolerancia 0", async () => {
+    const tx = makeTx(OPEN_INVOICE);
+
+    await expect(
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("1000.01")),
+    ).rejects.toThrow("excede el saldo pendiente");
+    expect(tx.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza factura ya pagada", async () => {
+    const tx = makeTx({ ...OPEN_INVOICE, paymentStatus: "PAID" });
+
+    await expect(
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+    ).rejects.toThrow("ya está completamente pagada");
+  });
+
+  it("rechaza factura anulada (VOIDED)", async () => {
+    const tx = makeTx({ ...OPEN_INVOICE, paymentStatus: "VOIDED" });
+
+    await expect(
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+    ).rejects.toThrow("anulada");
+  });
+
+  it("rechaza si la factura no existe o no pertenece a la empresa (ADR-004)", async () => {
+    const tx = makeTx(null);
+
+    await expect(
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-x", new Decimal("100")),
+    ).rejects.toThrow("no encontrada o no pertenece");
+  });
+
+  it("rechaza si el año fiscal está cerrado (R-3)", async () => {
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(true);
+    const tx = makeTx(OPEN_INVOICE);
+
+    await expect(
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+    ).rejects.toThrow("está cerrado");
+    expect(tx.invoice.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("PaymentService.revertPaymentFromInvoice (ADR-032 F1 D-4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
+  });
+
+  it("restaura el saldo y deja UNPAID si no quedan otros pagos activos", async () => {
+    const tx = makeTx({ date: new Date("2026-03-01"), pendingAmount: new Decimal("600") });
+
+    await PaymentService.revertPaymentFromInvoice(
+      tx as never, "company-1", "inv-1", "pay-1", new Decimal("400"),
+    );
+
+    const updateArg = tx.invoice.update.mock.calls[0][0] as {
+      data: { pendingAmount: Decimal; paymentStatus: string };
+    };
+    expect(updateArg.data.pendingAmount.toString()).toBe("1000");
+    expect(updateArg.data.paymentStatus).toBe("UNPAID");
+  });
+
+  it("deja PARTIAL si quedan otros pagos activos (canónicos o legacy)", async () => {
+    const tx = makeTx({ date: new Date("2026-03-01"), pendingAmount: new Decimal("600") });
+    tx.paymentRecord.count.mockResolvedValue(1);
+
+    await PaymentService.revertPaymentFromInvoice(
+      tx as never, "company-1", "inv-1", "pay-1", new Decimal("400"),
+    );
+
+    const updateArg = tx.invoice.update.mock.calls[0][0] as {
+      data: { paymentStatus: string };
+    };
+    expect(updateArg.data.paymentStatus).toBe("PARTIAL");
+  });
+
+  it("rechaza si el año fiscal está cerrado (R-3)", async () => {
+    vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(true);
+    const tx = makeTx({ date: new Date("2025-12-01"), pendingAmount: new Decimal("600") });
+
+    await expect(
+      PaymentService.revertPaymentFromInvoice(tx as never, "company-1", "inv-1", "pay-1", new Decimal("400")),
+    ).rejects.toThrow("está cerrado");
+    expect(tx.invoice.update).not.toHaveBeenCalled();
   });
 });
 
