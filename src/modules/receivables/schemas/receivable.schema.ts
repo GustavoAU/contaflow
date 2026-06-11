@@ -48,6 +48,8 @@ export const RecordPaymentSchema = z.object({
   notes:          z.string().optional(),
   createdBy:      z.string().min(1, { error: "createdBy requerido" }),
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }),
+  // ADR-032 F2: cuenta bancaria opcional para GL auto-posting (sin ella → sin asiento)
+  bankAccountId:  z.string().optional(),
 });
 
 export const CancelPaymentSchema = z.object({

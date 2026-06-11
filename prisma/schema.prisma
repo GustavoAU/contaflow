@@ -702,6 +702,9 @@ model PaymentRecord {
   // Los registros legacy (pre-ADR-032) nunca tocaron el saldo → false.
   // El void solo restaura saldo cuando appliedToInvoice = true.
   appliedToInvoice   Boolean             @default(false)
+  // ADR-032 F2: dedupe de doble-submit en la vía canónica (paridad con InvoicePayment).
+  // Nullable: los pagos del módulo payments no la usan aún; unique permite múltiples NULL.
+  idempotencyKey     String?             @unique
   // Anulación (#14 — 20260525)
   deletedAt          DateTime?
   voidReason         String?

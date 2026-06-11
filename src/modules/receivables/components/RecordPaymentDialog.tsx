@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { recordPaymentAction } from "../actions/receivable.actions";
+// ADR-032 F2: selector de cuenta bancaria para GL auto-posting (vía canónica)
+import { listBankAccountsAction, type BankAccountOption } from "@/modules/payments/actions/payment.actions";
 import type { ReceivableRow } from "../services/ReceivableService";
 import { Decimal } from "decimal.js";
 
@@ -57,6 +59,18 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // ADR-032 F2: cuenta bancaria opcional — con ella el pago genera asiento GL automático
+  const [bankAccountId, setBankAccountId] = useState<string>("");
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    listBankAccountsAction(companyId).then((res) => {
+      if (!cancelled && res.success) setBankAccounts(res.data);
+    });
+    return () => { cancelled = true; };
+  }, [open, companyId]);
 
   const currencyAllowed = (CURRENCY_ALLOWED_METHODS as readonly string[]).includes(method);
 
@@ -80,6 +94,8 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
         date: new Date(date + "T12:00:00"),
         createdBy: "",
         idempotencyKey: crypto.randomUUID(),
+        // ADR-032 F2: con cuenta bancaria → asiento GL automático (cobro/pago)
+        bankAccountId: bankAccountId || undefined,
       });
 
       if (result.success) {
@@ -189,6 +205,23 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           </div>
 
           <div className="grid gap-1.5">
+            <Label htmlFor="bank-account">Cuenta bancaria (opcional — genera asiento contable)</Label>
+            <Select value={bankAccountId || "none"} onValueChange={(v) => setBankAccountId(v === "none" ? "" : v)}>
+              <SelectTrigger id="bank-account">
+                <SelectValue placeholder="Sin asiento contable" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asiento contable</SelectItem>
+                {bankAccounts.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name} — {b.bankName} ({b.currency})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-1.5">
             <Label htmlFor="reference">Referencia (opcional)</Label>
             <Input
               id="reference"
@@ -220,7 +253,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isPending || !isAmountValid}>
+          <Button onClick={handleSubmit} disabled={isPending || !isAmountValid} aria-busy={isPending}>
             {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando..." : "Confirmar pago"}
           </Button>
         </DialogFooter>

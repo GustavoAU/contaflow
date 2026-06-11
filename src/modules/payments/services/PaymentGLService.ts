@@ -353,6 +353,142 @@ export class PaymentGLService {
   }
 
   /**
+   * Genera el asiento GL para un pago A/P INDIVIDUAL (Proveedores → Banco).
+   * ADR-032 F2 (D-5): habilita la vía canónica de PaymentRecord para facturas PURCHASE.
+   *
+   * Asiento pago:
+   *   Dr. settings.apAccountId    amountVes   [cancela CxP proveedor]
+   *   Cr. BankAccount.accountId   amountVes   [salida del banco]
+   *
+   * Si igtfAmount > 0 y igtfPayableAccountId configurado (mismo patrón que batch):
+   *   Dr. settings.igtfPayableAccountId  igtfAmount
+   *   Cr. BankAccount.accountId          igtfAmount
+   */
+  static async postVendorPaymentRecordGL(
+    tx: Prisma.TransactionClient,
+    input: PaymentRecordGLInput,
+    settings: { apAccountId: string; igtfPayableAccountId: string | null },
+  ): Promise<GLPostingResult> {
+    const { companyId, date, createdBy, description, ipAddress, userAgent } =
+      input.context;
+
+    const bankAcc = await tx.bankAccount.findFirst({
+      where: { id: input.bankAccountId, companyId },
+      select: { accountId: true },
+    });
+    if (!bankAcc) {
+      throw new Error("La cuenta bancaria no pertenece a esta empresa");
+    }
+
+    // Resolver período activo (R-3: período CLOSED → no postear)
+    const period = await tx.accountingPeriod.findFirst({
+      where: { companyId, status: "OPEN" },
+      select: { id: true },
+    });
+    if (!period) {
+      throw new Error(
+        "No hay período contable abierto. Abre un período antes de registrar asientos.",
+      );
+    }
+
+    const number = await generateTxNumber(tx, companyId, date);
+    const amountVes = new Decimal(input.amountVes.toString());
+    const igtfAmount = input.igtfAmount
+      ? new Decimal(input.igtfAmount.toString())
+      : null;
+
+    const entries: { accountId: string; amount: Decimal; description: string }[] = [
+      // Dr. CxP (cancela la deuda con el proveedor)
+      { accountId: settings.apAccountId, amount: amountVes, description },
+      // Cr. Banco (salida de fondos)
+      { accountId: bankAcc.accountId, amount: amountVes.negated(), description },
+    ];
+
+    let igtfSkipped = false;
+    if (igtfAmount && igtfAmount.greaterThan(0)) {
+      if (settings.igtfPayableAccountId) {
+        entries.push({
+          accountId: settings.igtfPayableAccountId,
+          amount: igtfAmount,
+          description: `${description} — IGTF`,
+        });
+        entries.push({
+          accountId: bankAcc.accountId,
+          amount: igtfAmount.negated(),
+          description: `${description} — IGTF`,
+        });
+      } else {
+        igtfSkipped = true;
+      }
+    }
+
+    // Riesgo-9 (Art. 33 COT): tipo PAGO para identificación correcta en Libro Diario
+    const txRecord = await tx.transaction.create({
+      data: {
+        number,
+        companyId,
+        userId: createdBy,
+        description,
+        date,
+        type: "PAGO",
+        status: "POSTED",
+        periodId: period.id,
+        entries: {
+          create: entries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+            description: e.description,
+          })),
+        },
+      },
+      select: { id: true },
+    });
+
+    await tx.paymentRecord.update({
+      where: { id: input.paymentRecordId },
+      data: { glTransactionId: txRecord.id },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId,
+        entityId: input.paymentRecordId,
+        entityName: "PaymentRecord",
+        action: "GL_POSTED",
+        userId: createdBy,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+        newValue: {
+          transactionId: txRecord.id,
+          journalEntriesCount: entries.length,
+          direction: "PAGO",
+          ...(igtfSkipped ? { igtfGlSkipped: true } : {}),
+        },
+      },
+    });
+
+    if (igtfSkipped) {
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: input.paymentRecordId,
+          entityName: "PaymentRecord",
+          action: "IGTF_GL_SKIPPED",
+          userId: createdBy,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
+          newValue: {
+            igtfAmount: input.igtfAmount?.toString(),
+            reason: "igtfPayableAccountId no configurado en CompanySettings",
+          },
+        },
+      });
+    }
+
+    return { transactionId: txRecord.id, journalEntriesCount: entries.length };
+  }
+
+  /**
    * Genera el asiento GL para un pago A/P (Proveedores → Banco).
    * Llamado exclusivamente desde PaymentBatchService.applyBatch() dentro de $transaction Serializable.
    *
@@ -579,7 +715,7 @@ export class PaymentGLService {
     const reverseDesc = `Reverso — ${originalTx.description}`;
 
     // Crear asiento de reverso (cada línea invierte su signo)
-    // Riesgo-9: preservar tipo COBRO del asiento original
+    // Riesgo-9: preservar el tipo del asiento original (COBRO para CxC, PAGO para CxP — ADR-032 F2)
     const reverseTx = await tx.transaction.create({
       data: {
         number,
@@ -587,7 +723,7 @@ export class PaymentGLService {
         userId: voidedBy,
         description: reverseDesc,
         date: context.date,
-        type: "COBRO",
+        type: originalTx.type,
         status: "POSTED",
         periodId: period.id,
         entries: {

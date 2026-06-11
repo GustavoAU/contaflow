@@ -54,6 +54,8 @@ type CreatePaymentData = {
   bankAccountId?: string;
   // ADR-032 F1: true cuando applyPaymentToInvoice decrementó el saldo de la factura
   appliedToInvoice?: boolean;
+  // ADR-032 F2: dedupe de doble-submit (vía canónica desde receivables)
+  idempotencyKey?: string;
 };
 
 function serialize(r: {
@@ -140,6 +142,8 @@ export class PaymentService {
         bankAccountId: input.bankAccountId,
         // ADR-032 F1: marca los pagos que decrementaron el saldo de la factura
         appliedToInvoice: input.appliedToInvoice ?? false,
+        // ADR-032 F2: dedupe de doble-submit
+        idempotencyKey: input.idempotencyKey,
       },
     });
     return serialize(record);
