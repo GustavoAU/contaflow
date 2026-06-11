@@ -62,6 +62,18 @@ export async function createPaymentAction(
     const result = await prisma.$transaction(
       async (tx) =>
         withCompanyContext(d.companyId, tx, async (tx) => {
+          // ADR-032 F1: PaymentRecord es la vía canónica — aplica el pago al saldo
+          // de la factura DENTRO del mismo $transaction. FOR UPDATE serializa
+          // contra pagos concurrentes; guards: anulada, año cerrado, sobre-pago.
+          if (d.invoiceId) {
+            await PaymentService.applyPaymentToInvoice(
+              tx,
+              d.companyId,
+              d.invoiceId,
+              new Decimal(d.amountVes),
+            );
+          }
+
           const record = await PaymentService.create(tx as typeof prisma, {
             companyId: d.companyId,
             invoiceId: d.invoiceId,
@@ -83,6 +95,8 @@ export async function createPaymentAction(
             notes: d.notes,
             createdBy: userId, // always use authenticated userId
             bankAccountId: d.bankAccountId,
+            // ADR-032 F1: el saldo ya fue decrementado arriba dentro de esta tx
+            appliedToInvoice: !!d.invoiceId,
           });
 
           // Acumular igtfBase/igtfAmount en la factura vinculada.
@@ -164,6 +178,8 @@ export async function createPaymentAction(
                 date: d.date,
                 invoiceId: d.invoiceId ?? null,
                 bankAccountId: d.bankAccountId ?? null,
+                // ADR-032 F1: trazabilidad de la aplicación al saldo
+                appliedToInvoice: !!d.invoiceId,
               },
             },
           });
@@ -214,7 +230,7 @@ export async function voidPaymentRecordAction(
     // Verificar que el pago pertenece a esta empresa y no está ya anulado
     const existing = await prisma.paymentRecord.findFirst({
       where: { id: paymentId, companyId },
-      select: { id: true, deletedAt: true },
+      select: { id: true, deletedAt: true, invoiceId: true, appliedToInvoice: true, amountVes: true },
     });
     if (!existing) return { success: false, error: "Pago no encontrado" };
     if (existing.deletedAt) return { success: false, error: "El pago ya está anulado" };
@@ -231,6 +247,20 @@ export async function voidPaymentRecordAction(
       });
 
       const voided = await PaymentService.void(tx as typeof prisma, paymentId, companyId, voidReason.trim());
+
+      // ADR-032 F1 (D-4): void en espejo — restaura el saldo SOLO si este pago
+      // lo decrementó al crearse (appliedToInvoice). Los pagos legacy nunca
+      // tocaron saldo y restaurarlo corrompería la cartera.
+      if (existing.appliedToInvoice && existing.invoiceId) {
+        await PaymentService.revertPaymentFromInvoice(
+          tx,
+          companyId,
+          existing.invoiceId,
+          paymentId,
+          new Decimal(existing.amountVes.toString()),
+        );
+      }
+
       await (tx as typeof prisma).auditLog.create({
         data: {
           companyId,

@@ -698,6 +698,10 @@ model PaymentRecord {
   ivaRetentionAmount Decimal?            @default(0) @db.Decimal(19, 4)
   date               DateTime
   notes              String?
+  // ADR-032 F1: true si este pago decrementó Invoice.pendingAmount al crearse.
+  // Los registros legacy (pre-ADR-032) nunca tocaron el saldo → false.
+  // El void solo restaura saldo cuando appliedToInvoice = true.
+  appliedToInvoice   Boolean             @default(false)
   // Anulación (#14 — 20260525)
   deletedAt          DateTime?
   voidReason         String?

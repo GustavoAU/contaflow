@@ -32,7 +32,13 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("../services/PaymentService", () => ({
-  PaymentService: { create: vi.fn(), list: vi.fn() },
+  PaymentService: {
+    create: vi.fn(),
+    list: vi.fn(),
+    // ADR-032 F1: aplicación/reversa de saldo
+    applyPaymentToInvoice: vi.fn(),
+    revertPaymentFromInvoice: vi.fn(),
+  },
 }));
 vi.mock("../services/PaymentGLService", () => ({
   PaymentGLService: {
@@ -147,6 +153,49 @@ describe("createPaymentAction — security", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
+  });
+
+  // ─── ADR-032 F1: aplicación del pago al saldo de la factura ────────────────
+  it("con invoiceId aplica el pago al saldo DENTRO de la tx y marca appliedToInvoice", async () => {
+    vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
+
+    const result = await createPaymentAction({ ...VALID_INPUT, invoiceId: "inv-1" });
+
+    expect(result.success).toBe(true);
+    expect(PaymentService.applyPaymentToInvoice).toHaveBeenCalledTimes(1);
+    const [, companyArg, invoiceArg, amountArg] =
+      vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0];
+    expect(companyArg).toBe(COMPANY_ID);
+    expect(invoiceArg).toBe("inv-1");
+    expect(amountArg.toString()).toBe("1160");
+    expect(PaymentService.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ appliedToInvoice: true }),
+    );
+  });
+
+  it("sin invoiceId NO toca el saldo y appliedToInvoice queda false", async () => {
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(PaymentService.applyPaymentToInvoice).not.toHaveBeenCalled();
+    expect(PaymentService.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ appliedToInvoice: false }),
+    );
+  });
+
+  it("si el pago excede el saldo (guard ADR-032), retorna error y NO crea el pago", async () => {
+    // Once: evita contaminar describes posteriores (clearAllMocks no resetea implementaciones)
+    vi.mocked(PaymentService.applyPaymentToInvoice).mockRejectedValueOnce(
+      new Error("El monto del pago excede el saldo pendiente de la factura"),
+    );
+
+    const result = await createPaymentAction({ ...VALID_INPUT, invoiceId: "inv-1" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("excede el saldo pendiente");
+    expect(PaymentService.create).not.toHaveBeenCalled();
   });
 });
 
