@@ -27,6 +27,8 @@ import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
+import { put } from "@vercel/blob";
+import { createHash } from "crypto";
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -218,12 +220,13 @@ export async function getInvoicesPaginatedAction(
 }
 
 // ─── Exportar libro de compras/ventas en PDF ───────────────────────────────────
+// M9: R-2 — PDF Libro de Ventas/Compras va a Vercel Blob; solo URL + contentHash viajan al cliente
 export async function exportInvoiceBookPDFAction(params: {
   companyId: string
   type: "SALE" | "PURCHASE"
   year: number
   month: number
-}): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
+}): Promise<{ success: true; url: string; contentHash: string } | { success: false; error: string }> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -231,7 +234,6 @@ export async function exportInvoiceBookPDFAction(params: {
     const rl = await checkRateLimit(userId, limiters.export);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de exportaciones excedido" };
 
-    // Verificar que company pertenece al usuario
     const membership = await prisma.companyMember.findFirst({
       where: { companyId: params.companyId, userId },
       include: { company: true },
@@ -246,6 +248,7 @@ export async function exportInvoiceBookPDFAction(params: {
       month: params.month,
     });
 
+    const mm = String(params.month).padStart(2, "0");
     const monthLabel = new Date(params.year, params.month - 1, 1).toLocaleString("es-VE", {
       month: "long",
       year: "numeric",
@@ -255,14 +258,38 @@ export async function exportInvoiceBookPDFAction(params: {
       companyId: params.companyId,
       companyName: membership.company.name,
       companyRif: membership.company.rif ?? "",
-      periodId: `${params.year}-${String(params.month).padStart(2, "0")}`,
+      periodId: `${params.year}-${mm}`,
       periodLabel: monthLabel,
       invoiceType: params.type,
       invoices: rows,
       summary,
     });
 
-    return { success: true, buffer: Array.from(pdfBuffer) };
+    // R-2: contentHash SHA-256 + subida a Object Storage
+    const contentHash = createHash("sha256").update(pdfBuffer).digest("hex");
+    const bookSlug = params.type === "SALE" ? "ventas" : "compras";
+    const filename = `fiscal/${params.companyId}/libro-${bookSlug}-${params.year}-${mm}.pdf`;
+
+    const blob = await put(filename, pdfBuffer, {
+      access: "public",
+      contentType: "application/pdf",
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+
+    // R-2: metadata + contentHash en DB (no el PDF)
+    await prisma.fiscalReport.create({
+      data: {
+        companyId: params.companyId,
+        reportType: params.type === "SALE" ? "LIBRO_VENTAS" : "LIBRO_COMPRAS",
+        year: params.year,
+        month: params.month,
+        blobUrl: blob.url,
+        contentHash,
+        generatedBy: userId,
+      },
+    });
+
+    return { success: true, url: blob.url, contentHash };
   } catch (error) {
     return { success: false, error: mapPrismaError(error) };
   }

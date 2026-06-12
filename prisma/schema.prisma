@@ -255,6 +255,8 @@ model Company {
   docShareTokens             DocShareToken[]
   // M8: secuencias mensuales para correlativo Libro Diario
   journalSequences           JournalSequence[]
+  // M9: reportes fiscales en Object Storage (R-2)
+  fiscalReports              FiscalReport[]
 }
 
 model CompanyMember {
@@ -451,6 +453,22 @@ model JournalSequence {
   lastNumber  Int     @default(0)
 
   @@unique([companyId, year, month])
+}
+
+// M9: metadata de reportes fiscales generados y subidos a Vercel Blob (R-2)
+model FiscalReport {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reportType  String   // "LIBRO_VENTAS" | "LIBRO_COMPRAS"
+  year        Int
+  month       Int
+  blobUrl     String
+  contentHash String
+  generatedBy String
+  generatedAt DateTime @default(now())
+
+  @@index([companyId, year, month, reportType])
 }
 
 model JournalEntry {

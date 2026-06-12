@@ -140,13 +140,13 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
         toast.error(result.error);
         return;
       }
-      const blob = new Blob([new Uint8Array(result.buffer)], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      // M9: PDF en Vercel Blob — abrimos la URL directamente (no buffer en memoria)
       const a = document.createElement("a");
-      a.href = url;
+      a.href = result.url;
       a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.pdf`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
       a.click();
-      URL.revokeObjectURL(url);
     });
   }
 

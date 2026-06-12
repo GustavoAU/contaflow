@@ -42,6 +42,7 @@ vi.mock("@/lib/prisma", () => ({
     invoice: { findFirst: vi.fn() },
     fiscalYearClose: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
+    fiscalReport: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -87,6 +88,10 @@ vi.mock("qrcode", () => ({
   default: {
     toDataURL: vi.fn().mockResolvedValue("data:image/png;base64,fakeQR=="),
   },
+}));
+
+vi.mock("@vercel/blob", () => ({
+  put: vi.fn().mockResolvedValue({ url: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf" }),
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -425,7 +430,7 @@ describe("exportInvoiceBookPDFAction", () => {
     if (!result.success) expect(result.error).toContain("acceso denegado");
   });
 
-  it("happy path: retorna buffer PDF serializable", async () => {
+  it("happy path: sube a Vercel Blob y retorna url + contentHash (M9 R-2)", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(InvoiceService.getBook).mockResolvedValue({
@@ -433,15 +438,17 @@ describe("exportInvoiceBookPDFAction", () => {
       summary: EMPTY_SUMMARY,
     } as never);
     vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({} as never);
 
     const result = await exportInvoiceBookPDFAction(validParams);
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.buffer).toEqual(expect.any(Array));
-      expect(result.buffer.length).toBeGreaterThan(0);
+      expect(result.url).toContain("blob.vercel-storage.com");
+      expect(result.contentHash).toMatch(/^[a-f0-9]{64}$/);
     }
     expect(generateInvoiceBookPDF).toHaveBeenCalledOnce();
+    expect(vi.mocked(prisma.fiscalReport.create)).toHaveBeenCalledOnce();
   });
 });
 
