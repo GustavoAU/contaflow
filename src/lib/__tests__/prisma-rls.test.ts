@@ -12,23 +12,35 @@ function makeTx(overrides?: Partial<PrismaTransactionClient>): PrismaTransaction
 }
 
 describe("withCompanyContext", () => {
+  it("emite SET LOCAL ROLE authenticated primero (neutraliza BYPASSRLS)", async () => {
+    const tx = makeTx();
+    const fn = vi.fn().mockResolvedValue("ok");
+
+    await withCompanyContext("company-abc", tx, fn);
+
+    // Llamada 1: SET LOCAL ROLE authenticated
+    const call0 = vi.mocked(tx.$executeRaw).mock.calls[0];
+    const sql0 = call0[0] as TemplateStringsArray;
+    expect(sql0[0]).toContain("ROLE");
+    expect(sql0[0]).toContain("authenticated");
+  });
+
   it("invoca set_config con companyId correcto e is_local=true (equivale a SET LOCAL)", async () => {
     const tx = makeTx();
     const fn = vi.fn().mockResolvedValue("ok");
 
     await withCompanyContext("company-abc", tx, fn);
 
-    // Verificar que $executeRaw fue llamado (set_config)
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
-    // El template tag incluye el companyId como parámetro — verificar que fue invocado
-    const call = vi.mocked(tx.$executeRaw).mock.calls[0];
-    // El tagged template literal convierte en [strings[], ...values]
-    // strings[0] contiene "SELECT set_config('app.current_company_id', " y strings[1] ", true)"
-    const sqlStrings = call[0] as TemplateStringsArray;
-    expect(sqlStrings[0]).toContain("set_config");
-    expect(sqlStrings[0]).toContain("app.current_company_id");
-    expect(sqlStrings[1]).toContain("true"); // is_local=true
-    expect(call[1]).toBe("company-abc"); // valor interpolado
+    // $executeRaw se llama dos veces: SET ROLE (call 0) + set_config (call 1)
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+
+    // Llamada 2: SELECT set_config(...)
+    const call1 = vi.mocked(tx.$executeRaw).mock.calls[1];
+    const sql1 = call1[0] as TemplateStringsArray;
+    expect(sql1[0]).toContain("set_config");
+    expect(sql1[0]).toContain("app.current_company_id");
+    expect(sql1[1]).toContain("true"); // is_local=true
+    expect(call1[1]).toBe("company-abc"); // valor interpolado
   });
 
   it("llama a fn con el mismo tx (evita bug de closure con prisma global)", async () => {
@@ -71,7 +83,7 @@ describe("withCompanyContext", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it("no llama a fn si set_config falla (fallo en $executeRaw propaga la excepción)", async () => {
+  it("no llama a fn si $executeRaw falla (fallo antes de set_config propaga la excepción)", async () => {
     const tx = makeTx({
       $executeRaw: vi.fn().mockRejectedValue(new Error("DB error")),
     });
