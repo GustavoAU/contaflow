@@ -25,6 +25,7 @@ import qrcode from "qrcode";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { withSerializableRetry } from "@/lib/tx-helpers";
 
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
@@ -102,14 +103,11 @@ export async function createInvoiceAction(input: unknown) {
       }
     }
 
-    // H-002 (Prov. 0071 Art. 14): SALE usa Serializable para garantizar unicidad del correlativo
-    const txIsolation = parsed.data.type === "SALE"
-      ? { isolationLevel: "Serializable" as const }
-      : undefined;
-
-    const invoice = await prisma.$transaction(async (tx) =>
+    // H-002 (Prov. 0071 Art. 14): SALE usa Serializable para correlativos (Z-1).
+    // M2 (auditoría 2026-06): timeout 15s + retry P2034 previenen P2028 en cold start Neon.
+    // PURCHASE: ReadCommitted sin correlativo — $transaction simple suficiente.
+    const txBody = async (tx: Parameters<typeof withCompanyContext>[1]) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) => {
-        // H-002: auto-generar Nº Control para facturas de venta (Z-1 — Serializable obligatorio)
         let controlNumber = parsed.data.controlNumber;
         if (parsed.data.type === "SALE" && !controlNumber) {
           controlNumber = await getNextControlNumber(tx, parsed.data.companyId, "SALE");
@@ -137,8 +135,11 @@ export async function createInvoiceAction(input: unknown) {
           },
         });
         return inv;
-      })
-    , txIsolation);
+      });
+
+    const invoice = parsed.data.type === "SALE"
+      ? await withSerializableRetry(txBody)
+      : await prisma.$transaction(txBody);
 
     // ADR-019 D-1.1a: publish a QStash POST-COMMIT (nunca dentro del $transaction).
     // publishForInvoice nunca lanza — si falla, la SeniatSubmission queda PENDING
