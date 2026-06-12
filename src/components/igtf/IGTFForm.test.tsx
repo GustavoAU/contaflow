@@ -37,8 +37,8 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     vi.clearAllMocks();
   });
 
-  it("muestra preview para USD sin CE", async () => {
-    render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
+  it("muestra preview para USD con CE (A5)", async () => {
+    render(<IGTFForm {...BASE_PROPS} isSpecialContributor={true} />);
 
     fireEvent.change(screen.getByPlaceholderText("1000.00"), {
       target: { value: "1000" },
@@ -50,14 +50,26 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     });
   });
 
-  it("muestra preview para EUR sin CE", async () => {
+  it("NO muestra preview para USD sin CE (A5)", async () => {
+    render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
+
+    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "1000" } });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Vista previa/i)).toBeNull();
+      expect(screen.getByText(/IGTF no aplica/i)).toBeTruthy();
+    });
+  });
+
+  it("NO muestra preview para EUR sin CE (A5)", async () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "EUR" } });
     fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "500" } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Vista previa/i)).toBeTruthy();
+      expect(screen.queryByText(/Vista previa/i)).toBeNull();
+      expect(screen.getByText(/IGTF no aplica/i)).toBeTruthy();
     });
   });
 
@@ -73,15 +85,15 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     });
   });
 
-  it("muestra preview para VES con CE", async () => {
+  it("NO muestra preview para VES con CE (débito bancario 2%, no percepción 3%) (A5)", async () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={true} />);
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "VES" } });
     fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "1000" } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Vista previa/i)).toBeTruthy();
-      expect(screen.getByText("1.030,00")).toBeTruthy();
+      expect(screen.queryByText(/Vista previa/i)).toBeNull();
+      expect(screen.getByText(/IGTF no aplica/i)).toBeTruthy();
     });
   });
 

@@ -29,36 +29,49 @@ describe("IGTFService.calculate", () => {
 });
 
 describe("IGTFService.applies", () => {
-  it("aplica IGTF para pagos en USD", () => {
-    expect(IGTFService.applies("USD", false)).toBe(true);
+  it("aplica IGTF para CE con pago en USD", () => {
+    expect(IGTFService.applies("USD", true)).toBe(true);
   });
 
-  it("aplica IGTF para pagos en EUR", () => {
-    expect(IGTFService.applies("EUR", false)).toBe(true);
+  it("aplica IGTF para CE con pago en EUR", () => {
+    expect(IGTFService.applies("EUR", true)).toBe(true);
   });
 
-  it("aplica IGTF para Contribuyente Especial en VES", () => {
-    expect(IGTFService.applies("VES", true)).toBe(true);
+  it("no aplica IGTF para no-CE con pago en USD (A5)", () => {
+    expect(IGTFService.applies("USD", false)).toBe(false);
   });
 
-  it("no aplica IGTF para pagos en VES sin Contribuyente Especial", () => {
+  it("no aplica IGTF para no-CE con pago en EUR (A5)", () => {
+    expect(IGTFService.applies("EUR", false)).toBe(false);
+  });
+
+  it("no aplica IGTF para CE con pago en VES (A5)", () => {
+    expect(IGTFService.applies("VES", true)).toBe(false);
+  });
+
+  it("no aplica IGTF para no-CE con pago en VES", () => {
     expect(IGTFService.applies("VES", false)).toBe(false);
   });
 });
 
 describe("IGTFService.getDescription", () => {
-  it("describe pago en divisas", () => {
-    const desc = IGTFService.getDescription("USD", false);
+  it("describe CE con pago en divisas", () => {
+    const desc = IGTFService.getDescription("USD", true);
     expect(desc).toContain("divisas");
     expect(desc).toContain("USD");
   });
 
-  it("describe Contribuyente Especial", () => {
-    const desc = IGTFService.getDescription("VES", true);
-    expect(desc).toContain("Contribuyente Especial");
+  it("no aplica para no-CE con pago en divisas", () => {
+    const desc = IGTFService.getDescription("USD", false);
+    expect(desc).toContain("No aplica");
   });
 
-  it("describe cuando no aplica", () => {
+  it("no aplica para CE con pago en VES", () => {
+    const desc = IGTFService.getDescription("VES", true);
+    expect(desc).toContain("No aplica");
+  });
+
+  it("describe cuando no aplica (VES, no-CE)", () => {
     const desc = IGTFService.getDescription("VES", false);
     expect(desc).toContain("No aplica");
   });

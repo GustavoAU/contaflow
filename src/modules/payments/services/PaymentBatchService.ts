@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { PaymentMethod, Currency, PaymentBatchStatus } from "@prisma/client";
 import { PaymentGLService } from "./PaymentGLService";
 import { VEN_TAX_RATES } from "@/lib/tax-config";
+import { IGTFService } from "@/modules/igtf/services/IGTFService";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -216,8 +217,7 @@ export class PaymentBatchService {
         select: { isSpecialContributor: true },
       });
       const currency = input.currency ?? "VES";
-      const igtfApplies =
-        currency !== "VES" || (company?.isSpecialContributor === true && currency === "VES");
+      const igtfApplies = IGTFService.applies(currency, company?.isSpecialContributor ?? false);
       const IGTF_RATE = new Decimal(VEN_TAX_RATES.igtf);
       const computedTotalIgtf = igtfApplies
         ? input.totalAmountVes.mul(IGTF_RATE).toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
