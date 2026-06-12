@@ -253,6 +253,8 @@ model Company {
   digitalInvoiceApiKeyEnc    String? // AES-256-GCM — nunca exponer al cliente
   // M6: tokens de doc-share revocables
   docShareTokens             DocShareToken[]
+  // M8: secuencias mensuales para correlativo Libro Diario
+  journalSequences           JournalSequence[]
 }
 
 model CompanyMember {
@@ -432,7 +434,23 @@ model Transaction {
   paymentRecordGL                PaymentRecord?         @relation("PaymentRecordGLTransaction")
   paymentBatchGL                 PaymentBatch?          @relation("PaymentBatchGLTransaction")
 
+  // M8: correlativo uniforme Libro Diario YYYY-MM-NNNNNN (trigger DB auto-popula)
+  journalNumber  String?
+
   @@unique([companyId, number])
+  @@index([companyId, journalNumber])
+}
+
+// M8: secuencia mensual por empresa para el correlativo del Libro Diario
+model JournalSequence {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  lastNumber  Int     @default(0)
+
+  @@unique([companyId, year, month])
 }
 
 model JournalEntry {
