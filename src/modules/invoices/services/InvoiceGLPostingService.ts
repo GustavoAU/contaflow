@@ -38,6 +38,7 @@ export interface InvoiceGLConfig {
 export interface InvoiceForGL {
   id: string;
   type: "SALE" | "PURCHASE";
+  docType?: string;
   invoiceNumber: string;
   counterpartName: string;
   date: Date;
@@ -77,7 +78,32 @@ export class InvoiceGLPostingService {
           "contaflow.invoice_number": invoice.invoiceNumber,
         },
       },
-      async () => this._postInvoiceInner(invoice, config, companyId, userId, db)
+      async () => this._postInvoiceInner(invoice, config, companyId, userId, db, false)
+    );
+  }
+
+  // Fix A2 (ADR-007 addendum): GL reverso para Notas de Crédito.
+  // Niega todos los signos del asiento original — Σ entries = 0 se mantiene.
+  // NC VENTA:  Cr CxC | Dr Ingresos | Dr IVA-DF  (inverso de postInvoice SALE)
+  // NC COMPRA: Dr CxP | Cr Inventario | Cr IVA-CF (inverso de postInvoice PURCHASE)
+  static async postCreditNote(
+    creditNote: InvoiceForGL,
+    config: InvoiceGLConfig,
+    companyId: string,
+    userId: string,
+    db: Prisma.TransactionClient
+  ): Promise<string> {
+    return await Sentry.startSpan(
+      {
+        name: "invoice.gl_post_credit_note",
+        op: "db.transaction",
+        attributes: {
+          "contaflow.company_id": companyId,
+          "contaflow.invoice_type": creditNote.type,
+          "contaflow.invoice_number": creditNote.invoiceNumber,
+        },
+      },
+      async () => this._postInvoiceInner(creditNote, config, companyId, userId, db, true)
     );
   }
 
@@ -86,7 +112,8 @@ export class InvoiceGLPostingService {
     config: InvoiceGLConfig,
     companyId: string,
     userId: string,
-    db: Prisma.TransactionClient
+    db: Prisma.TransactionClient,
+    isReversal: boolean = false
   ): Promise<string> {
     const total = new Decimal(invoice.totalAmountVes?.toString() ?? "0");
     const ivaTotal = invoice.taxLines.reduce(
@@ -201,12 +228,20 @@ export class InvoiceGLPostingService {
       }
     }
 
-    // Guarda semántica: base negativa indica totalAmountVes < ivaTotal (dato corrupto)
-    if (baseTotal.lessThan(0)) {
+    // Guarda semántica: base negativa indica dato corrupto — no aplica en reversals
+    if (!isReversal && baseTotal.lessThan(0)) {
       throw new Error(`InvoiceGLPosting: base negativa — totalAmountVes menor que IVA (factura ${invoice.invoiceNumber})`);
     }
 
-    const prefix = invoice.type === "SALE" ? "FAC" : "CMP";
+    // Fix A2: reversal niega todos los signos → Σ entries = 0 se mantiene (DR = CR)
+    if (isReversal) {
+      entries = entries.map((e) => ({ ...e, amount: e.amount.negated() }));
+    }
+
+    const docType = invoice.docType ?? "";
+    const prefix = docType === "NOTA_CREDITO" ? "NC"
+      : docType === "NOTA_DEBITO" ? "ND"
+      : invoice.type === "SALE" ? "FAC" : "CMP";
     const glTx = await db.transaction.create({
       data: {
         companyId,

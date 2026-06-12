@@ -11,6 +11,11 @@ const mockUpdate = vi.hoisted(() => vi.fn());
 const mockFindMany = vi.hoisted(() => vi.fn());
 const mockAuditLogCreate = vi.hoisted(() => vi.fn());
 const mockTransaction = vi.hoisted(() => vi.fn());
+const mockAccountingPeriodFindFirst = vi.hoisted(() => vi.fn());
+const mockCompanySettingsFindUnique = vi.hoisted(() => vi.fn());
+const mockGLPostCreditNote = vi.hoisted(() => vi.fn());
+const mockGLPostInvoice = vi.hoisted(() => vi.fn());
+const mockGLCanPost = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -24,6 +29,14 @@ vi.mock("@/lib/prisma", () => ({
       create: mockAuditLogCreate,
     },
     $transaction: mockTransaction,
+  },
+}));
+
+vi.mock("@/modules/invoices/services/InvoiceGLPostingService", () => ({
+  InvoiceGLPostingService: {
+    canPost: mockGLCanPost,
+    postInvoice: mockGLPostInvoice,
+    postCreditNote: mockGLPostCreditNote,
   },
 }));
 
@@ -117,6 +130,9 @@ function setupTransactionMock() {
         // ADR-019 D-1/D-1.1d: outbox PA-121 para NC/ND de venta
         seniatSubmission: { create: mockSeniatSubmissionCreate },
         company: { findUnique: vi.fn().mockResolvedValue({ rif: "J-99999999-9" }) },
+        // Fix A2: período CLOSED guard + companySettings para GL posting
+        accountingPeriod: { findFirst: mockAccountingPeriodFindFirst },
+        companySettings: { findUnique: mockCompanySettingsFindUnique },
       })) as never,
   );
 }
@@ -136,6 +152,10 @@ describe("InvoiceService.createCreditNote", () => {
       paymentStatus: "PAID",
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // Fix A2 defaults: período OPEN, sin config GL (GL posting skipped)
+    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockCompanySettingsFindUnique.mockResolvedValue(null);
+    mockGLCanPost.mockReturnValue(false);
   });
 
   // ── Test 1: happy path — full amount → PAID ────────────────────────────────
@@ -302,6 +322,67 @@ describe("InvoiceService.createCreditNote", () => {
       }),
     );
   });
+
+  // ── Fix A2: período CLOSED bloquea NC (R-3) ───────────────────────────────
+  it("rechaza NC si el período contable de la fecha está CERRADO [Fix A2 R-3]", async () => {
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-closed",
+      status: "CLOSED",
+      year: 2026,
+      month: 4,
+    });
+
+    await expect(
+      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)
+    ).rejects.toThrow("CERRADO");
+  });
+
+  // ── Fix A2: periodId asignado en la NC creada ─────────────────────────────
+  it("asigna periodId de la fecha al crear la NC [Fix A2]", async () => {
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-apr-2026",
+      status: "OPEN",
+      year: 2026,
+      month: 4,
+    });
+
+    await createCreditNote(COMPANY_ID, validNoteData, CREATED_BY);
+
+    expect(prisma.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ periodId: "period-apr-2026" }),
+      })
+    );
+  });
+
+  // ── Fix A2: GL reverso llamado cuando canPost = true ──────────────────────
+  it("llama postCreditNote cuando GL está configurado [Fix A2 ADR-026]", async () => {
+    const glSettings = {
+      arAccountId: "acc-ar",
+      apAccountId: null,
+      salesAccountId: "acc-sales",
+      purchaseExpenseAccountId: null,
+      inventoryAccountId: null,
+      ivaDFAccountId: "acc-ivadf",
+      ivaCFAccountId: null,
+      ivaRetentionPayableAccountId: null,
+      igtfPayableAccountId: null,
+    };
+    mockCompanySettingsFindUnique.mockResolvedValue(glSettings);
+    mockGLCanPost.mockReturnValue(true);
+    mockGLPostCreditNote.mockResolvedValue("gl-tx-1");
+
+    await createCreditNote(COMPANY_ID, validNoteData, CREATED_BY);
+
+    expect(mockGLPostCreditNote).toHaveBeenCalledTimes(1);
+    expect(mockGLPostCreditNote).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "nc-1", docType: "NOTA_CREDITO" }),
+      glSettings,
+      COMPANY_ID,
+      CREATED_BY,
+      expect.anything()
+    );
+  });
 });
 
 // ─── createDebitNote tests ────────────────────────────────────────────────────
@@ -337,6 +418,10 @@ describe("InvoiceService.createDebitNote", () => {
       paymentStatus: "UNPAID",
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // Fix A2 defaults: período OPEN, sin config GL
+    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockCompanySettingsFindUnique.mockResolvedValue(null);
+    mockGLCanPost.mockReturnValue(false);
   });
 
   const ndNoteData = {
@@ -444,6 +529,49 @@ describe("InvoiceService.createDebitNote", () => {
     await expect(
       createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY),
     ).rejects.toThrow("La factura original está anulada");
+  });
+
+  // ── Fix A2: período CLOSED bloquea ND (R-3) ───────────────────────────────
+  it("rechaza ND si el período contable de la fecha está CERRADO [Fix A2 R-3]", async () => {
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-closed",
+      status: "CLOSED",
+      year: 2026,
+      month: 4,
+    });
+
+    await expect(
+      createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)
+    ).rejects.toThrow("CERRADO");
+  });
+
+  // ── Fix A2: GL posting (postInvoice) llamado cuando canPost = true ────────
+  it("llama postInvoice cuando GL está configurado para ND [Fix A2 ADR-026]", async () => {
+    const glSettings = {
+      arAccountId: "acc-ar",
+      apAccountId: null,
+      salesAccountId: "acc-sales",
+      purchaseExpenseAccountId: null,
+      inventoryAccountId: null,
+      ivaDFAccountId: "acc-ivadf",
+      ivaCFAccountId: null,
+      ivaRetentionPayableAccountId: null,
+      igtfPayableAccountId: null,
+    };
+    mockCompanySettingsFindUnique.mockResolvedValue(glSettings);
+    mockGLCanPost.mockReturnValue(true);
+    mockGLPostInvoice.mockResolvedValue("gl-tx-2");
+
+    await createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY);
+
+    expect(mockGLPostInvoice).toHaveBeenCalledTimes(1);
+    expect(mockGLPostInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "nd-1", docType: "NOTA_DEBITO" }),
+      glSettings,
+      COMPANY_ID,
+      CREATED_BY,
+      expect.anything()
+    );
   });
 });
 
