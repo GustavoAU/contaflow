@@ -7,27 +7,22 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
 // ─── getNextVoucherNumber ──────────────────────────────────────────────────────
-/**
- * Obtiene y reserva el siguiente número de comprobante de retención para una
- * empresa en formato "CR-XXXXXXXX".
- *
- * Precondiciones:
- *   - `tx` DEBE ser un cliente dentro de `prisma.$transaction({ isolationLevel: 'Serializable' })`
- *
- * Postcondiciones:
- *   - Retorna un string único no reutilizado con formato "CR-XXXXXXXX"
- *   - `lastNumber` en RetentionSequence queda incrementado en 1
- */
+// Prov. 0049: AAAAMM + 8 dígitos secuenciales con reinicio mensual.
+// Precondición: tx DEBE estar en $transaction({ isolationLevel: 'Serializable' })
 export async function getNextVoucherNumber(
   tx: Prisma.TransactionClient,
-  companyId: string
+  companyId: string,
+  date: Date = new Date()
 ): Promise<string> {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
   const seq = await tx.retentionSequence.upsert({
-    where: { companyId },
-    create: { companyId, lastNumber: 1 },
+    where: { companyId_year_month: { companyId, year, month } },
+    create: { companyId, year, month, lastNumber: 1 },
     update: { lastNumber: { increment: 1 } },
   });
-  return `CR-${String(seq.lastNumber).padStart(8, "0")}`;
+  const mm = String(month).padStart(2, "0");
+  return `${year}${mm}${String(seq.lastNumber).padStart(8, "0")}`;
 }
 
 export type RetentionCalculation = {

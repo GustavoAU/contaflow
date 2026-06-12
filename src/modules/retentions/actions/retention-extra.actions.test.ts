@@ -39,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("../services/RetentionService", () => ({
   RetentionService: { calculate: vi.fn() },
   linkRetentionToInvoice: vi.fn(),
-  getNextVoucherNumber: vi.fn().mockResolvedValue("CR-00000001"),
+  getNextVoucherNumber: vi.fn().mockResolvedValue("20260600000001"),
   enterRetention: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/modules/retentions/services/RetentionVoucherPDFService", () => ({

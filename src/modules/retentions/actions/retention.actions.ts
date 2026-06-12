@@ -190,7 +190,7 @@ export async function createRetentionAction(
         retention = await prisma.$transaction(
           async (tx) =>
             withCompanyContext(data.companyId, tx, async (tx) => {
-              const voucherNumber = await getNextVoucherNumber(tx, data.companyId);
+              const voucherNumber = await getNextVoucherNumber(tx, data.companyId, new Date());
 
               const ret = await tx.retencion.create({
                 data: {
