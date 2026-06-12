@@ -680,6 +680,21 @@ export class InvoiceService {
           throw new Error("La factura original está anulada");
         }
 
+        // Fix A2: período CLOSED guard (R-3) + auto-assign periodId (igual que createInvoice)
+        const ncDate = new Date(data.date);
+        const ncYear = ncDate.getFullYear();
+        const ncMonth = ncDate.getMonth() + 1;
+        const periodForDate = await tx.accountingPeriod.findFirst({
+          where: { companyId, year: ncYear, month: ncMonth },
+          select: { id: true, status: true, year: true, month: true },
+        });
+        if (periodForDate?.status === "CLOSED") {
+          throw new Error(
+            `No se puede registrar una nota de crédito en el período ${String(periodForDate.month).padStart(2, "0")}/${periodForDate.year} porque está CERRADO.`
+          );
+        }
+        const resolvedPeriodId = periodForDate?.id ?? null;
+
         // Calculate totalAmountVes from taxLines (never trust client-side totalAmountVes)
         const totalAmountVes = data.taxLines.reduce(
           (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
@@ -724,6 +739,7 @@ export class InvoiceService {
             paymentStatus: "PAID",
             relatedInvoiceId: data.relatedInvoiceId,
             relatedDocNumber,
+            periodId: resolvedPeriodId,
             createdBy,
             taxLines: {
               create: data.taxLines.map((line) => ({
@@ -748,6 +764,42 @@ export class InvoiceService {
             paymentStatus: newStatus,
           },
         });
+
+        // Fix A2: GL reverso (ADR-026) — solo si GL está configurado en CompanySettings
+        const ncSettings = await tx.companySettings.findUnique({
+          where: { companyId },
+          select: {
+            arAccountId: true,
+            apAccountId: true,
+            salesAccountId: true,
+            purchaseExpenseAccountId: true,
+            inventoryAccountId: true,
+            ivaDFAccountId: true,
+            ivaCFAccountId: true,
+            ivaRetentionPayableAccountId: true,
+            igtfPayableAccountId: true,
+          },
+        });
+        if (ncSettings && InvoiceGLPostingService.canPost(ncType, ncSettings)) {
+          await InvoiceGLPostingService.postCreditNote(
+            {
+              id: nc.id,
+              type: ncType,
+              docType: "NOTA_CREDITO",
+              invoiceNumber: nc.invoiceNumber,
+              counterpartName: nc.counterpartName,
+              date: nc.date,
+              periodId: resolvedPeriodId,
+              totalAmountVes: nc.totalAmountVes,
+              taxLines: nc.taxLines,
+              igtfAmount: nc.igtfAmount,
+            },
+            ncSettings,
+            companyId,
+            createdBy,
+            tx
+          );
+        }
 
         // PA-121: SeniatSubmission en el MISMO $transaction (ADR-019 D-1 / D-1.1d)
         // NC de venta es documento emitido → se transmite. Publish post-commit en la action.
@@ -862,6 +914,21 @@ export class InvoiceService {
           throw new Error("La factura original está anulada");
         }
 
+        // Fix A2: período CLOSED guard (R-3) + auto-assign periodId
+        const ndDate = new Date(data.date);
+        const ndYear = ndDate.getFullYear();
+        const ndMonth = ndDate.getMonth() + 1;
+        const ndPeriodForDate = await tx.accountingPeriod.findFirst({
+          where: { companyId, year: ndYear, month: ndMonth },
+          select: { id: true, status: true, year: true, month: true },
+        });
+        if (ndPeriodForDate?.status === "CLOSED") {
+          throw new Error(
+            `No se puede registrar una nota de débito en el período ${String(ndPeriodForDate.month).padStart(2, "0")}/${ndPeriodForDate.year} porque está CERRADO.`
+          );
+        }
+        const ndResolvedPeriodId = ndPeriodForDate?.id ?? null;
+
         // Calculate totalAmountVes from taxLines
         const totalAmountVes = data.taxLines.reduce(
           (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
@@ -900,6 +967,7 @@ export class InvoiceService {
             paymentStatus: "UNPAID",
             relatedInvoiceId: data.relatedInvoiceId,
             relatedDocNumber,
+            periodId: ndResolvedPeriodId,
             createdBy,
             taxLines: {
               create: data.taxLines.map((line) => ({
@@ -930,6 +998,42 @@ export class InvoiceService {
             paymentStatus: newStatus,
           },
         });
+
+        // Fix A2: GL posting ND (ADR-026) — misma dirección que factura original
+        const ndSettings = await tx.companySettings.findUnique({
+          where: { companyId },
+          select: {
+            arAccountId: true,
+            apAccountId: true,
+            salesAccountId: true,
+            purchaseExpenseAccountId: true,
+            inventoryAccountId: true,
+            ivaDFAccountId: true,
+            ivaCFAccountId: true,
+            ivaRetentionPayableAccountId: true,
+            igtfPayableAccountId: true,
+          },
+        });
+        if (ndSettings && InvoiceGLPostingService.canPost(ndType, ndSettings)) {
+          await InvoiceGLPostingService.postInvoice(
+            {
+              id: nd.id,
+              type: ndType,
+              docType: "NOTA_DEBITO",
+              invoiceNumber: nd.invoiceNumber,
+              counterpartName: nd.counterpartName,
+              date: nd.date,
+              periodId: ndResolvedPeriodId,
+              totalAmountVes: nd.totalAmountVes,
+              taxLines: nd.taxLines,
+              igtfAmount: nd.igtfAmount,
+            },
+            ndSettings,
+            companyId,
+            createdBy,
+            tx
+          );
+        }
 
         // PA-121: SeniatSubmission en el MISMO $transaction (ADR-019 D-1 / D-1.1d)
         // ND de venta es documento emitido → se transmite. Publish post-commit en la action.
