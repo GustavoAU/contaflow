@@ -88,6 +88,14 @@ export const limiters = {
         prefix: "rl:nowpayments",
       })
     : null,
+  // N6: ruta pública /api/doc/[token] — 30/min por IP (sin auth)
+  publicDoc: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(30, "1 m"),
+        prefix: "rl:publicdoc",
+      })
+    : null,
 };
 
 export async function checkRateLimit(
