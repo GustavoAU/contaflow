@@ -146,7 +146,7 @@ export async function createPaymentAction(
                     companyId: d.companyId,
                     date: dateObj,
                     createdBy: userId,
-                    description: `Cobro ${d.notes} — ${d.method}`,
+                    description: `Cobro ${d.notes?.trim() || "efectuado"} — ${d.method}`,
                     ipAddress,
                     userAgent,
                   },

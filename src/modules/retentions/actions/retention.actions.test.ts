@@ -1,5 +1,6 @@
 // src/modules/retentions/actions/retention.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
@@ -612,7 +613,7 @@ describe("linkRetentionToInvoiceAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(linkRetentionToInvoice).mockRejectedValue(
-      new Error("Unique constraint failed — P2002")
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
     );
 
     const result = await linkRetentionToInvoiceAction("ret-1", "inv-1", "company-1");
@@ -625,7 +626,7 @@ describe("linkRetentionToInvoiceAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(linkRetentionToInvoice).mockRejectedValue(
-      new Error("Foreign key constraint — P2003")
+      new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", { code: "P2003", clientVersion: "7.0.0" })
     );
 
     const result = await linkRetentionToInvoiceAction("ret-1", "inv-inexistente", "company-1");

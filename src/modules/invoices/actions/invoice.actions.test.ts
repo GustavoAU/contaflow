@@ -14,6 +14,8 @@ import prisma from "@/lib/prisma";
 import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
 import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { Prisma } from "@prisma/client";
+import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 
 const TEST_IDEMPOTENCY_KEY = "550e8400-e29b-41d4-a716-446655440000";
 const TEST_IDEMPOTENCY_KEY_2 = "660e8400-e29b-41d4-a716-446655440001";
@@ -270,7 +272,7 @@ describe("createInvoiceAction", () => {
 
   // ── líneas 112-119: P2002 recovery con idempotencyKey ───────────────────────
   it("recupera factura existente tras P2002 en race condition con idempotencyKey (líneas 112-119)", async () => {
-    const p2002 = new Error("P2002 Unique constraint failed");
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2002 as never);
     // Primera llamada: fast-path no encuentra nada (pasa el guard)
     // Segunda llamada: recovery después del P2002 encuentra la factura
@@ -289,7 +291,7 @@ describe("createInvoiceAction", () => {
 
   // ── línea 125: P2002 sin idempotencyKey → mensaje de negocio ────────────────
   it("retorna mensaje de negocio para P2002 sin idempotencyKey (línea 125)", async () => {
-    const p2002 = new Error("P2002 Unique constraint failed");
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2002 as never);
 
     // Sin idempotencyKey en el input
@@ -302,7 +304,7 @@ describe("createInvoiceAction", () => {
 
   // ── P2003 ────────────────────────────────────────────────────────────────────
   it("retorna mensaje de negocio para P2003 (FK inválida)", async () => {
-    const p2003 = new Error("P2003 Foreign key constraint failed");
+    const p2003 = new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", { code: "P2003", clientVersion: "7.0.0" });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2003 as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
@@ -315,7 +317,7 @@ describe("createInvoiceAction", () => {
   // ── ALERTA 10: STOCK_CONFIRM_REQUIRED ────────────────────────────────────────
   it("retorna STOCK_CONFIRM_REQUIRED con lista de ítems insuficientes", async () => {
     const insufficient = [{ itemId: "item-1", name: "Laptop", available: "0.0000", requested: "2.0000" }];
-    const err = Object.assign(new Error("STOCK_CONFIRM_REQUIRED"), { insufficient });
+    const err = new StockConfirmRequiredError(insufficient);
     vi.mocked(InvoiceService.create).mockRejectedValue(err as never);
 
     const result = await createInvoiceAction(BASE_INPUT);

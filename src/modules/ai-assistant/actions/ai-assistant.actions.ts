@@ -39,8 +39,6 @@ async function callGemini(
   userMessage: string,
   imageBase64?: string,
 ): Promise<string | null> {
-  const url = `${GEMINI_API_URL}?key=${apiKey}`;
-
   // El sistema y la pregunta van en partes SEPARADAS — (26-02)
   const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
     { text: userMessage },
@@ -53,9 +51,9 @@ async function callGemini(
   }
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(GEMINI_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: userParts }],

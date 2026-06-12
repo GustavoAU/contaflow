@@ -41,8 +41,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
     }
 
-    // Parsear el body ya leído
-    const data = JSON.parse(body) as { submissionId?: string };
+    // Parsear el body ya leído — guard B6 (auditoría 2026-06)
+    let data: { submissionId?: string };
+    try {
+      data = JSON.parse(body) as { submissionId?: string };
+    } catch {
+      return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+    }
     return handleTransmit(data.submissionId);
   }
 

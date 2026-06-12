@@ -163,13 +163,13 @@ UX / ROBUSTEZ
 ## Stack
 
 ```
-Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-pg (pooled) | Neon serverless
+Next.js 16 App Router | Prisma 7.4.1 + @prisma/adapter-neon (WebSocket) | Neon serverless
 Clerk | Zod 4 | Vitest 4 | Decimal.js | @upstash/ratelimit | @sentry/nextjs
 ```
 
 ## Prisma / DB
 
-- `src/lib/prisma.ts`: singleton `PrismaPg` con `pg.Pool` y `DATABASE_URL` (pooled)
+- `src/lib/prisma.ts`: singleton `PrismaNeon` (WebSocket) con `@neondatabase/serverless` y `DATABASE_URL` (pooled)
 - Migrations: `DATABASE_URL_DIRECT` en `prisma.config.ts`
 - Después de `prisma generate` → SIEMPRE reiniciar `npm run dev`
 - **`prisma migrate dev` ESTÁ ROTO** → workflow obligatorio:

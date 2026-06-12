@@ -9,6 +9,15 @@ import { createHash } from "crypto";
 import type { InvoiceLineInput } from "../schemas/invoice.schema";
 import { VEN_TAX_RATES } from "@/lib/tax-config";
 
+export class StockConfirmRequiredError extends Error {
+  readonly insufficient: Array<{ itemId: string; name: string; available: string; requested: string }>;
+  constructor(insufficient: StockConfirmRequiredError["insufficient"]) {
+    super("STOCK_CONFIRM_REQUIRED");
+    this.name = "StockConfirmRequiredError";
+    this.insufficient = insufficient;
+  }
+}
+
 // ─── Tasas decimales por IvaLineRate ─────────────────────────────────────────
 const IVA_RATES: Record<IvaLineRate, Decimal> = {
   EXENTO: new Decimal("0"),
@@ -210,9 +219,7 @@ export async function validateStockForLines(
     case "CONFIRM":
       // CONFIRM: ya debe venir flag del cliente confirmando stock negativo
       if (!stockConfirmed) {
-        const err = new Error("STOCK_CONFIRM_REQUIRED");
-        (err as Error & { insufficient: typeof insufficient }).insufficient = insufficient;
-        throw err;
+        throw new StockConfirmRequiredError(insufficient);
       }
       return { ok: true };
     case "WARN":

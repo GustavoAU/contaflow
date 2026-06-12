@@ -17,6 +17,7 @@ import { PayrollConceptService } from "../services/PayrollConceptService";
 import type { PayrollConceptRow } from "../services/PayrollConceptService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 async function resolveAuth(companyId: string) {
   const { userId } = await auth();
@@ -72,7 +73,7 @@ export async function createConceptAction(
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
-    if (err instanceof Error && err.message.includes("P2002"))
+    if (isPrismaError(err, "P2002"))
       return { success: false, error: "Ya existe un concepto con ese código" };
     return toActionError(err);
   }

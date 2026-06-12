@@ -24,6 +24,7 @@ import { EmployeeService } from "../services/EmployeeService";
 import type { EmployeeRow, EmployeeListRow, SalaryHistoryRow } from "../services/EmployeeService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ export async function createEmployeeAction(
     return { success: true, data: emp };
   } catch (err) {
     // NOM-B-02: P2002 → cédula duplicada
-    if (err instanceof Error && err.message.includes("P2002"))
+    if (isPrismaError(err, "P2002"))
       return { success: false, error: "Ya existe un empleado con esa cédula en esta empresa" };
     return toActionError(err);
   }
