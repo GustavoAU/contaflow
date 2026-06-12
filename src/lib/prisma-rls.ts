@@ -9,8 +9,13 @@ import type { Prisma } from "@prisma/client";
 export type PrismaTransactionClient = Prisma.TransactionClient;
 
 /**
- * Establece `app.current_company_id` como parámetro de sesión local para la
- * transacción activa, habilitando las RLS policies de `company_isolation`.
+ * Establece el contexto de tenant para la transacción activa:
+ * 1. SET LOCAL ROLE authenticated — neutraliza BYPASSRLS de neondb_owner.
+ *    authenticated no tiene BYPASSRLS → RLS se aplica sin excepción.
+ * 2. set_config('app.current_company_id', ..., true) — habilita policies company_isolation.
+ * Ambas operaciones son SET LOCAL: se revierten en COMMIT/ROLLBACK.
+ *
+ * Prerequisito: `GRANT authenticated TO neondb_owner` (migración 20260611_rls_force_with_check).
  *
  * @param companyId  - ID del tenant activo. Debe provenir de auth verificada.
  * @param tx         - Cliente de transacción Prisma (`$transaction` callback param).
@@ -28,8 +33,9 @@ export async function withCompanyContext<T>(
   if (!companyId) {
     throw new Error("withCompanyContext: companyId no puede estar vacío");
   }
-  // set_config(key, value, is_local=true) — equivalente a SET LOCAL
-  // is_local=true: el valor se limpia al finalizar la transacción
+  // SET LOCAL ROLE: neutraliza BYPASSRLS de neondb_owner — Fix A1 (ADR-007 addendum)
+  await tx.$executeRaw`SET LOCAL ROLE authenticated`;
+  // set_config is_local=true: equivalente a SET LOCAL, se limpia en fin de tx
   await tx.$executeRaw`SELECT set_config('app.current_company_id', ${companyId}, true)`;
   return fn(tx);
 }
