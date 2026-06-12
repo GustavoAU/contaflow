@@ -437,7 +437,7 @@ model Transaction {
   paymentBatchGL                 PaymentBatch?          @relation("PaymentBatchGLTransaction")
 
   // M8: correlativo uniforme Libro Diario YYYY-MM-NNNNNN (trigger DB auto-popula)
-  journalNumber  String?
+  journalNumber String?
 
   @@unique([companyId, number])
   @@index([companyId, journalNumber])
@@ -445,12 +445,12 @@ model Transaction {
 
 // M8: secuencia mensual por empresa para el correlativo del Libro Diario
 model JournalSequence {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  year        Int
-  month       Int
-  lastNumber  Int     @default(0)
+  id         String  @id @default(cuid())
+  companyId  String
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int
+  lastNumber Int     @default(0)
 
   @@unique([companyId, year, month])
 }
@@ -460,7 +460,7 @@ model FiscalReport {
   id          String   @id @default(cuid())
   companyId   String
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  reportType  String   // "LIBRO_VENTAS" | "LIBRO_COMPRAS"
+  reportType  String // "LIBRO_VENTAS" | "LIBRO_COMPRAS"
   year        Int
   month       Int
   blobUrl     String
@@ -497,16 +497,16 @@ model User {
 
 // M6: tokens de doc-share revocables (jti único + revokedAt)
 model DocShareToken {
-  id         String    @id @default(cuid())
-  companyId  String
-  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  jti        String    @unique
-  docType    String    // "INVOICE" | "RETENTION"
-  docId      String
-  createdBy  String
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jti       String    @unique
+  docType   String // "INVOICE" | "RETENTION"
+  docId     String
+  createdBy String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([companyId, createdAt(sort: Desc)])
   @@index([docId])
