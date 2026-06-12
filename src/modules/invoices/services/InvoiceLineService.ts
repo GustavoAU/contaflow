@@ -248,9 +248,10 @@ export async function createInvoiceLinesInTx(
       const isPurchase = invoiceType === "PURCHASE";
 
       // SALIDA (venta): SELECT FOR UPDATE serializa el write de stock contra concurrencia.
-      // ENTRADA (compra): no remueve stock → lock no necesario para la validación de mínimo.
-      // ADR-024 D-2.3 paso 2.
-      if (!isPurchase && (stockLevel === "CONFIRM" || stockLevel === "WARN")) {
+      // M1 (auditoría 2026-06): extendido a BLOCK — sin lock el modo BLOCK tenía ventana
+      // TOCTOU entre la pre-validación (tx separada) y la escritura real de inventario.
+      // ENTRADA (compra): no remueve stock → lock innecesario. ADR-024 D-2.3 paso 2.
+      if (!isPurchase) {
         await tx.$executeRaw`
           SELECT id FROM "InventoryItem"
           WHERE id = ${line.inventoryItemId} AND "companyId" = ${companyId}
@@ -262,7 +263,8 @@ export async function createInvoiceLinesInTx(
       const item = await tx.inventoryItem.findFirstOrThrow({
         where: { id: line.inventoryItemId, companyId },
         select: { averageCost: true, sku: true, name: true, baseUnitId: true,
-                  itemType: true, accountId: true, cogsAccountId: true },
+                  itemType: true, accountId: true, cogsAccountId: true,
+                  stockQuantity: true },  // M1: re-verificar BLOCK bajo lock
       });
 
       // A8: ítems físicos DEBEN tener cuentas GL antes de facturar (auto-COGS OM-01 las requiere)
@@ -292,6 +294,16 @@ export async function createInvoiceLinesInTx(
       } else {
         quantityInBase = c.quantity;
         conversionSnapshot = new Decimal(1);
+      }
+
+      // M1: re-verificar stock bajo lock para BLOCK — cierra ventana TOCTOU
+      if (!isPurchase && stockLevel === "BLOCK") {
+        const available = new Decimal(item.stockQuantity.toString());
+        if (available.lt(quantityInBase)) {
+          throw new Error(
+            `Stock insuficiente: ${item.name} (disponible: ${available.toFixed(4)}, solicitado: ${quantityInBase.toFixed(4)})`
+          );
+        }
       }
 
       // OM-01: unitCost por tipo de movimiento
