@@ -644,10 +644,14 @@ model InvoiceTaxLine {
 
 model RetentionSequence {
   id         String   @id @default(cuid())
-  companyId  String   @unique
+  companyId  String
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  year       Int
+  month      Int
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, year, month])
 }
 
 // Tipo de cambio BCV oficial — 1 USD/EUR = X VES

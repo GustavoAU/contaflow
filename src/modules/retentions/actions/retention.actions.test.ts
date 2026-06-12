@@ -89,7 +89,7 @@ vi.mock("../services/RetentionService", async (importOriginal) => {
       }),
     },
     linkRetentionToInvoice: vi.fn(),
-    getNextVoucherNumber: vi.fn().mockResolvedValue("CR-00000001"),
+    getNextVoucherNumber: vi.fn().mockResolvedValue("20260600000001"),
   };
 });
 
@@ -138,7 +138,7 @@ const mockRetention = {
   islrAmount: null,
   islrRetentionPct: null,
   totalRetention: { toString: () => "120.00" },
-  voucherNumber: "CR-00000001",
+  voucherNumber: "20260600000001",
   type: "IVA",
   status: "PENDING",
   createdBy: "user-1",
@@ -211,7 +211,7 @@ describe("createRetentionAction", () => {
     if (!result.success) return;
     expect(result.data.ivaRetention).toBe("120.00");
     expect(result.data.totalRetention).toBe("120.00");
-    expect(result.data.voucherNumber).toBe("CR-00000001");
+    expect(result.data.voucherNumber).toBe("20260600000001");
   });
 
   it("crea retención AMBAS (IVA + ISLR) correctamente", async () => {
@@ -360,7 +360,7 @@ describe("createRetentionAction", () => {
     expect(prisma.transaction.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          number: "RET-CR-00000001",
+          number: "RET-20260600000001",
           type: "DIARIO",
           entries: expect.objectContaining({
             create: expect.arrayContaining([

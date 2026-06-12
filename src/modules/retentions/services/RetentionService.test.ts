@@ -131,7 +131,7 @@ const mockRetencion = {
   islrAmount: null,
   islrRetentionPct: null,
   totalRetention: "120.00",
-  voucherNumber: "CR-00000001",
+  voucherNumber: "20260600000001",
   type: "IVA",
   status: "PENDING",
   transactionId: null,
