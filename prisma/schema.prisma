@@ -251,6 +251,8 @@ model Company {
   // Fase 39: Facturación Digital PA-102 (ADR-031)
   digitalInvoiceProvider     DigitalInvoiceProviderType  @default(NONE)
   digitalInvoiceApiKeyEnc    String? // AES-256-GCM — nunca exponer al cliente
+  // M6: tokens de doc-share revocables
+  docShareTokens             DocShareToken[]
 }
 
 model CompanyMember {
@@ -455,6 +457,23 @@ model User {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   companies CompanyMember[]
+}
+
+// M6: tokens de doc-share revocables (jti único + revokedAt)
+model DocShareToken {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jti        String    @unique
+  docType    String    // "INVOICE" | "RETENTION"
+  docId      String
+  createdBy  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([docId])
 }
 
 model AuditLog {

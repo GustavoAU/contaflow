@@ -10,6 +10,7 @@ const TTL_SECONDS = 7 * 24 * 60 * 60; // 7 días
 export type DocShareType = "INVOICE" | "RETENTION";
 
 export interface DocSharePayload {
+  jti: string;       // JWT ID único — permite revocación en DB
   typ: DocShareType; // tipo de documento
   did: string;       // documentId (invoiceId / retentionId)
   cid: string;       // companyId — validado contra la URL para prevenir IDOR
@@ -54,10 +55,12 @@ export function signDocShareToken(
   docType: DocShareType,
   docId: string,
   companyId: string,
-): string {
+): { token: string; jti: string } {
   const secret = getSecret();
   const iat = Math.floor(Date.now() / 1000);
+  const jti = crypto.randomUUID();
   const payload: DocSharePayload = {
+    jti,
     typ: docType,
     did: docId,
     cid: companyId,
@@ -67,7 +70,7 @@ export function signDocShareToken(
   const encodedPayload = base64url(JSON.stringify(payload));
   const unsigned = `${HEADER}.${encodedPayload}`;
   const signature = sign(unsigned, secret);
-  return `${unsigned}.${signature}`;
+  return { token: `${unsigned}.${signature}`, jti };
 }
 
 export function verifyDocShareToken(token: string): DocSharePayload | null {

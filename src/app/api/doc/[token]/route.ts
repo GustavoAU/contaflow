@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { verifyDocShareToken } from "@/lib/document-share-jwt";
 import { DocumentService } from "@/modules/documents/services/DocumentService";
+import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +17,22 @@ export async function GET(
 ): Promise<Response> {
   const { token } = await params;
 
-  // 1. Validar token — incluye verificación de firma + expiración
+  // 1. Validar token — firma + expiración
   const payload = verifyDocShareToken(token);
   if (!payload) {
     return new Response("Enlace inválido o expirado.", { status: 401 });
   }
 
   try {
-    // 2. Generar PDF según tipo — companyId del token como guard ADR-004
+    // 2. Verificar que el token no fue revocado (M6)
+    const record = await prisma.docShareToken.findUnique({
+      where: { jti: payload.jti },
+      select: { revokedAt: true },
+    });
+    if (!record || record.revokedAt !== null) {
+      return new Response("Enlace revocado.", { status: 401 });
+    }
+    // 3. Generar PDF según tipo — companyId del token como guard ADR-004
     let pdfBuffer: Buffer | null = null;
     let filename: string;
 
@@ -41,7 +50,7 @@ export async function GET(
       return new Response("Documento no encontrado.", { status: 404 });
     }
 
-    // 3. Retornar PDF como descarga (Content-Disposition: attachment)
+    // 4. Retornar PDF como descarga (Content-Disposition: attachment)
     // Convertir Buffer de Node.js a Uint8Array para compatibilidad con BodyInit
     return new Response(new Uint8Array(pdfBuffer), {
       status: 200,

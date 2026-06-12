@@ -101,29 +101,86 @@ export async function generateDocShareTokenAction(
       return { success: false, error: "Tipo de documento inválido" };
     }
 
-    const token = signDocShareToken(docType, docId, companyId);
+    const { token, jti } = signDocShareToken(docType, docId, companyId);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
     const url = `${appUrl}/api/doc/${token}`;
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAtDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = expiresAtDate.toISOString();
 
-    // AuditLog — R-6: trazabilidad de documento compartido
+    // AuditLog + DocShareToken en mismo $transaction (R-6 + M6 revocación)
     const { ipAddress, userAgent } = await resolveIpUa();
 
-    await prisma.auditLog.create({
-      data: {
-        companyId,
-        entityId: docId,
-        entityName: docType === "INVOICE" ? "Invoice" : "Retencion",
-        action: "DOC_SHARED",
-        userId,
-        ipAddress,
-        userAgent,
-        newValue: { docType, expiresAt, partial: url.slice(-20) },
-      },
-    });
+    await prisma.$transaction([
+      prisma.docShareToken.create({
+        data: { companyId, jti, docType, docId, createdBy: userId, expiresAt: expiresAtDate },
+      }),
+      prisma.auditLog.create({
+        data: {
+          companyId,
+          entityId: docId,
+          entityName: docType === "INVOICE" ? "Invoice" : "Retencion",
+          action: "DOC_SHARED",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { docType, expiresAt, jti },
+        },
+      }),
+    ]);
 
     revalidatePath(`/company/${companyId}/documents`);
     return { success: true, data: { url, expiresAt } };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
+// ─── Revocar link temporal (M6) ───────────────────────────────────────────────
+export async function revokeDocShareTokenAction(
+  companyId: string,
+  jti: string,
+): Promise<ActionResult<{ revoked: true }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
+
+    const record = await prisma.docShareToken.findFirst({
+      where: { jti, companyId },
+      select: { id: true, revokedAt: true },
+    });
+    if (!record) return { success: false, error: "Token no encontrado" };
+    if (record.revokedAt) return { success: false, error: "El enlace ya estaba revocado" };
+
+    const { ipAddress, userAgent } = await resolveIpUa();
+
+    await prisma.$transaction([
+      prisma.docShareToken.update({
+        where: { jti },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.auditLog.create({
+        data: {
+          companyId,
+          entityId: record.id,
+          entityName: "DocShareToken",
+          action: "DOC_SHARE_REVOKED",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { jti, revokedAt: new Date().toISOString() },
+        },
+      }),
+    ]);
+
+    revalidatePath(`/company/${companyId}/documents`);
+    return { success: true, data: { revoked: true } };
   } catch (err) {
     return toActionError(err);
   }
