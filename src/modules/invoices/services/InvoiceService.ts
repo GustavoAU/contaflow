@@ -220,9 +220,10 @@ export class InvoiceService {
       const derivedTaxLines = deriveInvoiceTaxLines(computed);
       taxLinesToCreate = derivedTaxLines.map((tl) => ({
         taxType: tl.taxType,
-        base: tl.base,
+        // B4: truncar a 2 decimales para consistencia BD ↔ PDF (.toFixed(2))
+        base: tl.base.toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
         rate: tl.rate,
-        amount: tl.amount,
+        amount: tl.amount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
         description: null,
       }));
       // totalAmountVes = SUM(InvoiceLine.total) — R-5: todo Decimal.js
@@ -230,9 +231,10 @@ export class InvoiceService {
     } else {
       taxLinesToCreate = input.taxLines.map((line) => ({
         taxType: line.taxType,
-        base: new Decimal(line.base),
+        // B4: truncar a 2 decimales para consistencia BD ↔ PDF (.toFixed(2))
+        base: new Decimal(line.base).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
         rate: new Decimal(line.rate),
-        amount: new Decimal(line.amount),
+        amount: new Decimal(line.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
         description: line.description ?? null,
       }));
       totalAmountVes = input.taxLines.reduce(
@@ -744,9 +746,10 @@ export class InvoiceService {
             taxLines: {
               create: data.taxLines.map((line) => ({
                 taxType: line.taxType as TaxLineType,
-                base: new Decimal(line.base),
+                // B4: truncar a 2 decimales (consistencia BD ↔ PDF)
+                base: new Decimal(line.base).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
                 rate: new Decimal(line.rate),
-                amount: new Decimal(line.amount),
+                amount: new Decimal(line.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
                 description: line.description ?? null,
               })),
             },
@@ -972,9 +975,10 @@ export class InvoiceService {
             taxLines: {
               create: data.taxLines.map((line) => ({
                 taxType: line.taxType as TaxLineType,
-                base: new Decimal(line.base),
+                // B4: truncar a 2 decimales (consistencia BD ↔ PDF)
+                base: new Decimal(line.base).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
                 rate: new Decimal(line.rate),
-                amount: new Decimal(line.amount),
+                amount: new Decimal(line.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
                 description: line.description ?? null,
               })),
             },
