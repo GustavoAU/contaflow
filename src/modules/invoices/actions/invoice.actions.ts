@@ -22,7 +22,8 @@ import { SeniatXMLService } from "../services/SeniatXMLService";
 import { SeniatReportingService } from "../services/SeniatReportingService";
 import { Decimal } from "decimal.js";
 import qrcode from "qrcode";
-import { mapPrismaError } from "@/lib/prisma-errors";
+import { mapPrismaError, isPrismaError } from "@/lib/prisma-errors";
+import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
@@ -155,18 +156,17 @@ export async function createInvoiceAction(input: unknown) {
       stockWarnings: (invoice.stockWarnings ?? []).length > 0 ? invoice.stockWarnings : undefined,
     };
   } catch (error) {
+    if (error instanceof StockConfirmRequiredError) {
+      return {
+        success: false as const,
+        error: "STOCK_CONFIRM_REQUIRED",
+        insufficient: error.insufficient,
+      };
+    }
     if (error instanceof Error) {
-      if (error.message === "STOCK_CONFIRM_REQUIRED") {
-        const insufficient = (error as Error & { insufficient: Array<{ itemId: string; name: string; available: string; requested: string }> }).insufficient;
-        return {
-          success: false as const,
-          error: "STOCK_CONFIRM_REQUIRED",
-          insufficient,
-        };
-      }
-      if (error.message.includes("P2002")) {
+      if (isPrismaError(error, "P2002")) {
         // H-002 Z-1: P2002 en secuencia de Nº Control (upsert concurrente en ControlNumberSequence)
-        if (parsed.data.type === "SALE" && error.message.toLowerCase().includes("controlnumber")) {
+        if (parsed.data.type === "SALE" && (error.meta?.target as string[] | undefined)?.includes("controlNumber")) {
           return { success: false as const, error: "Error transitorio al generar Nº Control — intenta de nuevo." };
         }
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
@@ -182,7 +182,7 @@ export async function createInvoiceAction(input: unknown) {
           error: "Ya existe una factura con ese número para esta empresa",
         };
       }
-      if (error.message.includes("P2003")) {
+      if (isPrismaError(error, "P2003")) {
         return {
           success: false as const,
           error: "Datos de referencia inválidos (empresa o período no existe)",
@@ -443,13 +443,13 @@ export async function createCreditNoteAction(input: unknown) {
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nc };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("P2002")) {
-        return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
-      }
-      if (error.message.includes("P2003")) {
-        return { success: false as const, error: "Datos de referencia inválidos" };
-      }
+    if (isPrismaError(error, "P2002")) {
+      return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+    }
+    if (isPrismaError(error, "P2003")) {
+      return { success: false as const, error: "Datos de referencia inválidos" };
+    }
+    if (error instanceof Error && error.message.startsWith("No se puede")) {
       return { success: false as const, error: error.message };
     }
     return { success: false as const, error: "Error al registrar la nota de crédito" };
@@ -497,13 +497,13 @@ export async function createDebitNoteAction(input: unknown) {
     revalidatePath(`/company/${companyId}/invoices`);
     return { success: true as const, data: nd };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("P2002")) {
-        return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
-      }
-      if (error.message.includes("P2003")) {
-        return { success: false as const, error: "Datos de referencia inválidos" };
-      }
+    if (isPrismaError(error, "P2002")) {
+      return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+    }
+    if (isPrismaError(error, "P2003")) {
+      return { success: false as const, error: "Datos de referencia inválidos" };
+    }
+    if (error instanceof Error && error.message.startsWith("No se puede")) {
       return { success: false as const, error: error.message };
     }
     return { success: false as const, error: "Error al registrar la nota de débito" };

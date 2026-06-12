@@ -614,6 +614,7 @@ model Invoice {
   @@index([companyId, type, date])
   @@index([companyId, type, paymentStatus])
   @@index([companyId, type, dueDate])
+  @@index([companyId, periodId, type])
   @@index([relatedInvoiceId])
 }
 

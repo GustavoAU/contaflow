@@ -3,6 +3,7 @@
 //        NOM-B-04 (ADMIN_ONLY write / WRITERS read), Zod validation
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/ratelimit";
 
@@ -216,7 +217,9 @@ describe("createEmployeeAction", () => {
   });
 
   it("P2002 → cédula duplicada en BD (NOM-B-02)", async () => {
-    vi.mocked(EmployeeService.create).mockRejectedValue(new Error("P2002: Unique constraint"));
+    vi.mocked(EmployeeService.create).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
+    );
     const result = await createEmployeeAction(COMPANY_ID, VALID_CREATE_INPUT);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("cédula");

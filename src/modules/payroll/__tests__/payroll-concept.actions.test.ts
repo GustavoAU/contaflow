@@ -2,6 +2,7 @@
 // Tests: NOM-B concept actions — ADMIN_ONLY write / ACCOUNTING read
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
@@ -151,7 +152,9 @@ describe("createConceptAction", () => {
   });
 
   it("P2002 → código duplicado", async () => {
-    vi.mocked(PayrollConceptService.create).mockRejectedValue(new Error("P2002: duplicate"));
+    vi.mocked(PayrollConceptService.create).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
+    );
     const result = await createConceptAction(COMPANY_ID, {
       code: "BONO_ESP",
       name: "Bono",

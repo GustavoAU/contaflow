@@ -25,7 +25,7 @@ import {
 } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
-import { mapPrismaError } from "@/lib/prisma-errors";
+import { mapPrismaError, isPrismaError } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -374,7 +374,7 @@ export async function createRetentionAction(
 
     return { success: true, data: serializeRetention(retention) };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("P2002") && input.idempotencyKey) {
+    if (isPrismaError(error, "P2002") && input.idempotencyKey) {
       const existing = await prisma.retencion.findFirst({
         where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
       });
@@ -511,10 +511,10 @@ export async function linkRetentionToInvoiceAction(
     revalidatePath("/accounting/retentions");
     return { success: true };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("P2002")) {
+    if (isPrismaError(error, "P2002")) {
       return { success: false, error: "La retención ya está vinculada a una factura" };
     }
-    if (error instanceof Error && error.message.includes("P2003")) {
+    if (isPrismaError(error, "P2003")) {
       return { success: false, error: "Factura o retención no válida" };
     }
     return toActionError(error);

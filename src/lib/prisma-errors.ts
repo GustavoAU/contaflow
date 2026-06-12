@@ -12,6 +12,11 @@ function isConnectionError(error: Error): boolean {
  * P2002 (unique constraint) and P2003 (foreign key) are mapped to Spanish messages.
  * Connection/timeout errors show a retry prompt instead of leaking raw DB messages.
  */
+// B1 (auditoría 2026-06): reemplaza detección frágil por substring (includes("P2002"))
+export function isPrismaError(error: unknown, code: string): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
+}
+
 export function mapPrismaError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") return "Ya existe un registro con esos datos";

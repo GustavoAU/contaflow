@@ -24,6 +24,7 @@ import { PaymentService, type PaymentRecordSummary } from "@/modules/payments/se
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 // ─── Obtener cartera CxC (Aging) ───────────────────────────────────────────────
 export async function getReceivablesAction(
@@ -320,7 +321,7 @@ export async function recordPaymentAction(
     if (error instanceof Error && error.message.includes("clave de idempotencia")) {
       return { success: false, error: error.message };
     }
-    if (error instanceof Error && error.message.includes("P2002")) {
+    if (isPrismaError(error, "P2002")) {
       // Race: dos submits simultáneos con la misma key — el unique de BD ganó
       return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
     }
