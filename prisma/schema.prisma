@@ -607,7 +607,10 @@ model Invoice {
   providerReferenceId             String? // ID de la imprenta para reconciliación
   isContingency                   Boolean              @default(false)
 
-  @@unique([companyId, invoiceNumber, type])
+  // Fix A3: unique parciales a nivel BD (Prisma no soporta WHERE en @@unique).
+  // SALE:     (companyId, invoiceNumber) WHERE type='SALE'
+  // PURCHASE: (companyId, counterpartRif, invoiceNumber) WHERE type='PURCHASE'
+  // Ver migración 20260611_invoice_purchase_partial_unique.
   @@index([companyId, type, date])
   @@index([companyId, type, paymentStatus])
   @@index([companyId, type, dueDate])
