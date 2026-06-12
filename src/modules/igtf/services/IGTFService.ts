@@ -26,17 +26,16 @@ export class IGTFService {
   }
 
   // ─── Verificar si aplica IGTF ─────────────────────────────────────────────
+  // Decreto Constituyente IGTF 2022 Art. 4 — A5 (auditoría 2026-06):
+  // Solo aplica si la empresa es CE Y el pago es en divisas.
   static applies(currency: string, isSpecialContributor: boolean): boolean {
-    return currency !== "VES" || isSpecialContributor;
+    return currency !== "VES" && isSpecialContributor;
   }
 
   // ─── Obtener descripción ──────────────────────────────────────────────────
   static getDescription(currency: string, isSpecialContributor: boolean): string {
-    if (currency !== "VES") {
-      return `IGTF ${IGTF_RATE}% — Pago en divisas (${currency})`;
-    }
-    if (isSpecialContributor) {
-      return `IGTF ${IGTF_RATE}% — Contribuyente Especial`;
+    if (currency !== "VES" && isSpecialContributor) {
+      return `IGTF ${IGTF_RATE}% — CE: pago en divisas (${currency})`;
     }
     return "No aplica IGTF";
   }

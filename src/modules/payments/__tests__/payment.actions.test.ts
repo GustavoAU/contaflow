@@ -227,7 +227,8 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
   });
 
-  it("acumula igtfBase/igtfAmount en Invoice SALE cuando pago es en USD", async () => {
+  it("acumula igtfBase/igtfAmount en Invoice SALE cuando pago es en USD y empresa es CE (A5)", async () => {
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       type: "SALE", igtfBase: { toString: () => "0" }, igtfAmount: { toString: () => "0" },
     } as never);

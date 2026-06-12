@@ -20,7 +20,7 @@ No leer nada más hasta que el árbol lo indique.
 | Pregunta | Respuesta |
 |---|---|
 | ¿`number` para dinero? | **NUNCA** → `Decimal.js` siempre |
-| ¿Dónde va el IGTF? | `PaymentRecord` en `recordPaymentAction` (Sección 32) |
+| ¿Dónde va el IGTF? | `PaymentRecord` en `recordPaymentAction` (Sección 32). Regla: `currency !== VES && isSpecialContributor` |
 | ¿Cuándo usar `Serializable`? | Correlativos, cierre de período, INPC. Dudas → `Read Committed + @@unique` |
 | ¿Cómo ajustar período cerrado? | ADR-015 → asiento en mes ACTUAL con FK al período original |
 | ¿Dónde van IP/UserAgent en auditoría? | `AuditLog.ipAddress` + `AuditLog.userAgent` (R-6) |
@@ -52,7 +52,7 @@ Cuando toques estos módulos, máxima atención. Un error aquí tiene impacto fi
 ### Z-2: Cálculo de impuestos (IVA / ISLR / IGTF)
 **Archivos:** `InvoiceTaxLine`, `FiscalCalculator`, `DeclaracionIVAService`, `recordPaymentAction`
 - `Decimal.js` absoluto — `number * 0.16` es un bug garantizado
-- IGTF solo si `currency !== VES` OR (`isSpecialContributor` AND `currency === VES`)
+- IGTF solo si `currency !== VES` AND `isSpecialContributor` — Fix A5 (auditoría 2026-06). Ver `IGTFService.applies`
 - Alícuotas IVA hardcoded en enums: 16% / 8% / 31% (16+15) / 0%
 - `luxuryGroupId` linkea `IVA_ADICIONAL` ↔ `IVA_GENERAL` — no romper esta relación
 
