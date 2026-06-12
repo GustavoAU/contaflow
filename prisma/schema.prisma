@@ -2561,6 +2561,8 @@ model BudgetLine {
 
 enum SubmissionStatus {
   PENDING
+  // N2: en-vuelo — previene doble transmisión bajo QStash retry concurrente
+  PROCESSING
   SENT
   ACKNOWLEDGED
   FAILED

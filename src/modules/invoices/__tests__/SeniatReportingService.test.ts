@@ -5,6 +5,7 @@ import { Decimal } from "decimal.js";
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 const mockSubmissionFindUnique = vi.hoisted(() => vi.fn());
+const mockSubmissionUpdateMany = vi.hoisted(() => vi.fn());
 const mockSubmissionUpdate = vi.hoisted(() => vi.fn());
 const mockPublishJSON = vi.hoisted(() => vi.fn());
 
@@ -12,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     seniatSubmission: {
       findUnique: mockSubmissionFindUnique,
+      updateMany: mockSubmissionUpdateMany,
       update: mockSubmissionUpdate,
     },
   },
@@ -176,10 +178,13 @@ describe("SeniatReportingService.publishForInvoice", () => {
   });
 });
 
-// ─── transmit — idempotencia PA-121 (Z-4) ────────────────────────────────────
+// ─── transmit — idempotencia PA-121 atómica (N2 — Z-4) ───────────────────────
+// Nuevo flujo: updateMany(PENDING→PROCESSING) atómico primero, luego findUnique
 describe("SeniatReportingService.transmit", () => {
-  it("descarta reintento duplicado cuando status=SENT", async () => {
-    mockSubmissionFindUnique.mockResolvedValue({ id: "sub-1", status: "SENT", attempts: 1 });
+  it("descarta reintento duplicado cuando status=SENT (N2: claim vía updateMany)", async () => {
+    // updateMany no encuentra PENDING → count=0
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 0 });
+    mockSubmissionFindUnique.mockResolvedValue({ id: "sub-1", status: "SENT" });
 
     const result = await SeniatReportingService.transmit("sub-1");
 
@@ -187,12 +192,9 @@ describe("SeniatReportingService.transmit", () => {
     expect(mockSubmissionUpdate).not.toHaveBeenCalled();
   });
 
-  it("descarta reintento duplicado cuando status=ACKNOWLEDGED", async () => {
-    mockSubmissionFindUnique.mockResolvedValue({
-      id: "sub-1",
-      status: "ACKNOWLEDGED",
-      attempts: 1,
-    });
+  it("descarta reintento duplicado cuando status=ACKNOWLEDGED (N2: claim vía updateMany)", async () => {
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 0 });
+    mockSubmissionFindUnique.mockResolvedValue({ id: "sub-1", status: "ACKNOWLEDGED" });
 
     const result = await SeniatReportingService.transmit("sub-1");
 
@@ -200,11 +202,22 @@ describe("SeniatReportingService.transmit", () => {
     expect(mockSubmissionUpdate).not.toHaveBeenCalled();
   });
 
-  it("PENDING con API no disponible → incrementa attempts y mantiene PENDING", async () => {
-    // NODE_ENV=test → SeniatHttpAdapter retorna fallo (stub de producción)
+  it("otro worker ya está en vuelo (PROCESSING) → already-processing sin update", async () => {
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 0 });
+    mockSubmissionFindUnique.mockResolvedValue({ id: "sub-1", status: "PROCESSING" });
+
+    const result = await SeniatReportingService.transmit("sub-1");
+
+    expect(result).toEqual({ success: true, referenceId: "already-processing" });
+    expect(mockSubmissionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("PENDING con API no disponible → incrementa attempts y revierte a PENDING", async () => {
+    // Claim exitoso (count=1), luego findUnique devuelve el payload completo
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 1 });
     mockSubmissionFindUnique.mockResolvedValue({
       id: "sub-1",
-      status: "PENDING",
+      status: "PROCESSING",
       attempts: 0,
       payload: {},
     });
@@ -222,9 +235,10 @@ describe("SeniatReportingService.transmit", () => {
   });
 
   it("PENDING en el 5to intento fallido → status FAILED", async () => {
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 1 });
     mockSubmissionFindUnique.mockResolvedValue({
       id: "sub-1",
-      status: "PENDING",
+      status: "PROCESSING",
       attempts: 4,
       payload: {},
     });
@@ -240,6 +254,7 @@ describe("SeniatReportingService.transmit", () => {
   });
 
   it("submission inexistente → error sin update", async () => {
+    mockSubmissionUpdateMany.mockResolvedValue({ count: 0 });
     mockSubmissionFindUnique.mockResolvedValue(null);
 
     const result = await SeniatReportingService.transmit("sub-x");

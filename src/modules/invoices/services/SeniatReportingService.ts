@@ -210,19 +210,33 @@ export class SeniatReportingService {
         },
       },
       async () => {
+        // N2: Claim atómico — PENDING → PROCESSING en un solo UPDATE
+        // updateMany devuelve count=1 solo si el row estaba PENDING.
+        // Previene doble transmisión cuando QStash entrega el mismo mensaje dos veces (Z-4).
+        const { count } = await prisma.seniatSubmission.updateMany({
+          where: { id: submissionId, status: "PENDING" },
+          data: { status: "PROCESSING" },
+        });
+
+        if (count === 0) {
+          // Otro worker ya tomó o completó esta submission — idempotencia PA-121
+          const current = await prisma.seniatSubmission.findUnique({
+            where: { id: submissionId },
+            select: { status: true },
+          });
+          if (!current) return { success: false, error: "Submission no encontrada" };
+          if (current.status === "SENT" || current.status === "ACKNOWLEDGED") {
+            return { success: true, referenceId: "already-sent" };
+          }
+          // PROCESSING (otro worker en vuelo) o FAILED → dejar que QStash gestione
+          return { success: true, referenceId: "already-processing" };
+        }
+
+        // Somos propietarios exclusivos: leer payload y transmitir
         const submission = await prisma.seniatSubmission.findUnique({
           where: { id: submissionId },
         });
-
-        if (!submission) {
-          return { success: false, error: "Submission no encontrada" };
-        }
-
-        // Idempotencia PA-121: descarta reintentos duplicados de QStash (Z-4)
-        // status IN [SENT, ACKNOWLEDGED] → ya transmitida, no re-enviar.
-        if (submission.status === "SENT" || submission.status === "ACKNOWLEDGED") {
-          return { success: true, referenceId: "already-sent" };
-        }
+        if (!submission) return { success: false, error: "Submission no encontrada" };
 
         const payload = submission.payload as unknown as SeniatPayload;
         const result = await httpAdapter.send(payload);
