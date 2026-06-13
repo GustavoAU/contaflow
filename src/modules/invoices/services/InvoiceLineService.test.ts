@@ -154,13 +154,13 @@ describe("validateStockForLines", () => {
   const makeTxMock = (stockQuantity: string) =>
     ({
       inventoryItem: {
-        findFirst: vi.fn().mockResolvedValue({
+        findMany: vi.fn().mockResolvedValue([{
           id: "item-1",
           stockQuantity: new Decimal(stockQuantity),
           name: "Producto A",
           baseUnitId: "unit-1",
           sku: "SKU-001",
-        }),
+        }]),
       },
     }) as unknown as Parameters<typeof validateStockForLines>[4];
 
@@ -217,7 +217,7 @@ describe("validateStockForLines", () => {
   it("lanza error IDOR si el item no pertenece a la empresa", async () => {
     const line = makeLine({ inventoryItemId: "item-externo", quantity: "1" });
     const txMock = {
-      inventoryItem: { findFirst: vi.fn().mockResolvedValue(null) },
+      inventoryItem: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as Parameters<typeof validateStockForLines>[4];
 
     await expect(

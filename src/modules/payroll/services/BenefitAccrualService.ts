@@ -238,6 +238,17 @@ export const BenefitAccrualService = {
       integralByEmployee.set(line.employeeId, prev.plus(new Decimal(line.amount.toString())));
     }
 
+    // N7: pre-fetch USD rate once — all employees share the same quarterEndDate
+    let cachedUSDRate: Decimal | null = null;
+    if (employees.some((emp) => emp.salaryHistory[0]?.currency === "USD")) {
+      const fxRow = await prisma.exchangeRate.findFirst({
+        where: { companyId, currency: Currency.USD, date: { lte: quarterEndDate } },
+        orderBy: { date: "desc" },
+        select: { rate: true },
+      });
+      cachedUSDRate = fxRow ? new Decimal(fxRow.rate.toString()) : null;
+    }
+
     let totalAccrued = new Decimal(0);
     let processed = 0;
 
@@ -251,19 +262,14 @@ export const BenefitAccrualService = {
       const originalCurrency = salaryRow.currency !== "VES" ? (salaryRow.currency as string) : null;
 
       if (salaryRow.currency === "USD") {
-        const fxRate = await prisma.exchangeRate.findFirst({
-          where: { companyId, currency: Currency.USD, date: { lte: quarterEndDate } },
-          orderBy: { date: "desc" },
-          select: { rate: true },
-        });
-        if (!fxRate) {
+        if (!cachedUSDRate) {
           throw new Error(
             `Empleado ${emp.firstName} ${emp.lastName} tiene salario en USD pero no hay tasa de cambio ` +
             `registrada para el trimestre Q${quarter}/${year}. ` +
             "Registre la tasa BCV en Contabilidad → Tasas de Cambio antes de calcular prestaciones."
           );
         }
-        exchangeRateAtAccrual = new Decimal(fxRate.rate.toString());
+        exchangeRateAtAccrual = cachedUSDRate;
         monthlyWageVes = monthlyWageVes.mul(exchangeRateAtAccrual);
       }
 
@@ -453,6 +459,19 @@ export const BenefitAccrualService = {
       where: { companyId, isLiquidated: false },
     });
 
+    // N7: pre-fetch latest accrual line per balance — avoids findFirst per loop iteration
+    const lastLinesRaw = await prisma.benefitAccrualLine.findMany({
+      where: { benefitBalanceId: { in: balances.map((b) => b.id) } },
+      orderBy: { createdAt: "desc" },
+      select: { benefitBalanceId: true, runningBalance: true },
+    });
+    const lastLineMap = new Map<string, Decimal>();
+    for (const line of lastLinesRaw) {
+      if (!lastLineMap.has(line.benefitBalanceId)) {
+        lastLineMap.set(line.benefitBalanceId, new Decimal(line.runningBalance.toString()));
+      }
+    }
+
     let totalInterest = new Decimal(0);
     let processed = 0;
 
@@ -465,13 +484,7 @@ export const BenefitAccrualService = {
       const interestAmount = totalBalance.mul(monthlyFactor);
       const newInterestBalance = new Decimal(balance.interestBalance.toString()).add(interestAmount);
 
-      const lastLine = await prisma.benefitAccrualLine.findFirst({
-        where: { benefitBalanceId: balance.id },
-        orderBy: { createdAt: "desc" },
-      });
-      const prevRunningBalance = lastLine
-        ? new Decimal(lastLine.runningBalance.toString())
-        : new Decimal(balance.currentBalance.toString());
+      const prevRunningBalance = lastLineMap.get(balance.id) ?? new Decimal(balance.currentBalance.toString());
       const newRunningBalance = prevRunningBalance.add(interestAmount);
 
       const monthDate = new Date(year, month - 1, 1);
@@ -643,6 +656,21 @@ export const BenefitAccrualService = {
       },
     });
 
+    // N7: pre-fetch all USD rates once — avoids findFirst inside the employee×quarter nested loop
+    const allUSDRates = await prisma.exchangeRate.findMany({
+      where: { companyId, currency: Currency.USD },
+      orderBy: { date: "asc" },
+      select: { date: true, rate: true },
+    });
+    function getUSDRateAt(lteDate: Date): Decimal | null {
+      let result: Decimal | null = null;
+      for (const r of allUSDRates) {
+        if (r.date <= lteDate) result = new Decimal(r.rate.toString());
+        else break;
+      }
+      return result;
+    }
+
     let totalAccrued = new Decimal(0);
     let quartersProcessed = 0;
     let employeesProcessed = 0;
@@ -698,19 +726,15 @@ export const BenefitAccrualService = {
           const originalCurrency = salAtQuarter.currency !== "VES" ? (salAtQuarter.currency as string) : null;
 
           if (salAtQuarter.currency === "USD") {
-            const fxRate = await prisma.exchangeRate.findFirst({
-              where: { companyId, currency: Currency.USD, date: { lte: quarterEndDate } },
-              orderBy: { date: "desc" },
-              select: { rate: true },
-            });
-            if (!fxRate) {
+            const rateDecimal = getUSDRateAt(quarterEndDate);
+            if (!rateDecimal) {
               throw new Error(
                 `Backfill Q${quarter}/${year}: empleado ${emp.firstName} ${emp.lastName} tiene salario ` +
                 "en USD pero no hay tasa de cambio registrada para ese período. " +
                 "Registre las tasas BCV históricas en Contabilidad → Tasas de Cambio."
               );
             }
-            exchangeRateAtAccrual = new Decimal(fxRate.rate.toString());
+            exchangeRateAtAccrual = rateDecimal;
             monthlyWage = monthlyWage.mul(exchangeRateAtAccrual);
           }
 

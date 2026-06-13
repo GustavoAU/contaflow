@@ -381,6 +381,8 @@ model IGTFTransaction {
   concept       String
   createdAt     DateTime     @default(now())
   createdBy     String
+
+  @@index([companyId])
 }
 
 model Transaction {
@@ -671,6 +673,9 @@ model Invoice {
   @@index([companyId, type, dueDate])
   @@index([companyId, periodId, type])
   @@index([relatedInvoiceId])
+  @@index([vendorId])
+  @@index([customerId])
+  @@index([transactionId])
 }
 
 model ControlNumberSequence {
