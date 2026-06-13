@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { fmtVen } from "@/lib/fmt-ven";
+import Decimal from "decimal.js";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -30,8 +31,8 @@ const TYPE_COLORS: Record<string, string> = {
   EXPENSE: "text-orange-600",
 };
 
-function fmt(v: string | number): string {
-  return fmtVen(v);
+function fmt(v: string | number | Decimal): string {
+  return fmtVen(v instanceof Decimal ? v.toFixed(2) : v);
 }
 
 export default async function TrialBalancePage({ params, searchParams }: Props) {
@@ -69,10 +70,10 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
     .filter((g) => g.rows.length > 0);
 
   // Totales generales
-  const grandTotalDebit = rows.reduce((acc, r) => acc + Number(r.totalDebit), 0);
-  const grandTotalCredit = rows.reduce((acc, r) => acc + Number(r.totalCredit), 0);
-  const grandBalance = grandTotalDebit - grandTotalCredit;
-  const isBalanced = Math.abs(grandBalance) < 0.01;
+  const grandTotalDebit = rows.reduce((acc, r) => acc.plus(new Decimal(r.totalDebit.toString())), new Decimal(0));
+  const grandTotalCredit = rows.reduce((acc, r) => acc.plus(new Decimal(r.totalCredit.toString())), new Decimal(0));
+  const grandBalance = grandTotalDebit.minus(grandTotalCredit);
+  const isBalanced = grandBalance.abs().lt(new Decimal("0.01"));
 
   return (
     <div className="space-y-6">
@@ -113,9 +114,9 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
             </thead>
             <tbody className="divide-y">
               {groups.map(({ type, rows: groupRows }) => {
-                const groupDebit = groupRows.reduce((a, r) => a + Number(r.totalDebit), 0);
-                const groupCredit = groupRows.reduce((a, r) => a + Number(r.totalCredit), 0);
-                const groupBalance = groupDebit - groupCredit;
+                const groupDebit = groupRows.reduce((a, r) => a.plus(new Decimal(r.totalDebit.toString())), new Decimal(0));
+                const groupCredit = groupRows.reduce((a, r) => a.plus(new Decimal(r.totalCredit.toString())), new Decimal(0));
+                const groupBalance = groupDebit.minus(groupCredit);
                 const color = TYPE_COLORS[type];
                 return (
                   <>
@@ -177,7 +178,7 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
                     <span className="font-semibold text-green-600">&#10003; Balanceado — Débitos = Créditos</span>
                   ) : (
                     <span className="font-semibold text-red-600">
-                      &#9888; Desbalanceado — diferencia: {fmt(Math.abs(grandBalance))} Bs.
+                      &#9888; Desbalanceado — diferencia: {fmt(grandBalance.abs())} Bs.
                     </span>
                   )}
                 </td>

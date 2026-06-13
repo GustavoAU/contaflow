@@ -3,6 +3,7 @@
 // Fase NOM-D: Panel de utilidades por empleado (cálculo + historial)
 
 import { useState, useTransition } from "react";
+import Decimal from "decimal.js";
 import { Loader2Icon } from "lucide-react";
 import { calculateProfitSharingAction } from "../actions/nom-d.actions";
 import type { ProfitSharingRecordRow } from "../services/ProfitSharingService";
@@ -47,12 +48,16 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
   // F-07: preview días dinámicos desde utilidad neta
   const dynamicDaysPreview = (() => {
     if (!form.useDynamic || !form.netProfitVes || !form.totalAnnualPayrollVes) return null;
-    const profit = parseFloat(form.netProfitVes);
-    const payroll = parseFloat(form.totalAnnualPayrollVes);
-    if (!isFinite(profit) || !isFinite(payroll) || payroll <= 0) return null;
-    if (profit <= 0) return 15;
-    const days = Math.round((profit * 0.15 * 365) / payroll * 100) / 100;
-    return Math.max(15, Math.min(120, days));
+    try {
+      const profit = new Decimal(form.netProfitVes);
+      const payroll = new Decimal(form.totalAnnualPayrollVes);
+      if (!profit.isFinite() || !payroll.isFinite() || payroll.lte(0)) return null;
+      if (profit.lte(0)) return 15;
+      const days = profit.mul("0.15").mul("365").div(payroll).toDecimalPlaces(2).toNumber();
+      return Math.max(15, Math.min(120, days));
+    } catch {
+      return null;
+    }
   })();
 
   function handleSubmit() {
