@@ -4,6 +4,7 @@
 // Métodos: Línea Recta, Suma de Dígitos, Unidades de Producción
 
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { PrismaClient, DepreciationMethod, FixedAsset } from "@prisma/client";
 import type {
   CreateFixedAssetInput,
@@ -228,6 +229,19 @@ export class FixedAssetService {
     if (input.acquisitionCounterpartAccountId) {
       const acqCost = new Decimal(input.acquisitionCost);
       const txCount = await tx.transaction.count({ where: { companyId: input.companyId } });
+      const acqEntries = [
+        {
+          accountId: input.assetAccountId,
+          amount:     acqCost,
+          description: `Activo fijo adquirido — ${input.name}`,
+        },
+        {
+          accountId: input.acquisitionCounterpartAccountId,
+          amount:     acqCost.negated(),
+          description: `Origen adquisición — ${input.name}`,
+        },
+      ];
+      assertBalancedGLEntries(acqEntries); // N4: invariante partida doble
       await tx.transaction.create({
         data: {
           companyId: input.companyId,
@@ -237,18 +251,7 @@ export class FixedAssetService {
           type: "DIARIO",
           userId,
           entries: {
-            create: [
-              {
-                accountId: input.assetAccountId,
-                amount:     acqCost,
-                description: `Activo fijo adquirido — ${input.name}`,
-              },
-              {
-                accountId: input.acquisitionCounterpartAccountId,
-                amount:     acqCost.negated(),
-                description: `Origen adquisición — ${input.name}`,
-              },
-            ],
+            create: acqEntries,
           },
         },
       });
@@ -350,6 +353,21 @@ export class FixedAssetService {
     // new Date(year, month, 0) → día 0 del mes siguiente = último día del mes actual.
     const periodDate = new Date(year, month, 0);
 
+    const depEntries = [
+      // Débito: Gasto Depreciación
+      {
+        accountId: asset.depreciationAccountId,
+        amount: calc.amount,
+        description: `Depreciación: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
+      },
+      // Crédito: Depreciación Acumulada (negativo = crédito en nuestro modelo)
+      {
+        accountId: asset.accDepreciationAccountId,
+        amount: calc.amount.negated(),
+        description: `Dep. Acumulada: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
+      },
+    ];
+    assertBalancedGLEntries(depEntries); // N4: invariante partida doble
     const journalTx = await tx.transaction.create({
       data: {
         companyId,
@@ -359,20 +377,7 @@ export class FixedAssetService {
         type: "AJUSTE",
         userId,
         entries: {
-          create: [
-            // Débito: Gasto Depreciación
-            {
-              accountId: asset.depreciationAccountId,
-              amount: calc.amount,
-              description: `Depreciación: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
-            },
-            // Crédito: Depreciación Acumulada (negativo = crédito en nuestro modelo)
-            {
-              accountId: asset.accDepreciationAccountId,
-              amount: calc.amount.negated(),
-              description: `Dep. Acumulada: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
-            },
-          ],
+          create: depEntries,
         },
       },
     });
@@ -453,6 +458,19 @@ export class FixedAssetService {
     // txNumber único: por construcción (un solo catch-up VEN-NIF8 por activo por mes corriente)
     const txNumber = `DEP-VNF8-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}-${assetId.slice(-8).toUpperCase()}`;
 
+    const vnf8Entries = [
+      {
+        accountId:   asset.depreciationAccountId,
+        amount:      totalAmount,
+        description: `Dep. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
+      },
+      {
+        accountId:   asset.accDepreciationAccountId,
+        amount:      totalAmount.negated(),
+        description: `Dep. Acum. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
+      },
+    ];
+    assertBalancedGLEntries(vnf8Entries); // N4: invariante partida doble
     const glTx = await tx.transaction.create({
       data: {
         companyId,
@@ -462,18 +480,7 @@ export class FixedAssetService {
         type:        "AJUSTE",
         userId,
         entries: {
-          create: [
-            {
-              accountId:   asset.depreciationAccountId,
-              amount:      totalAmount,
-              description: `Dep. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
-            },
-            {
-              accountId:   asset.accDepreciationAccountId,
-              amount:      totalAmount.negated(),
-              description: `Dep. Acum. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
-            },
-          ],
+          create: vnf8Entries,
         },
       },
     });
@@ -676,6 +683,7 @@ export class FixedAssetService {
       }
     }
 
+    assertBalancedGLEntries(glEntries); // N4: invariante partida doble
     await tx.transaction.create({
       data: {
         companyId: input.companyId,
@@ -990,6 +998,7 @@ export class FixedAssetService {
     const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INF-AF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
 
+    assertBalancedGLEntries(glEntries); // N4: invariante partida doble
     const createdTx = await tx.transaction.create({
       data: {
         companyId,

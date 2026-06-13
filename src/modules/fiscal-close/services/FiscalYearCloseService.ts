@@ -2,6 +2,7 @@
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 
@@ -217,6 +218,8 @@ export class FiscalYearCloseService {
         const decemberPeriod = periods.find((p) => p.month === 12);
         const lastPeriod = periods.sort((a, b) => b.month - a.month)[0];
 
+        // N4: invariante partida doble (amount tipado por Prisma → normalizar a Decimal)
+        assertBalancedGLEntries(closingEntries.map((e) => ({ amount: new Decimal(e.amount.toString()) })));
         const closingTx = await tx.transaction.create({
           data: {
             number: closingNumber,
@@ -375,6 +378,8 @@ export class FiscalYearCloseService {
           },
         ];
 
+        // N4: invariante partida doble (amount tipado por Prisma → normalizar a Decimal)
+        assertBalancedGLEntries(appEntries.map((e) => ({ amount: new Decimal(e.amount.toString()) })));
         const appTx = await tx.transaction.create({
           data: {
             number: appNumber,

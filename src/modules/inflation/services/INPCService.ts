@@ -5,6 +5,7 @@
 // Sección 36: filtro isMonetary + REPOMO (Resultado por Posición Monetaria Neta)
 
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { PrismaClient, AccountType } from "@prisma/client";
 import type { UpsertINPCRateInput, RunInflationAdjustmentInput, SetInflationBaseInput } from "../schemas/inpc.schema";
 
@@ -406,6 +407,7 @@ export class INPCService {
     // Obtener baseYear/Month para registros InflationAdjustment
     const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
 
+    assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
     const journalTx = await tx.transaction.create({
       data: {
         companyId,

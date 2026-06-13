@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
 import type {
   CreateReimbursementSchema,
@@ -202,6 +203,7 @@ export async function postReimbursement(
         },
       ];
 
+      assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
           companyId: input.companyId,

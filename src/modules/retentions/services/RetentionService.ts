@@ -1,5 +1,6 @@
 // src/modules/retentions/services/RetentionService.ts
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { ISLR_RATES, IVA_RETENTION_RATES, INCES_RATE, FAT_RATE } from "../schemas/retention.schema";
 import type { EnterRetentionInput } from "../schemas/retention.schema";
 import { validateVenezuelanRif } from "@/lib/fiscal-validators";
@@ -195,6 +196,19 @@ export async function enterRetention(
     const txNumber = `ENT-${input.enterDate.getFullYear()}-${String(enterCount + 1).padStart(5, "0")}`;
 
     // Journal entry: Debit liability, Credit bank
+    const enterEntries = [
+      {
+        accountId: input.liabilityAccountId,
+        amount: enterAmount,
+        description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
+      },
+      {
+        accountId: input.bankAccountId,
+        amount: enterAmount.negated(),
+        description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
+      },
+    ];
+    assertBalancedGLEntries(enterEntries); // N4: invariante partida doble
     const transaction = await tx.transaction.create({
       data: {
         companyId: input.companyId,
@@ -205,18 +219,7 @@ export async function enterRetention(
         type: "DIARIO",
         userId,
         entries: {
-          create: [
-            {
-              accountId: input.liabilityAccountId,
-              amount: enterAmount,
-              description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
-            },
-            {
-              accountId: input.bankAccountId,
-              amount: enterAmount.negated(),
-              description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
-            },
-          ],
+          create: enterEntries,
         },
       },
     });

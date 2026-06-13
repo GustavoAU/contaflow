@@ -17,6 +17,7 @@
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { Prisma, Currency } from "@prisma/client";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 
 // Días base por LOTTT Art. 142: 5 días/trimestre (15/año)
 const BASE_DAYS_PER_QUARTER = 5;
@@ -301,6 +302,19 @@ export const BenefitAccrualService = {
         await prisma.$transaction(async (tx) => {
           // Asiento contable de causación (ADR-014 Dec. 7)
           // Convención: positivo = Débito, negativo = Crédito
+          const accrualEntries = [
+            {
+              accountId: config.benefitsExpenseAccountId!,
+              amount: accrualAmount.toDecimalPlaces(4), // Débito
+              description: `Accrual prestaciones LOTTT Art.142 — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+            },
+            {
+              accountId: config.benefitsPayableAccountId!,
+              amount: accrualAmount.negated().toDecimalPlaces(4), // Crédito
+              description: `Pasivo prestaciones — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+            },
+          ];
+          assertBalancedGLEntries(accrualEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
               companyId,
@@ -311,18 +325,7 @@ export const BenefitAccrualService = {
               userId,
               type: "DIARIO",
               entries: {
-                create: [
-                  {
-                    accountId: config.benefitsExpenseAccountId!,
-                    amount: accrualAmount.toDecimalPlaces(4), // Débito
-                    description: `Accrual prestaciones LOTTT Art.142 — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
-                  },
-                  {
-                    accountId: config.benefitsPayableAccountId!,
-                    amount: accrualAmount.negated().toDecimalPlaces(4), // Crédito
-                    description: `Pasivo prestaciones — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
-                  },
-                ],
+                create: accrualEntries,
               },
             },
           });
@@ -490,6 +493,19 @@ export const BenefitAccrualService = {
       const monthDate = new Date(year, month - 1, 1);
 
       await prisma.$transaction(async (tx) => {
+        const interestEntries = [
+          {
+            accountId: config.benefitsExpenseAccountId!,
+            amount: interestAmount.toDecimalPlaces(4), // Débito
+            description: `Intereses BCV sobre prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
+          },
+          {
+            accountId: config.benefitsPayableAccountId!,
+            amount: interestAmount.negated().toDecimalPlaces(4), // Crédito
+            description: `Pasivo intereses prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
+          },
+        ];
+        assertBalancedGLEntries(interestEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
             companyId,
@@ -500,18 +516,7 @@ export const BenefitAccrualService = {
             userId,
             type: "DIARIO",
             entries: {
-              create: [
-                {
-                  accountId: config.benefitsExpenseAccountId!,
-                  amount: interestAmount.toDecimalPlaces(4), // Débito
-                  description: `Intereses BCV sobre prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
-                },
-                {
-                  accountId: config.benefitsPayableAccountId!,
-                  amount: interestAmount.negated().toDecimalPlaces(4), // Crédito
-                  description: `Pasivo intereses prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
-                },
-              ],
+              create: interestEntries,
             },
           },
         });
@@ -770,6 +775,19 @@ export const BenefitAccrualService = {
 
           try {
             await prisma.$transaction(async (tx) => {
+              const backfillEntries = [
+                {
+                  accountId: config.benefitsExpenseAccountId!,
+                  amount: accrualAmount.toDecimalPlaces(4),
+                  description: `Backfill LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                },
+                {
+                  accountId: config.benefitsPayableAccountId!,
+                  amount: accrualAmount.negated().toDecimalPlaces(4),
+                  description: `Pasivo prestaciones backfill Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                },
+              ];
+              assertBalancedGLEntries(backfillEntries); // N4: invariante partida doble
               const transaction = await tx.transaction.create({
                 data: {
                   companyId,
@@ -780,18 +798,7 @@ export const BenefitAccrualService = {
                   userId,
                   type: "DIARIO",
                   entries: {
-                    create: [
-                      {
-                        accountId: config.benefitsExpenseAccountId!,
-                        amount: accrualAmount.toDecimalPlaces(4),
-                        description: `Backfill LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
-                      },
-                      {
-                        accountId: config.benefitsPayableAccountId!,
-                        amount: accrualAmount.negated().toDecimalPlaces(4),
-                        description: `Pasivo prestaciones backfill Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
-                      },
-                    ],
+                    create: backfillEntries,
                   },
                 },
               });

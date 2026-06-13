@@ -211,6 +211,10 @@ export async function getInvoicesPaginatedAction(
       select: { role: true },
     });
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    // N14 (ADR-025): verifica acceso base + grants granulares al módulo facturación
+    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+      return { success: false, error: moduleAccessError("invoicing") };
+    }
 
     const page = await InvoiceService.getInvoicesPaginated(companyId, filters, cursor, limit);
     return { success: true, data: page };

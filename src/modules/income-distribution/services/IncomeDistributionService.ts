@@ -2,6 +2,7 @@
 
 import { createHash } from "crypto";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
 import type { IncomeDistributionStatus } from "@prisma/client";
 
@@ -311,6 +312,21 @@ export async function applyDistribution(
           const referenceNumber = `DIST-${String(count).padStart(6, "0")}`;
 
           // Asiento contable: Débito origen, Crédito cada línea (ADR-023 D-3)
+          const distEntries = [
+            // Débito: cuenta origen
+            {
+              accountId: dist.originAccountId,
+              amount: totalVes,
+              description: `Distribución ${referenceNumber} — ingreso`,
+            },
+            // Crédito: una línea por destinatario
+            ...dist.lines.map((l) => ({
+              accountId: l.accountId,
+              amount: new Decimal(l.amountVes.toString()).negated(),
+              description: l.lineDescription ?? `${referenceNumber} — ${l.recipientCompany.name}`,
+            })),
+          ];
+          assertBalancedGLEntries(distEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
               companyId,
@@ -320,20 +336,7 @@ export async function applyDistribution(
               type: "DIARIO",
               userId,
               entries: {
-                create: [
-                  // Débito: cuenta origen
-                  {
-                    accountId: dist.originAccountId,
-                    amount: totalVes,
-                    description: `Distribución ${referenceNumber} — ingreso`,
-                  },
-                  // Crédito: una línea por destinatario
-                  ...dist.lines.map((l) => ({
-                    accountId: l.accountId,
-                    amount: new Decimal(l.amountVes.toString()).negated(),
-                    description: l.lineDescription ?? `${referenceNumber} — ${l.recipientCompany.name}`,
-                  })),
-                ],
+                create: distEntries,
               },
             },
           });

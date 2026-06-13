@@ -17,6 +17,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import type { TerminationReason, TerminationStatus } from "@prisma/client";
 import { countCompleteMonths, VacationService } from "./VacationService";
@@ -583,6 +584,7 @@ export const TerminationService = {
         });
       }
 
+      assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
       const liquidationTx = await tx.transaction.create({
         data: {
           companyId,

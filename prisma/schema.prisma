@@ -861,6 +861,8 @@ model InvoicePayment {
 
   @@index([invoiceId])
   @@index([companyId, date])
+  // N10: FK exchangeRateId sin índice propio → seq scan en Restrict-check al borrar ExchangeRate
+  @@index([exchangeRateId])
 }
 
 // ─── Fase 17: Conciliación Bancaria ───────────────────────────────────────────
@@ -2066,6 +2068,10 @@ model PayrollRunLine {
   @@index([payrollRunId])
   @@index([companyId, employeeId])
   @@index([companyId, payrollRunId, employeeId])
+  // N10: FK conceptId/employeeId sin índice propio (el compuesto líder companyId no
+  // sirve para el Restrict-check, que filtra por la columna sola)
+  @@index([conceptId])
+  @@index([employeeId])
 }
 
 // ─── Fase NOM-D: Prestaciones Sociales, Vacaciones, Utilidades, Liquidación ────
@@ -2462,6 +2468,8 @@ model Vendor {
   @@unique([companyId, rif])
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
+  // N10: FK groupId sin índice → seq scan en el SetNull-check al borrar VendorGroup
+  @@index([groupId])
 }
 
 model CustomerGroup {
@@ -2503,6 +2511,8 @@ model Customer {
   @@unique([companyId, rif])
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
+  // N10: FK groupId sin índice → seq scan en el SetNull-check al borrar CustomerGroup
+  @@index([groupId])
 }
 
 // Q3-2: Historial de interacciones por cliente/proveedor
@@ -2562,6 +2572,8 @@ model BudgetLine {
 
   @@unique([budgetId, accountId])
   @@index([companyId])
+  // N10: FK accountId sin índice propio (en el @@unique no es columna líder)
+  @@index([accountId])
 }
 
 // ─── PA-121 Outbox (ADR-019 D-1) ─────────────────────────────────────────────
@@ -2815,6 +2827,10 @@ model Expense {
   @@index([companyId, status])
   @@index([companyId, invoiceDate])
   @@index([companyId, deletedAt])
+  // N10: FK categoryId/vendorId sin índice propio para el Restrict-check
+  // (el compuesto líder companyId no sirve al filtrar por la columna sola)
+  @@index([categoryId])
+  @@index([vendorId])
 }
 
 // ─── Sprint 3: Suscripciones y Facturación ────────────────────────────────────

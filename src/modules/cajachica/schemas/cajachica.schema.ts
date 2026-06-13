@@ -22,6 +22,10 @@ export const CloseCajaCajaSchema = z.object({
 export const CreateDepositSchema = z.object({
   companyId: z.string().min(1),
   cajaCajaId: z.string().min(1),
+  // Cuenta origen (Banco/Caja general) que financia el fondo fijo — contrapartida
+  // del asiento. Obligatoria: sin ella el depósito es un asiento de una sola
+  // partida (viola partida doble R-1).
+  sourceAccountId: z.string().min(1, { error: "Cuenta origen requerida" }),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
   amount: zMoneyPositive,
   description: z.string().min(1).max(500),
