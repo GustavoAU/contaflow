@@ -59,6 +59,7 @@ async function callGemini(
         contents: [{ role: "user", parts: userParts }],
         generationConfig: { maxOutputTokens: 600, temperature: 0.3 },
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) return null;
