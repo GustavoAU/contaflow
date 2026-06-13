@@ -33,6 +33,9 @@ vi.mock("@/lib/prisma", () => ({
     employee: {
       findMany: vi.fn(),
     },
+    exchangeRate: {
+      findMany: vi.fn(),
+    },
     payrollRunLine: {
       findMany: vi.fn(),
     },
@@ -363,7 +366,7 @@ describe("BenefitAccrualService.postBenefitInterest", () => {
     vi.mocked(prisma.benefitBalance.findMany).mockResolvedValue([
       { ...BASE_BALANCE, currentBalance: new Decimal("1000"), interestBalance: new Decimal("0") },
     ] as never);
-    vi.mocked(prisma.benefitAccrualLine.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-2" } as never);
     vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
     vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);
@@ -411,6 +414,7 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.exchangeRate.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-bf" } as never);
     vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
     vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);

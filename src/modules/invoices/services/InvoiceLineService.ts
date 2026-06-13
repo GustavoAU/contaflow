@@ -174,16 +174,21 @@ export async function validateStockForLines(
   const linesWithItem = lines.filter((l) => l.inventoryItemId);
   if (linesWithItem.length === 0) return { ok: true };
 
+  // N8: batch-fetch all items at once — avoids inventoryItem.findFirst per line inside Serializable tx
+  const itemIds = [...new Set(linesWithItem.map((l) => l.inventoryItemId!))];
+  const fetchedItems = await tx.inventoryItem.findMany({
+    where: { id: { in: itemIds }, companyId },
+    select: { id: true, stockQuantity: true, name: true, baseUnitId: true, sku: true },
+  });
+  const itemMap = new Map(fetchedItems.map((i) => [i.id, i]));
+
   const insufficient: Array<{ itemId: string; name: string; available: string; requested: string }> = [];
 
   for (const line of linesWithItem) {
     const itemId = line.inventoryItemId!;
 
-    // ADR-024 D-2.5: verificar multi-tenant IDOR antes de leer stock
-    const item = await tx.inventoryItem.findFirst({
-      where: { id: itemId, companyId },
-      select: { id: true, stockQuantity: true, name: true, baseUnitId: true, sku: true },
-    });
+    // ADR-024 D-2.5: verificar multi-tenant IDOR — ítem debe estar en el mapa (companyId ya filtrado)
+    const item = itemMap.get(itemId);
     if (!item) {
       throw new Error(`Ítem ${itemId} no encontrado o no pertenece a esta empresa`);
     }

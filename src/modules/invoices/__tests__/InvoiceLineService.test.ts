@@ -84,7 +84,7 @@ describe("deriveInvoiceTaxLines", () => {
 describe("validateStockForLines — WARN mode", () => {
   const mockTx = {
     inventoryItem: {
-      findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
   };
 
@@ -93,13 +93,13 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true con warnings cuando hay stock insuficiente en modo WARN", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue({
+    mockTx.inventoryItem.findMany.mockResolvedValue([{
       id: "item-1",
       stockQuantity: new Decimal("1"),
       name: "Laptop",
       baseUnitId: "unit-1",
       sku: "LAP-001",
-    });
+    }]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "Laptop", inventoryItemId: "item-1", quantity: "5", unitPriceVes: "100", ivaRate: "GENERAL_16" },
@@ -116,13 +116,13 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true con warnings vacíos cuando hay stock suficiente en modo WARN", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue({
+    mockTx.inventoryItem.findMany.mockResolvedValue([{
       id: "item-1",
       stockQuantity: new Decimal("10"),
       name: "Mouse",
       baseUnitId: "unit-1",
       sku: "MOU-001",
-    });
+    }]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "Mouse", inventoryItemId: "item-1", quantity: "2", unitPriceVes: "50", ivaRate: "GENERAL_16" },
@@ -144,17 +144,17 @@ describe("validateStockForLines — WARN mode", () => {
     const result = await validateStockForLines(lines, "company-1", "WARN", false, mockTx as never);
 
     expect(result.ok).toBe(true);
-    expect(mockTx.inventoryItem.findFirst).not.toHaveBeenCalled();
+    expect(mockTx.inventoryItem.findMany).not.toHaveBeenCalled();
   });
 
   it("lanza error en modo BLOCK con stock insuficiente", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue({
+    mockTx.inventoryItem.findMany.mockResolvedValue([{
       id: "item-2",
       stockQuantity: new Decimal("0"),
       name: "Teclado",
       baseUnitId: "unit-1",
       sku: "KEY-001",
-    });
+    }]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "Teclado", inventoryItemId: "item-2", quantity: "1", unitPriceVes: "80", ivaRate: "GENERAL_16" },
@@ -166,13 +166,13 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("lanza STOCK_CONFIRM_REQUIRED en modo CONFIRM sin confirmación", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue({
+    mockTx.inventoryItem.findMany.mockResolvedValue([{
       id: "item-3",
       stockQuantity: new Decimal("0"),
       name: "Monitor",
       baseUnitId: "unit-1",
       sku: "MON-001",
-    });
+    }]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "Monitor", inventoryItemId: "item-3", quantity: "1", unitPriceVes: "200", ivaRate: "GENERAL_16" },
@@ -184,13 +184,13 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true en modo CONFIRM con stockConfirmed=true aunque haya insuficiente", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue({
+    mockTx.inventoryItem.findMany.mockResolvedValue([{
       id: "item-4",
       stockQuantity: new Decimal("0"),
       name: "Impresora",
       baseUnitId: "unit-1",
       sku: "IMP-001",
-    });
+    }]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "Impresora", inventoryItemId: "item-4", quantity: "1", unitPriceVes: "300", ivaRate: "GENERAL_16" },
@@ -202,7 +202,7 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("lanza error si el ítem no pertenece a la empresa", async () => {
-    mockTx.inventoryItem.findFirst.mockResolvedValue(null);
+    mockTx.inventoryItem.findMany.mockResolvedValue([]);
 
     const lines: InvoiceLineInput[] = [
       { lineNumber: 1, nameSnapshot: "X", inventoryItemId: "item-99", quantity: "1", unitPriceVes: "100", ivaRate: "GENERAL_16" },
