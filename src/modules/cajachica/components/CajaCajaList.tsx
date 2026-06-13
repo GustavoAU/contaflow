@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { CajaCajaBalanceCard } from "./CajaCajaBalanceCard";
 import { CajaCajaMovementForm } from "./CajaCajaMovementForm";
 import { CajaCajaMovementList } from "./CajaCajaMovementList";
-import { closeCajaCajaAction, listMovementsAction } from "../actions/cajachica.actions";
+import { CajaCajaDepositForm } from "./CajaCajaDepositForm";
+import { CajaCajaDepositList } from "./CajaCajaDepositList";
+import { closeCajaCajaAction, listMovementsAction, listDepositsAction } from "../actions/cajachica.actions";
 import type { CajaCajaSummary } from "../services/CajaCajaService";
 import type { MovementSummary } from "../services/CajaCajaMovementService";
+import type { DepositSummary } from "../services/CajaCajaDepositService";
 
 type Account = { id: string; code: string; name: string; type: string };
 
@@ -35,10 +38,14 @@ function CajaRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showDepositForm, setShowDepositForm] = useState(false);
   const [movements, setMovements] = useState<MovementSummary[]>([]);
+  const [deposits, setDeposits] = useState<DepositSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [depositLoadError, setDepositLoadError] = useState<string | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [isLoading, startLoad] = useTransition();
+  const [isLoadingDeposits, startLoadDeposits] = useTransition();
   const [isClosing, startClose] = useTransition();
 
   function loadMovements() {
@@ -53,8 +60,23 @@ function CajaRow({
     });
   }
 
+  function loadDeposits() {
+    startLoadDeposits(async () => {
+      const result = await listDepositsAction(caja.id, companyId);
+      if (result.success) {
+        setDeposits(result.data);
+        setDepositLoadError(null);
+      } else {
+        setDepositLoadError(result.error);
+      }
+    });
+  }
+
   function handleExpand() {
-    if (!expanded) loadMovements();
+    if (!expanded) {
+      loadMovements();
+      loadDeposits();
+    }
     setExpanded(!expanded);
   }
 
@@ -95,7 +117,24 @@ function CajaRow({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => {
+                if (!expanded) handleExpand();
+                setShowDepositForm((v) => !v);
+                setShowForm(false);
+              }}
+              className="gap-1.5 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Depositar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!expanded) handleExpand();
+                setShowForm((v) => !v);
+                setShowDepositForm(false);
+              }}
               className="gap-1.5 text-xs"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -121,7 +160,25 @@ function CajaRow({
         </div>
       )}
 
-      {/* Form */}
+      {/* Deposit form */}
+      {showDepositForm && expanded && (
+        <div className="border-t px-4 py-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Registrar Depósito (reposición de fondo)
+          </h4>
+          <CajaCajaDepositForm
+            companyId={companyId}
+            cajaCajaId={caja.id}
+            cajaAccountId={caja.accountId}
+            currency={caja.currency}
+            accounts={accounts}
+            onSuccess={() => { setShowDepositForm(false); loadDeposits(); onRefresh(); }}
+            onCancel={() => setShowDepositForm(false)}
+          />
+        </div>
+      )}
+
+      {/* Movement form */}
       {showForm && expanded && (
         <div className="border-t px-4 py-4">
           <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -137,9 +194,34 @@ function CajaRow({
         </div>
       )}
 
+      {/* Deposits */}
+      {expanded && (
+        <div className="border-t px-4 py-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Depósitos
+          </h4>
+          {isLoadingDeposits ? (
+            <p className="py-4 text-center text-sm text-zinc-400">Cargando...</p>
+          ) : depositLoadError ? (
+            <p className="text-xs text-red-600">{depositLoadError}</p>
+          ) : (
+            <CajaCajaDepositList
+              companyId={companyId}
+              deposits={deposits}
+              currency={caja.currency}
+              isAdmin={isAdmin}
+              onRefresh={() => { loadDeposits(); onRefresh(); }}
+            />
+          )}
+        </div>
+      )}
+
       {/* Movements */}
       {expanded && (
         <div className="border-t px-4 py-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Movimientos (gastos)
+          </h4>
           {isLoading ? (
             <p className="py-4 text-center text-sm text-zinc-400">Cargando...</p>
           ) : loadError ? (
