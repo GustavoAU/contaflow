@@ -696,6 +696,8 @@ model InvoiceTaxLine {
   rate        Decimal     @db.Decimal(5, 2)
   amount      Decimal     @db.Decimal(19, 4)
   description String?
+
+  @@index([invoiceId])
 }
 
 model RetentionSequence {

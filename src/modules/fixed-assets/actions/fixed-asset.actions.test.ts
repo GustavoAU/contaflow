@@ -263,20 +263,20 @@ describe("disposeFixedAssetAction", () => {
     expect(r.success).toBe(false);
   });
 
-  it("Art. 66 LIVA — pasa applyArt66 y art66ReintegroAmount al service", async () => {
+  it("Art. 66 LIVA — pasa applyArt66, ivaCFAccountId y art66ExpenseAccountId al service (server recalcula monto — N1)", async () => {
     vi.mocked(FixedAssetService.dispose).mockResolvedValue(undefined);
     const r = await disposeFixedAssetAction({
       ...DISPOSE_INPUT,
       applyArt66:            true,
-      art66ReintegroAmount:  "240.00",
       art66ExpenseAccountId: "acc-gasto-iva-reintegro",
+      ivaCFAccountId:        "acc-iva-cf",
     });
     expect(r.success).toBe(true);
     expect(vi.mocked(FixedAssetService.dispose)).toHaveBeenCalledWith(
       expect.objectContaining({
         applyArt66:            true,
-        art66ReintegroAmount:  "240.00",
         art66ExpenseAccountId: "acc-gasto-iva-reintegro",
+        ivaCFAccountId:        "acc-iva-cf",
       }),
       expect.any(String),
       expect.anything(),
