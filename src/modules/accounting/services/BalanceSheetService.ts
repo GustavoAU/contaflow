@@ -26,26 +26,15 @@ const BALANCE_TOLERANCE = new Decimal("0.02");
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
 // Forma mínima de cuenta con entradas que necesitamos para el cómputo.
-// Prisma devuelve más campos, pero solo usamos estos.
-type AccountWithEntries = {
+// N5: pre-aggregated at DB level — no individual JournalEntry rows in memory.
+type AccountWithBalance = {
   id: string;
   code: string;
   name: string;
   type: string;
   isCurrent: boolean;
-  journalEntries: Array<{ amount: { toString(): string } }>;
+  balance: Decimal; // Σ(amount) — computed by DB groupBy
 };
-
-// ─── Helpers privados ─────────────────────────────────────────────────────────
-
-// Suma todos los montos de las entradas de una cuenta.
-// El resultado respeta la convención de signos (débito = +, crédito = −).
-function sumEntries(entries: Array<{ amount: { toString(): string } }>): Decimal {
-  return entries.reduce(
-    (total, entry) => total.plus(new Decimal(entry.amount.toString())),
-    new Decimal(0),
-  );
-}
 
 // Resultado intermedio de procesar las cuentas de balance
 type CategorizedBalanceAccounts = {
@@ -72,7 +61,7 @@ type CategorizedBalanceAccounts = {
 //   Tienen saldo crédito (negativo en BD). Se muestran con prefijo "(-)" para
 //   indicar que reducen el Activo, pero se suman algebraicamente a totalAssets
 //   (que resulta en una reducción). Esto cumple con NIC 16.
-function categorizeBalanceAccounts(accounts: AccountWithEntries[]): CategorizedBalanceAccounts {
+function categorizeBalanceAccounts(accounts: AccountWithBalance[]): CategorizedBalanceAccounts {
   const result: CategorizedBalanceAccounts = {
     assets: [],
     currentAssets: [],
@@ -91,10 +80,9 @@ function categorizeBalanceAccounts(accounts: AccountWithEntries[]): CategorizedB
   };
 
   for (const account of accounts) {
+    const balance = account.balance;
     // Ignorar cuentas sin movimientos — no deben aparecer en el Balance General
-    if (account.journalEntries.length === 0) continue;
-
-    const balance = sumEntries(account.journalEntries);
+    if (balance.isZero()) continue;
 
     if (account.type === "ASSET") {
       addAsset(result, account, balance, account.name);
@@ -116,7 +104,7 @@ function categorizeBalanceAccounts(accounts: AccountWithEntries[]): CategorizedB
 // contra-activos son negativos, lo que reduce el total correctamente.
 function addAsset(
   result: CategorizedBalanceAccounts,
-  account: AccountWithEntries,
+  account: AccountWithBalance,
   balance: Decimal,
   displayName: string,
 ): void {
@@ -143,7 +131,7 @@ function addAsset(
 // El balance en BD es negativo (saldo crédito); lo negamos para mostrar positivo.
 function addLiability(
   result: CategorizedBalanceAccounts,
-  account: AccountWithEntries,
+  account: AccountWithBalance,
   balance: Decimal,
 ): void {
   const displayBalance = balance.negated(); // crédito normal → mostrar positivo
@@ -170,7 +158,7 @@ function addLiability(
 // Igual que Pasivos: saldo crédito en BD → negamos para mostrar positivo.
 function addEquity(
   result: CategorizedBalanceAccounts,
-  account: AccountWithEntries,
+  account: AccountWithBalance,
   balance: Decimal,
 ): void {
   const displayBalance = balance.negated();
@@ -189,14 +177,13 @@ function addEquity(
 // - Gastos:   saldo débito  (positivo en BD) → tomamos tal cual               → restamos
 //
 // Retorna valor positivo si hay utilidad, negativo si hay pérdida.
-function computeNetIncome(incomeAccounts: AccountWithEntries[]): Decimal {
+function computeNetIncome(incomeAccounts: AccountWithBalance[]): Decimal {
   let totalRevenues = new Decimal(0);
   let totalExpenses = new Decimal(0);
 
   for (const account of incomeAccounts) {
-    if (account.journalEntries.length === 0) continue;
-
-    const balance = sumEntries(account.journalEntries);
+    const balance = account.balance;
+    if (balance.isZero()) continue;
 
     if (account.type === "REVENUE") {
       totalRevenues = totalRevenues.plus(balance.negated()); // crédito → positivo
@@ -237,28 +224,58 @@ export class BalanceSheetService {
         }
       : {};
 
-  // Dos queries en paralelo para minimizar latencia:
-  //   1. Cuentas de balance (Activo, Contra-Activo, Pasivo, Patrimonio)
-  //   2. Cuentas de resultado (Ingreso, Gasto) — necesarias para calcular el Resultado del Ejercicio
-  const [balanceAccounts, incomeAccounts] = await Promise.all([
+  // N5: dos rondas de queries en paralelo — evita cargar filas individuales de JournalEntry.
+  // Ronda 1: solo metadatos de cuentas (sin journalEntries).
+  // Ronda 2: groupBy + _sum a nivel de BD → O(1) memoria por cuenta sin importar el volumen.
+  const [balanceMeta, incomeMeta] = await Promise.all([
     prisma.account.findMany({
       where: { companyId, type: { in: ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY"] } },
       orderBy: { code: "asc" },
-      include: {
-        journalEntries: {
-          where: { transaction: { status: TX_STATUS.POSTED, ...balanceDateFilter } },
-        },
-      },
+      select: { id: true, code: true, name: true, type: true, isCurrent: true },
     }),
     prisma.account.findMany({
       where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
-      include: {
-        journalEntries: {
-          where: { transaction: { status: TX_STATUS.POSTED, ...incomeDateFilter } },
-        },
-      },
+      select: { id: true, code: true, name: true, type: true, isCurrent: true },
     }),
   ]);
+
+  const balanceAccountIds = balanceMeta.map((a) => a.id);
+  const incomeAccountIds  = incomeMeta.map((a) => a.id);
+
+  const [balanceSums, incomeSums] = await Promise.all([
+    prisma.journalEntry.groupBy({
+      by: ["accountId"],
+      where: {
+        accountId: { in: balanceAccountIds },
+        transaction: { status: TX_STATUS.POSTED, ...balanceDateFilter },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.journalEntry.groupBy({
+      by: ["accountId"],
+      where: {
+        accountId: { in: incomeAccountIds },
+        transaction: { status: TX_STATUS.POSTED, ...incomeDateFilter },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const balanceSumMap = new Map(
+    balanceSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
+  );
+  const incomeSumMap = new Map(
+    incomeSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
+  );
+
+  const balanceAccounts: AccountWithBalance[] = balanceMeta.map((a) => ({
+    ...a,
+    balance: balanceSumMap.get(a.id) ?? new Decimal(0),
+  }));
+  const incomeAccounts: AccountWithBalance[] = incomeMeta.map((a) => ({
+    ...a,
+    balance: incomeSumMap.get(a.id) ?? new Decimal(0),
+  }));
 
   // Clasificar activos, pasivos y patrimonio
   const categorized = categorizeBalanceAccounts(balanceAccounts);

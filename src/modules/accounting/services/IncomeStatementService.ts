@@ -43,35 +43,39 @@ export class IncomeStatementService {
   ): Promise<IncomeStatement> {
     const dateFilter = buildDateFilter(dateFrom, dateTo);
 
-    const accounts = await prisma.account.findMany({
-      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
-      orderBy: { code: "asc" },
-      include: {
-        journalEntries: {
-          where: {
-            transaction: {
-              status: TX_STATUS.POSTED,
-              ...(dateFilter ? { date: dateFilter } : {}),
-            },
+    // N5: metadata + groupBy en paralelo — evita traer filas individuales de JournalEntry.
+    const [accountMeta, sums] = await Promise.all([
+      prisma.account.findMany({
+        where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, name: true, type: true },
+      }),
+      prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: {
+          account: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+          transaction: {
+            status: TX_STATUS.POSTED,
+            ...(dateFilter ? { date: dateFilter } : {}),
           },
         },
-      },
-    });
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const sumMap = new Map(
+      sums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
+    );
 
     let totalRevenues = new Decimal(0);
     let totalExpenses = new Decimal(0);
     const revenues: IncomeStatementRow[] = [];
     const expenses: IncomeStatementRow[] = [];
 
-    for (const account of accounts) {
+    for (const account of accountMeta) {
+      const balance = sumMap.get(account.id) ?? new Decimal(0);
       // Ignorar cuentas sin movimientos en el período — no deben aparecer en el reporte
-      if (account.journalEntries.length === 0) continue;
-
-      // Sumar todos los movimientos de la cuenta en el período
-      const balance = account.journalEntries.reduce(
-        (total, entry) => total.plus(new Decimal(entry.amount.toString())),
-        new Decimal(0),
-      );
+      if (balance.isZero()) continue;
 
       const row: IncomeStatementRow = {
         id: account.id,
