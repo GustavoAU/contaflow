@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { fmtVen } from "@/lib/fmt-ven";
+import Decimal from "decimal.js";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -178,12 +179,12 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
 
   const { current, compare } = result.data;
   const showCompare = !!compare;
-  const net = parseFloat(current.netIncome);
-  const revTotal = parseFloat(current.totalRevenues);
-  const isProfit = net >= 0;
-  const margin = revTotal > 0 ? ((net / revTotal) * 100).toFixed(1) : null;
-  const showPct = revTotal > 0;
-  const islrProyectado = isProfit && net > 0 ? net * 0.34 : null;
+  const netDec = new Decimal(current.netIncome);
+  const revTotalDec = new Decimal(current.totalRevenues);
+  const isProfit = netDec.gte(0);
+  const margin = revTotalDec.gt(0) ? netDec.div(revTotalDec).mul(100).toFixed(1) : null;
+  const showPct = revTotalDec.gt(0);
+  const islrProyectado = isProfit && netDec.gt(0) ? netDec.mul("0.34").toFixed(2) : null;
 
   const netVariation = compare ? varPct(current.netIncome, compare.netIncome) : null;
 

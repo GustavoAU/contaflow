@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronLeftIcon } from "lucide-react";
 import { getTransactionByIdAction } from "@/modules/accounting/actions/transaction.actions";
 import { fmtVen } from "@/lib/fmt-ven";
+import Decimal from "decimal.js";
 
 type Props = { params: Promise<{ companyId: string; id: string }> };
 
@@ -23,7 +24,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   EXPENSE: "Gasto",
 };
 
-function fmt(n: number) {
+function fmt(n: string | number) {
   return fmtVen(n);
 }
 
@@ -35,11 +36,11 @@ export default async function TransactionDetailPage({ params }: Props) {
 
   const tx = result.data;
 
-  const debits = tx.entries.filter((e) => Number(e.amount) > 0);
-  const credits = tx.entries.filter((e) => Number(e.amount) < 0);
-  const totalDebit = debits.reduce((s, e) => s + Number(e.amount), 0);
-  const totalCredit = credits.reduce((s, e) => s + Math.abs(Number(e.amount)), 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const debits = tx.entries.filter((e) => new Decimal(e.amount.toString()).gt(0));
+  const credits = tx.entries.filter((e) => new Decimal(e.amount.toString()).lt(0));
+  const totalDebit = debits.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
+  const totalCredit = credits.reduce((s, e) => s.plus(new Decimal(e.amount.toString()).abs()), new Decimal(0));
+  const isBalanced = totalDebit.minus(totalCredit).abs().lt(new Decimal("0.01"));
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -129,7 +130,7 @@ export default async function TransactionDetailPage({ params }: Props) {
                 </td>
                 <td className="px-4 py-3 text-right text-zinc-300 font-mono tabular-nums">—</td>
                 <td className="px-4 py-3 text-right font-mono font-medium tabular-nums">
-                  {fmt(totalCredit / credits.length < 0 ? Math.abs(Number(e.amount)) : Math.abs(Number(e.amount)))}
+                  {fmt(new Decimal(e.amount.toString()).abs().toFixed(2))}
                 </td>
               </tr>
             ))}
@@ -138,10 +139,10 @@ export default async function TransactionDetailPage({ params }: Props) {
             <tr>
               <td className="px-4 py-3 text-sm font-semibold text-zinc-700">Total</td>
               <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums">
-                {fmt(totalDebit)}
+                {fmt(totalDebit.toFixed(2))}
               </td>
               <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums">
-                {fmt(totalCredit)}
+                {fmt(totalCredit.toFixed(2))}
               </td>
             </tr>
           </tfoot>
