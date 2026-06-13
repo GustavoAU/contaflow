@@ -30,6 +30,9 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    journalEntry: {
+      groupBy: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -360,19 +363,28 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
 describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // Simula el estado del Balance General DESPUÉS de registrar la venta con retenciones
+  // Simula el estado del Balance General DESPUÉS de registrar la venta con retenciones.
+  // N5: account.findMany devuelve solo metadata; groupBy devuelve sumas agregadas por BD.
   function setupBalanceWithRetenciones() {
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        // Cuentas de balance (ASSET, LIABILITY, EQUITY)
-        { ...ACCOUNTS.CLIENTES,          journalEntries: [makeEntryAmt("101000.00")]  },
-        { ...ACCOUNTS.IVA_RET_COBRAR,    journalEntries: [makeEntryAmt("12000.00")]   },
-        { ...ACCOUNTS.ISLR_RET_COBRAR,   journalEntries: [makeEntryAmt("3000.00")]    },
-        { ...ACCOUNTS.IVA_DEBITO_FISCAL, journalEntries: [makeEntryAmt("-16000.00")]  },
+        ACCOUNTS.CLIENTES,
+        ACCOUNTS.IVA_RET_COBRAR,
+        ACCOUNTS.ISLR_RET_COBRAR,
+        ACCOUNTS.IVA_DEBITO_FISCAL,
       ] as never)
       .mockResolvedValueOnce([
-        // Cuentas de resultado (REVENUE, EXPENSE)
-        { ...ACCOUNTS.INGRESOS_VENTAS, journalEntries: [makeEntryAmt("-100000.00")] },
+        ACCOUNTS.INGRESOS_VENTAS,
+      ] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([
+        { accountId: ACCOUNTS.CLIENTES.id,          _sum: { amount: "101000.00"  } },
+        { accountId: ACCOUNTS.IVA_RET_COBRAR.id,    _sum: { amount: "12000.00"   } },
+        { accountId: ACCOUNTS.ISLR_RET_COBRAR.id,   _sum: { amount: "3000.00"    } },
+        { accountId: ACCOUNTS.IVA_DEBITO_FISCAL.id, _sum: { amount: "-16000.00"  } },
+      ] as never)
+      .mockResolvedValueOnce([
+        { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
       ] as never);
   }
 
@@ -420,13 +432,11 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
 
   it("C-21: isBalanced=false cuando Pasivos están incompletos (detecta descuadre)", async () => {
     vi.mocked(prisma.account.findMany)
-      .mockResolvedValueOnce([
-        // Solo Activos — sin LIABILITY
-        { ...ACCOUNTS.CLIENTES, journalEntries: [makeEntryAmt("101000.00")] },
-      ] as never)
-      .mockResolvedValueOnce([
-        { ...ACCOUNTS.INGRESOS_VENTAS, journalEntries: [makeEntryAmt("-100000.00")] },
-      ] as never);
+      .mockResolvedValueOnce([ACCOUNTS.CLIENTES] as never)
+      .mockResolvedValueOnce([ACCOUNTS.INGRESOS_VENTAS] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([{ accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } }] as never)
+      .mockResolvedValueOnce([{ accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } }] as never);
 
     const balance = await BalanceSheetService.compute(COMPANYID);
     // Activos=101.000, Pasivos=0, Patrimonio(netIncome)=100.000 → diff=1.000 > BALANCE_TOLERANCE
@@ -437,12 +447,11 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
     // Reproduce el escenario de la screenshot: "(196.441,67)"
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        {
-          id: "acc_1510", code: "1510", name: "Dep. Acum. Equipos",
-          type: "CONTRA_ASSET", isCurrent: false,
-          journalEntries: [makeEntryAmt("-196441.67")],
-        },
+        { id: "acc_1510", code: "1510", name: "Dep. Acum. Equipos", type: "CONTRA_ASSET", isCurrent: false },
       ] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([{ accountId: "acc_1510", _sum: { amount: "-196441.67" } }] as never)
       .mockResolvedValueOnce([] as never);
 
     const balance = await BalanceSheetService.compute(COMPANYID);
@@ -458,9 +467,11 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
 
   it("C-23: Balance sin dateTo agrega TODOS los movimientos históricos (comportamiento esperado)", async () => {
     vi.mocked(prisma.account.findMany)
-      .mockResolvedValueOnce([
-        { ...ACCOUNTS.CLIENTES, journalEntries: [makeEntryAmt("50000.00"), makeEntryAmt("51000.00")] },
-      ] as never)
+      .mockResolvedValueOnce([ACCOUNTS.CLIENTES] as never)
+      .mockResolvedValueOnce([] as never);
+    // groupBy ya agrega en BD — devolvemos la suma total directamente
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([{ accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } }] as never)
       .mockResolvedValueOnce([] as never);
 
     const balance = await BalanceSheetService.compute(COMPANYID /* sin dateTo */);
@@ -476,8 +487,11 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
   beforeEach(() => vi.clearAllMocks());
 
   it("C-24: Ingresos con saldo crédito (negativo en BD) se presentan POSITIVOS", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValue([
-      { ...ACCOUNTS.INGRESOS_VENTAS, journalEntries: [makeEntryAmt("-100000.00")] },
+    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
+      ACCOUNTS.INGRESOS_VENTAS,
+    ] as never);
+    vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
+      { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
     ] as never);
 
     const er = await IncomeStatementService.compute(
@@ -489,11 +503,13 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
   });
 
   it("C-25: Utilidad neta = Ingresos - Gastos (resultado positivo)", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValue([
-      { ...ACCOUNTS.INGRESOS_VENTAS,
-        journalEntries: [makeEntryAmt("-100000.00")] },
-      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false,
-        journalEntries: [makeEntryAmt("20000.00")] },
+    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
+      ACCOUNTS.INGRESOS_VENTAS,
+      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false },
+    ] as never);
+    vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
+      { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
+      { accountId: "acc_6110",                  _sum: { amount: "20000.00"   } },
     ] as never);
 
     const er = await IncomeStatementService.compute(COMPANYID);
@@ -503,11 +519,13 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
   });
 
   it("C-26: Pérdida neta cuando Gastos > Ingresos (resultado negativo)", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValue([
-      { ...ACCOUNTS.INGRESOS_VENTAS,
-        journalEntries: [makeEntryAmt("-10000.00")] },
-      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false,
-        journalEntries: [makeEntryAmt("50000.00")] },
+    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
+      ACCOUNTS.INGRESOS_VENTAS,
+      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false },
+    ] as never);
+    vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
+      { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-10000.00" } },
+      { accountId: "acc_6110",                  _sum: { amount: "50000.00"  } },
     ] as never);
 
     const er = await IncomeStatementService.compute(COMPANYID);
@@ -515,10 +533,13 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
   });
 
   it("C-27: Cuentas sin movimientos en el período NO aparecen en el reporte", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValue([
-      { ...ACCOUNTS.INGRESOS_VENTAS, journalEntries: [] }, // sin movimientos → excluida
-      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false,
-        journalEntries: [makeEntryAmt("20000.00")] },
+    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
+      ACCOUNTS.INGRESOS_VENTAS,
+      { id: "acc_6110", code: "6110", name: "Gastos Adm", type: "EXPENSE", isCurrent: false },
+    ] as never);
+    // INGRESOS_VENTAS no aparece en groupBy → balance = 0 → excluida del reporte
+    vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
+      { accountId: "acc_6110", _sum: { amount: "20000.00" } },
     ] as never);
 
     const er = await IncomeStatementService.compute(COMPANYID);
