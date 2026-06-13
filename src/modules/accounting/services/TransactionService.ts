@@ -5,6 +5,7 @@ import type { PrismaClient } from "@prisma/client";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { TX_STATUS, MAX_PAGE_SIZE } from "../constants";
 
 // Cliente de Prisma dentro de $transaction — igual al patrón de PeriodSnapshotService.
@@ -118,6 +119,9 @@ export class TransactionService {
           ? new Decimal(entry.debit)
           : new Decimal(entry.credit || "0").negated(),
     }));
+
+    // N4: invariante de partida doble — lanza si Σ(amount) ≠ 0
+    assertBalancedGLEntries(entries);
 
     // 3. Validar que todas las cuentas existen y pertenecen a la empresa
     const accountIds = entries.map((e) => e.accountId);

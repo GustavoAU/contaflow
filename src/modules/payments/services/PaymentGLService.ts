@@ -9,6 +9,7 @@
 
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -284,6 +285,9 @@ export class PaymentGLService {
       }
     }
 
+    // N4: invariante de partida doble — lanza si Σ(amount) ≠ 0
+    assertBalancedGLEntries(entries);
+
     // Crear Transaction + JournalEntries + actualizar PaymentRecord
     // Riesgo-9 (Art. 33 COT): tipo COBRO para identificación correcta en Libro Diario
     const txRecord = await tx.transaction.create({
@@ -421,6 +425,9 @@ export class PaymentGLService {
         igtfSkipped = true;
       }
     }
+
+    // N4: invariante de partida doble
+    assertBalancedGLEntries(entries);
 
     // Riesgo-9 (Art. 33 COT): tipo PAGO para identificación correcta en Libro Diario
     const txRecord = await tx.transaction.create({
@@ -600,6 +607,9 @@ export class PaymentGLService {
       }
     }
 
+    // N4: invariante de partida doble
+    assertBalancedGLEntries(entries);
+
     // Crear Transaction + JournalEntries + actualizar PaymentBatch
     // Riesgo-9 (Art. 33 COT): tipo PAGO para identificación correcta en Libro Diario
     const txRecord = await tx.transaction.create({
@@ -716,6 +726,13 @@ export class PaymentGLService {
 
     // Crear asiento de reverso (cada línea invierte su signo)
     // Riesgo-9: preservar el tipo del asiento original (COBRO para CxC, PAGO para CxP — ADR-032 F2)
+    const reverseEntries = originalTx.entries.map((e) => ({
+      accountId: e.accountId,
+      amount: new Decimal(e.amount.toString()).negated(),
+      description: reverseDesc,
+    }));
+    // N4: invariante de partida doble (reverso de asiento balanceado siempre es balanceado)
+    assertBalancedGLEntries(reverseEntries);
     const reverseTx = await tx.transaction.create({
       data: {
         number,
@@ -727,11 +744,7 @@ export class PaymentGLService {
         status: "POSTED",
         periodId: period.id,
         entries: {
-          create: originalTx.entries.map((e) => ({
-            accountId: e.accountId,
-            amount: new Decimal(e.amount.toString()).negated(),
-            description: reverseDesc,
-          })),
+          create: reverseEntries,
         },
       },
       select: { id: true },
@@ -798,6 +811,13 @@ export class PaymentGLService {
     const reverseDesc = `Reverso — ${originalTx.description}`;
 
     // Riesgo-9: preservar tipo PAGO del asiento original
+    const reverseBatchEntries = originalTx.entries.map((e) => ({
+      accountId: e.accountId,
+      amount: new Decimal(e.amount.toString()).negated(),
+      description: reverseDesc,
+    }));
+    // N4: invariante de partida doble
+    assertBalancedGLEntries(reverseBatchEntries);
     const reverseTx = await tx.transaction.create({
       data: {
         number,
@@ -809,11 +829,7 @@ export class PaymentGLService {
         status: "POSTED",
         periodId: period.id,
         entries: {
-          create: originalTx.entries.map((e) => ({
-            accountId: e.accountId,
-            amount: new Decimal(e.amount.toString()).negated(),
-            description: reverseDesc,
-          })),
+          create: reverseBatchEntries,
         },
       },
       select: { id: true },

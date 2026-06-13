@@ -5,6 +5,7 @@
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
 import type { Prisma } from "@prisma/client";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { PostMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
 import {
   resolveLotAllocations,
@@ -133,6 +134,9 @@ export async function postMovement(
                 { accountId: item.accountId, amount: totalCost.negated(), description: `${baseDesc}` },
               ];
 
+        // N4: solo asientos completos (2+ entradas). Standalone ENTRADA omite el Cr
+        // porque InvoiceGLPostingService lo genera vía su propio asiento de factura.
+        if (journalEntries.length >= 2) assertBalancedGLEntries(journalEntries);
         const journalTx = await tx.transaction.create({
           data: {
             companyId,
@@ -354,6 +358,8 @@ export async function voidPostedMovement(
                 { accountId: item.accountId!, amount: totalCost },
               ];
 
+        // N4: asientos completos de SALIDA/AJUSTE; ENTRADA solo 1 entrada (Dr inv reversal)
+        if (counterEntries.length >= 2) assertBalancedGLEntries(counterEntries);
         const voidTx = await tx.transaction.create({
           data: {
             companyId,
@@ -536,6 +542,12 @@ export async function autoPostMovementInTx(
     const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INV-${String(txCount + 1).padStart(6, "0")}`;
 
+    const cogsEntries = [
+      { accountId: item.cogsAccountId, amount: totalCost, description: `COGS venta — ${item.name}` },
+      { accountId: item.accountId, amount: totalCost.negated(), description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.` },
+    ];
+    // N4: invariante de partida doble
+    assertBalancedGLEntries(cogsEntries);
     const journalTx = await tx.transaction.create({
       data: {
         companyId,
@@ -544,20 +556,7 @@ export async function autoPostMovementInTx(
         description: `COGS — Salida inventario ${item.name} × ${qty.toFixed(4)}`,
         type: "DIARIO",
         userId,
-        entries: {
-          create: [
-            {
-              accountId: item.cogsAccountId,
-              amount: totalCost,
-              description: `COGS venta — ${item.name}`,
-            },
-            {
-              accountId: item.accountId,
-              amount: totalCost.negated(),
-              description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.`,
-            },
-          ],
-        },
+        entries: { create: cogsEntries },
       },
     });
     glTransactionId = journalTx.id;
