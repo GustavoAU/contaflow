@@ -15,6 +15,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -148,6 +149,19 @@ export const VacationService = {
       return await prisma.$transaction(async (tx) => {
         // Asiento contable de causación (VEN-NIF / NIC 19)
         // Convención: positivo = Débito, negativo = Crédito
+        const vacationEntries = [
+          {
+            accountId: config.benefitsExpenseAccountId!,
+            amount: totalAmount.toDecimalPlaces(4), // Débito
+            description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+          },
+          {
+            accountId: config.vacationPayableAccountId!,
+            amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
+            description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+          },
+        ];
+        assertBalancedGLEntries(vacationEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
             companyId,
@@ -158,18 +172,7 @@ export const VacationService = {
             userId,
             type: "DIARIO",
             entries: {
-              create: [
-                {
-                  accountId: config.benefitsExpenseAccountId!,
-                  amount: totalAmount.toDecimalPlaces(4), // Débito
-                  description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-                },
-                {
-                  accountId: config.vacationPayableAccountId!,
-                  amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
-                  description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-                },
-              ],
+              create: vacationEntries,
             },
           },
         });

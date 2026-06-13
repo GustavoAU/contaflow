@@ -18,6 +18,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import { countCompleteMonths } from "./VacationService";
 
@@ -199,6 +200,19 @@ export const ProfitSharingService = {
       return await prisma.$transaction(async (tx) => {
         // Asiento contable de causación (VEN-NIF / NIC 19)
         // Convención: positivo = Débito, negativo = Crédito
+        const profitEntries = [
+          {
+            accountId: config.benefitsExpenseAccountId!,
+            amount: profitAmount.toDecimalPlaces(4), // Débito
+            description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+          },
+          {
+            accountId: config.profitSharingPayableAccountId!,
+            amount: profitAmount.negated().toDecimalPlaces(4), // Crédito
+            description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+          },
+        ];
+        assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
             companyId,
@@ -209,18 +223,7 @@ export const ProfitSharingService = {
             userId,
             type: "DIARIO",
             entries: {
-              create: [
-                {
-                  accountId: config.benefitsExpenseAccountId!,
-                  amount: profitAmount.toDecimalPlaces(4), // Débito
-                  description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-                },
-                {
-                  accountId: config.profitSharingPayableAccountId!,
-                  amount: profitAmount.negated().toDecimalPlaces(4), // Crédito
-                  description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-                },
-              ],
+              create: profitEntries,
             },
           },
         });

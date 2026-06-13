@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { CreateDepositSchema, VoidDepositSchema } from "../schemas/cajachica.schema";
 import type { z } from "zod";
 
@@ -58,6 +59,18 @@ export async function createDeposit(
     if (!caja) throw new Error("Caja Chica no encontrada");
     if (caja.status !== "ACTIVE") throw new Error("La Caja Chica no está activa");
 
+    // IDOR + integridad: la cuenta origen debe existir y pertenecer a la empresa.
+    const sourceAccount = await tx.account.findFirst({
+      where: { id: input.sourceAccountId, companyId: input.companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!sourceAccount) {
+      throw new Error("Cuenta origen no encontrada o no pertenece a esta empresa");
+    }
+    if (sourceAccount.id === caja.accountId) {
+      throw new Error("La cuenta origen debe ser distinta de la cuenta de la Caja Chica");
+    }
+
     // Find open period
     const period = await tx.accountingPeriod.findFirst({
       where: { companyId: input.companyId, status: "OPEN" },
@@ -77,8 +90,21 @@ export async function createDeposit(
       },
     });
 
-    // Debit caja account, Credit source (same account for now — bookkeeper will adjust)
+    // Partida doble (R-1): Dr Caja Chica (entra el fondo) / Cr cuenta origen (sale el efectivo).
     const depositCount = await tx.cajaCajaDeposit.count({ where: { companyId: input.companyId } });
+    const depositEntries = [
+      {
+        accountId: caja.accountId,
+        amount: amountDecimal,
+        description: `Depósito Caja Chica — ${input.description}`,
+      },
+      {
+        accountId: input.sourceAccountId,
+        amount: amountDecimal.negated(),
+        description: `Salida fondos hacia Caja Chica — ${input.description}`,
+      },
+    ];
+    assertBalancedGLEntries(depositEntries); // N4: invariante partida doble
     const transaction = await tx.transaction.create({
       data: {
         companyId: input.companyId,
@@ -89,13 +115,7 @@ export async function createDeposit(
         type: "DIARIO",
         userId,
         entries: {
-          create: [
-            {
-              accountId: caja.accountId,
-              amount: amountDecimal,
-              description: `Depósito — ${input.description}`,
-            },
-          ],
+          create: depositEntries,
         },
       },
     });
@@ -136,6 +156,46 @@ export async function voidDeposit(
     });
     if (!deposit) throw new Error("Depósito no encontrado");
     if (deposit.status === "VOIDED") throw new Error("El depósito ya está anulado");
+
+    // Revertir el asiento contable con una contrapartida espejo (VOID nunca borra — R-1).
+    // Sin esto, anular el depósito dejaría el GL intacto y descuadraría los libros.
+    if (deposit.transactionId) {
+      const original = await tx.transaction.findFirst({
+        where: { id: deposit.transactionId, companyId: input.companyId },
+        include: { entries: true },
+      });
+      if (original && original.status !== "VOIDED") {
+        const period = await tx.accountingPeriod.findFirst({
+          where: { companyId: input.companyId, status: "OPEN" },
+        });
+        if (!period) {
+          throw new Error("No hay período contable abierto para registrar la reversión del depósito");
+        }
+        const reverseEntries = original.entries.map((e) => ({
+          accountId: e.accountId,
+          amount: new Decimal(e.amount.toString()).negated(),
+          description: `Reversión depósito — ${e.description ?? ""}`.trim(),
+        }));
+        assertBalancedGLEntries(reverseEntries); // N4: invariante partida doble
+        const reverseCount = await tx.cajaCajaDeposit.count({ where: { companyId: input.companyId } });
+        await tx.transaction.create({
+          data: {
+            companyId: input.companyId,
+            periodId: period.id,
+            date: new Date(),
+            number: `DEP-REV-${String(reverseCount + 1).padStart(6, "0")}`,
+            description: `Anulación depósito Caja Chica — ${input.voidReason}`,
+            type: "DIARIO",
+            userId,
+            entries: { create: reverseEntries },
+          },
+        });
+        await tx.transaction.update({
+          where: { id: original.id },
+          data: { status: "VOIDED" },
+        });
+      }
+    }
 
     await tx.cajaCajaDeposit.update({
       where: { id: input.depositId },

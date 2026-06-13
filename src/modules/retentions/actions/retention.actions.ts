@@ -8,6 +8,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { checkRateLimit, fiscalKey, limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import type { Retencion } from "@prisma/client";
@@ -317,6 +318,7 @@ export async function createRetentionAction(
                     description: `Retenciones ${voucherNumber} — CxP`,
                   });
 
+                  assertBalancedGLEntries(glEntries); // N4: invariante partida doble
                   const retGlTx = await tx.transaction.create({
                     data: {
                       companyId: data.companyId,

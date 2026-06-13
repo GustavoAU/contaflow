@@ -13,6 +13,7 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import * as Sentry from "@sentry/nextjs";
 import { sendEmail } from "@/lib/email";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
@@ -642,6 +643,50 @@ export const PayrollRunService = {
       const glFaovPatTotal      = faovPatTotal.mul(glMultiplier);
       const glRpePatTotal       = rpePatTotal.mul(glMultiplier);
 
+      const nominaEntries = [
+        // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
+        { accountId: expenseAccountId, amount: glSalaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados${fxNote}` },
+        // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
+        { accountId: payableAccountId, amount: glPayableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada${fxNote}` },
+        // CRÉDITO — IVSS Obrero por Pagar (si aplica)
+        ...(config.ivssPayableAccountId && glIvssTotal.greaterThan(0)
+          ? [{ accountId: config.ivssPayableAccountId, amount: glIvssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}` }]
+          : []),
+        // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
+        ...(config.faovPayableAccountId && glFaovTotal.greaterThan(0)
+          ? [{ accountId: config.faovPayableAccountId, amount: glFaovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}` }]
+          : []),
+        // CRÉDITO — INCES por Pagar (si aplica)
+        ...(config.incesPayableAccountId && glIncesTotal.greaterThan(0)
+          ? [{ accountId: config.incesPayableAccountId, amount: glIncesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}` }]
+          : []),
+        // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
+        ...(config.rpePayableAccountId && glRpeTotal.greaterThan(0)
+          ? [{ accountId: config.rpePayableAccountId, amount: glRpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}` }]
+          : []),
+        // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
+        ...(config.loanReceivableAccountId && glLoanTotal.greaterThan(0)
+          ? [{ accountId: config.loanReceivableAccountId, amount: glLoanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}` }]
+          : []),
+        // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
+        // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
+        ...(glConfiguredPatronal.greaterThan(0)
+          ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE${fxNote}` }]
+          : []),
+        ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
+          ? [{ accountId: config.ivssPatronalAccountId, amount: glIvssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}` }]
+          : []),
+        ...(config.incesPatronalAccountId && glIncesPatTotal.greaterThan(0)
+          ? [{ accountId: config.incesPatronalAccountId, amount: glIncesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}` }]
+          : []),
+        ...(config.faovPatronalAccountId && glFaovPatTotal.greaterThan(0)
+          ? [{ accountId: config.faovPatronalAccountId, amount: glFaovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}` }]
+          : []),
+        ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
+          ? [{ accountId: config.rpePatronalAccountId, amount: glRpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}` }]
+          : []),
+      ];
+      assertBalancedGLEntries(nominaEntries); // N4: invariante partida doble
       const asiento = await tx.transaction.create({
         data: {
           companyId,
@@ -656,49 +701,7 @@ export const PayrollRunService = {
           periodId: openPeriod.id,
           type: "DIARIO",
           entries: {
-            create: [
-              // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
-              { accountId: expenseAccountId, amount: glSalaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados${fxNote}` },
-              // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
-              { accountId: payableAccountId, amount: glPayableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada${fxNote}` },
-              // CRÉDITO — IVSS Obrero por Pagar (si aplica)
-              ...(config.ivssPayableAccountId && glIvssTotal.greaterThan(0)
-                ? [{ accountId: config.ivssPayableAccountId, amount: glIvssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}` }]
-                : []),
-              // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
-              ...(config.faovPayableAccountId && glFaovTotal.greaterThan(0)
-                ? [{ accountId: config.faovPayableAccountId, amount: glFaovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}` }]
-                : []),
-              // CRÉDITO — INCES por Pagar (si aplica)
-              ...(config.incesPayableAccountId && glIncesTotal.greaterThan(0)
-                ? [{ accountId: config.incesPayableAccountId, amount: glIncesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}` }]
-                : []),
-              // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
-              ...(config.rpePayableAccountId && glRpeTotal.greaterThan(0)
-                ? [{ accountId: config.rpePayableAccountId, amount: glRpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}` }]
-                : []),
-              // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
-              ...(config.loanReceivableAccountId && glLoanTotal.greaterThan(0)
-                ? [{ accountId: config.loanReceivableAccountId, amount: glLoanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}` }]
-                : []),
-              // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
-              // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
-              ...(glConfiguredPatronal.greaterThan(0)
-                ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE${fxNote}` }]
-                : []),
-              ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
-                ? [{ accountId: config.ivssPatronalAccountId, amount: glIvssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}` }]
-                : []),
-              ...(config.incesPatronalAccountId && glIncesPatTotal.greaterThan(0)
-                ? [{ accountId: config.incesPatronalAccountId, amount: glIncesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}` }]
-                : []),
-              ...(config.faovPatronalAccountId && glFaovPatTotal.greaterThan(0)
-                ? [{ accountId: config.faovPatronalAccountId, amount: glFaovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}` }]
-                : []),
-              ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
-                ? [{ accountId: config.rpePatronalAccountId, amount: glRpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}` }]
-                : []),
-            ],
+            create: nominaEntries,
           },
         },
       });

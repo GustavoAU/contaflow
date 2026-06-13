@@ -296,6 +296,14 @@ export class TransactionService {
         tx,
       );
       // Crear asiento espejo con montos invertidos
+      const voidEntries = original.entries.map((entry) => ({
+        accountId: entry.accountId,
+        amount: new Decimal(entry.amount.toString()).negated(),
+        description: entry.description
+          ? `ANULACIÓN: ${entry.description}`
+          : undefined,
+      }));
+      assertBalancedGLEntries(voidEntries); // N4: invariante partida doble
       const voidTx = await tx.transaction.create({
         data: {
           number: voidNumber,
@@ -308,13 +316,7 @@ export class TransactionService {
           status: TX_STATUS.POSTED,
           periodId: activePeriodForVoid.id,
           entries: {
-            create: original.entries.map((entry) => ({
-              accountId: entry.accountId,
-              amount: new Decimal(entry.amount.toString()).negated(),
-              description: entry.description
-                ? `ANULACIÓN: ${entry.description}`
-                : undefined,
-            })),
+            create: voidEntries,
           },
         },
         include: {

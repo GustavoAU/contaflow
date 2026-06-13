@@ -13,6 +13,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { LoanStatus } from "@prisma/client";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -232,6 +233,11 @@ export const EmployeeLoanService = {
       if (canJournalize && openPeriod) {
         const empName = `${u.employee.firstName} ${u.employee.lastName}`;
         const vesAmount = new Decimal(loan.totalAmount.toString());
+        const loanEntries = [
+          { accountId: payrollConfig!.loanReceivableAccountId!, amount: vesAmount, description: `Préstamo ${empName}` },
+          { accountId: payrollConfig!.disbursementBankAccountId!, amount: vesAmount.negated(), description: `Salida banco — préstamo ${empName}` },
+        ];
+        assertBalancedGLEntries(loanEntries); // N4: invariante partida doble
         await tx.transaction.create({
           data: {
             companyId,
@@ -243,10 +249,7 @@ export const EmployeeLoanService = {
             periodId: openPeriod.id,
             type: "DIARIO",
             entries: {
-              create: [
-                { accountId: payrollConfig!.loanReceivableAccountId!, amount: vesAmount, description: `Préstamo ${empName}` },
-                { accountId: payrollConfig!.disbursementBankAccountId!, amount: vesAmount.negated(), description: `Salida banco — préstamo ${empName}` },
-              ],
+              create: loanEntries,
             },
           },
         });

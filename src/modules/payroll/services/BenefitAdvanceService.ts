@@ -19,6 +19,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { BenefitAdvanceReason, BenefitAdvanceStatus } from "@prisma/client";
 
 export interface BenefitAdvanceRow {
@@ -235,6 +236,19 @@ export const BenefitAdvanceService = {
     if (newBalance.lt(0)) throw new Error("El anticipo excede el saldo de garantía acumulado");
 
     return prisma.$transaction(async (tx) => {
+      const advanceEntries = [
+        {
+          accountId: config.benefitsPayableAccountId!,
+          amount: amount.toDecimalPlaces(4),
+          description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
+        },
+        {
+          accountId: config.benefitsExpenseAccountId!,
+          amount: amount.negated().toDecimalPlaces(4),
+          description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
+        },
+      ];
+      assertBalancedGLEntries(advanceEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
           companyId,
@@ -245,18 +259,7 @@ export const BenefitAdvanceService = {
           userId,
           type: "DIARIO",
           entries: {
-            create: [
-              {
-                accountId: config.benefitsPayableAccountId!,
-                amount: amount.toDecimalPlaces(4),
-                description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
-              },
-              {
-                accountId: config.benefitsExpenseAccountId!,
-                amount: amount.negated().toDecimalPlaces(4),
-                description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
-              },
-            ],
+            create: advanceEntries,
           },
         },
       });
@@ -380,6 +383,19 @@ export const BenefitAdvanceService = {
     }
 
     return prisma.$transaction(async (tx) => {
+      const advanceEntries = [
+        {
+          accountId: config.benefitsPayableAccountId!,
+          amount: new Decimal(amount).toDecimalPlaces(4),
+          description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
+        },
+        {
+          accountId: config.benefitsExpenseAccountId!,
+          amount: new Decimal(amount).negated().toDecimalPlaces(4),
+          description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
+        },
+      ];
+      assertBalancedGLEntries(advanceEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
           companyId,
@@ -390,18 +406,7 @@ export const BenefitAdvanceService = {
           userId,
           type: "DIARIO",
           entries: {
-            create: [
-              {
-                accountId: config.benefitsPayableAccountId!,
-                amount: new Decimal(amount).toDecimalPlaces(4),
-                description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
-              },
-              {
-                accountId: config.benefitsExpenseAccountId!,
-                amount: new Decimal(amount).negated().toDecimalPlaces(4),
-                description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
-              },
-            ],
+            create: advanceEntries,
           },
         },
       });
