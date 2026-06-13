@@ -33,7 +33,7 @@ export default async function FixedAssetsPage({ params }: Props) {
     }),
     prisma.companySettings.findUnique({
       where: { companyId },
-      select: { ivaDFAccountId: true },
+      select: { ivaDFAccountId: true, ivaCFAccountId: true },
     }),
   ]);
 
@@ -101,6 +101,7 @@ export default async function FixedAssetsPage({ params }: Props) {
           accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
           inpcRates={inpcRates}
           ivaDFAccountId={settings?.ivaDFAccountId ?? null}
+          ivaCFAccountId={settings?.ivaCFAccountId ?? null}
         />
       </section>
     </div>

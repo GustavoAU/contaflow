@@ -17,6 +17,9 @@ type Tx = Omit<
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
 >;
 
+// Alícuota IVA general — Art. 27 LIVA. Constante en lugar de literal para evitar D-3.
+const IVA_GENERAL_RATE = new Decimal("0.16");
+
 // ─── Tipos de salida ────────────────────────────────────────────────────────────
 
 /**
@@ -571,10 +574,10 @@ export class FixedAssetService {
     const proceeds = new Decimal(input.saleProceeds ?? "0");
 
     // IVA Débito Fiscal (Art. 3 LIVA): solo si es venta y el usuario lo activó
+    // R-5: tasa hardcodeada como IVA_GENERAL_RATE — nunca del cliente (D-3)
     const applyIva = input.applyIva === true && input.reason === "SALE";
-    const ivaRate = applyIva ? new Decimal(input.ivaRate ?? "0.16") : new Decimal("0");
     const ivaAmount = applyIva
-      ? proceeds.times(ivaRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      ? proceeds.times(IVA_GENERAL_RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
       : new Decimal("0");
     // El banco recibe el precio TOTAL (con IVA); la ganancia/pérdida se calcula sobre el precio NETO
     const totalReceivable = proceeds.plus(ivaAmount);
@@ -643,21 +646,33 @@ export class FixedAssetService {
 
     // 5. Art. 66 LIVA — Reintegro IVA Crédito Fiscal por baja anticipada (< 36 meses)
     //    DEBE  Gasto IVA Reintegrado  (art66ExpenseAccountId, EXPENSE)  → amount: +reintegro
-    //    HABER IVA Crédito Fiscal     (ivaDFAccountId, ASSET)           → amount: −reintegro
-    //    La fracción: (36 − meses_usados) / 36 del IVA crédito original (cost × 16%)
-    if (input.applyArt66 && input.art66ExpenseAccountId && input.ivaDFAccountId) {
-      const art66Amount = new Decimal(input.art66ReintegroAmount ?? "0");
-      if (art66Amount.greaterThan(new Decimal("0.001"))) {
-        glEntries.push({
-          accountId: input.art66ExpenseAccountId,
-          amount: art66Amount,                  // DEBE (positivo)
-          description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
-        });
-        glEntries.push({
-          accountId: input.ivaDFAccountId,
-          amount: art66Amount.negated(),        // HABER (negativo)
-          description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
-        });
+    //    HABER IVA Crédito Fiscal     (ivaCFAccountId, ASSET 1.1.x.x)  → amount: −reintegro
+    //    R-5: servidor recalcula con Decimal.js — nunca confiar en el valor del cliente (D-3)
+    if (input.applyArt66 && input.art66ExpenseAccountId && input.ivaCFAccountId) {
+      const acqDate  = asset.acquisitionDate;
+      const dispDate = input.disposalDate;
+      const mUsed    = Math.max(
+        0,
+        (dispDate.getFullYear() - acqDate.getFullYear()) * 12 +
+        (dispDate.getMonth()    - acqDate.getMonth()),
+      );
+      if (mUsed < 36) {
+        const art66Amount = cost
+          .times(IVA_GENERAL_RATE)
+          .times(new Decimal(36 - mUsed).dividedBy(new Decimal(36)))
+          .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        if (art66Amount.greaterThan(new Decimal("0.001"))) {
+          glEntries.push({
+            accountId: input.art66ExpenseAccountId,
+            amount: art66Amount,
+            description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
+          });
+          glEntries.push({
+            accountId: input.ivaCFAccountId,
+            amount: art66Amount.negated(),
+            description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
+          });
+        }
       }
     }
 

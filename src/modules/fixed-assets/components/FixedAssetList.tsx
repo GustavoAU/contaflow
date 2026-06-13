@@ -65,10 +65,11 @@ type Props = {
   companyId:      string;
   accounts:       AccountOption[];
   inpcRates:      InpcRateSimple[];   // para el selector del panel INPC
-  ivaDFAccountId: string | null;      // IVA DF configurado en CompanySettings
+  ivaDFAccountId: string | null;      // IVA DF (Débito Fiscal, Art. 3 LIVA)
+  ivaCFAccountId: string | null;      // IVA CF (Crédito Fiscal, Art. 66 LIVA)
 };
 
-export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAccountId }: Props) {
+export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAccountId, ivaCFAccountId }: Props) {
   const [isPendingDepr, startDepr] = useTransition();
   const [deprYear, setDeprYear] = useState(new Date().getFullYear());
   const [deprMonth, setDeprMonth] = useState(new Date().getMonth() + 1);
@@ -691,6 +692,7 @@ export function FixedAssetList({ assets, companyId, accounts, inpcRates, ivaDFAc
           companyId={companyId}
           accounts={accounts}
           ivaDFAccountId={ivaDFAccountId}
+          ivaCFAccountId={ivaCFAccountId}
           onClose={() => setDisposeAsset(null)}
         />
       )}

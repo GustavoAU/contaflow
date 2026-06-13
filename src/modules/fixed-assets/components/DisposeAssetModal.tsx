@@ -28,8 +28,10 @@ type Props = {
   asset:          AssetInfo;
   companyId:      string;
   accounts:       AccountOption[];
-  /** FA-3: Cuenta IVA Débito Fiscal configurada en CompanySettings (Art. 3 LIVA) */
+  /** FA-3: Cuenta IVA Débito Fiscal configurada en CompanySettings (Art. 3 LIVA — venta) */
   ivaDFAccountId: string | null;
+  /** Art. 66: Cuenta IVA Crédito Fiscal (ASSET) — HABER del reintegro por baja anticipada */
+  ivaCFAccountId: string | null;
   onClose:        () => void;
 };
 
@@ -50,7 +52,7 @@ const REASON_OPTS = Object.entries(DISPOSAL_REASONS).map(([value, label]) => ({
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, onClose }: Props) {
+export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, ivaCFAccountId, onClose }: Props) {
   const [reason,         setReason]   = useState<DisposalReason>("OBSOLETE");
   const [disposalDate,   setDate]     = useState(todayISO);
   const [proceeds,       setProceeds] = useState("0");
@@ -93,7 +95,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
     (dispDate.getMonth()    - acqDate.getMonth()),
   );
   const art66Months        = 36;
-  const canApplyArt66      = monthsUsed < art66Months && ivaDFAccountId !== null;
+  const canApplyArt66      = monthsUsed < art66Months && ivaCFAccountId !== null;
   const art66Fraction      = canApplyArt66 ? (art66Months - monthsUsed) / art66Months : 0;
   const art66BaseIva       = Math.round(cost * 0.16 * 100) / 100;
   const art66ReintegroAmt  = canApplyArt66 ? Math.round(art66BaseIva * art66Fraction * 100) / 100 : 0;
@@ -140,11 +142,10 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
         gainLossAccountId: glAccId || null,
         notes:             notes || null,
         applyIva:          effectiveIva,
-        ivaRate:           "0.16",
-        ivaDFAccountId:    (effectiveIva || effectiveArt66) ? ivaDFAccountId : null,
+        ivaDFAccountId:    effectiveIva ? ivaDFAccountId : null,
         applyArt66:            effectiveArt66,
-        art66ReintegroAmount:  String(art66ReintegroAmt),
         art66ExpenseAccountId: effectiveArt66 ? art66ExpAccId : null,
+        ivaCFAccountId:        effectiveArt66 ? ivaCFAccountId : null,
       });
       if (r.success) {
         toast.success(`"${asset.name}" dado de baja correctamente.`);
