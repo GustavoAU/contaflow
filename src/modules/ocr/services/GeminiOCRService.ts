@@ -129,6 +129,7 @@ Reglas:
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
