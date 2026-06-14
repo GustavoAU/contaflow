@@ -61,18 +61,9 @@ describe("getDashboardMetricsAction — security guards", () => {
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
   });
 
-  it("rechaza cuando rate limit está agotado", async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: false,
-      error: "Demasiadas solicitudes. Intenta de nuevo en 30 segundos.",
-    });
-
-    const result = await getDashboardMetricsAction(COMPANY_ID);
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
-    expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
-  });
+  // NOTA: getDashboardMetricsAction ya NO usa rate limit (es una lectura de render;
+  // antes usaba limiters.fiscal y bloqueaba al usuario tras varias recargas → redirect).
+  // Sigue protegida por auth + IDOR (tests debajo).
 
   it("rechaza usuario que no es miembro de la empresa (IDOR)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);

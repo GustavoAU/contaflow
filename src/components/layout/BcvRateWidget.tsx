@@ -6,11 +6,17 @@ import { cn } from "@/lib/utils";
 import {
   fetchBcvRateAction,
   fetchBcvEurRateAction,
-  getLatestRatesWithDeltaAction,
   type RateWithDelta,
 } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
-type Props = { companyId: string; variant?: "light" | "dark" };
+type Props = {
+  companyId: string;
+  variant?: "light" | "dark";
+  /** Tasas obtenidas en el server (layout). Evita despachar una Server Action en el montaje,
+      que disparaba el bug de Next useActionQueue/useOptimistic ("Rendered more hooks"). */
+  initialUsd?: RateWithDelta | null;
+  initialEur?: RateWithDelta | null;
+};
 
 // ─── Formato helpers ───────────────────────────────────────────────────────────
 
@@ -46,25 +52,15 @@ function formatDate(d: Date | string): string {
 // ─── BcvRateWidget ─────────────────────────────────────────────────────────────
 // Pill compacto (solo USD) con hover/focus tooltip que muestra USD + EUR + refresh.
 
-export function BcvRateWidget({ companyId, variant = "light" }: Props) {
-  const [usd, setUsd] = useState<RateWithDelta | null>(null);
-  const [eur, setEur] = useState<RateWithDelta | null>(null);
+export function BcvRateWidget({ companyId, variant = "light", initialUsd = null, initialEur = null }: Props) {
+  const [usd, setUsd] = useState<RateWithDelta | null>(initialUsd);
+  const [eur, setEur] = useState<RateWithDelta | null>(initialEur);
   const [showTooltip, setShowTooltip] = useState(false);
   const [isPending, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  async function loadRates() {
-    const res = await getLatestRatesWithDeltaAction(companyId);
-    if (res.success) {
-      setUsd(res.data.usd);
-      setEur(res.data.eur);
-    }
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadRates();
-  }, [companyId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Las tasas iniciales llegan como props desde el server (layout). El botón "Actualizar"
+  // sigue usando fetchBcvRateAction/fetchBcvEurRateAction (acciones de mutación, por click).
 
   // Cerrar al click fuera o Escape — no se cierra por hover/scroll
   const closeTooltip = useCallback(() => setShowTooltip(false), []);

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { BcvRateWidget } from "@/components/layout/BcvRateWidget";
+import type { RateWithDelta } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { CompanyAvatar } from "@/components/company/CompanyAvatar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { UserButton } from "@clerk/nextjs";
@@ -39,6 +40,8 @@ type TopbarInnerProps = {
   userRole?: UserRole;
   grantedModules?: string[];
   notificationSlot?: React.ReactNode;
+  /** Tasas BCV obtenidas en el server (layout) — evita Server Action en el montaje del widget */
+  initialRates?: { usd: RateWithDelta | null; eur: RateWithDelta | null } | null;
   /** @deprecated — ya no se muestra en el header; el layout sigue pasándolo por compatibilidad */
   activePeriod?: { year: number; month: number; daysOpen: number; isStale: boolean } | null;
 };
@@ -49,6 +52,7 @@ export function TopbarInner({
   userRole = "ACCOUNTANT",
   grantedModules,
   notificationSlot,
+  initialRates,
   activePeriod: _activePeriod, // recibido por compatibilidad, no usado en header
 }: TopbarInnerProps) {
   const grants = new Set(grantedModules ?? []);
@@ -178,7 +182,14 @@ export function TopbarInner({
         </button>
 
         {/* Tasa BCV */}
-        {companyId && <BcvRateWidget companyId={companyId} variant="dark" />}
+        {companyId && (
+          <BcvRateWidget
+            companyId={companyId}
+            variant="dark"
+            initialUsd={initialRates?.usd ?? null}
+            initialEur={initialRates?.eur ?? null}
+          />
+        )}
 
         {/* Notificaciones (slot externo) */}
         {notificationSlot}
