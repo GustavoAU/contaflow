@@ -10,7 +10,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
 import { PendingTasksService, type PendingTasksData } from "../services/PendingTasksService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -83,8 +83,9 @@ export async function getPendingTasksAction(
       return { success: false, error: "Rol insuficiente" };
     }
 
-    // Rate limit base (limiters.fiscal — acceso a datos contables)
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    // Rate limit base: lectura de tareas pendientes del dashboard — limiter de lecturas
+    // (120/min por empresa×usuario), no el fiscal (10/min). El resumen IA (abajo) mantiene `ocr`.
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en un momento." };
 
     // Obtener tareas (queries determinísticas)

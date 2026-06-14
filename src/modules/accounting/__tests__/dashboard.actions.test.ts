@@ -8,7 +8,7 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
-  limiters: { fiscal: {}, ocr: {} },
+  limiters: { fiscal: {}, ocr: {}, read: {} },  fiscalKey: (c: string, u: string) => `${c}:${u}`,
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
