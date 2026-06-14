@@ -40,6 +40,18 @@ export const limiters = {
         prefix: "rl:fiscal",
       })
     : null,
+  // Lecturas de render (dashboard KPIs, pending-tasks, reportes Diario/Mayor/Balance,
+  // listado de tasas) — 120/min por usuario. Generoso para navegación humana intensa,
+  // pero limita scraping/scripts. NO usar para mutaciones (esas van en `fiscal`, 10/min).
+  // checkRateLimit hace fail-open para este limiter: un hipo de Redis no debe bloquear
+  // lecturas (solo `fiscal` falla cerrado, ver B5 en checkRateLimit).
+  read: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(120, "1 m"),
+        prefix: "rl:read",
+      })
+    : null,
   // OCR con Groq — llamadas costosas: 10 por minuto por usuario
   ocr: redis
     ? new Ratelimit({

@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { Decimal } from "decimal.js";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
 import { IncomeStatementService } from "../services/IncomeStatementService";
 import { BalanceSheetService } from "../services/BalanceSheetService";
 import { TX_STATUS } from "../constants";
@@ -69,7 +69,9 @@ async function guardAccounting(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    // Lectura de reportes (Diario/Mayor/Balance/etc.) — limiter de lecturas (120/min por
+    // empresa×usuario), no el de mutaciones fiscales (10/min). Evita bloquear navegación intensa.
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findFirst({

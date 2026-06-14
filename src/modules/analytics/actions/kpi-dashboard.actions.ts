@@ -4,7 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
 import {
   KpiDashboardService,
   type KpiSummary,
@@ -25,7 +25,9 @@ export async function getKpiDashboardAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    // Lectura de KPIs del dashboard — limiter de lecturas (120/min por empresa×usuario),
+    // no el fiscal (10/min).
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findFirst({
