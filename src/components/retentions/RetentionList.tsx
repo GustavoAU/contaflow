@@ -5,6 +5,7 @@ import { useState, useTransition, useEffect } from "react";
 import { Loader2Icon, ClockIcon, CheckCircleIcon, CheckCheckIcon, XCircleIcon, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   enterRetentionAction,
   exportRetentionVoucherPDFAction,
@@ -250,9 +251,11 @@ function RetentionCard({
 export function RetentionList({ companyId, retentions }: Props) {
   if (retentions.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed bg-white p-8 text-center">
-        <p className="text-sm text-zinc-500">No hay retenciones registradas</p>
-      </div>
+      <EmptyState
+        illustration="invoices"
+        title="No hay retenciones registradas"
+        description="Los comprobantes de retención de IVA e ISLR aparecerán aquí cuando registres el primero."
+      />
     );
   }
 

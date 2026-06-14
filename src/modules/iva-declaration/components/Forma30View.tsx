@@ -346,7 +346,7 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
                     </p>
                   )}
                   {c1Detail && c1Detail.length > 0 && (
-                    <div className="overflow-hidden rounded-md border border-blue-100">
+                    <div className="overflow-x-auto rounded-md border border-blue-100">
                       <table className="w-full text-xs">
                         <thead className="bg-blue-50">
                           <tr className="text-zinc-500">

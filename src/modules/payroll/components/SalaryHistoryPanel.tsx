@@ -125,7 +125,7 @@ export default function SalaryHistoryPanel({
       {rows.length === 0 ? (
         <p className="text-sm text-gray-400 italic">Sin historial de salarios.</p>
       ) : (
-        <div className="overflow-hidden rounded border">
+        <div className="overflow-x-auto rounded border">
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>

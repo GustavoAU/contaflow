@@ -177,7 +177,7 @@ export default async function FiscalCalendarPage({ params }: Props) {
       )}
 
       {/* ─── Tabla de vencimientos ────────────────────────────────── */}
-      <div className="overflow-hidden rounded-lg border bg-white">
+      <div className="overflow-x-auto rounded-lg border bg-white">
         <table className="min-w-full text-sm">
           <thead className="border-b bg-zinc-50">
             <tr className="text-xs text-zinc-500">

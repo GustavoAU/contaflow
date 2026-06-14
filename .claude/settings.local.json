@@ -22,7 +22,10 @@
       "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; node --version; npm --version)",
       "PowerShell(git config --global user.name)",
       "PowerShell(git config --global user.email)",
-      "PowerShell(git push -u origin fix/coldstart-correlativo-race)"
+      "PowerShell(git push -u origin fix/coldstart-correlativo-race)",
+      "Bash(npx prisma *)",
+      "Bash(grep -n '$transaction\\\\|mockImplementation\\\\|mockTx\\\\|fn\\(prisma\\)\\\\|describe\\(\\\\|createDeposit\\\\|createMovement' src/modules/cajachica/__tests__/CajaCajaService.test.ts)",
+      "Bash(git status *)"
     ]
   }
 }

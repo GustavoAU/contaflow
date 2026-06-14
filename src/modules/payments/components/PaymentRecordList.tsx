@@ -10,6 +10,7 @@ import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.sch
 import type { PaymentRecordSummary } from "../services/PaymentService";
 import type { AttachmentSummary } from "../services/PaymentAttachmentService";
 import { UploadAttachmentButton } from "./UploadAttachmentButton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { AnalyzeReceiptButton } from "./AnalyzeReceiptButton";
 
 const METHOD_BADGE: Record<PaymentMethodType, string> = {
@@ -155,9 +156,11 @@ export function PaymentRecordList({ companyId, payments, canDelete = false, onVo
 
   if (payments.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed bg-white p-8 text-center">
-        <p className="text-sm text-zinc-400">No hay pagos registrados aún</p>
-      </div>
+      <EmptyState
+        illustration="list"
+        title="No hay pagos registrados aún"
+        description="Los cobros y pagos a clientes y proveedores aparecerán aquí cuando registres el primero."
+      />
     );
   }
 

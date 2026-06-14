@@ -1,5 +1,5 @@
 # ContaFlow — UI Patterns Reference
-# Versión 1.0 — 2026-05-07
+# Versión 1.1 — 2026-06-13
 
 ## §1 SPACING SCALE
 ```
@@ -43,9 +43,19 @@ Level 2: 300ms–1000ms → progress bar (fixed top, h-1, bg-primary, animate-pu
 Level 3: >1000ms → full overlay (bg-white/80 backdrop-blur) + spinner + module name
 ```
 
-### Hook: usePageTransition
+> ⚠️ NOMBRES REALES EN EL REPO (no inventar otros — verificado 2026-06-13):
+> - Hook: `usePageTransition` → vive en `src/components/layout/PageTransitionProvider.tsx`
+>   (NO en `src/hooks/`). El provider `PageTransitionProvider` envuelve el dashboard.
+> - Barra de progreso global: `PageTransitionBar` → `src/components/layout/PageTransitionBar.tsx`
+>   (estilo NProgress, montada en el layout — NO existe `PageTransitionLoader`).
+> - Skeletons de carga: `TablePageSkeleton` / `CardPageSkeleton` / `FormPageSkeleton`
+>   en `src/components/ui/page-skeleton.tsx`. Se usan dentro de los `loading.tsx` de cada ruta.
+>   (NO existe `DataTableSkeleton` ni un componente `LoadingSpinner` separado).
+> - Estado vacío de listas: `EmptyState` → `src/components/ui/EmptyState.tsx`
+>   (props: title, description, illustration `default|invoices|list`, action).
+
+### Hook: usePageTransition  (src/components/layout/PageTransitionProvider.tsx)
 ```tsx
-// src/hooks/usePageTransition.ts
 'use client'
 import { useRouter } from 'next/navigation'
 import { useTransition, useCallback } from 'react'
@@ -66,54 +76,16 @@ export function usePageTransition() {
 }
 ```
 
-### Component: PageTransitionLoader
+### Skeletons de ruta  (src/components/ui/page-skeleton.tsx)
+Cada `loading.tsx` de ruta importa el skeleton que corresponda a su layout:
 ```tsx
-// src/components/PageTransitionLoader.tsx
-'use client'
-import { Loader2 } from 'lucide-react'
-
-interface Props { moduleName?: string; slowThreshold?: number }
-
-export function PageTransitionLoader({ moduleName = 'Cargando', slowThreshold = 1000 }: Props) {
-  // Integrate with usePageTransition isPending from layout context
-  // Shows: progress bar immediately, overlay after slowThreshold ms
-  // See full implementation in PAGE_TRANSITION_IMPLEMENTATION.md (archived)
-}
+// app/.../<ruta>/loading.tsx
+import { TablePageSkeleton } from '@/components/ui/page-skeleton'
+export default function Loading() { return <TablePageSkeleton rows={8} /> }
 ```
-
-### Component: DataTableSkeleton
-```tsx
-// src/components/DataTableSkeleton.tsx
-export function DataTableSkeleton({ rows = 5, columns = 4 }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex gap-3">
-          {Array.from({ length: columns }).map((_, j) => (
-            <div key={j} className="flex-1 h-10 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-```
-
-### Component: LoadingSpinner
-```tsx
-// src/components/LoadingSpinner.tsx
-import { Loader2 } from 'lucide-react'
-const sizes = { xs: 'h-4 w-4', sm: 'h-6 w-6', md: 'h-8 w-8', lg: 'h-12 w-12' }
-
-export function LoadingSpinner({ size = 'md', message }: { size?: keyof typeof sizes; message?: string }) {
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <Loader2 className={`${sizes[size]} animate-spin text-blue-500`} aria-hidden />
-      {message && <p className="text-sm text-gray-700 dark:text-gray-300" role="status" aria-live="polite">{message}</p>}
-    </div>
-  )
-}
-```
+- `TablePageSkeleton({ rows })` → listas / tablas
+- `CardPageSkeleton({ cards })` → dashboards con tarjetas
+- `FormPageSkeleton({ fields })` → páginas de formulario
 
 ## §5 BREAKPOINTS (mobile-first)
 ```
@@ -124,14 +96,36 @@ Touch targets minimum: h-11 w-11 (44px) on mobile
 
 ## §6 RESPONSIVE PATTERNS
 
-### Table → Cards on mobile
+### Table → Cards on mobile — ESTRATEGIA REAL (verificado 2026-06-13)
+
+Dos enfoques según el tipo de tabla. **No reescribir tablas densas a cards.**
+
+**A) Listas simples (Clientes, Proveedores, Órdenes, Cotizaciones) → apilan a tarjetas.**
+Usar la utilidad CSS `stack-card-table` (definida en `src/app/globals.css`). Es presentacional:
+no se duplica JSX, solo se agrega la clase al `<table>` y `data-label="Columna"` a cada `<td>`.
+Por debajo de `lg` (1023.98px) cada fila se convierte en tarjeta y cada celda muestra su
+etiqueta. Las celdas sin `data-label` (acciones) no muestran etiqueta.
 ```tsx
-// Mobile: hidden table, visible cards
-<div className="lg:hidden space-y-3">
-  {data.map(row => <MobileCard key={row.id} {...row} />)}
+<table className="stack-card-table min-w-full ...">
+  <thead>...</thead>
+  <tbody>
+    <tr>
+      <td data-label="Cliente">{name}</td>
+      <td data-label="RIF">{rif}</td>
+      <td>{/* acciones — sin data-label */}</td>
+    </tr>
+  </tbody>
+</table>
+```
+
+**B) Tablas contables densas (Libro Diario/Mayor, nómina, inventario, reportes) → scroll horizontal.**
+Decisión 2026-06-01: preservar columnas alineadas importa más que apilar. Envolver SIEMPRE en
+`overflow-x-auto` (el primitivo `@/components/ui/table` ya lo trae). Nunca `overflow-hidden`
+alrededor de una tabla `min-w-full` (recorta en móvil).
+```tsx
+<div className="overflow-x-auto rounded-lg border">
+  <table className="min-w-full ...">...</table>
 </div>
-// Desktop: full table
-<table className="hidden lg:table w-full">...</table>
 ```
 
 ### Navigation hamburger

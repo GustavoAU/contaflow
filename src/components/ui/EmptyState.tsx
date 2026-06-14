@@ -116,7 +116,7 @@ export function EmptyState({
       <div className="space-y-1">
         <p className="text-sm font-medium text-zinc-700">{title}</p>
         {description && (
-          <p className="text-sm text-zinc-400 max-w-xs">{description}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 max-w-xs">{description}</p>
         )}
       </div>
 

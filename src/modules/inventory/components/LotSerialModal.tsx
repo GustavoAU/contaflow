@@ -305,7 +305,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   <p className="text-xs text-gray-500">
                     Asignación FEFO automática (editable). Los lotes se ordenan por fecha de vencimiento más próxima primero.
                   </p>
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="rounded-lg border border-gray-200 overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500">
                         <tr>

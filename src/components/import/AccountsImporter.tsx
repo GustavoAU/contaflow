@@ -255,7 +255,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
             <p className="mb-2 text-sm font-semibold text-zinc-700">
               Vista previa ({preview.length} cuentas)
             </p>
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="border-b bg-zinc-50">
                   <tr>

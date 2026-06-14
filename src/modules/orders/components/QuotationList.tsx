@@ -71,7 +71,7 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 text-sm">
+      <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
             {["N°", "Tipo", "Contraparte"].map((h) => (
@@ -101,31 +101,32 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
               (q.status === "DRAFT" || q.status === "PENDING_APPROVAL" || q.status === "APPROVED");
             return (
               <tr key={q.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs text-blue-700">{q.number}</td>
-                <td className="px-4 py-3">
+                <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">{q.number}</td>
+                <td data-label="Tipo" className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[q.type] ?? ""}`}>
                     {q.type === "PURCHASE" ? "Compra" : "Venta"}
                   </span>
                 </td>
-                <td className="px-4 py-3">
+                <td data-label="Contraparte" className="px-4 py-3">
                   <div className="font-medium text-gray-900">{q.counterpartName}</div>
                   {q.counterpartRif && (
                     <div className="text-xs text-gray-400">{q.counterpartRif}</div>
                   )}
                 </td>
-                <td className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
+                <td data-label="Válida hasta" className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
                   {q.validUntil ? fmtDate(q.validUntil) : "—"}
                   {isExpired && (
                     <span className="ml-1.5 text-xs font-normal text-red-500">(venc.)</span>
                   )}
                 </td>
                 <td
+                  data-label="Total"
                   className="px-4 py-3 font-mono text-right cursor-help"
                   title={`Base: ${fmtCurrency(q.currency, q.subtotal)} + IVA: ${fmtCurrency(q.currency, q.taxAmount)} = Total: ${fmtCurrency(q.currency, q.total)}`}
                 >
                   {fmtCurrency(q.currency, q.total)}
                 </td>
-                <td className="px-4 py-3">
+                <td data-label="Estado" className="px-4 py-3">
                   <div className="flex flex-col gap-1">
                     <StatusBadge status={q.status} />
                     {q.approvedAt && (

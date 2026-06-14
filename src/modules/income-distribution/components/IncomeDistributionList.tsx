@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { CheckCircle, Clock, XCircle, ChevronRight, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { IncomeDistributionSummary } from "../services/IncomeDistributionService";
 import { applyDistributionAction } from "../actions/income-distribution.actions";
 import { VoidDistributionModal } from "./VoidDistributionModal";
@@ -49,9 +50,11 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
 
   if (distributions.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-zinc-500">
-        No hay distribuciones registradas. Crea la primera con el botón de arriba.
-      </p>
+      <EmptyState
+        illustration="default"
+        title="No hay distribuciones registradas"
+        description="Crea la primera distribución de utilidades con el botón de arriba."
+      />
     );
   }
 

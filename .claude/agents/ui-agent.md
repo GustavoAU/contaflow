@@ -66,12 +66,13 @@ Before implementing ANY component, run this checklist internally in order:
    → Pattern: const { push, isPending } = usePageTransition()
    →          <button onClick={() => push('/inventory')}>Go</button>
 
-6. VERIFY LOADING STATES
-   → Is this component loading data?
-   → Table/list → DataTableSkeleton, never spinner
-   → Single action → LoadingSpinner
-   → Per-row action → disabled={isLoading} + inline spinner in button
-   → Form submit → "Guardando..." text in button, disabled while pending
+6. VERIFY LOADING STATES (real component names — verified 2026-06-13)
+   → Route-level loading → loading.tsx with TablePageSkeleton/CardPageSkeleton/FormPageSkeleton
+     from '@/components/ui/page-skeleton'
+   → In-component list reload → TablePageSkeleton
+   → Per-row action → disabled={isLoading} + inline <Loader2 className="animate-spin" /> in button
+   → Form submit → SubmitButton ('@/components/ui/SubmitButton') — handles isPending + aria-busy
+   → Empty list → EmptyState ('@/components/ui/EmptyState'), not an ad-hoc <p>
    → Never block entire page for partial operations
 
 7. VERIFY ACCESSIBILITY
@@ -135,7 +136,7 @@ WHEN USER NAVIGATES BETWEEN MODULES:
 
 // Hook to use:
 const { push, isPending } = usePageTransition()
-// Located at: src/hooks/usePageTransition.ts (create if missing)
+// Located at: src/components/layout/PageTransitionProvider.tsx (already exists — do NOT recreate)
 
 // Pattern:
 <button
@@ -152,10 +153,11 @@ THREE-LEVEL STRATEGY:
 2. 300ms–1000ms: progress bar at top (fixed, h-1, bg-primary, animate-pulse)
 3. >1000ms: full overlay (bg-white/80 backdrop-blur) + spinner + module name
 
-Components to use (create in src/components/ if missing):
-- PageTransitionLoader — layout-level, shows progress bar + overlay
-- LoadingSpinner — action-level spinner (size: xs/sm/md/lg)
-- DataTableSkeleton — for table loading states (rows prop)
+Components that ALREADY EXIST (use them — do not recreate under new names):
+- PageTransitionBar (src/components/layout/PageTransitionBar.tsx) — layout-level NProgress bar
+- TablePageSkeleton / CardPageSkeleton / FormPageSkeleton (src/components/ui/page-skeleton.tsx)
+- SubmitButton (src/components/ui/SubmitButton.tsx) — action-level pending button
+- For responsive tables on mobile see .claude/ui-patterns.md §6 (stack-card-table vs overflow-x-auto)
 </page_transition_pattern>
 
 <token_protocol>
