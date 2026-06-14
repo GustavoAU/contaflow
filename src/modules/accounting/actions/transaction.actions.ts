@@ -119,7 +119,7 @@ export async function getTransactionsByCompanyAction(
 
     if (!companyId) return { success: false, error: "Company ID es requerido" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findUnique({

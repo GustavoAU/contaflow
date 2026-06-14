@@ -445,7 +445,7 @@ export async function getPaymentsByInvoiceAction(
     // ADR-025: ROLES.ALL
     if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.read);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
 
     const payments = await ReceivableService.getPaymentsByInvoice(invoiceId, companyId);

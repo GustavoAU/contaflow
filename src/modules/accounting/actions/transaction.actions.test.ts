@@ -34,7 +34,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  limiters: { fiscal: {} },
+  limiters: { fiscal: {}, read: {} },
 }));
 
 vi.mock("@/lib/report-cache", () => ({

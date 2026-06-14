@@ -655,7 +655,7 @@ export async function getFixedAssetGLReconciliationAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.read);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
     const member = await prisma.companyMember.findFirst({

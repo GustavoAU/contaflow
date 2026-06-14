@@ -584,7 +584,7 @@ export async function listPaymentsAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const member = await prisma.companyMember.findFirst({

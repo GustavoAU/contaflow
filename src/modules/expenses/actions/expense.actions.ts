@@ -152,7 +152,7 @@ export async function listExpensesAction(
     if (!ctx) return { success: false, error: "No autorizado" };
 
     // MEDIUM-06: rate limit en lectura paginada
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    const rl = await checkRateLimit(ctx.userId, limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const parsed = ListExpensesSchema.safeParse(input);
@@ -206,7 +206,7 @@ export async function listExpenseCategoriesAction(
     if (!ctx) return { success: false, error: "No autorizado" };
 
     // MEDIUM-07: rate limit en lectura
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    const rl = await checkRateLimit(ctx.userId, limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     await assertMember(companyId, ctx.userId);

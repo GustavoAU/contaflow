@@ -33,7 +33,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   fiscalKey: vi.fn((companyId: string, userId: string) => `${companyId}:${userId}`),
-  limiters: { fiscal: {}, ocr: {} },
+  limiters: { fiscal: {}, read: {}, ocr: {} },
 }));
 
 vi.mock("@/lib/prisma", () => ({

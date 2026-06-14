@@ -308,7 +308,7 @@ export async function exportInvoiceVoucherPDFAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes excedido" };
 
     const membership = await prisma.companyMember.findFirst({
@@ -386,7 +386,7 @@ export async function exportInvoiceXMLAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
 
     const membership = await prisma.companyMember.findFirst({
@@ -680,7 +680,7 @@ export async function getInvoiceBookAction(input: unknown) {
     const { userId } = await auth();
     if (!userId) return { success: false as const, error: "No autorizado" };
 
-    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
+    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.read);
     if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
 
     const member = await prisma.companyMember.findFirst({

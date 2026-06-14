@@ -12,7 +12,7 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
-  limiters: { fiscal: {} },
+  limiters: { fiscal: {}, read: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
   default: { companyMember: { findFirst: vi.fn() } },

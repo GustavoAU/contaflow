@@ -19,7 +19,7 @@ async function guardReceivables(companyId: string) {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "No autorizado" };
 
-  const rl = await checkRateLimit(userId, limiters.fiscal);
+  const rl = await checkRateLimit(userId, limiters.read);
   if (!rl.allowed) return { success: false as const, error: "Demasiadas solicitudes. Intente más tarde." };
 
   const [member, company] = await Promise.all([

@@ -41,7 +41,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  limiters: { fiscal: {}, ocr: {} },
+  limiters: { fiscal: {}, read: {}, ocr: {} },
 }));
 
 import prisma from "@/lib/prisma";

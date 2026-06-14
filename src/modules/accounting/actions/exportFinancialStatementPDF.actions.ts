@@ -33,7 +33,7 @@ async function guardAccounting(companyId: string): Promise<GuardResult> {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
+    const rl = await checkRateLimit(userId, limiters.read);
     if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
 
     const [member, company, settings] = await Promise.all([

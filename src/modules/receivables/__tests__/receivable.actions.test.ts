@@ -16,7 +16,7 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  limiters: { fiscal: {} },
+  limiters: { fiscal: {}, read: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
