@@ -376,7 +376,7 @@ export async function exportInvoiceVoucherPDFAction(
 /**
  * Genera el XML SENIAT (Providencia 0071) de una factura individual.
  * ADR-008: retorna el XML como string; el cliente hace Blob + download.
- * Rate limiting: limiters.fiscal (30/min).
+ * Rate limiting: limiters.read (120/min) — render on-demand de 1 factura, sin escrituras.
  */
 export async function exportInvoiceXMLAction(
   invoiceId: string,
