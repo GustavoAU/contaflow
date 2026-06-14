@@ -153,7 +153,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
       )}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
               {["N°", "Tipo", "Contraparte"].map((h) => (
@@ -183,31 +183,32 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
                 (o.status === "DRAFT" || o.status === "APPROVED");
               return (
                 <tr key={o.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs text-blue-700">{o.number}</td>
-                  <td className="px-4 py-3">
+                  <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">{o.number}</td>
+                  <td data-label="Tipo" className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[o.type] ?? ""}`}>
                       {o.type === "PURCHASE" ? "OC" : "OV"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Contraparte" className="px-4 py-3">
                     <div className="font-medium text-gray-900">{o.counterpartName}</div>
                     {o.counterpartRif && (
                       <div className="text-xs text-gray-400">{o.counterpartRif}</div>
                     )}
                   </td>
-                  <td className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
+                  <td data-label="Entrega est." className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
                     {o.expectedDate ? fmtDate(o.expectedDate) : "—"}
                     {isExpired && (
                       <span className="ml-1.5 text-xs font-normal text-red-500">(venc.)</span>
                     )}
                   </td>
                   <td
+                    data-label="Total"
                     className="px-4 py-3 font-mono text-right cursor-help"
                     title={`Base: ${formatAmount(o.subtotal)} + IVA: ${formatAmount(o.taxAmount)} = Total: ${fmtCurrency(o.currency, o.total)}`}
                   >
                     {fmtCurrency(o.currency, o.total)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Estado" className="px-4 py-3">
                     <div className="flex flex-col gap-1">
                       <StatusBadge status={o.status} />
                       {o.approvedAt && (

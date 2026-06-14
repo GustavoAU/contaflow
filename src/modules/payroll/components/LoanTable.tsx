@@ -139,7 +139,7 @@ export default function LoanTable({ companyId, initialLoans, employees, isAdmin 
           No hay préstamos registrados.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
               <tr>

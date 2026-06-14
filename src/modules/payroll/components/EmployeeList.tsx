@@ -5,8 +5,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { UserPlusIcon } from "lucide-react";
 import type { EmployeeListRow } from "../services/EmployeeService";
 import { formatAmount } from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Activo",
@@ -102,17 +104,20 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
 
   if (employees.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-10 text-center text-sm text-gray-500">
-        No hay empleados registrados.{" "}
-        {canWrite && (
-          <Link
-            href={`/company/${companyId}/payroll/employees/new`}
-            className="text-blue-600 hover:underline"
-          >
-            Registrar primer empleado
-          </Link>
-        )}
-      </div>
+      <EmptyState
+        illustration="list"
+        title="No hay empleados registrados"
+        description="Registra a tu primer empleado para comenzar a procesar nóminas."
+        action={
+          canWrite
+            ? {
+                label: "Registrar primer empleado",
+                href: `/company/${companyId}/payroll/employees/new`,
+                Icon: UserPlusIcon,
+              }
+            : undefined
+        }
+      />
     );
   }
 

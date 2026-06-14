@@ -497,7 +497,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
               No hay clientes que coincidan con &ldquo;{search}&rdquo;
             </p>
           ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Cliente</th>
@@ -618,7 +618,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                 return (
                   <>
                     <tr key={c.id} className={`hover:bg-gray-50 ${isInactive ? "bg-amber-50/40" : ""}`}>
-                      <td className="px-4 py-3">
+                      <td data-label="Cliente" className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold shrink-0">
                             {initials}
@@ -646,14 +646,14 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td data-label="Código" className="px-4 py-3 whitespace-nowrap">
                         {c.code
                           ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5">{c.code}</span>
                           : <span className="text-zinc-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.rif ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td data-label="RIF" className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.rif ?? "—"}</td>
+                      <td data-label="Email" className="px-4 py-3 text-gray-600">{c.email ?? "—"}</td>
+                      <td data-label="Último contacto" className="px-4 py-3 whitespace-nowrap">
                         {days === null ? (
                           <span className="text-zinc-300 text-xs">Sin facturas</span>
                         ) : (
@@ -664,7 +664,7 @@ export function CustomerList({ companyId, initialCustomers, initialGroups, canWr
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Estado" className="px-4 py-3">
                         <StatusBadge status="ACTIVE" />
                       </td>
                       {canWrite && (

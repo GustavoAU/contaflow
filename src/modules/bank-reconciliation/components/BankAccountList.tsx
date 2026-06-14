@@ -229,7 +229,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
           </p>
         </div>
       ) : accounts.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="w-full text-sm">
             <thead className="border-b bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-500">
               <tr>

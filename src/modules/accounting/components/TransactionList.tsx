@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { SearchIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { formatAmount } from "@/lib/format";
 
 type TransactionSummary = {
@@ -140,9 +141,15 @@ export function TransactionList({ companyId, transactions }: Props) {
 
       {/* ─── Tabla ────────────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
-        <div className="rounded-lg border bg-white py-12 text-center text-sm text-zinc-400">
-          {hasFilter ? "No hay asientos que coincidan con los filtros." : "No hay asientos registrados."}
-        </div>
+        <EmptyState
+          illustration={hasFilter ? "default" : "list"}
+          title={hasFilter ? "Sin asientos para estos filtros" : "No hay asientos registrados"}
+          description={
+            hasFilter
+              ? "Prueba a ajustar el rango de fechas o el término de búsqueda."
+              : "Los asientos del Libro Diario aparecerán aquí cuando registres operaciones."
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-lg border bg-white">
           <div className="overflow-x-auto">

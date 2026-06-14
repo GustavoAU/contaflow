@@ -10,6 +10,7 @@ import { softDeleteInventoryItemAction, getItemMovementsAction } from "../action
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
 import { UomManager } from "./UomManager";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -107,9 +108,11 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
   return (
     <div className="space-y-3">
       {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-500">
-          No hay productos registrados en el inventario.
-        </p>
+        <EmptyState
+          illustration="list"
+          title="No hay productos en el inventario"
+          description="Registra tu primer producto para controlar stock, costos (CPP) y movimientos."
+        />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">

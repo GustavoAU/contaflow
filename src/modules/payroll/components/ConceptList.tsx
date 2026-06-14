@@ -68,7 +68,7 @@ export default function ConceptList({ companyId, initial, canWrite }: Props) {
     return (
       <div className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
-        <div className="overflow-hidden rounded border">
+        <div className="overflow-x-auto rounded border">
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>

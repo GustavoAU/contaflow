@@ -100,7 +100,7 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
           No hay movimientos registrados.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="w-full text-sm">
             <thead className="border-b bg-zinc-50">
               <tr>

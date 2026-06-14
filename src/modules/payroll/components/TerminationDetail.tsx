@@ -108,7 +108,7 @@ export default function TerminationDetail({ companyId, termination: initial, emp
       </div>
 
       {/* Tabla de componentes */}
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-lg border overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>

@@ -506,7 +506,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
               No hay proveedores que coincidan con &ldquo;{search}&rdquo;
             </p>
           ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Proveedor</th>
@@ -635,7 +635,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                 return (
                   <>
                     <tr key={v.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
+                      <td data-label="Proveedor" className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
                             {initials}
@@ -663,15 +663,15 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td data-label="Código" className="px-4 py-3 whitespace-nowrap">
                         {v.code
                           ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5 whitespace-nowrap">{v.code}</span>
                           : <span className="text-zinc-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.rif ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.phone ?? "—"}</td>
-                      <td className="px-4 py-3 text-center">
+                      <td data-label="RIF" className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.rif ?? "—"}</td>
+                      <td data-label="Email" className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
+                      <td data-label="Teléfono" className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.phone ?? "—"}</td>
+                      <td data-label="C.E." className="px-4 py-3 text-center">
                         {canWrite ? (
                           <input
                             type="checkbox"
@@ -690,7 +690,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                           )
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Estado" className="px-4 py-3">
                         <StatusBadge status="ACTIVE" />
                       </td>
                       {canWrite && (
