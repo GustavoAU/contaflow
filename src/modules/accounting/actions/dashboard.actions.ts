@@ -5,7 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -29,9 +28,9 @@ export async function getDashboardMetricsAction(
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
+    // NOTA: esta es una lectura del dashboard en el render de cada entrada a la empresa.
+    // No se rate-limita con limiters.fiscal (cupo de mutaciones fiscales): hacerlo bloqueaba
+    // al usuario (redirect a /dashboard) tras varias recargas. Sigue protegida por auth + IDOR.
     const member = await prisma.companyMember.findFirst({
       where: { companyId, userId },
       select: { role: true },

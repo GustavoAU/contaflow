@@ -8,48 +8,36 @@
 // - Callout de primera visita (localStorage cf-ai-tip-shown) cuando hay anomalías.
 // - Accesible: focus-trap manual, aria-expanded, role="dialog".
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SparklesIcon, XIcon, AlertTriangleIcon, ShieldAlertIcon } from "lucide-react";
-import { getAnomalySummaryAction } from "../actions/ai-assistant.actions";
 import { AIAssistantChat } from "./AIAssistantChat";
 
 type Props = {
   companyId: string;
   companyName: string;
+  /** Resumen de anomalías obtenido en el server (layout). Evita despachar una Server Action
+      en el montaje, que disparaba el bug de Next useActionQueue/useOptimistic ("Rendered more hooks"). */
+  initialAnomaly?: { critical: number; high: number } | null;
 };
 
 type AnomalyState =
-  | { status: "loading" }
   | { status: "clean" }
   | { status: "critical"; count: number }
-  | { status: "high"; count: number }
-  | { status: "error" };
+  | { status: "high"; count: number };
 
-export function FloatingAIAssistant({ companyId, companyName }: Props) {
+function deriveAnomaly(a: { critical: number; high: number } | null | undefined): AnomalyState {
+  if (!a) return { status: "clean" };
+  if (a.critical > 0) return { status: "critical", count: a.critical };
+  if (a.high > 0) return { status: "high", count: a.high };
+  return { status: "clean" };
+}
+
+export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  const [anomaly, setAnomaly] = useState<AnomalyState>({ status: "loading" });
+  const [anomaly] = useState<AnomalyState>(() => deriveAnomaly(initialAnomaly));
   const [showTip, setShowTip] = useState(false);
-  const [, startTransition] = useTransition();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // ─── Fetch anomaly summary on mount ─────────────────────────────────────────
-  useEffect(() => {
-    startTransition(async () => {
-      const result = await getAnomalySummaryAction(companyId);
-      if (!result.success) {
-        setAnomaly({ status: "error" });
-        return;
-      }
-      if (result.critical > 0) {
-        setAnomaly({ status: "critical", count: result.critical });
-      } else if (result.high > 0) {
-        setAnomaly({ status: "high", count: result.high });
-      } else {
-        setAnomaly({ status: "clean" });
-      }
-    });
-  }, [companyId]);
 
   // ─── Callout de primera visita ───────────────────────────────────────────────
   // Muestra un tooltip sobre el botón durante 6s cuando hay anomalías y el

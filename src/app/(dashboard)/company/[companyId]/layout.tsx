@@ -15,6 +15,7 @@ import type { UserRole } from "@/lib/nav-items";
 import { getViewMode } from "@/lib/view-mode";
 import { APP_VERSION, CERTIFIED_VERSION } from "@/lib/version";
 import { AlertTriangleIcon } from "lucide-react";
+import { getLatestRatesWithDeltaAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
 type Props = {
   children: React.ReactNode;
@@ -42,10 +43,21 @@ export default async function CompanyLayout({ children, params }: Props) {
   const rolePrefix = `${company.role}:`;
   const grantedModules = Array.from(grantsSet).filter((g) => g.startsWith(rolePrefix));
 
-  const [periodResult, viewMode] = await Promise.all([
+  // NOTA: las tasas se obtienen aquí (server) y se pasan como props iniciales, en lugar de
+  // pedirlas vía Server Action en useEffect al montar BcvRateWidget — eso disparaba un bug
+  // de Next (useActionQueue/useOptimistic en app-router.tsx → "Rendered more hooks").
+  // Consultas livianas; NO incluir aquí el detector de anomalías (pesado) para no saturar
+  // el pool de Neon concurrentemente con las consultas de la página (causaba redirect a /dashboard).
+  const [periodResult, viewMode, ratesResult] = await Promise.all([
     getActivePeriodAction(companyId),
     getViewMode(),
+    getLatestRatesWithDeltaAction(companyId).catch(() => null),
   ]);
+
+  const initialRates = ratesResult && ratesResult.success ? ratesResult.data : null;
+  // El badge de anomalías se obtiene de forma diferida (ver FloatingAIAssistant); no bloquea
+  // el render del layout ni compite por conexiones durante el cold start.
+  const initialAnomaly = null;
   // eslint-disable-next-line react-hooks/purity -- Server Component: no re-renders, Date.now() es seguro aquí
   const nowMs = Date.now();
   const activePeriod = periodResult.success && periodResult.data
@@ -85,6 +97,7 @@ export default async function CompanyLayout({ children, params }: Props) {
           userRole={company.role as UserRole}
           grantedModules={grantedModules}
           activePeriod={activePeriod}
+          initialRates={initialRates}
           notificationSlot={
             showNotifications ? <NotificationBell companyId={companyId} /> : null
           }
@@ -115,7 +128,11 @@ export default async function CompanyLayout({ children, params }: Props) {
 
       {/* Asistente IA flotante — solo para roles Contador o superior */}
       {showAIAssistant && (
-        <FloatingAIAssistant companyId={companyId} companyName={company.name} />
+        <FloatingAIAssistant
+          companyId={companyId}
+          companyName={company.name}
+          initialAnomaly={initialAnomaly}
+        />
       )}
     </div>
   );
