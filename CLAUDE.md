@@ -371,7 +371,11 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Sprint Softnetcorp F4/F5/F7/F8/F9/F10** ✅ merged (2026-06-05): SEMANAL en PayrollFrequency + VacationRequest model (PENDING/APPROVED/REJECTED/CANCELLED) + balance LOTTT Art.190 acumulado + flujo aprobación manager + EmployeeHistoricalImportDialog (días vacaciones + prestaciones) + payslip email fire-and-forget post-aprobación + ManagerApprovalInbox vacaciones pendientes + /payroll/vacation-requests page — 2359 tests
 
-**2336 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-02)
+**Fase P** ✅ merged (2026-06-15): ScopeProfile enum (SOLO/EMPRESA/DESPACHO) + Company.scopeProfile nullable + NewCompanyForm selector de perfil + updateScopeProfileAction + /activate-modules page + nav progressive disclosure (Nómina/Inventario locked en SOLO) + banner onboarding si scopeProfile==null (ADR-033) — 2782 tests
+
+**Tanda A landing** ✅ en feat/landing-quickwins (pendiente merge): top-banner urgencia + precio tachado plan anual + CTAs intermedios + ROI anchor — merge cuando Gustavo confirme
+
+**2782 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
 
 ### middleware.ts
 
