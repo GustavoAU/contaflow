@@ -98,6 +98,8 @@ const PLANS = [
     cta: "Crear cuenta gratis",
     ctaHref: "/sign-up",
     highlighted: false,
+    originalPrice: null,
+    savingsBadge: null,
     badge: null,
     badgeVariant: null,
   },
@@ -117,6 +119,8 @@ const PLANS = [
     cta: "Activar plan mensual",
     ctaHref: "/sign-up?plan=mensual",
     highlighted: false,
+    originalPrice: null,
+    savingsBadge: null,
     badge: "Sin compromiso",
     badgeVariant: "mo" as const,
   },
@@ -136,6 +140,8 @@ const PLANS = [
     cta: "Suscribirme anual",
     ctaHref: "/sign-up?plan=anual",
     highlighted: true,
+    originalPrice: "$59",
+    savingsBadge: "Ahorras $143/año",
     badge: "Más popular",
     badgeVariant: "pop" as const,
   },
@@ -155,6 +161,8 @@ const PLANS = [
     cta: "Reclamar mi slot",
     ctaHref: "/sign-up?plan=early_adopter",
     highlighted: false,
+    originalPrice: null,
+    savingsBadge: null,
     badge: `${SLOTS_LEFT}/${EARLY_ADOPTER_SLOTS_TOTAL} slots`,
     badgeVariant: "ea" as const,
   },
@@ -215,6 +223,20 @@ export default async function LandingPage() {
       </a>
 
       <LandingClient />
+
+      {/* ── Top banner — Early Adopter urgency ──────────────────────────── */}
+      <div className={styles.topBanner}>
+        <div className={styles.wrap}>
+          <div className={styles.topBannerInner}>
+            <p className={styles.topBannerText}>
+              ⚡ Solo quedan <strong>{SLOTS_LEFT} cupos Early Adopter</strong> — $19/mes · Año 1
+            </p>
+            <Link href="/sign-up?plan=early_adopter" className={styles.topBannerLink}>
+              Reclamar mi slot →
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* ── Navbar ────────────────────────────────────────────────────────── */}
       <header className={styles.nav} id="lnd-nav">
@@ -287,6 +309,7 @@ export default async function LandingPage() {
                 )}
               </div>
               <p className={styles.heroSub}>Sin tarjeta de crédito · Configuración en 10 min · Cancela cuando quieras</p>
+              <a href="#roi" className={styles.heroRoiLink}>¿Cuánto tiempo recuperas al mes? → Calcularlo</a>
             </div>
 
             {/* Video card */}
@@ -426,6 +449,11 @@ export default async function LandingPage() {
                   </li>
                 ))}
               </ul>
+              <div className={styles.sectionCtaWrap}>
+                <Link href={isAuthenticated ? "/dashboard" : "/sign-up"} className={styles.btnSectionCta}>
+                  {isAuthenticated ? "Ir al panel →" : "Probar gratis — sin tarjeta →"}
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -472,6 +500,11 @@ export default async function LandingPage() {
                   </div>
                 </div>
               ))}
+            </div>
+            <div className={styles.sectionCtaWrap}>
+              <Link href={isAuthenticated ? "/dashboard" : "/sign-up"} className={styles.btnSectionCta}>
+                {isAuthenticated ? "Ir al panel →" : "Probar gratis — sin tarjeta →"}
+              </Link>
             </div>
           </div>
           {/* Right col — screenshot */}
@@ -530,9 +563,13 @@ export default async function LandingPage() {
                   )}
                   <div className={styles.pcName}>{plan.name}</div>
                   <div className={styles.pcPrice}>
+                    {plan.originalPrice && (
+                      <span className={styles.pcOriginalPrice}>{plan.originalPrice}</span>
+                    )}
                     <span className="amt">{plan.price}</span>
                     <span className="per">{plan.period}</span>
                   </div>
+                  {plan.savingsBadge && <div className={styles.pcSavingsBadge}>{plan.savingsBadge}</div>}
                   {plan.priceSub && <div className={styles.pcSub}>{plan.priceSub}</div>}
                   <div className={styles.pcDesc}>{plan.description}</div>
                   {plan.key === "early_adopter" && (
