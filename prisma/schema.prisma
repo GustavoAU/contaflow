@@ -266,6 +266,9 @@ model Company {
   journalSequences           JournalSequence[]
   // M9: reportes fiscales en Object Storage (R-2)
   fiscalReports              FiscalReport[]
+  // ADR-034: Fase Despacho — RIFs gestionados por este Despacho
+  managedClients             ManagedClient[]             @relation("DespachoManagedClients")
+  managedClientLinks         ManagedClient[]             @relation("ManagedClientLinkedCompany")
 }
 
 model CompanyMember {
@@ -2876,6 +2879,21 @@ enum PlanChangeStatus {
   CANCELED // Cancelada antes de effectiveDate
 }
 
+// ADR-034: Tier de suscripción para el perfil DESPACHO
+// Límites: STARTER=5 RIFs, PRO=25 RIFs, UNLIMITED=sin límite (constantes en DespachoService)
+enum DespachoTier {
+  STARTER
+  PRO
+  UNLIMITED
+}
+
+// ADR-034: Estado de un RIF externo gestionado por un Despacho
+enum ManagedClientStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
 model Subscription {
   id                  String             @id @default(cuid())
   companyId           String             @unique
@@ -2888,6 +2906,8 @@ model Subscription {
   cancelAtPeriodEnd   Boolean            @default(false)
   priceUsdCents       Int // Precio en centavos USD (ej. 4900 = $49.00)
   earlyAdopterSlot    Int? // 1–10, solo para EARLY_ADOPTER
+  // ADR-034: Tier DESPACHO — null si scopeProfile != DESPACHO
+  despachoTier        DespachoTier?
   referredByCompanyId String?
   referredBy          Company?           @relation("SubscriptionReferral", fields: [referredByCompanyId], references: [id], onDelete: SetNull)
   createdAt           DateTime           @default(now())
@@ -3219,4 +3239,32 @@ model PaymentAttachment {
   @@unique([companyId, blobKey])
   @@index([companyId])
   @@index([paymentRecordId])
+}
+
+// ADR-034: RIF externo gestionado por un Despacho (Company con scopeProfile = DESPACHO).
+// onDelete: Restrict — registro histórico fiscal, nunca DELETE físico.
+// @@unique([despachoCompanyId, rif]) — unicidad de negocio multi-tenant.
+// deletedAt: soft delete para baja de cliente sin perder auditoría.
+model ManagedClient {
+  id                String              @id @default(cuid())
+  despachoCompanyId String
+  despachoCompany   Company             @relation("DespachoManagedClients", fields: [despachoCompanyId], references: [id], onDelete: Restrict)
+  rif               String
+  clientName        String
+  ciiu              String?
+  notes             String?
+  status            ManagedClientStatus @default(ACTIVE)
+  // Vínculo opcional: si el cliente también tiene su propia Company en ContaFlow.
+  // SetNull — si el cliente crea su propia cuenta, no fuerza borrar el registro del Despacho.
+  linkedCompanyId   String?
+  linkedCompany     Company?            @relation("ManagedClientLinkedCompany", fields: [linkedCompanyId], references: [id], onDelete: SetNull)
+  createdBy         String
+  deletedAt         DateTime?
+  deletedBy         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([despachoCompanyId, rif])
+  @@index([despachoCompanyId, status])
+  @@index([despachoCompanyId, deletedAt])
 }

@@ -35,6 +35,8 @@ import { ManagerApprovalInbox } from "@/modules/dashboard/components/ManagerAppr
 import { getPayrollRunsAction } from "@/modules/payroll/actions/payroll-run.actions";
 import { listBudgetsAction } from "@/modules/budgets/actions/budget.actions";
 import { VacationRequestService } from "@/modules/payroll/services/VacationRequestService";
+import { DespachoOnboardingBanner } from "@/modules/despacho/components/DespachoOnboardingBanner";
+import { getDespachoStatusAction } from "@/modules/despacho/actions/despacho.actions";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -234,6 +236,14 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
     : 0;
   const pendingVacationRequestsCount = pendingVacationCount ?? 0;
 
+  // Fetch despacho status para banner onboarding (ADR-034) — solo si es DESPACHO y OWNER/ADMIN
+  const despachoStatus =
+    company.scopeProfile === "DESPACHO" && isAdmin
+      ? await getDespachoStatusAction(companyId)
+      : null;
+  const showDespachoOnboarding =
+    despachoStatus?.success && !despachoStatus.despachoTier;
+
   const openDays = m.activePeriod
     // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
     ? Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000)
@@ -372,6 +382,11 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
             </p>
           </div>
         )
+      )}
+
+      {/* ─── Banner: Despacho sin tier activo (ADR-034) ─────────────────── */}
+      {showDespachoOnboarding && (
+        <DespachoOnboardingBanner companyId={companyId} />
       )}
 
       {/* ─── Alerta: vacaciones por agotar ──────────────────────────────── */}

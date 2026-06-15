@@ -33,6 +33,8 @@ import { getStockControlLevelAction } from "@/modules/settings/actions/stock-con
 import { getAccountantConfigAction } from "@/modules/settings/actions/accountant-config.actions";
 import { ActiveSessionsPanel } from "@/modules/settings/components/ActiveSessionsPanel";
 import { SearchParamTabs } from "@/components/ui/SearchParamTabs";
+import { DespachoTierCard } from "@/modules/despacho/components/DespachoTierCard";
+import { getDespachoStatusAction } from "@/modules/despacho/actions/despacho.actions";
 
 type TabId = "empresa" | "contabilidad" | "firmas" | "equipo";
 
@@ -64,6 +66,13 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     return "empresa";
   }
   const currentTab = resolveTab(tabParam);
+
+  // ── Fetch Despacho (solo si scopeProfile === DESPACHO) ──────────────────────
+
+  const despachoStatusResult =
+    company.scopeProfile === "DESPACHO" && currentTab === "empresa"
+      ? await getDespachoStatusAction(companyId)
+      : null;
 
   // ── Fetch selectivo por pestaña ──────────────────────────────────────────────
 
@@ -167,6 +176,24 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               }}
             />
           </div>
+
+          {/* Tier Despacho — solo visible para perfil DESPACHO (ADR-034) */}
+          {company.scopeProfile === "DESPACHO" && despachoStatusResult?.success && (
+            <div className="rounded-lg border p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Plan Despacho</h2>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Gestiona los RIFs de tus clientes y el tier de tu Despacho.
+                </p>
+              </div>
+              <DespachoTierCard
+                companyId={companyId}
+                despachoTier={despachoStatusResult.despachoTier}
+                currentCount={despachoStatusResult.currentCount}
+                limit={despachoStatusResult.limit}
+              />
+            </div>
+          )}
         </div>
       )}
 

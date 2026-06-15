@@ -49,6 +49,7 @@ import {
   PiggyBank,
   FolderOpenIcon,
   WalletCardsIcon,
+  BriefcaseIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -326,6 +327,24 @@ function buildSeniatAuditNav(companyId: string): NavConfig {
 // Rutas que quedan bloqueadas para perfil SOLO (ADR-033)
 const SOLO_LOCKED_PATHS = ["/payroll", "/inventory"];
 
+// Agrega sección "Despacho" solo cuando scopeProfile === "DESPACHO" (ADR-034)
+function applyDespachoSection(config: NavConfig, companyId: string, scopeProfile: string | null | undefined): NavConfig {
+  if (scopeProfile !== "DESPACHO") return config;
+  const p = (path: string) => `/company/${companyId}${path}`;
+  return {
+    ...config,
+    sections: [
+      ...config.sections,
+      {
+        group: "Despacho",
+        items: [
+          item("Clientes Despacho", p("/despacho/rifs"), BriefcaseIcon),
+        ],
+      },
+    ],
+  };
+}
+
 function applyProfileLocks(config: NavConfig, companyId: string, scopeProfile: string | null | undefined): NavConfig {
   if (scopeProfile !== "SOLO") return config;
   const lockedPaths = SOLO_LOCKED_PATHS.map((p) => `/company/${companyId}${p}`);
@@ -361,7 +380,8 @@ export function getNavItems(
 ): NavConfig {
   // Modo Gerencial: OWNER/ADMIN ven solo los ítems operativos y financieros.
   if (viewMode === "gerente" && (role === "OWNER" || role === "ADMIN")) {
-    return applyProfileLocks(buildGerenteNav(companyId), companyId, scopeProfile);
+    const gerente = applyDespachoSection(buildGerenteNav(companyId), companyId, scopeProfile);
+    return applyProfileLocks(gerente, companyId, scopeProfile);
   }
   let config: NavConfig;
   switch (role) {
@@ -385,5 +405,5 @@ export function getNavItems(
     default:
       config = buildAccountantNav(companyId);
   }
-  return applyProfileLocks(config, companyId, scopeProfile);
+  return applyProfileLocks(applyDespachoSection(config, companyId, scopeProfile), companyId, scopeProfile);
 }
