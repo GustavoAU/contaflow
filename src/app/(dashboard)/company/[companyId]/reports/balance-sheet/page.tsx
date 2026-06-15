@@ -9,7 +9,7 @@ import { ChevronLeftIcon } from "lucide-react";
 
 type Props = {
   params: Promise<{ companyId: string }>;
-  searchParams: Promise<{ to?: string }>;
+  searchParams: Promise<{ to?: string; preset?: string }>;
 };
 
 function fmtAccounting(value: string): { display: string; negative: boolean } {
@@ -84,7 +84,7 @@ function Section({
 
 export default async function BalanceSheetPage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const { to } = await searchParams;
+  const { to, preset } = await searchParams;
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
@@ -116,7 +116,7 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
         <ExportFinancialPDFButton companyId={companyId} report="balance-sheet" />
       </div>
 
-      <BalanceSheetFilter defaultTo={to} />
+      <BalanceSheetFilter defaultTo={to} defaultPreset={preset} />
 
       {!result.success ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

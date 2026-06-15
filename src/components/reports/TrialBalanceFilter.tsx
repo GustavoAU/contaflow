@@ -7,6 +7,7 @@ import { useState } from "react";
 interface Props {
   defaultFrom?: string;
   defaultTo?: string;
+  defaultPreset?: string;
 }
 
 function toDateStr(d: Date): string {
@@ -63,16 +64,17 @@ const PRESETS: Preset[] = [
   },
 ];
 
-export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "" }: Props) {
+export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "", defaultPreset = "" }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
 
-  function navigate(f: string, t: string) {
+  function navigate(f: string, t: string, presetKey?: string) {
     const params = new URLSearchParams();
     if (f) params.set("from", f);
     if (t) params.set("to", t);
+    if (presetKey) params.set("preset", presetKey);
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -91,12 +93,11 @@ export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "" }: Props) 
     const r = preset.range();
     setFrom(r.from);
     setTo(r.to);
-    navigate(r.from, r.to);
+    navigate(r.from, r.to, preset.key);
   }
 
   function isActive(preset: Preset): boolean {
-    const r = preset.range();
-    return defaultFrom === r.from && defaultTo === r.to;
+    return defaultPreset === preset.key;
   }
 
   const hasFilter = Boolean(defaultFrom || defaultTo);
