@@ -1798,3 +1798,46 @@ paymentBatch.actions.test.ts:
 - [x] `paymentBatch.schema.ts` implementado
 - [x] Actions `createBatchAction`, `applyBatchAction`, `voidBatchAction`, `listBatchesAction` implementadas
 - [x] Tests: todos en verde antes de continuar (1727 tests GREEN — merged a main)
+
+---
+
+## ADR-034 — Fase Despacho: Tier Multi-RIF (ARCH 2026-06-15)
+
+- Estado: DECIDIDO
+- ADR: .claude/adr/ADR-034-fase-despacho-tier.md
+- Branch: feat/tier-despacho
+
+### Hallazgos previos al diseño
+
+- Subscription (ADR-032) + NOWPayments ya implementados — se reutilizan
+- ScopeProfile.DESPACHO existe en Company (ADR-033) — discriminador suficiente
+- No existe modelo de RIFs gestionados ni tier DESPACHO — gap que este ADR cierra
+- Multi-empresa via CompanyMember ya existe — ManagedClient NO la reemplaza (capas distintas)
+
+### Decisiones clave
+
+- D-1: Nuevo modelo `ManagedClient` — registro liviano de RIF externo, no una Company completa
+- D-2: Extensión de `Subscription` con campo nullable `despachoTier` (DespachoTier?) — reutiliza flujo NOWPayments sin segundo sistema de billing
+- D-3: Límites de RIF como constantes TODO en DespachoService — no en schema
+- D-4: `onDelete: Restrict` en FK despachoCompany (registro fiscal histórico)
+- D-5: `onDelete: SetNull` en FK linkedCompany (vínculo opcional — no contable)
+- D-6: Read Committed suficiente en canAddManagedClient (count, no correlativo)
+- D-7: TOCTOU en límite de count aceptado — mitigado por @@unique([despachoCompanyId, rif])
+
+### Contrato hacia DespachoService
+
+```typescript
+canAddManagedClient(companyId): Promise<{ allowed, currentCount, limit }>
+addManagedClient(companyId, input, callerUserId, ip, ua): Promise<{ success, client? }>
+archiveManagedClient(companyId, managedClientId, callerUserId, ip, ua): Promise<{ success }>
+listManagedClients(companyId, opts?): Promise<ManagedClient[]>
+upgradeDespachoTier(companyId, newTier, callerUserId): Promise<{ success, paymentUrl? }>
+```
+
+### Superficie de auditoría — security-agent (antes de merge)
+
+1. addManagedClient: companyId en where de todos los queries + rol OWNER/ADMIN + VEN_RIF_REGEX + canAddManagedClient dentro del mismo $transaction (TOCTOU)
+2. listManagedClients: where: { despachoCompanyId: companyId } siempre presente (ADR-004)
+3. upgradeDespachoTier: solo OWNER + downgrade protection (no bajar tier si count > newLimit)
+4. /despacho/rifs route: auth.protect() activo + query no filtra solo por linkedCompanyId
+5. archiveManagedClient: IDOR — verificar managedClient.despachoCompanyId === companyId antes de operar
