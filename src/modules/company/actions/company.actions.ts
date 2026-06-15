@@ -40,6 +40,12 @@ const CreateCompanySchema = z.object({
     .or(z.literal(""))
     .or(z.undefined()),
   address: z.string().optional(),
+  scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]).optional(),
+});
+
+const UpdateScopeProfileSchema = z.object({
+  companyId: z.string().min(1),
+  scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]),
 });
 
 // ─── Actualizar datos SENIAT ──────────────────────────────────────────────────
@@ -109,7 +115,7 @@ export async function createCompanyAction(
       if (ownedCount >= COMPANY_LIMIT_PER_USER) {
         throw Object.assign(new Error("PLAN_LIMIT"), { isPlanLimit: true });
       }
-      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address);
+      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile);
     });
 
     revalidatePath("/dashboard");
@@ -122,6 +128,52 @@ export async function createCompanyAction(
         error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
       };
     }
+    return toActionError(error);
+  }
+}
+
+// ─── Actualizar perfil de alcance ────────────────────────────────────────────
+
+export async function updateScopeProfileAction(
+  input: z.infer<typeof UpdateScopeProfileSchema>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const validated = UpdateScopeProfileSchema.parse(input);
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+
+    await prisma.$transaction(async (tx) => {
+      const old = await tx.company.findUniqueOrThrow({ where: { id: validated.companyId } });
+      const updated = await tx.company.update({
+        where: { id: validated.companyId },
+        data: { scopeProfile: validated.scopeProfile },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId: validated.companyId,
+          entityId: validated.companyId,
+          entityName: "Company",
+          action: "UPDATE",
+          userId,
+          ipAddress: null,
+          userAgent: null,
+          oldValue: old as object,
+          newValue: updated as object,
+        },
+      });
+    });
+
+    revalidatePath(`/company/${validated.companyId}`);
+    return { success: true, data: { id: validated.companyId } };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
     return toActionError(error);
   }
 }

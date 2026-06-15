@@ -14,7 +14,8 @@ import { FloatingAIAssistant } from "@/modules/ai-assistant/components/FloatingA
 import type { UserRole } from "@/lib/nav-items";
 import { getViewMode } from "@/lib/view-mode";
 import { APP_VERSION, CERTIFIED_VERSION } from "@/lib/version";
-import { AlertTriangleIcon } from "lucide-react";
+import { AlertTriangleIcon, SlidersHorizontalIcon } from "lucide-react";
+import Link from "next/link";
 import { getLatestRatesWithDeltaAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 
 type Props = {
@@ -86,6 +87,7 @@ export default async function CompanyLayout({ children, params }: Props) {
         grantedModules={grantedModules}
         companies={companies.map((c) => ({ id: c.id, name: c.name, role: c.role }))}
         viewMode={viewMode}
+        scopeProfile={company.scopeProfile ?? null}
       />
 
       {/* Columna principal */}
@@ -115,6 +117,25 @@ export default async function CompanyLayout({ children, params }: Props) {
               <strong>v{CERTIFIED_VERSION}</strong>. Versión actual:{" "}
               <strong>v{APP_VERSION}</strong>. Actualiza o contacta al administrador.
             </span>
+          </div>
+        )}
+
+        {/* Banner: perfil de alcance no declarado — solo para OWNER/ADMIN (ADR-033) */}
+        {company.scopeProfile == null && canAccess(company.role, ROLES.ADMIN_ONLY) && (
+          <div
+            role="status"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 text-sm"
+          >
+            <SlidersHorizontalIcon className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="flex-1">
+              <strong>Personaliza tu experiencia.</strong> Dinos cómo opera tu empresa para adaptar los módulos disponibles.
+            </span>
+            <Link
+              href={`/company/${companyId}/activate-modules`}
+              className="shrink-0 text-sm font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Configurar →
+            </Link>
           </div>
         )}
 

@@ -82,6 +82,7 @@ function SidebarItem({
   collapsed,
   badge,
   disabled,
+  locked,
 }: {
   href: string;
   Icon: LucideIcon;
@@ -90,7 +91,9 @@ function SidebarItem({
   collapsed: boolean;
   badge?: string;
   disabled?: boolean;
+  locked?: boolean;
 }) {
+  const isBlocked = disabled || locked;
   const cls = cn(
     "flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-13 font-medium",
     "transition-colors overflow-hidden whitespace-nowrap",
@@ -100,8 +103,10 @@ function SidebarItem({
     active
       ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-semibold"
       : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100",
-    disabled && "pointer-events-none opacity-40"
+    isBlocked && "pointer-events-none opacity-40"
   );
+
+  const resolvedBadge = badge ?? (locked ? "EMPRESA" : undefined);
 
   const inner = (
     <>
@@ -109,17 +114,17 @@ function SidebarItem({
       {!collapsed && (
         <span className="overflow-hidden text-ellipsis flex-1">{label}</span>
       )}
-      {!collapsed && badge && (
+      {!collapsed && resolvedBadge && (
         <span className="ml-auto text-10 font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
-          {badge}
+          {resolvedBadge}
         </span>
       )}
     </>
   );
 
-  if (disabled) {
+  if (isBlocked) {
     return (
-      <div className={cls} title={label}>
+      <div className={cls} title={locked ? `${label} — disponible en perfil EMPRESA` : label}>
         {inner}
       </div>
     );
@@ -309,6 +314,7 @@ type SidebarProps = {
   grantedModules?: string[];
   companies?: CompanyEntry[];
   viewMode?: ViewMode;
+  scopeProfile?: string | null;
 };
 
 export function Sidebar({
@@ -317,6 +323,7 @@ export function Sidebar({
   grantedModules,
   companies = [],
   viewMode = "sistema",
+  scopeProfile,
 }: SidebarProps) {
   const pathname = usePathname();
 
@@ -355,7 +362,7 @@ export function Sidebar({
 
   const grants = new Set(grantedModules ?? []);
   const { primary, sections } = companyId
-    ? getNavItems(userRole, companyId, grants, viewMode)
+    ? getNavItems(userRole, companyId, grants, viewMode, scopeProfile)
     : { primary: [], sections: [] };
 
   // El toggle solo es relevante para OWNER/ADMIN (los únicos que pueden cambiar de modo)
@@ -477,6 +484,7 @@ export function Sidebar({
                   active={isActive(item.href)}
                   collapsed={collapsed}
                   disabled={item.comingSoon}
+                  locked={item.locked}
                   badge={item.comingSoon ? "Pronto" : undefined}
                 />
               ))}
