@@ -27,8 +27,8 @@ enum CompanyPlan {
 
 // ADR-033: perfil de alcance operativo — fuente de verdad para progressive disclosure
 enum ScopeProfile {
-  SOLO     // Empresa individual — un solo RIF, sin nómina compleja
-  EMPRESA  // Empresa mediana — equipo contable, nómina, inventario
+  SOLO // Empresa individual — un solo RIF, sin nómina compleja
+  EMPRESA // Empresa mediana — equipo contable, nómina, inventario
   DESPACHO // Despacho/grupo — múltiples RIFs (Fase Despacho, diferida)
 }
 
