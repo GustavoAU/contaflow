@@ -60,6 +60,8 @@ export type NavItem = {
   icon: LucideIcon;
   /** true = muestra badge "Próximamente" y deshabilita el link */
   comingSoon?: boolean;
+  /** true = módulo disponible en EMPRESA/DESPACHO, bloqueado en SOLO (ADR-033) */
+  locked?: boolean;
 };
 
 export type NavSection = {
@@ -321,41 +323,67 @@ function buildSeniatAuditNav(companyId: string): NavConfig {
 
 // ─── Función pública ──────────────────────────────────────────────────────────
 
+// Rutas que quedan bloqueadas para perfil SOLO (ADR-033)
+const SOLO_LOCKED_PATHS = ["/payroll", "/inventory"];
+
+function applyProfileLocks(config: NavConfig, companyId: string, scopeProfile: string | null | undefined): NavConfig {
+  if (scopeProfile !== "SOLO") return config;
+  const lockedPaths = SOLO_LOCKED_PATHS.map((p) => `/company/${companyId}${p}`);
+  return {
+    ...config,
+    sections: config.sections.map((section) => ({
+      ...section,
+      items: section.items.map((item) =>
+        lockedPaths.includes(item.href) ? { ...item, locked: true } : item
+      ),
+    })),
+  };
+}
+
 /**
  * Devuelve la configuración de navegación para un rol y empresa dados.
  * VIEWER recibe la misma nav que ACCOUNTANT — las restricciones de escritura
  * se aplican en los Server Actions (Fase 28C).
  *
- * @param grants    - Set de strings "ROLE:module" proveniente de RolePermission.
- *                    Solo afecta a ADMINISTRATIVE (los demás ya tienen su nav completa).
- * @param viewMode  - "gerente" activa la nav simplificada para OWNER/ADMIN.
- *                    Solo aplica a esos roles; el resto ignora el parámetro.
+ * @param grants        - Set de strings "ROLE:module" proveniente de RolePermission.
+ *                        Solo afecta a ADMINISTRATIVE (los demás ya tienen su nav completa).
+ * @param viewMode      - "gerente" activa la nav simplificada para OWNER/ADMIN.
+ *                        Solo aplica a esos roles; el resto ignora el parámetro.
+ * @param scopeProfile  - Perfil de alcance de la empresa (ADR-033). SOLO bloquea
+ *                        Nómina e Inventario. null/undefined no aplica bloqueos.
  */
 export function getNavItems(
   role: UserRole,
   companyId: string,
   grants: Set<string> = new Set(),
-  viewMode: "sistema" | "gerente" = "sistema"
+  viewMode: "sistema" | "gerente" = "sistema",
+  scopeProfile?: string | null
 ): NavConfig {
   // Modo Gerencial: OWNER/ADMIN ven solo los ítems operativos y financieros.
   if (viewMode === "gerente" && (role === "OWNER" || role === "ADMIN")) {
-    return buildGerenteNav(companyId);
+    return applyProfileLocks(buildGerenteNav(companyId), companyId, scopeProfile);
   }
+  let config: NavConfig;
   switch (role) {
     case "OWNER":
     case "ADMIN":
-      return buildOwnerAdminNav(companyId);
+      config = buildOwnerAdminNav(companyId);
+      break;
     case "ACCOUNTANT":
-      return buildAccountantNav(companyId);
+      config = buildAccountantNav(companyId);
+      break;
     case "ADMINISTRATIVE":
-      return buildAdministrativeNav(companyId, grants);
+      config = buildAdministrativeNav(companyId, grants);
+      break;
     case "VIEWER":
       // VIEWER ve lo mismo que ACCOUNTANT; guards en 28C bloquean escritura
-      return buildAccountantNav(companyId);
+      config = buildAccountantNav(companyId);
+      break;
     case "SENIAT":
       // Auditor fiscal externo — solo informes de auditoría (ADR-019 D-3)
       return buildSeniatAuditNav(companyId);
     default:
-      return buildAccountantNav(companyId);
+      config = buildAccountantNav(companyId);
   }
+  return applyProfileLocks(config, companyId, scopeProfile);
 }

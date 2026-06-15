@@ -3,23 +3,56 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, BuildingIcon, UserIcon, LayoutGridIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { createCompanyAction } from "@/modules/company/actions/company.actions";
+import { cn } from "@/lib/utils";
+
+type ScopeProfile = "SOLO" | "EMPRESA" | "DESPACHO";
+
+const PROFILES: {
+  value: ScopeProfile;
+  label: string;
+  description: string;
+  Icon: React.ElementType;
+}[] = [
+  {
+    value: "SOLO",
+    label: "Empresa Individual",
+    description: "Un solo RIF. Ideal para autónomos, pequeñas empresas o contadores que gestionan sus propias cuentas.",
+    Icon: UserIcon,
+  },
+  {
+    value: "EMPRESA",
+    label: "Empresa con Equipo",
+    description: "Equipo contable, nómina, inventario. Para empresas con operaciones completas.",
+    Icon: BuildingIcon,
+  },
+  {
+    value: "DESPACHO",
+    label: "Despacho / Grupo",
+    description: "Múltiples RIFs bajo un mismo usuario. Próximamente.",
+    Icon: LayoutGridIcon,
+  },
+];
 
 type Props = {
   userId: string;
+  initialProfile?: string;
 };
 
-export function NewCompanyForm({ userId }: Props) {
+export function NewCompanyForm({ userId, initialProfile }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [name, setName] = useState("");
   const [rif, setRif] = useState("");
   const [address, setAddress] = useState("");
+  const [profile, setProfile] = useState<ScopeProfile | undefined>(
+    (["SOLO", "EMPRESA", "DESPACHO"].includes(initialProfile ?? "") ? initialProfile as ScopeProfile : undefined)
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function validate() {
@@ -47,11 +80,17 @@ export function NewCompanyForm({ userId }: Props) {
         userId,
         rif: rif.trim() || undefined,
         address: address.trim() || undefined,
+        scopeProfile: profile,
       });
 
       if (result.success) {
         toast.success(`Empresa "${result.data.name}" creada correctamente`);
-        router.push(`/company/${result.data.id}`);
+        // Si no eligió perfil, redirige al activate-modules para completarlo
+        if (!profile) {
+          router.push(`/company/${result.data.id}/activate-modules`);
+        } else {
+          router.push(`/company/${result.data.id}`);
+        }
       } else {
         toast.error(result.error);
       }
@@ -60,7 +99,54 @@ export function NewCompanyForm({ userId }: Props) {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-5">
+        {/* Selector de perfil */}
+        <div>
+          <p className="mb-2 text-sm font-medium text-zinc-700">
+            ¿Cómo describes tu operación?
+            <span className="ml-1 font-normal text-zinc-400">(opcional — puedes cambiarlo después)</span>
+          </p>
+          <div className="grid gap-2">
+            {PROFILES.map(({ value, label, description, Icon }) => {
+              const isSelected = profile === value;
+              const isDisabled = value === "DESPACHO";
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && setProfile(isSelected ? undefined : value)}
+                  className={cn(
+                    "flex items-start gap-3 w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
+                    isDisabled && "opacity-40 cursor-not-allowed",
+                    isSelected
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                      : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/50"
+                  )}
+                >
+                  <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", isSelected ? "text-blue-600" : "text-zinc-400")} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-sm font-medium", isSelected ? "text-blue-700 dark:text-blue-400" : "text-zinc-800 dark:text-zinc-100")}>
+                        {label}
+                      </span>
+                      {isDisabled && (
+                        <span className="text-10 font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">
+                          Pronto
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-px bg-zinc-100 dark:bg-zinc-800" />
+
         {/* Nombre */}
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">

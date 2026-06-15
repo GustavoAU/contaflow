@@ -5,9 +5,15 @@ import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { NewCompanyForm } from "@/components/company/NewCompanyForm";
 
-export default async function NewCompanyPage() {
+export default async function NewCompanyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ profile?: string }>;
+}) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
+
+  const { profile } = await searchParams;
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -26,7 +32,7 @@ export default async function NewCompanyPage() {
             Completa los datos de tu empresa para comenzar
           </p>
 
-          <NewCompanyForm userId={user.id} />
+          <NewCompanyForm userId={user.id} initialProfile={profile} />
         </div>
       </div>
     </div>

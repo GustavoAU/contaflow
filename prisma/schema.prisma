@@ -25,6 +25,13 @@ enum CompanyPlan {
   PRO
 }
 
+// ADR-033: perfil de alcance operativo — fuente de verdad para progressive disclosure
+enum ScopeProfile {
+  SOLO     // Empresa individual — un solo RIF, sin nómina compleja
+  EMPRESA  // Empresa mediana — equipo contable, nómina, inventario
+  DESPACHO // Despacho/grupo — múltiples RIFs (Fase Despacho, diferida)
+}
+
 enum PeriodStatus {
   OPEN
   CLOSED
@@ -141,6 +148,8 @@ model Company {
   accounts                   Account[]
   status                     CompanyStatus               @default(ACTIVE)
   plan                       CompanyPlan                 @default(FREE)
+  // ADR-033: null = perfil no declarado → banner de onboarding en el dashboard
+  scopeProfile               ScopeProfile?
   isSpecialContributor       Boolean                     @default(false)
   // Datos SENIAT — PA-121 (Forma 30, Libro Mayor, reportes fiscales)
   telefono                   String?
