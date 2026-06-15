@@ -8,6 +8,7 @@ import { LandingClient } from "@/components/landing/LandingClient";
 import { LandingDespachos } from "@/components/landing/LandingDespachos";
 import { ScreenshotLightbox } from "@/components/landing/ScreenshotLightbox";
 import { RoiCalculator } from "@/components/landing/RoiCalculator";
+import { BotRecomendador } from "@/components/landing/BotRecomendador";
 import styles from "./landing.module.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -527,6 +528,9 @@ export default async function LandingPage() {
 
       {/* ── ROI Calculator ────────────────────────────────────────────────── */}
       <RoiCalculator />
+
+      {/* ── Bot Recomendador — wizard visual de perfil (Tanda C) ──────────── */}
+      <BotRecomendador />
 
       {/* ── Precios ───────────────────────────────────────────────────────── */}
       <section id="precios" className={styles.section}>
