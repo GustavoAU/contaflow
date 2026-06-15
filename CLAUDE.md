@@ -377,7 +377,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Tanda C landing** ✅ merged (BotRecomendador wizard inline — 3 tarjetas SOLO/EMPRESA/DESPACHO + panel animado + cookie cf-pending-profile 30min → /sign-up?profile=X + pre-fill NewCompanyForm — ADR-033 — 2782 tests)
 
-**2782 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
+**Fase Despacho (ADR-034)** ✅ merged (2026-06-15): ManagedClient + DespachoTier enum + Subscription.despachoTier + DespachoService (canAddManagedClient/addManagedClient/archiveManagedClient/listManagedClients/upgradeDespachoTier) + guards R-6/ADR-004/VEN_RIF_REGEX + DespachoRifList/AddRifModal/DespachoTierCard/DespachoOnboardingBanner + /despacho/rifs page + nav progressive disclosure scopeProfile=DESPACHO — 2803 tests. Precios tier: placeholder TODO (STARTER $29/PRO $79/UNLIMITED $149 USD-cents), fijar antes de activar cobro.
+
+**2803 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
 
 ### middleware.ts
 
@@ -387,7 +389,14 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
-NOM-C → NOM-D → NOM-E → Fase 35A simplificada → LAUNCH
+**Backlog pre-lanzamiento COMPLETO** (2026-06-15).
+Pendientes antes de LAUNCH:
+1. `/despacho/upgrade` page — falta (DespachoTierCard ya linkea a ella; NOWPayments flow reutiliza ADR-032)
+2. Fijar precios reales tier Despacho (reemplazar TODO en `DespachoService.DESPACHO_TIER_PRICES_USD_CENTS`)
+3. Tanda B landing (testimonios) — DIFERIDA a post-Alpha (no hay testimonios reales aún)
+4. Tanda D (checkout embebido) — DIFERIDA (spike post-Alpha)
+5. **LAUNCH** 🚀
+
 Fases 35B/35C/36A/36B diferidas a post-lanzamiento.
 
 ---
