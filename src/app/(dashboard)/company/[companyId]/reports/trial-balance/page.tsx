@@ -10,7 +10,7 @@ import Decimal from "decimal.js";
 
 type Props = {
   params: Promise<{ companyId: string }>;
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; preset?: string }>;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,7 +37,7 @@ function fmt(v: string | number | Decimal): string {
 
 export default async function TrialBalancePage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const { from, to } = await searchParams;
+  const { from, to, preset } = await searchParams;
 
   // Hallazgo #4: misma guarda que Ledger — sin fechas el Balance de Comprobación
   // mostraría acumulados históricos mezclando todos los períodos.
@@ -93,7 +93,7 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
         <ExportFinancialPDFButton companyId={companyId} report="trial-balance" />
       </div>
 
-      <TrialBalanceFilter defaultFrom={from} defaultTo={to} />
+      <TrialBalanceFilter defaultFrom={from} defaultTo={to} defaultPreset={preset} />
 
       {rows.length === 0 ? (
         <div className="text-muted-foreground py-12 text-center text-sm">
