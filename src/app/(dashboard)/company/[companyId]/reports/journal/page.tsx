@@ -1,5 +1,4 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
-import { redirect } from "next/navigation";
 import { getJournalAction } from "@/modules/accounting/actions/report.actions";
 import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
@@ -95,40 +94,43 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
 
 export default async function JournalPage({ params, searchParams }: Props) {
   const { companyId } = await params;
-  const { from, to, q } = await searchParams;
+  const { from: rawFrom, to: rawTo, q } = await searchParams;
 
-  // Error 1 SENIAT-dictamen: sin filtro el Libro Diario muestra TODOS los períodos
-  // incluyendo facturas de períodos anteriores (ej. TESA-007 enero 2026 = f.001 falso).
-  // Si no hay parámetros de fecha, redirigir al período ABIERTO automáticamente.
-  // try/catch: si getPeriodsAction falla (Neon cold start), continuar sin redirigir
-  // en lugar de crashear con 404.
-  // Sin parámetros de fecha → redirigir al período activo.
-  // redirect() DEBE quedar fuera del try/catch — Next.js 16 no procesa correctamente
-  // un redirect lanzado y recapturado desde un bloque catch en un Server Component.
-  if (!from && !to) {
-    let openPeriod: { year: number; month: number } | undefined;
+  // Error 1 SENIAT-dictamen: sin filtro el Libro Diario mostraría TODOS los períodos
+  // (incluyendo facturas de períodos anteriores, ej. TESA-007 enero 2026 = f.001 falso).
+  // Si no hay parámetros de fecha, usamos por defecto el rango del período ABIERTO y
+  // RENDERIZAMOS DIRECTO — sin redirect(), que en Next 16 + Turbopack devolvía 404 en esta
+  // ruta (la navegación del sidebar entra sin params → redirect → 404). Si getPeriodsAction
+  // falla/timeout (cold start Neon), no aplicamos default: se muestran todos los períodos
+  // (degradación graceful, sin crash).
+  let defaultFrom: string | undefined;
+  let defaultTo: string | undefined;
+  if (!rawFrom && !rawTo) {
     try {
       // 5 s de timeout: si Neon está en cold start, no bloqueamos el worker de Next.js.
-      // Al expirar, continuamos sin redirigir; el usuario puede elegir el período manualmente.
-      const periodsForRedirect = await Promise.race([
+      const periodsForDefault = await Promise.race([
         getPeriodsAction(companyId),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("timeout")), 5_000),
         ),
       ]);
-      if (periodsForRedirect.success) {
-        openPeriod = periodsForRedirect.data.find((p) => p.status === "OPEN");
+      if (periodsForDefault.success) {
+        const open = periodsForDefault.data.find((p) => p.status === "OPEN");
+        if (open) {
+          const mm = String(open.month).padStart(2, "0");
+          const dd = String(new Date(open.year, open.month, 0).getDate()).padStart(2, "0");
+          defaultFrom = `${open.year}-${mm}-01`;
+          defaultTo = `${open.year}-${mm}-${dd}`;
+        }
       }
     } catch {
-      // Cold start, timeout u otro error — continúa sin redirigir
-    }
-    if (openPeriod) {
-      const mm = String(openPeriod.month).padStart(2, "0");
-      const lastDay = new Date(openPeriod.year, openPeriod.month, 0).getDate();
-      const dd = String(lastDay).padStart(2, "0");
-      redirect(`/company/${companyId}/reports/journal?from=${openPeriod.year}-${mm}-01&to=${openPeriod.year}-${mm}-${dd}`);
+      // Cold start, timeout u otro error — sin default (se muestran todos los períodos)
     }
   }
+
+  // Rango efectivo: parámetros explícitos de la URL o, en su defecto, el período abierto.
+  const from = rawFrom ?? defaultFrom;
+  const to = rawTo ?? defaultTo;
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
