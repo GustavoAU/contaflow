@@ -943,6 +943,288 @@
   border-radius: var(--lnd-r-sm);
 }
 
+/* ─── Bot Recomendador (Tanda C) ────────────────────────────────────────────── */
+
+.botSection {
+  padding: 104px 0;
+  background: var(--lnd-surface);
+  position: relative;
+  overflow: hidden;
+}
+.botSection::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(circle, oklch(0.50 0.25 258 / 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.botSection::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--lnd-blue) 0%, oklch(0.52 0.18 145) 50%, oklch(0.50 0.20 290) 100%);
+}
+
+.botHead { text-align: center; margin-bottom: 56px; }
+
+/* Cards grid */
+.botCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  position: relative; z-index: 1;
+}
+
+.botCard {
+  position: relative;
+  background: var(--lnd-surface);
+  border: 2px solid var(--lnd-border);
+  border-radius: var(--lnd-r-lg);
+  padding: 36px 28px 28px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .2s, box-shadow .2s, transform .25s cubic-bezier(.22,1,.36,1);
+  box-shadow: var(--lnd-sh);
+}
+.botCard:hover:not(.botCardDisabled):not(.botCardSelected) {
+  border-color: oklch(0.50 0.25 258 / 0.45);
+  transform: translateY(-6px);
+  box-shadow: var(--lnd-sh2), 0 0 0 1px oklch(0.50 0.25 258 / 0.08);
+}
+.botCardSelected {
+  transform: translateY(-6px);
+}
+.botCardDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.botCardPopular {
+  position: absolute;
+  top: -15px; left: 50%; transform: translateX(-50%);
+  background: oklch(0.52 0.18 145);
+  color: white;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  padding: 5px 18px; border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px oklch(0.52 0.18 145 / 0.35);
+}
+.botCardSoon {
+  position: absolute;
+  top: -15px; left: 50%; transform: translateX(-50%);
+  background: oklch(0.60 0.02 258);
+  color: white;
+  font-size: 11px; font-weight: 700;
+  padding: 5px 18px; border-radius: 999px;
+  white-space: nowrap;
+}
+
+.botCardIconWrap {
+  width: 60px; height: 60px;
+  border-radius: 18px;
+  display: grid; place-items: center;
+  margin-bottom: 22px;
+  box-shadow: 0 4px 20px oklch(0.1 0.04 258 / 0.18);
+}
+.botCardIconSvg {
+  width: 30px; height: 30px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.botCardLabel {
+  font-size: 22px; font-weight: 800;
+  color: var(--lnd-fg);
+  letter-spacing: -0.6px;
+  margin-bottom: 3px;
+}
+.botCardTagline {
+  font-size: 13px; font-weight: 600;
+  color: var(--lnd-muted);
+  margin-bottom: 10px;
+}
+.botCardDesc {
+  font-size: 13px; color: var(--lnd-muted);
+  line-height: 1.65;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--lnd-border);
+}
+
+.botCardList {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.botCardListItem {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 13px; color: var(--lnd-fg); line-height: 1.5;
+}
+.botCardCheckIcon {
+  width: 15px; height: 15px;
+  flex-shrink: 0; margin-top: 1px;
+}
+.botCardExcluded {
+  color: var(--lnd-muted);
+}
+.botCardExcluded .botCardCheckIcon {
+  color: var(--lnd-border-s);
+}
+
+.botCardConfirm {
+  margin-top: 22px;
+  color: white;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.2px;
+  padding: 8px 0; border-radius: var(--lnd-r-sm);
+  text-align: center;
+  animation: botConfirmIn 0.3s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes botConfirmIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Recommendation panel */
+.botReco {
+  margin-top: 24px;
+  border: 2px solid;
+  border-radius: var(--lnd-r-lg);
+  background: var(--lnd-surface);
+  overflow: hidden;
+  box-shadow: var(--lnd-sh2);
+  animation: botRecoIn 0.4s cubic-bezier(.22,1,.36,1) both;
+  position: relative; z-index: 1;
+}
+@keyframes botRecoIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.botRecoInner {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+}
+
+.botRecoLeft {
+  padding: 40px 44px;
+  border-right: 1px solid var(--lnd-border);
+}
+.botRecoRight {
+  padding: 40px 32px;
+  background: var(--lnd-tint);
+  display: flex; flex-direction: column;
+}
+
+.botRecoTag {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  padding: 5px 14px; border-radius: 999px;
+  margin-bottom: 18px;
+}
+.botRecoTagIcon { width: 12px; height: 12px; flex-shrink: 0; }
+
+.botRecoTitle {
+  font-size: 24px; font-weight: 800;
+  color: var(--lnd-fg);
+  letter-spacing: -0.7px;
+  margin-bottom: 24px;
+  line-height: 1.25;
+}
+
+.botRecoList {
+  list-style: none; padding: 0; margin: 0 0 28px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.botRecoListItem {
+  display: flex; align-items: flex-start; gap: 11px;
+  font-size: 14px; color: var(--lnd-fg); line-height: 1.5;
+}
+.botRecoCheckIcon {
+  width: 17px; height: 17px;
+  flex-shrink: 0; margin-top: 1px;
+}
+
+.botRecoRoi {
+  display: inline-block;
+  font-size: 13px; color: var(--lnd-muted); line-height: 1.55;
+  background: var(--lnd-tint);
+  border: 1px solid var(--lnd-border);
+  border-radius: var(--lnd-r-sm);
+  padding: 10px 16px;
+}
+
+.botRecoPriceCard {
+  border: 2px solid;
+  border-radius: var(--lnd-r);
+  padding: 26px 24px;
+  background: var(--lnd-surface);
+  box-shadow: var(--lnd-sh);
+  display: flex; flex-direction: column;
+  flex: 1;
+}
+.botRecoPriceLabel {
+  font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--lnd-muted); margin-bottom: 10px;
+}
+.botRecoPriceAmount {
+  font-size: 44px; font-weight: 800;
+  color: var(--lnd-fg); letter-spacing: -2px;
+  margin-bottom: 3px; line-height: 1;
+}
+.botRecoPricePeriod {
+  font-size: 15px; font-weight: 500; color: var(--lnd-muted);
+  letter-spacing: 0; vertical-align: middle;
+}
+.botRecoPriceAlt {
+  font-size: 12px; color: var(--lnd-muted);
+  margin-bottom: 22px; margin-top: 4px;
+}
+.botRecoComingSoon {
+  font-size: 28px; font-weight: 800;
+  color: var(--lnd-fg); letter-spacing: -1px; margin-bottom: 6px;
+}
+
+.botRecoCta {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 15px;
+  border: none; border-radius: var(--lnd-r-sm);
+  color: white; font-size: 15px; font-weight: 700; font-family: inherit;
+  cursor: pointer;
+  transition: opacity .15s, transform .12s;
+  margin-bottom: 10px;
+  margin-top: auto;
+}
+.botRecoCta:hover { opacity: 0.88; transform: translateY(-1px); }
+.botRecoCta:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.botRecoCtaIcon { width: 16px; height: 16px; flex-shrink: 0; }
+
+.botRecoCtaGhost {
+  display: block; width: 100%;
+  background: none; border: none; font-family: inherit;
+  font-size: 13px; color: var(--lnd-muted);
+  cursor: pointer; padding: 6px 0; text-align: center;
+  transition: color .15s;
+}
+.botRecoCtaGhost:hover { color: var(--lnd-fg); }
+.botRecoCtaGhost:focus-visible { outline: 2px solid var(--lnd-blue); outline-offset: 2px; border-radius: 4px; }
+
+/* Bot focus states — WCAG 2.4.7 */
+.botCard:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 3px;
+}
+
+/* Bot responsive */
+@media (max-width: 1024px) {
+  .botCards { grid-template-columns: 1fr; }
+  .botRecoInner { grid-template-columns: 1fr; }
+  .botRecoLeft { border-right: none; border-bottom: 1px solid var(--lnd-border); padding: 28px; }
+  .botRecoRight { padding: 28px; }
+}
+@media (max-width: 768px) {
+  .botSection { padding: 72px 0; }
+  .botCards { grid-template-columns: 1fr; }
+  .botCard { padding: 28px 20px 24px; }
+}
+
 /* ─── Mini dashboard mockup (video card thumbnail) ─── */
 
 /* Contenedor raíz — ocupa todo el videoThumbBg, fade de bordes */

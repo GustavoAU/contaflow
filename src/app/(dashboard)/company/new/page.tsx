@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { NewCompanyForm } from "@/components/company/NewCompanyForm";
+import { cookies } from "next/headers";
 
 export default async function NewCompanyPage({
   searchParams,
@@ -14,6 +15,10 @@ export default async function NewCompanyPage({
   if (!user) redirect("/sign-in");
 
   const { profile } = await searchParams;
+  // Si no viene por URL param, intentamos leer la cookie que pone el BotRecomendador
+  const cookieStore = await cookies();
+  const cookieProfile = cookieStore.get("cf-pending-profile")?.value;
+  const resolvedProfile = profile ?? cookieProfile;
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -32,7 +37,7 @@ export default async function NewCompanyPage({
             Completa los datos de tu empresa para comenzar
           </p>
 
-          <NewCompanyForm userId={user.id} initialProfile={profile} />
+          <NewCompanyForm userId={user.id} initialProfile={resolvedProfile} />
         </div>
       </div>
     </div>

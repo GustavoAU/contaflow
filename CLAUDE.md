@@ -373,7 +373,9 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Fase P** ✅ merged (2026-06-15): ScopeProfile enum (SOLO/EMPRESA/DESPACHO) + Company.scopeProfile nullable + NewCompanyForm selector de perfil + updateScopeProfileAction + /activate-modules page + nav progressive disclosure (Nómina/Inventario locked en SOLO) + banner onboarding si scopeProfile==null (ADR-033) — 2782 tests
 
-**Tanda A landing** ✅ en feat/landing-quickwins (pendiente merge): top-banner urgencia + precio tachado plan anual + CTAs intermedios + ROI anchor — merge cuando Gustavo confirme
+**Tanda A landing** ✅ merged (top-banner urgencia + precio tachado plan anual + CTAs intermedios + ROI anchor)
+
+**Tanda C landing** ✅ merged (BotRecomendador wizard inline — 3 tarjetas SOLO/EMPRESA/DESPACHO + panel animado + cookie cf-pending-profile 30min → /sign-up?profile=X + pre-fill NewCompanyForm — ADR-033 — 2782 tests)
 
 **2782 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
 
