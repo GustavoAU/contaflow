@@ -15,8 +15,9 @@ import { AIAssistantChat } from "./AIAssistantChat";
 type Props = {
   companyId: string;
   companyName: string;
-  /** Resumen de anomalías obtenido en el server (layout). Evita despachar una Server Action
-      en el montaje, que disparaba el bug de Next useActionQueue/useOptimistic ("Rendered more hooks"). */
+  /** Estado inicial opcional del badge. El resumen real se obtiene de forma diferida vía
+      Route Handler (fetch) en el montaje — ver useEffect abajo. NO se usa Server Action
+      en el montaje porque disparaba el bug de Next useActionQueue/useOptimistic. */
   initialAnomaly?: { critical: number; high: number } | null;
 };
 
@@ -34,10 +35,26 @@ function deriveAnomaly(a: { critical: number; high: number } | null | undefined)
 
 export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  const [anomaly] = useState<AnomalyState>(() => deriveAnomaly(initialAnomaly));
+  const [anomaly, setAnomaly] = useState<AnomalyState>(() => deriveAnomaly(initialAnomaly));
   const [showTip, setShowTip] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // ─── Carga diferida del resumen de anomalías (badge) ─────────────────────────
+  // Vía Route Handler con fetch() — NO Server Action — para NO pasar por la cola de
+  // acciones de Next (useActionQueue/useOptimistic), que con dispatch en el montaje
+  // disparaba "Rendered more hooks". fetch() normal es seguro y no bloquea el layout.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch(`/api/company/${companyId}/anomaly-summary`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { success?: boolean; critical?: number; high?: number } | null) => {
+        if (!data || data.success === false) return;
+        setAnomaly(deriveAnomaly({ critical: data.critical ?? 0, high: data.high ?? 0 }));
+      })
+      .catch(() => { /* badge no-crítico: silencioso (incluye AbortError) */ });
+    return () => ctrl.abort();
+  }, [companyId]);
 
   // ─── Callout de primera visita ───────────────────────────────────────────────
   // Muestra un tooltip sobre el botón durante 6s cuando hay anomalías y el
