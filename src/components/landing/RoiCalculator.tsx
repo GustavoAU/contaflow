@@ -25,7 +25,7 @@ export function RoiCalculator() {
   }, [clients, hoursPerClient]);
 
   return (
-    <section className={styles.roi}>
+    <section id="roi" className={styles.roi}>
       <div className={styles.roiCard}>
         <div className={`${styles.secHead}`} style={{ textAlign: "center", marginBottom: "2rem" }}>
           <p className={styles.eyebrow}>Calculadora de ROI</p>

@@ -1114,3 +1114,84 @@
   outline: 2px solid var(--lnd-blue-l);
   outline-offset: 3px;
 }
+
+/* ─── Top banner — Early Adopter urgency ─── */
+.topBanner {
+  background: linear-gradient(90deg, oklch(0.50 0.17 60), oklch(0.46 0.19 54));
+  padding: 10px 0;
+}
+.topBannerInner {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px; flex-wrap: wrap;
+}
+.topBannerText {
+  font-size: 14px; font-weight: 500;
+  color: oklch(0.97 0.02 72); letter-spacing: -0.1px; margin: 0;
+}
+.topBannerText strong { font-weight: 800; }
+.topBannerLink {
+  font-size: 13px; font-weight: 700; line-height: 1;
+  color: oklch(0.18 0.08 55);
+  background: oklch(0.97 0.02 72);
+  padding: 6px 16px; border-radius: 999px;
+  text-decoration: none; white-space: nowrap;
+  transition: opacity .15s, transform .1s;
+}
+.topBannerLink:hover { opacity: 0.88; transform: translateY(-1px); }
+.topBannerLink:focus-visible {
+  outline: 2px solid oklch(0.18 0.08 55);
+  outline-offset: 2px;
+}
+
+/* ─── Pricing — original price strikethrough + savings badge ─── */
+.pcOriginalPrice {
+  font-size: 20px; font-weight: 600;
+  color: var(--lnd-muted); text-decoration: line-through;
+  letter-spacing: -0.5px; margin-right: 4px; align-self: baseline;
+}
+.pcHl .pcOriginalPrice { color: oklch(0.55 0.05 258); }
+.pcSavingsBadge {
+  display: inline-block;
+  font-size: 12px; font-weight: 700;
+  color: oklch(0.38 0.12 145);
+  background: oklch(0.93 0.06 145);
+  border: 1px solid oklch(0.75 0.12 145 / 0.35);
+  padding: 3px 10px; border-radius: 999px;
+  margin: 4px 0 2px;
+}
+
+/* ─── Hero ROI anchor link ─── */
+.heroRoiLink {
+  display: inline-block;
+  font-size: 13px; font-weight: 500;
+  color: oklch(0.65 0.12 258);
+  text-decoration: underline; text-underline-offset: 3px;
+  margin-top: 10px;
+  transition: color .15s;
+}
+.heroRoiLink:hover { color: var(--lnd-blue-l); }
+.heroRoiLink:focus-visible {
+  outline: 2px solid var(--lnd-blue-l);
+  outline-offset: 2px; border-radius: 3px;
+}
+
+/* ─── Section inline CTA (Forma 30, Conciliación) ─── */
+.sectionCtaWrap { margin-top: 28px; }
+.btnSectionCta {
+  font-size: 14px; font-weight: 600; line-height: 1;
+  color: var(--lnd-blue);
+  background: var(--lnd-blue-dim);
+  border: 1.5px solid oklch(0.50 0.25 258 / 0.25);
+  padding: 11px 20px; border-radius: var(--lnd-r-sm);
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background .15s, border-color .15s;
+}
+.btnSectionCta:hover {
+  background: oklch(0.50 0.25 258 / 0.15);
+  border-color: oklch(0.50 0.25 258 / 0.4);
+}
+.btnSectionCta:focus-visible {
+  outline: 2px solid var(--lnd-blue);
+  outline-offset: 3px;
+}
