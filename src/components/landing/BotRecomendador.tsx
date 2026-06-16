@@ -99,7 +99,7 @@ function cookieAndGo(profileId: ProfileId, href: string) {
   window.location.href = href;
 }
 
-export function BotRecomendador() {
+export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   const [selected, setSelected] = useState<ProfileId | null>(null);
   const recoRef = useRef<HTMLDivElement>(null);
 
@@ -252,18 +252,29 @@ export function BotRecomendador() {
                       <button
                         className={styles.botRecoCta}
                         style={{ background: profile.accentColor }}
-                        onClick={() => cookieAndGo(profile.id, `/sign-up?profile=${profile.id}`)}
+                        onClick={() =>
+                          cookieAndGo(
+                            profile.id,
+                            isAuthenticated
+                              ? `/company/new?profile=${profile.id}`
+                              : `/sign-up?profile=${profile.id}`,
+                          )
+                        }
                       >
-                        Comenzar con perfil {profile.label}
+                        {isAuthenticated
+                          ? `Crear empresa ${profile.label}`
+                          : `Comenzar con perfil ${profile.label}`}
                         <ArrowRightIcon className={styles.botRecoCtaIcon} aria-hidden />
                       </button>
 
-                      <button
-                        className={styles.botRecoCtaGhost}
-                        onClick={() => cookieAndGo(profile.id, "/sign-up")}
-                      >
-                        Probar 14 días gratis — sin tarjeta
-                      </button>
+                      {!isAuthenticated && (
+                        <button
+                          className={styles.botRecoCtaGhost}
+                          onClick={() => cookieAndGo(profile.id, "/sign-up")}
+                        >
+                          Probar 14 días gratis — sin tarjeta
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

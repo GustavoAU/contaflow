@@ -117,14 +117,15 @@
   position: relative;
 }
 .hero::before {
-  content: ''; position: absolute; inset: -20%; pointer-events: none;
+  content: ''; position: absolute; inset: -25%; pointer-events: none;
   background:
-    radial-gradient(ellipse 65% 65% at 5% 55%,  oklch(0.50 0.25 258 / 0.22) 0%, transparent 65%),
-    radial-gradient(ellipse 45% 55% at 95% 10%,  oklch(0.75 0.13 72 / 0.14) 0%, transparent 55%),
-    radial-gradient(ellipse 35% 55% at 55% 90%,  oklch(0.55 0.22 290 / 0.14) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 40% at 50% 50%,  oklch(0.145 0.05 258) 0%, transparent 80%);
+    radial-gradient(ellipse 58% 60% at 8% 48%,  oklch(0.55 0.27 258 / 0.42) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 92% 10%, oklch(0.75 0.15 72 / 0.22) 0%, transparent 56%),
+    radial-gradient(ellipse 46% 56% at 72% 85%, oklch(0.55 0.25 290 / 0.36) 0%, transparent 60%),
+    radial-gradient(ellipse 42% 46% at 32% 82%, oklch(0.62 0.17 200 / 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, oklch(0.145 0.05 258) 0%, transparent 82%);
   will-change: transform;
-  animation: heroAurora 22s ease-in-out infinite alternate;
+  animation: heroAurora 18s ease-in-out infinite alternate;
 }
 .hero::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -135,8 +136,8 @@
 }
 @keyframes heroAurora {
   0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate3d(2%, -1.5%, 0) scale(1.08) rotate(1.5deg); }
-  100% { transform: translate3d(-1.5%, 1%, 0) scale(1.04) rotate(-1deg); }
+  50%  { transform: translate3d(3.5%, -3%, 0) scale(1.14) rotate(2.5deg); }
+  100% { transform: translate3d(-3%, 2%, 0) scale(1.07) rotate(-2deg); }
 }
 @keyframes heroGridDrift {
   from { background-position: 0 0; }

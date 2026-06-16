@@ -548,7 +548,7 @@ export default async function LandingPage() {
       <RoiCalculator />
 
       {/* ── Bot Recomendador — wizard visual de perfil (Tanda C) ──────────── */}
-      <BotRecomendador />
+      <BotRecomendador isAuthenticated={isAuthenticated} />
 
       {/* ── Precios ───────────────────────────────────────────────────────── */}
       <section id="precios" className={styles.section}>
@@ -616,10 +616,10 @@ export default async function LandingPage() {
                     ))}
                   </ul>
                   <Link
-                    href={plan.ctaHref}
+                    href={isAuthenticated ? "/dashboard" : plan.ctaHref}
                     className={`${styles.btnPc} ${plan.highlighted ? styles.btnPcHl : ""} ${plan.key === "monthly" ? styles.btnPcSolid : ""}`}
                   >
-                    {plan.cta}
+                    {isAuthenticated ? "Gestionar en mi panel" : plan.cta}
                   </Link>
                 </div>
               );
