@@ -27,7 +27,7 @@ import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
-import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
+import { assertWriteAllowed, READ_ONLY_MESSAGE } from "@/modules/billing/services/SubscriptionService";
 import { put } from "@vercel/blob";
 import { createHash } from "crypto";
 
@@ -193,6 +193,9 @@ export async function createInvoiceAction(input: unknown) {
           error: "Datos de referencia inválidos (empresa o período no existe)",
         };
       }
+    }
+    if (error instanceof Error && error.message === READ_ONLY_MESSAGE) {
+      return { success: false as const, error: error.message };
     }
     return { success: false as const, error: "Error al registrar la factura" };
   }
