@@ -7,6 +7,9 @@
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
+import { READ_ONLY_MESSAGE } from "@/lib/prisma-billing-gate";
+
+export { READ_ONLY_MESSAGE };
 
 const MS_PER_DAY = 86_400_000;
 
@@ -64,10 +67,6 @@ export async function isWriteAllowed(companyId: string): Promise<boolean> {
   const state = await getSubscriptionState(companyId);
   return !state.hasSubscription || state.isActive;
 }
-
-// Mensaje único de corte (reusable en UI y errores de action).
-export const READ_ONLY_MESSAGE =
-  "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.";
 
 // Lanza si la empresa NO puede escribir (suscripción vencida).
 // Fail-open: si la verificación falla (DB transitoria), permite — nunca bloquear
