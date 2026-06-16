@@ -33,7 +33,7 @@ const PROFILES: {
   {
     value: "DESPACHO",
     label: "Despacho / Grupo",
-    description: "Múltiples RIFs bajo un mismo usuario. Próximamente.",
+    description: "Gestiona los RIFs de tus clientes desde un solo panel.",
     Icon: LayoutGridIcon,
   },
 ];
@@ -109,17 +109,14 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
           <div className="grid gap-2">
             {PROFILES.map(({ value, label, description, Icon }) => {
               const isSelected = profile === value;
-              const isDisabled = value === "DESPACHO";
               return (
                 <button
                   key={value}
                   type="button"
-                  disabled={isDisabled}
-                  onClick={() => !isDisabled && setProfile(isSelected ? undefined : value)}
+                  onClick={() => setProfile(isSelected ? undefined : value)}
                   className={cn(
                     "flex items-start gap-3 w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
                     "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
-                    isDisabled && "opacity-40 cursor-not-allowed",
                     isSelected
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                       : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/50"
@@ -131,11 +128,6 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
                       <span className={cn("text-sm font-medium", isSelected ? "text-blue-700 dark:text-blue-400" : "text-zinc-800 dark:text-zinc-100")}>
                         {label}
                       </span>
-                      {isDisabled && (
-                        <span className="text-10 font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">
-                          Pronto
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>
                   </div>

@@ -9,6 +9,7 @@ import { LandingDespachos } from "@/components/landing/LandingDespachos";
 import { ScreenshotLightbox } from "@/components/landing/ScreenshotLightbox";
 import { RoiCalculator } from "@/components/landing/RoiCalculator";
 import { BotRecomendador } from "@/components/landing/BotRecomendador";
+import { SignOutLink } from "@/components/landing/SignOutLink";
 import styles from "./landing.module.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -256,10 +257,13 @@ export default async function LandingPage() {
 
             <div className={styles.navCtas}>
               {isAuthenticated ? (
-                <Link href="/dashboard" className={styles.btnPill}>
-                  Ir al panel
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                </Link>
+                <>
+                  <SignOutLink className={styles.btnGhost} />
+                  <Link href="/dashboard" className={styles.btnPill}>
+                    Ir al panel
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link href="/sign-in" className={styles.btnGhost}>Iniciar sesión</Link>
@@ -731,8 +735,17 @@ export default async function LandingPage() {
               <ul className={styles.ftLinks}>
                 <li><Link href="#funcionalidades">Funcionalidades</Link></li>
                 <li><Link href="#precios">Precios</Link></li>
-                <li><Link href="/sign-in">Iniciar sesión</Link></li>
-                <li><Link href="/sign-up">Crear cuenta</Link></li>
+                {isAuthenticated ? (
+                  <>
+                    <li><Link href="/dashboard">Ir al panel</Link></li>
+                    <li><SignOutLink /></li>
+                  </>
+                ) : (
+                  <>
+                    <li><Link href="/sign-in">Iniciar sesión</Link></li>
+                    <li><Link href="/sign-up">Crear cuenta</Link></li>
+                  </>
+                )}
               </ul>
             </div>
 

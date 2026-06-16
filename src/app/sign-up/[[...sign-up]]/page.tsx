@@ -21,9 +21,9 @@ const PLAN_SUMMARIES: Record<
 > = {
   mensual: {
     name: "Plan Mensual",
-    displayPrice: "$59/mes",
+    displayPrice: "$79/mes",
     billingNote: "Facturado mensualmente en USDT. Cancela cuando quieras.",
-    totalToday: "$59 USDT / mes",
+    totalToday: "$79 USDT / mes",
     features: [
       "1 empresa (RIF) incluida",
       "Facturas, nómina e inventario ilimitados",
@@ -33,9 +33,9 @@ const PLAN_SUMMARIES: Record<
   },
   anual: {
     name: "Plan Anual",
-    displayPrice: "$47/mes",
-    billingNote: "Pagas $565 USDT una sola vez al año — equivale a $47/mes",
-    totalToday: "$565 USDT",
+    displayPrice: "$65/mes",
+    billingNote: "Pagas $780 USDT una sola vez al año — equivale a $65/mes",
+    totalToday: "$780 USDT",
     chargeNote: "Cobro único anual (no mensual) · 12 meses pagados, 14 de acceso",
     features: [
       "1 empresa (RIF) incluida",
@@ -48,11 +48,11 @@ const PLAN_SUMMARIES: Record<
   },
   early_adopter: {
     name: "Plan Early Adopter",
-    displayPrice: "$19/mes",
-    billingNote: "Año 1 · Facturado como $228 USDT/año",
+    displayPrice: "$59/mes",
+    billingNote: "Año 1 · Facturado como $708 USDT/año",
     expandDetails:
-      "A partir del año 2: $565/año (precio regular de $47/mes). Tu precio de $19/mes queda fijo de por vida mientras mantengas la suscripción activa.",
-    totalToday: "$228 USDT / año 1",
+      "A partir del año 2: $780/año (precio regular de $65/mes). Tu precio de $59/mes en el año 1 es el más bajo disponible — solo para las primeras 10 empresas.",
+    totalToday: "$708 USDT / año 1",
     features: [
       "1 empresa (RIF) incluida",
       "Sesión de onboarding 1.5 h (videollamada)",
