@@ -385,9 +385,11 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Precio plan base POR PERFIL** ✅ merged (2026-06-16): el precio del plan base depende del `scopeProfile` (Individual y Empresa al mismo precio no tenía sentido). Individual (SOLO): $69 mensual / $59 anual, sin Early. Empresa (EMPRESA/null): $79 mensual / $65 anual / Early Adopter $59 año 1. `BillingService.getPlanPriceCents(scopeProfile, plan)` + `pricingProfileFor()` (SOLO→Individual; resto→Empresa, nunca cobra de menos) reemplazan `PLAN_PRICES_CENTS`. `createCheckout` lee `company.scopeProfile`; EARLY_ADOPTER lanza si SOLO. /upgrade page perfil-aware — 2807 tests.
 
+**Ciclo de vida de suscripción** ✅ merged (2026-06-16): modelo cripto = sin débito automático, renovación MANUAL. `SubscriptionService`: getSubscriptionState/isWriteAllowed/assertWriteAllowed (fail-open) + runBillingLifecycle (marca EXPIRED vencidas + recordatorios email 7d/3d vía Resend, ventana diaria). WhatsApp `lib/whatsapp.ts` Meta Cloud API stub enchufable (no-op sin env `WHATSAPP_*`; requiere también capturar teléfono cliente). Cron `/api/cron/billing-lifecycle` (13:00). **Corte solo-lectura** al vencer: `assertWriteAllowed` en actions de factura/retención/asiento/gasto + banner rojo en dashboard. Empresas sin suscripción (demo) nunca se cortan — 2819 tests.
+
 **Landing launch-ready** ✅ merged (2026-06-15): Despacho activo en BotRecomendador/activate-modules/NewCompanyForm (quitado "Próximamente"/"Pronto") + footer/nav/mobile-nav auth-aware (SignOutLink con Clerk SignOutButton — "Ir al panel"+"Cerrar sesión" si hay sesión).
 
-**2807 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-16)
+**2819 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-16)
 
 > Pendiente landing (no bloqueante): rediseño visual del Hero — el usuario lo quiere "más tecnológico/avanzado" (referencia: quickbooks.intuit.com). Actualmente plano. Tanda de diseño dedicada.
 
