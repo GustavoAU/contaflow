@@ -377,9 +377,17 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Tanda C landing** ✅ merged (BotRecomendador wizard inline — 3 tarjetas SOLO/EMPRESA/DESPACHO + panel animado + cookie cf-pending-profile 30min → /sign-up?profile=X + pre-fill NewCompanyForm — ADR-033 — 2782 tests)
 
-**Fase Despacho (ADR-034)** ✅ merged (2026-06-15): ManagedClient + DespachoTier enum + Subscription.despachoTier + DespachoService (canAddManagedClient/addManagedClient/archiveManagedClient/listManagedClients/upgradeDespachoTier) + guards R-6/ADR-004/VEN_RIF_REGEX + DespachoRifList/AddRifModal/DespachoTierCard/DespachoOnboardingBanner + /despacho/rifs page + nav progressive disclosure scopeProfile=DESPACHO — 2803 tests. Precios tier: placeholder TODO (STARTER $29/PRO $79/UNLIMITED $149 USD-cents), fijar antes de activar cobro.
+**Fase Despacho (ADR-034)** ✅ merged (2026-06-15): ManagedClient + DespachoTier enum + Subscription.despachoTier + DespachoService (canAddManagedClient/addManagedClient/archiveManagedClient/listManagedClients/upgradeDespachoTier) + guards R-6/ADR-004/VEN_RIF_REGEX + DespachoRifList/AddRifModal/DespachoTierCard/DespachoOnboardingBanner + /despacho/rifs page + nav progressive disclosure scopeProfile=DESPACHO — 2803 tests.
 
-**2803 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
+**Fase Despacho — flujo de pago** ✅ merged (2026-06-15): /despacho/upgrade page + DespachoUpgradeFlow + upgradeDespachoTierAction (OWNER only) + upgradeDespachoTier refactor (upsert Subscription "todo incluido" + AuditLog R-6 + successUrl/cancelUrl) + handleIPN aplica despachoTier desde metadata al confirmar pago. Auditoría seguridad ADR-034 §6.3: GO — 2805 tests.
+
+**Precios definitivos lanzamiento** ✅ merged (2026-06-15): MONTHLY $79 · ANNUAL $780/año ($65/mes) · Early Adopter $708/año ($59/mes año 1, renueva a ANNUAL año 2+). Despacho STARTER $119 (5 RIFs) · PRO $249 (25 RIFs) · UNLIMITED $359 (∞ RIFs) — todos incluyen empresa propia. Sincronizados en BillingService.PLAN_PRICES_CENTS, DespachoService.DESPACHO_TIER_PRICES_USD_CENTS, landing (page.tsx + BotRecomendador), sign-up page, /upgrade page.
+
+**Landing launch-ready** ✅ merged (2026-06-15): Despacho activo en BotRecomendador/activate-modules/NewCompanyForm (quitado "Próximamente"/"Pronto") + footer/nav/mobile-nav auth-aware (SignOutLink con Clerk SignOutButton — "Ir al panel"+"Cerrar sesión" si hay sesión).
+
+**2805 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
+
+> Pendiente landing (no bloqueante): rediseño visual del Hero — el usuario lo quiere "más tecnológico/avanzado" (referencia: quickbooks.intuit.com). Actualmente plano. Tanda de diseño dedicada.
 
 ### middleware.ts
 
