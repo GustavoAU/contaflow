@@ -26,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     subscription: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      upsert: vi.fn(),
     },
     subscriptionPayment: {
       create: vi.fn(),
@@ -418,15 +419,26 @@ describe("upgradeDespachoTier", () => {
   it("STARTER → PRO con count ≤ límite STARTER → success:true con paymentUrl", async () => {
     // arrange
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(SUBSCRIPTION_STARTER as never);
+    vi.mocked(prisma.subscription.upsert).mockResolvedValue({ id: SUB_ID } as never);
     vi.mocked(prisma.managedClient.count).mockResolvedValue(3 as never);
     vi.mocked(prisma.subscriptionPayment.create).mockResolvedValue({ id: "payment-1" } as never);
     vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     // act
-    const result = await upgradeDespachoTier(COMPANY_ID, "PRO", ACTOR_ID);
+    const result = await upgradeDespachoTier(COMPANY_ID, "PRO", ACTOR_ID, IP, UA);
     // assert
     expect(result).toMatchObject({ success: true });
     expect((result as { success: true; paymentUrl: string }).paymentUrl).toBeTruthy();
+    // R-6: AuditLog con ip/userAgent dentro de la transacción
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "DESPACHO_TIER_CHECKOUT_INITIATED",
+          ipAddress: IP,
+          userAgent: UA,
+        }),
+      })
+    );
   });
 
   it("downgrade protegido: PRO → STARTER con count > 5 → success:false con error descriptivo", async () => {
@@ -434,18 +446,18 @@ describe("upgradeDespachoTier", () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(SUBSCRIPTION_PRO as never);
     vi.mocked(prisma.managedClient.count).mockResolvedValue(10 as never);
     // act
-    const result = await upgradeDespachoTier(COMPANY_ID, "STARTER", ACTOR_ID);
+    const result = await upgradeDespachoTier(COMPANY_ID, "STARTER", ACTOR_ID, IP, UA);
     // assert
     expect(result).toMatchObject({ success: false });
     expect((result as { success: false; error: string }).error).toMatch(/10.*RIF|RIF.*10|STARTER/i);
-    expect(prisma.subscription.update).not.toHaveBeenCalled();
+    expect(prisma.subscription.upsert).not.toHaveBeenCalled();
   });
 
   it("tier ya activo (PRO → PRO) → success:false, error contiene 'ya tienes'", async () => {
     // arrange
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(SUBSCRIPTION_PRO as never);
     // act
-    const result = await upgradeDespachoTier(COMPANY_ID, "PRO", ACTOR_ID);
+    const result = await upgradeDespachoTier(COMPANY_ID, "PRO", ACTOR_ID, IP, UA);
     // assert
     expect(result).toMatchObject({ success: false });
     expect((result as { success: false; error: string }).error).toMatch(/ya tienes/i);

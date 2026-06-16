@@ -16,7 +16,7 @@ export const DESPACHO_TIER_RIF_LIMITS: Record<DespachoTier, number | null> = {
 };
 
 // Precio mensual en centavos USD (pago mensual recurrente)
-const DESPACHO_TIER_PRICES_USD_CENTS: Record<DespachoTier, number> = {
+export const DESPACHO_TIER_PRICES_USD_CENTS: Record<DespachoTier, number> = {
   STARTER: 11900,   // $119/mes · empresa propia + hasta 5 RIFs gestionados
   PRO: 24900,       // $249/mes · empresa propia + hasta 25 RIFs gestionados
   UNLIMITED: 35900, // $359/mes · empresa propia + RIFs ilimitados
@@ -183,18 +183,33 @@ export async function listManagedClients(
 
 // ─── upgradeDespachoTier ──────────────────────────────────────────────────────
 
+// Inicia el checkout del tier Despacho. "Todo incluido": el pago del tier ES la
+// suscripción del Despacho (incluye su empresa propia + N RIFs). El despachoTier
+// NO se aplica aquí — queda en metadata y se activa al confirmar el pago vía
+// handleIPN (BillingService). Soporta Despacho sin suscripción previa (upsert).
+// R-6: AuditLog con ip/userAgent dentro del mismo $transaction.
 export async function upgradeDespachoTier(
   companyId: string,
   newTier: DespachoTier,
   callerUserId: string,
+  ip: string | null,
+  userAgent: string | null,
 ): Promise<{ success: true; paymentUrl: string } | { success: false; error: string }> {
   const subscription = await prisma.subscription.findUnique({
     where: { companyId },
-    select: { id: true, despachoTier: true },
+    select: { despachoTier: true, plan: true, status: true },
   });
 
-  if (subscription?.despachoTier === newTier) {
+  if (subscription?.despachoTier === newTier && subscription?.status === "ACTIVE") {
     return { success: false, error: `Ya tienes el tier ${newTier} activo` };
+  }
+
+  // LOW-1 (paridad con BillingService): bloquear doble checkout con pago en curso
+  if (subscription?.status === "PAST_DUE") {
+    return {
+      success: false,
+      error: "Ya tienes un pago en curso. Complétalo o espera a que expire antes de iniciar otro.",
+    };
   }
 
   // Downgrade protection: verificar que el count actual cabe en el nuevo tier
@@ -212,24 +227,63 @@ export async function upgradeDespachoTier(
   }
 
   const priceUsdCents = DESPACHO_TIER_PRICES_USD_CENTS[newTier];
+  const now = new Date();
+  const periodEnd = new Date(now.getTime() + 30 * 86_400_000); // cobro mensual del tier
 
+  // Upsert Subscription en PAST_DUE (pago pendiente) + payment PENDING + AuditLog.
+  // El despachoTier NO se toca todavía — solo se aplica al confirmar el pago.
   const payment = await prisma.$transaction(async (tx) => {
-    return (tx as typeof prisma).subscriptionPayment.create({
+    const sub = await (tx as typeof prisma).subscription.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        plan: subscription?.plan ?? "MONTHLY",
+        status: "PAST_DUE",
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        priceUsdCents,
+      },
+      update: {
+        status: "PAST_DUE",
+        priceUsdCents,
+      },
+    });
+
+    const created = await (tx as typeof prisma).subscriptionPayment.create({
       data: {
-        subscriptionId: subscription!.id,
+        subscriptionId: sub.id,
         amountUsdCents: priceUsdCents,
         currency: "usd",
         status: "PENDING",
         metadata: { despachoTierUpgrade: newTier, companyId },
       },
     });
+
+    await (tx as typeof prisma).auditLog.create({
+      data: {
+        action: "DESPACHO_TIER_CHECKOUT_INITIATED",
+        companyId,
+        entityId: created.id,
+        entityName: "SubscriptionPayment",
+        userId: callerUserId,
+        ipAddress: ip,
+        userAgent,
+        newValue: { despachoTier: newTier, priceUsdCents },
+      },
+    });
+
+    return created;
   });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://contaflow.app";
 
   const invoice = await createNowPaymentsInvoice({
     priceAmountCents: priceUsdCents,
     orderId: payment.id,
     orderDescription: `ContaFlow Despacho ${newTier}`,
-    ipnCallbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/nowpayments`,
+    ipnCallbackUrl: `${appUrl}/api/webhooks/nowpayments`,
+    successUrl: `${appUrl}/company/${companyId}/despacho/rifs?payment=success`,
+    cancelUrl: `${appUrl}/company/${companyId}/despacho/upgrade?payment=cancelled`,
   });
 
   await prisma.subscriptionPayment.update({

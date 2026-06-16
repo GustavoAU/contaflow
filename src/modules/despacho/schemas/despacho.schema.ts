@@ -23,4 +23,9 @@ export const ListManagedClientsSchema = z.object({
   includeArchived: z.boolean().optional().default(false),
 });
 
+export const UpgradeDespachoTierSchema = z.object({
+  companyId: z.string().min(1),
+  tier: z.enum(["STARTER", "PRO", "UNLIMITED"], { error: "Tier inválido" }),
+});
+
 export type AddManagedClientInput = z.infer<typeof AddManagedClientSchema>;

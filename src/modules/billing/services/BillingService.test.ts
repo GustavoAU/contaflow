@@ -222,6 +222,38 @@ describe("handleIPN", () => {
     );
   });
 
+  it("aplica despachoTier al confirmar pago de checkout de tier Despacho (ADR-034)", async () => {
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({
+      ...SUBSCRIPTION_PAYMENT,
+      metadata: { despachoTierUpgrade: "PRO", companyId: COMPANY_ID },
+    } as never);
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.subscription.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await handleIPN(BASE_IPN);
+
+    expect(prisma.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "ACTIVE", despachoTier: "PRO" }),
+      })
+    );
+  });
+
+  it("NO aplica despachoTier si el pago no es un checkout de Despacho", async () => {
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue(
+      SUBSCRIPTION_PAYMENT as never
+    );
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.subscription.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await handleIPN(BASE_IPN);
+
+    const call = vi.mocked(prisma.subscription.update).mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("despachoTier");
+  });
+
   it("es idempotente — ignora IPN si ya está CONFIRMED", async () => {
     vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({
       ...SUBSCRIPTION_PAYMENT,

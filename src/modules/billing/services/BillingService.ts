@@ -230,12 +230,25 @@ export async function handleIPN(ipn: NowPaymentsIPN, ipnSourceIp?: string | null
       const periodDays = PLAN_PERIOD_DAYS[plan] ?? 30;
       const periodEnd = addDays(now, periodDays);
 
+      // ADR-034: si el pago es un checkout de tier Despacho, aplicar el tier al
+      // confirmar (no antes — un pago fallido no debe cambiar el tier).
+      const meta =
+        typeof payment.metadata === "object" && payment.metadata !== null
+          ? (payment.metadata as Record<string, unknown>)
+          : {};
+      const despachoTierUpgrade = meta.despachoTierUpgrade as
+        | "STARTER"
+        | "PRO"
+        | "UNLIMITED"
+        | undefined;
+
       await tx.subscription.update({
         where: { id: payment.subscriptionId },
         data: {
           status: "ACTIVE",
           currentPeriodStart: now,
           currentPeriodEnd: periodEnd,
+          ...(despachoTierUpgrade ? { despachoTier: despachoTierUpgrade } : {}),
         },
       });
 
