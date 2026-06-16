@@ -95,18 +95,36 @@ export interface BillingLifecycleResult {
 }
 
 function buildReminderHtml(companyName: string, daysLeft: number, renewUrl: string): string {
+  const plural = daysLeft !== 1 ? "s" : "";
   return `
-    <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;color:#1a1a2e">
-      <h2 style="color:#3b3bdb">Tu suscripción de ContaFlow vence en ${daysLeft} día${daysLeft !== 1 ? "s" : ""}</h2>
-      <p>Hola, la suscripción de <strong>${companyName}</strong> está por vencer.</p>
-      <p>Para no perder acceso a la creación de facturas, retenciones y demás operaciones,
-      renueva tu plan antes del vencimiento. Tus datos y reportes siempre estarán disponibles.</p>
-      <p style="margin:24px 0">
-        <a href="${renewUrl}" style="background:#3b3bdb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
-          Renovar mi plan
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6b7280">El pago se procesa en USDT vía NOWPayments. Si ya renovaste, ignora este mensaje.</p>
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden">
+      <div style="background:#3b3bdb;padding:20px 28px">
+        <span style="color:#fff;font-size:18px;font-weight:800;letter-spacing:-0.3px">⚡ ContaFlow</span>
+      </div>
+      <div style="padding:28px;color:#1a1a2e;line-height:1.6">
+        <h2 style="margin:0 0 6px;font-size:20px;color:#1a1a2e">
+          Tu suscripción vence en ${daysLeft} día${plural}
+        </h2>
+        <p style="margin:0 0 16px;color:#4b5563">
+          Estimado cliente de <strong>${companyName}</strong>, te escribimos para recordarte que
+          tu suscripción a ContaFlow vence en <strong>${daysLeft} día${plural}</strong>.
+        </p>
+        <p style="margin:0 0 16px;color:#4b5563">
+          Renueva ahora para seguir emitiendo facturas, retenciones y operando sin interrupciones.
+          Tu información y reportes permanecen seguros y siempre disponibles.
+        </p>
+        <p style="margin:24px 0">
+          <a href="${renewUrl}" style="display:inline-block;background:#3b3bdb;color:#fff;padding:13px 28px;border-radius:9px;text-decoration:none;font-weight:700;font-size:15px">
+            Renovar mi suscripción
+          </a>
+        </p>
+        <p style="margin:16px 0 0;font-size:13px;color:#9ca3af">
+          El pago se procesa de forma segura en USDT vía NOWPayments. Si ya renovaste, ignora este mensaje.
+        </p>
+      </div>
+      <div style="background:#f9fafb;padding:14px 28px;border-top:1px solid #e5e7eb">
+        <span style="font-size:12px;color:#9ca3af">ContaFlow — Sistema Contable Venezolano · Conforme a PA 121 SENIAT</span>
+      </div>
     </div>
   `;
 }
