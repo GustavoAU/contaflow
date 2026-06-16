@@ -24,6 +24,24 @@ const EARLY_ADOPTER_SLOTS_TOTAL = 10;
 const EARLY_ADOPTER_SLOTS_TAKEN = 3;
 const SLOTS_LEFT = EARLY_ADOPTER_SLOTS_TOTAL - EARLY_ADOPTER_SLOTS_TAKEN;
 
+// Posiciones fijas (determinísticas para SSR) del campo de partículas del hero
+const HERO_PARTICLES: { top: string; left: string; delay: string; dur: string }[] = [
+  { top: "18%", left: "10%", delay: "0s",   dur: "6s" },
+  { top: "62%", left: "6%",  delay: "1.4s", dur: "7.5s" },
+  { top: "35%", left: "16%", delay: "0.7s", dur: "6.8s" },
+  { top: "78%", left: "20%", delay: "2.1s", dur: "8s" },
+  { top: "12%", left: "30%", delay: "1.1s", dur: "7s" },
+  { top: "50%", left: "26%", delay: "0.3s", dur: "6.4s" },
+  { top: "85%", left: "38%", delay: "1.8s", dur: "7.8s" },
+  { top: "24%", left: "46%", delay: "0.9s", dur: "6.6s" },
+  { top: "68%", left: "58%", delay: "2.4s", dur: "8.2s" },
+  { top: "16%", left: "66%", delay: "1.6s", dur: "7.2s" },
+  { top: "44%", left: "72%", delay: "0.5s", dur: "6.9s" },
+  { top: "80%", left: "78%", delay: "2.0s", dur: "7.6s" },
+  { top: "30%", left: "86%", delay: "1.3s", dur: "6.7s" },
+  { top: "58%", left: "92%", delay: "0.2s", dur: "7.9s" },
+];
+
 const FEATURES: {
   icon: React.ComponentType<{ className?: string }>;
   iconColor: "blue" | "gold";
@@ -283,6 +301,19 @@ export default async function LandingPage() {
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className={styles.hero}>
+        {/* FX decorativo: beams de luz + partículas (aria-hidden) */}
+        <div className={styles.heroFx} aria-hidden>
+          <span className={`${styles.heroBeam} ${styles.heroBeam1}`} />
+          <span className={`${styles.heroBeam} ${styles.heroBeam2}`} />
+          <span className={`${styles.heroBeam} ${styles.heroBeam3}`} />
+          {HERO_PARTICLES.map((p, i) => (
+            <span
+              key={i}
+              className={styles.heroParticle}
+              style={{ top: p.top, left: p.left, animationDelay: p.delay, animationDuration: p.dur }}
+            />
+          ))}
+        </div>
         <div className={`${styles.wrap} ${styles.heroInner}`}>
           <div className={styles.heroGrid}>
             {/* Copy */}
