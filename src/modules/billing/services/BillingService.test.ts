@@ -44,7 +44,7 @@ const SUBSCRIPTION_PAST_DUE = {
   status: "PAST_DUE",
   currentPeriodStart: new Date(),
   currentPeriodEnd: new Date(),
-  priceUsdCents: 5900,
+  priceUsdCents: 7900,
   earlyAdopterSlot: null,
 };
 
@@ -52,7 +52,7 @@ const SUBSCRIPTION_PAYMENT = {
   id: PAYMENT_ID,
   subscriptionId: SUB_ID,
   status: "PENDING",
-  amountUsdCents: 5900,
+  amountUsdCents: 7900,
   currency: "usd",
   metadata: { plan: "MONTHLY", companyId: COMPANY_ID },
   nowpaymentsPaymentId: null,
@@ -63,7 +63,7 @@ const INVOICE = {
   id: "np-invoice-1",
   token_id: "token-1",
   order_id: PAYMENT_ID,
-  price_amount: 59,
+  price_amount: 79,
   price_currency: "usd",
   pay_currency: "usdterc20",
   ipn_callback_url: "https://contaflow.app/api/webhooks/nowpayments",
@@ -98,7 +98,7 @@ describe("createCheckout", () => {
     expect(result.subscriptionPaymentId).toBe(PAYMENT_ID);
     expect(nowpayments.createNowPaymentsInvoice).toHaveBeenCalledWith(
       expect.objectContaining({
-        priceAmountCents: 5900,
+        priceAmountCents: 7900,
         orderId: PAYMENT_ID,
       })
     );
@@ -154,11 +154,11 @@ describe("createCheckout", () => {
     vi.mocked(prisma.subscription.upsert).mockResolvedValue({
       ...SUBSCRIPTION_PAST_DUE,
       plan: "ANNUAL",
-      priceUsdCents: 56500,
+      priceUsdCents: 78000,
     } as never);
     vi.mocked(prisma.subscriptionPayment.create).mockResolvedValue({
       ...SUBSCRIPTION_PAYMENT,
-      amountUsdCents: 56500,
+      amountUsdCents: 78000,
     } as never);
     vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue(SUBSCRIPTION_PAYMENT as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -167,7 +167,7 @@ describe("createCheckout", () => {
 
     expect(prisma.subscriptionPayment.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ amountUsdCents: 56500 }),
+        data: expect.objectContaining({ amountUsdCents: 78000 }),
       })
     );
   });
@@ -192,10 +192,10 @@ describe("handleIPN", () => {
     payment_id: "np-payment-123",
     payment_status: "finished" as const,
     pay_address: "0xabc",
-    price_amount: 59,
+    price_amount: 79,
     price_currency: "usd",
     pay_currency: "usdterc20",
-    actually_paid: 59,
+    actually_paid: 79,
     order_id: PAYMENT_ID,
   };
 

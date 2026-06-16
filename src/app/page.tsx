@@ -107,7 +107,7 @@ const PLANS = [
   {
     key: "monthly",
     name: "Mensual",
-    price: "$59",
+    price: "$79",
     period: "/mes",
     priceSub: null,
     description: "Sin compromisos, cancela cuando quieras.",
@@ -128,10 +128,10 @@ const PLANS = [
   {
     key: "annual",
     name: "Anual",
-    price: "$47",
+    price: "$65",
     period: "/mes",
-    priceSub: "Un solo cobro de $565 USDT al año · 12 meses pagados, 14 de acceso",
-    description: "Pagas $565 USDT ahora y accedes todo el año. Equivale a $47/mes vs $59 mensual — ahorras $143. Cancela antes del próximo período.",
+    priceSub: "Un solo cobro de $780 USDT al año · 12 meses pagados, 14 de acceso",
+    description: "Pagas $780 USDT ahora y accedes todo el año. Equivale a $65/mes vs $79 mensual — ahorras $168. Cancela antes del próximo período.",
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Facturas, nómina e inventario ilimitados", gold: false },
@@ -141,18 +141,18 @@ const PLANS = [
     cta: "Suscribirme anual",
     ctaHref: "/sign-up?plan=anual",
     highlighted: true,
-    originalPrice: "$59",
-    savingsBadge: "Ahorras $143/año",
+    originalPrice: "$79",
+    savingsBadge: "Ahorras $168/año",
     badge: "Más popular",
     badgeVariant: "pop" as const,
   },
   {
     key: "early_adopter",
     name: "Early Adopter",
-    price: "$19",
+    price: "$59",
     period: "/mes · año 1",
-    priceSub: "Total año 1: $228 USDT · Año 2+: $47/mes facturado anualmente",
-    description: `Ahorras $480 en el primer año vs plan mensual. Al vencer, te avisamos 30 días antes — renueva o cancela sin penalización. Solo quedan ${SLOTS_LEFT} cupos.`,
+    priceSub: "Total año 1: $708 USDT · Año 2+: $65/mes facturado anualmente",
+    description: `Ahorras $240 en el primer año vs plan mensual. Al vencer, te avisamos 30 días antes — renueva o cancela sin penalización. Solo quedan ${SLOTS_LEFT} cupos.`,
     features: [
       { text: "1 empresa (RIF) incluida", gold: false },
       { text: "Sesión de onboarding 1.5h (videollamada)", gold: false },
@@ -230,7 +230,7 @@ export default async function LandingPage() {
         <div className={styles.wrap}>
           <div className={styles.topBannerInner}>
             <p className={styles.topBannerText}>
-              ⚡ Solo quedan <strong>{SLOTS_LEFT} cupos Early Adopter</strong> — $19/mes · Año 1
+              ⚡ Solo quedan <strong>{SLOTS_LEFT} cupos Early Adopter</strong> — $59/mes · Año 1
             </p>
             <Link href="/sign-up?plan=early_adopter" className={styles.topBannerLink}>
               Reclamar mi slot →

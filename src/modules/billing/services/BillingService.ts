@@ -9,9 +9,9 @@ import type { BillingPaymentStatus } from "@prisma/client";
 export type PaidPlan = "MONTHLY" | "ANNUAL" | "EARLY_ADOPTER";
 
 export const PLAN_PRICES_CENTS: Record<PaidPlan, number> = {
-  MONTHLY: 5900,
-  ANNUAL: 56500,
-  EARLY_ADOPTER: 2500,
+  MONTHLY: 7900,    // $79/mes
+  ANNUAL: 78000,    // $780/año ($65/mes efectivo) — mismo precio que renueva Early Adopter año 2+
+  EARLY_ADOPTER: 70800, // $708/año ($59/mes efectivo) — precio bloqueado para siempre; año 2+ renueva a ANNUAL
 };
 
 const PLAN_PERIOD_DAYS: Record<PaidPlan, number> = {

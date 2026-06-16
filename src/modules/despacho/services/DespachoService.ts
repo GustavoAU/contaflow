@@ -5,8 +5,9 @@ import { isPrismaError } from "@/lib/prisma-errors";
 import { createNowPaymentsInvoice } from "@/lib/nowpayments";
 import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
 
-// ─── Constantes TODO — fijar antes de lanzamiento del tier ───────────────────
-// Los límites viven aquí, NO en el schema (ADR-034 D-3).
+// ─── Constantes — ADR-034, precios fijados 2026-06-15 ───────────────────────
+// Los límites y precios viven aquí, NO en el schema (ADR-034 D-3).
+// Todos los tiers incluyen la empresa propia del Despacho + N RIFs gestionados.
 
 export const DESPACHO_TIER_RIF_LIMITS: Record<DespachoTier, number | null> = {
   STARTER: 5,
@@ -14,11 +15,11 @@ export const DESPACHO_TIER_RIF_LIMITS: Record<DespachoTier, number | null> = {
   UNLIMITED: null,
 };
 
-// Precio en centavos USD — placeholder hasta fijación con datos Alpha
+// Precio mensual en centavos USD (pago mensual recurrente)
 const DESPACHO_TIER_PRICES_USD_CENTS: Record<DespachoTier, number> = {
-  STARTER: 2900,   // TODO: fijar precio real
-  PRO: 7900,       // TODO: fijar precio real
-  UNLIMITED: 14900, // TODO: fijar precio real
+  STARTER: 11900,   // $119/mes · empresa propia + hasta 5 RIFs gestionados
+  PRO: 24900,       // $249/mes · empresa propia + hasta 25 RIFs gestionados
+  UNLIMITED: 35900, // $359/mes · empresa propia + RIFs ilimitados
 };
 
 // ─── Input types ─────────────────────────────────────────────────────────────
