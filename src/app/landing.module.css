@@ -117,18 +117,30 @@
   position: relative;
 }
 .hero::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
+  content: ''; position: absolute; inset: -20%; pointer-events: none;
   background:
-    radial-gradient(ellipse 65% 65% at 5% 55%,  oklch(0.50 0.25 258 / 0.20) 0%, transparent 65%),
-    radial-gradient(ellipse 45% 55% at 95% 10%,  oklch(0.75 0.13 72 / 0.12) 0%, transparent 55%),
-    radial-gradient(ellipse 35% 55% at 55% 90%,  oklch(0.50 0.25 258 / 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 65% 65% at 5% 55%,  oklch(0.50 0.25 258 / 0.22) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 55% at 95% 10%,  oklch(0.75 0.13 72 / 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 35% 55% at 55% 90%,  oklch(0.55 0.22 290 / 0.14) 0%, transparent 55%),
     radial-gradient(ellipse 50% 40% at 50% 50%,  oklch(0.145 0.05 258) 0%, transparent 80%);
+  will-change: transform;
+  animation: heroAurora 22s ease-in-out infinite alternate;
 }
 .hero::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image: radial-gradient(circle, oklch(1 0 0 / 0.06) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 0%, transparent 80%);
+  animation: heroGridDrift 40s linear infinite;
+}
+@keyframes heroAurora {
+  0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate3d(2%, -1.5%, 0) scale(1.08) rotate(1.5deg); }
+  100% { transform: translate3d(-1.5%, 1%, 0) scale(1.04) rotate(-1deg); }
+}
+@keyframes heroGridDrift {
+  from { background-position: 0 0; }
+  to   { background-position: 32px 32px; }
 }
 .heroInner { position: relative; z-index: 1; }
 .heroGrid {
@@ -196,6 +208,103 @@
 }
 
 .heroSub { font-size: 13px; color: oklch(0.68 0.04 258); }
+
+/* ─── Hero visual wrapper + floating badges ─── */
+.heroVisual { position: relative; }
+
+.heroFloatBadge {
+  position: absolute; z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.2px;
+  color: oklch(0.92 0.02 258);
+  background: oklch(0.16 0.05 258 / 0.82);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid oklch(1 0 0 / 0.14);
+  padding: 7px 13px; border-radius: 999px;
+  box-shadow: 0 8px 28px oklch(0.05 0.04 258 / 0.5);
+  white-space: nowrap;
+  will-change: transform;
+}
+.heroFloatBadge b { font-weight: 800; }
+.hfbDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.hfbDotGreen { background: var(--lnd-green); box-shadow: 0 0 8px oklch(0.65 0.18 145 / 0.8); }
+.hfbDotBlue  { background: var(--lnd-blue-l); box-shadow: 0 0 8px var(--lnd-blue-glow); }
+.hfbDotGold  { background: var(--lnd-gold); box-shadow: 0 0 8px oklch(0.75 0.13 72 / 0.8); }
+
+.hfbTopRight {
+  top: -16px; right: -12px;
+  animation: hfbFloatA 7s ease-in-out infinite;
+}
+.hfbBottomLeft {
+  bottom: 6px; left: -22px;
+  animation: hfbFloatB 8.5s ease-in-out infinite;
+}
+.hfbMidRight {
+  top: 46%; right: -26px;
+  animation: hfbFloatC 6.5s ease-in-out infinite;
+}
+@keyframes hfbFloatA {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%      { transform: translateY(-10px) rotate(1deg); }
+}
+@keyframes hfbFloatB {
+  0%, 100% { transform: translateY(0) rotate(1deg); }
+  50%      { transform: translateY(-13px) rotate(-1.5deg); }
+}
+@keyframes hfbFloatC {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* ─── Mockup animado (dentro del video card) ─── */
+.jsLoaded .vtKpiVal {
+  animation: vtKpiFill 1.6s cubic-bezier(.22,1,.36,1) both;
+  transform-origin: left center;
+}
+.jsLoaded .vtKpi:nth-child(1) .vtKpiVal { animation-delay: .15s; }
+.jsLoaded .vtKpi:nth-child(2) .vtKpiVal { animation-delay: .30s; }
+.jsLoaded .vtKpi:nth-child(3) .vtKpiVal { animation-delay: .45s; }
+.jsLoaded .vtKpi:nth-child(4) .vtKpiVal { animation-delay: .60s; }
+@keyframes vtKpiFill {
+  from { transform: scaleX(0.12); opacity: 0.3; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+.jsLoaded .vtTrow {
+  animation: vtRowIn .55s cubic-bezier(.22,1,.36,1) both;
+}
+.jsLoaded .vtTable .vtTrow:nth-child(1) { animation-delay: .50s; }
+.jsLoaded .vtTable .vtTrow:nth-child(2) { animation-delay: .62s; }
+.jsLoaded .vtTable .vtTrow:nth-child(3) { animation-delay: .74s; }
+.jsLoaded .vtTable .vtTrow:nth-child(4) { animation-delay: .86s; }
+.jsLoaded .vtTable .vtTrow:nth-child(5) { animation-delay: .98s; }
+@keyframes vtRowIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+.jsLoaded .vtBadgeGreen, .jsLoaded .vtBadgeAmber {
+  animation: vtBadgePulse 2.6s ease-in-out infinite;
+}
+@keyframes vtBadgePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.jsLoaded .vtSbActive {
+  animation: vtSbGlow 3s ease-in-out infinite;
+}
+@keyframes vtSbGlow {
+  0%, 100% { background: oklch(0.50 0.25 258 / 0.55); }
+  50%      { background: oklch(0.55 0.25 258 / 0.85); }
+}
+
+/* ─── Respeto a prefers-reduced-motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  .hero::before, .hero::after,
+  .heroFloatBadge,
+  .jsLoaded .vtKpiVal, .jsLoaded .vtTrow,
+  .jsLoaded .vtBadgeGreen, .jsLoaded .vtBadgeAmber, .jsLoaded .vtSbActive {
+    animation: none !important;
+  }
+}
 
 /* ─── Video card ─── */
 .videoCard {

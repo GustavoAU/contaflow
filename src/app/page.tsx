@@ -317,8 +317,22 @@ export default async function LandingPage() {
               <a href="#roi" className={styles.heroRoiLink}>¿Cuánto tiempo recuperas al mes? → Calcularlo</a>
             </div>
 
-            {/* Video card */}
-            <VideoModal />
+            {/* Visual: mockup animado + badges flotantes */}
+            <div className={styles.heroVisual}>
+              <VideoModal />
+              <div className={`${styles.heroFloatBadge} ${styles.hfbTopRight}`} aria-hidden>
+                <span className={`${styles.hfbDot} ${styles.hfbDotGreen}`} />
+                Conforme <b>PA-121</b>
+              </div>
+              <div className={`${styles.heroFloatBadge} ${styles.hfbBottomLeft}`} aria-hidden>
+                <span className={`${styles.hfbDot} ${styles.hfbDotBlue}`} />
+                IA lee tus facturas
+              </div>
+              <div className={`${styles.heroFloatBadge} ${styles.hfbMidRight}`} aria-hidden>
+                <span className={`${styles.hfbDot} ${styles.hfbDotGold}`} />
+                Bs <b>+</b> $
+              </div>
+            </div>
           </div>
         </div>
       </section>
