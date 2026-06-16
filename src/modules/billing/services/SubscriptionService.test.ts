@@ -5,6 +5,7 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp";
 import {
   getSubscriptionState,
   isWriteAllowed,
+  assertWriteAllowed,
   runBillingLifecycle,
 } from "./SubscriptionService";
 
@@ -91,6 +92,29 @@ describe("isWriteAllowed", () => {
       currentPeriodEnd: new Date(Date.now() - DAY),
     } as never);
     expect(await isWriteAllowed(COMPANY_ID)).toBe(false);
+  });
+});
+
+describe("assertWriteAllowed", () => {
+  it("no lanza si la suscripción está activa", async () => {
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+      status: "ACTIVE",
+      currentPeriodEnd: new Date(Date.now() + 5 * DAY),
+    } as never);
+    await expect(assertWriteAllowed(COMPANY_ID)).resolves.toBeUndefined();
+  });
+
+  it("lanza si la suscripción venció", async () => {
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+      status: "ACTIVE",
+      currentPeriodEnd: new Date(Date.now() - DAY),
+    } as never);
+    await expect(assertWriteAllowed(COMPANY_ID)).rejects.toThrow(/solo lectura/i);
+  });
+
+  it("fail-open: permite si la verificación de billing falla", async () => {
+    vi.mocked(prisma.subscription.findUnique).mockRejectedValue(new Error("DB caída") as never);
+    await expect(assertWriteAllowed(COMPANY_ID)).resolves.toBeUndefined();
   });
 });
 
