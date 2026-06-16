@@ -143,6 +143,52 @@
   from { background-position: 0 0; }
   to   { background-position: 32px 32px; }
 }
+
+/* ─── Hero FX: beams de luz + partículas ─── */
+.heroFx {
+  position: absolute; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.heroBeam {
+  position: absolute; top: -25%;
+  width: 1.5px; height: 150%;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    oklch(0.70 0.20 258 / 0.55) 45%,
+    oklch(0.78 0.16 200 / 0.55) 55%,
+    transparent 100%);
+  filter: blur(1px);
+  opacity: 0;
+}
+.heroBeam1 { left: 28%; animation: heroBeamSweep 9s ease-in-out infinite; }
+.heroBeam2 { left: 52%; animation: heroBeamSweep 12s ease-in-out infinite 2.5s; }
+.heroBeam3 { left: 74%; animation: heroBeamSweep 10.5s ease-in-out infinite 1.2s; }
+@keyframes heroBeamSweep {
+  0%   { opacity: 0; transform: rotate(16deg) translateX(-60px); }
+  45%  { opacity: 1; }
+  55%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(16deg) translateX(60px); }
+}
+
+.heroParticle {
+  position: absolute;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: oklch(0.78 0.16 258 / 0.85);
+  box-shadow: 0 0 8px oklch(0.70 0.20 258 / 0.7);
+  animation: heroParticleFloat ease-in-out infinite;
+}
+.heroParticle:nth-child(3n) {
+  background: oklch(0.70 0.22 290 / 0.85);
+  box-shadow: 0 0 8px oklch(0.60 0.24 290 / 0.7);
+}
+.heroParticle:nth-child(3n+1) {
+  background: oklch(0.74 0.16 200 / 0.85);
+  box-shadow: 0 0 8px oklch(0.64 0.17 200 / 0.7);
+}
+@keyframes heroParticleFloat {
+  0%, 100% { transform: translateY(0); opacity: 0.15; }
+  50%      { transform: translateY(-20px); opacity: 0.95; }
+}
 .heroInner { position: relative; z-index: 1; }
 .heroGrid {
   display: grid;
@@ -300,11 +346,12 @@
 /* ─── Respeto a prefers-reduced-motion ─── */
 @media (prefers-reduced-motion: reduce) {
   .hero::before, .hero::after,
-  .heroFloatBadge,
+  .heroFloatBadge, .heroBeam, .heroParticle,
   .jsLoaded .vtKpiVal, .jsLoaded .vtTrow,
   .jsLoaded .vtBadgeGreen, .jsLoaded .vtBadgeAmber, .jsLoaded .vtSbActive {
     animation: none !important;
   }
+  .heroBeam, .heroParticle { opacity: 0 !important; }
 }
 
 /* ─── Video card ─── */
