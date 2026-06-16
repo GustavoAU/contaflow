@@ -584,7 +584,10 @@ export default async function LandingPage() {
           <div className={`${styles.secHead} ${styles.reveal}`} data-reveal>
             <p className={styles.eyebrow}>Sin sorpresas</p>
             <h2>Precios transparentes</h2>
-            <p>Pago en USDT · Mensual: cancela cuando quieras · Anual: cancela antes del próximo período</p>
+            <p>Plan Empresa · Pago en USDT · Mensual: cancela cuando quieras · Anual: cancela antes del próximo período</p>
+            <p style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+              ¿Trabajas solo, sin nómina ni inventario? El <Link href="#recomiendame">plan Individual desde $59/mes</Link>.
+            </p>
             <details className={styles.usdtExpand}>
               <summary className={styles.usdtExpandSummary}>
                 ¿Cómo funciona el pago en USDT?
