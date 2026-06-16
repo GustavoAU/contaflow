@@ -11,12 +11,14 @@ import {
   AddManagedClientSchema,
   ArchiveManagedClientSchema,
   ListManagedClientsSchema,
+  UpgradeDespachoTierSchema,
 } from "../schemas/despacho.schema";
 import {
   canAddManagedClient,
   addManagedClient,
   archiveManagedClient,
   listManagedClients,
+  upgradeDespachoTier,
 } from "../services/DespachoService";
 
 // ─── Auth context ─────────────────────────────────────────────────────────────
@@ -118,6 +120,36 @@ export async function addManagedClientAction(formData: FormData) {
   }
 
   return result;
+}
+
+// ─── upgradeDespachoTierAction ────────────────────────────────────────────────
+// Inicia el checkout del tier Despacho (NOWPayments). Solo OWNER (ADR-034 §6.3).
+
+export async function upgradeDespachoTierAction(input: {
+  companyId: string;
+  tier: "STARTER" | "PRO" | "UNLIMITED";
+}) {
+  const ctx = await getAuthContext();
+  if (!ctx) return { success: false as const, error: "No autorizado" };
+
+  const rl = await checkRateLimit(`despacho-upgrade:${ctx.userId}`, limiters.fiscal);
+  if (!rl.allowed) return { success: false as const, error: "Demasiadas solicitudes. Intenta en un minuto." };
+
+  const parsed = UpgradeDespachoTierSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false as const, error: parsed.error.issues.map((i) => i.message).join(", ") };
+  }
+
+  // ADR-034 §6.3: gestionar el tier (pago) es exclusivo del Propietario.
+  await assertMember(parsed.data.companyId, ctx.userId, ["OWNER"]);
+
+  return upgradeDespachoTier(
+    parsed.data.companyId,
+    parsed.data.tier,
+    ctx.userId,
+    ctx.ipAddress,
+    ctx.userAgent,
+  );
 }
 
 // ─── archiveManagedClientAction ───────────────────────────────────────────────
