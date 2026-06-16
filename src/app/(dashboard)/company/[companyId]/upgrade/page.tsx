@@ -13,7 +13,7 @@ const PLANS = [
   {
     plan: "MONTHLY" as const,
     name: "Mensual",
-    price: "$59",
+    price: "$79",
     period: "/mes",
     description: "Sin compromisos. Cancela cuando quieras.",
     features: [
@@ -28,13 +28,13 @@ const PLANS = [
   {
     plan: "ANNUAL" as const,
     name: "Anual",
-    price: "$565",
+    price: "$780",
     period: "/año",
-    priceMonthly: "≈ $47/mes — ahorras $143",
-    description: "Equivale a 2 meses gratis respecto al plan mensual.",
+    priceMonthly: "≈ $65/mes — ahorras $168",
+    description: "Equivale a casi 3 meses gratis respecto al plan mensual.",
     features: [
       "Todo lo del plan mensual",
-      "Ahorras $143 al año",
+      "Ahorras $168 al año",
       "Soporte prioritario",
     ],
     icon: TrendingUpIcon,
@@ -44,8 +44,9 @@ const PLANS = [
   {
     plan: "EARLY_ADOPTER" as const,
     name: "Early Adopter",
-    price: "$25",
+    price: "$59",
     period: "/mes — año 1",
+    priceMonthly: "$708 USDT año 1 · año 2+ renueva a $65/mes",
     description: "Precio especial para las primeras 10 empresas.",
     features: [
       "Todo lo del plan anual",
