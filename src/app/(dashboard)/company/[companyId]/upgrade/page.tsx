@@ -3,50 +3,53 @@ import Link from "next/link";
 import { ChevronLeftIcon, CheckIcon, ZapIcon, StarIcon, TrendingUpIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SubscribeButton } from "@/components/billing/SubscribeButton";
-import { PLAN_PRICES_CENTS } from "@/modules/billing/services/BillingService";
+import {
+  getPlanPriceCents,
+  pricingProfileFor,
+  type PaidPlan,
+} from "@/modules/billing/services/BillingService";
+import prisma from "@/lib/prisma";
 
 type Props = {
   params: Promise<{ companyId: string }>;
 };
 
-const PLANS = [
+type PlanMeta = {
+  plan: PaidPlan;
+  name: string;
+  description: string;
+  features: string[];
+  icon: React.ElementType;
+  highlighted: boolean;
+  badge: string | null;
+  cycle: "month" | "year" | "year1";
+};
+
+// Metadatos sin precio — el precio se resuelve por perfil (Individual vs Empresa).
+const PLAN_META: PlanMeta[] = [
   {
-    plan: "MONTHLY" as const,
+    plan: "MONTHLY",
     name: "Mensual",
-    price: "$79",
-    period: "/mes",
     description: "Sin compromisos. Cancela cuando quieras.",
-    features: [
-      "Todas las funcionalidades incluidas",
-      "Usuarios ilimitados",
-      "Soporte por email",
-    ],
+    features: ["Todas las funcionalidades de tu perfil", "Usuarios ilimitados", "Soporte por email"],
     icon: ZapIcon,
     highlighted: false,
     badge: null,
+    cycle: "month",
   },
   {
-    plan: "ANNUAL" as const,
+    plan: "ANNUAL",
     name: "Anual",
-    price: "$780",
-    period: "/año",
-    priceMonthly: "≈ $65/mes — ahorras $168",
     description: "Equivale a casi 3 meses gratis respecto al plan mensual.",
-    features: [
-      "Todo lo del plan mensual",
-      "Ahorras $168 al año",
-      "Soporte prioritario",
-    ],
+    features: ["Todo lo del plan mensual", "Mejor precio por mes", "Soporte prioritario"],
     icon: TrendingUpIcon,
     highlighted: true,
     badge: "Más popular",
+    cycle: "year",
   },
   {
-    plan: "EARLY_ADOPTER" as const,
+    plan: "EARLY_ADOPTER",
     name: "Early Adopter",
-    price: "$59",
-    period: "/mes — año 1",
-    priceMonthly: "$708 USDT año 1 · año 2+ renueva a $65/mes",
     description: "Precio especial para las primeras 10 empresas.",
     features: [
       "Todo lo del plan anual",
@@ -57,11 +60,34 @@ const PLANS = [
     icon: StarIcon,
     highlighted: false,
     badge: "Oferta limitada",
+    cycle: "year1",
   },
 ];
 
+function usd0(cents: number): string {
+  return `$${(cents / 100).toFixed(0)}`;
+}
+
 export default async function UpgradePage({ params }: Props) {
   const { companyId } = await params;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { scopeProfile: true },
+  });
+  const scopeProfile = company?.scopeProfile ?? null;
+  const pricingLabel = pricingProfileFor(scopeProfile) === "SOLO" ? "Individual" : "Empresa";
+
+  // Solo los planes disponibles para el perfil (SOLO no tiene Early Adopter).
+  const plans = PLAN_META.map((meta) => {
+    let priceCents: number | null = null;
+    try {
+      priceCents = getPlanPriceCents(scopeProfile, meta.plan);
+    } catch {
+      priceCents = null;
+    }
+    return { ...meta, priceCents };
+  }).filter((p) => p.priceCents !== null) as (PlanMeta & { priceCents: number })[];
 
   return (
     <div className="mx-auto max-w-4xl py-10 px-4">
@@ -76,69 +102,76 @@ export default async function UpgradePage({ params }: Props) {
       <div className="mb-10 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Elige tu plan</h1>
         <p className="mt-2 text-muted-foreground">
-          Pago único en USDT (Tether) a través de NOWPayments. Sin suscripciones automáticas.
+          Plan {pricingLabel} · Pago en USDT (Tether) vía NOWPayments. Sin suscripciones automáticas.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {PLANS.map(({ plan, name, price, period, priceMonthly, description, features, icon: Icon, highlighted, badge }) => (
-          <div
-            key={plan}
-            className={`relative flex flex-col rounded-xl border p-6 shadow-sm ${
-              highlighted
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border bg-background"
-            }`}
-          >
-            {badge && (
-              <Badge
-                className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap"
-                variant={highlighted ? "default" : "secondary"}
-              >
-                {badge}
-              </Badge>
-            )}
+        {plans.map(({ plan, name, description, features, icon: Icon, highlighted, badge, cycle, priceCents }) => {
+          const bigPrice = cycle === "month" ? usd0(priceCents) : usd0(priceCents);
+          const period = cycle === "month" ? "/mes" : cycle === "year" ? "/año" : "/año 1";
+          const perMonth =
+            cycle === "year"
+              ? `≈ ${usd0(Math.round(priceCents / 12))}/mes`
+              : cycle === "year1"
+                ? `≈ ${usd0(Math.round(priceCents / 12))}/mes año 1`
+                : null;
 
-            <div className="mb-5">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Icon className="h-5 w-5 text-primary" />
-              </div>
-              <p className="text-sm font-medium text-muted-foreground">{name}</p>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-3xl font-bold">{price}</span>
-                <span className="text-sm text-muted-foreground">{period}</span>
-              </div>
-              {priceMonthly && (
-                <p className="mt-0.5 text-xs text-muted-foreground">{priceMonthly}</p>
-              )}
-              <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-            </div>
-
-            <ul className="mb-6 flex-1 space-y-2">
-              {features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm">
-                  <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-
-            <SubscribeButton
-              companyId={companyId}
-              plan={plan}
-              variant={highlighted ? "default" : "outline"}
-              className="w-full"
+          return (
+            <div
+              key={plan}
+              className={`relative flex flex-col rounded-xl border p-6 shadow-sm ${
+                highlighted ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-background"
+              }`}
             >
-              {plan === "MONTHLY" && "Suscribirme mensual"}
-              {plan === "ANNUAL" && "Suscribirme anual"}
-              {plan === "EARLY_ADOPTER" && "Reclamar mi slot"}
-            </SubscribeButton>
+              {badge && (
+                <Badge
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                  variant={highlighted ? "default" : "secondary"}
+                >
+                  {badge}
+                </Badge>
+              )}
 
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              {(PLAN_PRICES_CENTS[plan] / 100).toFixed(2)} USD en USDT
-            </p>
-          </div>
-        ))}
+              <div className="mb-5">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Icon className="h-5 w-5 text-primary" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">{name}</p>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold">{bigPrice}</span>
+                  <span className="text-sm text-muted-foreground">{period}</span>
+                </div>
+                {perMonth && <p className="mt-0.5 text-xs text-muted-foreground">{perMonth}</p>}
+                <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+              </div>
+
+              <ul className="mb-6 flex-1 space-y-2">
+                {features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm">
+                    <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <SubscribeButton
+                companyId={companyId}
+                plan={plan}
+                variant={highlighted ? "default" : "outline"}
+                className="w-full"
+              >
+                {plan === "MONTHLY" && "Suscribirme mensual"}
+                {plan === "ANNUAL" && "Suscribirme anual"}
+                {plan === "EARLY_ADOPTER" && "Reclamar mi slot"}
+              </SubscribeButton>
+
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                {(priceCents / 100).toFixed(2)} USD en USDT
+              </p>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-8 rounded-lg border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">

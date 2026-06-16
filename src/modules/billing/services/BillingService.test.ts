@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       findFirst: vi.fn(),
     },
+    company: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -83,6 +84,8 @@ describe("createCheckout", () => {
         })) as never
     );
     vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(INVOICE);
+    // Por defecto, empresa sin perfil SOLO → pricing EMPRESA (precio completo)
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(null as never);
   });
 
   it("crea checkout para plan MONTHLY correctamente", async () => {
@@ -102,6 +105,30 @@ describe("createCheckout", () => {
         orderId: PAYMENT_ID,
       })
     );
+  });
+
+  it("usa precio Individual ($69 mensual) cuando scopeProfile es SOLO", async () => {
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ scopeProfile: "SOLO" } as never);
+    vi.mocked(prisma.subscription.upsert).mockResolvedValue(SUBSCRIPTION_PAST_DUE as never);
+    vi.mocked(prisma.subscriptionPayment.create).mockResolvedValue(SUBSCRIPTION_PAYMENT as never);
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue(SUBSCRIPTION_PAYMENT as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await createCheckout(COMPANY_ID, "MONTHLY", ACTOR_ID, null, null);
+
+    expect(nowpayments.createNowPaymentsInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ priceAmountCents: 6900 })
+    );
+  });
+
+  it("rechaza EARLY_ADOPTER para perfil SOLO (plan no disponible)", async () => {
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ scopeProfile: "SOLO" } as never);
+
+    await expect(
+      createCheckout(COMPANY_ID, "EARLY_ADOPTER", ACTOR_ID, null, null)
+    ).rejects.toThrow(/no está disponible/i);
   });
 
   it("lanza error si ya existe suscripción ACTIVE", async () => {

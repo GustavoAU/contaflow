@@ -8,11 +8,32 @@ import type { BillingPaymentStatus } from "@prisma/client";
 
 export type PaidPlan = "MONTHLY" | "ANNUAL" | "EARLY_ADOPTER";
 
-export const PLAN_PRICES_CENTS: Record<PaidPlan, number> = {
-  MONTHLY: 7900,    // $79/mes
-  ANNUAL: 78000,    // $780/año ($65/mes efectivo) — mismo precio que renueva Early Adopter año 2+
-  EARLY_ADOPTER: 70800, // $708/año ($59/mes efectivo) — precio bloqueado para siempre; año 2+ renueva a ANNUAL
+// Perfil de pricing del plan base. El precio depende del perfil de la empresa:
+// Individual (SOLO) es más barato; Empresa (EMPRESA / null / cualquier otro) paga completo.
+export type PricingProfile = "SOLO" | "EMPRESA";
+
+// Precio en centavos USD por (perfil, plan). Ausente = plan no disponible para ese perfil.
+// SOLO (Individual): $69 mensual · $708/año ($59/mes). Sin Early Adopter.
+// EMPRESA: $79 mensual · $780/año ($65/mes) · Early Adopter $708/año ($59/mes año 1).
+const PROFILE_PLAN_PRICES_CENTS: Record<PricingProfile, Partial<Record<PaidPlan, number>>> = {
+  SOLO: { MONTHLY: 6900, ANNUAL: 70800 },
+  EMPRESA: { MONTHLY: 7900, ANNUAL: 78000, EARLY_ADOPTER: 70800 },
 };
+
+// SOLO → Individual. EMPRESA / null / DESPACHO / desconocido → Empresa (precio completo,
+// nunca cobrar de menos por un scopeProfile sin definir).
+export function pricingProfileFor(scopeProfile: string | null | undefined): PricingProfile {
+  return scopeProfile === "SOLO" ? "SOLO" : "EMPRESA";
+}
+
+export function getPlanPriceCents(scopeProfile: string | null | undefined, plan: PaidPlan): number {
+  const prof = pricingProfileFor(scopeProfile);
+  const price = PROFILE_PLAN_PRICES_CENTS[prof][plan];
+  if (price == null) {
+    throw new Error(`El plan ${plan} no está disponible para el perfil ${prof}.`);
+  }
+  return price;
+}
 
 const PLAN_PERIOD_DAYS: Record<PaidPlan, number> = {
   MONTHLY: 30,
@@ -70,7 +91,12 @@ export async function createCheckout(
     throw new Error("Ya tienes un pago en curso. Complétalo o espera a que expire antes de iniciar uno nuevo.");
   }
 
-  const priceUsdCents = PLAN_PRICES_CENTS[plan];
+  // El precio depende del perfil de la empresa (Individual vs Empresa).
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { scopeProfile: true },
+  });
+  const priceUsdCents = getPlanPriceCents(company?.scopeProfile, plan);
   const periodDays = PLAN_PERIOD_DAYS[plan];
   const now = new Date();
   const periodEnd = addDays(now, periodDays);
