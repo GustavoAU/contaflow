@@ -40,6 +40,11 @@ const CreateCompanySchema = z.object({
     .or(z.literal(""))
     .or(z.undefined()),
   address: z.string().optional(),
+  // Obligatorio: se usa para recordatorios de renovación por WhatsApp/email
+  telefono: z
+    .string()
+    .min(1, "El teléfono es obligatorio")
+    .refine((v) => v.replace(/\D/g, "").length >= 10, "Teléfono inválido (incluye código de área, ej: 0412-1234567)"),
   scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]).optional(),
 });
 
@@ -115,7 +120,7 @@ export async function createCompanyAction(
       if (ownedCount >= COMPANY_LIMIT_PER_USER) {
         throw Object.assign(new Error("PLAN_LIMIT"), { isPlanLimit: true });
       }
-      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile);
+      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile, validated.telefono);
     });
 
     revalidatePath("/dashboard");

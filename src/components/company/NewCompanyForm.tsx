@@ -49,6 +49,7 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
 
   const [name, setName] = useState("");
   const [rif, setRif] = useState("");
+  const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [profile, setProfile] = useState<ScopeProfile | undefined>(
     (["SOLO", "EMPRESA", "DESPACHO"].includes(initialProfile ?? "") ? initialProfile as ScopeProfile : undefined)
@@ -61,6 +62,11 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
     if (name.trim().length < 2) newErrors.name = "El nombre debe tener al menos 2 caracteres";
     if (rif.trim() && !/^[JVEGCP]-\d{8}-?\d?$/i.test(rif.trim())) {
       newErrors.rif = "RIF inválido (ej: J-12345678-9)";
+    }
+    if (!phone.trim()) {
+      newErrors.phone = "El teléfono es obligatorio";
+    } else if (phone.replace(/\D/g, "").length < 10) {
+      newErrors.phone = "Teléfono inválido (incluye código de área, ej: 0412-1234567)";
     }
     return newErrors;
   }
@@ -80,6 +86,7 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
         userId,
         rif: rif.trim() || undefined,
         address: address.trim() || undefined,
+        telefono: phone.trim(),
         scopeProfile: profile,
       });
 
@@ -172,6 +179,27 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
             }`}
           />
           {errors.rif && <p className="mt-1 text-xs text-red-500">{errors.rif}</p>}
+        </div>
+
+        {/* Teléfono — obligatorio (recordatorios de renovación) */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">
+            Teléfono / WhatsApp <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Ej: 0412-1234567"
+            className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+              errors.phone ? "border-red-400" : "border-zinc-300"
+            }`}
+          />
+          {errors.phone ? (
+            <p className="mt-1 text-xs text-red-500">{errors.phone}</p>
+          ) : (
+            <p className="mt-1 text-xs text-zinc-400">Te avisaremos por aquí antes de que venza tu suscripción.</p>
+          )}
         </div>
 
         {/* Dirección */}

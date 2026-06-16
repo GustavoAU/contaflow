@@ -6,7 +6,7 @@ export class CompanyService {
   /**
    * Crea una nueva empresa y la vincula al usuario como OWNER (Propietario).
    */
-  static async createCompany(name: string, userId: string, rif?: string, address?: string, scopeProfile?: "SOLO" | "EMPRESA" | "DESPACHO") {
+  static async createCompany(name: string, userId: string, rif?: string, address?: string, scopeProfile?: "SOLO" | "EMPRESA" | "DESPACHO", telefono?: string) {
     // Verificar que el RIF no exista ya
     if (rif) {
       const existing = await prisma.company.findUnique({ where: { rif } });
@@ -19,6 +19,7 @@ export class CompanyService {
           name,
           rif,
           address,
+          telefono: telefono ?? null,
           status: "ACTIVE",
           scopeProfile: scopeProfile ?? null,
           members: {

@@ -73,6 +73,7 @@ describe("createCompanyAction", () => {
       name: "Empresa Test C.A.",
       userId: "user-1",
       rif: "J-12345678-9",
+      telefono: "0412-1234567",
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.name).toBe("Empresa Test C.A.");
@@ -83,10 +84,22 @@ describe("createCompanyAction", () => {
     const result = await createCompanyAction({
       name: "A",
       userId: "user-1",
+      telefono: "0412-1234567",
     });
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("2 caracteres");
+  });
+
+  it("rechaza si falta el teléfono (obligatorio para recordatorios)", async () => {
+    const result = await createCompanyAction({
+      name: "Empresa Sin Tel C.A.",
+      userId: "user-1",
+      telefono: "",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/tel[eé]fono/i);
   });
 
   it("rechaza si el usuario ya tiene 1 empresa activa (límite del plan)", async () => {
@@ -95,6 +108,7 @@ describe("createCompanyAction", () => {
     const result = await createCompanyAction({
       name: "Segunda Empresa C.A.",
       userId: "user-1",
+      telefono: "0412-1234567",
     });
 
     expect(result.success).toBe(false);
@@ -109,6 +123,7 @@ describe("createCompanyAction", () => {
       name: "Otra Empresa",
       userId: "user-1",
       rif: "J-12345678-9",
+      telefono: "0412-1234567",
     });
 
     expect(result.success).toBe(false);
