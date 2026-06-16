@@ -301,11 +301,8 @@ export default async function LandingPage() {
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className={styles.hero}>
-        {/* FX decorativo: beams de luz + partículas (aria-hidden) */}
+        {/* FX decorativo: campo de partículas (aria-hidden) */}
         <div className={styles.heroFx} aria-hidden>
-          <span className={`${styles.heroBeam} ${styles.heroBeam1}`} />
-          <span className={`${styles.heroBeam} ${styles.heroBeam2}`} />
-          <span className={`${styles.heroBeam} ${styles.heroBeam3}`} />
           {HERO_PARTICLES.map((p, i) => (
             <span
               key={i}
