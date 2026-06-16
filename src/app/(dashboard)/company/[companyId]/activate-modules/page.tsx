@@ -52,12 +52,11 @@ const PROFILES: {
     description: "Múltiples RIFs bajo un mismo usuario.",
     features: [
       "Todo lo de Empresa",
-      "Múltiples empresas vinculadas",
-      "Vista consolidada de despacho",
-      "Facturación entre empresas del grupo",
+      "Múltiples RIFs de clientes gestionados",
+      "Empresa propia + RIFs incluidos",
+      "Tiers Starter / Pro / Ilimitado",
     ],
     Icon: LayoutGridIcon,
-    disabled: true,
   },
 ];
 

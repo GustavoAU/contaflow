@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X, ZapIcon } from "lucide-react";
+import { SignOutButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 
 const NAV_LINKS = [
@@ -85,9 +86,16 @@ export function LandingMobileNav({ isAuthenticated }: { isAuthenticated: boolean
           {/* CTAs */}
           <div className="flex flex-col gap-3 p-4">
             {isAuthenticated ? (
-              <Button asChild className="w-full" onClick={() => setOpen(false)}>
-                <Link href="/dashboard">Ir al panel</Link>
-              </Button>
+              <>
+                <Button asChild className="w-full" onClick={() => setOpen(false)}>
+                  <Link href="/dashboard">Ir al panel</Link>
+                </Button>
+                <SignOutButton redirectUrl="/">
+                  <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
+                    Cerrar sesión
+                  </Button>
+                </SignOutButton>
+              </>
             ) : (
               <>
                 <Button asChild variant="outline" className="w-full" onClick={() => setOpen(false)}>
