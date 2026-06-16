@@ -27,6 +27,7 @@ import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
+import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 import { put } from "@vercel/blob";
 import { createHash } from "crypto";
 
@@ -53,6 +54,8 @@ export async function createInvoiceAction(input: unknown) {
     if (!await hasModuleAccess(parsed.data.companyId, member.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
+    // Corte por suscripción vencida (solo lectura)
+    await assertWriteAllowed(parsed.data.companyId);
 
     const h = await headers();
     const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;

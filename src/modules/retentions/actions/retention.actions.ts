@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
+import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
@@ -89,6 +90,8 @@ export async function createRetentionAction(
       return { success: false, error: moduleAccessError("invoicing") };
     if (!canAccess(member.role, ROLES.ACCOUNTING))
       return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    // Corte por suscripción vencida (solo lectura)
+    await assertWriteAllowed(data.companyId);
 
     const retYear = data.invoiceDate.getFullYear();
     const retYearClosed = await FiscalYearCloseService.isFiscalYearClosed(data.companyId, retYear);

@@ -65,6 +65,26 @@ export async function isWriteAllowed(companyId: string): Promise<boolean> {
   return !state.hasSubscription || state.isActive;
 }
 
+// Mensaje único de corte (reusable en UI y errores de action).
+export const READ_ONLY_MESSAGE =
+  "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.";
+
+// Lanza si la empresa NO puede escribir (suscripción vencida).
+// Fail-open: si la verificación falla (DB transitoria), permite — nunca bloquear
+// una operación fiscal por un error de la consulta de billing.
+export async function assertWriteAllowed(companyId: string): Promise<void> {
+  let allowed = true;
+  try {
+    allowed = await isWriteAllowed(companyId);
+  } catch (err) {
+    console.error("[SubscriptionService] check de escritura falló — permitiendo (fail-open):", err);
+    allowed = true;
+  }
+  if (!allowed) {
+    throw new Error(READ_ONLY_MESSAGE);
+  }
+}
+
 // ─── Cron lifecycle ─────────────────────────────────────────────────────────
 
 export interface BillingLifecycleResult {

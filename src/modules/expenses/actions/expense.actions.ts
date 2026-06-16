@@ -29,6 +29,7 @@ import {
 } from "../services/ExpenseService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 
 async function getAuthContext() {
   const { userId } = await auth();
@@ -69,6 +70,8 @@ export async function createExpenseAction(
     }
 
     await assertMember(parsed.data.companyId, ctx.userId, ROLES.WRITERS);
+    // Corte por suscripción vencida (solo lectura)
+    await assertWriteAllowed(parsed.data.companyId);
 
     // MEDIUM-08: IVA siempre computado server-side — Z-2, nunca confiar en el cliente
     const computedIva = parsed.data.hasIva

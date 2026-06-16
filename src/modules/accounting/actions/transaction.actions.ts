@@ -12,6 +12,7 @@ import { MAX_PAGE_SIZE } from "../constants";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
+import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 import { withPeriodCache, invalidatePeriod } from "@/lib/report-cache";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
@@ -38,6 +39,8 @@ export async function createTransactionAction(
     if (!await hasModuleAccess(input.companyId, member.role, "accounting")) {
       return { success: false, error: moduleAccessError("accounting") };
     }
+    // Corte por suscripción vencida (solo lectura)
+    await assertWriteAllowed(input.companyId);
 
     const { ipAddress, userAgent } = await extractRequestContext();
 

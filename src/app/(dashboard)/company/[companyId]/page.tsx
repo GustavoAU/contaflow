@@ -37,6 +37,7 @@ import { listBudgetsAction } from "@/modules/budgets/actions/budget.actions";
 import { VacationRequestService } from "@/modules/payroll/services/VacationRequestService";
 import { DespachoOnboardingBanner } from "@/modules/despacho/components/DespachoOnboardingBanner";
 import { getDespachoStatusAction } from "@/modules/despacho/actions/despacho.actions";
+import { getSubscriptionState } from "@/modules/billing/services/SubscriptionService";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -244,6 +245,9 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
   const showDespachoOnboarding =
     despachoStatus?.success && !despachoStatus.despachoTier;
 
+  // Estado de suscripción — banner de solo lectura si venció
+  const subscriptionState = await getSubscriptionState(companyId);
+
   const openDays = m.activePeriod
     // eslint-disable-next-line react-hooks/purity -- Server Component, no re-render risk
     ? Math.floor((Date.now() - new Date(m.activePeriod.openedAt).getTime()) / 86_400_000)
@@ -387,6 +391,29 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
       {/* ─── Banner: Despacho sin tier activo (ADR-034) ─────────────────── */}
       {showDespachoOnboarding && (
         <DespachoOnboardingBanner companyId={companyId} />
+      )}
+
+      {/* ─── Banner: suscripción vencida (solo lectura) ─────────────────── */}
+      {subscriptionState.isExpired && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 dark:border-red-800 dark:bg-red-950/30">
+          <AlertCircleIcon className="h-5 w-5 shrink-0 text-red-600 mt-0.5 dark:text-red-400" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+              Suscripción vencida — modo solo lectura
+            </p>
+            <p className="mt-0.5 text-xs text-red-700 dark:text-red-400">
+              Puedes ver y exportar tus datos, pero no crear facturas, retenciones ni operaciones nuevas. Renueva tu plan para volver a operar.
+            </p>
+          </div>
+          {isAdmin && (
+            <Link
+              href={`/company/${companyId}/upgrade`}
+              className="shrink-0 self-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+            >
+              Renovar plan
+            </Link>
+          )}
+        </div>
       )}
 
       {/* ─── Alerta: vacaciones por agotar ──────────────────────────────── */}
