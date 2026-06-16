@@ -381,11 +381,13 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 **Fase Despacho — flujo de pago** ✅ merged (2026-06-15): /despacho/upgrade page + DespachoUpgradeFlow + upgradeDespachoTierAction (OWNER only) + upgradeDespachoTier refactor (upsert Subscription "todo incluido" + AuditLog R-6 + successUrl/cancelUrl) + handleIPN aplica despachoTier desde metadata al confirmar pago. Auditoría seguridad ADR-034 §6.3: GO — 2805 tests.
 
-**Precios definitivos lanzamiento** ✅ merged (2026-06-15): MONTHLY $79 · ANNUAL $780/año ($65/mes) · Early Adopter $708/año ($59/mes año 1, renueva a ANNUAL año 2+). Despacho STARTER $119 (5 RIFs) · PRO $249 (25 RIFs) · UNLIMITED $359 (∞ RIFs) — todos incluyen empresa propia. Sincronizados en BillingService.PLAN_PRICES_CENTS, DespachoService.DESPACHO_TIER_PRICES_USD_CENTS, landing (page.tsx + BotRecomendador), sign-up page, /upgrade page.
+**Precios definitivos lanzamiento** ✅ merged (2026-06-15): plan base + Despacho STARTER $119 (5 RIFs) · PRO $249 (25 RIFs) · UNLIMITED $359 (∞ RIFs) — Despacho incluye empresa propia. Sincronizados en BillingService, DespachoService.DESPACHO_TIER_PRICES_USD_CENTS, landing, sign-up, /upgrade page.
+
+**Precio plan base POR PERFIL** ✅ merged (2026-06-16): el precio del plan base depende del `scopeProfile` (Individual y Empresa al mismo precio no tenía sentido). Individual (SOLO): $69 mensual / $59 anual, sin Early. Empresa (EMPRESA/null): $79 mensual / $65 anual / Early Adopter $59 año 1. `BillingService.getPlanPriceCents(scopeProfile, plan)` + `pricingProfileFor()` (SOLO→Individual; resto→Empresa, nunca cobra de menos) reemplazan `PLAN_PRICES_CENTS`. `createCheckout` lee `company.scopeProfile`; EARLY_ADOPTER lanza si SOLO. /upgrade page perfil-aware — 2807 tests.
 
 **Landing launch-ready** ✅ merged (2026-06-15): Despacho activo en BotRecomendador/activate-modules/NewCompanyForm (quitado "Próximamente"/"Pronto") + footer/nav/mobile-nav auth-aware (SignOutLink con Clerk SignOutButton — "Ir al panel"+"Cerrar sesión" si hay sesión).
 
-**2805 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-15)
+**2807 tests GREEN** | **0 TS errors** | **CI passing** (2026-06-16)
 
 > Pendiente landing (no bloqueante): rediseño visual del Hero — el usuario lo quiere "más tecnológico/avanzado" (referencia: quickbooks.intuit.com). Actualmente plano. Tanda de diseño dedicada.
 
