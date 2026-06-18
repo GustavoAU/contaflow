@@ -41,6 +41,27 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+const clerkAppearance = {
+  variables: {
+    colorPrimary: "#3b82f6",
+    colorText: "#18181b",
+    colorTextSecondary: "#71717a",
+    colorBackground: "#ffffff",
+    colorInputBackground: "#fafafa",
+    colorInputText: "#18181b",
+    colorDanger: "#ef4444",
+    borderRadius: "0.5rem",
+    fontFamily: "var(--font-geist-sans)",
+    fontSize: "14px",
+  },
+  elements: {
+    card: "shadow-2xl border border-zinc-200/80",
+    formButtonPrimary: "!bg-blue-500 hover:!bg-blue-600 !shadow-none !text-white",
+    footerActionLink: "!text-blue-500 hover:!text-blue-600",
+    identityPreviewEditButton: "!text-blue-500",
+  },
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
@@ -51,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const localization = esES as any;
 
   return (
-    <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in" localization={localization}>
+    <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in" localization={localization} appearance={clerkAppearance}>
       <html lang={locale}>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
           <ThemeProvider>

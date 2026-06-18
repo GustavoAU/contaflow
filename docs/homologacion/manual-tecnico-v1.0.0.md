@@ -83,7 +83,7 @@ CLIENTE (Navegador Web)
 | Lenguaje | TypeScript | 5.x | Tipado estático, seguridad en tiempo de desarrollo |
 | Base de Datos | PostgreSQL (Neon Serverless) | 16 | Persistencia ACID |
 | ORM | Prisma | 7.4.1 | Acceso tipado a BD, migraciones |
-| Adaptador BD | @prisma/adapter-pg | 7.4.1 | Pool de conexiones para Neon |
+| Adaptador BD | @prisma/adapter-neon (WebSocket) | 7.4.1 | Pool de conexiones serverless para Neon |
 | Autenticación | Clerk | v7 | Identidad, MFA, sesiones |
 | Validación | Zod | 4.x | Esquemas de entrada en Server Actions |
 | Aritmética Fiscal | Decimal.js | 10.x | Cálculos monetarios sin error de coma flotante |
@@ -92,7 +92,7 @@ CLIENTE (Navegador Web)
 | OCR | Google Gemini Vision | Flash | Lectura de facturas de proveedores |
 | Cola | QStash (Upstash) | v2 | Transmisión SENIAT con reintentos |
 | Rate Limiting | Upstash Redis | v2 | Sliding window por operación fiscal |
-| Testing | Vitest | 4.x | 1.983 pruebas automatizadas |
+| Testing | Vitest | 4.x | 2.836 pruebas automatizadas |
 | Monitoreo | Sentry | v10 | Observabilidad en producción |
 | CI/CD | GitHub Actions | - | Integración continua, gate de calidad |
 
@@ -148,6 +148,9 @@ CLIENTE (Navegador Web)
 - Control de Lotes y Números de Serie
 - Alertas de stock mínimo
 - Soporte de Unidades de Medida múltiples
+- **Lotes y Números de Serie** (Lot/Serial Tracking): `InventoryLot`, `InventorySerial`, `LotAllocation` — rastreo completo de lotes con fecha de vencimiento y números de serie unitarios
+- **Unidades de Medida múltiples** (UoM): conversión entre unidades de compra y venta (Fase ADR-018)
+- **COGS Automático Perpetuo**: al emitir factura de venta, el sistema genera automáticamente el asiento Dr COGS / Cr Inventario usando el costo promedio ponderado (CPP) de la línea
 
 ### 4.6 Módulo de Nómina (LOTTT)
 
@@ -157,18 +160,96 @@ CLIENTE (Navegador Web)
 - Vacaciones, utilidades, liquidación
 - ARC (Retención ISLR sobre sueldos)
 - TXT bancario para pagos masivos
+- **Solicitudes de Vacaciones**: flujo PENDING → APPROVED/REJECTED/CANCELLED; cálculo de balance acumulado conforme LOTTT Art.190; aprobación por gerente con ManagerApprovalInbox; envío automático de recibo de pago por email post-aprobación
+- **Préstamos a Empleados**: PENDING → aprobación ACCOUNTING/ADMIN; interés opcional (método francés); saldo en moneda mixta VES+USD
+- **Reportes obligatorios exportables**: Excel IVSS/BANAVIH/INCES; TXT BANAVIH FAOV-Web (pipe-delimited); CSV MINTRA declaración trimestral; PDF Forma 14-100 Constancia de Trabajo individual
+- **Campos Forma 14-02 IVSS**: `ivssNumber`, `payrollWorkerType` (OBRERO/EMPLEADO), `maritalStatus`, `dependents`
+- **Alertas automáticas**: salario mínimo vencido (>30d), prestaciones por acumular (Art.142), intereses BCV pendientes (Art.143), empleados en período de prueba por vencer (Art.45)
 
 ### 4.7 Módulo de Activos Fijos
 
 - VEN-NIF 16, tres métodos de depreciación: Línea Recta, Suma de Dígitos, Unidades de Producción
 - Asiento de depreciación automático mensual
 - Revaluación de activos (VEN-NIF)
+- **N1 — Art. 66 LIVA: Reintegro IVA crédito fiscal en baja anticipada (<36 meses)**: `DisposeAssetModal` calcula `costo×16%×(36-meses)/36`; GL automático Dr Gasto IVA / Cr IVA CF; opción opt-out para el usuario
+- **N2 — Moneda de adquisición**: campos `acquisitionCurrency` y `bcvRateAtAcquisition` para registrar la tasa BCV histórica al momento de la compra; badge visible en tabla
+- **N3 — Historial INPC persistente**: modelo `FixedAssetINPCRestatement` con `@@unique([assetId,year,month])`; modal de historial por activo; previene gaps de período
+- **N4 — Importación desde Gasto confirmado**: selección de gastos CONFIRMED del proveedor para pre-llenar 6 campos del activo (descripción, monto, RIF proveedor, fecha, factura, cuentas)
+- **N5 — Advertencia salto de período**: detecta brecha en historial de depreciación y muestra alerta ámbar antes de aplicar
+- **N6 — Factor INPC visible**: columna "Factor INPC" con badge en tabla de activos
+- **FA-5 F3**: advertencia de deductibilidad SENIAT (Art. 76 LISLR) si faltan `facturaNumber` y `providerRif`
 
 ### 4.8 Módulo de Multimoneda
 
 - USD, EUR, VES y otras divisas
 - Tasa BCV obtenida automáticamente (BcvFetchService)
 - Diferencial cambiario NIC 21 con asiento automático
+
+### 4.9 Portales de Autoservicio
+
+**Portal del Empleado** (`/employee/[token]`):
+- Acceso público sin Clerk, autenticado mediante JWT HMAC-SHA256 (30 días)
+- Muestra: datos del empleado, últimas 12 nóminas desglosadas, vacaciones acumuladas, préstamo activo con barra de progreso
+- `generatePortalTokenAction` requiere rol ADMIN; guard cross-tenant ADR-004
+
+**Portal del Cliente** (`/client-portal/[token]`):
+- Acceso público sin Clerk, JWT HMAC-SHA256 (30 días)
+- Muestra: facturas CxC pendientes, historial de pagos
+- `generateClientPortalTokenAction` requiere rol ADMIN
+
+### 4.10 Gestión Documental
+
+Vista unificada de facturas y retenciones con:
+- PDF on-demand por documento
+- JWT share links de 7 días para auditorías SENIAT (`DOC_SHARE_SECRET`, endpoint `/api/doc/[token]` público)
+- `AuditLog` con acción `DOC_SHARED` (R-6 — IP + UserAgent)
+- Guard cross-tenant ADR-004
+
+### 4.11 CRM Básico
+
+- `ContactCategory`: LEAD / REGULAR / VIP en Clientes y Proveedores
+- `ContactNote`: historial de interacciones por contacto con timestamp y autor
+- Alerta `CLIENTES_INACTIVOS` en dashboard para clientes sin actividad reciente
+
+### 4.12 Presupuestos y Proyecciones
+
+- Modelos: `Budget` + `BudgetLine` + `BudgetStatus` (DRAFT/ACTIVE/CLOSED)
+- `BudgetService.compareWithActual()`: compara presupuestado vs ejecutado usando `journalEntry.groupBy` real
+- `CashFlowProjectionService`: proyección de flujo de caja en 4 buckets (Vencido / 0-30d / 31-60d / 61-90d) desde CxC y CxP pendientes
+- UI: BudgetList, BudgetDetail, CashFlowWidget; página `/budgets`
+
+### 4.13 Asistente AI
+
+- `FloatingAIAssistant`: panel flotante con badge de anomalías contables
+- Endpoint `GET /api/company/[companyId]/anomaly-summary` con auth + IDOR + rol ACCOUNTING + rate limit `limiters.read` (120/min)
+- `getAnomalySummaryAction` para análisis de inconsistencias: facturas sin asiento, retenciones sin enteramiento, inventario sin cuentas GL, etc.
+
+### 4.14 Proveedor de Factura Digital (PA-102)
+
+Fase 39 — ADR-031: interfaz neutral `DigitalInvoiceProvider` con implementaciones:
+- `HKADigitalInvoiceProvider`: stub de integración HKA (pendiente documentación oficial)
+- `MockDigitalInvoiceProvider`: para pruebas
+- `NullDigitalInvoiceProvider`: desactiva la integración
+- Seleccionado mediante variable de entorno `DIGITAL_INVOICE_PROVIDER=hka|mock|null`
+- Campos en `Invoice`: `digitalProviderRef`, `isDigital`, `contingency`
+
+### 4.15 Gestión de Suscripciones (Modelo SaaS)
+
+- **Ciclo de vida**: suscripciones cripto (USDT) sin débito automático; renovación manual
+- **`SubscriptionService`**: `getSubscriptionState` / `isWriteAllowed` / `assertWriteAllowed` (fail-open) / `runBillingLifecycle`
+- **Gate central de escritura**: extensión `$extends` de Prisma que bloquea TODA escritura de modelos de negocio si la suscripción venció. Modelos exentos: Subscription, SubscriptionPayment, AuditLog, User, Company, etc.
+- **Recordatorios**: email 7d y 3d antes de vencimiento (Resend), con caché diaria para no duplicar
+- **WhatsApp**: stub Meta Cloud API (`lib/whatsapp.ts`), no-op sin env `WHATSAPP_*`
+- **Cron**: `/api/cron/billing-lifecycle` (ejecución diaria 13:00)
+- **Perfiles de suscripción** (`ScopeProfile`): SOLO ($69/mes o $59/año), EMPRESA ($79/mes o $65/año), DESPACHO (tiers: STARTER $119/5 RIFs, PRO $249/25 RIFs, UNLIMITED $359/∞ RIFs)
+
+### 4.16 Modo Despacho Contable
+
+- `ManagedClient` + `DespachoTier` (STARTER/PRO/UNLIMITED)
+- `DespachoService`: `canAddManagedClient`, `addManagedClient`, `archiveManagedClient`, `listManagedClients`, `upgradeDespachoTier`
+- Guards: R-6, ADR-004, VEN_RIF_REGEX
+- UI: DespachoRifList, AddRifModal, DespachoTierCard; página `/despacho/rifs`
+- Nav con progressive disclosure solo si `scopeProfile = DESPACHO`
 
 ---
 
@@ -505,11 +586,11 @@ if (!member) throw new Error("Sin acceso a esta empresa");
 
 ### 10.4 Rate Limiting
 
-| Limitador | Ventana | Límite | Operaciones |
-|---|---|---|---|
-| `limiters.fiscal` | 1 minuto | 30 req | Crear facturas, retenciones, pagos |
-| `limiters.ocr` | 1 minuto | 10 req | OCR de documentos |
-| `limiters.export` | 1 minuto | 5 req | Exportación de datos |
+| Limitador | Ventana | Límite | Fail | Operaciones |
+|---|---|---|---|---|
+| `limiters.fiscal` | 1 minuto | 30 req | Closed | Crear facturas, retenciones, correlativos, pagos, IGTF |
+| `limiters.ocr` | 1 minuto | 10 req | Open | OCR de documentos (Gemini Vision) |
+| `limiters.read` | 1 minuto | 120 req | Open | Lecturas de render: libros, métricas, dashboard, exportaciones |
 
 Implementado con Upstash Redis Sliding Window. En ausencia de Redis, el sistema opera en modo permisivo (fail-open) para no interrumpir operaciones fiscales.
 
@@ -564,13 +645,13 @@ Vercel ejecuta Next.js como funciones serverless. El escalado es automático seg
 
 ### 12.1 Cobertura
 
-El sistema cuenta con **1.983 pruebas automatizadas** en estado GREEN ejecutadas con Vitest 4 en entorno Node.js.
+El sistema cuenta con **2.836 pruebas automatizadas** en estado GREEN ejecutadas con Vitest 4 en entorno Node.js.
 
 | Área | Pruebas |
 |---|---|
-| Servicios de negocio (unit tests) | 1.200+ |
-| Server Actions (integration tests) | 500+ |
-| Componentes UI (jsdom) | 200+ |
+| Servicios de negocio (unit tests) | 1.700+ |
+| Server Actions (integration tests) | 800+ |
+| Componentes UI (jsdom) | 250+ |
 | Tests de seguridad (IDOR, race conditions) | 80+ |
 
 ### 12.2 Gate de Calidad CI/CD
@@ -607,6 +688,13 @@ Las pruebas incluyen específicamente:
 | PDF/A | Estándar ISO para PDF de archivo a largo plazo |
 | SHA-256 | Función hash criptográfica de 256 bits para integridad de documentos |
 | IDOR | Insecure Direct Object Reference — vulnerabilidad de acceso no autorizado a recursos |
+| ScopeProfile | Perfil de uso: SOLO (contador independiente), EMPRESA (empresa), DESPACHO (bufete/contador con múltiples RIFs) |
+| ManagedClient | RIF de empresa gestionada por un despacho en el modelo multi-RIF |
+| DespachoTier | Nivel del plan Despacho: STARTER/PRO/UNLIMITED según cantidad de RIFs gestionados |
+| Billing Gate | Extensión Prisma que bloquea escrituras de negocio si la suscripción está vencida |
+| DigitalInvoiceProvider | Interfaz neutral para integración con proveedores de factura electrónica (HKA, etc.) |
+| Portal del Empleado | Microsite JWT sin Clerk para consulta de recibos de pago y datos laborales |
+| limiters.read | Rate limiter de 120 req/min (fail-open) para operaciones de lectura y reportes |
 
 ---
 

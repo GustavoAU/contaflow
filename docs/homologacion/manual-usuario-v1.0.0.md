@@ -61,6 +61,10 @@ Para mayor seguridad, el sistema soporta autenticación de dos factores (2FA). P
    - **Teléfono** y **Correo electrónico fiscal**
    - **Tipo de Contribuyente**: Regular / Especial
    - **Actividad Económica (CIIU)**
+   - **Perfil del sistema**: seleccionar el tipo de uso
+     - **Individual / Autónomo**: contador o profesional independiente ($69/mes)
+     - **Empresa**: PYME o empresa ($79/mes)
+     - **Despacho Contable**: bufete o contador que gestiona múltiples empresas ($119–$359/mes según cantidad de RIFs)
 3. Hacer clic en **Crear Empresa**
 4. El sistema genera automáticamente el certificado digital demo de la empresa
 
@@ -348,6 +352,14 @@ Desde **Contabilidad → Reportes**:
 
 El dashboard muestra automáticamente una alerta cuando un ítem cae por debajo del stock mínimo configurado. También alerta cuando ítems físicos (mercancía) no tienen cuentas contables GL asignadas.
 
+### 8.4 Control de Lotes y Series
+
+Para productos con control de lotes o números de serie:
+1. Ir a **Inventario → Lotes** o **Inventario → Series**
+2. Al registrar una entrada de inventario, asignar el número de lote o serie
+3. Al emitir una factura de venta, el sistema solicita seleccionar el lote/serie a descontar
+4. El **Libro de Movimientos** muestra la trazabilidad completa por lote/serie
+
 ---
 
 ## IX. NÓMINA
@@ -507,6 +519,110 @@ Para soporte técnico, reportar incidentes o solicitar asistencia:
 - **Horario de atención**: Lunes a Viernes, 8:00 AM – 5:00 PM (hora Venezuela)
 
 Para incidentes que puedan comprometer la integridad de datos fiscales, el proveedor está obligado a notificar al SENIAT en un plazo no mayor de 24 horas, conforme al Artículo 9 de la PA 121.
+
+---
+
+## XII. PORTALES DE AUTOSERVICIO
+
+### 12.1 Portal del Empleado
+
+Permite a los empleados consultar su información laboral sin necesidad de una cuenta en el sistema.
+
+1. Ir a **Nómina → Empleados**
+2. Hacer clic en el empleado → botón **Generar Portal**
+3. El sistema genera un enlace único con validez de 30 días
+4. Compartir el enlace al empleado por correo o WhatsApp
+
+El empleado puede consultar sin iniciar sesión:
+- Sus datos personales y laborales
+- Sus últimas 12 nóminas con desglose completo
+- Sus vacaciones acumuladas y solicitadas
+- Su préstamo activo (si tiene) con progreso de pago
+
+### 12.2 Portal del Cliente
+
+Permite a los clientes consultar sus facturas pendientes y su historial de pagos.
+
+1. Ir a **Facturación → Clientes**
+2. Hacer clic en el cliente → botón **Generar Portal**
+3. El sistema genera un enlace único con validez de 30 días
+4. Compartir el enlace al cliente
+
+---
+
+## XIII. GESTIÓN DOCUMENTAL
+
+La vista unificada de documentos permite:
+1. Ir a **Documentos** en el menú principal
+2. Ver en una sola tabla: facturas emitidas/recibidas y comprobantes de retención
+3. Descargar el PDF de cualquier documento con un clic
+4. Generar un **enlace seguro de 7 días** para compartir con el auditor del SENIAT sin necesidad de acceso al sistema
+
+---
+
+## XIV. PRESUPUESTOS Y PROYECCIÓN DE FLUJO DE CAJA
+
+### 14.1 Crear un Presupuesto
+
+1. Ir a **Presupuestos → Nuevo Presupuesto**
+2. Asignar nombre, año y descripción
+3. Agregar líneas por cuenta contable con el monto presupuestado mensual
+4. Activar el presupuesto
+
+### 14.2 Ver Ejecución vs Presupuesto
+
+En el detalle del presupuesto, el sistema muestra en tiempo real:
+- Monto presupuestado
+- Monto ejecutado (tomado del Libro Mayor)
+- Variación (%)
+
+### 14.3 Proyección de Flujo de Caja
+
+El widget de **Flujo de Caja** en el dashboard muestra:
+- **Vencido**: CxC y CxP ya vencidos sin pagar
+- **0–30 días**: vencimientos próximos
+- **31–60 días**
+- **61–90 días**
+
+---
+
+## XV. VACACIONES (MÓDULO NÓMINA)
+
+1. Ir a **Nómina → Vacaciones**
+2. Ver el balance acumulado por empleado (LOTTT Art.190: 15 días + 1 día/año)
+3. Para solicitar vacaciones:
+   - Hacer clic en **Nueva Solicitud**
+   - Seleccionar empleado, fecha de inicio y días solicitados
+   - Estado inicial: PENDIENTE
+4. El gerente/admin aprueba o rechaza desde **Bandeja de Aprobaciones**
+5. Al aprobar: el sistema envía automáticamente el recibo de vacaciones por email al empleado
+
+---
+
+## XVI. SUSCRIPCIÓN Y PLAN
+
+### 16.1 Ver el Estado de la Suscripción
+
+Ir a **Configuración → Suscripción** para ver:
+- Plan activo (Individual, Empresa, o Despacho)
+- Fecha de vencimiento
+- Botón para renovar
+
+### 16.2 Modo Solo Lectura
+
+Si la suscripción vence sin renovar, el sistema entra en **modo solo lectura**:
+- Se puede consultar toda la información histórica
+- **No** se pueden crear ni modificar registros
+- Un banner rojo en el dashboard avisa del estado
+- Recibirás recordatorios por email 7 y 3 días antes del vencimiento
+
+### 16.3 Despacho Contable — Gestión de RIFs
+
+Los usuarios con plan Despacho pueden gestionar múltiples empresas cliente:
+1. Ir a **Despacho → Mis Clientes**
+2. Agregar el RIF de cada empresa gestionada
+3. Cambiar entre empresas con el selector en el menú lateral
+4. El plan determina la cantidad máxima de RIFs: STARTER (5), PRO (25), UNLIMITED (ilimitado)
 
 ---
 

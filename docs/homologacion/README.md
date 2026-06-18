@@ -31,7 +31,7 @@
    - `[FECHA DE PRESENTACIÓN]`
 
 2. **Actualizar número de pruebas** en expediente principal:
-   - Sección 6.3 dice "1.531 pruebas" → actualizar a **1.983 pruebas**
+   - Sección 6.3 dice "1.531 pruebas" → actualizar a **2.836 pruebas**
 
 3. **Adjuntar documentos físicos** (ítems 1, 2, 3)
 

@@ -573,5 +573,37 @@ POST /api/webhooks/seniat-report
 
 ---
 
+## 6. Flujo de Ciclo de Vida de Suscripción
+
+```
+Empresa registrada
+      │
+      ▼
+¿Tiene Subscription activa?
+  │ NO → [Demo: sin corte, sin recordatorios]
+  │ SÍ
+  ▼
+¿expiresAt > hoy?
+  │ SÍ → [Operación normal]
+  │ NO
+  ▼
+runBillingLifecycle() [Cron diario 13:00]
+  ├── Subscription.status → EXPIRED
+  ├── ¿Recordatorio enviado hoy? → No duplicar
+  ├── [7d antes] → Email "Vence en 7 días"
+  └── [3d antes] → Email "Vence en 3 días"
+      │
+      ▼
+Billing Gate ($extends Prisma)
+  ├── Operación de escritura detectada
+  ├── companyId extraído del payload
+  ├── isWriteAllowed(companyId) → cache 30s
+  │     │ ALLOWED → continuar
+  │     └── BLOCKED → throw "READ_ONLY_MESSAGE"
+  └── Modelos EXEMPT (Subscription/AuditLog/Company/User/...) → siempre pasan
+```
+
+---
+
 *ContaFlow v1.0.0 — Diagramas de Flujo de Datos Fiscales — Providencia Administrativa SNAT/2024/000121*
 *Barquisimeto, Estado Lara — Venezuela — 2026*
