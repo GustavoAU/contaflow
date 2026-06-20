@@ -8,9 +8,12 @@ import prisma, { withDbRetry } from "@/lib/prisma";
 void withDbRetry(() => prisma.$queryRaw`SELECT 1`).catch(() => undefined);
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
-    </div>
-  );
+  // NOTA: este layout NO impone ancho máximo. El shell de empresa
+  // (company/[companyId]/layout.tsx) es un contenedor de pantalla completa
+  // (sidebar fijo + main flex-1) y un max-w aquí lo encajonaba —junto con el
+  // sidebar— en una columna centrada, desperdiciando medio monitor en pantallas
+  // grandes. Cada página hija aplica su propio ancho (dashboard: max-w-5xl,
+  // accounting: container). Tampoco envolvemos en <main> para no anidarlo dentro
+  // del <main> propio de cada página.
+  return <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">{children}</div>;
 }
