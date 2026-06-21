@@ -30,7 +30,8 @@ function makeTx(overrides: TxOverrides = {}) {
       findFirst: vi.fn().mockResolvedValue({ id: SOURCE_ACCOUNT }),
     },
     accountingPeriod: {
-      findFirst: vi.fn().mockResolvedValue({ id: "period-1", status: "OPEN" }),
+      // year/month deben coincidir con baseInput.date ("2026-06-13") — HC-02
+      findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
     },
     cajaCajaDeposit: {
       create: vi.fn().mockResolvedValue({
@@ -107,6 +108,18 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
   it("rechaza si no hay período contable abierto", async () => {
     makeTx({ accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) } });
     await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/período/i);
+  });
+
+  it("HC-02: rechaza si la fecha del depósito cae fuera del período abierto", async () => {
+    // Período abierto = junio 2026, pero el depósito viene fechado en mayo.
+    makeTx({
+      accountingPeriod: {
+        findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
+      },
+    });
+    await expect(
+      createDeposit({ ...baseInput, date: "2026-05-31" }, USER_ID),
+    ).rejects.toThrow(/fuera del período contable abierto/i);
   });
 });
 

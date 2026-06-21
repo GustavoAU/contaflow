@@ -1,4 +1,5 @@
 // src/modules/accounting/services/PeriodService.ts
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { PeriodSnapshotService } from "./PeriodSnapshotService";
@@ -13,6 +14,40 @@ export class PeriodService {
       where: { companyId, status: "OPEN" },
       orderBy: { year: "desc" },
     });
+  }
+
+  /**
+   * Verifica que `date` caiga dentro del único período OPEN de la empresa y lo retorna.
+   * Garantía del modelo: hay exactamente UN período OPEN por empresa, definido por
+   * `year` + `month` (1-12). Lanza si no hay período abierto o si el año/mes de la
+   * fecha no coinciden con el período (HC-02 auditoría Caja Chica 2026-06).
+   *
+   * Importante: se usan getters UTC porque las fechas de operación se construyen como
+   * `new Date("YYYY-MM-DD")` (medianoche UTC). Usar getters locales desplazaría el mes
+   * en husos negativos como Venezuela (UTC-4). Ver patrón en fixed-assets/payroll.
+   */
+  static async assertDateInOpenPeriod(
+    companyId: string,
+    date: Date,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ id: string; year: number; month: number }> {
+    const db = tx ?? prisma;
+    const period = await db.accountingPeriod.findFirst({
+      where: { companyId, status: "OPEN" },
+      select: { id: true, year: true, month: true },
+    });
+    if (!period) throw new Error("No hay período contable abierto");
+
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+    if (year !== period.year || month !== period.month) {
+      const mm = String(month).padStart(2, "0");
+      const pm = String(period.month).padStart(2, "0");
+      throw new Error(
+        `La fecha (${mm}/${year}) está fuera del período contable abierto (${pm}/${period.year}). Solo se pueden registrar operaciones del período abierto actual.`,
+      );
+    }
+    return period;
   }
 
   /**

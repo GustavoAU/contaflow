@@ -84,6 +84,48 @@ describe("PeriodService.openPeriod", () => {
   });
 });
 
+describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna el período cuando la fecha cae dentro del período abierto", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+
+    const result = await PeriodService.assertDateInOpenPeriod(
+      "company-1",
+      new Date("2026-03-15"), // marzo 2026 = período abierto
+    );
+
+    expect(result.id).toBe("period-1");
+    expect(result.year).toBe(2026);
+    expect(result.month).toBe(3);
+  });
+
+  it("usa getters UTC: una fecha de inicio de mes no se desplaza al mes anterior", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+
+    // new Date("2026-03-01") = medianoche UTC; en husos negativos getMonth() local daría feb.
+    await expect(
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-01")),
+    ).resolves.toMatchObject({ month: 3 });
+  });
+
+  it("lanza si la fecha está fuera del período abierto", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+
+    await expect(
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-02-28")),
+    ).rejects.toThrow(/fuera del período contable abierto/i);
+  });
+
+  it("lanza si no hay período abierto", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+
+    await expect(
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+    ).rejects.toThrow(/No hay período contable abierto/i);
+  });
+});
+
 describe("PeriodService.closePeriod", () => {
   beforeEach(() => {
     vi.clearAllMocks();
