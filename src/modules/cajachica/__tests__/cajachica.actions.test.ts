@@ -138,6 +138,7 @@ describe("auth guards", () => {
       companyId: COMPANY_ID,
       name: "Caja",
       accountId: "acc-1",
+      custodianId: "emp-1",
       maxBalance: "100000",
     });
     expect(result.success).toBe(false);
@@ -156,6 +157,7 @@ describe("createCajaCajaAction", () => {
       companyId: COMPANY_ID,
       name: "Caja Operativa",
       accountId: "acc-1",
+      custodianId: "emp-1",
       maxBalance: "1000000",
     });
 
@@ -171,6 +173,7 @@ describe("createCajaCajaAction", () => {
       companyId: COMPANY_ID,
       name: "Caja",
       accountId: "acc-1",
+      custodianId: "emp-1",
       maxBalance: "100000",
     });
     expect(result.success).toBe(false);
@@ -264,6 +267,7 @@ describe("closeCajaCajaAction", () => {
     const result = await closeCajaCajaAction({
       cajaCajaId: "caja-1",
       companyId: COMPANY_ID,
+      returnAccountId: "acc-banco",
     });
     expect(result.success).toBe(true);
   });
@@ -273,6 +277,7 @@ describe("closeCajaCajaAction", () => {
     const result = await closeCajaCajaAction({
       cajaCajaId: "caja-1",
       companyId: COMPANY_ID,
+      returnAccountId: "acc-banco",
     });
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);

@@ -30,6 +30,10 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
 
   const needsSupport = currency === "VES" && Number(amount) > 500_000;
 
+  // Defensa en cliente: un gasto de caja chica solo puede imputarse a una cuenta de Gasto
+  // (el server valida el tipo de cuenta también).
+  const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -88,21 +92,28 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Cuenta de Gasto *</Label>
+          <Label htmlFor="movement-expense-account" className="text-xs">Cuenta de Gasto *</Label>
           <select
+            id="movement-expense-account"
             value={expenseAccountId}
             onChange={(e) => setExpenseAccountId(e.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
             required
-            disabled={isPending}
+            disabled={isPending || expenseAccounts.length === 0}
           >
             <option value="">Seleccionar cuenta...</option>
-            {accounts.map((a) => (
+            {expenseAccounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.code} — {a.name}
               </option>
             ))}
           </select>
+          {expenseAccounts.length === 0 && (
+            <p className="text-xs text-amber-600">
+              No hay cuentas de tipo Gasto. Crea una cuenta de Gasto en el Plan de Cuentas antes de
+              registrar movimientos.
+            </p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Monto {currency} *</Label>

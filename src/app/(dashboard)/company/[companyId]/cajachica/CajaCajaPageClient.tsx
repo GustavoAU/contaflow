@@ -13,30 +13,42 @@ import {
 import type { CajaCajaSummary } from "@/modules/cajachica/services/CajaCajaService";
 
 type Account = { id: string; code: string; name: string; type: string };
+type Employee = { id: string; name: string; status: string };
 
 type Props = {
   companyId: string;
   accounts: Account[];
+  employees: Employee[];
   isAdmin: boolean;
 };
 
 function CreateCajaForm({
   companyId,
   accounts,
+  employees,
   onSuccess,
   onCancel,
 }: {
   companyId: string;
   accounts: Account[];
+  employees: Employee[];
   onSuccess: () => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [custodianId, setCustodianId] = useState("");
   const [maxBalance, setMaxBalance] = useState("");
   const [currency, setCurrency] = useState("VES");
   const [error, setError] = useState<string | null>(null);
   const [isPending, start] = useTransition();
+
+  // Defensa en cliente: la cuenta de la caja debe ser de tipo Activo (el server valida también).
+  const assetAccounts = accounts.filter((a) => a.type === "ASSET");
+
+  // Preferir empleados activos; si no hay, listar todos para no bloquear la creación.
+  const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
+  const custodianOptions = activeEmployees.length > 0 ? activeEmployees : employees;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +58,7 @@ function CreateCajaForm({
         companyId,
         name,
         accountId,
+        custodianId,
         currency,
         maxBalance,
       });
@@ -58,8 +71,9 @@ function CreateCajaForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Nombre *</Label>
+          <Label htmlFor="caja-name" className="text-xs">Nombre *</Label>
           <Input
+            id="caja-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Caja Chica Operativa"
@@ -69,25 +83,57 @@ function CreateCajaForm({
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Cuenta contable *</Label>
+          <Label htmlFor="caja-account" className="text-xs">Cuenta contable (Activo) *</Label>
           <select
+            id="caja-account"
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
             required
-            disabled={isPending}
+            disabled={isPending || assetAccounts.length === 0}
           >
             <option value="">Seleccionar cuenta...</option>
-            {accounts.map((a) => (
+            {assetAccounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.code} — {a.name}
               </option>
             ))}
           </select>
+          {assetAccounts.length === 0 && (
+            <p className="text-xs text-amber-600">
+              No hay cuentas de tipo Activo. Crea una cuenta de Activo en el Plan de Cuentas antes de
+              registrar una caja chica.
+            </p>
+          )}
+        </div>
+        <div className="col-span-2 space-y-1.5">
+          <Label htmlFor="caja-custodian" className="text-xs">Custodio responsable *</Label>
+          <select
+            id="caja-custodian"
+            value={custodianId}
+            onChange={(e) => setCustodianId(e.target.value)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            required
+            disabled={isPending || custodianOptions.length === 0}
+          >
+            <option value="">Seleccionar empleado...</option>
+            {custodianOptions.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.name}
+              </option>
+            ))}
+          </select>
+          {custodianOptions.length === 0 && (
+            <p className="text-xs text-amber-600">
+              No hay empleados registrados. Registra al menos un empleado para asignarlo como
+              custodio.
+            </p>
+          )}
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Moneda</Label>
+          <Label htmlFor="caja-currency" className="text-xs">Moneda</Label>
           <select
+            id="caja-currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
@@ -98,8 +144,9 @@ function CreateCajaForm({
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Saldo máximo</Label>
+          <Label htmlFor="caja-max" className="text-xs">Saldo máximo</Label>
           <Input
+            id="caja-max"
             type="number"
             step="0.01"
             min="1"
@@ -130,7 +177,7 @@ function CreateCajaForm({
   );
 }
 
-export function CajaCajaPageClient({ companyId, accounts, isAdmin }: Props) {
+export function CajaCajaPageClient({ companyId, accounts, employees, isAdmin }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [cajas, setCajas] = useState<CajaCajaSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -177,6 +224,7 @@ export function CajaCajaPageClient({ companyId, accounts, isAdmin }: Props) {
           <CreateCajaForm
             companyId={companyId}
             accounts={accounts}
+            employees={employees}
             onSuccess={() => { setShowCreate(false); load(); }}
             onCancel={() => setShowCreate(false)}
           />

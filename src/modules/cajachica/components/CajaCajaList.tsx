@@ -3,6 +3,18 @@
 import { useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { CajaCajaBalanceCard } from "./CajaCajaBalanceCard";
 import { CajaCajaMovementForm } from "./CajaCajaMovementForm";
 import { CajaCajaMovementList } from "./CajaCajaMovementList";
@@ -31,6 +43,123 @@ type Props = {
   onRefresh: () => void;
 };
 
+// ─── Cierre con liquidación (AlertDialog) — HC-05/06 ───────────────────────────
+
+function CloseCajaDialog({
+  caja,
+  companyId,
+  accounts,
+  onClosed,
+}: {
+  caja: CajaCajaSummary;
+  companyId: string;
+  accounts: Account[];
+  onClosed: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [returnAccountId, setReturnAccountId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isClosing, startClose] = useTransition();
+
+  // Cuenta de retorno: solo Activo y distinta de la propia cuenta de la caja.
+  const returnAccounts = accounts.filter(
+    (a) => a.type === "ASSET" && a.id !== caja.accountId,
+  );
+
+  function handleConfirm() {
+    setError(null);
+    startClose(async () => {
+      const result = await closeCajaCajaAction({
+        cajaCajaId: caja.id,
+        companyId,
+        returnAccountId,
+      });
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setOpen(false);
+        onClosed();
+      }
+    });
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setError(null);
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-xs text-zinc-500 hover:text-red-600"
+        >
+          Cerrar caja
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cerrar caja chica</AlertDialogTitle>
+          <AlertDialogDescription>
+            Al cerrar la caja se generará el asiento de liquidación que devuelve el efectivo
+            remanente a la cuenta de Activo que selecciones. Esta acción no puede revertirse desde
+            la aplicación.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor={`return-account-${caja.id}`} className="text-xs">
+            Cuenta de retorno del efectivo (Activo) *
+          </Label>
+          <select
+            id={`return-account-${caja.id}`}
+            value={returnAccountId}
+            onChange={(e) => setReturnAccountId(e.target.value)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            disabled={isClosing || returnAccounts.length === 0}
+          >
+            <option value="">Seleccionar cuenta...</option>
+            {returnAccounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.code} — {a.name}
+              </option>
+            ))}
+          </select>
+          {returnAccounts.length === 0 && (
+            <p className="text-xs text-amber-600">
+              No hay otra cuenta de tipo Activo disponible para recibir el efectivo. Crea una en el
+              Plan de Cuentas antes de cerrar la caja.
+            </p>
+          )}
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isClosing}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleConfirm();
+            }}
+            disabled={isClosing || !returnAccountId}
+            aria-busy={isClosing}
+          >
+            Cerrar caja
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function CajaRow({
   caja,
   companyId,
@@ -54,11 +183,9 @@ function CajaRow({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [depositLoadError, setDepositLoadError] = useState<string | null>(null);
   const [reimbLoadError, setReimbLoadError] = useState<string | null>(null);
-  const [closeError, setCloseError] = useState<string | null>(null);
   const [isLoading, startLoad] = useTransition();
   const [isLoadingDeposits, startLoadDeposits] = useTransition();
   const [isLoadingReimb, startLoadReimb] = useTransition();
-  const [isClosing, startClose] = useTransition();
 
   function loadMovements() {
     startLoad(async () => {
@@ -103,15 +230,6 @@ function CajaRow({
       loadReimbursements();
     }
     setExpanded(!expanded);
-  }
-
-  function handleClose() {
-    setCloseError(null);
-    startClose(async () => {
-      const result = await closeCajaCajaAction({ cajaCajaId: caja.id, companyId });
-      if (!result.success) setCloseError(result.error);
-      else onRefresh();
-    });
   }
 
   return (
@@ -181,25 +299,15 @@ function CajaRow({
               <Plus className="h-3.5 w-3.5" />
               Nuevo gasto
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={isClosing}
-              aria-busy={isClosing}
-              className="text-xs text-zinc-500 hover:text-red-600"
-            >
-              Cerrar caja
-            </Button>
+            <CloseCajaDialog
+              caja={caja}
+              companyId={companyId}
+              accounts={accounts}
+              onClosed={onRefresh}
+            />
           </div>
         )}
       </div>
-
-      {closeError && (
-        <div className="mx-4 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {closeError}
-        </div>
-      )}
 
       {/* Deposit form */}
       {showDepositForm && expanded && (

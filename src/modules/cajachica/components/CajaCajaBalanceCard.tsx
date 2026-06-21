@@ -1,5 +1,6 @@
 "use client";
 
+import { User } from "lucide-react";
 import type { CajaCajaSummary } from "../services/CajaCajaService";
 import { MoneyBadge } from "@/components/ui/MoneyBadge";
 
@@ -39,6 +40,16 @@ export function CajaCajaBalanceCard({ caja }: Props) {
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{caja.name}</h3>
           <p className="text-xs text-zinc-500 mt-0.5">
             {caja.accountCode} — {caja.accountName}
+          </p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
+            <User className="h-3 w-3 shrink-0" aria-hidden />
+            {caja.custodianName ? (
+              <span>
+                Custodio: <span className="text-zinc-700 dark:text-zinc-300">{caja.custodianName}</span>
+              </span>
+            ) : (
+              <span className="text-zinc-400 italic">Sin custodio</span>
+            )}
           </p>
         </div>
         <span

@@ -7,7 +7,9 @@ import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 export const CreateCajaCajaSchema = z.object({
   companyId: z.string().min(1),
   name: z.string().min(1).max(255),
-  accountId: z.string().min(1),
+  accountId: z.string().min(1, { error: "Cuenta de la caja requerida" }),
+  // HC-03 (ADR-036): toda caja chica nueva debe tener un custodio responsable.
+  custodianId: z.string().min(1, { error: "Custodio requerido" }),
   currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
   maxBalance: zMoneyPositive,
 });
@@ -15,6 +17,8 @@ export const CreateCajaCajaSchema = z.object({
 export const CloseCajaCajaSchema = z.object({
   cajaCajaId: z.string().min(1),
   companyId: z.string().min(1),
+  // HC-05 (ADR-036): cuenta (ASSET) a la que se devuelve el efectivo remanente al cerrar.
+  returnAccountId: z.string().min(1, { error: "Cuenta de retorno requerida" }),
 });
 
 // ─── Deposit ─────────────────────────────────────────────────────────────────

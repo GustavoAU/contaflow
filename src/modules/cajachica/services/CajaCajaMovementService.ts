@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
+import { assertAccountOfType } from "./account-type.guard";
 import type {
   CreateMovementSchema,
   ApproveMovementSchema,
@@ -107,6 +108,15 @@ export async function createMovement(
 
     // HC-02: la fecha del gasto debe caer dentro del período contable abierto.
     await PeriodService.assertDateInOpenPeriod(input.companyId, movementDate, tx);
+
+    // HC-09 (ADR-036 D-3): la cuenta del movimiento debe ser de tipo EXPENSE,
+    // pertenecer a la empresa y no estar borrada. Defensa server-side (ADR-006).
+    await assertAccountOfType(tx, {
+      accountId: input.expenseAccountId,
+      companyId: input.companyId,
+      expected: "EXPENSE",
+      label: "La cuenta de gasto del movimiento",
+    });
 
     const expenseAccount = await tx.account.findFirst({
       where: { id: input.expenseAccountId, companyId: input.companyId },
