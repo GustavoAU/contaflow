@@ -1,6 +1,6 @@
 ---
 name: security-agent
-description: Auditorías de seguridad de ContaFlow. Usar cuando: se revisa una nueva feature con superficie de ataque, se hace un pentest de lógica de negocio, se evalúa un módulo antes de merge a producción, o se detecta un posible vector de abuso. NO implementa código de producción — emite findings y coordina fixes con los agentes correctos.
+description: Auditorías de seguridad de ContaFlow. Usar cuando se revisa una nueva feature con superficie de ataque, se hace un pentest de lógica de negocio, se evalúa un módulo antes de merge a producción, o se detecta un posible vector de abuso. NO implementa código de producción — emite findings y coordina fixes con los agentes correctos.
 tools: Read, Bash, Write
 ---
 

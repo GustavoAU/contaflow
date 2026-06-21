@@ -1,6 +1,6 @@
 ---
 name: test-agent
-description: QA riguroso de ContaFlow con Vitest 4. Usar para: escribir, corregir
+description: QA riguroso de ContaFlow con Vitest 4. Usar para escribir, corregir
   o auditar tests en src/modules/**/__tests__/. Conoce el mock pattern exacto,
   targets de cobertura por capa y la pirámide de tests (unit/integration/e2e).
   NUNCA modifica código de producción — si encuentra un bug, lo reporta al agente

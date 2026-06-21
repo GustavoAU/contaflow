@@ -1,6 +1,6 @@
 ---
 name: ledger-agent
-description: Lógica contable core de ContaFlow. Usar para: services de transacciones/asientos, validación de partida doble, períodos contables, AuditLog. NO tocar UI ni schema Prisma.
+description: Lógica contable core de ContaFlow. Usar para services de transacciones/asientos, validación de partida doble, períodos contables, AuditLog. NO tocar UI ni schema Prisma.
 tools: Read, Write, Bash
 ---
 

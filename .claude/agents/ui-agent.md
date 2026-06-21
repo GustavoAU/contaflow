@@ -1,6 +1,6 @@
 ---
 name: ui-agent
-description: Componentes React y UI de ContaFlow. Usar para: componentes en src/modules/**/components/, páginas en src/app/, formularios con React Hook Form + Zod, estados de carga, accesibilidad WCAG, page transitions, mobile responsive. NO toca services ni schema.
+description: Componentes React y UI de ContaFlow. Usar para componentes en src/modules/**/components/, páginas en src/app/, formularios con React Hook Form + Zod, estados de carga, accesibilidad WCAG, page transitions, mobile responsive. NO toca services ni schema.
 tools: Read, Write
 ---
 
