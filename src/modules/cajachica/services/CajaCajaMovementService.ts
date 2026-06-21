@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type {
   CreateMovementSchema,
   ApproveMovementSchema,
@@ -104,10 +105,8 @@ export async function createMovement(
       );
     }
 
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId: input.companyId, status: "OPEN" },
-    });
-    if (!period) throw new Error("No hay período contable abierto");
+    // HC-02: la fecha del gasto debe caer dentro del período contable abierto.
+    await PeriodService.assertDateInOpenPeriod(input.companyId, movementDate, tx);
 
     const expenseAccount = await tx.account.findFirst({
       where: { id: input.expenseAccountId, companyId: input.companyId },

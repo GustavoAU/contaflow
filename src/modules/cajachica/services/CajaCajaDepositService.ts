@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type { CreateDepositSchema, VoidDepositSchema } from "../schemas/cajachica.schema";
 import type { z } from "zod";
 
@@ -71,11 +72,10 @@ export async function createDeposit(
       throw new Error("La cuenta origen debe ser distinta de la cuenta de la Caja Chica");
     }
 
-    // Find open period
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId: input.companyId, status: "OPEN" },
-    });
-    if (!period) throw new Error("No hay período contable abierto");
+    // HC-02: la fecha del depósito debe caer dentro del período contable abierto.
+    // El asiento (más abajo) usa este mismo period.id, garantizando que el GL
+    // queda asentado en el período que corresponde a la fecha del depósito.
+    const period = await PeriodService.assertDateInOpenPeriod(input.companyId, depositDate, tx);
 
     const deposit = await tx.cajaCajaDeposit.create({
       data: {
