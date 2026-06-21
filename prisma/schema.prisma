@@ -446,6 +446,7 @@ model Transaction {
   // Fase 35D: Caja Chica
   cajaCajaDeposit                CajaCajaDeposit?
   cajaCajaReimbursement          CajaCajaReimbursement?
+  cajaCajaClose                  CajaCaja?              @relation("CajaCajaCloseTransaction")
   // ADR-030: asientos GL generados por pagos
   paymentRecordGL                PaymentRecord?         @relation("PaymentRecordGLTransaction")
   paymentBatchGL                 PaymentBatch?          @relation("PaymentBatchGLTransaction")
@@ -1908,6 +1909,7 @@ model Employee {
   profitSharingRecords ProfitSharingRecord[]
   terminations         Termination[]
   loans                EmployeeLoan[]
+  cajaCajas            CajaCaja[]            @relation("CajaCajaCustodian")
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -3116,6 +3118,10 @@ model CajaCaja {
   name       String         @db.VarChar(255)
   accountId  String
   account    Account        @relation("CajaCajaAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  // HC-03 (ADR-036): custodio responsable del fondo fijo (control interno COSO).
+  // Nullable en DB por cajas legacy; requerido en el Zod de creación.
+  custodianId String?
+  custodian   Employee?      @relation("CajaCajaCustodian", fields: [custodianId], references: [id], onDelete: Restrict)
   currency   Currency       @default(VES)
   maxBalance Decimal        @db.Decimal(19, 4)
   status     CajaCajaStatus @default(ACTIVE)
@@ -3123,6 +3129,10 @@ model CajaCaja {
   createdBy  String         @db.VarChar(255)
   closedAt   DateTime?
   closedBy   String?        @db.VarChar(255)
+  // HC-05 (ADR-036): asiento de liquidación al cierre (Dr cuenta retorno / Cr caja).
+  // Nullable: el cierre con remanente 0 no genera asiento.
+  closeTransactionId String?      @unique
+  closeTransaction   Transaction? @relation("CajaCajaCloseTransaction", fields: [closeTransactionId], references: [id], onDelete: Restrict)
 
   deposits       CajaCajaDeposit[]
   movements      CajaCajaMovement[]
@@ -3130,6 +3140,7 @@ model CajaCaja {
 
   @@unique([companyId, accountId])
   @@index([companyId, status])
+  @@index([companyId, custodianId])
   @@map("caja_cajas")
 }
 

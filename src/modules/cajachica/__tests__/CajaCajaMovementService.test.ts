@@ -1,0 +1,102 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Decimal } from "decimal.js";
+
+vi.mock("@/lib/prisma", () => ({
+  default: { $transaction: vi.fn() },
+}));
+
+import prisma from "@/lib/prisma";
+import { createMovement } from "../services/CajaCajaMovementService";
+
+const COMPANY_ID = "comp-1";
+const USER_ID = "user-1";
+const CAJA_ACCOUNT = "acc-caja";
+const EXPENSE_ACCOUNT = "acc-expense";
+
+// createMovement usa assertDateInOpenPeriod con la fecha del input ("2026-06-13");
+// el período mockeado debe coincidir en año/mes (junio 2026) — HC-02.
+type TxOverrides = Record<string, unknown>;
+
+function makeTx(overrides: TxOverrides = {}) {
+  const movementCreate = vi.fn().mockResolvedValue({
+    id: "mov-1",
+    cajaCajaId: "caja-1",
+    date: new Date("2026-06-13"),
+    voucherNumber: "CCC-2026-00001",
+    concept: "Café",
+    description: null,
+    expenseAccountId: EXPENSE_ACCOUNT,
+    expenseAccount: { code: "5101", name: "Gastos varios" },
+    amount: new Decimal("150000"),
+    currency: "VES",
+    status: "PENDING",
+    approvedAt: null,
+    approvedBy: null,
+    reimbursementId: null,
+    createdAt: new Date(),
+    voidedAt: null,
+  });
+  const tx = {
+    cajaCaja: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: "caja-1",
+        companyId: COMPANY_ID,
+        accountId: CAJA_ACCOUNT,
+        status: "ACTIVE",
+        deposits: [{ amount: new Decimal("1000000") }],
+        movements: [],
+      }),
+    },
+    accountingPeriod: {
+      findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
+    },
+    // assertAccountOfType (guard) + segunda consulta para code/name. Ambas usan
+    // account.findFirst; por defecto devuelve una cuenta EXPENSE válida con code/name.
+    account: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue({ id: EXPENSE_ACCOUNT, type: "EXPENSE", code: "5101", name: "Gastos varios" }),
+    },
+    cajaCajaMovement: { count: vi.fn().mockResolvedValue(0), create: movementCreate },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
+    ...overrides,
+  };
+  vi.mocked(prisma.$transaction).mockImplementation(
+    ((fn: (t: unknown) => unknown) => fn(tx)) as never
+  );
+  return { tx, movementCreate };
+}
+
+const baseInput = {
+  companyId: COMPANY_ID,
+  cajaCajaId: "caja-1",
+  date: "2026-06-13",
+  concept: "Café",
+  expenseAccountId: EXPENSE_ACCOUNT,
+  amount: "150000",
+  currency: "VES" as const,
+};
+
+describe("createMovement — guard de tipo de cuenta (HC-09 / ADR-036 D-3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("happy path: crea movimiento PENDING con cuenta EXPENSE", async () => {
+    const { movementCreate } = makeTx();
+    const result = await createMovement(baseInput, USER_ID);
+    expect(result.id).toBe("mov-1");
+    expect(result.status).toBe("PENDING");
+    expect(movementCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechaza si expenseAccountId NO es de tipo EXPENSE (es ASSET)", async () => {
+    const movementCreate = vi.fn();
+    makeTx({
+      account: {
+        findFirst: vi.fn().mockResolvedValue({ id: EXPENSE_ACCOUNT, type: "ASSET", code: "1010", name: "Caja" }),
+      },
+      cajaCajaMovement: { count: vi.fn().mockResolvedValue(0), create: movementCreate },
+    });
+    await expect(createMovement(baseInput, USER_ID)).rejects.toThrow(/Gasto/i);
+    expect(movementCreate).not.toHaveBeenCalled();
+  });
+});
