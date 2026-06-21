@@ -8,10 +8,18 @@ import { CajaCajaMovementForm } from "./CajaCajaMovementForm";
 import { CajaCajaMovementList } from "./CajaCajaMovementList";
 import { CajaCajaDepositForm } from "./CajaCajaDepositForm";
 import { CajaCajaDepositList } from "./CajaCajaDepositList";
-import { closeCajaCajaAction, listMovementsAction, listDepositsAction } from "../actions/cajachica.actions";
+import { CajaCajaReimbursementForm } from "./CajaCajaReimbursementForm";
+import { CajaCajaReimbursementList } from "./CajaCajaReimbursementList";
+import {
+  closeCajaCajaAction,
+  listMovementsAction,
+  listDepositsAction,
+  listReimbursementsAction,
+} from "../actions/cajachica.actions";
 import type { CajaCajaSummary } from "../services/CajaCajaService";
 import type { MovementSummary } from "../services/CajaCajaMovementService";
 import type { DepositSummary } from "../services/CajaCajaDepositService";
+import type { ReimbursementSummary } from "../services/CajaCajaReimbursementService";
 
 type Account = { id: string; code: string; name: string; type: string };
 
@@ -39,13 +47,17 @@ function CajaRow({
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
+  const [showReimbForm, setShowReimbForm] = useState(false);
   const [movements, setMovements] = useState<MovementSummary[]>([]);
   const [deposits, setDeposits] = useState<DepositSummary[]>([]);
+  const [reimbursements, setReimbursements] = useState<ReimbursementSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [depositLoadError, setDepositLoadError] = useState<string | null>(null);
+  const [reimbLoadError, setReimbLoadError] = useState<string | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [isLoading, startLoad] = useTransition();
   const [isLoadingDeposits, startLoadDeposits] = useTransition();
+  const [isLoadingReimb, startLoadReimb] = useTransition();
   const [isClosing, startClose] = useTransition();
 
   function loadMovements() {
@@ -72,10 +84,23 @@ function CajaRow({
     });
   }
 
+  function loadReimbursements() {
+    startLoadReimb(async () => {
+      const result = await listReimbursementsAction(caja.id, companyId);
+      if (result.success) {
+        setReimbursements(result.data);
+        setReimbLoadError(null);
+      } else {
+        setReimbLoadError(result.error);
+      }
+    });
+  }
+
   function handleExpand() {
     if (!expanded) {
       loadMovements();
       loadDeposits();
+      loadReimbursements();
     }
     setExpanded(!expanded);
   }
@@ -121,6 +146,7 @@ function CajaRow({
                 if (!expanded) handleExpand();
                 setShowDepositForm((v) => !v);
                 setShowForm(false);
+                setShowReimbForm(false);
               }}
               className="gap-1.5 text-xs"
             >
@@ -132,8 +158,23 @@ function CajaRow({
               variant="outline"
               onClick={() => {
                 if (!expanded) handleExpand();
+                setShowReimbForm((v) => !v);
+                setShowForm(false);
+                setShowDepositForm(false);
+              }}
+              className="gap-1.5 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Nuevo reembolso
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!expanded) handleExpand();
                 setShowForm((v) => !v);
                 setShowDepositForm(false);
+                setShowReimbForm(false);
               }}
               className="gap-1.5 text-xs"
             >
@@ -178,6 +219,21 @@ function CajaRow({
         </div>
       )}
 
+      {/* Reimbursement form */}
+      {showReimbForm && expanded && (
+        <div className="border-t px-4 py-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Nuevo Reembolso (reposición de fondo)
+          </h4>
+          <CajaCajaReimbursementForm
+            companyId={companyId}
+            cajaCajaId={caja.id}
+            onSuccess={() => { setShowReimbForm(false); loadReimbursements(); onRefresh(); }}
+            onCancel={() => setShowReimbForm(false)}
+          />
+        </div>
+      )}
+
       {/* Movement form */}
       {showForm && expanded && (
         <div className="border-t px-4 py-4">
@@ -191,6 +247,27 @@ function CajaRow({
             onSuccess={() => { setShowForm(false); loadMovements(); onRefresh(); }}
             onCancel={() => setShowForm(false)}
           />
+        </div>
+      )}
+
+      {/* Reimbursements */}
+      {expanded && (
+        <div className="border-t px-4 py-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Reembolsos (reposición de fondo)
+          </h4>
+          {isLoadingReimb ? (
+            <p className="py-4 text-center text-sm text-zinc-400">Cargando...</p>
+          ) : reimbLoadError ? (
+            <p className="text-xs text-red-600">{reimbLoadError}</p>
+          ) : (
+            <CajaCajaReimbursementList
+              companyId={companyId}
+              reimbursements={reimbursements}
+              isAdmin={isAdmin}
+              onRefresh={() => { loadReimbursements(); onRefresh(); }}
+            />
+          )}
         </div>
       )}
 
