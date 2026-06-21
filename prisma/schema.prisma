@@ -3206,7 +3206,10 @@ model CajaCajaReimbursement {
   movements CajaCajaMovement[]
 
   @@unique([companyId, reimbursementNumber])
-  @@unique([companyId, cajaCajaId, monthYear])
+  // Unicidad de (companyId, cajaCajaId, monthYear) SOLO entre reembolsos vigentes
+  // (status <> VOIDED). Es un índice único PARCIAL — Prisma DSL no lo expresa, vive
+  // en la migración 20260621_cajachica_reembolso_partial_unique. Permite recrear el
+  // reembolso de un mes tras anular un borrador. Ver ADR-035.
   @@index([companyId, cajaCajaId])
   @@map("caja_caja_reimbursements")
 }

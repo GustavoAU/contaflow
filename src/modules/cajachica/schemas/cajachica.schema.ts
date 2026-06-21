@@ -89,5 +89,6 @@ export const PostReimbursementSchema = z.object({
 export const VoidReimbursementSchema = z.object({
   reimbursementId: z.string().min(1),
   companyId: z.string().min(1),
-  voidReason: z.string().min(3).max(500),
+  // .trim() server-side: evita motivos de solo-espacios (la UI ya valida trim>=3).
+  voidReason: z.string().trim().min(3).max(500),
 });
