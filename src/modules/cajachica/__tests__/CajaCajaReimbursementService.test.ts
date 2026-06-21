@@ -190,6 +190,27 @@ describe("createReimbursement", () => {
       /No hay gastos aprobados/i
     );
   });
+
+  it("permite recrear el reembolso de un mes cuyo previo está VOIDED — el check excluye VOIDED (ADR-035)", async () => {
+    // El índice único es PARCIAL (WHERE status<>VOIDED); el service alinea su
+    // check de duplicado consultando solo reembolsos vigentes. Un previo anulado
+    // no debe bloquear la recreación. Aquí findFirst (mock por defecto) → null.
+    const { tx, reimbCreate } = makeCreateTx();
+
+    const result = await createReimbursement(createInput, USER_ID);
+
+    // el check de duplicado EXCLUYE explícitamente los VOIDED
+    expect(
+      (tx.cajaCajaReimbursement as { findFirst: ReturnType<typeof vi.fn> }).findFirst,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { not: "VOIDED" } }),
+      }),
+    );
+    // y crea el nuevo reembolso normalmente
+    expect(reimbCreate).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("DRAFT");
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
