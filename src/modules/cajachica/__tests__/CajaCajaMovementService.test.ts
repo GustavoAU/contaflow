@@ -17,7 +17,7 @@ const EXPENSE_ACCOUNT = "acc-expense";
 // el período mockeado debe coincidir en año/mes (junio 2026) — HC-02.
 type TxOverrides = Record<string, unknown>;
 
-function makeTx(overrides: TxOverrides = {}) {
+function makeTx(overrides: TxOverrides = {}, createOverrides: Record<string, unknown> = {}) {
   const movementCreate = vi.fn().mockResolvedValue({
     id: "mov-1",
     cajaCajaId: "caja-1",
@@ -30,11 +30,13 @@ function makeTx(overrides: TxOverrides = {}) {
     amount: new Decimal("150000"),
     currency: "VES",
     status: "PENDING",
+    providerRif: null,
     approvedAt: null,
     approvedBy: null,
     reimbursementId: null,
     createdAt: new Date(),
     voidedAt: null,
+    ...createOverrides,
   });
   const tx = {
     cajaCaja: {
@@ -67,6 +69,9 @@ function makeTx(overrides: TxOverrides = {}) {
   return { tx, movementCreate };
 }
 
+// HC-01 (ADR-037): supportingDocumentId SIEMPRE obligatorio.
+// HC-10 (ADR-037): providerRif opcional (la clave está presente con valor undefined
+// porque el Zod usa .transform → el input type es `string | undefined`).
 const baseInput = {
   companyId: COMPANY_ID,
   cajaCajaId: "caja-1",
@@ -75,6 +80,8 @@ const baseInput = {
   expenseAccountId: EXPENSE_ACCOUNT,
   amount: "150000",
   currency: "VES" as const,
+  supportingDocumentId: "FAC-001",
+  providerRif: undefined,
 };
 
 describe("createMovement — guard de tipo de cuenta (HC-09 / ADR-036 D-3)", () => {
@@ -98,5 +105,31 @@ describe("createMovement — guard de tipo de cuenta (HC-09 / ADR-036 D-3)", () 
     });
     await expect(createMovement(baseInput, USER_ID)).rejects.toThrow(/Gasto/i);
     expect(movementCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("createMovement — persistencia de providerRif (HC-10 / ADR-037)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("persiste providerRif en create.data cuando viene", async () => {
+    const { movementCreate } = makeTx({}, { providerRif: "J-12345678-9" });
+    const result = await createMovement(
+      { ...baseInput, providerRif: "J-12345678-9" },
+      USER_ID
+    );
+    expect(movementCreate).toHaveBeenCalledTimes(1);
+    expect(movementCreate.mock.calls[0][0].data).toMatchObject({
+      providerRif: "J-12345678-9",
+    });
+    // serializeMovement expone providerRif desde el registro persistido.
+    expect(result.providerRif).toBe("J-12345678-9");
+  });
+
+  it("persiste providerRif undefined cuando no viene (gasto menudo)", async () => {
+    const { movementCreate } = makeTx();
+    const result = await createMovement(baseInput, USER_ID);
+    expect(movementCreate.mock.calls[0][0].data.providerRif).toBeUndefined();
+    // serializeMovement normaliza null → providerRif: null en el summary.
+    expect(result.providerRif).toBeNull();
   });
 });

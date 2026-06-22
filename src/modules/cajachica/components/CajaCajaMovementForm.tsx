@@ -24,11 +24,10 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("VES");
   const [supportingDocumentId, setSupportingDocumentId] = useState("");
+  const [providerRif, setProviderRif] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const needsSupport = currency === "VES" && Number(amount) > 500_000;
 
   // Defensa en cliente: un gasto de caja chica solo puede imputarse a una cuenta de Gasto
   // (el server valida el tipo de cuenta también).
@@ -49,6 +48,7 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
         amount,
         currency,
         supportingDocumentId: supportingDocumentId || undefined,
+        providerRif: providerRif || undefined,
         notes: notes || undefined,
       });
 
@@ -64,12 +64,13 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Fecha *</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={isPending} />
+          <Label htmlFor="movement-date" className="text-xs">Fecha *</Label>
+          <Input id="movement-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={isPending} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Moneda *</Label>
+          <Label htmlFor="movement-currency" className="text-xs">Moneda *</Label>
           <select
+            id="movement-currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
@@ -81,8 +82,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           </select>
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Concepto *</Label>
+          <Label htmlFor="movement-concept" className="text-xs">Concepto *</Label>
           <Input
+            id="movement-concept"
             value={concept}
             onChange={(e) => setConcept(e.target.value)}
             placeholder="Café, taxi, suministros..."
@@ -116,8 +118,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           )}
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Monto {currency} *</Label>
+          <Label htmlFor="movement-amount" className="text-xs">Monto {currency} *</Label>
           <Input
+            id="movement-amount"
             type="number"
             step="0.01"
             min="0.01"
@@ -129,23 +132,33 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">
-            N° Soporte {needsSupport ? <span className="text-red-500">*</span> : "(opcional)"}
+          <Label htmlFor="movement-support" className="text-xs">
+            N° Soporte <span className="text-red-500">*</span>
           </Label>
           <Input
+            id="movement-support"
             value={supportingDocumentId}
             onChange={(e) => setSupportingDocumentId(e.target.value)}
-            placeholder="Factura, recibo..."
-            required={needsSupport}
+            placeholder="Factura, recibo, ticket..."
+            required
             disabled={isPending}
           />
-          {needsSupport && (
-            <p className="text-xs text-amber-600">Obligatorio para gastos &gt; VES 500,000</p>
-          )}
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Descripción (opcional)</Label>
+          <Label htmlFor="movement-provider-rif" className="text-xs">RIF del proveedor (opcional)</Label>
           <Input
+            id="movement-provider-rif"
+            value={providerRif}
+            onChange={(e) => setProviderRif(e.target.value)}
+            placeholder="J-12345678-9"
+            maxLength={20}
+            disabled={isPending}
+          />
+        </div>
+        <div className="col-span-2 space-y-1.5">
+          <Label htmlFor="movement-description" className="text-xs">Descripción (opcional)</Label>
+          <Input
+            id="movement-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Detalles adicionales..."
@@ -154,8 +167,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Notas internas (opcional)</Label>
+          <Label htmlFor="movement-notes" className="text-xs">Notas internas (opcional)</Label>
           <Input
+            id="movement-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Uso interno..."
