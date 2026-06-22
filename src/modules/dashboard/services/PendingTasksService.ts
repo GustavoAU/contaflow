@@ -28,7 +28,11 @@ export type PendingTaskType =
   | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
   | "RETENCIONES_SIN_ASIENTO_GL"   // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
-  | "CXC_GL_DESCUADRE";            // ADR-032 F3: subledger CxC ≠ saldo GL cuenta CxC (Art. 32-35 Cód. Comercio)
+  | "CXC_GL_DESCUADRE"             // ADR-032 F3: subledger CxC ≠ saldo GL cuenta CxC (Art. 32-35 Cód. Comercio)
+  // Fase 4 Caja Chica (HC-12): tareas accionables de caja chica en el dashboard
+  | "CAJA_CHICA_GASTOS_POR_APROBAR" // gastos PENDING por aprobar en cajas ACTIVE
+  | "CAJA_CHICA_REEMBOLSO_BORRADOR" // reembolsos DRAFT sin contabilizar (gastos aún fuera del Mayor)
+  | "CAJA_CHICA_SIN_CUSTODIO";      // cajas ACTIVE sin custodio asignado (control interno COSO)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -89,6 +93,10 @@ export const PendingTasksService = {
       igtfGlIncompletoCount,
       // ADR-032 F3
       cxcGlDescuadreGap,
+      // Fase 4 Caja Chica
+      cajaChicaGastosPorAprobarCount,
+      cajaChicaReembolsoBorradorCount,
+      cajaChicaSinCustodioCount,
     ] = await Promise.all([
       // 1. Facturas sin asiento contable (transactionId null)
       prisma.invoice.count({
@@ -338,6 +346,21 @@ export const PendingTasksService = {
           ELSE ABS((SELECT total FROM subledger) - (SELECT balance FROM gl_cxc))::TEXT
           END AS gap_ves
       `.then(([r]) => r?.gap_ves ?? null),
+
+      // 25. Fase 4 Caja Chica: gastos PENDING por aprobar (solo cajas ACTIVE)
+      prisma.cajaCajaMovement.count({
+        where: { companyId, status: "PENDING", cajaCaja: { status: "ACTIVE" } },
+      }),
+
+      // 26. Fase 4 Caja Chica: reembolsos en borrador sin contabilizar (gastos fuera del Mayor)
+      prisma.cajaCajaReimbursement.count({
+        where: { companyId, status: "DRAFT" },
+      }),
+
+      // 27. Fase 4 Caja Chica: cajas ACTIVE sin custodio asignado (control interno)
+      prisma.cajaCaja.count({
+        where: { companyId, status: "ACTIVE", custodianId: null },
+      }),
     ]);
 
     const tasks: PendingTask[] = [];
@@ -424,6 +447,43 @@ export const PendingTasksService = {
         description: `${ordenesVencidasCount} orden${pl ? "es" : ""} ${pl ? "tienen" : "tiene"} fecha comprometida vencida y aún no ${pl ? "han" : "ha"} sido convertida${pl ? "s" : ""} a factura.`,
         count: ordenesVencidasCount,
         href: "/orders",
+      });
+    }
+
+    // Fase 4 Caja Chica (HC-12): tareas accionables del fondo fijo
+    if (cajaChicaGastosPorAprobarCount > 0) {
+      const pl = cajaChicaGastosPorAprobarCount > 1;
+      tasks.push({
+        type: "CAJA_CHICA_GASTOS_POR_APROBAR",
+        severity: "warning",
+        title: "Gastos de caja chica por aprobar",
+        description: `${cajaChicaGastosPorAprobarCount} gasto${pl ? "s" : ""} de caja chica pendiente${pl ? "s" : ""} de aprobación.`,
+        count: cajaChicaGastosPorAprobarCount,
+        href: "/cajachica",
+      });
+    }
+
+    if (cajaChicaReembolsoBorradorCount > 0) {
+      const pl = cajaChicaReembolsoBorradorCount > 1;
+      tasks.push({
+        type: "CAJA_CHICA_REEMBOLSO_BORRADOR",
+        severity: "warning",
+        title: "Reembolsos de caja chica sin contabilizar",
+        description: `${cajaChicaReembolsoBorradorCount} reembolso${pl ? "s" : ""} en borrador: los gastos aún no llegan al Libro Mayor.`,
+        count: cajaChicaReembolsoBorradorCount,
+        href: "/cajachica",
+      });
+    }
+
+    if (cajaChicaSinCustodioCount > 0) {
+      const pl = cajaChicaSinCustodioCount > 1;
+      tasks.push({
+        type: "CAJA_CHICA_SIN_CUSTODIO",
+        severity: "info",
+        title: "Cajas chicas sin custodio",
+        description: `${cajaChicaSinCustodioCount} caja${pl ? "s" : ""} chica${pl ? "s" : ""} activa${pl ? "s" : ""} sin custodio asignado.`,
+        count: cajaChicaSinCustodioCount,
+        href: "/cajachica",
       });
     }
 

@@ -20,6 +20,10 @@ vi.mock("@/lib/prisma", () => ({
     legalThreshold: { findFirst: vi.fn() },
     benefitAccrualLine: { count: vi.fn() },
     bcvBenefitRate: { findFirst: vi.fn() },
+    // Fase 4 Caja Chica
+    cajaCajaMovement: { count: vi.fn() },        // CAJA_CHICA_GASTOS_POR_APROBAR
+    cajaCajaReimbursement: { count: vi.fn() },   // CAJA_CHICA_REEMBOLSO_BORRADOR
+    cajaCaja: { count: vi.fn() },                // CAJA_CHICA_SIN_CUSTODIO
   },
 }));
 
@@ -44,6 +48,10 @@ function mockAllZero() {
   vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null as never);
   vi.mocked(prisma.benefitAccrualLine.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null as never);
+  // Fase 4 Caja Chica — sin pendientes por defecto → no dispara alertas de caja chica
+  vi.mocked(prisma.cajaCajaMovement.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.cajaCajaReimbursement.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.cajaCaja.count).mockResolvedValue(0 as never);
 }
 
 describe("PendingTasksService.getPendingTasks", () => {
@@ -490,5 +498,86 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "CXC_GL_DESCUADRE")).toBeUndefined();
+  });
+
+  // ── Fase 4 Caja Chica (HC-12): tareas accionables del fondo fijo ────────────────
+
+  it("detecta gastos de caja chica por aprobar (CAJA_CHICA_GASTOS_POR_APROBAR) — severity warning", async () => {
+    vi.mocked(prisma.cajaCajaMovement.count).mockResolvedValue(3 as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "CAJA_CHICA_GASTOS_POR_APROBAR");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("warning");
+    expect(task?.count).toBe(3);
+    expect(task?.href).toBe("/cajachica");
+  });
+
+  it("CAJA_CHICA_GASTOS_POR_APROBAR filtra status PENDING en cajas ACTIVE", async () => {
+    vi.mocked(prisma.cajaCajaMovement.count).mockResolvedValue(1 as never);
+    await PendingTasksService.getPendingTasks("company-1");
+    expect(vi.mocked(prisma.cajaCajaMovement.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: "company-1",
+          status: "PENDING",
+          cajaCaja: { status: "ACTIVE" },
+        }),
+      }),
+    );
+  });
+
+  it("detecta reembolsos de caja chica en borrador (CAJA_CHICA_REEMBOLSO_BORRADOR) — severity warning", async () => {
+    vi.mocked(prisma.cajaCajaReimbursement.count).mockResolvedValue(2 as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "CAJA_CHICA_REEMBOLSO_BORRADOR");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("warning");
+    expect(task?.count).toBe(2);
+    expect(task?.href).toBe("/cajachica");
+    expect(task?.description).toContain("Libro Mayor");
+  });
+
+  it("CAJA_CHICA_REEMBOLSO_BORRADOR filtra status DRAFT", async () => {
+    vi.mocked(prisma.cajaCajaReimbursement.count).mockResolvedValue(1 as never);
+    await PendingTasksService.getPendingTasks("company-1");
+    expect(vi.mocked(prisma.cajaCajaReimbursement.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: "company-1", status: "DRAFT" }),
+      }),
+    );
+  });
+
+  it("detecta cajas chicas activas sin custodio (CAJA_CHICA_SIN_CUSTODIO) — severity info", async () => {
+    vi.mocked(prisma.cajaCaja.count).mockResolvedValue(1 as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "CAJA_CHICA_SIN_CUSTODIO");
+    expect(task).toBeDefined();
+    expect(task?.severity).toBe("info");
+    expect(task?.count).toBe(1);
+    expect(task?.href).toBe("/cajachica");
+  });
+
+  it("CAJA_CHICA_SIN_CUSTODIO filtra cajas ACTIVE con custodianId null", async () => {
+    vi.mocked(prisma.cajaCaja.count).mockResolvedValue(1 as never);
+    await PendingTasksService.getPendingTasks("company-1");
+    expect(vi.mocked(prisma.cajaCaja.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: "company-1",
+          status: "ACTIVE",
+          custodianId: null,
+        }),
+      }),
+    );
+  });
+
+  it("NO emite alertas de caja chica cuando no hay pendientes (mockAllZero)", async () => {
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "CAJA_CHICA_GASTOS_POR_APROBAR")).toBeUndefined();
+    expect(result.tasks.find((t) => t.type === "CAJA_CHICA_REEMBOLSO_BORRADOR")).toBeUndefined();
+    expect(result.tasks.find((t) => t.type === "CAJA_CHICA_SIN_CUSTODIO")).toBeUndefined();
   });
 });

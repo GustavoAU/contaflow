@@ -48,6 +48,11 @@ import {
   listReimbursements,
   type ReimbursementSummary,
 } from "../services/CajaCajaReimbursementService";
+import {
+  generateCajaCajaCSV,
+  generateCajaCajaPDF,
+  type CajaCajaExportData,
+} from "../services/CajaCajaExportService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { logRejection, shouldLogRejection } from "../utils/log-rejection";
@@ -483,6 +488,94 @@ export async function listReimbursementsAction(
   try {
     const data = await listReimbursements(cajaCajaId, companyId);
     return { success: true, data };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+// ─── Export (arqueo por caja — CSV / PDF, descarga de conveniencia) ──────────────
+
+async function buildCajaExportData(
+  cajaCajaId: string,
+  companyId: string,
+): Promise<CajaCajaExportData | null> {
+  const caja = await getCajaCajaById(cajaCajaId, companyId);
+  if (!caja) return null;
+  const [movements, deposits, company] = await Promise.all([
+    listMovements(cajaCajaId, companyId),
+    listDeposits(cajaCajaId, companyId),
+    prisma.company.findFirst({ where: { id: companyId }, select: { name: true } }),
+  ]);
+  return {
+    companyName: company?.name ?? "",
+    caja: {
+      name: caja.name,
+      accountCode: caja.accountCode,
+      accountName: caja.accountName,
+      currency: caja.currency,
+      status: caja.status,
+      custodianName: caja.custodianName,
+      totalDeposited: caja.totalDeposited,
+      totalApprovedMovements: caja.totalApprovedMovements,
+      totalPendingMovements: caja.totalPendingMovements,
+      availableBalance: caja.availableBalance,
+    },
+    movements: movements.map((m) => ({
+      date: m.date,
+      voucherNumber: m.voucherNumber,
+      concept: m.concept,
+      expenseAccountCode: m.expenseAccountCode,
+      expenseAccountName: m.expenseAccountName,
+      providerRif: m.providerRif,
+      supportingDocumentId: m.supportingDocumentId,
+      amount: m.amount,
+      currency: m.currency,
+      status: m.status,
+    })),
+    deposits: deposits.map((d) => ({
+      date: d.date,
+      amount: d.amount,
+      description: d.description,
+      status: d.status,
+    })),
+    generatedAt: new Date(),
+  };
+}
+
+function exportFilename(caja: CajaCajaExportData["caja"], ext: string): string {
+  const slug = caja.name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "caja-chica";
+  const stamp = new Date().toISOString().slice(0, 10);
+  return `arqueo-${slug}-${stamp}.${ext}`;
+}
+
+export async function exportCajaCajaCSVAction(
+  cajaCajaId: string,
+  companyId: string,
+): Promise<ActionResult<{ csv: string; filename: string }>> {
+  const g = await guardOperations(companyId);
+  if (!g.ok) return { success: false, error: g.error };
+
+  try {
+    const data = await buildCajaExportData(cajaCajaId, companyId);
+    if (!data) return { success: false, error: "Caja Chica no encontrada" };
+    return { success: true, data: { csv: generateCajaCajaCSV(data), filename: exportFilename(data.caja, "csv") } };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+export async function exportCajaCajaPDFAction(
+  cajaCajaId: string,
+  companyId: string,
+): Promise<ActionResult<{ pdf: string; filename: string }>> {
+  const g = await guardOperations(companyId);
+  if (!g.ok) return { success: false, error: g.error };
+
+  try {
+    const data = await buildCajaExportData(cajaCajaId, companyId);
+    if (!data) return { success: false, error: "Caja Chica no encontrada" };
+    const buffer = await generateCajaCajaPDF(data);
+    return { success: true, data: { pdf: buffer.toString("base64"), filename: exportFilename(data.caja, "pdf") } };
   } catch (e) {
     return toActionError(e);
   }
