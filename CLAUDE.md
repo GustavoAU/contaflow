@@ -200,7 +200,7 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 - IGTF 3%: si `currency !== VES` OR (`isSpecialContributor` AND `currency === VES`)
 - Retenciones IVA: 75%/100% — solo si `isSpecialContributor`
 - Retenciones ISLR Decreto 1808: tasas variables por tipo de pago
-- RIF regex: `/^[JVEGCP]-\d{8}-?\d?$/i`
+- RIF regex: `/^[JVEGCP]-\d{8}-?\d$/i` (dígito verificador obligatorio — fuente única: `VEN_RIF_REGEX` en `tax-config.ts`)
 
 ## Rate Limiting
 
