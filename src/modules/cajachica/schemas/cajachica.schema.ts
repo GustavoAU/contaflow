@@ -28,6 +28,12 @@ export const AssignCustodianSchema = z.object({
   custodianId: z.string().min(1, { error: "Custodio requerido" }),
 });
 
+// F-17 (ADR-038): reabrir una caja CLOSED — revierte el asiento de liquidación.
+export const ReopenCajaCajaSchema = z.object({
+  cajaCajaId: z.string().min(1),
+  companyId: z.string().min(1),
+});
+
 // ─── Deposit ─────────────────────────────────────────────────────────────────
 
 export const CreateDepositSchema = z.object({

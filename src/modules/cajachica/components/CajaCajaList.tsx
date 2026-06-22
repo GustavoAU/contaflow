@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Plus, UserCog } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, RotateCcw, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,6 +25,7 @@ import { CajaCajaReimbursementList } from "./CajaCajaReimbursementList";
 import { CajaCajaExportButtons } from "./CajaCajaExportButtons";
 import {
   closeCajaCajaAction,
+  reopenCajaCajaAction,
   assignCustodianAction,
   listMovementsAction,
   listDepositsAction,
@@ -286,6 +287,89 @@ function CloseCajaDialog({
   );
 }
 
+// ─── Reapertura de caja cerrada (AlertDialog) ──────────────────────────────────
+
+function ReopenCajaDialog({
+  caja,
+  companyId,
+  onReopened,
+}: {
+  caja: CajaCajaSummary;
+  companyId: string;
+  onReopened: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isReopening, startReopen] = useTransition();
+
+  function handleConfirm() {
+    setError(null);
+    startReopen(async () => {
+      const result = await reopenCajaCajaAction({
+        cajaCajaId: caja.id,
+        companyId,
+      });
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setOpen(false);
+        onReopened();
+      }
+    });
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setError(null);
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="gap-1.5 text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+          Reabrir caja
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reabrir caja chica</AlertDialogTitle>
+          <AlertDialogDescription>
+            Al reabrir la caja se revertirá el asiento de liquidación del cierre: se genera una
+            contrapartida que devuelve el efectivo remanente a la caja y esta vuelve a quedar
+            activa, lista para registrar nuevos movimientos.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {error && (
+          <p className="text-xs text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isReopening}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleConfirm();
+            }}
+            disabled={isReopening}
+            aria-busy={isReopening}
+          >
+            Reabrir caja
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function CajaRow({
   caja,
   companyId,
@@ -452,6 +536,14 @@ function CajaRow({
                 onClosed={onRefresh}
               />
             </>
+          )}
+
+          {isAdmin && caja.status === "CLOSED" && (
+            <ReopenCajaDialog
+              caja={caja}
+              companyId={companyId}
+              onReopened={onRefresh}
+            />
           )}
         </div>
       </div>
