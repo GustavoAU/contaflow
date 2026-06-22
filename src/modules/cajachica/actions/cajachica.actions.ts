@@ -9,6 +9,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
+  AssignCustodianSchema,
   CreateDepositSchema,
   VoidDepositSchema,
   CreateMovementSchema,
@@ -23,6 +24,7 @@ import {
   listCajasCajas,
   getCajaCajaById,
   closeCajaCaja,
+  assignCustodian,
   type CajaCajaSummary,
 } from "../services/CajaCajaService";
 import {
@@ -151,6 +153,24 @@ export async function closeCajaCajaAction(
   try {
     await closeCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+export async function assignCustodianAction(
+  raw: unknown
+): Promise<ActionResult<CajaCajaSummary>> {
+  const parsed = AssignCustodianSchema.safeParse(raw);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  const g = await guardAdmin(parsed.data.companyId);
+  if (!g.ok) return { success: false, error: g.error };
+
+  const { ipAddress, userAgent } = await getIpAndUa();
+  try {
+    const data = await assignCustodian(parsed.data, g.userId, ipAddress, userAgent);
+    return { success: true, data };
   } catch (e) {
     return toActionError(e);
   }

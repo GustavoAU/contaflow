@@ -4,7 +4,11 @@ import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { assertAccountOfType } from "./account-type.guard";
 import type { CajaCajaMovementStatus } from "@prisma/client";
-import type { CreateCajaCajaSchema, CloseCajaCajaSchema } from "../schemas/cajachica.schema";
+import type {
+  CreateCajaCajaSchema,
+  CloseCajaCajaSchema,
+  AssignCustodianSchema,
+} from "../schemas/cajachica.schema";
 import type { z } from "zod";
 
 export type CajaCajaSummary = {
@@ -154,6 +158,54 @@ export async function createCajaCaja(
     });
 
     return caja;
+  });
+
+  return serializeCaja(result as Parameters<typeof serializeCaja>[0]);
+}
+
+export async function assignCustodian(
+  input: z.infer<typeof AssignCustodianSchema>,
+  userId: string,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<CajaCajaSummary> {
+  const result = await prisma.$transaction(async (tx) => {
+    const caja = await tx.cajaCaja.findFirst({
+      where: { id: input.cajaCajaId, companyId: input.companyId },
+      select: { id: true, status: true, custodianId: true },
+    });
+    if (!caja) throw new Error("Caja Chica no encontrada");
+    if (caja.status === "CLOSED") throw new Error("No se puede cambiar el custodio de una caja cerrada");
+
+    // Mismo guard cross-tenant (ADR-004) + ACTIVE que createCajaCaja (HC-03).
+    const custodian = await tx.employee.findFirst({
+      where: { id: input.custodianId, companyId: input.companyId },
+      select: { id: true, status: true },
+    });
+    if (!custodian) throw new Error("El custodio no existe o no pertenece a esta empresa");
+    if (custodian.status !== "ACTIVE") throw new Error("El custodio debe ser un empleado activo");
+
+    const updated = await tx.cajaCaja.update({
+      where: { id: input.cajaCajaId },
+      data: { custodianId: input.custodianId },
+      include: CAJA_INCLUDE,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: input.companyId,
+        userId,
+        action: "ASSIGN_CAJA_CHICA_CUSTODIAN",
+        entityName: "CajaCaja",
+        entityId: input.cajaCajaId,
+        ipAddress,
+        userAgent,
+        oldValue: { custodianId: caja.custodianId },
+        newValue: { custodianId: input.custodianId },
+      },
+    });
+
+    return updated;
   });
 
   return serializeCaja(result as Parameters<typeof serializeCaja>[0]);

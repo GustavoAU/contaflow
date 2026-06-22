@@ -5,6 +5,7 @@ const mockAuth = vi.hoisted(() => vi.fn());
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 const mockListCajasCajas = vi.hoisted(() => vi.fn());
 const mockCreateCajaCaja = vi.hoisted(() => vi.fn());
+const mockAssignCustodian = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
 const mockListMovements = vi.hoisted(() => vi.fn());
@@ -31,6 +32,7 @@ vi.mock("../services/CajaCajaService", () => ({
   listCajasCajas: mockListCajasCajas,
   getCajaCajaById: vi.fn(),
   closeCajaCaja: mockCloseCajaCaja,
+  assignCustodian: mockAssignCustodian,
 }));
 vi.mock("../services/CajaCajaMovementService", () => ({
   createMovement: mockCreateMovement,
@@ -54,6 +56,7 @@ import prisma from "@/lib/prisma";
 import {
   listCajasCajasAction,
   createCajaCajaAction,
+  assignCustodianAction,
   closeCajaCajaAction,
   createMovementAction,
   approveMovementAction,
@@ -81,12 +84,20 @@ function setupWriter() {
   } as never);
 }
 
+function setupRole(role: string) {
+  mockAuth.mockResolvedValue({ userId: USER_ID });
+  mockCheckRateLimit.mockResolvedValue({ allowed: true });
+  vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role } as never);
+}
+
 const mockCaja = {
   id: "caja-1",
   name: "Caja Operativa",
   accountId: "acc-1",
   accountCode: "1010",
   accountName: "Caja VES",
+  custodianId: "emp-1",
+  custodianName: "Ana Pérez",
   currency: "VES",
   maxBalance: "1000000.00",
   status: "ACTIVE",
@@ -188,6 +199,72 @@ describe("createCajaCajaAction", () => {
       maxBalance: "100000",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+// ─── assignCustodianAction ────────────────────────────────────────────────────
+
+describe("assignCustodianAction", () => {
+  const validAssign = {
+    cajaCajaId: "caja-1",
+    companyId: COMPANY_ID,
+    custodianId: "emp-2",
+  };
+
+  it("asigna custodio correctamente (requiere ADMIN)", async () => {
+    setupAdmin();
+    mockAssignCustodian.mockResolvedValue({ ...mockCaja, custodianId: "emp-2", custodianName: "Luis Gómez" });
+
+    const result = await assignCustodianAction(validAssign);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.custodianId).toBe("emp-2");
+      expect(result.data.custodianName).toBe("Luis Gómez");
+    }
+    // delega al service con el input parseado + userId del guard
+    expect(mockAssignCustodian).toHaveBeenCalledWith(
+      expect.objectContaining(validAssign),
+      USER_ID,
+      undefined,
+      undefined
+    );
+  });
+
+  it("rechaza para ACCOUNTANT (requiere ADMIN) → no llama al service", async () => {
+    setupRole("ACCOUNTANT");
+    const result = await assignCustodianAction(validAssign);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockAssignCustodian).not.toHaveBeenCalled();
+  });
+
+  it("rechaza para VIEWER (requiere ADMIN) → no llama al service", async () => {
+    setupRole("VIEWER");
+    const result = await assignCustodianAction(validAssign);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockAssignCustodian).not.toHaveBeenCalled();
+  });
+
+  it("falla con Zod si falta custodianId → no llama al service", async () => {
+    setupAdmin();
+    const result = await assignCustodianAction({
+      cajaCajaId: "caja-1",
+      companyId: COMPANY_ID,
+    });
+    expect(result.success).toBe(false);
+    expect(mockAssignCustodian).not.toHaveBeenCalled();
+  });
+
+  it("propaga error de negocio del servicio (caja cerrada)", async () => {
+    setupAdmin();
+    mockAssignCustodian.mockRejectedValue(
+      new Error("No se puede cambiar el custodio de una caja cerrada")
+    );
+    const result = await assignCustodianAction(validAssign);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/cerrada/i);
   });
 });
 
