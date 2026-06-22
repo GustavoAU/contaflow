@@ -16,6 +16,8 @@
 //   - removeMemberAction          (eliminar miembro)
 //   - updateCompanySeniatData     (datos fiscales RIF/name)
 //   - archiveCompanyAction        (archivar empresa)
+//   - closeCajaCajaAction         (cierre de caja chica — CONDICIONAL: monto > umbral, ADR-039)
+//   - reopenCajaCajaAction        (reapertura de caja chica — CONDICIONAL: monto > umbral, ADR-039)
 
 import { reverificationError } from "@clerk/nextjs/server";
 
@@ -24,6 +26,14 @@ export const STEP_UP_CONFIG = {
   level: "second_factor" as const,
   afterMinutes: 10,
 } as const;
+
+/**
+ * Umbral (VES) a partir del cual el cierre/reapertura de una caja chica exige
+ * step-up 2FA (ADR-039). Aplica sobre el monto VES del asiento GL (los libros
+ * son en VES aunque la caja sea USD/EUR). Comparar con Decimal.js (R-5).
+ * NOTA: valor fijo en VES — revisar periódicamente por la inflación.
+ */
+export const CAJA_CHICA_STEP_UP_THRESHOLD_VES = "20000";
 
 /** Re-exporta para evitar import duplicado en action files. */
 export { reverificationError };

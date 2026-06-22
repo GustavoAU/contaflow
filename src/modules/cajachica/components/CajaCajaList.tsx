@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Plus, RotateCcw, UserCog } from "lucide-react";
+import { useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -188,6 +190,10 @@ function CloseCajaDialog({
   const [error, setError] = useState<string | null>(null);
   const [isClosing, startClose] = useTransition();
 
+  // ADR-039: wrap con step-up — si el monto supera el umbral, la action devuelve
+  // reverificationError y Clerk muestra el modal de 2do factor y reintenta.
+  const closeWithStepUp = useReverification(closeCajaCajaAction);
+
   // Cuenta de retorno: solo Activo y distinta de la propia cuenta de la caja.
   const returnAccounts = accounts.filter(
     (a) => a.type === "ASSET" && a.id !== caja.accountId,
@@ -196,16 +202,23 @@ function CloseCajaDialog({
   function handleConfirm() {
     setError(null);
     startClose(async () => {
-      const result = await closeCajaCajaAction({
-        cajaCajaId: caja.id,
-        companyId,
-        returnAccountId,
-      });
-      if (!result.success) {
-        setError(result.error);
-      } else {
+      try {
+        const result = await closeWithStepUp({
+          cajaCajaId: caja.id,
+          companyId,
+          returnAccountId,
+        });
+        if (!result) return; // cancelado por el usuario
+        if ("clerk_error" in result) return; // no debería llegar: Clerk lo intercepta y reintenta
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
         setOpen(false);
         onClosed();
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return; // usuario canceló el 2FA
+        setError("Ocurrió un error. Intenta de nuevo.");
       }
     });
   }
@@ -302,18 +315,29 @@ function ReopenCajaDialog({
   const [error, setError] = useState<string | null>(null);
   const [isReopening, startReopen] = useTransition();
 
+  // ADR-039: wrap con step-up — si el monto supera el umbral, la action devuelve
+  // reverificationError y Clerk muestra el modal de 2do factor y reintenta.
+  const reopenWithStepUp = useReverification(reopenCajaCajaAction);
+
   function handleConfirm() {
     setError(null);
     startReopen(async () => {
-      const result = await reopenCajaCajaAction({
-        cajaCajaId: caja.id,
-        companyId,
-      });
-      if (!result.success) {
-        setError(result.error);
-      } else {
+      try {
+        const result = await reopenWithStepUp({
+          cajaCajaId: caja.id,
+          companyId,
+        });
+        if (!result) return; // cancelado por el usuario
+        if ("clerk_error" in result) return; // no debería llegar: Clerk lo intercepta y reintenta
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
         setOpen(false);
         onReopened();
+      } catch (e) {
+        if (isReverificationCancelledError(e)) return; // usuario canceló el 2FA
+        setError("Ocurrió un error. Intenta de nuevo.");
       }
     });
   }

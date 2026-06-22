@@ -34,6 +34,35 @@ export type CajaCajaSummary = {
 
 const ACTIVE_STATUSES: CajaCajaMovementStatus[] = ["PENDING", "APPROVED"];
 
+/**
+ * Cliente Prisma o cliente de transacción (tx). Permite que los helpers de lectura
+ * sirvan tanto a la action (con `prisma`) como a un `$transaction` (con `tx`) sin
+ * duplicar el `where`. Mismo tipo loose que el resto del módulo.
+ */
+type PrismaClientOrTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Fórmula única del saldo GL (VES) de una cuenta: SUM(JournalEntry.amount) de las
+ * entries cuyo Transaction está POSTED y pertenece a la empresa (R-1, R-5). Fuente
+ * compartida entre `getCajaGlBalance` y `closeCajaCaja` para evitar drift (ADR-039 D-B.1).
+ * Convención del schema: amount positivo = Débito, negativo = Crédito; el saldo de una
+ * cuenta ASSET de caja es directamente esa suma neta.
+ */
+async function sumPostedGlBalance(
+  db: PrismaClientOrTx,
+  accountId: string,
+  companyId: string,
+): Promise<Decimal> {
+  const agg = await db.journalEntry.aggregate({
+    _sum: { amount: true },
+    where: {
+      accountId,
+      transaction: { companyId, status: "POSTED" },
+    },
+  });
+  return new Decimal(agg._sum.amount?.toString() ?? "0");
+}
+
 const CAJA_INCLUDE = {
   account: { select: { id: true, code: true, name: true } },
   custodian: { select: { id: true, firstName: true, lastName: true } },
@@ -273,17 +302,8 @@ export async function closeCajaCaja(
       // contrapartida POSTED, así que sumar entries POSTED da el saldo correcto.
       // Convención del schema: amount positivo = Débito, negativo = Crédito; el
       // saldo de una cuenta ASSET es directamente esa suma neta.
-      const remainderAgg = await tx.journalEntry.aggregate({
-        _sum: { amount: true },
-        where: {
-          accountId: caja.accountId,
-          transaction: {
-            companyId: input.companyId,
-            status: "POSTED",
-          },
-        },
-      });
-      const remaining = new Decimal(remainderAgg._sum.amount?.toString() ?? "0");
+      // ADR-039 D-B.1: fórmula compartida con getCajaGlBalance (fuente única).
+      const remaining = await sumPostedGlBalance(tx, caja.accountId, input.companyId);
 
       let closeTransactionId: string | null = null;
 
@@ -509,4 +529,56 @@ export async function reopenCajaCaja(
     },
     { isolationLevel: "Serializable" }
   );
+}
+
+// ─── Lecturas para el gate de step-up (ADR-039) ─────────────────────────────────
+
+/**
+ * Saldo GL (VES) de la cuenta de la caja = SUM(JournalEntry.amount) POSTED.
+ * Misma fórmula que usa closeCajaCaja internamente (ADR-036 D-2.3, ADR-039 D-B.1)
+ * — fuente única. Usado por closeCajaCajaAction para el gate de step-up. Read-only,
+ * companyId-scoped (ADR-004). Si la caja no existe → 0. R-5: Decimal.js.
+ */
+export async function getCajaGlBalance(
+  cajaCajaId: string,
+  companyId: string,
+  db: PrismaClientOrTx = prisma,
+): Promise<Decimal> {
+  const caja = await db.cajaCaja.findFirst({
+    where: { id: cajaCajaId, companyId },
+    select: { accountId: true },
+  });
+  if (!caja) return new Decimal(0);
+  return sumPostedGlBalance(db, caja.accountId, companyId);
+}
+
+/**
+ * Magnitud (VES) que revertiría una reapertura = |suma de las entries del
+ * closeTransaction sobre la cuenta de la caja| (ADR-038 A.2, ADR-039 D-B.2). 0 si
+ * no hubo asiento de liquidación (closeTransactionId null) o si el cierre ya está
+ * VOIDED / no existe (degradación con gracia, ADR-038 A.6). Read-only,
+ * companyId-scoped (ADR-004). R-5: Decimal.js.
+ */
+export async function getCajaReopenMagnitude(
+  cajaCajaId: string,
+  companyId: string,
+  db: PrismaClientOrTx = prisma,
+): Promise<Decimal> {
+  const caja = await db.cajaCaja.findFirst({
+    where: { id: cajaCajaId, companyId },
+    select: { accountId: true, closeTransactionId: true },
+  });
+  if (!caja || !caja.closeTransactionId) return new Decimal(0);
+
+  const closeTransaction = await db.transaction.findFirst({
+    where: { id: caja.closeTransactionId, companyId },
+    select: { status: true },
+  });
+  if (!closeTransaction || closeTransaction.status === "VOIDED") return new Decimal(0);
+
+  const agg = await db.journalEntry.aggregate({
+    _sum: { amount: true },
+    where: { transactionId: caja.closeTransactionId, accountId: caja.accountId },
+  });
+  return new Decimal(agg._sum.amount?.toString() ?? "0").abs();
 }

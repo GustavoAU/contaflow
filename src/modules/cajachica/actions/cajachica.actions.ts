@@ -7,6 +7,13 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { mapPrismaError } from "@/lib/prisma-errors";
+import Decimal from "decimal.js";
+import {
+  STEP_UP_CONFIG,
+  reverificationError,
+  type StepUpError,
+  CAJA_CHICA_STEP_UP_THRESHOLD_VES,
+} from "@/lib/step-up";
 import {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
@@ -28,6 +35,8 @@ import {
   closeCajaCaja,
   assignCustodian,
   reopenCajaCaja,
+  getCajaGlBalance,
+  getCajaReopenMagnitude,
   type CajaCajaSummary,
 } from "../services/CajaCajaService";
 import {
@@ -189,12 +198,20 @@ export async function getCajaCajaByIdAction(
 
 export async function closeCajaCajaAction(
   raw: unknown
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<void> | StepUpError> {
   const parsed = CloseCajaCajaSchema.safeParse(raw);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
+
+  // ADR-039: step-up 2FA condicional al monto. El cierre liquida el saldo GL de la
+  // caja; si supera el umbral, exige re-verificación con 2do factor antes de operar.
+  const amount = await getCajaGlBalance(parsed.data.cajaCajaId, parsed.data.companyId);
+  if (amount.greaterThan(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))) {
+    const { has } = await auth();
+    if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
+  }
 
   const { ipAddress, userAgent } = await getIpAndUa();
   try {
@@ -215,12 +232,20 @@ export async function closeCajaCajaAction(
 
 export async function reopenCajaCajaAction(
   raw: unknown
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<void> | StepUpError> {
   const parsed = ReopenCajaCajaSchema.safeParse(raw);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
+
+  // ADR-039: step-up 2FA condicional al monto. La reapertura revierte el asiento de
+  // liquidación del cierre; si la magnitud revertida supera el umbral, exige 2do factor.
+  const amount = await getCajaReopenMagnitude(parsed.data.cajaCajaId, parsed.data.companyId);
+  if (amount.greaterThan(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))) {
+    const { has } = await auth();
+    if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
+  }
 
   const { ipAddress, userAgent } = await getIpAndUa();
   try {

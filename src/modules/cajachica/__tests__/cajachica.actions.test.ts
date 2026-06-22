@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Decimal } from "decimal.js";
 
 // Hoisted mocks
 const mockAuth = vi.hoisted(() => vi.fn());
@@ -8,6 +9,10 @@ const mockCreateCajaCaja = vi.hoisted(() => vi.fn());
 const mockAssignCustodian = vi.hoisted(() => vi.fn());
 const mockReopenCajaCaja = vi.hoisted(() => vi.fn());
 const mockGetCajaCajaById = vi.hoisted(() => vi.fn());
+// ADR-039: lecturas para el gate de step-up. La action las llama ANTES de operar.
+// Default = new Decimal(0) (bajo umbral) → NO dispara 2FA en los happy paths existentes.
+const mockGetCajaGlBalance = vi.hoisted(() => vi.fn());
+const mockGetCajaReopenMagnitude = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
 const mockListMovements = vi.hoisted(() => vi.fn());
@@ -20,7 +25,16 @@ const mockShouldLogRejection = vi.hoisted(() => vi.fn(() => true));
 const mockGenerateCSV = vi.hoisted(() => vi.fn());
 const mockGeneratePDF = vi.hoisted(() => vi.fn());
 
-vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: mockAuth,
+  reverificationError: (config: unknown) => ({
+    clerk_error: {
+      type: "forbidden",
+      reason: "reverification-error",
+      metadata: { reverification: config },
+    },
+  }),
+}));
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Map()),
 }));
@@ -50,6 +64,8 @@ vi.mock("../services/CajaCajaService", () => ({
   closeCajaCaja: mockCloseCajaCaja,
   assignCustodian: mockAssignCustodian,
   reopenCajaCaja: mockReopenCajaCaja,
+  getCajaGlBalance: mockGetCajaGlBalance,
+  getCajaReopenMagnitude: mockGetCajaReopenMagnitude,
 }));
 vi.mock("../services/CajaCajaMovementService", () => ({
   createMovement: mockCreateMovement,
@@ -138,6 +154,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   // shouldLogRejection vuelve a su default (true) tras clearAllMocks.
   mockShouldLogRejection.mockReturnValue(true);
+  // ADR-039: por defecto el monto del gate es 0 (bajo umbral) -> close/reopen NO
+  // exigen step-up salvo que un test lo sobreescriba con un Decimal > umbral.
+  mockGetCajaGlBalance.mockResolvedValue(new Decimal(0));
+  mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal(0));
 });
 
 // ─── Auth guards ──────────────────────────────────────────────────────────────
@@ -421,26 +441,27 @@ describe("createMovementAction", () => {
 
 // ─── closeCajaCajaAction ──────────────────────────────────────────────────────
 
+const closeInput = {
+  cajaCajaId: "caja-1",
+  companyId: COMPANY_ID,
+  returnAccountId: "acc-banco",
+};
+
 describe("closeCajaCajaAction", () => {
   it("cierra caja correctamente (requiere ADMIN)", async () => {
     setupAdmin();
     mockCloseCajaCaja.mockResolvedValue(undefined);
 
-    const result = await closeCajaCajaAction({
-      cajaCajaId: "caja-1",
-      companyId: COMPANY_ID,
-      returnAccountId: "acc-banco",
-    });
+    const result = await closeCajaCajaAction(closeInput);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(true);
+    expect(mockCloseCajaCaja).toHaveBeenCalledTimes(1);
   });
 
   it("rechaza cierre para ADMINISTRATIVE (requiere ADMIN)", async () => {
     setupWriter();
-    const result = await closeCajaCajaAction({
-      cajaCajaId: "caja-1",
-      companyId: COMPANY_ID,
-      returnAccountId: "acc-banco",
-    });
+    const result = await closeCajaCajaAction(closeInput);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
   });
@@ -448,7 +469,71 @@ describe("closeCajaCajaAction", () => {
   it("falla con Zod si falta cajaCajaId", async () => {
     setupAdmin();
     const result = await closeCajaCajaAction({ companyId: COMPANY_ID });
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
+  });
+
+  // ADR-039: step-up 2FA condicional al monto (saldo GL liquidado en el cierre).
+
+  it("monto > umbral y has:false -> exige step-up (reverificationError), NO cierra", async () => {
+    setupAdmin();
+    // El usuario NO ha pasado el 2do factor recientemente.
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    // Saldo GL del cierre por encima del umbral (20.000 VES).
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("50000"));
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(true);
+    // El gate corre ANTES de operar: el service nunca se invoca.
+    expect(mockCloseCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("monto > umbral y has:true -> procede (2FA satisfecho), llama al service", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => true });
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("50000"));
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(true);
+    expect(mockCloseCajaCaja).toHaveBeenCalledTimes(1);
+  });
+
+  it("monto <= umbral y has:false -> procede SIN exigir 2FA (condicionalidad)", async () => {
+    setupAdmin();
+    // Aunque el usuario NO tenga 2do factor, un monto bajo no dispara el gate.
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("100"));
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(true);
+    expect(mockCloseCajaCaja).toHaveBeenCalledTimes(1);
+  });
+
+  it("403 por rol insuficiente PRECEDE al step-up (guardAdmin primero)", async () => {
+    // Monto alto + sin 2FA, PERO rol insuficiente -> gana el guard de rol,
+    // no el gate de step-up. Nunca se llega a leer el saldo.
+    setupWriter();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("50000"));
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockGetCajaGlBalance).not.toHaveBeenCalled();
+    expect(mockCloseCajaCaja).not.toHaveBeenCalled();
   });
 });
 
@@ -644,12 +729,13 @@ describe("reopenCajaCajaAction", () => {
     companyId: COMPANY_ID,
   };
 
-  it("reabre caja correctamente (requiere ADMIN) → delega al service con userId del guard", async () => {
+  it("reabre caja correctamente (requiere ADMIN) -> delega al service con userId del guard", async () => {
     setupAdmin();
     mockReopenCajaCaja.mockResolvedValue(undefined);
 
     const result = await reopenCajaCajaAction(validReopen);
 
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(true);
     expect(mockReopenCajaCaja).toHaveBeenCalledWith(
       expect.objectContaining(validReopen),
@@ -659,33 +745,37 @@ describe("reopenCajaCajaAction", () => {
     );
   });
 
-  it("rechaza para ADMINISTRATIVE (requiere ADMIN) → no llama al service", async () => {
+  it("rechaza para ADMINISTRATIVE (requiere ADMIN) -> no llama al service", async () => {
     setupWriter();
     const result = await reopenCajaCajaAction(validReopen);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
     expect(mockReopenCajaCaja).not.toHaveBeenCalled();
   });
 
-  it("rechaza para ACCOUNTANT (requiere ADMIN) → no llama al service", async () => {
+  it("rechaza para ACCOUNTANT (requiere ADMIN) -> no llama al service", async () => {
     setupRole("ACCOUNTANT");
     const result = await reopenCajaCajaAction(validReopen);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
     expect(mockReopenCajaCaja).not.toHaveBeenCalled();
   });
 
-  it("rechaza para VIEWER (requiere ADMIN) → no llama al service", async () => {
+  it("rechaza para VIEWER (requiere ADMIN) -> no llama al service", async () => {
     setupRole("VIEWER");
     const result = await reopenCajaCajaAction(validReopen);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
     expect(mockReopenCajaCaja).not.toHaveBeenCalled();
   });
 
-  it("falla con Zod si falta cajaCajaId → no llama al service", async () => {
+  it("falla con Zod si falta cajaCajaId -> no llama al service", async () => {
     setupAdmin();
     const result = await reopenCajaCajaAction({ companyId: COMPANY_ID });
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect(mockReopenCajaCaja).not.toHaveBeenCalled();
   });
@@ -696,7 +786,65 @@ describe("reopenCajaCajaAction", () => {
       new Error("Solo se puede reabrir una Caja Chica cerrada")
     );
     const result = await reopenCajaCajaAction(validReopen);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/cerrada/i);
+  });
+
+  // ADR-039: step-up 2FA condicional a la magnitud revertida por la reapertura.
+
+  it("magnitud > umbral y has:false -> exige step-up (reverificationError), NO reabre", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal("50000"));
+    mockReopenCajaCaja.mockResolvedValue(undefined);
+
+    const result = await reopenCajaCajaAction(validReopen);
+
+    expect("clerk_error" in result).toBe(true);
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("magnitud > umbral y has:true -> procede (2FA satisfecho), llama al service", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => true });
+    mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal("50000"));
+    mockReopenCajaCaja.mockResolvedValue(undefined);
+
+    const result = await reopenCajaCajaAction(validReopen);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(true);
+    expect(mockReopenCajaCaja).toHaveBeenCalledTimes(1);
+  });
+
+  it("magnitud <= umbral y has:false -> procede SIN exigir 2FA (condicionalidad)", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal("100"));
+    mockReopenCajaCaja.mockResolvedValue(undefined);
+
+    const result = await reopenCajaCajaAction(validReopen);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(true);
+    expect(mockReopenCajaCaja).toHaveBeenCalledTimes(1);
+  });
+
+  it("403 por rol insuficiente PRECEDE al step-up (guardAdmin primero)", async () => {
+    setupWriter();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal("50000"));
+
+    const result = await reopenCajaCajaAction(validReopen);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockGetCajaReopenMagnitude).not.toHaveBeenCalled();
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
   });
 });
