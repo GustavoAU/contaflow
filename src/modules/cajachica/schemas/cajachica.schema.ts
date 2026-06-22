@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { zMoneyPositive } from "@/lib/zod-helpers";
-import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { SUPPORTED_CURRENCIES, VEN_RIF_REGEX } from "@/lib/tax-config";
 
 // ─── CajaCaja ────────────────────────────────────────────────────────────────
 
@@ -51,27 +51,29 @@ export const VoidDepositSchema = z.object({
 
 // ─── Movement ────────────────────────────────────────────────────────────────
 
-export const CreateMovementSchema = z
-  .object({
-    companyId: z.string().min(1),
-    cajaCajaId: z.string().min(1),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
-    concept: z.string().min(1).max(255),
-    description: z.string().max(2000).optional(),
-    expenseAccountId: z.string().min(1),
-    amount: zMoneyPositive,
-    currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
-    supportingDocumentId: z.string().optional(),
-    notes: z.string().max(2000).optional(),
-  })
-  .refine(
-    (d) => {
-      // Soporte obligatorio si monto > VES 500,000 y currency VES
-      if (d.currency === "VES" && Number(d.amount) > 500_000 && !d.supportingDocumentId) return false;
-      return true;
-    },
-    { error: "Se requiere documento soporte para gastos mayores a VES 500,000" }
-  );
+export const CreateMovementSchema = z.object({
+  companyId: z.string().min(1),
+  cajaCajaId: z.string().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
+  concept: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  expenseAccountId: z.string().min(1),
+  amount: zMoneyPositive,
+  currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
+  // HC-01 (ADR-037): documento soporte SIEMPRE obligatorio (antes solo si > VES 500.000).
+  supportingDocumentId: z.string().min(1, { error: "Documento soporte requerido" }),
+  // HC-10 (ADR-037): RIF del proveedor. Opcional (gastos menudos sin proveedor formal);
+  // si se provee, se normaliza (trim+upper) y debe cumplir VEN_RIF_REGEX.
+  providerRif: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v.toUpperCase() : undefined))
+    .refine((v) => v === undefined || VEN_RIF_REGEX.test(v), {
+      error: "RIF inválido (formato J-12345678-9)",
+    }),
+  notes: z.string().max(2000).optional(),
+});
 
 export const ApproveMovementSchema = z.object({
   movementId: z.string().min(1),

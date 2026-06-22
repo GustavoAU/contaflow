@@ -159,37 +159,29 @@ describe("CreateMovementSchema", () => {
     expenseAccountId: "acc-expense",
     amount: "150000",
     currency: "VES",
+    // HC-01 (ADR-037): supportingDocumentId SIEMPRE obligatorio (se eliminó el umbral 500k).
+    supportingDocumentId: "FAC-001",
   };
 
-  it("acepta movimiento válido sin soporte (< 500K)", () => {
+  it("acepta movimiento válido con soporte (HC-01)", () => {
     expect(CreateMovementSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("rechaza movimiento VES > 500K sin soporte", () => {
-    const result = CreateMovementSchema.safeParse({
-      ...valid,
-      amount: "600000",
-      supportingDocumentId: undefined,
-    });
-    expect(result.success).toBe(false);
+  it("rechaza movimiento sin supportingDocumentId (HC-01, cualquier monto)", () => {
+    const { supportingDocumentId: _omit, ...sinSoporte } = valid;
+    void _omit;
+    expect(CreateMovementSchema.safeParse(sinSoporte).success).toBe(false);
   });
 
-  it("acepta movimiento VES > 500K con soporte", () => {
+  it("rechaza movimiento USD sin soporte (HC-01 aplica a toda moneda)", () => {
+    const { supportingDocumentId: _omit, ...sinSoporte } = valid;
+    void _omit;
     const result = CreateMovementSchema.safeParse({
-      ...valid,
-      amount: "600000",
-      supportingDocumentId: "doc-123",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("acepta movimiento USD > 500K sin soporte (solo aplica a VES)", () => {
-    const result = CreateMovementSchema.safeParse({
-      ...valid,
+      ...sinSoporte,
       amount: "600000",
       currency: "USD",
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 });
 

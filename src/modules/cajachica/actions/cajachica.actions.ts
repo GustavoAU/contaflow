@@ -6,6 +6,7 @@ import type { UserRole } from "@prisma/client";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
@@ -49,6 +50,7 @@ import {
 } from "../services/CajaCajaReimbursementService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { logRejection, shouldLogRejection } from "../utils/log-rejection";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,37 @@ async function getIpAndUa() {
     h.get("x-forwarded-for")?.split(",")[0].trim() ?? h.get("x-real-ip") ?? undefined;
   const userAgent = h.get("user-agent") ?? undefined;
   return { ipAddress, userAgent };
+}
+
+// HC-08 (ADR-037 D-2): registra el rechazo de regla de negocio (best-effort, fuera del
+// $transaction) ANTES de devolver el error al usuario. `reason` = el MISMO mensaje de
+// negocio que ve el usuario (mapPrismaError), nunca input crudo (sin PII). El comportamiento
+// hacia el usuario no cambia: igual se devuelve toActionError(e).
+async function rejectAndReport(
+  e: unknown,
+  meta: {
+    companyId: string;
+    userId: string;
+    action: string;
+    entityName: string;
+    entityId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+  },
+): Promise<ActionResult<never>> {
+  if (shouldLogRejection(e)) {
+    await logRejection({
+      companyId: meta.companyId,
+      userId: meta.userId,
+      action: meta.action,
+      entityName: meta.entityName,
+      entityId: meta.entityId,
+      reason: mapPrismaError(e),
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+  }
+  return toActionError(e);
 }
 
 type GuardResult = { ok: true; userId: string } | { ok: false; error: string };
@@ -107,7 +140,14 @@ export async function createCajaCajaAction(
     const data = await createCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "CREATE_CAJACAJA",
+      entityName: "CajaCaja",
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -154,7 +194,15 @@ export async function closeCajaCajaAction(
     await closeCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "CLOSE_CAJACAJA",
+      entityName: "CajaCaja",
+      entityId: parsed.data.cajaCajaId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -172,7 +220,15 @@ export async function assignCustodianAction(
     const data = await assignCustodian(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "ASSIGN_CUSTODIAN",
+      entityName: "CajaCaja",
+      entityId: parsed.data.cajaCajaId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -192,7 +248,14 @@ export async function createDepositAction(
     const data = await createDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "CREATE_DEPOSIT",
+      entityName: "CajaCajaDeposit",
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -210,7 +273,15 @@ export async function voidDepositAction(
     await voidDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "VOID_DEPOSIT",
+      entityName: "CajaCajaDeposit",
+      entityId: parsed.data.depositId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -245,7 +316,14 @@ export async function createMovementAction(
     const data = await createMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "CREATE_MOVEMENT",
+      entityName: "CajaCajaMovement",
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -263,7 +341,15 @@ export async function approveMovementAction(
     const data = await approveMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "APPROVE_MOVEMENT",
+      entityName: "CajaCajaMovement",
+      entityId: parsed.data.movementId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -281,7 +367,15 @@ export async function voidMovementAction(
     await voidMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "VOID_MOVEMENT",
+      entityName: "CajaCajaMovement",
+      entityId: parsed.data.movementId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -316,7 +410,14 @@ export async function createReimbursementAction(
     const data = await createReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "CREATE_REIMBURSEMENT",
+      entityName: "CajaCajaReimbursement",
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -334,7 +435,15 @@ export async function postReimbursementAction(
     const data = await postReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "POST_REIMBURSEMENT",
+      entityName: "CajaCajaReimbursement",
+      entityId: parsed.data.reimbursementId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 
@@ -352,7 +461,15 @@ export async function voidReimbursementAction(
     await voidReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
   } catch (e) {
-    return toActionError(e);
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "VOID_REIMBURSEMENT",
+      entityName: "CajaCajaReimbursement",
+      entityId: parsed.data.reimbursementId,
+      ipAddress,
+      userAgent,
+    });
   }
 }
 

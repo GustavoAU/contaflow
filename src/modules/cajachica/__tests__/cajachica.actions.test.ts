@@ -9,6 +9,11 @@ const mockAssignCustodian = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
 const mockListMovements = vi.hoisted(() => vi.fn());
+// HC-08 (ADR-037 D-2): registro best-effort de rechazos. Lo mockeamos para verificar
+// que la action lo invoca cuando el service lanza un rechazo de regla de negocio,
+// sin acoplarnos a la implementación interna de prisma.auditLog.create.
+const mockLogRejection = vi.hoisted(() => vi.fn());
+const mockShouldLogRejection = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/headers", () => ({
@@ -26,6 +31,11 @@ vi.mock("@/lib/prisma", () => ({
 const mockCloseCajaCaja = vi.hoisted(() => vi.fn());
 const mockListDeposits = vi.hoisted(() => vi.fn());
 const mockListReimbursements = vi.hoisted(() => vi.fn());
+
+vi.mock("../utils/log-rejection", () => ({
+  logRejection: mockLogRejection,
+  shouldLogRejection: mockShouldLogRejection,
+}));
 
 vi.mock("../services/CajaCajaService", () => ({
   createCajaCaja: mockCreateCajaCaja,
@@ -110,7 +120,11 @@ const mockCaja = {
   percentUsed: 0,
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // shouldLogRejection vuelve a su default (true) tras clearAllMocks.
+  mockShouldLogRejection.mockReturnValue(true);
+});
 
 // ─── Auth guards ──────────────────────────────────────────────────────────────
 
@@ -284,6 +298,7 @@ describe("listCajasCajasAction", () => {
 // ─── createMovementAction ─────────────────────────────────────────────────────
 
 describe("createMovementAction", () => {
+  // HC-01 (ADR-037): supportingDocumentId SIEMPRE obligatorio.
   const validMovement = {
     companyId: COMPANY_ID,
     cajaCajaId: "caja-1",
@@ -292,6 +307,7 @@ describe("createMovementAction", () => {
     expenseAccountId: "acc-exp",
     amount: "150000",
     currency: "VES",
+    supportingDocumentId: "FAC-001",
   };
 
   const mockMovement = {
@@ -307,6 +323,7 @@ describe("createMovementAction", () => {
     amount: "150000.00",
     currency: "VES",
     status: "PENDING",
+    providerRif: null,
     approvedAt: null,
     approvedBy: null,
     reimbursementId: null,
@@ -323,14 +340,68 @@ describe("createMovementAction", () => {
     if (result.success) expect(result.data.voucherNumber).toBe("CCC-2026-00001");
   });
 
-  it("rechaza movimiento > 500K sin soporte", async () => {
+  // HC-01 (ADR-037): el umbral 500k fue eliminado; supportingDocumentId es obligatorio
+  // SIEMPRE. Sin él, el Zod rechaza antes de llamar al service.
+  it("rechaza (Zod) si falta supportingDocumentId → no llama al service", async () => {
     setupWriter();
-    const result = await createMovementAction({
-      ...validMovement,
-      amount: "600000",
-    });
+    const { supportingDocumentId: _omit, ...sinSoporte } = validMovement;
+    void _omit;
+    const result = await createMovementAction(sinSoporte);
+    expect(result.success).toBe(false);
+    // clave ausente -> Zod falla por type check (no por el .min(1)); basta con que rechace.
+    expect(mockCreateMovement).not.toHaveBeenCalled();
+  });
+
+  it("rechaza (Zod) si supportingDocumentId está vacío → no llama al service", async () => {
+    setupWriter();
+    const result = await createMovementAction({ ...validMovement, supportingDocumentId: "" });
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/soporte/i);
+    expect(mockCreateMovement).not.toHaveBeenCalled();
+  });
+
+  // HC-10 (ADR-037): RIF inválido lo rechaza el Zod (no llega al service).
+  it("rechaza (Zod) si providerRif tiene formato inválido → no llama al service", async () => {
+    setupWriter();
+    const result = await createMovementAction({ ...validMovement, providerRif: "123" });
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/RIF/i);
+    expect(mockCreateMovement).not.toHaveBeenCalled();
+  });
+
+  // HC-08 (ADR-037 D-2): cuando el service lanza un rechazo de regla de negocio,
+  // la action devuelve { success: false } Y registra el rechazo (logRejection).
+  it("registra el rechazo (HC-08) cuando el service lanza error de negocio", async () => {
+    setupWriter();
+    mockCreateMovement.mockRejectedValue(new Error("Saldo insuficiente"));
+
+    const result = await createMovementAction(validMovement);
+
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/saldo insuficiente/i);
+    expect(mockLogRejection).toHaveBeenCalledTimes(1);
+    expect(mockLogRejection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: COMPANY_ID,
+        userId: USER_ID,
+        action: "CREATE_MOVEMENT",
+        entityName: "CajaCajaMovement",
+        reason: expect.stringMatching(/saldo insuficiente/i),
+      })
+    );
+  });
+
+  // HC-08: si shouldLogRejection devuelve false (p.ej. error de infra), NO se loguea
+  // pero igual se devuelve el error al usuario.
+  it("NO registra el rechazo si shouldLogRejection es false (infra/transitorio)", async () => {
+    setupWriter();
+    mockShouldLogRejection.mockReturnValue(false);
+    mockCreateMovement.mockRejectedValue(new Error("connection terminated"));
+
+    const result = await createMovementAction(validMovement);
+
+    expect(result.success).toBe(false);
+    expect(mockLogRejection).not.toHaveBeenCalled();
   });
 });
 

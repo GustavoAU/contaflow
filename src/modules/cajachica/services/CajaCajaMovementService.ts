@@ -22,6 +22,8 @@ export type MovementSummary = {
   amount: string;
   currency: string;
   status: string;
+  // HC-10 (ADR-037): RIF del proveedor del gasto. null cuando no se capturó.
+  providerRif: string | null;
   approvedAt: string | null;
   approvedBy: string | null;
   reimbursementId: string | null;
@@ -41,6 +43,7 @@ function serializeMovement(m: {
   amount: Decimal;
   currency: string;
   status: string;
+  providerRif: string | null;
   approvedAt: Date | null;
   approvedBy: string | null;
   reimbursementId: string | null;
@@ -60,6 +63,7 @@ function serializeMovement(m: {
     amount: m.amount.toFixed(2),
     currency: m.currency,
     status: m.status,
+    providerRif: m.providerRif ?? null,
     approvedAt: m.approvedAt?.toISOString() ?? null,
     approvedBy: m.approvedBy,
     reimbursementId: m.reimbursementId,
@@ -138,6 +142,9 @@ export async function createMovement(
         amount: amountDecimal,
         currency: input.currency as "VES" | "USD" | "EUR",
         supportingDocumentId: input.supportingDocumentId,
+        // HC-10 (ADR-037): el Zod ya normalizó/validó; el service solo persiste.
+        // undefined → NULL (gasto menudo sin proveedor formal con RIF).
+        providerRif: input.providerRif,
         notes: input.notes,
         status: "PENDING",
         createdBy: userId,

@@ -130,6 +130,11 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
                 <p className="text-xs text-zinc-500">
                   {m.date} · {m.expenseAccountCode} {m.expenseAccountName}
                 </p>
+                {m.providerRif && (
+                  <p className="text-xs text-zinc-500">
+                    RIF: <span className="font-mono">{m.providerRif}</span>
+                  </p>
+                )}
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
