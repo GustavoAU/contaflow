@@ -11,6 +11,7 @@ import {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
   AssignCustodianSchema,
+  ReopenCajaCajaSchema,
   CreateDepositSchema,
   VoidDepositSchema,
   CreateMovementSchema,
@@ -26,6 +27,7 @@ import {
   getCajaCajaById,
   closeCajaCaja,
   assignCustodian,
+  reopenCajaCaja,
   type CajaCajaSummary,
 } from "../services/CajaCajaService";
 import {
@@ -203,6 +205,32 @@ export async function closeCajaCajaAction(
       companyId: parsed.data.companyId,
       userId: g.userId,
       action: "CLOSE_CAJACAJA",
+      entityName: "CajaCaja",
+      entityId: parsed.data.cajaCajaId,
+      ipAddress,
+      userAgent,
+    });
+  }
+}
+
+export async function reopenCajaCajaAction(
+  raw: unknown
+): Promise<ActionResult<void>> {
+  const parsed = ReopenCajaCajaSchema.safeParse(raw);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  const g = await guardAdmin(parsed.data.companyId);
+  if (!g.ok) return { success: false, error: g.error };
+
+  const { ipAddress, userAgent } = await getIpAndUa();
+  try {
+    await reopenCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
+    return { success: true, data: undefined };
+  } catch (e) {
+    return rejectAndReport(e, {
+      companyId: parsed.data.companyId,
+      userId: g.userId,
+      action: "REOPEN_CAJACAJA",
       entityName: "CajaCaja",
       entityId: parsed.data.cajaCajaId,
       ipAddress,

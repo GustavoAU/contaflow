@@ -8,6 +8,7 @@ import type {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
   AssignCustodianSchema,
+  ReopenCajaCajaSchema,
 } from "../schemas/cajachica.schema";
 import type { z } from "zod";
 
@@ -373,6 +374,135 @@ export async function closeCajaCaja(
             returnAccountId: input.returnAccountId,
             remainingAmount: remaining.toFixed(2),
             closeTransactionId,
+          },
+        },
+      });
+    },
+    { isolationLevel: "Serializable" }
+  );
+}
+
+export async function reopenCajaCaja(
+  input: z.infer<typeof ReopenCajaCajaSchema>,
+  userId: string,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<void> {
+  // F-17 (ADR-038): la reapertura puede crear un Transaction de reversa con
+  // correlativo (@@unique([companyId, number])) → Z-1 obliga Serializable.
+  await prisma.$transaction(
+    async (tx) => {
+      // A.1 (ADR-038): solo reabre CLOSED → idempotente frente a doble-submit.
+      const caja = await tx.cajaCaja.findFirst({
+        where: { id: input.cajaCajaId, companyId: input.companyId },
+      });
+      if (!caja) throw new Error("Caja Chica no encontrada");
+      if (caja.status !== "CLOSED")
+        throw new Error("Solo se puede reabrir una Caja Chica cerrada");
+
+      let reversalTransactionId: string | null = null;
+      let closeTransactionAlreadyVoided = false;
+
+      // A.2 (ADR-038): reversa GL solo si hubo asiento de liquidación. Reproduce
+      // el patrón espejo de voidDeposit (VOID nunca borra — R-1).
+      if (caja.closeTransactionId) {
+        const original = await tx.transaction.findFirst({
+          where: { id: caja.closeTransactionId, companyId: input.companyId },
+          include: { entries: true },
+        });
+
+        // A.6 (ADR-038): si el original no existe o ya está VOIDED → no crear una
+        // segunda reversa (evita doble contrapartida). Marcar en el AuditLog y
+        // continuar solo con la restauración de estado (A.4).
+        if (!original || original.status === "VOIDED") {
+          closeTransactionAlreadyVoided = true;
+        } else {
+          // Entries espejo a partir de las entries REALES del cierre (no recalcular
+          // remanente): garantiza anular exactamente lo asentado. R-5: Decimal.js.
+          const reverseEntries = original.entries.map((e) => ({
+            accountId: e.accountId,
+            amount: new Decimal(e.amount.toString()).negated(),
+            description: `Reapertura caja chica: ${caja.name}`,
+          }));
+          assertBalancedGLEntries(reverseEntries); // R-1: invariante partida doble
+
+          // A.5 (ADR-038): la reversa se postea con fecha hoy en período OPEN (R-3);
+          // jamás se toca el período del cierre original.
+          const today = new Date();
+          const period = await PeriodService.assertDateInOpenPeriod(input.companyId, today, tx);
+
+          // Correlativo CCC-REOP-NNNNNN: cuenta los Transactions de reapertura de la
+          // empresa (closeTransactionId se limpia en A.4, así que contar cajas no sirve).
+          const reopCount = await tx.transaction.count({
+            where: { companyId: input.companyId, number: { startsWith: "CCC-REOP-" } },
+          });
+
+          try {
+            const reversal = await tx.transaction.create({
+              data: {
+                companyId: input.companyId,
+                periodId: period.id,
+                date: today,
+                number: `CCC-REOP-${String(reopCount + 1).padStart(6, "0")}`,
+                description: `Reapertura de caja chica: ${caja.name}`,
+                type: "DIARIO",
+                userId,
+                entries: { create: reverseEntries },
+              },
+            });
+            reversalTransactionId = reversal.id;
+          } catch (e) {
+            // Z-1: P2002 en el correlativo bajo contención → error transitorio.
+            if (
+              e &&
+              typeof e === "object" &&
+              "code" in e &&
+              (e as { code?: string }).code === "P2002"
+            ) {
+              throw new Error("Error transitorio — intenta de nuevo.");
+            }
+            throw e;
+          }
+
+          // R-1: el cierre se marca VOIDED, nunca se borra.
+          await tx.transaction.update({
+            where: { id: original.id },
+            data: { status: "VOIDED" },
+          });
+        }
+      }
+
+      // A.4 (ADR-038): restaurar estado operativo. Limpiar closedAt/closedBy/
+      // closeTransactionId deja libre el slot @unique para el próximo ciclo
+      // cerrar→reabrir→cerrar; el histórico vive en el AuditLog (R-6).
+      await tx.cajaCaja.update({
+        where: { id: input.cajaCajaId },
+        data: {
+          status: "ACTIVE",
+          closedAt: null,
+          closedBy: null,
+          closeTransactionId: null,
+        },
+      });
+
+      // R-6: traza forense completa, mismo $transaction que la mutación principal.
+      await tx.auditLog.create({
+        data: {
+          companyId: input.companyId,
+          userId,
+          action: "REOPEN_CAJA_CHICA",
+          entityName: "CajaCaja",
+          entityId: input.cajaCajaId,
+          ipAddress,
+          userAgent,
+          oldValue: {
+            closeTransactionId: caja.closeTransactionId,
+            closedBy: caja.closedBy,
+          },
+          newValue: {
+            status: "ACTIVE",
+            reversalTransactionId,
+            closeTransactionAlreadyVoided,
           },
         },
       });

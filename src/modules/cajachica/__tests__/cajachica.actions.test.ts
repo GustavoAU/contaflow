@@ -6,6 +6,7 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 const mockListCajasCajas = vi.hoisted(() => vi.fn());
 const mockCreateCajaCaja = vi.hoisted(() => vi.fn());
 const mockAssignCustodian = vi.hoisted(() => vi.fn());
+const mockReopenCajaCaja = vi.hoisted(() => vi.fn());
 const mockGetCajaCajaById = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
@@ -48,6 +49,7 @@ vi.mock("../services/CajaCajaService", () => ({
   getCajaCajaById: mockGetCajaCajaById,
   closeCajaCaja: mockCloseCajaCaja,
   assignCustodian: mockAssignCustodian,
+  reopenCajaCaja: mockReopenCajaCaja,
 }));
 vi.mock("../services/CajaCajaMovementService", () => ({
   createMovement: mockCreateMovement,
@@ -77,6 +79,7 @@ import {
   createCajaCajaAction,
   assignCustodianAction,
   closeCajaCajaAction,
+  reopenCajaCajaAction,
   createMovementAction,
   approveMovementAction,
   listMovementsAction,
@@ -630,5 +633,70 @@ describe("exportCajaCajaPDFAction", () => {
     const result = await exportCajaCajaPDFAction("caja-1", COMPANY_ID);
     expect(result.success).toBe(false);
     expect(mockGeneratePDF).not.toHaveBeenCalled();
+  });
+});
+
+// ─── reopenCajaCajaAction (F-17, ADR-038) ──────────────────────────────────────
+
+describe("reopenCajaCajaAction", () => {
+  const validReopen = {
+    cajaCajaId: "caja-1",
+    companyId: COMPANY_ID,
+  };
+
+  it("reabre caja correctamente (requiere ADMIN) → delega al service con userId del guard", async () => {
+    setupAdmin();
+    mockReopenCajaCaja.mockResolvedValue(undefined);
+
+    const result = await reopenCajaCajaAction(validReopen);
+
+    expect(result.success).toBe(true);
+    expect(mockReopenCajaCaja).toHaveBeenCalledWith(
+      expect.objectContaining(validReopen),
+      USER_ID,
+      undefined,
+      undefined
+    );
+  });
+
+  it("rechaza para ADMINISTRATIVE (requiere ADMIN) → no llama al service", async () => {
+    setupWriter();
+    const result = await reopenCajaCajaAction(validReopen);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("rechaza para ACCOUNTANT (requiere ADMIN) → no llama al service", async () => {
+    setupRole("ACCOUNTANT");
+    const result = await reopenCajaCajaAction(validReopen);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("rechaza para VIEWER (requiere ADMIN) → no llama al service", async () => {
+    setupRole("VIEWER");
+    const result = await reopenCajaCajaAction(validReopen);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("falla con Zod si falta cajaCajaId → no llama al service", async () => {
+    setupAdmin();
+    const result = await reopenCajaCajaAction({ companyId: COMPANY_ID });
+    expect(result.success).toBe(false);
+    expect(mockReopenCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("propaga error de negocio del servicio (caja no cerrada)", async () => {
+    setupAdmin();
+    mockReopenCajaCaja.mockRejectedValue(
+      new Error("Solo se puede reabrir una Caja Chica cerrada")
+    );
+    const result = await reopenCajaCajaAction(validReopen);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/cerrada/i);
   });
 });
