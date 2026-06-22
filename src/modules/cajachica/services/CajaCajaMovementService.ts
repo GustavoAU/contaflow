@@ -24,6 +24,7 @@ export type MovementSummary = {
   status: string;
   // HC-10 (ADR-037): RIF del proveedor del gasto. null cuando no se capturó.
   providerRif: string | null;
+  supportingDocumentId: string | null;
   approvedAt: string | null;
   approvedBy: string | null;
   reimbursementId: string | null;
@@ -44,6 +45,7 @@ function serializeMovement(m: {
   currency: string;
   status: string;
   providerRif: string | null;
+  supportingDocumentId: string | null;
   approvedAt: Date | null;
   approvedBy: string | null;
   reimbursementId: string | null;
@@ -64,6 +66,7 @@ function serializeMovement(m: {
     currency: m.currency,
     status: m.status,
     providerRif: m.providerRif ?? null,
+    supportingDocumentId: m.supportingDocumentId ?? null,
     approvedAt: m.approvedAt?.toISOString() ?? null,
     approvedBy: m.approvedBy,
     reimbursementId: m.reimbursementId,
@@ -264,6 +267,7 @@ export async function listMovements(
     where: { cajaCajaId, companyId },
     include: { expenseAccount: { select: { code: true, name: true } } },
     orderBy: { date: "desc" },
+    take: 5000, // cap defensivo (gate Fase 4 LOW): acota memoria del export PDF/CSV
   });
   return movements.map(serializeMovement);
 }

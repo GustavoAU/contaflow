@@ -22,6 +22,7 @@ import { CajaCajaDepositForm } from "./CajaCajaDepositForm";
 import { CajaCajaDepositList } from "./CajaCajaDepositList";
 import { CajaCajaReimbursementForm } from "./CajaCajaReimbursementForm";
 import { CajaCajaReimbursementList } from "./CajaCajaReimbursementList";
+import { CajaCajaExportButtons } from "./CajaCajaExportButtons";
 import {
   closeCajaCajaAction,
   assignCustodianAction,
@@ -386,7 +387,7 @@ function CajaRow({
       )}
 
       {/* Expand toggle */}
-      <div className="flex items-center justify-between border-t px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2">
         <button
           type="button"
           onClick={handleExpand}
@@ -396,58 +397,63 @@ function CajaRow({
           {expanded ? "Ocultar" : "Ver movimientos"}
         </button>
 
-        {isAdmin && caja.status === "ACTIVE" && (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (!expanded) handleExpand();
-                setShowDepositForm((v) => !v);
-                setShowForm(false);
-                setShowReimbForm(false);
-              }}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Depositar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (!expanded) handleExpand();
-                setShowReimbForm((v) => !v);
-                setShowForm(false);
-                setShowDepositForm(false);
-              }}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Nuevo reembolso
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (!expanded) handleExpand();
-                setShowForm((v) => !v);
-                setShowDepositForm(false);
-                setShowReimbForm(false);
-              }}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Nuevo gasto
-            </Button>
-            <CloseCajaDialog
-              caja={caja}
-              companyId={companyId}
-              accounts={accounts}
-              onClosed={onRefresh}
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Export (arqueo) — visible para cualquier usuario que ya ve la caja */}
+          <CajaCajaExportButtons cajaCajaId={caja.id} companyId={companyId} />
+
+          {isAdmin && caja.status === "ACTIVE" && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!expanded) handleExpand();
+                  setShowDepositForm((v) => !v);
+                  setShowForm(false);
+                  setShowReimbForm(false);
+                }}
+                className="gap-1.5 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Depositar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!expanded) handleExpand();
+                  setShowReimbForm((v) => !v);
+                  setShowForm(false);
+                  setShowDepositForm(false);
+                }}
+                className="gap-1.5 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nuevo reembolso
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!expanded) handleExpand();
+                  setShowForm((v) => !v);
+                  setShowDepositForm(false);
+                  setShowReimbForm(false);
+                }}
+                className="gap-1.5 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nuevo gasto
+              </Button>
+              <CloseCajaDialog
+                caja={caja}
+                companyId={companyId}
+                accounts={accounts}
+                onClosed={onRefresh}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Deposit form */}
@@ -557,7 +563,9 @@ function CajaRow({
               companyId={companyId}
               movements={movements}
               isAdmin={isAdmin}
-              onRefresh={loadMovements}
+              // HC-11: refrescar también el resumen de la caja (saldo Comprometido/
+              // Disponible de la tarjeta), no solo la lista de movimientos.
+              onRefresh={() => { loadMovements(); onRefresh(); }}
             />
           )}
         </div>

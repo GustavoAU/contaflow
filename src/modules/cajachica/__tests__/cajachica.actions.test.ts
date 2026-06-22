@@ -6,6 +6,7 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 const mockListCajasCajas = vi.hoisted(() => vi.fn());
 const mockCreateCajaCaja = vi.hoisted(() => vi.fn());
 const mockAssignCustodian = vi.hoisted(() => vi.fn());
+const mockGetCajaCajaById = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
 const mockListMovements = vi.hoisted(() => vi.fn());
@@ -14,6 +15,9 @@ const mockListMovements = vi.hoisted(() => vi.fn());
 // sin acoplarnos a la implementación interna de prisma.auditLog.create.
 const mockLogRejection = vi.hoisted(() => vi.fn());
 const mockShouldLogRejection = vi.hoisted(() => vi.fn(() => true));
+// Fase 4 UX: export (arqueo). Mockeamos el service de export para evitar render PDF real.
+const mockGenerateCSV = vi.hoisted(() => vi.fn());
+const mockGeneratePDF = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/headers", () => ({
@@ -26,6 +30,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    company: { findFirst: vi.fn() },
   },
 }));
 const mockCloseCajaCaja = vi.hoisted(() => vi.fn());
@@ -40,7 +45,7 @@ vi.mock("../utils/log-rejection", () => ({
 vi.mock("../services/CajaCajaService", () => ({
   createCajaCaja: mockCreateCajaCaja,
   listCajasCajas: mockListCajasCajas,
-  getCajaCajaById: vi.fn(),
+  getCajaCajaById: mockGetCajaCajaById,
   closeCajaCaja: mockCloseCajaCaja,
   assignCustodian: mockAssignCustodian,
 }));
@@ -61,6 +66,10 @@ vi.mock("../services/CajaCajaReimbursementService", () => ({
   voidReimbursement: vi.fn(),
   listReimbursements: mockListReimbursements,
 }));
+vi.mock("../services/CajaCajaExportService", () => ({
+  generateCajaCajaCSV: mockGenerateCSV,
+  generateCajaCajaPDF: mockGeneratePDF,
+}));
 
 import prisma from "@/lib/prisma";
 import {
@@ -73,6 +82,8 @@ import {
   listMovementsAction,
   listDepositsAction,
   listReimbursementsAction,
+  exportCajaCajaCSVAction,
+  exportCajaCajaPDFAction,
 } from "../actions/cajachica.actions";
 
 const COMPANY_ID = "comp-1";
@@ -496,5 +507,128 @@ describe("approveMovementAction", () => {
     });
     expect(result.success).toBe(false);
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
+  });
+});
+
+// ─── Export (arqueo: CSV / PDF) — Fase 4 UX ─────────────────────────────────────
+
+describe("exportCajaCajaCSVAction", () => {
+  // Caja resuelta por getCajaCajaById (shape CajaCajaSummary parcial usado por buildCajaExportData)
+  const resolvedCaja = {
+    name: "Caja Operativa",
+    accountCode: "1010",
+    accountName: "Caja VES",
+    currency: "VES",
+    status: "ACTIVE",
+    custodianName: "Ana Pérez",
+    totalDeposited: "1000.00",
+    totalApprovedMovements: "200.00",
+    totalPendingMovements: "0.00",
+    availableBalance: "800.00",
+  };
+
+  function setupExportData() {
+    mockGetCajaCajaById.mockResolvedValue(resolvedCaja);
+    mockListMovements.mockResolvedValue([]);
+    mockListDeposits.mockResolvedValue([]);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "ACME C.A." } as never);
+  }
+
+  it("genera CSV (happy path) → success, csv no vacío, filename .csv", async () => {
+    setupWriter();
+    setupExportData();
+    mockGenerateCSV.mockReturnValue("Caja Chica,Caja Operativa\r\n");
+
+    const result = await exportCajaCajaCSVAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(typeof result.data.csv).toBe("string");
+      expect(result.data.csv.length).toBeGreaterThan(0);
+      expect(result.data.filename).toMatch(/\.csv$/);
+    }
+    // construyó la data desde los services + nombre de empresa
+    expect(mockGetCajaCajaById).toHaveBeenCalledWith("caja-1", COMPANY_ID);
+    expect(mockGenerateCSV).toHaveBeenCalledTimes(1);
+  });
+
+  it("caja no encontrada → success:false con mensaje 'no encontrada'", async () => {
+    setupWriter();
+    mockGetCajaCajaById.mockResolvedValue(null);
+
+    const result = await exportCajaCajaCSVAction("caja-x", COMPANY_ID);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/no encontrada/i);
+    expect(mockGenerateCSV).not.toHaveBeenCalled();
+  });
+
+  it("rol insuficiente (VIEWER no es WRITER) → success:false, no construye data", async () => {
+    setupRole("VIEWER");
+    const result = await exportCajaCajaCSVAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(false);
+    expect(mockGetCajaCajaById).not.toHaveBeenCalled();
+    expect(mockGenerateCSV).not.toHaveBeenCalled();
+  });
+
+  it("sin sesión → success:false (autenticado)", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const result = await exportCajaCajaCSVAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/autenticado/i);
+  });
+});
+
+describe("exportCajaCajaPDFAction", () => {
+  const resolvedCaja = {
+    name: "Caja Operativa",
+    accountCode: "1010",
+    accountName: "Caja VES",
+    currency: "VES",
+    status: "ACTIVE",
+    custodianName: "Ana Pérez",
+    totalDeposited: "1000.00",
+    totalApprovedMovements: "200.00",
+    totalPendingMovements: "0.00",
+    availableBalance: "800.00",
+  };
+
+  function setupExportData() {
+    mockGetCajaCajaById.mockResolvedValue(resolvedCaja);
+    mockListMovements.mockResolvedValue([]);
+    mockListDeposits.mockResolvedValue([]);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "ACME C.A." } as never);
+  }
+
+  it("genera PDF (happy path) → success, pdf base64, filename .pdf", async () => {
+    setupWriter();
+    setupExportData();
+    // Evita render PDF real: el service mockeado retorna un Buffer fake.
+    mockGeneratePDF.mockResolvedValue(Buffer.from("%PDF-fake"));
+
+    const result = await exportCajaCajaPDFAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(typeof result.data.pdf).toBe("string");
+      // base64 de "%PDF-fake" debe poder decodificarse de vuelta
+      expect(Buffer.from(result.data.pdf, "base64").toString()).toBe("%PDF-fake");
+      expect(result.data.filename).toMatch(/\.pdf$/);
+    }
+    expect(mockGeneratePDF).toHaveBeenCalledTimes(1);
+  });
+
+  it("caja no encontrada → success:false, no genera PDF", async () => {
+    setupWriter();
+    mockGetCajaCajaById.mockResolvedValue(null);
+
+    const result = await exportCajaCajaPDFAction("caja-x", COMPANY_ID);
+    expect(result.success).toBe(false);
+    expect((result as { success: false; error: string }).error).toMatch(/no encontrada/i);
+    expect(mockGeneratePDF).not.toHaveBeenCalled();
+  });
+
+  it("rol insuficiente (VIEWER) → success:false, no genera PDF", async () => {
+    setupRole("VIEWER");
+    const result = await exportCajaCajaPDFAction("caja-1", COMPANY_ID);
+    expect(result.success).toBe(false);
+    expect(mockGeneratePDF).not.toHaveBeenCalled();
   });
 });
