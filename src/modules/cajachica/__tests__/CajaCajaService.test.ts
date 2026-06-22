@@ -1019,3 +1019,159 @@ describe("reopenCajaCaja", () => {
     );
   });
 });
+
+// ─── getCajaGlBalance (ADR-039 — lectura para gate de step-up) ───────────────────
+
+describe("getCajaGlBalance", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("suma POSTED GL de la cuenta de la caja → Decimal correcto", async () => {
+    const { getCajaGlBalance } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({ accountId: CAJA_ACCOUNT } as never);
+    vi.mocked(prisma.journalEntry.aggregate).mockResolvedValue({
+      _sum: { amount: new Decimal("12345.67") },
+    } as never);
+
+    const result = await getCajaGlBalance("caja-1", COMPANY_ID);
+
+    expect(result).toBeInstanceOf(Decimal);
+    expect(result.toString()).toBe("12345.67");
+    // companyId-scoped (ADR-004): el findFirst filtra por id + companyId.
+    expect(prisma.cajaCaja.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "caja-1", companyId: COMPANY_ID } })
+    );
+    // sólo POSTED de la empresa (R-1).
+    expect(prisma.journalEntry.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          accountId: CAJA_ACCOUNT,
+          transaction: { companyId: COMPANY_ID, status: "POSTED" },
+        }),
+      })
+    );
+  });
+
+  it("acepta _sum.amount como string (Prisma Decimal serializado)", async () => {
+    const { getCajaGlBalance } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({ accountId: CAJA_ACCOUNT } as never);
+    vi.mocked(prisma.journalEntry.aggregate).mockResolvedValue({
+      _sum: { amount: "50000" },
+    } as never);
+
+    const result = await getCajaGlBalance("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("50000");
+  });
+
+  it("_sum.amount null (sin entries) → Decimal(0)", async () => {
+    const { getCajaGlBalance } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({ accountId: CAJA_ACCOUNT } as never);
+    vi.mocked(prisma.journalEntry.aggregate).mockResolvedValue({
+      _sum: { amount: null },
+    } as never);
+
+    const result = await getCajaGlBalance("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+  });
+
+  it("caja inexistente / de otra empresa → Decimal(0), no agrega", async () => {
+    const { getCajaGlBalance } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue(null as never);
+
+    const result = await getCajaGlBalance("caja-x", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+    expect(prisma.journalEntry.aggregate).not.toHaveBeenCalled();
+  });
+});
+
+// ─── getCajaReopenMagnitude (ADR-039 — lectura para gate de step-up) ─────────────
+
+describe("getCajaReopenMagnitude", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("closeTransactionId null → Decimal(0), no consulta transaction/agg", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({
+      accountId: CAJA_ACCOUNT,
+      closeTransactionId: null,
+    } as never);
+
+    const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+    expect(prisma.transaction.findFirst).not.toHaveBeenCalled();
+    expect(prisma.journalEntry.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("caja inexistente → Decimal(0)", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue(null as never);
+
+    const result = await getCajaReopenMagnitude("caja-x", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+    expect(prisma.transaction.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("closeTransaction VOIDED → Decimal(0), no agrega (degradación con gracia ADR-038 A.6)", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({
+      accountId: CAJA_ACCOUNT,
+      closeTransactionId: "tx-liq",
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({ status: "VOIDED" } as never);
+
+    const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+    expect(prisma.journalEntry.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("closeTransaction inexistente (null) → Decimal(0), no agrega", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({
+      accountId: CAJA_ACCOUNT,
+      closeTransactionId: "tx-liq",
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
+
+    const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+    expect(prisma.journalEntry.aggregate).not.toHaveBeenCalled();
+  });
+
+  it("cierre vigente (POSTED) → abs(suma de entries del cierre) como Decimal", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({
+      accountId: CAJA_ACCOUNT,
+      closeTransactionId: "tx-liq",
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({ status: "POSTED" } as never);
+    // La entry de la caja en el cierre fue un crédito (negativo); la magnitud es su abs.
+    vi.mocked(prisma.journalEntry.aggregate).mockResolvedValue({
+      _sum: { amount: new Decimal("-350000") },
+    } as never);
+
+    const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
+
+    expect(result).toBeInstanceOf(Decimal);
+    expect(result.toString()).toBe("350000");
+    // agrega sólo las entries del closeTransaction sobre la cuenta de la caja.
+    expect(prisma.journalEntry.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { transactionId: "tx-liq", accountId: CAJA_ACCOUNT },
+      })
+    );
+  });
+
+  it("cierre vigente con _sum.amount null → Decimal(0)", async () => {
+    const { getCajaReopenMagnitude } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.cajaCaja.findFirst).mockResolvedValue({
+      accountId: CAJA_ACCOUNT,
+      closeTransactionId: "tx-liq",
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({ status: "POSTED" } as never);
+    vi.mocked(prisma.journalEntry.aggregate).mockResolvedValue({
+      _sum: { amount: null },
+    } as never);
+
+    const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
+    expect(result.toString()).toBe("0");
+  });
+});
