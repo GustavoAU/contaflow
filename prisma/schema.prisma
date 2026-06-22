@@ -3112,27 +3112,27 @@ enum ControlNumberSource {
 }
 
 model CajaCaja {
-  id         String         @id @default(cuid())
-  companyId  String
-  company    Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  name       String         @db.VarChar(255)
-  accountId  String
-  account    Account        @relation("CajaCajaAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  id                 String         @id @default(cuid())
+  companyId          String
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name               String         @db.VarChar(255)
+  accountId          String
+  account            Account        @relation("CajaCajaAccount", fields: [accountId], references: [id], onDelete: Restrict)
   // HC-03 (ADR-036): custodio responsable del fondo fijo (control interno COSO).
   // Nullable en DB por cajas legacy; requerido en el Zod de creación.
-  custodianId String?
-  custodian   Employee?      @relation("CajaCajaCustodian", fields: [custodianId], references: [id], onDelete: Restrict)
-  currency   Currency       @default(VES)
-  maxBalance Decimal        @db.Decimal(19, 4)
-  status     CajaCajaStatus @default(ACTIVE)
-  createdAt  DateTime       @default(now())
-  createdBy  String         @db.VarChar(255)
-  closedAt   DateTime?
-  closedBy   String?        @db.VarChar(255)
+  custodianId        String?
+  custodian          Employee?      @relation("CajaCajaCustodian", fields: [custodianId], references: [id], onDelete: Restrict)
+  currency           Currency       @default(VES)
+  maxBalance         Decimal        @db.Decimal(19, 4)
+  status             CajaCajaStatus @default(ACTIVE)
+  createdAt          DateTime       @default(now())
+  createdBy          String         @db.VarChar(255)
+  closedAt           DateTime?
+  closedBy           String?        @db.VarChar(255)
   // HC-05 (ADR-036): asiento de liquidación al cierre (Dr cuenta retorno / Cr caja).
   // Nullable: el cierre con remanente 0 no genera asiento.
-  closeTransactionId String?      @unique
-  closeTransaction   Transaction? @relation("CajaCajaCloseTransaction", fields: [closeTransactionId], references: [id], onDelete: Restrict)
+  closeTransactionId String?        @unique
+  closeTransaction   Transaction?   @relation("CajaCajaCloseTransaction", fields: [closeTransactionId], references: [id], onDelete: Restrict)
 
   deposits       CajaCajaDeposit[]
   movements      CajaCajaMovement[]
