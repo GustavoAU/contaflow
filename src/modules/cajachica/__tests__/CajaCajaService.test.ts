@@ -317,6 +317,150 @@ describe("createCajaCaja", () => {
   });
 });
 
+// ─── CajaCajaService.assignCustodian ─────────────────────────────────────────
+
+const NEW_CUSTODIAN_ID = "emp-2";
+
+/** tx mock por defecto sano para assignCustodian, sobreescribible por bloque. */
+function makeAssignTx(overrides: TxOverrides = {}) {
+  // findFirst sobre la caja: select { id, status, custodianId }. Por defecto la
+  // caja existe, está ACTIVE y ya tenía el custodio original (CUSTODIAN_ID).
+  const cajaFindFirst = vi
+    .fn()
+    .mockResolvedValue({ id: "caja-1", status: "ACTIVE", custodianId: CUSTODIAN_ID });
+  // update devuelve la caja completa (shape CAJA_INCLUDE) ya con el custodio nuevo,
+  // serializable por serializeCaja.
+  const cajaUpdate = vi.fn().mockResolvedValue(
+    makeCaja({
+      custodianId: NEW_CUSTODIAN_ID,
+      custodian: { id: NEW_CUSTODIAN_ID, firstName: "Luis", lastName: "Gómez" },
+    })
+  );
+  const employeeFindFirst = vi
+    .fn()
+    .mockResolvedValue({ id: NEW_CUSTODIAN_ID, status: "ACTIVE" });
+  const auditCreate = vi.fn().mockResolvedValue({});
+  const tx = {
+    cajaCaja: { findFirst: cajaFindFirst, update: cajaUpdate },
+    employee: { findFirst: employeeFindFirst },
+    auditLog: { create: auditCreate },
+    ...overrides,
+  };
+  vi.mocked(prisma.$transaction).mockImplementation(
+    ((fn: (t: unknown) => unknown) => fn(tx)) as never
+  );
+  return { tx, cajaFindFirst, cajaUpdate, employeeFindFirst, auditCreate };
+}
+
+const assignInput = {
+  cajaCajaId: "caja-1",
+  companyId: COMPANY_ID,
+  custodianId: NEW_CUSTODIAN_ID,
+};
+
+describe("assignCustodian", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("happy path: actualiza custodianId, serializa custodianName y audita old/new", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { cajaUpdate, auditCreate } = makeAssignTx();
+
+    const result = await assignCustodian(assignInput, USER_ID);
+
+    // serializa el custodio nuevo (no el viejo)
+    expect(result.custodianId).toBe(NEW_CUSTODIAN_ID);
+    expect(result.custodianName).toBe("Luis Gómez");
+
+    // update.data persiste el custodianId nuevo + targeting por id de la caja
+    expect(cajaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "caja-1" },
+        data: expect.objectContaining({ custodianId: NEW_CUSTODIAN_ID }),
+      })
+    );
+
+    // AuditLog ASSIGN_CAJA_CHICA_CUSTODIAN con oldValue/newValue exactos (R-6)
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "ASSIGN_CAJA_CHICA_CUSTODIAN",
+          entityName: "CajaCaja",
+          entityId: "caja-1",
+          oldValue: { custodianId: CUSTODIAN_ID },
+          newValue: { custodianId: NEW_CUSTODIAN_ID },
+        }),
+      })
+    );
+  });
+
+  it("propaga ipAddress/userAgent al AuditLog (R-6)", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { auditCreate } = makeAssignTx();
+
+    await assignCustodian(assignInput, USER_ID, "10.0.0.9", "vitest-UA");
+
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ipAddress: "10.0.0.9", userAgent: "vitest-UA" }),
+      })
+    );
+  });
+
+  it("rechaza si la caja no existe / es de otra empresa", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { cajaUpdate, employeeFindFirst, auditCreate } = makeAssignTx({
+      cajaCaja: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+    });
+
+    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(/no encontrada/i);
+    // no toca empleado, no actualiza, no audita
+    expect(employeeFindFirst).not.toHaveBeenCalled();
+    expect(cajaUpdate).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si la caja está CLOSED", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { cajaUpdate, employeeFindFirst } = makeAssignTx({
+      cajaCaja: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: "caja-1", status: "CLOSED", custodianId: CUSTODIAN_ID }),
+        update: vi.fn(),
+      },
+    });
+
+    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(/cerrada/i);
+    expect(employeeFindFirst).not.toHaveBeenCalled();
+    expect(cajaUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si el custodio no existe / es de otra empresa (HC-03 cross-tenant)", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { cajaUpdate, auditCreate } = makeAssignTx({
+      employee: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(
+      /no existe|no pertenece/i
+    );
+    expect(cajaUpdate).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si el custodio no está ACTIVE (HC-03)", async () => {
+    const { assignCustodian } = await import("../services/CajaCajaService");
+    const { cajaUpdate } = makeAssignTx({
+      employee: {
+        findFirst: vi.fn().mockResolvedValue({ id: NEW_CUSTODIAN_ID, status: "INACTIVE" }),
+      },
+    });
+
+    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(/activo/i);
+    expect(cajaUpdate).not.toHaveBeenCalled();
+  });
+});
+
 // ─── Balance computation ──────────────────────────────────────────────────────
 
 describe("balance computation (indirect via getCajaCajaById)", () => {

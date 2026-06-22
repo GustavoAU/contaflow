@@ -244,6 +244,7 @@ export function CajaCajaPageClient({ companyId, accounts, employees, isAdmin }: 
           companyId={companyId}
           cajas={cajas}
           accounts={accounts}
+          employees={employees}
           isAdmin={isAdmin}
           onRefresh={load}
         />

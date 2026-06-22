@@ -178,6 +178,13 @@ export async function approveMovement(
     if (!movement) throw new Error("Movimiento no encontrado");
     if (movement.status !== "PENDING") throw new Error("Solo se pueden aprobar movimientos en estado PENDING");
 
+    // Asimetría INTENCIONAL vs createMovement/closeCajaCaja (gate security-agent Fase 2, LOW):
+    // aquí NO se valida fecha-vs-período con assertDateInOpenPeriod. La aprobación es un
+    // control interno de autorización, NO un asiento contable fechado — los gastos del fondo
+    // fijo cruzan períodos a propósito (se crean en un mes y se reembolsan en otro;
+    // postReimbursement asienta al período abierto del momento). Solo exigimos que exista un
+    // período abierto como guard de sanidad. La fecha se valida al crear (HC-02) y el GL al
+    // reembolsar; validarla aquí rompería la aprobación tardía legítima de gastos del mes anterior.
     const period = await tx.accountingPeriod.findFirst({
       where: { companyId: input.companyId, status: "OPEN" },
     });

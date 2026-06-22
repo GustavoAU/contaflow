@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,6 +24,7 @@ import { CajaCajaReimbursementForm } from "./CajaCajaReimbursementForm";
 import { CajaCajaReimbursementList } from "./CajaCajaReimbursementList";
 import {
   closeCajaCajaAction,
+  assignCustodianAction,
   listMovementsAction,
   listDepositsAction,
   listReimbursementsAction,
@@ -34,14 +35,138 @@ import type { DepositSummary } from "../services/CajaCajaDepositService";
 import type { ReimbursementSummary } from "../services/CajaCajaReimbursementService";
 
 type Account = { id: string; code: string; name: string; type: string };
+type Employee = { id: string; name: string; status: string };
 
 type Props = {
   companyId: string;
   cajas: CajaCajaSummary[];
   accounts: Account[];
+  employees: Employee[];
   isAdmin: boolean;
   onRefresh: () => void;
 };
+
+// ─── Asignar / cambiar custodio (form inline) ──────────────────────────────────
+
+function AssignCustodianControl({
+  caja,
+  companyId,
+  employees,
+  onAssigned,
+}: {
+  caja: CajaCajaSummary;
+  companyId: string;
+  employees: Employee[];
+  onAssigned: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [custodianId, setCustodianId] = useState(caja.custodianId ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, start] = useTransition();
+
+  // Preferir empleados activos; conservar el custodio actual aunque ya no esté activo
+  // para no perderlo del select de edición.
+  const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
+  const options =
+    caja.custodianId && !activeEmployees.some((e) => e.id === caja.custodianId)
+      ? [
+          ...activeEmployees,
+          ...employees.filter((e) => e.id === caja.custodianId),
+        ]
+      : activeEmployees;
+
+  function open() {
+    setCustodianId(caja.custodianId ?? "");
+    setError(null);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setError(null);
+  }
+
+  function handleSave() {
+    setError(null);
+    start(async () => {
+      const result = await assignCustodianAction({
+        cajaCajaId: caja.id,
+        companyId,
+        custodianId,
+      });
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setEditing(false);
+        onAssigned();
+      }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={open}
+        className="gap-1.5 text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+      >
+        <UserCog className="h-3.5 w-3.5" aria-hidden />
+        {caja.custodianId ? "Cambiar custodio" : "Asignar custodio"}
+      </Button>
+    );
+  }
+
+  const selectId = `assign-custodian-${caja.id}`;
+
+  return (
+    <div className="mt-2 w-full space-y-2 rounded-lg border bg-zinc-50 p-3 dark:bg-zinc-900">
+      <div className="space-y-1">
+        <Label htmlFor={selectId} className="text-xs">
+          {caja.custodianId ? "Cambiar custodio responsable" : "Asignar custodio responsable"}
+        </Label>
+        <select
+          id={selectId}
+          value={custodianId}
+          onChange={(e) => setCustodianId(e.target.value)}
+          className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          disabled={isPending || options.length === 0}
+        >
+          <option value="">Seleccionar empleado...</option>
+          {options.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name}
+              {emp.status !== "ACTIVE" ? " (inactivo)" : ""}
+            </option>
+          ))}
+        </select>
+        {options.length === 0 && (
+          <p className="text-xs text-amber-600">
+            No hay empleados activos. Registra o activa un empleado para asignarlo como custodio.
+          </p>
+        )}
+      </div>
+      {error && (
+        <p className="text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={isPending || !custodianId || custodianId === caja.custodianId}
+          aria-busy={isPending}
+        >
+          Guardar
+        </Button>
+        <Button size="sm" variant="outline" onClick={cancel} disabled={isPending}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Cierre con liquidación (AlertDialog) — HC-05/06 ───────────────────────────
 
@@ -164,12 +289,14 @@ function CajaRow({
   caja,
   companyId,
   accounts,
+  employees,
   isAdmin,
   onRefresh,
 }: {
   caja: CajaCajaSummary;
   companyId: string;
   accounts: Account[];
+  employees: Employee[];
   isAdmin: boolean;
   onRefresh: () => void;
 }) {
@@ -232,6 +359,8 @@ function CajaRow({
     setExpanded(!expanded);
   }
 
+  const canManageCustodian = isAdmin && caja.status !== "CLOSED";
+
   return (
     <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950 overflow-hidden">
       {/* Balance Card */}
@@ -243,6 +372,18 @@ function CajaRow({
       >
         <CajaCajaBalanceCard caja={caja} />
       </div>
+
+      {/* Custodian management */}
+      {canManageCustodian && (
+        <div className="border-t px-4 py-2">
+          <AssignCustodianControl
+            caja={caja}
+            companyId={companyId}
+            employees={employees}
+            onAssigned={onRefresh}
+          />
+        </div>
+      )}
 
       {/* Expand toggle */}
       <div className="flex items-center justify-between border-t px-4 py-2">
@@ -425,7 +566,7 @@ function CajaRow({
   );
 }
 
-export function CajaCajaList({ companyId, cajas, accounts, isAdmin, onRefresh }: Props) {
+export function CajaCajaList({ companyId, cajas, accounts, employees, isAdmin, onRefresh }: Props) {
   if (cajas.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -445,6 +586,7 @@ export function CajaCajaList({ companyId, cajas, accounts, isAdmin, onRefresh }:
           caja={caja}
           companyId={companyId}
           accounts={accounts}
+          employees={employees}
           isAdmin={isAdmin}
           onRefresh={onRefresh}
         />

@@ -21,6 +21,13 @@ export const CloseCajaCajaSchema = z.object({
   returnAccountId: z.string().min(1, { error: "Cuenta de retorno requerida" }),
 });
 
+// Asignar/reasignar custodio (cajas legacy sin custodio, o cuando el custodio cambia).
+export const AssignCustodianSchema = z.object({
+  cajaCajaId: z.string().min(1),
+  companyId: z.string().min(1),
+  custodianId: z.string().min(1, { error: "Custodio requerido" }),
+});
+
 // ─── Deposit ─────────────────────────────────────────────────────────────────
 
 export const CreateDepositSchema = z.object({
