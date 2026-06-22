@@ -91,6 +91,20 @@ describe("generateCajaCajaCSV", () => {
     const csv = generateCajaCajaCSV(data);
     expect(csv).toContain("Sin custodio");
   });
+
+  it("neutraliza CSV/formula injection: prefija con apóstrofo celdas que empiezan con = + - @ (gate Fase 4 MEDIUM)", () => {
+    // Payloads sin comillas/comas para que el apóstrofo quede visible sin quoting RFC.
+    for (const payload of ["=1+1", "+1+1", "-2+3", "@SUM"]) {
+      const data = buildData();
+      data.movements[0].concept = payload;
+      const csv = generateCajaCajaCSV(data);
+      // La celda queda forzada a texto con apóstrofo inicial.
+      expect(csv).toContain(`'${payload}`);
+      // Y la fórmula nunca aparece como inicio de celda sin neutralizar (tras coma o salto).
+      const esc = payload.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      expect(csv).not.toMatch(new RegExp(`(^|[,\\n])${esc}`));
+    }
+  });
 });
 
 describe("generateCajaCajaPDF (smoke)", () => {

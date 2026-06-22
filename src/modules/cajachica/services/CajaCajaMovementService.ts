@@ -267,6 +267,7 @@ export async function listMovements(
     where: { cajaCajaId, companyId },
     include: { expenseAccount: { select: { code: true, name: true } } },
     orderBy: { date: "desc" },
+    take: 5000, // cap defensivo (gate Fase 4 LOW): acota memoria del export PDF/CSV
   });
   return movements.map(serializeMovement);
 }

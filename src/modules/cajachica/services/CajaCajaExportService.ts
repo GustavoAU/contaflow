@@ -49,7 +49,11 @@ export type CajaCajaExportData = {
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 function csvCell(v: string | null | undefined): string {
-  const s = (v ?? "").toString();
+  let s = (v ?? "").toString();
+  // Neutralizar CSV/formula injection: una celda que empieza con = + - @ (o tab/CR)
+  // es ejecutada como fórmula por Excel/LibreOffice al abrir el archivo. Prefijar con
+  // apóstrofo la fuerza a texto. (OWASP CSV Injection.)
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   // Escape RFC 4180: envolver en comillas si hay coma, comilla o salto de línea.
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

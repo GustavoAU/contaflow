@@ -225,6 +225,7 @@ export async function listDeposits(cajaCajaId: string, companyId: string): Promi
   const deposits = await prisma.cajaCajaDeposit.findMany({
     where: { cajaCajaId, companyId },
     orderBy: { date: "desc" },
+    take: 5000, // cap defensivo (gate Fase 4 LOW): acota memoria del export PDF/CSV
   });
   return deposits.map(serializeDeposit);
 }
