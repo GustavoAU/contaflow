@@ -14,7 +14,11 @@ export type ExportDataParams = {
 
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const str = String(value);
+  let str = String(value);
+  // Neutralizar CSV/formula injection: una celda que empieza con = + - @ (o tab/CR)
+  // es ejecutada como fórmula por Excel/LibreOffice. Prefijar con apóstrofo la fuerza
+  // a texto. (OWASP CSV Injection — mismo criterio que CajaCajaExportService.csvCell.)
+  if (/^[=+\-@\t\r]/.test(str)) str = "'" + str;
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
