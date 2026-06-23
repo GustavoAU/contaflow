@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack",
-    "build": "prisma generate && next build --webpack",
+    "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest",
