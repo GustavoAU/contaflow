@@ -20,6 +20,11 @@ function makeTx(overrides: TxOverrides = {}) {
   const txCreate = vi.fn().mockResolvedValue({ id: "tx-1" });
   const depositUpdate = vi.fn().mockResolvedValue({});
   const txUpdate = vi.fn().mockResolvedValue({});
+  const depositCreate = vi.fn().mockResolvedValue({
+    id: "dep-1", cajaCajaId: "caja-1", date: new Date("2026-06-13"),
+    amount: new Decimal("500000"), description: "Reposición", status: "POSTED",
+    transactionId: null, createdAt: new Date(), voidedAt: null, voidReason: null,
+  });
   const tx = {
     cajaCaja: {
       findFirst: vi.fn().mockResolvedValue({
@@ -27,18 +32,19 @@ function makeTx(overrides: TxOverrides = {}) {
       }),
     },
     account: {
-      findFirst: vi.fn().mockResolvedValue({ id: SOURCE_ACCOUNT }),
+      // HAL-001: assertAccountOfType exige type === "ASSET" (la contrapartida que
+      // financia el fondo es un banco/caja general). Sin type, sería ≠ ASSET y rompería
+      // todos los happy-paths.
+      findFirst: vi.fn().mockResolvedValue({ id: SOURCE_ACCOUNT, type: "ASSET" }),
     },
     accountingPeriod: {
-      // year/month deben coincidir con baseInput.date ("2026-06-13") — HC-02
+      // year/month deben coincidir con baseInput.date ("2026-06-13") — HC-02.
+      // assertDateInOpenPeriod compara contra la FECHA DEL DEPÓSITO (no contra hoy),
+      // por eso aquí van valores fijos que igualan baseInput.date.
       findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
     },
     cajaCajaDeposit: {
-      create: vi.fn().mockResolvedValue({
-        id: "dep-1", cajaCajaId: "caja-1", date: new Date("2026-06-13"),
-        amount: new Decimal("500000"), description: "Reposición", status: "POSTED",
-        transactionId: null, createdAt: new Date(), voidedAt: null, voidReason: null,
-      }),
+      create: depositCreate,
       count: vi.fn().mockResolvedValue(0),
       update: depositUpdate,
       findFirst: vi.fn(),
@@ -50,7 +56,7 @@ function makeTx(overrides: TxOverrides = {}) {
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (t: unknown) => unknown) => fn(tx)) as never
   );
-  return { tx, txCreate, depositUpdate, txUpdate };
+  return { tx, txCreate, depositUpdate, txUpdate, depositCreate };
 }
 
 const baseInput = {
@@ -95,11 +101,25 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
 
   it("rechaza si la cuenta origen no existe / no es de la empresa (IDOR)", async () => {
     makeTx({ account: { findFirst: vi.fn().mockResolvedValue(null) } });
-    await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/no encontrada/i);
+    // assertAccountOfType lanza "...: cuenta no encontrada o no pertenece a esta empresa."
+    await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/no encontrada|pertenece/i);
+  });
+
+  it("HAL-001: rechaza si la cuenta origen NO es de tipo ASSET (Pasivo/Gasto/etc.)", async () => {
+    // Un Pasivo como contrapartida daría un asiento contable incorrecto.
+    const { txCreate, depositCreate } = makeTx({
+      account: { findFirst: vi.fn().mockResolvedValue({ id: SOURCE_ACCOUNT, type: "LIABILITY" }) },
+    });
+    await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/Activo/i);
+    // No debe crearse ni el depósito ni el asiento si la cuenta es del tipo equivocado.
+    expect(depositCreate).not.toHaveBeenCalled();
+    expect(txCreate).not.toHaveBeenCalled();
   });
 
   it("rechaza si la cuenta origen es la misma cuenta de la caja", async () => {
-    makeTx({ account: { findFirst: vi.fn().mockResolvedValue({ id: CAJA_ACCOUNT }) } });
+    // La cuenta de caja también es ASSET, así que assertAccountOfType pasa; el guard
+    // que debe disparar aquí es el de "distinta de la cuenta de la Caja Chica".
+    makeTx({ account: { findFirst: vi.fn().mockResolvedValue({ id: CAJA_ACCOUNT, type: "ASSET" }) } });
     await expect(
       createDeposit({ ...baseInput, sourceAccountId: CAJA_ACCOUNT }, USER_ID)
     ).rejects.toThrow(/distinta/i);
@@ -148,7 +168,9 @@ describe("voidDeposit — reversión GL (VOID nunca borra)", () => {
         create: txCreate,
         update: txUpdate,
       },
-      accountingPeriod: { findFirst: vi.fn().mockResolvedValue({ id: "period-1", status: "OPEN" }) },
+      // HAL-002: voidDeposit ahora usa assertDateInOpenPeriod(today) para la reversión
+      // → el período mock debe tener año/mes ACTUAL.
+      accountingPeriod: { findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: new Date().getUTCFullYear(), month: new Date().getUTCMonth() + 1, status: "OPEN" }) },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(

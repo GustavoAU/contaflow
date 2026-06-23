@@ -20,6 +20,16 @@ const ACC_A = "acc-A";
 const ACC_B = "acc-B";
 const MONTH = "2026-06";
 
+// HAL-002: postReimbursement fecha el asiento HOY (new Date()) y valida que hoy caiga
+// dentro del período abierto vía PeriodService.assertDateInOpenPeriod, que compara el
+// año/mes (UTC) de la fecha contra el período. El período mockeado DEBE coincidir con
+// el año/mes ACTUAL del sistema, sin importar el mes en que corra la suite (robusto
+// frente a límites de mes). Clonado del patrón de CajaCajaService.test.ts (closeCajaCaja).
+const NOW = new Date();
+const PERIOD_YEAR = NOW.getUTCFullYear();
+const PERIOD_MONTH = NOW.getUTCMonth() + 1;
+const OPEN_PERIOD_NOW = { id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN" };
+
 type TxOverrides = Record<string, unknown>;
 
 /**
@@ -253,7 +263,9 @@ function makePostTx(overrides: TxOverrides = {}) {
       update: reimbUpdate,
     },
     accountingPeriod: {
-      findFirst: vi.fn().mockResolvedValue({ id: "period-1", status: "OPEN" }),
+      // HAL-002: assertDateInOpenPeriod compara contra HOY → el período abierto debe
+      // ser el del mes/año actual (no un mes fijo), si no fallaría según el calendario.
+      findFirst: vi.fn().mockResolvedValue(OPEN_PERIOD_NOW),
     },
     transaction: { create: txCreate },
     cajaCajaMovement: { updateMany: movUpdateMany },
@@ -303,6 +315,12 @@ describe("postReimbursement — asiento al Mayor (partida doble N4)", () => {
 
     // período OPEN usado
     expect(txData.periodId).toBe("period-1");
+
+    // HAL-002: el asiento se fecha HOY (dentro del período abierto). No usa la fecha
+    // del mes del reembolso ni una fecha arbitraria.
+    expect(txData.date).toBeInstanceOf(Date);
+    expect((txData.date as Date).getUTCFullYear()).toBe(PERIOD_YEAR);
+    expect((txData.date as Date).getUTCMonth() + 1).toBe(PERIOD_MONTH);
 
     // movimientos marcados REIMBURSED
     expect(movUpdateMany).toHaveBeenCalledWith(
@@ -370,6 +388,41 @@ describe("postReimbursement — asiento al Mayor (partida doble N4)", () => {
       accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) },
     });
     await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(/período/i);
+  });
+
+  it("HAL-002: rechaza si HOY no cae dentro del período abierto (período de otro mes)", async () => {
+    // Período abierto = un mes distinto al actual → assertDateInOpenPeriod (que compara
+    // contra hoy) lanza "...fuera del período contable abierto...". Construimos el mes
+    // anterior de forma robusta cruzando el límite de año (enero → diciembre año-1).
+    const prevMonth = PERIOD_MONTH === 1 ? 12 : PERIOD_MONTH - 1;
+    const prevYear = PERIOD_MONTH === 1 ? PERIOD_YEAR - 1 : PERIOD_YEAR;
+    const { txCreate, movUpdateMany, reimbUpdate } = makePostTx({
+      accountingPeriod: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "period-old",
+          year: prevYear,
+          month: prevMonth,
+          status: "OPEN",
+        }),
+      },
+    });
+    await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(
+      /fuera del período/i
+    );
+    // No debe contabilizar ni marcar REIMBURSED/POSTED si la fecha no cae en el período.
+    expect(txCreate).not.toHaveBeenCalled();
+    expect(movUpdateMany).not.toHaveBeenCalled();
+    expect(reimbUpdate).not.toHaveBeenCalled();
+  });
+
+  it("HAL-002: happy-path — período = mes actual → contabiliza OK", async () => {
+    // Anti-falso-positivo del caso anterior: con el período del mes ACTUAL, el mismo
+    // flujo sí debe contabilizar (crea asiento + marca REIMBURSED + POSTED).
+    const { txCreate, movUpdateMany, reimbUpdate } = makePostTx();
+    await postReimbursement(postInput, USER_ID);
+    expect(txCreate).toHaveBeenCalledTimes(1);
+    expect(movUpdateMany).toHaveBeenCalledTimes(1);
+    expect(reimbUpdate).toHaveBeenCalledTimes(1);
   });
 });
 

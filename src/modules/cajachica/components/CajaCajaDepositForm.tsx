@@ -36,8 +36,9 @@ export function CajaCajaDepositForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // La cuenta origen no puede ser la misma cuenta de la caja (el servidor también lo valida).
-  const sourceOptions = accounts.filter((a) => a.id !== cajaAccountId);
+  // HAL-001: la cuenta origen debe ser de tipo ASSET (banco/caja general) y distinta
+  // de la cuenta de la caja. El servidor también lo valida (assertAccountOfType ASSET).
+  const sourceOptions = accounts.filter((a) => a.type === "ASSET" && a.id !== cajaAccountId);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
