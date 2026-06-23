@@ -11,6 +11,9 @@ export type AuditLogRow = {
   userId: string;
   oldValue: unknown;
   newValue: unknown;
+  // Rec #4 (PA-121/COSO): trazabilidad de red. Se graban siempre; ahora también se exponen.
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: Date;
 };
 
@@ -72,6 +75,8 @@ const AUDIT_LOG_SELECT = {
   userId: true,
   oldValue: true,
   newValue: true,
+  ipAddress: true,
+  userAgent: true,
   createdAt: true,
 } as const;
 
