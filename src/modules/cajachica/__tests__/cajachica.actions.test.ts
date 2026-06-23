@@ -13,6 +13,10 @@ const mockGetCajaCajaById = vi.hoisted(() => vi.fn());
 // Default = new Decimal(0) (bajo umbral) → NO dispara 2FA en los happy paths existentes.
 const mockGetCajaGlBalance = vi.hoisted(() => vi.fn());
 const mockGetCajaReopenMagnitude = vi.hoisted(() => vi.fn());
+// ADR-039 nota #3: umbral (VES) efectivo del gate, configurable por empresa.
+// Default = Decimal("20000") (= CAJA_CHICA_STEP_UP_THRESHOLD_VES) para que los
+// tests de step-up existentes (50000 > 20000 dispara, 100 <= 20000 no) sigan iguales.
+const mockGetCajaStepUpThreshold = vi.hoisted(() => vi.fn());
 const mockCreateMovement = vi.hoisted(() => vi.fn());
 const mockApproveMovement = vi.hoisted(() => vi.fn());
 const mockListMovements = vi.hoisted(() => vi.fn());
@@ -66,6 +70,7 @@ vi.mock("../services/CajaCajaService", () => ({
   reopenCajaCaja: mockReopenCajaCaja,
   getCajaGlBalance: mockGetCajaGlBalance,
   getCajaReopenMagnitude: mockGetCajaReopenMagnitude,
+  getCajaStepUpThreshold: mockGetCajaStepUpThreshold,
 }));
 vi.mock("../services/CajaCajaMovementService", () => ({
   createMovement: mockCreateMovement,
@@ -158,6 +163,9 @@ beforeEach(() => {
   // exigen step-up salvo que un test lo sobreescriba con un Decimal > umbral.
   mockGetCajaGlBalance.mockResolvedValue(new Decimal(0));
   mockGetCajaReopenMagnitude.mockResolvedValue(new Decimal(0));
+  // ADR-039 nota #3: por defecto el umbral es el default global (20.000 VES). Los
+  // tests que prueban configurabilidad lo sobreescriben con un Decimal distinto.
+  mockGetCajaStepUpThreshold.mockResolvedValue(new Decimal("20000"));
 });
 
 // ─── Auth guards ──────────────────────────────────────────────────────────────
@@ -534,6 +542,40 @@ describe("closeCajaCajaAction", () => {
     expect((result as { success: false; error: string }).error).toMatch(/admin/i);
     expect(mockGetCajaGlBalance).not.toHaveBeenCalled();
     expect(mockCloseCajaCaja).not.toHaveBeenCalled();
+  });
+
+  // ADR-039 nota #3: el UMBRAL es configurable por empresa (getCajaStepUpThreshold).
+  // Anti-falso-positivo: con el MISMO monto (500) el gate cambia de resultado según
+  // el umbral devuelto -> demuestra que el gate respeta el umbral custom end-to-end.
+
+  it("umbral custom bajo (100) + monto 500 + has:false -> exige step-up (NO cierra)", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("500"));
+    // Empresa bajó el umbral a 100 -> 500 > 100 dispara 2FA.
+    mockGetCajaStepUpThreshold.mockResolvedValue(new Decimal("100"));
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(true);
+    expect(mockCloseCajaCaja).not.toHaveBeenCalled();
+  });
+
+  it("umbral custom alto (99999) + MISMO monto 500 + has:false -> procede SIN 2FA (cierra)", async () => {
+    setupAdmin();
+    mockAuth.mockResolvedValue({ userId: USER_ID, has: () => false });
+    mockGetCajaGlBalance.mockResolvedValue(new Decimal("500"));
+    // Empresa subió el umbral a 99999 -> 500 <= 99999 NO dispara 2FA.
+    mockGetCajaStepUpThreshold.mockResolvedValue(new Decimal("99999"));
+    mockCloseCajaCaja.mockResolvedValue(undefined);
+
+    const result = await closeCajaCajaAction(closeInput);
+
+    expect("clerk_error" in result).toBe(false);
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
+    expect(result.success).toBe(true);
+    expect(mockCloseCajaCaja).toHaveBeenCalledTimes(1);
   });
 });
 

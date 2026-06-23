@@ -33,6 +33,7 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
     },
     accountingPeriod: { findFirst: vi.fn() },
+    companySettings: { findFirst: vi.fn() },
     account: { findFirst: vi.fn() },
     employee: { findFirst: vi.fn() },
     journalEntry: { aggregate: vi.fn() },
@@ -1173,5 +1174,64 @@ describe("getCajaReopenMagnitude", () => {
 
     const result = await getCajaReopenMagnitude("caja-1", COMPANY_ID);
     expect(result.toString()).toBe("0");
+  });
+});
+
+
+// ─── getCajaStepUpThreshold (ADR-039 nota #3 — umbral configurable por empresa) ──
+
+import { CAJA_CHICA_STEP_UP_THRESHOLD_VES } from "@/lib/step-up";
+
+describe("getCajaStepUpThreshold", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("CompanySettings con valor no-null → ese Decimal (umbral por empresa)", async () => {
+    const { getCajaStepUpThreshold } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.companySettings.findFirst).mockResolvedValue({
+      cajaChicaStepUpThresholdVes: new Decimal("50000"),
+    } as never);
+
+    const result = await getCajaStepUpThreshold(COMPANY_ID);
+
+    expect(result).toBeInstanceOf(Decimal);
+    expect(result.toString()).toBe("50000");
+    // NO es el default global → demuestra que leyó el valor por empresa.
+    expect(result.equals(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))).toBe(false);
+    // companyId-scoped (ADR-004) + select acotado al campo.
+    expect(prisma.companySettings.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { companyId: COMPANY_ID },
+        select: { cajaChicaStepUpThresholdVes: true },
+      })
+    );
+  });
+
+  it("acepta el valor como string (Prisma Decimal serializado)", async () => {
+    const { getCajaStepUpThreshold } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.companySettings.findFirst).mockResolvedValue({
+      cajaChicaStepUpThresholdVes: "75000",
+    } as never);
+
+    const result = await getCajaStepUpThreshold(COMPANY_ID);
+    expect(result.toString()).toBe("75000");
+  });
+
+  it("CompanySettings null → default global CAJA_CHICA_STEP_UP_THRESHOLD_VES", async () => {
+    const { getCajaStepUpThreshold } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.companySettings.findFirst).mockResolvedValue(null as never);
+
+    const result = await getCajaStepUpThreshold(COMPANY_ID);
+    expect(result.equals(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))).toBe(true);
+    expect(result.toString()).toBe("20000");
+  });
+
+  it("campo cajaChicaStepUpThresholdVes null → default global", async () => {
+    const { getCajaStepUpThreshold } = await import("../services/CajaCajaService");
+    vi.mocked(prisma.companySettings.findFirst).mockResolvedValue({
+      cajaChicaStepUpThresholdVes: null,
+    } as never);
+
+    const result = await getCajaStepUpThreshold(COMPANY_ID);
+    expect(result.equals(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))).toBe(true);
   });
 });
