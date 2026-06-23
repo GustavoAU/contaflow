@@ -64,25 +64,6 @@ export async function updateCajaChicaStepUpThresholdAction(
   const parsed = UpdateSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
-  // Normalizar/validar el monto: vacío → null (default); con valor → Decimal > 0 y acotado.
-  let value: Decimal | null = null;
-  const raw = parsed.data.threshold;
-  if (raw && raw.length > 0) {
-    let dec: Decimal;
-    try {
-      dec = new Decimal(raw);
-    } catch {
-      return { success: false, error: "Umbral inválido" };
-    }
-    if (!dec.isFinite() || dec.lessThanOrEqualTo(0)) {
-      return { success: false, error: "El umbral debe ser un monto positivo" };
-    }
-    if (dec.greaterThan("999999999999999")) {
-      return { success: false, error: "El umbral es demasiado grande" };
-    }
-    value = dec.toDecimalPlaces(2);
-  }
-
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -96,6 +77,26 @@ export async function updateCajaChicaStepUpThresholdAction(
     });
     if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
       return { success: false, error: "Solo propietarios y administradores pueden cambiar esta configuración" };
+    }
+
+    // Validar el monto DESPUÉS de auth + rol (gate security-agent: no hacer trabajo de
+    // parseo/Decimal para peticiones no autenticadas). vacío → null (default); con valor → Decimal > 0 y acotado.
+    let value: Decimal | null = null;
+    const raw = parsed.data.threshold;
+    if (raw && raw.length > 0) {
+      let dec: Decimal;
+      try {
+        dec = new Decimal(raw);
+      } catch {
+        return { success: false, error: "Umbral inválido" };
+      }
+      if (!dec.isFinite() || dec.lessThanOrEqualTo(0)) {
+        return { success: false, error: "El umbral debe ser un monto positivo" };
+      }
+      if (dec.greaterThan("999999999999999")) {
+        return { success: false, error: "El umbral es demasiado grande" };
+      }
+      value = dec.toDecimalPlaces(2);
     }
 
     const h = await headers();
