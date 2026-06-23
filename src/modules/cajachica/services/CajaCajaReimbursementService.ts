@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type {
   CreateReimbursementSchema,
   PostReimbursementSchema,
@@ -176,10 +177,12 @@ export async function postReimbursement(
       if (!reimbursement) throw new Error("Reembolso no encontrado");
       if (reimbursement.status !== "DRAFT") throw new Error("Solo se pueden publicar reembolsos en borrador");
 
-      const period = await tx.accountingPeriod.findFirst({
-        where: { companyId: input.companyId, status: "OPEN" },
-      });
-      if (!period) throw new Error("No hay período contable abierto");
+      // HAL-002: el asiento de reembolso se fecha HOY y debe caer dentro del período
+      // abierto, igual que createMovement/createDeposit/closeCajaCaja. Antes usaba
+      // new Date() + período OPEN sin validar → el asiento podía quedar fechado fuera
+      // de su propio período (p.ej. fecha junio asignada al período de mayo).
+      const today = new Date();
+      const period = await PeriodService.assertDateInOpenPeriod(input.companyId, today, tx);
 
       // Build journal entry: debit each expense account, credit caja account
       const entriesByAccount = new Map<string, Decimal>();
@@ -208,7 +211,7 @@ export async function postReimbursement(
         data: {
           companyId: input.companyId,
           periodId: period.id,
-          date: new Date(),
+          date: today,
           number: reimbursement.reimbursementNumber,
           description: `Reembolso Caja Chica ${reimbursement.reimbursementNumber} — ${reimbursement.monthYear}`,
           type: "DIARIO",

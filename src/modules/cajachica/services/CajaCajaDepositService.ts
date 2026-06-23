@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
+import { assertAccountOfType } from "./account-type.guard";
 import type { CreateDepositSchema, VoidDepositSchema } from "../schemas/cajachica.schema";
 import type { z } from "zod";
 
@@ -60,15 +61,16 @@ export async function createDeposit(
     if (!caja) throw new Error("Caja Chica no encontrada");
     if (caja.status !== "ACTIVE") throw new Error("La Caja Chica no está activa");
 
-    // IDOR + integridad: la cuenta origen debe existir y pertenecer a la empresa.
-    const sourceAccount = await tx.account.findFirst({
-      where: { id: input.sourceAccountId, companyId: input.companyId, deletedAt: null },
-      select: { id: true },
+    // IDOR + integridad + tipo (HAL-001): la cuenta origen debe existir, pertenecer a
+    // la empresa, no estar borrada y ser de tipo ASSET (la contrapartida que financia
+    // el fondo es un banco/caja general — un Pasivo/Gasto/Ingreso daría un asiento incorrecto).
+    await assertAccountOfType(tx, {
+      accountId: input.sourceAccountId,
+      companyId: input.companyId,
+      expected: "ASSET",
+      label: "La cuenta origen",
     });
-    if (!sourceAccount) {
-      throw new Error("Cuenta origen no encontrada o no pertenece a esta empresa");
-    }
-    if (sourceAccount.id === caja.accountId) {
+    if (input.sourceAccountId === caja.accountId) {
       throw new Error("La cuenta origen debe ser distinta de la cuenta de la Caja Chica");
     }
 
