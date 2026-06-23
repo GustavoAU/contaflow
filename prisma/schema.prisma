@@ -395,6 +395,8 @@ model IGTFTransaction {
   createdBy     String
 
   @@index([companyId])
+  // N9 (auditoría RUN-2): FK transactionId sin índice → seq scan en joins/FK-check.
+  @@index([transactionId])
 }
 
 model Transaction {
