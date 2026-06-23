@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { assertAccountOfType } from "./account-type.guard";
+import { CAJA_CHICA_STEP_UP_THRESHOLD_VES } from "@/lib/step-up";
 import type { CajaCajaMovementStatus } from "@prisma/client";
 import type {
   CreateCajaCajaSchema,
@@ -550,6 +551,23 @@ export async function getCajaGlBalance(
   });
   if (!caja) return new Decimal(0);
   return sumPostedGlBalance(db, caja.accountId, companyId);
+}
+
+/**
+ * Umbral (VES) efectivo de step-up para cierre/reapertura de caja chica (ADR-039 nota #3):
+ * el configurado por la empresa en CompanySettings, o el default global
+ * CAJA_CHICA_STEP_UP_THRESHOLD_VES si no hay valor por empresa. Decimal.js (R-5).
+ */
+export async function getCajaStepUpThreshold(
+  companyId: string,
+  db: PrismaClientOrTx = prisma,
+): Promise<Decimal> {
+  const settings = await db.companySettings.findFirst({
+    where: { companyId },
+    select: { cajaChicaStepUpThresholdVes: true },
+  });
+  const v = settings?.cajaChicaStepUpThresholdVes;
+  return v != null ? new Decimal(v.toString()) : new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES);
 }
 
 /**

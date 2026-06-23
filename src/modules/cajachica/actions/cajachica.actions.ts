@@ -7,12 +7,10 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { mapPrismaError } from "@/lib/prisma-errors";
-import Decimal from "decimal.js";
 import {
   STEP_UP_CONFIG,
   reverificationError,
   type StepUpError,
-  CAJA_CHICA_STEP_UP_THRESHOLD_VES,
 } from "@/lib/step-up";
 import {
   CreateCajaCajaSchema,
@@ -37,6 +35,7 @@ import {
   reopenCajaCaja,
   getCajaGlBalance,
   getCajaReopenMagnitude,
+  getCajaStepUpThreshold,
   type CajaCajaSummary,
 } from "../services/CajaCajaService";
 import {
@@ -208,7 +207,8 @@ export async function closeCajaCajaAction(
   // ADR-039: step-up 2FA condicional al monto. El cierre liquida el saldo GL de la
   // caja; si supera el umbral, exige re-verificación con 2do factor antes de operar.
   const amount = await getCajaGlBalance(parsed.data.cajaCajaId, parsed.data.companyId);
-  if (amount.greaterThan(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))) {
+  const threshold = await getCajaStepUpThreshold(parsed.data.companyId);
+  if (amount.greaterThan(threshold)) {
     const { has } = await auth();
     if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
   }
@@ -242,7 +242,8 @@ export async function reopenCajaCajaAction(
   // ADR-039: step-up 2FA condicional al monto. La reapertura revierte el asiento de
   // liquidación del cierre; si la magnitud revertida supera el umbral, exige 2do factor.
   const amount = await getCajaReopenMagnitude(parsed.data.cajaCajaId, parsed.data.companyId);
-  if (amount.greaterThan(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))) {
+  const threshold = await getCajaStepUpThreshold(parsed.data.companyId);
+  if (amount.greaterThan(threshold)) {
     const { has } = await auth();
     if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
   }

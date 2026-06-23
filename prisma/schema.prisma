@@ -2712,6 +2712,10 @@ model CompanySettings {
 
   stockControlLevel StockControlLevel @default(WARN)
 
+  // ADR-039: umbral (VES) a partir del cual el cierre/reapertura de caja chica exige
+  // step-up 2FA. Nullable → si es null se usa CAJA_CHICA_STEP_UP_THRESHOLD_VES (step-up.ts).
+  cajaChicaStepUpThresholdVes Decimal? @db.Decimal(19, 4)
+
   // ADR-026: Cuentas contables para causación automática de facturas
   arAccountId                     String? // ASSET — Cuentas por Cobrar (facturas venta)
   apAccountId                     String? // LIABILITY — Proveedores (facturas compra)

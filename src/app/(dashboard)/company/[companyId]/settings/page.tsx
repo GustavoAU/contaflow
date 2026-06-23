@@ -30,6 +30,8 @@ import { GLAccountsForm } from "@/modules/settings/components/GLAccountsForm";
 import { AccountantSignatureForm } from "@/modules/settings/components/AccountantSignatureForm";
 import { StockControlLevelForm } from "@/modules/settings/components/StockControlLevelForm";
 import { getStockControlLevelAction } from "@/modules/settings/actions/stock-config.actions";
+import { CajaChicaStepUpForm } from "@/modules/settings/components/CajaChicaStepUpForm";
+import { getCajaChicaStepUpThresholdAction } from "@/modules/settings/actions/cajachica-config.actions";
 import { getAccountantConfigAction } from "@/modules/settings/actions/accountant-config.actions";
 import { ActiveSessionsPanel } from "@/modules/settings/components/ActiveSessionsPanel";
 import { SearchParamTabs } from "@/components/ui/SearchParamTabs";
@@ -76,15 +78,22 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   // ── Fetch selectivo por pestaña ──────────────────────────────────────────────
 
-  const [fiscalConfigResult, accountsResult, glConfigResult, stockLevelResult] =
+  const [
+    fiscalConfigResult,
+    accountsResult,
+    glConfigResult,
+    stockLevelResult,
+    cajaChicaStepUpResult,
+  ] =
     currentTab === "contabilidad"
       ? await Promise.all([
           getFiscalConfigAction(companyId),
           getAccountsAction(companyId),
           getGLConfigAction(companyId),
           getStockControlLevelAction(companyId),
+          getCajaChicaStepUpThresholdAction(companyId),
         ])
-      : ([null, null, null, null] as const);
+      : ([null, null, null, null, null] as const);
 
   const [certStatusResult, accountantConfigResult] =
     currentTab === "firmas"
@@ -115,6 +124,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     : [];
   const glConfig = glConfigResult?.success ? glConfigResult.data : null;
   const stockControlLevel = stockLevelResult?.success ? stockLevelResult.data.level : "WARN";
+  const cajaChicaStepUp = cajaChicaStepUpResult?.success ? cajaChicaStepUpResult.data : null;
   const certStatus = certStatusResult?.success
     ? certStatusResult.data
     : ({ exists: false } as const);
@@ -286,6 +296,29 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               companyId={companyId}
               currentLevel={stockControlLevel}
             />
+          </div>
+
+          {/* Step-up 2FA Caja Chica — ADR-039 nota #3 */}
+          <div className="rounded-lg border p-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Seguridad de Caja Chica (2FA)</h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Define el monto (VES) a partir del cual cerrar o reabrir una caja chica
+                exigirá verificación con un segundo factor (step-up 2FA). Subir este umbral
+                debilita el control: solo propietarios y administradores pueden cambiarlo.
+              </p>
+            </div>
+            {cajaChicaStepUp ? (
+              <CajaChicaStepUpForm
+                companyId={companyId}
+                threshold={cajaChicaStepUp.threshold}
+                defaultThreshold={cajaChicaStepUp.defaultThreshold}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No se pudo cargar la configuración de step-up de caja chica.
+              </p>
+            )}
           </div>
         </div>
       )}
