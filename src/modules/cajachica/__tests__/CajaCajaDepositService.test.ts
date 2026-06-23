@@ -168,7 +168,9 @@ describe("voidDeposit — reversión GL (VOID nunca borra)", () => {
         create: txCreate,
         update: txUpdate,
       },
-      accountingPeriod: { findFirst: vi.fn().mockResolvedValue({ id: "period-1", status: "OPEN" }) },
+      // HAL-002: voidDeposit ahora usa assertDateInOpenPeriod(today) para la reversión
+      // → el período mock debe tener año/mes ACTUAL.
+      accountingPeriod: { findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: new Date().getUTCFullYear(), month: new Date().getUTCMonth() + 1, status: "OPEN" }) },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(

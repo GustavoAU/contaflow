@@ -167,12 +167,11 @@ export async function voidDeposit(
         include: { entries: true },
       });
       if (original && original.status !== "VOIDED") {
-        const period = await tx.accountingPeriod.findFirst({
-          where: { companyId: input.companyId, status: "OPEN" },
-        });
-        if (!period) {
-          throw new Error("No hay período contable abierto para registrar la reversión del depósito");
-        }
+        // HAL-002 (consistencia): la reversión se fecha HOY y debe caer en el período
+        // abierto, igual que el resto de asientos de caja chica (no usar new Date() +
+        // período OPEN sin validar, que dejaría la contrapartida fuera de su período).
+        const today = new Date();
+        const period = await PeriodService.assertDateInOpenPeriod(input.companyId, today, tx);
         const reverseEntries = original.entries.map((e) => ({
           accountId: e.accountId,
           amount: new Decimal(e.amount.toString()).negated(),
@@ -184,7 +183,7 @@ export async function voidDeposit(
           data: {
             companyId: input.companyId,
             periodId: period.id,
-            date: new Date(),
+            date: today,
             number: `DEP-REV-${String(reverseCount + 1).padStart(6, "0")}`,
             description: `Anulación depósito Caja Chica — ${input.voidReason}`,
             type: "DIARIO",
