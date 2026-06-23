@@ -377,13 +377,14 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
               <th scope="col" className="px-4 py-3 text-left">Acción</th>
               <th scope="col" className="px-4 py-3 text-left">ID Entidad</th>
               <th scope="col" className="px-4 py-3 text-left">Usuario</th>
+              <th scope="col" className="px-4 py-3 text-left">Origen (IP)</th>
               <th scope="col" className="px-4 py-3 text-left">Cambios</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {data.rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
                   No hay registros de auditoría con los filtros aplicados.
                 </td>
               </tr>
@@ -411,6 +412,12 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-35 truncate">
                     {row.userId}
+                  </td>
+                  <td
+                    className="px-4 py-3 font-mono text-xs text-gray-400 max-w-35 truncate"
+                    title={row.userAgent ?? undefined}
+                  >
+                    {row.ipAddress ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <DiffView oldValue={row.oldValue} newValue={row.newValue} />
