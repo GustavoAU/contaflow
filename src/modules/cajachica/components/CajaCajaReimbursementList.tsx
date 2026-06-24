@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { CheckCircle2, FileText, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,10 +201,14 @@ export function CajaCajaReimbursementList({ companyId, reimbursements, isAdmin, 
                     {cfg.label}
                   </span>
                   {r.status === "POSTED" && r.transactionId && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <Link
+                      href={`/company/${companyId}/transactions/${r.transactionId}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+                      aria-label="Ver el asiento contable de este reembolso"
+                    >
                       <FileText className="h-3 w-3" aria-hidden />
-                      Asiento generado
-                    </span>
+                      Ver asiento
+                    </Link>
                   )}
                 </div>
                 <p className="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">

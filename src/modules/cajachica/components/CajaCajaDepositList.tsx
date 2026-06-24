@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
-import { XCircle } from "lucide-react";
+import { FileText, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,16 @@ export function CajaCajaDepositList({ companyId, deposits, currency, isAdmin, on
                   {d.description}
                 </p>
                 <p className="text-xs text-zinc-500">{d.date}</p>
+                {d.status === "POSTED" && d.transactionId && (
+                  <Link
+                    href={`/company/${companyId}/transactions/${d.transactionId}`}
+                    className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    aria-label="Ver el asiento contable de este depósito"
+                  >
+                    <FileText className="h-3 w-3" aria-hidden />
+                    Ver asiento
+                  </Link>
+                )}
                 {d.status === "VOIDED" && d.voidReason && (
                   <p className="mt-0.5 text-xs text-red-500">Anulado: {d.voidReason}</p>
                 )}
