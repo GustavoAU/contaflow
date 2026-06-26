@@ -1,5 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
-import { getJournalAction } from "@/modules/accounting/actions/report.actions";
+import { getJournalAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
 import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { JournalExportButton } from "@/components/reports/JournalExportButton";
@@ -67,11 +67,11 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
           {tx.lines.map((line, i) => (
             <tr key={i} className="hover:bg-zinc-50/60">
               <td className="px-4 py-2 font-mono text-xs text-zinc-500">{line.accountCode}</td>
-              <td className={`px-4 py-2 ${line.credit ? "pl-10" : ""}`}>{line.accountName}</td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono">
+              <td className={`px-4 py-2 text-zinc-900 dark:text-zinc-100 ${line.credit ? "pl-10" : ""}`}>{line.accountName}</td>
+              <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
                 {line.debit ? fmt(line.debit) : "—"}
               </td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono">
+              <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
                 {line.credit ? fmt(line.credit) : "—"}
               </td>
             </tr>
@@ -96,59 +96,35 @@ export default async function JournalPage({ params, searchParams }: Props) {
   const { companyId } = await params;
   const { from: rawFrom, to: rawTo, q } = await searchParams;
 
-  // Error 1 SENIAT-dictamen: sin filtro el Libro Diario mostraría TODOS los períodos
-  // (incluyendo facturas de períodos anteriores, ej. TESA-007 enero 2026 = f.001 falso).
-  // Si no hay parámetros de fecha, usamos por defecto el rango del período ABIERTO y
-  // RENDERIZAMOS DIRECTO — sin redirect(), que en Next 16 + Turbopack devolvía 404 en esta
-  // ruta (la navegación del sidebar entra sin params → redirect → 404). Si getPeriodsAction
-  // falla/timeout (cold start Neon), no aplicamos default: se muestran todos los períodos
-  // (degradación graceful, sin crash).
+  // R-05: sin filtro, usar año fiscal corriente (igual que los otros 4 reportes).
   let defaultFrom: string | undefined;
   let defaultTo: string | undefined;
   if (!rawFrom && !rawTo) {
-    try {
-      // 5 s de timeout: si Neon está en cold start, no bloqueamos el worker de Next.js.
-      const periodsForDefault = await Promise.race([
-        getPeriodsAction(companyId),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), 5_000),
-        ),
-      ]);
-      if (periodsForDefault.success) {
-        const open = periodsForDefault.data.find((p) => p.status === "OPEN");
-        if (open) {
-          const mm = String(open.month).padStart(2, "0");
-          const dd = String(new Date(open.year, open.month, 0).getDate()).padStart(2, "0");
-          defaultFrom = `${open.year}-${mm}-01`;
-          defaultTo = `${open.year}-${mm}-${dd}`;
-        }
-      }
-    } catch {
-      // Cold start, timeout u otro error — sin default (se muestran todos los períodos)
-    }
+    const now = new Date();
+    defaultFrom = `${now.getUTCFullYear()}-01-01`;
+    defaultTo = now.toISOString().split("T")[0];
   }
 
-  // Rango efectivo: parámetros explícitos de la URL o, en su defecto, el período abierto.
+  // Rango efectivo: parámetros explícitos de la URL o, en su defecto, el año fiscal corriente.
   const from = rawFrom ?? defaultFrom;
   const to = rawTo ?? defaultTo;
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
 
-  // guardAccounting dentro de getJournalAction no tiene try/catch propio.
-  // Si lanza (cold start Neon), lo capturamos aquí para evitar que el error
-  // propague al framework y cause un 404 en vez de mostrarse correctamente.
-  const [result, periodsResult] = await Promise.all([
+  const [result, periodsResult, companyResult] = await Promise.all([
     getJournalAction(companyId, dateFrom, dateTo, q).catch((err: unknown) => ({
       success: false as const,
       error: err instanceof Error ? err.message : "Error al cargar el libro diario",
     })),
     getPeriodsAction(companyId).catch(() => ({ success: false as const, error: "Error al cargar períodos" })),
+    getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
   ]);
   const transactions = result.success ? result.data : [];
   const periods = periodsResult.success
     ? periodsResult.data.map((p) => ({ year: p.year, month: p.month, status: p.status }))
     : [];
+  const company = companyResult.success ? companyResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -162,6 +138,12 @@ export default async function JournalPage({ params, searchParams }: Props) {
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Libro Diario</h1>
+          {company && (
+            <p className="text-sm font-medium text-zinc-700">
+              {company.name}
+              {company.rif && <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1 text-sm">
             Registro cronológico de todos los asientos contabilizados
             {from || to ? ` — ${from ?? "inicio"} al ${to ?? "hoy"}` : ""}

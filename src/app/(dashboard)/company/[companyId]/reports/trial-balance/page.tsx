@@ -1,5 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/reports/trial-balance/page.tsx
-import { getTrialBalanceAction } from "@/modules/accounting/actions/report.actions";
+import { getTrialBalanceAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { TrialBalanceFilter } from "@/components/reports/TrialBalanceFilter";
 import { redirect } from "next/navigation";
@@ -50,9 +50,31 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
 
   const dateFrom = from ? new Date(from) : undefined;
   const dateTo = to ? new Date(to + "T23:59:59") : undefined;
-  const result = await getTrialBalanceAction(companyId, dateFrom, dateTo);
 
-  if (!result.success) redirect("/dashboard");
+  const [result, companyResult] = await Promise.all([
+    getTrialBalanceAction(companyId, dateFrom, dateTo),
+    getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
+  ]);
+
+  const company = companyResult.success ? companyResult.data : null;
+
+  if (!result.success) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href={`/company/${companyId}/reports`}
+          className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          Reportes
+        </Link>
+        <h1 className="text-2xl font-bold tracking-tight">Balance de Comprobación</h1>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {result.error}
+        </div>
+      </div>
+    );
+  }
 
   const rows = result.data;
 
@@ -88,6 +110,12 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Balance de Comprobación</h1>
+          {company && (
+            <p className="text-sm font-medium text-zinc-700">
+              {company.name}
+              {company.rif && <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1 text-sm">{periodLabel()}</p>
         </div>
         <ExportFinancialPDFButton companyId={companyId} report="trial-balance" />

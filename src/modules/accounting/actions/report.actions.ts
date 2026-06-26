@@ -49,9 +49,13 @@ function dateRange(dateFrom?: Date, dateTo?: Date) {
   };
 }
 
-// Valida que el rango de fechas sea coherente (from ≤ to).
+// Valida que el rango de fechas sea coherente (from ≤ to) y que los objetos Date sean válidos.
 // Retorna un mensaje de error si el rango es inválido, null si es válido.
+// R-01: captura objetos Invalid Date creados por new Date("abc") antes de llegar a Prisma,
+// evitando que el ORM exponga detalles internos de la query al cliente.
 function validateDateRange(dateFrom?: Date, dateTo?: Date): string | null {
+  if (dateFrom && isNaN(dateFrom.getTime())) return "Formato de fecha inválido";
+  if (dateTo && isNaN(dateTo.getTime())) return "Formato de fecha inválido";
   if (dateFrom && dateTo && dateFrom > dateTo) {
     return "La fecha de inicio debe ser anterior o igual a la fecha de fin";
   }
@@ -366,6 +370,11 @@ export async function getIncomeStatementAction(
 ): Promise<ActionResult<IncomeStatementResult>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
+
+  // R-01: validar ambos rangos antes de pasar a los servicios
+  const dateError =
+    validateDateRange(dateFrom, dateTo) ?? validateDateRange(compareDateFrom, compareDateTo);
+  if (dateError) return { success: false, error: dateError };
 
   try {
     const hasComparePeriod = !!(compareDateFrom || compareDateTo);

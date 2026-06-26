@@ -1,5 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/reports/balance-sheet/page.tsx
-import { getBalanceSheetAction } from "@/modules/accounting/actions/report.actions";
+import { getBalanceSheetAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { BalanceSheetFilter } from "@/components/reports/BalanceSheetFilter";
 import { currentUser } from "@clerk/nextjs/server";
@@ -95,7 +95,13 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
   }
 
   const dateTo = new Date(to + "T23:59:59");
-  const result = await getBalanceSheetAction(companyId, dateTo);
+
+  const [result, companyResult] = await Promise.all([
+    getBalanceSheetAction(companyId, dateTo),
+    getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
+  ]);
+
+  const company = companyResult.success ? companyResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -109,6 +115,12 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Balance General</h1>
+          {company && (
+            <p className="text-sm font-medium text-zinc-700">
+              {company.name}
+              {company.rif && <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1 text-sm">
             {`Corte al ${to} — Resultado del ejercicio ${new Date(to).getUTCFullYear()}`}
           </p>
