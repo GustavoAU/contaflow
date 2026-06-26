@@ -1,5 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/reports/income-statement/page.tsx
-import { getIncomeStatementAction } from "@/modules/accounting/actions/report.actions";
+import { getIncomeStatementAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
 import type { IncomeStatement } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { IncomeStatementFilter } from "@/components/reports/IncomeStatementFilter";
@@ -166,7 +166,12 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
   const compareDateFrom = cmpFrom ? new Date(cmpFrom) : undefined;
   const compareDateTo = cmpTo ? new Date(cmpTo + "T23:59:59") : undefined;
 
-  const result = await getIncomeStatementAction(companyId, dateFrom, dateTo, compareDateFrom, compareDateTo);
+  const [result, companyResult] = await Promise.all([
+    getIncomeStatementAction(companyId, dateFrom, dateTo, compareDateFrom, compareDateTo),
+    getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
+  ]);
+
+  const company = companyResult.success ? companyResult.data : null;
 
   if (!result.success) {
     return (
@@ -200,6 +205,12 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
             Reportes
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Estado de Resultados</h1>
+          {company && (
+            <p className="text-sm font-medium text-zinc-700">
+              {company.name}
+              {company.rif && <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1 text-sm">
             {showCompare
               ? `${periodLabel(from, to)} vs. ${periodLabel(cmpFrom, cmpTo)}`

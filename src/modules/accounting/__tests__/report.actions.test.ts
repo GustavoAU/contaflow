@@ -196,6 +196,49 @@ describe("report.actions — validación dateFrom > dateTo", () => {
   });
 });
 
+// ─── Validación de fecha inválida (R-01) ─────────────────────────────────────
+
+describe("report.actions — validación fecha inválida (R-01)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
+
+  it("getLedgerAction rechaza fecha inválida (new Date('abc'))", async () => {
+    const result = await getLedgerAction(COMPANY_ID, new Date("abc"));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Formato de fecha inválido");
+    // Prisma NO debe ser llamado
+    expect(vi.mocked(prisma.journalEntry.groupBy)).not.toHaveBeenCalled();
+  });
+
+  it("getJournalAction rechaza fecha inválida (new Date('abc'))", async () => {
+    const result = await getJournalAction(COMPANY_ID, new Date("abc"));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Formato de fecha inválido");
+    expect(vi.mocked(prisma.transaction.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("getTrialBalanceAction rechaza fecha inválida (new Date('abc'))", async () => {
+    const result = await getTrialBalanceAction(COMPANY_ID, new Date("abc"));
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Formato de fecha inválido");
+    expect(vi.mocked(prisma.account.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("getIncomeStatementAction rechaza fecha inválida en período comparativo", async () => {
+    const result = await getIncomeStatementAction(
+      COMPANY_ID,
+      new Date("2026-01-01"),
+      new Date("2026-06-30"),
+      new Date("abc"), // compareDateFrom inválida
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Formato de fecha inválido");
+    expect(vi.mocked(prisma.account.findMany)).not.toHaveBeenCalled();
+  });
+});
+
 // ─── getLedgerAction — lógica ─────────────────────────────────────────────────
 
 describe("getLedgerAction", () => {
@@ -484,5 +527,43 @@ describe("getBalanceSheetAction", () => {
     expect(resultadoRow?.balance).toBe("600.00");
     // Balance cuadrado: Activos(1600) = Pasivos(0) + Patrimonio(1000 + 600)
     expect(result.data.isBalanced).toBe(true);
+  });
+
+  // R-04: Resultado del Ejercicio alineado con IncomeStatementService cuando EXPENSE tiene saldo crédito
+  it("R-04: Resultado Ejercicio coincide con IncomeStatementService cuando EXPENSE tiene saldo crédito (doble reversión)", async () => {
+    // Escenario: COGS (5110) tiene saldo crédito neto -3000 (reversiones en exceso)
+    // IncomeStatementService: abs(-3000) = 3000 → totalExpenses = 3000
+    // BalanceSheetService ANTES del fix: balance=-3000 → totalExpenses reducido → netIncome inflado
+    // BalanceSheetService DESPUÉS del fix: abs(-3000) = 3000 → alineado con IncomeStatementService
+    vi.mocked(prisma.account.findMany)
+      .mockResolvedValueOnce([
+        { id: "acc-b1", code: "1105", name: "Caja",    type: "ASSET",  isCurrent: true  },
+        { id: "acc-b2", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false },
+      ] as never)
+      .mockResolvedValueOnce([
+        { id: "acc-i1", code: "4135", name: "Ventas", type: "REVENUE", isCurrent: false },
+        { id: "acc-i2", code: "5110", name: "COGS",   type: "EXPENSE", isCurrent: false },
+      ] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([
+        { accountId: "acc-b1", _sum: { amount: "5000"  } },
+        { accountId: "acc-b2", _sum: { amount: "-5000" } },
+      ] as never)
+      .mockResolvedValueOnce([
+        { accountId: "acc-i1", _sum: { amount: "-5000" } }, // Ventas 5000 (crédito normal)
+        { accountId: "acc-i2", _sum: { amount: "-3000" } }, // COGS con saldo crédito (inusual)
+      ] as never);
+
+    const result = await getBalanceSheetAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // netIncome = revenues(5000) - expenses(abs(-3000)=3000) = 2000
+    // (igual al que devolvería IncomeStatementService.compute con los mismos datos)
+    const resultadoRow = result.data.equity.find((r) => r.id === "net-income");
+    expect(resultadoRow?.balance).toBe("2000.00");
+
+    // El warning de saldo invertido debe estar presente para el COGS con saldo crédito
+    expect(result.data.warnings.some((w) => w.includes("invertido"))).toBe(true);
   });
 });

@@ -173,8 +173,19 @@ function addEquity(
 
 // Calcula el Resultado del Ejercicio neto a partir de las cuentas de Ingreso y Gasto.
 //
-// - Ingresos: saldo crédito (negativo en BD) → negamos para obtener monto positivo → sumamos
-// - Gastos:   saldo débito  (positivo en BD) → tomamos tal cual               → restamos
+// NIC 1 §88 — coherencia entre estados financieros: este cálculo usa balance.abs() en
+// ambos tipos para coincidir con IncomeStatementService.compute(). Esto garantiza que el
+// "Resultado del Ejercicio" en el Balance General sea idéntico al netIncome del Estado de
+// Resultados en cualquier escenario, incluyendo cuentas con saldo invertido (p.ej. una
+// cuenta EXPENSE con saldo crédito neto causado por reversiones en exceso de asientos COGS).
+//
+// Con balance.abs():
+//   - REVENUE saldo crédito (−): abs() = positivo → suma a totalRevenues ✓
+//   - REVENUE saldo débito (+, invertido): abs() = positivo → suma a totalRevenues
+//     (el warning de saldo invertido alerta al contador; la cifra no se vuelve negativa)
+//   - EXPENSE saldo débito (+): abs() = positivo → suma a totalExpenses ✓
+//   - EXPENSE saldo crédito (−, invertido): abs() = positivo → suma a totalExpenses
+//     (evita que un saldo crédito REDUZCA los gastos y distorsione el netIncome)
 //
 // Retorna valor positivo si hay utilidad, negativo si hay pérdida.
 function computeNetIncome(incomeAccounts: AccountWithBalance[]): Decimal {
@@ -186,9 +197,9 @@ function computeNetIncome(incomeAccounts: AccountWithBalance[]): Decimal {
     if (balance.isZero()) continue;
 
     if (account.type === "REVENUE") {
-      totalRevenues = totalRevenues.plus(balance.negated()); // crédito → positivo
+      totalRevenues = totalRevenues.plus(balance.abs()); // abs(): igual a negated() en saldo crédito normal; coherente con IncomeStatementService
     } else {
-      totalExpenses = totalExpenses.plus(balance); // débito → positivo
+      totalExpenses = totalExpenses.plus(balance.abs()); // abs(): igual a balance en saldo débito normal; evita que saldo crédito invertido REDUZCA gastos
     }
   }
 
@@ -314,6 +325,27 @@ export class BalanceSheetService {
       `El Balance General no cuadra: Activos (${categorized.totalAssets.toFixed(2)} Bs.) ≠ ` +
       `Pasivos + Patrimonio (${totalLiabilitiesAndEquity.toFixed(2)} Bs.). ` +
       "Revise que todos los asientos estén registrados con partida doble correcta."
+    );
+  }
+
+  // R-04: detectar cuentas con saldo invertido al tipo normal.
+  // Una cuenta REVENUE con saldo débito (> 0) o una cuenta EXPENSE con saldo crédito (< 0)
+  // indica reversiones en exceso — situación inusual que puede ocultar errores contables.
+  // NIC 1 §32 prohíbe compensar partidas sin revelación explícita.
+  const invertedAccounts = incomeAccounts.filter(
+    (a) =>
+      !a.balance.isZero() &&
+      ((a.type === "REVENUE" && a.balance.isPositive()) ||
+        (a.type === "EXPENSE" && a.balance.isNegative())),
+  );
+  if (invertedAccounts.length > 0) {
+    const detail = invertedAccounts
+      .map((a) => `${a.code} ${a.name}`)
+      .join(", ");
+    warnings.push(
+      `${invertedAccounts.length} cuenta(s) con saldo invertido al tipo normal: ${detail}. ` +
+      "Esto puede indicar reversiones en exceso. " +
+      "Verifique en el Libro Mayor antes de presentar."
     );
   }
 
