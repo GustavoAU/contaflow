@@ -285,6 +285,39 @@ describe("getLedgerAction", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toHaveLength(0);
   });
+
+  // deletedAt-consistency: el saldo anterior (openingBalance) se calcula sobre TODAS las
+  // cuentas con movimientos POSTED previos, sin filtrar account.deletedAt. La historia POSTED
+  // es permanente (ADR-005, Cod. Comercio Art. 32-35): excluir una cuenta soft-deleted dejaría
+  // su openingBalance en 0 mientras la query principal sí mostraría sus movimientos del período
+  // → saldo rodante corrupto. Verifica que el groupBy NO contiene deletedAt y que el
+  // openingBalance se aplica correctamente al saldo rodante.
+  it("calcula saldo anterior sin filtrar deletedAt (libros reconcilian)", async () => {
+    // Cuenta con un movimiento débito de 500 en el período
+    vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountAsset] as never);
+    // Saldo anterior agregado por groupBy: 2000 acumulado antes de dateFrom
+    vi.mocked(prisma.journalEntry.groupBy).mockResolvedValue([
+      { accountId: "acc-1", _sum: { amount: "2000" } },
+    ] as never);
+
+    const dateFrom = new Date("2026-03-01");
+    const dateTo = new Date("2026-03-31");
+    const result = await getLedgerAction(COMPANY_ID, dateFrom, dateTo);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // openingBalance refleja el agregado previo (2000), no 0
+      expect(result.data[0].openingBalance).toBe("2000.00");
+      // saldo rodante final = 2000 (anterior) + 1000 (movimiento del período) = 3000
+      expect(result.data[0].balance).toBe("3000.00");
+    }
+
+    // El groupBy de saldo anterior NO debe filtrar por deletedAt — incluye cuentas borradas
+    // con historia para que los libros reconcilien contra el Balance de Comprobación.
+    const groupByCall = vi.mocked(prisma.journalEntry.groupBy).mock.calls[0][0];
+    expect(groupByCall.where?.account).toEqual({ companyId: COMPANY_ID });
+    expect(groupByCall.where?.account).not.toHaveProperty("deletedAt");
+  });
 });
 
 // ─── getTrialBalanceAction — lógica ──────────────────────────────────────────
