@@ -17,7 +17,7 @@ vi.mock("@/lib/prisma", () => ({
     transaction: { findMany: vi.fn() },
     account: { findMany: vi.fn() },
     accountingPeriod: { findFirst: vi.fn() },
-    journalEntry: { groupBy: vi.fn() },
+    journalEntry: { groupBy: vi.fn(), count: vi.fn() },
   },
 }));
 
@@ -86,6 +86,7 @@ function setupAuthOk() {
   vi.mocked(prisma.transaction.findMany).mockResolvedValue([]);
   vi.mocked(prisma.account.findMany).mockResolvedValue([]);
   vi.mocked(prisma.journalEntry.groupBy).mockResolvedValue([]);
+  vi.mocked(prisma.journalEntry.count).mockResolvedValue(0 as never);
 }
 
 // ─── Security guards — tabla de acciones ─────────────────────────────────────
@@ -295,10 +296,14 @@ describe("getTrialBalanceAction", () => {
   });
 
   it("retorna balance de comprobación balanceado", async () => {
+    // MEDIUM-01: ahora usa dos groupBy (débitos amount>0, créditos amount<0)
     vi.mocked(prisma.account.findMany).mockResolvedValue([
-      mockAccountAsset,
-      mockAccountRevenue,
+      { id: "acc-1", code: "1110", name: "Bancos", type: "ASSET" },
+      { id: "acc-2", code: "4135", name: "Ventas", type: "REVENUE" },
     ] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([{ accountId: "acc-1", _sum: { amount: "1000" } }] as never) // débitos
+      .mockResolvedValueOnce([{ accountId: "acc-2", _sum: { amount: "-1000" } }] as never); // créditos
 
     const result = await getTrialBalanceAction(COMPANY_ID);
 
@@ -311,12 +316,21 @@ describe("getTrialBalanceAction", () => {
   });
 
   it("calcula saldo correcto por cuenta", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountAsset] as never);
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1", code: "1110", name: "Bancos", type: "ASSET" },
+    ] as never);
+    vi.mocked(prisma.journalEntry.groupBy)
+      .mockResolvedValueOnce([{ accountId: "acc-1", _sum: { amount: "1000" } }] as never) // débitos
+      .mockResolvedValueOnce([] as never); // sin créditos
 
     const result = await getTrialBalanceAction(COMPANY_ID);
 
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data[0].balance).toBe("1000.00");
+    if (result.success) {
+      expect(result.data[0].totalDebit).toBe("1000.00");
+      expect(result.data[0].totalCredit).toBe("0.00");
+      expect(result.data[0].balance).toBe("1000.00");
+    }
   });
 });
 
@@ -565,5 +579,69 @@ describe("getBalanceSheetAction", () => {
 
     // El warning de saldo invertido debe estar presente para el COGS con saldo crédito
     expect(result.data.warnings.some((w) => w.includes("invertido"))).toBe(true);
+  });
+});
+
+// ─── MEDIUM-01: caps de volumen en queries de reportes ───────────────────────
+
+describe("report.actions — caps de volumen (MEDIUM-01)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupAuthOk();
+  });
+
+  const makeTx = (i: number) => ({
+    id: `tx-${i}`,
+    number: `T-${i}`,
+    date: new Date("2026-03-10"),
+    description: "Asiento",
+    reference: null,
+    type: "DIARIO",
+    entries: [],
+  });
+
+  it("getJournalAction: hasMore=false y no trunca cuando hay pocas transacciones", async () => {
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([makeTx(1), makeTx(2)] as never);
+
+    const result = await getJournalAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.transactions).toHaveLength(2);
+    expect(result.data.hasMore).toBe(false);
+  });
+
+  it("getJournalAction: trunca a 5000 y marca hasMore=true cuando hay más", async () => {
+    // El action pide take: 5001 para detectar el exceso → simulamos 5001 filas
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue(
+      Array.from({ length: 5001 }, (_, i) => makeTx(i)) as never,
+    );
+
+    const result = await getJournalAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.transactions).toHaveLength(5000);
+    expect(result.data.hasMore).toBe(true);
+  });
+
+  it("getLedgerAction: rechaza el rango cuando supera 5000 movimientos (sin truncar el saldo rodante)", async () => {
+    vi.mocked(prisma.journalEntry.count).mockResolvedValue(5001 as never);
+
+    const result = await getLedgerAction(COMPANY_ID);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toContain("máximo 5000");
+    // No debe cargar las cuentas si el conteo ya excede el tope
+    expect(vi.mocked(prisma.account.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("getLedgerAction: procede normalmente cuando el conteo está dentro del tope", async () => {
+    vi.mocked(prisma.journalEntry.count).mockResolvedValue(10 as never);
+    vi.mocked(prisma.account.findMany).mockResolvedValue([mockAccountAsset] as never);
+
+    const result = await getLedgerAction(COMPANY_ID);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].balance).toBe("1000.00");
   });
 });

@@ -91,16 +91,28 @@ async function guardAccounting(
   }
 }
 
+// MEDIUM-01 (auditoría Reportes): topes para acotar el volumen de filas que cada
+// reporte puede traer a memoria en un solo request. En navegación normal los reportes
+// ya están acotados por el filtro de fecha (año fiscal corriente por defecto), así que
+// estos topes solo se disparan con rangos manuales patológicos (varios años).
+//   - JOURNAL_TX_CAP: el Libro Diario pagina por transacción → se trunca y se avisa
+//     (hasMore) sin corromper nada (cada asiento es una unidad completa).
+//   - LEDGER_ENTRY_CAP: el Libro Mayor necesita TODAS las filas para el saldo rodante,
+//     truncar lo corrompería → se cuenta primero y se rechaza el rango si excede.
+const JOURNAL_TX_CAP = 5000;
+const LEDGER_ENTRY_CAP = 5000;
+
 // ─── Libro Diario ─────────────────────────────────────────────────────────────
 
-// Retorna todas las transacciones POSTED del período como entradas de Libro Diario.
+// Retorna las transacciones POSTED del período como entradas de Libro Diario.
 // Cada transacción incluye sus líneas de asiento (débitos y créditos).
+// `hasMore` indica que el resultado fue truncado al tope JOURNAL_TX_CAP.
 export async function getJournalAction(
   companyId: string,
   dateFrom?: Date,
   dateTo?: Date,
   search?: string,
-): Promise<ActionResult<JournalTransaction[]>> {
+): Promise<ActionResult<{ transactions: JournalTransaction[]; hasMore: boolean }>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
 
@@ -110,7 +122,8 @@ export async function getJournalAction(
   const searchTerm = search?.trim();
 
   try {
-    const transactions = await prisma.transaction.findMany({
+    // take: CAP + 1 para detectar si hay más filas de las que mostramos.
+    const fetched = await prisma.transaction.findMany({
       where: {
         companyId,
         status: TX_STATUS.POSTED,
@@ -126,6 +139,7 @@ export async function getJournalAction(
           : {}),
       },
       orderBy: [{ date: "asc" }, { number: "asc" }],
+      take: JOURNAL_TX_CAP + 1,
       include: {
         entries: {
           include: {
@@ -135,6 +149,9 @@ export async function getJournalAction(
         },
       },
     });
+
+    const hasMore = fetched.length > JOURNAL_TX_CAP;
+    const transactions = hasMore ? fetched.slice(0, JOURNAL_TX_CAP) : fetched;
 
     const journalTransactions = transactions.map((tx) => {
       let totalDebit = new Decimal(0);
@@ -175,7 +192,7 @@ export async function getJournalAction(
       };
     });
 
-    return { success: true, data: journalTransactions };
+    return { success: true, data: { transactions: journalTransactions, hasMore } };
   } catch (error) {
     return toActionError(error);
   }
@@ -198,6 +215,22 @@ export async function getLedgerAction(
   if (dateError) return { success: false, error: dateError };
 
   try {
+    // MEDIUM-01: el Mayor necesita TODAS las filas del rango para el saldo rodante; un
+    // take las truncaría y dejaría saldos incorrectos. Por eso contamos primero (query
+    // barata) y rechazamos el rango si excede el tope, en lugar de truncar silenciosamente.
+    const entryCount = await prisma.journalEntry.count({
+      where: {
+        account: { companyId, deletedAt: null },
+        transaction: { status: TX_STATUS.POSTED, ...dateRange(dateFrom, dateTo) },
+      },
+    });
+    if (entryCount > LEDGER_ENTRY_CAP) {
+      return {
+        success: false,
+        error: `El rango seleccionado tiene ${entryCount} movimientos (máximo ${LEDGER_ENTRY_CAP}). Afine el rango de fechas para ver el Libro Mayor.`,
+      };
+    }
+
     // Calcular el saldo acumulado antes de dateFrom para cada cuenta (saldo anterior).
     // Se hace con un groupBy para traer un solo agregado por cuenta en lugar de
     // traer todas las entradas previas individualmente.
@@ -309,46 +342,54 @@ export async function getTrialBalanceAction(
   if (dateError) return { success: false, error: dateError };
 
   try {
-    const accounts = await prisma.account.findMany({
-      where: { companyId },
-      orderBy: { code: "asc" },
-      include: {
-        journalEntries: {
-          where: {
-            transaction: {
-              status: TX_STATUS.POSTED,
-              ...dateRange(dateFrom, dateTo),
-            },
-          },
-        },
-      },
-    });
+    // N5/MEDIUM-01: pre-agregado a nivel de BD — evita cargar filas individuales de
+    // JournalEntry en memoria (acotado por nº de cuentas, no por volumen de asientos).
+    // El Balance de Comprobación necesita débitos y créditos BRUTOS por cuenta, así que
+    // se hacen dos groupBy (amount>0 y amount<0); un solo groupBy daría únicamente el neto.
+    const txFilter = { status: TX_STATUS.POSTED, ...dateRange(dateFrom, dateTo) };
+    const [accountMeta, debitSums, creditSums] = await Promise.all([
+      prisma.account.findMany({
+        where: { companyId },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, name: true, type: true },
+      }),
+      prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: { account: { companyId }, transaction: txFilter, amount: { gt: 0 } },
+        _sum: { amount: true },
+      }),
+      prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: { account: { companyId }, transaction: txFilter, amount: { lt: 0 } },
+        _sum: { amount: true },
+      }),
+    ]);
 
-    const rows = accounts
-      .filter((account) => account.journalEntries.length > 0)
-      .map((account) => {
-        let totalDebit = new Decimal(0);
-        let totalCredit = new Decimal(0);
+    const debitMap = new Map(
+      debitSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+    );
+    const creditMap = new Map(
+      creditSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+    );
 
-        for (const entry of account.journalEntries) {
-          const amount = new Decimal(entry.amount.toString());
-          if (amount.greaterThan(0)) {
-            totalDebit = totalDebit.plus(amount);
-          } else {
-            totalCredit = totalCredit.plus(amount.abs());
-          }
-        }
-
-        return {
-          id: account.id,
-          code: account.code,
-          name: account.name,
-          type: account.type,
-          totalDebit: totalDebit.toFixed(2),
-          totalCredit: totalCredit.toFixed(2),
-          balance: totalDebit.minus(totalCredit).toFixed(2),
-        };
-      });
+    const rows = accountMeta
+      .map((account) => ({
+        account,
+        totalDebit: debitMap.get(account.id) ?? new Decimal(0),
+        // créditos vienen negativos del groupBy (amount<0) → abs para mostrar positivo
+        totalCredit: (creditMap.get(account.id) ?? new Decimal(0)).abs(),
+      }))
+      // Solo cuentas con movimientos en el período (débito o crédito distinto de cero)
+      .filter(({ totalDebit, totalCredit }) => !totalDebit.isZero() || !totalCredit.isZero())
+      .map(({ account, totalDebit, totalCredit }) => ({
+        id: account.id,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        totalDebit: totalDebit.toFixed(2),
+        totalCredit: totalCredit.toFixed(2),
+        balance: totalDebit.minus(totalCredit).toFixed(2),
+      }));
 
     return { success: true, data: rows };
   } catch (error) {
