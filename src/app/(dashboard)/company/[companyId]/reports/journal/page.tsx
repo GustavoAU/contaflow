@@ -120,7 +120,8 @@ export default async function JournalPage({ params, searchParams }: Props) {
     getPeriodsAction(companyId).catch(() => ({ success: false as const, error: "Error al cargar períodos" })),
     getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
   ]);
-  const transactions = result.success ? result.data : [];
+  const transactions = result.success ? result.data.transactions : [];
+  const hasMore = result.success ? result.data.hasMore : false;
   const periods = periodsResult.success
     ? periodsResult.data.map((p) => ({ year: p.year, month: p.month, status: p.status }))
     : [];
@@ -192,6 +193,13 @@ export default async function JournalPage({ params, searchParams }: Props) {
       {!result.success && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {result.error}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Resultado parcial: se muestran los primeros 5.000 asientos del rango. Afine el rango de
+          fechas o use la búsqueda para ver el resto.
         </div>
       )}
 
