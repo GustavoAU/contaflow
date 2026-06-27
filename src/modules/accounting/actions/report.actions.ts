@@ -203,6 +203,15 @@ export async function getJournalAction(
 // Retorna el Mayor de todas las cuentas con movimientos en el período.
 // Cada cuenta incluye su saldo anterior (openingBalance), sus movimientos
 // y el saldo rodante acumulado después de cada movimiento.
+//
+// INVARIANTE de reportes contables: los reportes (Mayor, Balance de Comprobación,
+// Balance General, Estado de Resultados) INCLUYEN toda cuenta con movimientos POSTED
+// sin importar `account.deletedAt`. La historia POSTED es permanente (ADR-005, Código
+// de Comercio Art. 32-35): un asiento nunca se borra, solo se anula (VOID). Si un
+// reporte ocultara una cuenta soft-deleted con movimientos, sus débitos/créditos
+// desaparecerían del agregado y los libros dejarían de reconciliar (Σdébitos ≠ Σcréditos
+// en el Balance de Comprobación). El filtro `deletedAt: null` es exclusivo de las vistas
+// de gestión del Plan de Cuentas (selector de cuentas activas), NUNCA de los reportes.
 export async function getLedgerAction(
   companyId: string,
   dateFrom?: Date,
@@ -218,9 +227,12 @@ export async function getLedgerAction(
     // MEDIUM-01: el Mayor necesita TODAS las filas del rango para el saldo rodante; un
     // take las truncaría y dejaría saldos incorrectos. Por eso contamos primero (query
     // barata) y rechazamos el rango si excede el tope, en lugar de truncar silenciosamente.
+    // Sin filtro `deletedAt`: el conteo debe cubrir exactamente las mismas filas que la
+    // query principal de movimientos (que filtra solo por companyId), si no el tope sería
+    // inconsistente con lo que realmente se carga después.
     const entryCount = await prisma.journalEntry.count({
       where: {
-        account: { companyId, deletedAt: null },
+        account: { companyId },
         transaction: { status: TX_STATUS.POSTED, ...dateRange(dateFrom, dateTo) },
       },
     });
@@ -234,12 +246,15 @@ export async function getLedgerAction(
     // Calcular el saldo acumulado antes de dateFrom para cada cuenta (saldo anterior).
     // Se hace con un groupBy para traer un solo agregado por cuenta en lugar de
     // traer todas las entradas previas individualmente.
+    // Sin filtro `deletedAt`: una cuenta soft-deleted con historia previa debe aportar su
+    // saldo anterior real; excluirla aquí dejaría su openingBalance en 0 mientras la query
+    // principal sí mostraría sus movimientos del período → saldo rodante corrupto.
     const openingBalanceMap = new Map<string, Decimal>();
     if (dateFrom) {
       const priorEntries = await prisma.journalEntry.groupBy({
         by: ["accountId"],
         where: {
-          account: { companyId, deletedAt: null },
+          account: { companyId },
           transaction: { status: TX_STATUS.POSTED, date: { lt: dateFrom } },
         },
         _sum: { amount: true },
