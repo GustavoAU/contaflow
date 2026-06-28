@@ -161,7 +161,7 @@ export async function exportOcrDraftPDFAction(
       data: { pdf: buffer.toString("base64"), filename },
     }
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
-    return { success: false, error: "Error al generar el PDF" };
+    // No filtrar errores técnicos crudos al cliente (sanitización central).
+    return toActionError(error);
   }
 }

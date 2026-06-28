@@ -611,7 +611,7 @@ export async function searchInvoicesForPickerAction(
       })),
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
+    if (error instanceof Error) return { success: false, error: mapPrismaError(error) };
     return { success: false, error: "Error al buscar facturas" };
   }
 }
@@ -670,7 +670,7 @@ export async function getCreditDebitNotesAction(
       })),
     };
   } catch (error) {
-    if (error instanceof Error) return { success: false, error: error.message };
+    if (error instanceof Error) return { success: false, error: mapPrismaError(error) };
     return { success: false, error: "Error al obtener notas" };
   }
 }
