@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction, getTrialBalanceAction } from "./report.actions";
 import {
   generateBalanceSheetPDF,
@@ -18,9 +19,10 @@ import {
 type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
 
 // Convierte un error de generacion de PDF al formato de respuesta estandar.
-// El mensaje del Error (si lo hay) es mas especifico que el fallback generico.
+// Sanitiza vía mapPrismaError: errores de negocio (español) pasan; técnicos de BD
+// (p.ej. "permission denied for schema public") → mensaje genérico, nunca crudo.
 function toPDFError(error: unknown, fallback = "Error al generar el PDF"): PDFResult {
-  if (error instanceof Error) return { success: false, error: error.message };
+  if (error instanceof Error) return { success: false, error: mapPrismaError(error) };
   return { success: false, error: fallback };
 }
 

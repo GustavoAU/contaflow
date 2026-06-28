@@ -10,6 +10,7 @@
 // Referencia: Q2-3 aplica a modificaciones post-operación, no a setup inicial.
 
 import { auth } from "@clerk/nextjs/server";
+import { mapPrismaError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
@@ -102,7 +103,8 @@ export async function onboardingUpdateCompanyProfileAction(
     return { success: true, data: { id: company.id } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
-    if (error instanceof Error) return { success: false, error: error.message };
+    // Errores de negocio (español) pasan; técnicos de BD → genérico (no filtrar crudos).
+    if (error instanceof Error) return { success: false, error: mapPrismaError(error) };
     return { success: false, error: "Error al guardar los datos de la empresa" };
   }
 }
