@@ -192,15 +192,9 @@ export async function createPaymentAction(
     revalidatePath(`/company/${d.companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) {
-      // Sanitizar errores de Prisma/DB — no exponer detalles técnicos al cliente
-      const raw = err.message;
-      if (raw.includes("Transaction") || raw.includes("Prisma") || raw.includes("connect")) {
-        return { success: false, error: "Error al registrar el pago. Intente nuevamente." };
-      }
-      return { success: false, error: raw };
-    }
-    return { success: false, error: "Error al registrar el pago" };
+    // Sanitización centralizada: errores de negocio (español) pasan; errores técnicos
+    // de BD/Postgres (p.ej. "permission denied for schema public") → mensaje genérico en español.
+    return toActionError(err);
   }
 }
 
