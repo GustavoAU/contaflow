@@ -462,7 +462,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">
           Cuenta bancaria{" "}
-          <span className="text-xs font-normal text-zinc-400">(opcional — genera asiento GL automático)</span>
+          <span className="text-xs font-normal text-zinc-400">(opcional — asiento automático si hay cuentas GL configuradas)</span>
         </label>
         {bankAccounts.length === 0 ? (
           <p className="text-xs text-zinc-400">
