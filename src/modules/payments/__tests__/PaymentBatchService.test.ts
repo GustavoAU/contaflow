@@ -712,3 +712,29 @@ describe("PaymentBatchService.discardBatch", () => {
     expect(prisma.paymentBatch.update).not.toHaveBeenCalled();
   });
 });
+
+// ─── list ─────────────────────────────────────────────────────────────────────
+
+describe("PaymentBatchService.list", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // R-8: el historial muestra lotes activos y los ANULADOS (VOID) para trazabilidad,
+  // pero NO los borradores descartados (DRAFT + deletedAt).
+  it("R-8: el where incluye lotes activos (deletedAt: null) OR anulados (status VOID)", async () => {
+    vi.mocked(prisma.paymentBatch.findMany).mockResolvedValue([BASE_BATCH] as never);
+
+    const result = await PaymentBatchService.list(COMPANY_ID);
+
+    expect(result.batches).toHaveLength(1);
+    expect(prisma.paymentBatch.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          companyId: COMPANY_ID,
+          OR: [{ deletedAt: null }, { status: "VOID" }],
+        },
+      })
+    );
+  });
+});

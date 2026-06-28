@@ -719,8 +719,11 @@ export class PaymentBatchService {
     limit = 50
   ): Promise<{ batches: PaymentBatchSummary[]; nextCursor: string | null }> {
     const take = limit + 1;
+    // R-8: mostrar lotes activos (deletedAt: null) y los ANULADOS (status VOID) para
+    // trazabilidad. Los borradores DESCARTADOS (status DRAFT + deletedAt) quedan ocultos:
+    // no caen en ninguna de las dos ramas del OR.
     const batches = await prisma.paymentBatch.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, OR: [{ deletedAt: null }, { status: "VOID" }] },
       include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take,

@@ -97,6 +97,7 @@ export async function createPaymentBatchAction(
     });
 
     revalidatePath(`/company/${d.companyId}/payments`);
+    revalidatePath(`/company/${d.companyId}/payments/batches`);
     return { success: true, data: result };
   } catch (err) {
     // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
@@ -139,6 +140,7 @@ export async function applyPaymentBatchAction(
     });
 
     revalidatePath(`/company/${d.companyId}/payments`);
+    revalidatePath(`/company/${d.companyId}/payments/batches`);
     return { success: true, data: result };
   } catch (err) {
     // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
@@ -182,6 +184,7 @@ export async function voidPaymentBatchAction(
     });
 
     revalidatePath(`/company/${d.companyId}/payments`);
+    revalidatePath(`/company/${d.companyId}/payments/batches`);
     return { success: true, data: result };
   } catch (err) {
     // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
@@ -224,6 +227,7 @@ export async function discardPaymentBatchAction(
     });
 
     revalidatePath(`/company/${d.companyId}/payments`);
+    revalidatePath(`/company/${d.companyId}/payments/batches`);
     return { success: true, data: result };
   } catch (err) {
     // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.

@@ -205,7 +205,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="bank-account">Cuenta bancaria (opcional — genera asiento contable)</Label>
+            <Label htmlFor="bank-account">Cuenta bancaria (opcional — asiento automático si hay cuentas GL configuradas)</Label>
             <Select value={bankAccountId || "none"} onValueChange={(v) => setBankAccountId(v === "none" ? "" : v)}>
               <SelectTrigger id="bank-account">
                 <SelectValue placeholder="Sin asiento contable" />

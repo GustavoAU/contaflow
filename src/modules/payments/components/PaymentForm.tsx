@@ -468,7 +468,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         <label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-zinc-700">
           <BuildingIcon className="size-3.5 text-zinc-400" />
           Cuenta bancaria
-          <span className="ml-1 text-xs font-normal text-zinc-400">(opcional — genera asiento contable automático)</span>
+          <span className="ml-1 text-xs font-normal text-zinc-400">(opcional — asiento automático si hay cuentas GL configuradas)</span>
         </label>
         {bankAccounts.length === 0 ? (
           <p className="text-xs text-zinc-400">
