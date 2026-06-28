@@ -81,8 +81,12 @@ function VoidModal({
           onChange={(e) => setReason(e.target.value)}
           placeholder="Ej: Error en referencia bancaria"
           autoFocus
-          className="mb-4 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mb-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+        {/* HA-04: explicar por qué el botón Confirmar está deshabilitado con motivo vacío */}
+        <p className={`mb-4 text-xs ${reason.trim() ? "text-zinc-400" : "text-amber-600"}`}>
+          El motivo de anulación es obligatorio.
+        </p>
         <div className="flex justify-end gap-2">
           <button
             type="button"
