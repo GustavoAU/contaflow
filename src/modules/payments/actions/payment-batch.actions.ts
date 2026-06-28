@@ -98,14 +98,8 @@ export async function createPaymentBatchAction(
     revalidatePath(`/company/${d.companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) {
-      const raw = err.message;
-      if (raw.includes("Transaction") || raw.includes("Prisma") || raw.includes("connect")) {
-        return { success: false, error: "Error al crear el lote. Intente nuevamente." };
-      }
-      return { success: false, error: raw };
-    }
-    return { success: false, error: "Error al crear el lote" };
+    // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
+    return toActionError(err);
   }
 }
 
@@ -146,14 +140,8 @@ export async function applyPaymentBatchAction(
     revalidatePath(`/company/${d.companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) {
-      const raw = err.message;
-      if (raw.includes("Transaction") || raw.includes("Prisma") || raw.includes("connect")) {
-        return { success: false, error: "Error al aplicar el lote. Intente nuevamente." };
-      }
-      return { success: false, error: raw };
-    }
-    return { success: false, error: "Error al aplicar el lote" };
+    // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
+    return toActionError(err);
   }
 }
 
@@ -195,14 +183,8 @@ export async function voidPaymentBatchAction(
     revalidatePath(`/company/${d.companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
-    if (err instanceof Error) {
-      const raw = err.message;
-      if (raw.includes("Transaction") || raw.includes("Prisma") || raw.includes("connect")) {
-        return { success: false, error: "Error al anular el lote. Intente nuevamente." };
-      }
-      return { success: false, error: raw };
-    }
-    return { success: false, error: "Error al anular el lote" };
+    // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
+    return toActionError(err);
   }
 }
 
