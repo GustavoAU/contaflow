@@ -1,9 +1,14 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2Icon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { PaymentBatchSummary } from "../services/PaymentBatchService";
-import { voidPaymentBatchAction } from "../actions/payment-batch.actions";
+import {
+  voidPaymentBatchAction,
+  applyPaymentBatchAction,
+  discardPaymentBatchAction,
+} from "../actions/payment-batch.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 
 type Props = {
@@ -112,9 +117,11 @@ function BatchRow({
   companyId: string;
   onVoided?: () => void;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showVoidModal, setShowVoidModal] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   function handleVoidConfirm(voidReason: string) {
@@ -128,9 +135,40 @@ function BatchRow({
       if (result.success) {
         setShowVoidModal(false);
         onVoided?.();
+        router.refresh();
       } else {
         setError(result.error);
         setShowVoidModal(false);
+      }
+    });
+  }
+
+  // HA-02: reintentar la aplicación de un lote que quedó en DRAFT (create OK, apply falló).
+  function handleApply() {
+    setError(null);
+    startTransition(async () => {
+      const result = await applyPaymentBatchAction({ companyId, batchId: batch.id });
+      if (result.success) {
+        onVoided?.();
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  // HA-02: descartar un lote DRAFT huérfano (soft-delete; no tocó facturas ni GL).
+  function handleDiscard() {
+    setError(null);
+    startTransition(async () => {
+      const result = await discardPaymentBatchAction({ companyId, batchId: batch.id });
+      if (result.success) {
+        setConfirmingDiscard(false);
+        onVoided?.();
+        router.refresh();
+      } else {
+        setError(result.error);
+        setConfirmingDiscard(false);
       }
     });
   }
@@ -193,6 +231,52 @@ function BatchRow({
             >
               Anular
             </button>
+          )}
+          {/* HA-02: un lote DRAFT (apply falló) debe poder reintentarse o descartarse */}
+          {batch.status === "DRAFT" && !confirmingDiscard && (
+            <div className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={handleApply}
+                disabled={isPending}
+                aria-busy={isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+              >
+                {isPending && <Loader2Icon className="size-3 animate-spin" />}
+                Aplicar
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDiscard(true)}
+                disabled={isPending}
+                className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Descartar
+              </button>
+            </div>
+          )}
+          {batch.status === "DRAFT" && confirmingDiscard && (
+            <div className="flex items-center justify-end gap-1.5 text-xs">
+              <span className="text-zinc-500">¿Descartar borrador?</span>
+              <button
+                type="button"
+                onClick={handleDiscard}
+                disabled={isPending}
+                aria-busy={isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                {isPending && <Loader2Icon className="size-3 animate-spin" />}
+                Sí
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDiscard(false)}
+                disabled={isPending}
+                className="rounded-md border border-zinc-200 px-2 py-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                No
+              </button>
+            </div>
           )}
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </td>

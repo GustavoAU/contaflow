@@ -23,6 +23,7 @@ vi.mock("../services/PaymentBatchService", () => ({
     createBatch: vi.fn(),
     applyBatch: vi.fn(),
     voidBatch: vi.fn(),
+    discardBatch: vi.fn(),
     getById: vi.fn(),
     list: vi.fn(),
   },
@@ -33,6 +34,7 @@ import {
   createPaymentBatchAction,
   applyPaymentBatchAction,
   voidPaymentBatchAction,
+  discardPaymentBatchAction,
   getPaymentBatchAction,
   listPaymentBatchesAction,
 } from "../actions/payment-batch.actions";
@@ -369,5 +371,74 @@ describe("listPaymentBatchesAction", () => {
     const result = await listPaymentBatchesAction(COMPANY_ID);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toMatch(/no encontrada|acceso denegado/);
+  });
+});
+
+// ─── discardPaymentBatchAction (HA-02) ────────────────────────────────────────
+
+describe("discardPaymentBatchAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupOk();
+    vi.mocked(PaymentBatchService.discardBatch).mockResolvedValue({
+      ...BATCH_SUMMARY,
+      status: "DRAFT",
+    });
+  });
+
+  it("happy path — descarta el DRAFT", async () => {
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(true);
+    expect(PaymentBatchService.discardBatch).toHaveBeenCalledOnce();
+    expect(PaymentBatchService.discardBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: BATCH_ID, companyId: COMPANY_ID, userId: USER_ID })
+    );
+  });
+
+  it("retorna error si no autenticado", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/No autorizado/);
+    expect(PaymentBatchService.discardBatch).not.toHaveBeenCalled();
+  });
+
+  it("retorna error si rate limit excedido", async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: false });
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/solicitudes/);
+  });
+
+  it("retorna error si usuario no es miembro (ADR-004)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/no encontrada|acceso denegado/);
+  });
+
+  it("retorna error si rol insuficiente (VIEWER)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/No autorizado/);
+    expect(PaymentBatchService.discardBatch).not.toHaveBeenCalled();
+  });
+
+  it("retorna error de validación si batchId vacío", async () => {
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("propaga error de negocio — batch no en DRAFT", async () => {
+    vi.mocked(PaymentBatchService.discardBatch).mockRejectedValue(
+      new Error("Solo se pueden descartar lotes en borrador (DRAFT). Los lotes aplicados deben anularse.")
+    );
+    const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/anularse|DRAFT/);
   });
 });

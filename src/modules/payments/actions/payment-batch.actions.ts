@@ -12,6 +12,7 @@ import {
   CreateBatchSchema,
   ApplyBatchSchema,
   VoidBatchSchema,
+  DiscardBatchSchema,
 } from "../schemas/payment-batch.schema";
 import { PaymentBatchService, PaymentBatchSummary } from "../services/PaymentBatchService";
 import type { ActionResult } from "../types/action-result";
@@ -176,6 +177,48 @@ export async function voidPaymentBatchAction(
       companyId: d.companyId,
       userId: ctx.userId,
       voidReason: d.voidReason,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    revalidatePath(`/company/${d.companyId}/payments`);
+    return { success: true, data: result };
+  } catch (err) {
+    // Sanitización centralizada: errores técnicos de BD nunca llegan crudos al cliente.
+    return toActionError(err);
+  }
+}
+
+// ─── Descartar lote DRAFT → soft-delete (HA-02) ──────────────────────────────
+export async function discardPaymentBatchAction(
+  input: unknown
+): Promise<ActionResult<PaymentBatchSummary>> {
+  try {
+    const ctx = await getAuthContext();
+    if (!ctx) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+
+    const parsed = DiscardBatchSchema.safeParse(input);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
+      return { success: false, error: msg };
+    }
+
+    const d = parsed.data;
+
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId: d.companyId, userId: ctx.userId },
+      select: { role: true },
+    });
+    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+
+    const result = await PaymentBatchService.discardBatch({
+      batchId: d.batchId,
+      companyId: d.companyId,
+      userId: ctx.userId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });

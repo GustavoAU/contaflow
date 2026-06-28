@@ -93,6 +93,14 @@ export type VoidBatchInput = {
   userAgent?: string | null;
 };
 
+export type DiscardBatchInput = {
+  batchId: string;
+  companyId: string;
+  userId: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const P2034_DELAYS = [0, 50, 100] as const;
@@ -328,7 +336,7 @@ export class PaymentBatchService {
           async (tx) => {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
-              where: { id: input.batchId, companyId: input.companyId },
+              where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
               include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
@@ -496,7 +504,7 @@ export class PaymentBatchService {
           async (tx) => {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
-              where: { id: input.batchId, companyId: input.companyId },
+              where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
               include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
@@ -603,6 +611,57 @@ export class PaymentBatchService {
     }
 
     throw lastErr;
+  }
+
+  /**
+   * Descarta (soft-delete) un lote en estado DRAFT. HA-02.
+   * Un DRAFT nunca tocó facturas ni GL, así que NO hay saldos ni asientos que revertir:
+   * solo se marca deletedAt (la lista filtra por deletedAt: null) y se audita.
+   * Read Committed normal — sin Serializable ni retry P2034 porque no hay contención
+   * sobre facturas.
+   */
+  static async discardBatch(input: DiscardBatchInput): Promise<PaymentBatchSummary> {
+    return prisma.$transaction(async (tx) => {
+      // Guard multi-tenant (ADR-004)
+      const batch = await tx.paymentBatch.findFirst({
+        where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
+        include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+      });
+      if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
+      if (batch.status !== "DRAFT") {
+        throw new Error(
+          "Solo se pueden descartar lotes en borrador (DRAFT). Los lotes aplicados deben anularse."
+        );
+      }
+      if (batch.deletedAt) {
+        throw new Error("El lote ya fue descartado");
+      }
+
+      const updated = await tx.paymentBatch.update({
+        where: { id: batch.id },
+        data: { deletedAt: new Date() },
+        include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+      });
+
+      // AuditLog en el mismo $transaction (R-6 trazabilidad)
+      await tx.auditLog.create({
+        data: {
+          companyId: input.companyId,
+          entityId: batch.id,
+          entityName: "PaymentBatch",
+          action: "DISCARD",
+          userId: input.userId,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+          newValue: {
+            status: "DRAFT",
+            discarded: true,
+          },
+        },
+      });
+
+      return serializeBatch(updated);
+    });
   }
 
   /**
