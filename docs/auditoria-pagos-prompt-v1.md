@@ -37,7 +37,7 @@ Antes de anotar CUALQUIER hallazgo, aplica estas reglas:
 
 7. **XSS / inyección:** React escapa el HTML por defecto. Si metes `<script>alert(1)</script>` en el concepto o la referencia y el texto aparece **literal en pantalla** (no se ejecuta), eso es **correcto**, NO una vulnerabilidad. Solo repórtalo si ves ejecución real de código.
 
-8. **Soft-delete (anulación) es correcto.** Un pago anulado no se borra físicamente: se marca como anulado con su motivo (rastro de auditoría) y desaparece del listado activo. Que "siga existiendo" en Auditoría pero no en el listado es **correcto**.
+8. **Soft-delete (anulación) es correcto.** Un pago/lote anulado no se borra físicamente: se marca como anulado con su motivo (rastro de auditoría). En **Medios de Pago**, un pago anulado desaparece del listado activo (correcto). En **Distribución A/P**, un lote anulado **permanece visible** con la etiqueta "Anulado" para trazabilidad (también correcto). Ninguna de las dos conductas es un bug.
 
 9. **Calibra la severidad.** CRÍTICO = saldo de factura corrupto, doble aplicación de un pago, asiento descuadrado (Σdébitos≠Σcréditos), fuga entre empresas, o IGTF/monto mal calculado. Un detalle de UX no es CRÍTICO.
 
@@ -150,22 +150,24 @@ Adjunta una imagen de comprobante. Si hay botón "Analizar con IA":
 
 ## FASE 2 — DISTRIBUCIÓN A/P: PAGOS A PROVEEDORES POR LOTE (flujo feliz)
 
-### 2.1 Crear lote (DRAFT)
-En "Distribución A/P" → crear lote: método, fecha, selecciona **2 facturas de compra pendientes**, asigna un monto a cada línea, concepto.
+### 2.1 Crear y Aplicar lote (flujo normal — un solo paso)
+En "Distribución A/P" → crear lote: método, fecha, selecciona **2 facturas de compra pendientes**, asigna un monto a cada línea, concepto. El botón es **"Crear y Aplicar Lote"** (crea el lote y lo aplica en un paso).
 - ✅ La **suma de las líneas debe igualar el total** del lote (verifica que el sistema lo exija/calcule).
-- ✅ Se crea en estado **Borrador**. Aún NO debe mover saldos de las facturas ni asentar.
-
-### 2.2 Aplicar lote (DRAFT → APPLIED)
-Pulsa "Aplicar".
 - ✅ Cada factura de compra baja su saldo (verifica en CxP/Facturación: pasan a PARCIAL/PAGADA).
 - ✅ Si hay cuenta bancaria + GL: aparece asiento **Dr. CxP / Cr. Banco** (Σ=0).
-- ✅ El lote pasa a **Aplicado**.
+- ✅ El lote queda **Aplicado**.
+
+### 2.2 Lote en Borrador (DRAFT) — recuperación cuando la aplicación falla
+Un lote queda en **Borrador** si se creó pero su aplicación falló (p.ej. una línea excedía el saldo). En la lista, un lote DRAFT debe ofrecer **dos acciones**: **"Aplicar"** (reintentar) y **"Descartar"** (eliminar el borrador).
+- ✅ **"Aplicar"** sobre el DRAFT lo aplica (pasa a Aplicado) si las facturas tienen saldo suficiente.
+- ✅ **"Descartar"** (con confirmación) elimina el borrador; desaparece de la lista. No tocó saldos ni asientos (un DRAFT nunca los toca), así que no hay nada que revertir.
+- ⚠️ Anti-FP: un DRAFT **no** se "Anula" (eso es solo para lotes Aplicados) — se **Descarta**. Que no haya botón "Anular" en un DRAFT es correcto.
 
 ### 2.3 Anular lote (APPLIED → VOID)
-Pulsa "Anular" con un motivo.
+Pulsa "Anular" con un motivo (obligatorio).
 - ✅ Restaura los saldos de las facturas (vuelven a su pendiente anterior).
 - ✅ Contrapartea el asiento (el original queda anulado, no borrado).
-- ✅ El lote pasa a **Anulado**.
+- ✅ El lote pasa a **Anulado** y **permanece visible** en el historial con la etiqueta "Anulado" (tachado) y su motivo en el detalle. (Que siga visible es correcto — trazabilidad; no lo reportes como "no se borró".)
 
 ---
 
@@ -192,7 +194,7 @@ Pulsa "Anular" con un motivo.
 - **E-14 Líneas que no suman el total** → crea un lote donde la suma de las líneas ≠ total → debe rechazar (invariante de cuadre).
 - **E-15 Incluir una factura de VENTA en un lote A/P** → el selector solo debe ofrecer facturas de **COMPRA**. Si logras meter una de venta, es hallazgo.
 - **E-16 Aplicar un lote ya aplicado** → debe bloquear ("estado actual: APPLIED").
-- **E-17 Anular un lote en Borrador (no aplicado)** → debe bloquear ("solo se pueden anular lotes APPLIED").
+- **E-17 Borrador (DRAFT) no se "Anula" sino que se "Descarta"** → un lote DRAFT no debe ofrecer "Anular" (eso es solo para Aplicados); ofrece "Aplicar" y "Descartar" (ver Fase 2.2). Descartar un DRAFT debe eliminarlo sin tocar facturas ni asientos. Si por API forzaras anular un DRAFT, debe bloquear ("solo se pueden anular lotes APPLIED").
 - **E-18 Línea que excede el saldo de su factura** → debe bloquear al aplicar.
 - **E-19 Doble-submit del lote** → pulsa "Crear" dos veces rápido → no debe crear dos lotes duplicados (idempotencia: "el lote ya fue creado").
 
