@@ -118,6 +118,12 @@ export const VoidBatchSchema = z.object({
   voidReason: z.string().min(1, { error: "voidReason es obligatorio" }).max(500),
 });
 
+export const DiscardBatchSchema = z.object({
+  companyId: z.string().min(1),
+  batchId: z.string().min(1),
+});
+
 export type CreateBatchInput = z.infer<typeof CreateBatchSchema>;
 export type ApplyBatchInput = z.infer<typeof ApplyBatchSchema>;
 export type VoidBatchInput = z.infer<typeof VoidBatchSchema>;
+export type DiscardBatchInput = z.infer<typeof DiscardBatchSchema>;

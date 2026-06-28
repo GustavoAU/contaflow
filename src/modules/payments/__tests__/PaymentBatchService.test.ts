@@ -302,6 +302,22 @@ describe("PaymentBatchService.applyBatch", () => {
     ).rejects.toThrow(/no encontrado|no pertenece/);
   });
 
+  // HA-02 (security LOW): un DRAFT descartado (deletedAt != null) no debe poder aplicarse.
+  // El where del findFirst filtra deletedAt: null → el lote descartado se trata como inexistente.
+  it("no aplica un lote descartado — findFirst excluye soft-deleted (deletedAt: null)", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue(null);
+
+    await expect(
+      PaymentBatchService.applyBatch({ batchId: BATCH_ID, companyId: COMPANY_ID, userId: USER_ID })
+    ).rejects.toThrow(/no encontrado|no pertenece/);
+
+    expect(prisma.paymentBatch.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: COMPANY_ID, deletedAt: null }),
+      })
+    );
+  });
+
   it("lanza error si batch no está en DRAFT", async () => {
     vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue({
       ...BASE_BATCH,
@@ -603,5 +619,96 @@ describe("PaymentBatchService.getById", () => {
     vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue(null);
     const result = await PaymentBatchService.getById("nope", COMPANY_ID);
     expect(result).toBeNull();
+  });
+});
+
+// ─── discardBatch (HA-02) ──────────────────────────────────────────────────────
+
+describe("PaymentBatchService.discardBatch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+  });
+
+  it("happy path — descarta un DRAFT (soft-delete + AuditLog DISCARD)", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue(BASE_BATCH as never);
+    vi.mocked(prisma.paymentBatch.update).mockResolvedValue({
+      ...BASE_BATCH,
+      deletedAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await PaymentBatchService.discardBatch({
+      batchId: BATCH_ID,
+      companyId: COMPANY_ID,
+      userId: USER_ID,
+    });
+
+    expect(result.id).toBe(BATCH_ID);
+    // Soft-delete: deletedAt en el batch, status NO cambia
+    expect(prisma.paymentBatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: BATCH_ID },
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      })
+    );
+    // No revierte facturas ni paga nada
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+    expect(prisma.invoicePayment.create).not.toHaveBeenCalled();
+    // AuditLog DISCARD en el mismo tx (R-6)
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "DISCARD",
+          entityName: "PaymentBatch",
+          entityId: BATCH_ID,
+          newValue: expect.objectContaining({ discarded: true }),
+        }),
+      })
+    );
+  });
+
+  it("lanza error si batch no encontrado o cross-tenant (ADR-004)", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue(null);
+
+    await expect(
+      PaymentBatchService.discardBatch({
+        batchId: BATCH_ID,
+        companyId: COMPANY_ID,
+        userId: USER_ID,
+      })
+    ).rejects.toThrow(/no encontrado|no pertenece/);
+  });
+
+  it("rechaza si status === APPLIED (mensaje 'deben anularse')", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue({
+      ...BASE_BATCH,
+      status: "APPLIED",
+    } as never);
+
+    await expect(
+      PaymentBatchService.discardBatch({
+        batchId: BATCH_ID,
+        companyId: COMPANY_ID,
+        userId: USER_ID,
+      })
+    ).rejects.toThrow(/deben anularse/);
+    expect(prisma.paymentBatch.update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si ya tiene deletedAt", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue({
+      ...BASE_BATCH,
+      deletedAt: new Date(),
+    } as never);
+
+    await expect(
+      PaymentBatchService.discardBatch({
+        batchId: BATCH_ID,
+        companyId: COMPANY_ID,
+        userId: USER_ID,
+      })
+    ).rejects.toThrow(/ya fue descartado/);
+    expect(prisma.paymentBatch.update).not.toHaveBeenCalled();
   });
 });
