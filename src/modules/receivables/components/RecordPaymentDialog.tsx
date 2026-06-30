@@ -92,7 +92,6 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
         referenceNumber: referenceNumber || undefined,
         notes: notes || undefined,
         date: new Date(date + "T12:00:00"),
-        createdBy: "",
         idempotencyKey: crypto.randomUUID(),
         // ADR-032 F2: con cuenta bancaria → asiento GL automático (cobro/pago)
         bankAccountId: bankAccountId || undefined,
