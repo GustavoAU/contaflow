@@ -40,9 +40,9 @@ model IncomeDistribution {
 
   // Moneda y totales
   currencyCode        String                   @default("VES") @db.VarChar(3)
-  totalAmountOriginal Decimal                  @db.Decimal(18, 2)
-  totalAmountVes      Decimal                  @db.Decimal(18, 2)
-  exchangeRate        Decimal                  @default(1) @db.Decimal(8, 6)
+  totalAmountOriginal Decimal                  @db.Decimal(19, 4) // ADR-002
+  totalAmountVes      Decimal                  @db.Decimal(19, 4) // ADR-002
+  exchangeRate        Decimal                  @default(1) @db.Decimal(18, 6) // tasa: (18,6) — (8,6) overflowea con BCV ≥ 100
 
   // Cuenta de origen (obligatoria para generar asiento)
   originAccountId     String
@@ -80,8 +80,8 @@ model IncomeDistributionLine {
   accountId          String
   account            Account          @relation("IncomeDistributionLineAccounts", fields: [accountId], references: [id], onDelete: Restrict)
 
-  percentageShare    Decimal          @db.Decimal(5, 2)
-  amountVes          Decimal          @db.Decimal(18, 2)
+  percentageShare    Decimal          @db.Decimal(5, 2) // porcentaje — correcto
+  amountVes          Decimal          @db.Decimal(19, 4) // ADR-002
   lineDescription    String?          @db.Text
   lineNumber         Int
 
@@ -95,7 +95,7 @@ model IncomeDistributionLine {
 model IncomeDistributionAudit {
   id             String             @id @default(cuid())
   distributionId String
-  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Restrict) // auditoría append-only (ADR-003 / ADR-006 D-4) — nunca Cascade
 
   action         String             @db.VarChar(50) // CREATED | APPLIED | VOIDED
 
@@ -131,6 +131,12 @@ incomeDistribution IncomeDistribution?
 - `accountId` en `IncomeDistributionLine` es NOT NULL — cada línea necesita una cuenta CxP para generar el asiento válido.
 - `transactionId` vincula el asiento generado en `applyDistribution` para trazabilidad contable (idéntico al patrón de `InventoryMovement.transactionId`).
 - `IncomeDistributionAudit` separada, igual que `PaymentBatchAudit` en ADR-022, para no contaminar el `AuditLog` genérico.
+
+**Corrección 2026-06-30 (revisión externa de ADRs — 3 hallazgos):**
+- **H-2 (ALTO):** `exchangeRate` pasó de `Decimal(8, 6)` a `Decimal(18, 6)`. `(8,6)` solo admite 2 dígitos enteros (máx `99.999999`) → overflow numérico al insertar la tasa BCV real (≥ 100 Bs/USD). `(18,6)` es el estándar de tasas (paridad con `indexValue` de ADR-008).
+- **H-3 (MEDIO):** `totalAmountOriginal`, `totalAmountVes` y `amountVes` pasaron de `Decimal(18, 2)` a `Decimal(19, 4)` — cumplimiento de ADR-002 (todo monto en `(19,4)`). Con 2 decimales se perdía precisión sub-centavo en los prorrateos de D-2 V-6 (`sum == total ± 0.01`). `percentageShare Decimal(5,2)` se mantiene (es porcentaje).
+- **H-4 (MEDIO):** `IncomeDistributionAudit.distribution` pasó de `onDelete: Cascade` a `onDelete: Restrict`. Una tabla de auditoría con Cascade destruye su rastro si el padre se borra físicamente — contradice ADR-003 y el principio append-only de ADR-006 D-4. Hoy las distribuciones usan soft-delete (Cascade no se dispara), pero era una bomba latente ante cualquier hard-delete futuro.
+- Migración: `prisma/migrations/20260630_adr023_decimal_precision_audit_restrict/` (ampliaciones lossless + swap de FK).
 
 ---
 

@@ -167,7 +167,21 @@ Descartada: la lógica de guards (año fiscal cerrado vía `FiscalYearCloseServi
 - `postPaymentRecordGL` aún no cubre A/P individual — precondición bloqueante de F2 para payables (D-5).
 - El historial unificado (F2) agrega complejidad de lectura (unión de dos modelos) — aceptado, es solo lectura.
 - `InvoicePayment` permanece en el schema indefinidamente como archivo — deuda de schema aceptada a cambio de no tocar datos históricos.
-- `PaymentRecord` no tiene `idempotencyKey` propio — el doble-submit lo cubre el guard de sobre-pago + `disabled={isPending}`; F2 debe evaluar añadir `idempotencyKey @unique` para paridad total con `InvoicePayment` (PENDIENTE F2).
+- **Idempotencia (revisión externa de ADRs, hallazgo 6 — MEDIO-ALTO).** El campo
+  `idempotencyKey String? @unique` **ya existe** en `PaymentRecord` (schema) y
+  `PaymentService.create` lo persiste si se le pasa. **Pero el flujo robusto aún NO está
+  cerrado:** (a) el cliente debe generar el UUID *antes* de `createPaymentAction` y (b)
+  `PaymentService.create` debe capturar `P2002` sobre `idempotencyKey` y devolver el record
+  existente — patrón ADR-022 D-10 (`PaymentBatchService` línea ~287). Hoy esa captura NO
+  está en la vía individual, así que un reintento por timeout de red / doble pestaña / POST
+  directo crea un **segundo pago real** mientras el saldo lo permita (el guard de sobre-pago
+  solo frena cuando se *excede* el saldo, no en pagos parciales legítimos; `disabled={isPending}`
+  es solo UI y no sobrevive un retry de red). **Requisito firme (no "evaluar") ANTES de que
+  F2 redirija receivables/payables a la vía canónica:** generar UUID en cliente + capturar
+  P2002 en el service. Subtileza: la captura debe resolver el lookup del record existente
+  *fuera* de la transacción abortada (un P2002 dentro del `$transaction` lo deja en estado
+  abort) — pre-check por `idempotencyKey` o reintento en tx nueva. **Estado: PENDIENTE F2**
+  (danger-zone Z-2 → requiere security-agent + tests; no se cierra en una pasada de ADRs).
 
 ---
 
@@ -177,7 +191,7 @@ Descartada: la lógica de guards (año fiscal cerrado vía `FiscalYearCloseServi
 - [x] `onDelete: Cascade` AUSENTE
 - [x] Montos siguen en `Decimal @db.Decimal(19,4)` — el campo nuevo es `Boolean`, no monetario
 - [x] `deletedAt` ya existe en `PaymentRecord` (void = soft-delete, ADR-030)
-- [x] Idempotencia: ver Restricciones — PENDIENTE F2 (`idempotencyKey @unique`)
+- [x] Idempotencia: `idempotencyKey @unique` YA en schema; captura P2002 + UUID cliente PENDIENTE F2 (ver Restricciones, hallazgo 6)
 - [x] Índices: sin nuevos — `appliedToInvoice` no es filtro de listado; `@@index([invoiceId])` ya existe
 - [x] `AuditLog` en mismo `$transaction` (R-6)
 - [x] Análisis de riesgo de migración documentado (additiva, sin backfill, rollback = DROP COLUMN)

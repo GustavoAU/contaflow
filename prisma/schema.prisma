@@ -1701,7 +1701,8 @@ model LegalThreshold {
   companyId     String
   type          LegalThresholdType
   effectiveFrom DateTime           @db.Date
-  value         Decimal            @db.Decimal(18, 2)
+  // ADR-002: columna polimórfica (montos Bs + porcentajes) — (19,4) cubre ambos
+  value         Decimal            @db.Decimal(19, 4)
   notes         String?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -1762,7 +1763,7 @@ model PayrollConfig {
   // Tope de cotización: salario mínimo nacional vigente (Bs/mes).
   // Cuando > 0: IVSS cap = 5 × salaryMinimumVes; FAOV cap = 10 × salaryMinimumVes.
   // Cuando NULL/0: sin tope (uso previo al decreto — mantiene retro-compatibilidad).
-  salaryMinimumVes              Decimal?               @db.Decimal(18, 2)
+  salaryMinimumVes              Decimal?               @db.Decimal(19, 4) // ADR-002 — monto Bs
   // Timestamps
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
@@ -2023,10 +2024,10 @@ model PayrollRun {
   periodEnd          DateTime         @db.Date
   status             PayrollRunStatus @default(DRAFT)
   // Totales calculados server-side al momento del cálculo (inmutables post-APPROVED)
-  totalEarnings      Decimal          @db.Decimal(18, 2)
-  totalDeductions    Decimal          @db.Decimal(18, 2)
-  totalNet           Decimal          @db.Decimal(18, 2)
-  totalEmployerCosts Decimal          @default(0) @db.Decimal(18, 2) // F-03: aportes patronales
+  totalEarnings      Decimal          @db.Decimal(19, 4) // ADR-002
+  totalDeductions    Decimal          @db.Decimal(19, 4) // ADR-002
+  totalNet           Decimal          @db.Decimal(19, 4) // ADR-002
+  totalEmployerCosts Decimal          @default(0) @db.Decimal(19, 4) // F-03: aportes patronales — ADR-002
   employeeCount      Int
   // C-05: tasa BCV activa del período — snapshot para auditoría histórica
   bcvRateAtRun       Decimal?         @db.Decimal(16, 4)
@@ -2066,14 +2067,14 @@ model PayrollRunLine {
   conceptId              String
   conceptCode            String // snapshot del código al calcular
   conceptType            ConceptType // snapshot EARNING | DEDUCTION
-  amount                 Decimal                 @db.Decimal(18, 2)
+  amount                 Decimal                 @db.Decimal(19, 4) // ADR-002
   // Campos de auditoría del motor de cálculo
-  basis                  Decimal?                @db.Decimal(18, 2) // base de cálculo (salario diario, etc.)
+  basis                  Decimal?                @db.Decimal(19, 4) // base de cálculo (salario diario, etc.) — ADR-002
   hours                  Decimal?                @db.Decimal(8, 2) // solo HE_DIURNA / HE_NOCTURNA
   rate                   Decimal?                @db.Decimal(6, 4) // porcentaje aplicado (ej: 0.0400)
   // Snapshot de salario — ADR-013 Decisión 2: FK + snapshot
   salaryHistoryId        String? // FK al SalaryHistory usado (trazabilidad)
-  salarySnapshotAmount   Decimal?                @db.Decimal(18, 2) // monto vigente al calcular (inmutable)
+  salarySnapshotAmount   Decimal?                @db.Decimal(19, 4) // monto vigente al calcular (inmutable) — ADR-002
   salarySnapshotCurrency PayrollPaymentCurrency?
   createdAt              DateTime                @default(now())
 
@@ -3007,9 +3008,10 @@ model IncomeDistribution {
   status          IncomeDistributionStatus @default(DRAFT)
 
   currencyCode        String  @default("VES") @db.VarChar(3)
-  totalAmountOriginal Decimal @db.Decimal(18, 2)
-  totalAmountVes      Decimal @db.Decimal(18, 2)
-  exchangeRate        Decimal @default(1) @db.Decimal(8, 6)
+  totalAmountOriginal Decimal @db.Decimal(19, 4)
+  totalAmountVes      Decimal @db.Decimal(19, 4)
+  // ADR-002: tasas en Decimal(18,6) — Decimal(8,6) overflowea con BCV ≥ 100 Bs/USD
+  exchangeRate        Decimal @default(1) @db.Decimal(18, 6)
 
   originAccountId String
   originAccount   Account @relation("IncomeDistributionOrigin", fields: [originAccountId], references: [id], onDelete: Restrict)
@@ -3048,7 +3050,7 @@ model IncomeDistributionLine {
   account   Account @relation("IncomeDistributionLineAccounts", fields: [accountId], references: [id], onDelete: Restrict)
 
   percentageShare Decimal @db.Decimal(5, 2)
-  amountVes       Decimal @db.Decimal(18, 2)
+  amountVes       Decimal @db.Decimal(19, 4)
   lineDescription String? @db.Text
   lineNumber      Int
 
@@ -3062,7 +3064,9 @@ model IncomeDistributionLine {
 model IncomeDistributionAudit {
   id             String             @id @default(cuid())
   distributionId String
-  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  // ADR-003 / ADR-006 D-4: auditoría append-only — Restrict para que el rastro
+  // sobreviva aunque se intente borrar el padre (nunca Cascade en tablas de auditoría)
+  distribution   IncomeDistribution @relation(fields: [distributionId], references: [id], onDelete: Restrict)
 
   action         String @db.VarChar(50)
   changesSummary Json?

@@ -51,6 +51,40 @@ Si el proveedor falla (timeout, 5xx), se activa **modo contingencia**:
 
 Mismo flujo que hoy: correlativo interno, `controlNumberSource = INTERNAL`.
 
+### ⚠️ Corrección obligatoria — dual-write imprenta↔DB (revisión externa de ADRs, hallazgo 7)
+
+El flujo de arriba llama a `submitInvoice()` (HTTP externo a HKA) **antes** de abrir el
+`$transaction` que crea la `Invoice` con el `controlNumber` devuelto. Es un **dual-write
+distribuido sin protección**: si la imprenta emite el número y luego el `$transaction`
+local hace rollback (cold start de Neon, validación, etc.), queda un **número fiscal
+emitido sin registro local**, y el reintento — sin idempotencia hacia el proveedor —
+emite **otro** número → **doble emisión fiscal**. El "modo contingencia" NO cubre este
+caso (cubre el inverso: proveedor caído).
+
+**Antes de pasar el STUB de HKA a producción, el flujo DEBE ser intent-first:**
+
+```
+Usuario → createInvoiceAction
+  ├── 1. Validar (Zod) + período abierto
+  ├── 2. $tx corta: SeniatSubmission.create (PENDING, clientRequestId = UUID local)
+  ├── 3. submitInvoice(clientRequestId como idempotency key)   ← número de imprenta
+  ├── 4. $tx: actualizar SeniatSubmission → SENT (controlNumber) + Invoice.create + ...
+  └── Si el $tx del paso 4 falla → queda PENDING/SENT huérfano que un job de
+      reconciliación detecta por providerReferenceId/clientRequestId y vincula o anula
+      (nunca un número fiscal invisible).
+```
+
+- **Enviar `clientRequestId` como idempotency key a la imprenta** si su API lo soporta:
+  el reintento reusa el mismo id → la imprenta devuelve el mismo número en vez de emitir otro.
+- **Si HKA no soporta idempotency keys**, la reconciliación por `providerReferenceId` deja
+  de ser opcional y pasa a ser el **backstop obligatorio**.
+- **Pregunta regulatoria (no de código):** verificar que PA-102 permite el modo contingencia
+  con numeración interna antes de confiar en él — emitir correlativo propio cuando el régimen
+  exige número de imprenta podría no ser válido.
+
+> Pendiente de docs oficiales HKA (el provider es STUB). Esta corrección es prerrequisito de
+> la primera integración real, no del STUB.
+
 ---
 
 ## Cambios de Schema
@@ -115,7 +149,8 @@ src/lib/digital-invoice/
 
 **Negativas / Trade-offs:**
 - Una llamada HTTP externa antes de la transacción DB introduce latencia
-- Si HKA no tiene idempotency keys en su API, hay riesgo de doble emisión en caso de timeout
+- **Riesgo de doble emisión fiscal por dual-write sin idempotencia** → mitigación obligatoria
+  documentada arriba (intent-first + `SeniatSubmission PENDING` + reconciliación). Ver hallazgo 7.
 - El modo contingencia requiere un proceso de reconciliación posterior
 
 ---
