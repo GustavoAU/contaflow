@@ -227,6 +227,19 @@ describe("recordPaymentAction", () => {
     );
   });
 
+  // H-001: el dialog de CxC no envía createdBy → el cobro debe funcionar igual
+  // (el action usa el userId de auth, nunca el del cliente).
+  it("sin createdBy en el payload → success usando el userId de auth", async () => {
+    const { createdBy: _omit, ...inputSinCreatedBy } = VALID_INPUT;
+    void _omit;
+    const res = await recordPaymentAction(inputSinCreatedBy);
+    expect(res.success).toBe(true);
+    expect(PaymentService.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ createdBy: "user-1" }),
+    );
+  });
+
   it("idempotencyKey duplicada → mensaje de pago duplicado", async () => {
     vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValueOnce({ id: "dup-1" } as never);
     const res = await recordPaymentAction(VALID_INPUT);

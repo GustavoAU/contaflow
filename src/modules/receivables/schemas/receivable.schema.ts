@@ -46,7 +46,7 @@ export const RecordPaymentSchema = z.object({
   igtfAmount:     z.string().optional(),
   date:           z.coerce.date(),
   notes:          z.string().optional(),
-  createdBy:      z.string().min(1, { error: "createdBy requerido" }),
+  createdBy:      z.string().optional(), // ignorado: el action usa el userId de auth() — nunca el del cliente
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }),
   // ADR-032 F2: cuenta bancaria opcional para GL auto-posting (sin ella → sin asiento)
   bankAccountId:  z.string().optional(),
