@@ -118,34 +118,46 @@ export async function createPlanChangeCheckout(
   if (!req) throw new Error("Solicitud no encontrada.");
   if (req.status !== "PENDING_PAYMENT") throw new Error("La solicitud no está pendiente de pago.");
 
-  // ── Transacción: crear SubscriptionPayment PENDING + AuditLog (R-6) ──
-  const payment = await prisma.$transaction(async (tx) => {
-    const p = await tx.subscriptionPayment.create({
-      data: {
-        subscriptionId: req.subscriptionId,
-        planChangeRequestId: req.id,
-        amountUsdCents: req.newPriceUsdCents,
-        currency: "usd",
-        status: "PENDING",
-        metadata: { planChange: true, toPlan: req.toPlan, companyId: req.subscription.companyId } as object,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        companyId: req.subscription.companyId,
-        entityId: p.id,
-        entityName: "SubscriptionPayment",
-        action: "PLAN_CHANGE_CHECKOUT_INITIATED",
-        userId: actorUserId,
-        ipAddress,
-        userAgent,
-        newValue: { planChangeRequestId: req.id, toPlan: req.toPlan, amountUsdCents: req.newPriceUsdCents } as object,
-      },
-    });
-
-    return p;
+  // LOW (cleanup): reusar el SubscriptionPayment PENDING existente de la solicitud en vez de
+  // crear uno nuevo en cada "Pagar ahora". Evita huérfanos PENDING y, como el orderId del
+  // invoice es payment.id (estable), regenerar el invoice sobre el mismo pago hace que pagar
+  // cualquier invoice resuelva al mismo pago → handleIPN confirma una sola vez (idempotencia),
+  // cerrando también el resquicio de doble-pago.
+  const existing = await prisma.subscriptionPayment.findFirst({
+    where: { planChangeRequestId: req.id, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
   });
+
+  // ── Transacción: crear SubscriptionPayment PENDING + AuditLog (R-6) — solo si no hay uno ──
+  const payment =
+    existing ??
+    (await prisma.$transaction(async (tx) => {
+      const p = await tx.subscriptionPayment.create({
+        data: {
+          subscriptionId: req.subscriptionId,
+          planChangeRequestId: req.id,
+          amountUsdCents: req.newPriceUsdCents,
+          currency: "usd",
+          status: "PENDING",
+          metadata: { planChange: true, toPlan: req.toPlan, companyId: req.subscription.companyId } as object,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId: req.subscription.companyId,
+          entityId: p.id,
+          entityName: "SubscriptionPayment",
+          action: "PLAN_CHANGE_CHECKOUT_INITIATED",
+          userId: actorUserId,
+          ipAddress,
+          userAgent,
+          newValue: { planChangeRequestId: req.id, toPlan: req.toPlan, amountUsdCents: req.newPriceUsdCents } as object,
+        },
+      });
+
+      return p;
+    }));
 
   // ── Llamada externa a NOWPayments (fuera de la tx) ────────────────────────
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://contaflow.app";
