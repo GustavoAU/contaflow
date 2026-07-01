@@ -25,6 +25,7 @@ import {
 import { recordPaymentAction } from "../actions/receivable.actions";
 // ADR-032 F2: selector de cuenta bancaria para GL auto-posting (vía canónica)
 import { listBankAccountsAction, type BankAccountOption } from "@/modules/payments/actions/payment.actions";
+import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import type { ReceivableRow } from "../services/ReceivableService";
 import { Decimal } from "decimal.js";
 
@@ -62,6 +63,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
   // ADR-032 F2: cuenta bancaria opcional — con ella el pago genera asiento GL automático
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+  // Tasa BCV para cobros en divisa (el servidor recalcula el VES autoritativo al guardar)
+  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [bcvLoading, setBcvLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +75,19 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
     });
     return () => { cancelled = true; };
   }, [open, companyId]);
+
+  useEffect(() => {
+    if (!open || selectedCurrency === "VES") { setBcvRate(null); return; }
+    let cancelled = false;
+    setBcvLoading(true);
+    setBcvRate(null);
+    getLatestRateAction(companyId, selectedCurrency).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data) setBcvRate(parseFloat(res.data.rate));
+      setBcvLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [open, selectedCurrency, companyId]);
 
   const currencyAllowed = (CURRENCY_ALLOWED_METHODS as readonly string[]).includes(method);
 
@@ -110,12 +127,29 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
 
   const maxAmount = parseFloat(row.pendingAmountVes);
   const enteredAmount = parseFloat(amount) || 0;
-  const isAmountValid = enteredAmount > 0 && enteredAmount <= maxAmount;
+  const isForeign = selectedCurrency !== "VES";
+  const rateMissing = isForeign && !bcvLoading && !bcvRate;
 
-  // IGTF preview — calculado con Decimal.js para display (servidor recalcula al guardar)
-  const igtfAppliesLocally = selectedCurrency !== "VES";
-  const igtfPreview = igtfAppliesLocally && enteredAmount > 0
-    ? new Decimal(amount).mul("0.03").toDecimalPlaces(2).toString()
+  // Equivalente en Bs.D: en divisa = monto × tasa BCV; en VES = el monto mismo.
+  // El servidor recalcula este VES de forma autoritativa al guardar (H-003).
+  const vesEquivalentDec = (() => {
+    try {
+      if (!isForeign) return new Decimal(amount || "0");
+      if (!bcvRate) return new Decimal(0);
+      return new Decimal(amount || "0").mul(bcvRate).toDecimalPlaces(2);
+    } catch {
+      return new Decimal(0);
+    }
+  })();
+  const vesEquivalent = vesEquivalentDec.toNumber();
+
+  // Validación contra el saldo pendiente (VES): se compara el equivalente en Bs.D.
+  const isAmountValid =
+    enteredAmount > 0 && vesEquivalent > 0 && vesEquivalent <= maxAmount && !rateMissing;
+
+  // IGTF preview (3% del equivalente en Bs.D) — Decimal.js; servidor recalcula al guardar.
+  const igtfPreview = isForeign && vesEquivalentDec.gt(0)
+    ? vesEquivalentDec.mul("0.03").toDecimalPlaces(2).toString()
     : null;
 
   return (
@@ -147,14 +181,28 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
               id="amount"
               type="number"
               min="0.01"
-              max={maxAmount}
+              {...(isForeign ? {} : { max: maxAmount })}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="font-[tabular-nums]"
             />
-            {enteredAmount > maxAmount && (
-              <p className="text-destructive text-xs">El monto excede el saldo pendiente</p>
+            {/* H-003 follow-up: en divisa se muestra el equivalente en Bs.D (el servidor lo recalcula) */}
+            {isForeign && (
+              <p className="text-muted-foreground text-xs">
+                {bcvLoading
+                  ? "Cargando tasa BCV..."
+                  : bcvRate
+                    ? `Equivalente: Bs. ${vesEquivalent.toLocaleString("es-VE", { minimumFractionDigits: 2 })} (tasa BCV ${bcvRate.toLocaleString("es-VE", { minimumFractionDigits: 2 })})`
+                    : "Sin tasa BCV registrada — regístrela antes de cobrar en divisa."}
+              </p>
+            )}
+            {vesEquivalent > maxAmount && (
+              <p className="text-destructive text-xs">
+                {isForeign
+                  ? "El equivalente en Bs.D excede el saldo pendiente"
+                  : "El monto excede el saldo pendiente"}
+              </p>
             )}
           </div>
 

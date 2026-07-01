@@ -22,6 +22,7 @@ import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 // ADR-032 F2: la vía canónica de pagos vive en el módulo payments — receivables delega
 import { PaymentService, type PaymentRecordSummary } from "@/modules/payments/services/PaymentService";
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { isPrismaError } from "@/lib/prisma-errors";
@@ -163,14 +164,44 @@ export async function recordPaymentAction(
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
-    // IGTF: computar server-side con Decimal.js — nunca confiar en el valor del cliente
+    // ── H-003 follow-up (Z-2, CRÍTICO): amountVes autoritativo server-side ─────
+    // El dialog de CxC permite cobrar en USD/EUR (EFECTIVO/ZELLE) y envía `amount`
+    // en la MONEDA seleccionada. Tratarlo como VES sub-aplica el saldo (la factura
+    // está en VES) y sub-declara el IGTF (Art. 4 LGTF: la base es el equivalente
+    // en Bs. del pago en divisa). Para divisa se RECALCULA amountVes =
+    // amountOriginal × tasa BCV oficial (última ≤ fecha). Todo Decimal.js (R-5).
+    let amountVes: Decimal;
+    let amountOriginal: Decimal | undefined;
+    // INFO-1: para divisa persistimos el id de la tasa REALMENTE aplicada (no el
+    // que envía el cliente) para que la trazabilidad coincida con el amountVes.
+    let resolvedExchangeRateId = d.exchangeRateId;
+    if (d.currency === "VES") {
+      amountVes = new Decimal(d.amount);
+      amountOriginal = d.amountOriginal ? new Decimal(d.amountOriginal) : undefined;
+    } else {
+      // `amount` ES el monto en divisa cuando currency !== VES
+      amountOriginal = new Decimal(d.amount);
+      // getRateForDate lanza error en español si no hay tasa → propaga (no se crea el cobro)
+      const rate = await ExchangeRateService.getRateForDate(
+        d.companyId,
+        d.currency as Currency,
+        d.date,
+      );
+      amountVes = amountOriginal
+        .mul(new Decimal(rate.rate))
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      resolvedExchangeRateId = rate.id;
+    }
+
+    // IGTF: computar server-side con Decimal.js — sobre el amountVes autoritativo,
+    // nunca sobre el valor crudo del cliente
     const company = await prisma.company.findFirst({
       where: { id: d.companyId },
       select: { isSpecialContributor: true },
     });
     const igtfApplies = IGTFService.applies(d.currency, company?.isSpecialContributor ?? false);
     const computedIgtf = igtfApplies
-      ? new Decimal(IGTFService.calculate(d.amount, IGTF_RATE).igtfAmount)
+      ? new Decimal(IGTFService.calculate(amountVes.toString(), IGTF_RATE).igtfAmount)
       : undefined;
 
     const h = await headers();
@@ -190,22 +221,23 @@ export async function recordPaymentAction(
           }
 
           // ADR-032 F1: saldo + guards (FOR UPDATE, sobre-pago tolerancia 0,
-          // año fiscal cerrado R-3, factura anulada) — mismo $transaction
+          // año fiscal cerrado R-3, factura anulada) — mismo $transaction.
+          // El saldo de la factura es VES → aplicar el amountVes autoritativo.
           await PaymentService.applyPaymentToInvoice(
             tx,
             d.companyId,
             d.invoiceId,
-            new Decimal(d.amount),
+            amountVes,
           );
 
           const record = await PaymentService.create(tx as typeof prisma, {
             companyId: d.companyId,
             invoiceId: d.invoiceId,
             method: d.method as PaymentMethod,
-            amountVes: new Decimal(d.amount),
+            amountVes,
             currency: d.currency as Currency,
-            amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
-            exchangeRateId: d.exchangeRateId,
+            amountOriginal,
+            exchangeRateId: resolvedExchangeRateId,
             referenceNumber: d.referenceNumber,
             originBank: d.originBank,
             destBank: d.destBank,
@@ -225,12 +257,13 @@ export async function recordPaymentAction(
             select: { type: true, igtfBase: true, igtfAmount: true, invoiceNumber: true },
           });
 
-          // IGTF acumulado en la factura SALE (paridad con createPaymentAction)
+          // IGTF acumulado en la factura SALE (paridad con createPaymentAction).
+          // Base acumulada = amountVes autoritativo (no el amount crudo del cliente).
           if (computedIgtf && inv?.type === "SALE") {
             await tx.invoice.update({
               where: { id: d.invoiceId },
               data: {
-                igtfBase: new Decimal(inv.igtfBase.toString()).plus(d.amount),
+                igtfBase: new Decimal(inv.igtfBase.toString()).plus(amountVes),
                 igtfAmount: new Decimal(inv.igtfAmount.toString()).plus(computedIgtf),
               },
             });
@@ -255,10 +288,10 @@ export async function recordPaymentAction(
             const glInput = {
               paymentRecordId: record.id,
               bankAccountId: d.bankAccountId,
-              amountVes: new Decimal(d.amount),
+              amountVes,
               igtfAmount: computedIgtf ?? null,
               invoiceId: d.invoiceId,
-              amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
+              amountOriginal,
               currency: d.currency,
               context: {
                 companyId: d.companyId,
@@ -299,8 +332,11 @@ export async function recordPaymentAction(
               newValue: {
                 source: "receivables", // ADR-032 F2: vía canónica desde cartera
                 method: d.method,
-                amountVes: d.amount,
+                // H-003: registrar el amountVes autoritativo, no el valor del cliente
+                amountVes: amountVes.toString(),
+                amountOriginal: amountOriginal ? amountOriginal.toString() : null,
                 currency: d.currency,
+                exchangeRateId: resolvedExchangeRateId ?? null,
                 date: d.date.toISOString(),
                 invoiceId: d.invoiceId,
                 bankAccountId: d.bankAccountId ?? null,
