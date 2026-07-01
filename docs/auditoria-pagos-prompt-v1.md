@@ -45,6 +45,12 @@ Antes de anotar CUALQUIER hallazgo, aplica estas reglas:
 
 11. **El cobro de una factura de VENTA NO se hace desde "Medios de Pago".** El formulario de "Medios de Pago" registra **instrumentos de pago sueltos** (no tiene selector de factura de venta — eso es **por diseño**). Para abonar el saldo de una factura de venta se usa el módulo **Cuentas por Cobrar (CxC)** → botón **"Registrar pago"** en cada factura pendiente (ese diálogo sí vincula el cobro a la factura, descuenta el saldo y, con cuenta bancaria, genera el asiento). Por tanto, "el form de Medios de Pago no permite vincular una factura de venta" **NO es un hallazgo** — es la arquitectura (vía canónica CxC, ADR-032). El pago a **proveedores** (compras) se hace en la pestaña "Distribución A/P".
 
+12. **FIXES DEL CICLO 2026-06-28 — verifica que funcionan, NO los re-reportes.** Ya corregidos; confírmalos como ✅:
+   - **H-001 (cobro CxC):** registrar un pago desde **CxC → "Registrar pago"** ahora **funciona** (ya no da "createdBy requerido").
+   - **H-003 / cobro en divisa (IGTF):** el campo **"Equivalente en Bs.D" es de solo-lectura** en pagos en divisa (Zelle/Efectivo-USD y el diálogo de CxC muestra "Equivalente: Bs. X (tasa BCV)"). El servidor **recalcula** el VES = monto en divisa × tasa BCV oficial e **ignora** cualquier valor manipulado → ya **no** se puede sub-declarar el IGTF. Sin tasa BCV registrada → el pago en divisa se **bloquea** ("regístrela antes de guardar"). Todo esto es control correcto, no bug.
+   - **H-004 (fecha vs período):** registrar pago/cobro/lote con fecha **fuera del período abierto** ahora se **bloquea** ("La fecha (MM/AAAA) está fuera del período contable abierto…"). Aplica a Medios de Pago, CxC y Distribución A/P.
+   - **Errores en español:** todo error técnico de BD/infra (incl. "cuota de cómputo") sale como mensaje **genérico en español**. Si ves un mensaje técnico **en inglés**, ESO sí es hallazgo.
+
 ---
 
 ## 🧮 MODELO DEL MÓDULO (entiéndelo ANTES de auditar)
