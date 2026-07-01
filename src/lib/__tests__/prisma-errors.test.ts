@@ -29,6 +29,17 @@ describe("mapPrismaError", () => {
     expect(mapPrismaError(new Error('syntax error at or near "SELECT"'))).toBe(GENERIC_DB_ERROR);
   });
 
+  it("oculta el error de cuota de cómputo de Neon (infra) — no lo filtra crudo ni en inglés", () => {
+    const msg = mapPrismaError(
+      new Error(
+        "Your account or project has exceeded the compute time quota. Upgrade your plan to increase limits.",
+      ),
+    );
+    expect(msg).toBe(GENERIC_DB_ERROR);
+    expect(msg).not.toContain("quota");
+    expect(msg).not.toContain("Upgrade your plan");
+  });
+
   it("mapea P2010 (raw query failed) a mensaje genérico en español sin exponer el mensaje crudo", () => {
     const err = new Prisma.PrismaClientKnownRequestError(
       "Raw query failed. Code: 42501. Message: permission denied for schema public",
