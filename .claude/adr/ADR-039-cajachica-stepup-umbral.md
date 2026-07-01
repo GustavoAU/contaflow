@@ -69,6 +69,15 @@ gestiona con un comentario explícito de "revisar periódicamente" y queda como 
 conocida; revisar el valor es un cambio de una línea. Si en el futuro la erosión obliga
 a robustez, migrar a (b) será una decisión consciente con su propio ADR.
 
+> **Nota transversal (revisión externa de ADRs, hallazgo 8 — no es bug).** La dirección de
+> fallo es segura: la inflación hace que *más* cierres crucen el umbral → *más* fricción 2FA,
+> no menos. El riesgo a vigilar es de UX: en hiperinflación, `20.000 VES` puede pasar de
+> "evento atípico" a "todo cierre" en meses, volviendo el 2FA omnipresente. Invariante de
+> proyecto a recordar: **toda constante monetaria en VES es deuda temporal** — cuando el
+> valor representa *materialidad* (no un monto legal fijo), preferir expresarlo en una unidad
+> estable (USD, salario mínimo, o múltiplo configurable). Aplica especialmente a futuros
+> gates por umbral que reutilicen este patrón.
+
 **Valor por defecto: `20.000 VES`.** Justificación:
 
 - Caja chica = gastos menores; un remanente a liquidar > 20.000 VES (a la tasa de

@@ -37,15 +37,30 @@ await tx.invoice.update({ data: { totalAmount: total.toString() } });
 
 ```prisma
 // ✅ For amounts with centavos
-amount    Decimal @db.Decimal(19, 4)
+amount       Decimal @db.Decimal(19, 4)
+
+// ✅ For exchange / index rates — (19,4) o (18,6). NUNCA (8,6): overflowea con BCV ≥ 100 Bs/USD
+exchangeRate Decimal @db.Decimal(18, 6)
 
 // ✅ For percentages with 2 decimals
-rate      Decimal @db.Decimal(5, 2)
+rate         Decimal @db.Decimal(5, 2)
 
 // ❌ FORBIDDEN for money
-amount    Float
-amount    Int   // only if stored as integer centavos — must be explicitly documented
+amount       Float
+amount       Int   // only if stored as integer centavos — must be explicitly documented
 ```
+
+### Correcciones de cumplimiento (revisión externa de ADRs, 2026-06-30)
+
+Una pasada de auditoría detectó fases tardías que regresaron por debajo del estándar:
+- **Tasas:** `IncomeDistribution.exchangeRate` estaba en `Decimal(8, 6)` (máx `99.99…`) →
+  **overflow garantizado** con la tasa BCV real. Corregido a `(18, 6)`. Estándar de tasas fijado aquí.
+- **Montos:** `IncomeDistribution`/`IncomeDistributionLine` (fase 36D) y los montos de **nómina**
+  (`PayrollRun`, `PayrollRunLine`, `PayrollConfig.salaryMinimumVes`, `LegalThreshold.value`,
+  fases NOM-C/E/F) estaban en `Decimal(18, 2)` → alineados a `(19, 4)`. Migraciones:
+  `20260630_adr023_decimal_precision_audit_restrict` y `20260630_payroll_decimal_19_4_adr002`
+  (ambas widening lossless). Excepciones conscientes que **no** son money: `utValue Decimal(10,2)`
+  (valor UT) y `EmployeeLoan Decimal(20,2)` (requiere 18 dígitos enteros).
 
 ## Rejected alternatives
 

@@ -56,14 +56,28 @@ Solo OWNER/ADMIN pueden modificar grants.
 `revalidatePath(`/company/${companyId}`)` después de grant/revoke — invalida el layout
 y recarga grants en el próximo request.
 
-## Alcance ACTUAL (v1)
+## Alcance ACTUAL
 
 Los grants afectan:
-- ✅ Navegación (nav items visibles)
-- ✅ Transparencia (qué puede hacer cada rol)
+- ✅ Navegación (nav items visibles) — v1
+- ✅ Transparencia (qué puede hacer cada rol) — v1
+- ✅ **Action-level** (P-1, mergeado) — `hasModuleAccess(companyId, role, module)` en
+  `src/lib/module-access.ts` sustituye al `canAccess()` de módulo en las mutaciones de
+  invoice / transaction / fiscal-close / payroll / retention.
 
-Los guards de Server Actions y page-level guards permanecen con `canAccess()` puro.
-Ampliar grants a action-level es trabajo post-lanzamiento.
+### Invariante de seguridad (revisión externa de ADRs, hallazgo 5)
+
+> **Los grants conceden acceso a MÓDULO; nunca relajan un check de operación más restrictivo.**
+
+`hasModuleAccess` es estrictamente **aditivo y fail-closed**: retorna `true` si el rol
+tiene acceso base (`hasBaseAccess`) **o** un grant explícito en `RolePermission`; si no,
+`false`. Un grant solo puede *ampliar* el acceso de un rol grantable (ACCOUNTANT /
+ADMINISTRATIVE / VIEWER) a un módulo — nunca puede *quitar* acceso ni elevar un rol.
+
+Los checks más restrictivos (`ADMIN_ONLY`, step-up 2FA, OWNER-only) corren **después** de
+`hasModuleAccess`, no a través de él (ver comentario en `module-access.ts`). Regla a
+preservar: **ningún guard debe leer los grants para saltarse un check ADMIN_ONLY o de
+operación** — los grants son un gate de módulo, no un bypass de autorización fina.
 
 ## Alternativas rechazadas
 
