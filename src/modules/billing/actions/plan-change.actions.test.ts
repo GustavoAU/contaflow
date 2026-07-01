@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import {
   requestPlanChangeAction,
   cancelPlanChangeAction,
+  payPlanChangeAction,
 } from "./plan-change.actions";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("../services/PlanChangeService", () => ({
   requestPlanChange: vi.fn(),
+  createPlanChangeCheckout: vi.fn(),
   cancelPlanChange: vi.fn(),
 }));
 
@@ -64,12 +66,16 @@ describe("requestPlanChangeAction", () => {
     expect(res).toEqual({ success: false, error: "Empresa no encontrada" });
   });
 
-  it("happy path OWNER: llama al service y serializa la fecha", async () => {
+  it("happy path OWNER: llama al service, inicia checkout y devuelve invoiceUrl", async () => {
     vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(OWNER as never);
     vi.mocked(PlanChangeService.requestPlanChange).mockResolvedValue({
       planChangeRequestId: "req-1",
       effectiveDate: new Date("2026-08-01T00:00:00Z"),
       newPriceUsdCents: 78000,
+    });
+    vi.mocked(PlanChangeService.createPlanChangeCheckout).mockResolvedValue({
+      invoiceUrl: "https://pay",
+      subscriptionPaymentId: "pay-1",
     });
     const res = await requestPlanChangeAction({ companyId: COMPANY_ID, toPlan: "ANNUAL" });
     expect(res.success).toBe(true);
@@ -77,6 +83,23 @@ describe("requestPlanChangeAction", () => {
       expect(res.data.planChangeRequestId).toBe("req-1");
       expect(res.data.effectiveDate).toBe("2026-08-01T00:00:00.000Z");
       expect(res.data.newPriceUsdCents).toBe(78000);
+      expect(res.data.invoiceUrl).toBe("https://pay");
+    }
+  });
+
+  it("no tumba la solicitud si el checkout falla: devuelve invoiceUrl null", async () => {
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(OWNER as never);
+    vi.mocked(PlanChangeService.requestPlanChange).mockResolvedValue({
+      planChangeRequestId: "req-1",
+      effectiveDate: new Date("2026-08-01T00:00:00Z"),
+      newPriceUsdCents: 78000,
+    });
+    vi.mocked(PlanChangeService.createPlanChangeCheckout).mockRejectedValue(new Error("NOWPayments down"));
+    const res = await requestPlanChangeAction({ companyId: COMPANY_ID, toPlan: "ANNUAL" });
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.planChangeRequestId).toBe("req-1");
+      expect(res.data.invoiceUrl).toBeNull();
     }
   });
 
@@ -123,5 +146,48 @@ describe("cancelPlanChangeAction", () => {
     expect(call[1]).toBe("user-owner");
     expect(call[2]).toBe("Cancelado por el usuario");
     // args 4/5 = ipAddress/userAgent (LOW-1)
+  });
+});
+
+// ─── payPlanChangeAction ──────────────────────────────────────────────────────
+
+describe("payPlanChangeAction", () => {
+  it("rechaza sin auth", async () => {
+    vi.mocked(auth).mockResolvedValueOnce({ userId: null } as never);
+    const res = await payPlanChangeAction({ planChangeRequestId: "req-1" });
+    expect(res).toEqual({ success: false, error: "No autorizado" });
+  });
+
+  it("rechaza si no es OWNER de la empresa dueña de la solicitud", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue({
+      id: "req-1",
+      subscription: { companyId: COMPANY_ID },
+    } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(NON_OWNER as never);
+    const res = await payPlanChangeAction({ planChangeRequestId: "req-1" });
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toMatch(/permiso/i);
+    expect(PlanChangeService.createPlanChangeCheckout).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si la solicitud no existe", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(null);
+    const res = await payPlanChangeAction({ planChangeRequestId: "nope" });
+    expect(res).toEqual({ success: false, error: "Solicitud no encontrada" });
+  });
+
+  it("happy path OWNER: devuelve invoiceUrl", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue({
+      id: "req-1",
+      subscription: { companyId: COMPANY_ID },
+    } as never);
+    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(OWNER as never);
+    vi.mocked(PlanChangeService.createPlanChangeCheckout).mockResolvedValue({
+      invoiceUrl: "https://pay",
+      subscriptionPaymentId: "pay-1",
+    });
+    const res = await payPlanChangeAction({ planChangeRequestId: "req-1" });
+    expect(res.success).toBe(true);
+    if (res.success) expect(res.data.invoiceUrl).toBe("https://pay");
   });
 });

@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       findFirst: vi.fn(),
     },
+    planChangeRequest: { updateMany: vi.fn() },
     company: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -210,6 +211,7 @@ describe("handleIPN", () => {
         fn({
           subscriptionPayment: prisma.subscriptionPayment,
           subscription: prisma.subscription,
+          planChangeRequest: prisma.planChangeRequest,
           auditLog: prisma.auditLog,
         })) as never
     );
@@ -279,6 +281,31 @@ describe("handleIPN", () => {
 
     const call = vi.mocked(prisma.subscription.update).mock.calls[0][0];
     expect(call.data).not.toHaveProperty("despachoTier");
+  });
+
+  it("cambio de plan: confirma la PlanChangeRequest y NO activa la suscripción", async () => {
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({
+      ...SUBSCRIPTION_PAYMENT,
+      planChangeRequestId: "req-1",
+      metadata: { planChange: true, toPlan: "ANNUAL", companyId: COMPANY_ID },
+    } as never);
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.planChangeRequest.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await handleIPN(BASE_IPN, "5.5.5.5");
+
+    // marca la solicitud CONFIRMED con guard de idempotencia PENDING_PAYMENT
+    expect(prisma.planChangeRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "req-1", status: "PENDING_PAYMENT" },
+        data: expect.objectContaining({ status: "CONFIRMED", confirmedByUserId: "system" }),
+      })
+    );
+    // NO activa la suscripción — es un cambio de plan, no una renovación
+    expect(prisma.subscription.update).not.toHaveBeenCalled();
+    const auditArg = vi.mocked(prisma.auditLog.create).mock.calls[0][0];
+    expect(auditArg.data.action).toBe("PLAN_CHANGE_CONFIRMED");
   });
 
   it("es idempotente — ignora IPN si ya está CONFIRMED", async () => {
