@@ -46,10 +46,17 @@ vi.mock("../services/PaymentGLService", () => ({
     reversePaymentRecordGL: vi.fn(),
   },
 }));
+// H-003: tasa BCV autoritativa server-side para pagos en divisa
+vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
+  ExchangeRateService: {
+    getRateForDate: vi.fn(),
+  },
+}));
 
 import prisma from "@/lib/prisma";
 import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const COMPANY_ID = "company-1";
@@ -199,6 +206,121 @@ describe("createPaymentAction — security", () => {
   });
 });
 
+// ─── createPaymentAction — H-003: amountVes autoritativo server-side ─────────
+// Vulnerabilidad (CRÍTICO, Z-2): el campo "Equivalente en Bs.D" (amountVes) es
+// editable en la UI. Antes el servidor usaba ese valor tal cual → manipularlo a "1"
+// sub-declaraba el IGTF (Art. 4 LGTF). Ahora, para pagos en divisa, amountVes se
+// RECALCULA = amountOriginal × tasa BCV oficial y el valor del cliente se ignora.
+describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", () => {
+  const ZELLE_MANIPULATED = {
+    companyId: COMPANY_ID,
+    method: "ZELLE" as const,
+    amountVes: "1",          // ← cliente manipuló el equivalente en Bs (ataque)
+    currency: "USD" as const,
+    amountOriginal: "50",    // 50 USD reales
+    date: "2026-04-03",
+    notes: "Pago Zelle prueba",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    // Empresa CE para que aplique IGTF y verifiquemos su base
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+    );
+    vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue({
+      id: "rate-1",
+      currency: "USD",
+      rate: "600",
+      date: new Date("2026-04-03"),
+      source: "BCV",
+      createdAt: new Date(),
+      createdBy: USER_ID,
+    } as never);
+  });
+
+  it("ignora el amountVes manipulado del cliente y recalcula = amountOriginal × tasa BCV", async () => {
+    const result = await createPaymentAction(ZELLE_MANIPULATED);
+
+    expect(result.success).toBe(true);
+    // 50 USD × 600 = 30000.00 — NO "1"
+    const createArg = vi.mocked(PaymentService.create).mock.calls[0][1];
+    expect(createArg.amountVes.toString()).toBe("30000");
+    expect(createArg.amountVes.toString()).not.toBe("1");
+  });
+
+  it("calcula el IGTF sobre el amountVes autoritativo (30000), no sobre el manipulado (1)", async () => {
+    await createPaymentAction(ZELLE_MANIPULATED);
+
+    const createArg = vi.mocked(PaymentService.create).mock.calls[0][1];
+    // IGTF 3% de 30000 = 900.00 — jamás 0.03 (3% de 1)
+    expect(createArg.igtfAmount).toBeDefined();
+    expect(createArg.igtfAmount!.toString()).toBe("900");
+  });
+
+  it("consulta la tasa BCV con (companyId, USD, fecha del pago)", async () => {
+    await createPaymentAction(ZELLE_MANIPULATED);
+
+    expect(ExchangeRateService.getRateForDate).toHaveBeenCalledTimes(1);
+    const [companyArg, currencyArg, dateArg] =
+      vi.mocked(ExchangeRateService.getRateForDate).mock.calls[0];
+    expect(companyArg).toBe(COMPANY_ID);
+    expect(currencyArg).toBe("USD");
+    expect((dateArg as Date).toISOString()).toBe("2026-04-03T00:00:00.000Z");
+  });
+
+  it("aplica al saldo de la factura el amountVes autoritativo, no el manipulado", async () => {
+    await createPaymentAction({ ...ZELLE_MANIPULATED, invoiceId: "inv-1" });
+
+    const amountArg = vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0][3];
+    expect(amountArg.toString()).toBe("30000");
+  });
+
+  it("registra en AuditLog.newValue el amountVes autoritativo (no el manipulado)", async () => {
+    await createPaymentAction(ZELLE_MANIPULATED);
+
+    const auditArg = vi.mocked(prisma.auditLog.create).mock.calls[0][0];
+    const newValue = auditArg.data.newValue as { amountVes: string };
+    expect(newValue.amountVes).toBe("30000");
+  });
+
+  it("si no hay tasa BCV registrada, retorna error y NO crea el pago", async () => {
+    vi.mocked(ExchangeRateService.getRateForDate).mockRejectedValueOnce(
+      new Error(
+        "No hay tasa BCV registrada para USD el 2026-04-03. Ingrese la tasa antes de registrar la transacción.",
+      ),
+    );
+
+    const result = await createPaymentAction(ZELLE_MANIPULATED);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("No hay tasa BCV registrada");
+    expect(PaymentService.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("pago en VES usa el amountVes tal cual (sin recálculo ni consulta de tasa)", async () => {
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+
+    const result = await createPaymentAction(VALID_INPUT); // currency VES, amountVes "1160.00"
+
+    expect(result.success).toBe(true);
+    expect(ExchangeRateService.getRateForDate).not.toHaveBeenCalled();
+    const createArg = vi.mocked(PaymentService.create).mock.calls[0][1];
+    expect(createArg.amountVes.toString()).toBe("1160");
+  });
+});
+
 // ─── createPaymentAction — IGTF acumulado en Invoice ─────────────────────────
 describe("createPaymentAction — IGTF acumulado en Invoice", () => {
   const USD_INPUT = {
@@ -223,8 +345,19 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
         fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
     );
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    // H-003: tasa BCV disponible para los pagos en divisa de este bloque
+    vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue({
+      id: "rate-1",
+      currency: "USD",
+      rate: "474.35",
+      date: new Date("2026-04-03"),
+      source: "BCV",
+      createdAt: new Date(),
+      createdBy: USER_ID,
+    } as never);
   });
 
   it("acumula igtfBase/igtfAmount en Invoice SALE cuando pago es en USD y empresa es CE (A5)", async () => {
