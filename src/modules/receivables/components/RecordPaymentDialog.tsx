@@ -108,7 +108,8 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
         method,
         referenceNumber: referenceNumber || undefined,
         notes: notes || undefined,
-        date: new Date(date + "T12:00:00"),
+        // Anclaje UTC (paridad con Medios de Pago): el guard de período usa getUTC*.
+        date: new Date(date + "T00:00:00.000Z"),
         idempotencyKey: crypto.randomUUID(),
         // ADR-032 F2: con cuenta bancaria → asiento GL automático (cobro/pago)
         bankAccountId: bankAccountId || undefined,
