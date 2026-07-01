@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import {
   requestPlanChangeAction,
   cancelPlanChangeAction,
+  payPlanChangeAction,
 } from "@/modules/billing/actions/plan-change.actions";
 
 const PLAN_LABELS: Record<string, string> = {
@@ -80,8 +81,24 @@ export function PlanChangePanel({
         toast.error(res.error);
         return;
       }
+      if (res.data.invoiceUrl) {
+        // Redirigir a la pasarela de pago NOWPayments
+        window.location.href = res.data.invoiceUrl;
+        return;
+      }
       setResult({ effectiveDate: res.data.effectiveDate, newPriceUsdCents: res.data.newPriceUsdCents });
-      toast.success("Solicitud de cambio de plan registrada");
+      toast.success("Solicitud registrada. Usa “Pagar ahora” para completar el pago.");
+    });
+  }
+
+  function handlePay(id: string) {
+    startTransition(async () => {
+      const res = await payPlanChangeAction({ planChangeRequestId: id });
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      window.location.href = res.data.invoiceUrl;
     });
   }
 
@@ -151,7 +168,7 @@ export function PlanChangePanel({
                 </p>
                 {pendingChange?.status === "PENDING_PAYMENT" && (
                   <p className="mt-2 text-xs text-blue-600">
-                    Pendiente: envía el pago por WhatsApp para confirmar.
+                    Pendiente de pago: completa el pago para confirmar el cambio.
                   </p>
                 )}
                 {pendingChange?.status === "CONFIRMED" && (
@@ -161,13 +178,23 @@ export function PlanChangePanel({
                 )}
               </div>
               {pendingChange && pendingChange.status === "PENDING_PAYMENT" && (
-                <button
-                  onClick={() => handleCancel(pendingChange.id)}
-                  disabled={isPending}
-                  className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
+                <div className="flex shrink-0 flex-col gap-2">
+                  <button
+                    onClick={() => handlePay(pendingChange.id)}
+                    disabled={isPending}
+                    aria-busy={isPending}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isPending ? "Procesando…" : "Pagar ahora"}
+                  </button>
+                  <button
+                    onClick={() => handleCancel(pendingChange.id)}
+                    disabled={isPending}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               )}
             </div>
           </div>

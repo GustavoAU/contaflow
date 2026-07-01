@@ -26,7 +26,12 @@ function getIpUa(h: Awaited<ReturnType<typeof headers>>) {
 export async function requestPlanChangeAction(input: {
   companyId: string;
   toPlan: string;
-}): Promise<ActionResult<{ planChangeRequestId: string; effectiveDate: string; newPriceUsdCents: number }>> {
+}): Promise<ActionResult<{
+  planChangeRequestId: string;
+  effectiveDate: string;
+  newPriceUsdCents: number;
+  invoiceUrl: string | null;
+}>> {
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "No autorizado" };
@@ -55,6 +60,21 @@ export async function requestPlanChangeAction(input: {
       userAgent,
     );
 
+    // Iniciar el checkout de pago. Si falla la llamada externa, NO tumbamos la
+    // solicitud ya creada: devolvemos invoiceUrl null y la UI mostrará "Pagar ahora".
+    let invoiceUrl: string | null = null;
+    try {
+      const checkout = await PlanChangeService.createPlanChangeCheckout(
+        result.planChangeRequestId,
+        userId,
+        ipAddress,
+        userAgent,
+      );
+      invoiceUrl = checkout.invoiceUrl;
+    } catch {
+      invoiceUrl = null;
+    }
+
     revalidatePath(`/settings/plan`);
 
     return {
@@ -63,8 +83,51 @@ export async function requestPlanChangeAction(input: {
         planChangeRequestId: result.planChangeRequestId,
         effectiveDate: result.effectiveDate.toISOString(),
         newPriceUsdCents: result.newPriceUsdCents,
+        invoiceUrl,
       },
     };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
+// ─── payPlanChangeAction ──────────────────────────────────────────────────────
+
+/** Reintenta el pago de una solicitud PENDING_PAYMENT. Solo el OWNER. */
+export async function payPlanChangeAction(input: {
+  planChangeRequestId: string;
+}): Promise<ActionResult<{ invoiceUrl: string }>> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "No autorizado" };
+
+    const rl = await checkRateLimit(userId, limiters.fiscal);
+    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
+
+    const req = await prisma.planChangeRequest.findUnique({
+      where: { id: input.planChangeRequestId },
+      include: { subscription: { select: { companyId: true } } },
+    });
+    if (!req) return { success: false, error: "Solicitud no encontrada" };
+
+    const member = await prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId, companyId: req.subscription.companyId } },
+    });
+    if (!member || member.role !== "OWNER") {
+      return { success: false, error: "No tienes permiso para pagar esta solicitud." };
+    }
+
+    const h = await headers();
+    const { ipAddress, userAgent } = getIpUa(h);
+
+    const checkout = await PlanChangeService.createPlanChangeCheckout(
+      input.planChangeRequestId,
+      userId,
+      ipAddress,
+      userAgent,
+    );
+
+    return { success: true, data: { invoiceUrl: checkout.invoiceUrl } };
   } catch (err) {
     return toActionError(err);
   }

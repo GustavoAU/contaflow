@@ -4,11 +4,13 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   requestPlanChange,
+  createPlanChangeCheckout,
   applyDuePlanChanges,
   cancelPlanChange,
   calculateEffectiveDate,
 } from "./PlanChangeService";
 import * as BillingService from "./BillingService";
+import * as nowpayments from "@/lib/nowpayments";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    subscriptionPayment: { create: vi.fn() },
+    subscriptionPayment: { create: vi.fn(), update: vi.fn() },
     company: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -34,6 +36,10 @@ vi.mock("./BillingService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./BillingService")>();
   return { ...actual, getPlanPriceCents: vi.fn() };
 });
+
+vi.mock("@/lib/nowpayments", () => ({
+  createNowPaymentsInvoice: vi.fn(),
+}));
 
 // tx helper: reproduce el prisma mockeado como cliente de transacción
 function mockTransaction() {
@@ -154,6 +160,65 @@ describe("requestPlanChange", () => {
     await expect(
       requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null),
     ).rejects.toThrow(/cambio de plan pendiente/i);
+  });
+});
+
+// ─── createPlanChangeCheckout ─────────────────────────────────────────────────
+
+describe("createPlanChangeCheckout", () => {
+  const PENDING_REQ = {
+    id: "req-1",
+    subscriptionId: SUB_ID,
+    status: "PENDING_PAYMENT",
+    toPlan: "ANNUAL",
+    newPriceUsdCents: 78000,
+    subscription: { id: SUB_ID, companyId: COMPANY_ID },
+  };
+
+  const INVOICE = { id: "inv-1", invoice_url: "https://pay" };
+
+  it("crea SubscriptionPayment PENDING ligado a la request + AuditLog y devuelve invoiceUrl", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(PENDING_REQ as never);
+    vi.mocked(prisma.subscriptionPayment.create).mockResolvedValue({ id: "pay-1" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
+    vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(INVOICE as never);
+    mockTransaction();
+
+    const res = await createPlanChangeCheckout("req-1", USER_ID, "1.2.3.4", "UA");
+
+    expect(res.invoiceUrl).toBe("https://pay");
+    expect(res.subscriptionPaymentId).toBe("pay-1");
+
+    const createArg = vi.mocked(prisma.subscriptionPayment.create).mock.calls[0][0];
+    expect(createArg.data.planChangeRequestId).toBe("req-1");
+    expect(createArg.data.status).toBe("PENDING");
+    expect(createArg.data.amountUsdCents).toBe(78000);
+
+    const auditArg = vi.mocked(prisma.auditLog.create).mock.calls[0][0];
+    expect(auditArg.data.action).toBe("PLAN_CHANGE_CHECKOUT_INITIATED");
+    expect(auditArg.data.ipAddress).toBe("1.2.3.4");
+
+    // persiste el nowpaymentsOrderId del invoice
+    const updArg = vi.mocked(prisma.subscriptionPayment.update).mock.calls[0][0];
+    expect(updArg.data.nowpaymentsOrderId).toBe("inv-1");
+  });
+
+  it("rechaza si la request no existe", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(null);
+    await expect(createPlanChangeCheckout("nope", USER_ID, null, null)).rejects.toThrow(/no encontrada/i);
+    expect(prisma.subscriptionPayment.create).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si la request no está PENDING_PAYMENT", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue({
+      ...PENDING_REQ,
+      status: "CONFIRMED",
+    } as never);
+    await expect(createPlanChangeCheckout("req-1", USER_ID, null, null)).rejects.toThrow(
+      /no está pendiente de pago/i,
+    );
+    expect(prisma.subscriptionPayment.create).not.toHaveBeenCalled();
   });
 });
 

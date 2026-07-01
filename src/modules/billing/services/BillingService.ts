@@ -252,6 +252,27 @@ export async function handleIPN(ipn: NowPaymentsIPN, ipnSourceIp?: string | null
     });
 
     if (isFinished) {
+      // Cambio de plan: confirmar la solicitud (el cron la aplica en effectiveDate). NO renovar/activar la suscripción.
+      if (payment.planChangeRequestId) {
+        await tx.planChangeRequest.updateMany({
+          where: { id: payment.planChangeRequestId, status: "PENDING_PAYMENT" },
+          data: { status: "CONFIRMED", confirmedByUserId: "system", confirmedAt: now },
+        });
+        await tx.auditLog.create({
+          data: {
+            companyId: payment.subscription.companyId,
+            entityId: payment.planChangeRequestId,
+            entityName: "PlanChangeRequest",
+            action: "PLAN_CHANGE_CONFIRMED",
+            userId: "system",
+            ipAddress: ipnSourceIp ?? null,
+            userAgent: "NOWPayments-IPN",
+            newValue: { paymentId: payment.id, amountUsdCents: payment.amountUsdCents } as object,
+          },
+        });
+        return; // no activar la suscripción — es un cambio de plan, no una renovación
+      }
+
       const plan = payment.subscription.plan as PaidPlan;
       const periodDays = PLAN_PERIOD_DAYS[plan] ?? 30;
       const periodEnd = addDays(now, periodDays);

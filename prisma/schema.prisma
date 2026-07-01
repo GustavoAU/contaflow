@@ -2955,7 +2955,7 @@ model SubscriptionPayment {
   @@map("subscription_payments")
 }
 
-/// Solicitud de cambio de plan. effectiveDate = primer día del próximo mes UTC (ADR-032 D-3).
+/// Solicitud de cambio de plan. effectiveDate = primer día del próximo mes UTC (ADR-040 D-3).
 /// Solo puede haber una solicitud activa por suscripción — guard en la action de creación.
 model PlanChangeRequest {
   id             String       @id @default(cuid())
@@ -2966,7 +2966,7 @@ model PlanChangeRequest {
   toPlan           SubscriptionPlan
   newPriceUsdCents Int // Snapshot del precio al momento de la solicitud
 
-  // Primer día del próximo mes UTC (ADR-032 D-3)
+  // Primer día del próximo mes UTC (ADR-040 D-3)
   effectiveDate DateTime
 
   status PlanChangeStatus @default(PENDING_PAYMENT)

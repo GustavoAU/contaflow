@@ -1,6 +1,7 @@
 // src/modules/billing/services/PlanChangeService.ts
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { createNowPaymentsInvoice } from "@/lib/nowpayments";
 import type { SubscriptionPlan, PlanChangeStatus } from "@prisma/client";
 import { getPlanPriceCents, type PaidPlan } from "./BillingService";
 import { isPrismaError } from "@/lib/prisma-errors";
@@ -95,6 +96,75 @@ export async function requestPlanChange(
   }
 
   return { planChangeRequestId: request.id, effectiveDate, newPriceUsdCents };
+}
+
+// ─── createPlanChangeCheckout ─────────────────────────────────────────────────
+
+/**
+ * Inicia el flujo de pago NOWPayments para un cambio de plan (ADR-040).
+ * NO toca la Subscription (sigue ACTIVE); el cambio se aplica en effectiveDate por el cron.
+ * Crea un SubscriptionPayment PENDING ligado a la PlanChangeRequest y devuelve la URL de pago.
+ */
+export async function createPlanChangeCheckout(
+  planChangeRequestId: string,
+  actorUserId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
+): Promise<{ invoiceUrl: string; subscriptionPaymentId: string }> {
+  const req = await prisma.planChangeRequest.findUnique({
+    where: { id: planChangeRequestId },
+    include: { subscription: { select: { id: true, companyId: true } } },
+  });
+  if (!req) throw new Error("Solicitud no encontrada.");
+  if (req.status !== "PENDING_PAYMENT") throw new Error("La solicitud no está pendiente de pago.");
+
+  // ── Transacción: crear SubscriptionPayment PENDING + AuditLog (R-6) ──
+  const payment = await prisma.$transaction(async (tx) => {
+    const p = await tx.subscriptionPayment.create({
+      data: {
+        subscriptionId: req.subscriptionId,
+        planChangeRequestId: req.id,
+        amountUsdCents: req.newPriceUsdCents,
+        currency: "usd",
+        status: "PENDING",
+        metadata: { planChange: true, toPlan: req.toPlan, companyId: req.subscription.companyId } as object,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: req.subscription.companyId,
+        entityId: p.id,
+        entityName: "SubscriptionPayment",
+        action: "PLAN_CHANGE_CHECKOUT_INITIATED",
+        userId: actorUserId,
+        ipAddress,
+        userAgent,
+        newValue: { planChangeRequestId: req.id, toPlan: req.toPlan, amountUsdCents: req.newPriceUsdCents } as object,
+      },
+    });
+
+    return p;
+  });
+
+  // ── Llamada externa a NOWPayments (fuera de la tx) ────────────────────────
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://contaflow.app";
+
+  const invoice = await createNowPaymentsInvoice({
+    priceAmountCents: req.newPriceUsdCents,
+    ipnCallbackUrl: `${appUrl}/api/webhooks/nowpayments`,
+    orderId: payment.id,
+    orderDescription: `ContaFlow — Cambio de plan a ${req.toPlan}`,
+    successUrl: `${appUrl}/settings/plan?payment=success`,
+    cancelUrl: `${appUrl}/settings/plan?payment=cancelled`,
+  });
+
+  await prisma.subscriptionPayment.update({
+    where: { id: payment.id },
+    data: { nowpaymentsOrderId: invoice.id },
+  });
+
+  return { invoiceUrl: invoice.invoice_url, subscriptionPaymentId: payment.id };
 }
 
 // ─── confirmPlanChange (admin manual) ────────────────────────────────────────
