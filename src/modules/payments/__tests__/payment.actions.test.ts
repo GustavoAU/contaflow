@@ -52,11 +52,18 @@ vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
     getRateForDate: vi.fn(),
   },
 }));
+// H-004 (R-3): la fecha del pago debe caer en el período contable abierto
+vi.mock("@/modules/accounting/services/PeriodService", () => ({
+  PeriodService: {
+    assertDateInOpenPeriod: vi.fn(),
+  },
+}));
 
 import prisma from "@/lib/prisma";
 import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const COMPANY_ID = "company-1";
@@ -96,6 +103,7 @@ describe("createPaymentAction — security", () => {
         fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
     );
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -206,6 +214,69 @@ describe("createPaymentAction — security", () => {
   });
 });
 
+// ─── createPaymentAction — H-004: fecha del pago dentro del período abierto ──
+// R-3 / Z-3: la FECHA del pago debe caer en el período contable OPEN. Un pago con
+// fecha fuera del período (cerrado o inexistente) debe rechazarse SIEMPRE, genere
+// asiento o no — consistente con Caja Chica (assertDateInOpenPeriod).
+describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+    );
+    vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue(
+      { id: "period-1", year: 2026, month: 3 } as never,
+    );
+  });
+
+  it("fecha fuera del período abierto → error y NO crea el pago", async () => {
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
+      new Error(
+        "La fecha (01/2024) está fuera del período contable abierto (03/2026). Solo se pueden registrar operaciones del período abierto actual.",
+      ),
+    );
+
+    const result = await createPaymentAction({ ...VALID_INPUT, date: "2024-01-15" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("fuera del período contable abierto");
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("sin período contable abierto → error y NO crea el pago", async () => {
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
+      new Error("No hay período contable abierto"),
+    );
+
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("No hay período contable abierto");
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("fecha dentro del período abierto → success (valida antes de aplicar)", async () => {
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(PeriodService.assertDateInOpenPeriod).toHaveBeenCalledTimes(1);
+    const [companyArg, dateArg] =
+      vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
+    expect(companyArg).toBe(COMPANY_ID);
+    expect((dateArg as Date).toISOString()).toBe("2026-03-10T00:00:00.000Z");
+    expect(PaymentService.create).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ─── createPaymentAction — H-003: amountVes autoritativo server-side ─────────
 // Vulnerabilidad (CRÍTICO, Z-2): el campo "Equivalente en Bs.D" (amountVes) es
 // editable en la UI. Antes el servidor usaba ese valor tal cual → manipularlo a "1"
@@ -234,6 +305,7 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
         fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
     );
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
@@ -345,6 +417,7 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
         fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
     );
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);

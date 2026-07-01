@@ -75,6 +75,12 @@ vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
     getRateForDate: vi.fn(),
   },
 }));
+// H-004 (R-3): la fecha del cobro debe caer en el período contable abierto
+vi.mock("@/modules/accounting/services/PeriodService", () => ({
+  PeriodService: {
+    assertDateInOpenPeriod: vi.fn(),
+  },
+}));
 vi.mock("../services/AgingReportPDFService", () => ({
   generateAgingReportPDF: vi.fn().mockResolvedValue(Buffer.from("pdf")),
 }));
@@ -84,6 +90,7 @@ import { ReceivableService } from "../services/ReceivableService";
 import { PaymentService } from "@/modules/payments/services/PaymentService";
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { IGTFService } from "@/modules/igtf/services/IGTFService";
 import { checkRateLimit } from "@/lib/ratelimit";
 import {
@@ -154,6 +161,10 @@ beforeEach(() => {
   // Divisa: tasa por defecto (los tests la sobrescriben cuando importa)
   vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue(
     { id: "rate-1", rate: "600" } as never,
+  );
+  // H-004: por defecto la fecha cae en el período abierto
+  vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue(
+    { id: "period-1", year: 2026, month: 7 } as never,
   );
 });
 
@@ -360,6 +371,44 @@ describe("recordPaymentAction", () => {
     expect(ExchangeRateService.getRateForDate).not.toHaveBeenCalled();
     const applyArg = vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0][3] as Decimal;
     expect(applyArg.toString()).toBe("100");
+  });
+
+  // ── H-004 (R-3, Z-3): la fecha del cobro debe caer en el período abierto ──
+  it("fecha fuera del período abierto → error, no aplica ni crea el cobro", async () => {
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
+      new Error(
+        "La fecha (01/2024) está fuera del período contable abierto (07/2026). Solo se pueden registrar operaciones del período abierto actual.",
+      ),
+    );
+
+    const res = await recordPaymentAction({ ...VALID_INPUT, date: "2024-01-15T00:00:00.000Z" });
+
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toContain("fuera del período contable abierto");
+    expect(PaymentService.applyPaymentToInvoice).not.toHaveBeenCalled();
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("sin período contable abierto → error, no crea el cobro", async () => {
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
+      new Error("No hay período contable abierto"),
+    );
+
+    const res = await recordPaymentAction(VALID_INPUT);
+
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toContain("No hay período contable abierto");
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("fecha dentro del período abierto → success (valida como primera operación)", async () => {
+    const res = await recordPaymentAction(VALID_INPUT);
+    expect(res.success).toBe(true);
+    expect(PeriodService.assertDateInOpenPeriod).toHaveBeenCalledTimes(1);
+    const [companyArg, dateArg] =
+      vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
+    expect(companyArg).toBe(COMPANY_ID);
+    expect(dateArg).toBeInstanceOf(Date);
   });
 });
 
