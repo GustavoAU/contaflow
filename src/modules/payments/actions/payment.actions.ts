@@ -15,6 +15,7 @@ import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PaymentAttachmentService, AttachmentSummary } from "../services/PaymentAttachmentService";
 import { PaymentGLService } from "../services/PaymentGLService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -89,6 +90,9 @@ export async function createPaymentAction(
     const result = await prisma.$transaction(
       async (tx) =>
         withCompanyContext(d.companyId, tx, async (tx) => {
+          // H-004 (R-3): la fecha del pago debe caer en el período contable abierto
+          await PeriodService.assertDateInOpenPeriod(d.companyId, dateObj, tx);
+
           // ADR-032 F1: PaymentRecord es la vía canónica — aplica el pago al saldo
           // de la factura DENTRO del mismo $transaction. FOR UPDATE serializa
           // contra pagos concurrentes; guards: anulada, año cerrado, sobre-pago.

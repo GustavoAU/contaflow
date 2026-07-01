@@ -23,6 +23,7 @@ import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { PaymentService, type PaymentRecordSummary } from "@/modules/payments/services/PaymentService";
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { isPrismaError } from "@/lib/prisma-errors";
@@ -211,6 +212,9 @@ export async function recordPaymentAction(
     const result = await prisma.$transaction(
       async (tx) =>
         withCompanyContext(d.companyId, tx, async (tx) => {
+          // H-004 (R-3): la fecha del pago debe caer en el período contable abierto
+          await PeriodService.assertDateInOpenPeriod(d.companyId, d.date, tx);
+
           // Idempotencia: paridad con el flujo legacy (InvoicePayment.idempotencyKey)
           const existing = await tx.paymentRecord.findUnique({
             where: { idempotencyKey: d.idempotencyKey },
