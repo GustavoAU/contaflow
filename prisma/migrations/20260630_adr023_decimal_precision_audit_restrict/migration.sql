@@ -8,7 +8,9 @@
 --   destruye el rastro de auditoría si el padre se borra (bomba latente).
 --   → ON DELETE RESTRICT (ADR-003 / ADR-006 D-4 append-only).
 --
--- Todas las conversiones de DECIMAL son ampliaciones (widening) → sin pérdida de datos.
+-- Precisión: (8,6)→(18,6) es widening puro. (18,2)→(19,4) gana 2 decimales y baja la
+-- parte entera de 16→15 dígitos (estándar ADR-002 = 19,4). Verificado en BD: ningún
+-- valor existente ≥ 10^15, así que el ALTER no falla por overflow (datos reales ~4,4M Bs).
 
 -- ─── Hallazgo 2: tasa de cambio ──────────────────────────────────────────────
 ALTER TABLE "income_distributions"

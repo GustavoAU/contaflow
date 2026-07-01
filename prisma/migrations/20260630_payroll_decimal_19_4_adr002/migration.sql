@@ -5,7 +5,8 @@
 -- que las fases tempranas (SalaryHistory, BenefitBalance, Termination, etc.) ya usan
 -- (19,4). Este migration alinea las columnas rezagadas.
 --
--- Todas las conversiones son ampliaciones (widening) → sin pérdida de datos.
+-- (18,2)→(19,4): gana 2 decimales, baja la parte entera de 16→15 dígitos (estándar
+-- ADR-002 = 19,4). Verificado en BD: ningún valor existente ≥ 10^15 (máx ~4,4M Bs).
 -- NO se tocan: utValue Decimal(10,2) ni EmployeeLoan Decimal(20,2) (este último
 -- necesita 18 dígitos enteros; (19,4) los reduciría a 15 — no es widening).
 
