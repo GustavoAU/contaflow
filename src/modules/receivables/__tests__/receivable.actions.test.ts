@@ -69,6 +69,12 @@ vi.mock("@/modules/igtf/services/IGTFService", () => ({
   },
   IGTF_RATE: new Decimal("0.03"),
 }));
+// H-003 follow-up (Z-2): amountVes en divisa se recalcula con la tasa BCV oficial
+vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
+  ExchangeRateService: {
+    getRateForDate: vi.fn(),
+  },
+}));
 vi.mock("../services/AgingReportPDFService", () => ({
   generateAgingReportPDF: vi.fn().mockResolvedValue(Buffer.from("pdf")),
 }));
@@ -77,6 +83,8 @@ import prisma from "@/lib/prisma";
 import { ReceivableService } from "../services/ReceivableService";
 import { PaymentService } from "@/modules/payments/services/PaymentService";
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { IGTFService } from "@/modules/igtf/services/IGTFService";
 import { checkRateLimit } from "@/lib/ratelimit";
 import {
   getReceivablesAction,
@@ -140,6 +148,13 @@ beforeEach(() => {
   vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
   vi.mocked(PaymentService.void).mockResolvedValue(MOCK_PAYMENT as never);
   vi.mocked(PaymentService.revertPaymentFromInvoice).mockResolvedValue(undefined as never);
+  // Por defecto IGTF no aplica; los tests que lo requieren lo activan
+  vi.mocked(IGTFService.applies).mockReturnValue(false);
+  vi.mocked(IGTFService.calculate).mockReturnValue({ igtfAmount: "0" } as never);
+  // Divisa: tasa por defecto (los tests la sobrescriben cuando importa)
+  vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue(
+    { id: "rate-1", rate: "600" } as never,
+  );
 });
 
 // ─── getReceivablesAction ─────────────────────────────────────────────────────
@@ -287,6 +302,64 @@ describe("recordPaymentAction", () => {
     expect(res.success).toBe(true);
     expect(PaymentGLService.postPaymentRecordGL).not.toHaveBeenCalled();
     expect(PaymentGLService.postVendorPaymentRecordGL).not.toHaveBeenCalled();
+  });
+
+  // ── H-003 follow-up (Z-2): cobro en divisa recalcula amountVes con la tasa BCV ──
+  it("cobro USD → recalcula amountVes = amountOriginal × tasa (Art. 4 LGTF)", async () => {
+    vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValueOnce(
+      { id: "rate-usd-1", rate: "600" } as never,
+    );
+    // IGTF activo para verificar que se calcula sobre el VES autoritativo
+    vi.mocked(IGTFService.applies).mockReturnValue(true);
+    vi.mocked(IGTFService.calculate).mockReturnValue({ igtfAmount: "900" } as never);
+
+    const res = await recordPaymentAction({ ...VALID_INPUT, amount: "50", currency: "USD" });
+    expect(res.success).toBe(true);
+
+    // La tasa se consulta para la moneda y fecha correctas
+    expect(ExchangeRateService.getRateForDate).toHaveBeenCalledWith(
+      COMPANY_ID, "USD", expect.any(Date),
+    );
+
+    // applyPaymentToInvoice recibe el VES autoritativo (50 × 600 = 30000), no "50"
+    const applyArg = vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0][3] as Decimal;
+    expect(applyArg.toString()).toBe("30000");
+
+    // IGTF se calcula sobre 30000 (no sobre 50)
+    expect(IGTFService.calculate).toHaveBeenCalledWith("30000", expect.anything());
+
+    // PaymentService.create persiste amountVes=30000, amountOriginal=50 y el id de la tasa aplicada
+    expect(PaymentService.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        currency: "USD",
+        exchangeRateId: "rate-usd-1",
+      }),
+    );
+    const createArg = vi.mocked(PaymentService.create).mock.calls[0][1] as {
+      amountVes: Decimal; amountOriginal?: Decimal;
+    };
+    expect(createArg.amountVes.toString()).toBe("30000");
+    expect(createArg.amountOriginal?.toString()).toBe("50");
+  });
+
+  it("cobro USD sin tasa registrada → error, no crea el cobro", async () => {
+    vi.mocked(ExchangeRateService.getRateForDate).mockRejectedValueOnce(
+      new Error("No hay tasa BCV registrada para USD el 2026-07-01. Ingrese la tasa antes de registrar la transacción.") as never,
+    );
+    const res = await recordPaymentAction({ ...VALID_INPUT, amount: "50", currency: "USD" });
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error).toContain("No hay tasa BCV registrada");
+    expect(PaymentService.applyPaymentToInvoice).not.toHaveBeenCalled();
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("cobro VES → sin consulta de tasa, amount se usa tal cual", async () => {
+    const res = await recordPaymentAction({ ...VALID_INPUT, amount: "100.00", currency: "VES" });
+    expect(res.success).toBe(true);
+    expect(ExchangeRateService.getRateForDate).not.toHaveBeenCalled();
+    const applyArg = vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0][3] as Decimal;
+    expect(applyArg.toString()).toBe("100");
   });
 });
 
