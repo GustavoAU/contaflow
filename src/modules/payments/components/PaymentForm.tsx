@@ -253,13 +253,15 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Equivalente en Bs.D (VES)
+              Equivalente en Bs.D (VES) <span className="text-xs font-normal text-zinc-400">— calculado con la tasa BCV</span>
               {bcvLoading && <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>}
               {!bcvLoading && bcvRate && <span className="ml-2 text-xs font-normal text-zinc-400">Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD</span>}
-              {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — ingrese manualmente</span>}
+              {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
             </label>
-            <input type="number" min="0.01" step="0.01" value={amountVes}
-              onChange={(e) => setAmountVes(e.target.value)} placeholder="0.00" required className={`${inputCls} font-mono`} />
+            {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
+            <input type="number" value={amountVes} readOnly tabIndex={-1} placeholder="0.00"
+              title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
+              className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} />
           </div>
           {vesNum > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -299,12 +301,15 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
-                  Equivalente en Bs.D
+                  Equivalente en Bs.D <span className="text-xs font-normal text-zinc-400">— calculado con la tasa BCV</span>
                   {bcvLoading && <span className="ml-2 text-xs font-normal text-zinc-400">Cargando...</span>}
                   {!bcvLoading && bcvRate && <span className="ml-2 text-xs font-normal text-zinc-400">Tasa: {fmtNum(bcvRate)}</span>}
+                  {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
                 </label>
-                <input type="number" min="0.01" step="0.01" value={amountVes}
-                  onChange={(e) => setAmountVes(e.target.value)} placeholder="0.00" required className={`${inputCls} font-mono`} />
+                {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
+                <input type="number" value={amountVes} readOnly tabIndex={-1} placeholder="0.00"
+                  title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
+                  className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} />
               </div>
               {vesNum > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

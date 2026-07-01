@@ -12,6 +12,7 @@ import { CreatePaymentSchema } from "../schemas/payment.schema";
 import { PaymentService, PaymentRecordSummary } from "../services/PaymentService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PaymentAttachmentService, AttachmentSummary } from "../services/PaymentAttachmentService";
 import { PaymentGLService } from "../services/PaymentGLService";
 import type { ActionResult } from "../types/action-result";
@@ -47,17 +48,43 @@ export async function createPaymentAction(
     if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
 
-    // IGTF: computar server-side con Decimal.js — nunca confiar en el valor del cliente
+    const dateObj = new Date(d.date + "T00:00:00.000Z");
+
+    // ── H-003 (Z-2, CRÍTICO): amountVes autoritativo server-side ──────────────
+    // El campo "Equivalente en Bs.D" del cliente es editable y NO se debe confiar:
+    // manipularlo sub-declara el IGTF (Art. 4 LGTF). Para pagos en divisa el
+    // amountVes se RECALCULA = amountOriginal × tasa BCV oficial (última ≤ fecha).
+    // Para VES se usa tal cual. Todo con Decimal.js (R-5).
+    let amountVes: Decimal;
+    // INFO-1: para divisa, persistimos el id de la tasa REALMENTE aplicada (no el que
+    // manda el cliente) para que la trazabilidad coincida con el amountVes recalculado.
+    let resolvedExchangeRateId = d.exchangeRateId;
+    if (d.currency === "VES") {
+      amountVes = new Decimal(d.amountVes);
+    } else {
+      if (!d.amountOriginal) {
+        throw new Error("Falta el monto en divisa para el pago en " + d.currency);
+      }
+      const rate = await ExchangeRateService.getRateForDate(
+        d.companyId,
+        d.currency as Currency,
+        dateObj,
+      );
+      amountVes = new Decimal(d.amountOriginal)
+        .mul(new Decimal(rate.rate))
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      resolvedExchangeRateId = rate.id;
+    }
+
+    // IGTF: computar server-side con Decimal.js — sobre el amountVes autoritativo
     const company = await prisma.company.findFirst({
       where: { id: d.companyId },
       select: { isSpecialContributor: true },
     });
     const igtfApplies = IGTFService.applies(d.currency, company?.isSpecialContributor ?? false);
     const computedIgtf = igtfApplies
-      ? new Decimal(IGTFService.calculate(d.amountVes, IGTF_RATE).igtfAmount)
+      ? new Decimal(IGTFService.calculate(amountVes.toString(), IGTF_RATE).igtfAmount)
       : undefined;
-
-    const dateObj = new Date(d.date + "T00:00:00.000Z");
 
     const result = await prisma.$transaction(
       async (tx) =>
@@ -70,7 +97,7 @@ export async function createPaymentAction(
               tx,
               d.companyId,
               d.invoiceId,
-              new Decimal(d.amountVes),
+              amountVes,
             );
           }
 
@@ -78,10 +105,10 @@ export async function createPaymentAction(
             companyId: d.companyId,
             invoiceId: d.invoiceId,
             method: d.method as PaymentMethod,
-            amountVes: new Decimal(d.amountVes),
+            amountVes,
             currency: d.currency as Currency,
             amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
-            exchangeRateId: d.exchangeRateId,
+            exchangeRateId: resolvedExchangeRateId,
             referenceNumber: d.referenceNumber,
             originBank: d.originBank,
             destBank: d.destBank,
@@ -111,7 +138,7 @@ export async function createPaymentAction(
               await (tx as typeof prisma).invoice.update({
                 where: { id: d.invoiceId },
                 data: {
-                  igtfBase:   new Decimal(inv.igtfBase.toString()).plus(d.amountVes),
+                  igtfBase:   new Decimal(inv.igtfBase.toString()).plus(amountVes),
                   igtfAmount: new Decimal(inv.igtfAmount.toString()).plus(computedIgtf),
                 },
               });
@@ -136,7 +163,7 @@ export async function createPaymentAction(
                 {
                   paymentRecordId: record.id,
                   bankAccountId: d.bankAccountId,
-                  amountVes: new Decimal(d.amountVes),
+                  amountVes,
                   igtfAmount: computedIgtf ?? null,
                   invoiceId: d.invoiceId,
                   amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
@@ -173,7 +200,8 @@ export async function createPaymentAction(
               userAgent,
               newValue: {
                 method: d.method,
-                amountVes: d.amountVes,
+                // H-003: registrar el amountVes autoritativo, no el valor del cliente
+                amountVes: amountVes.toString(),
                 currency: d.currency,
                 date: d.date,
                 invoiceId: d.invoiceId ?? null,
