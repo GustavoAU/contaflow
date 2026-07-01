@@ -179,57 +179,6 @@ export async function createPlanChangeCheckout(
   return { invoiceUrl: invoice.invoice_url, subscriptionPaymentId: payment.id };
 }
 
-// ─── confirmPlanChange (admin manual) ────────────────────────────────────────
-
-export async function confirmPlanChange(
-  planChangeRequestId: string,
-  txHash: string,
-  confirmedByUserId: string,
-  ipAddress: string | null,
-  userAgent: string | null,
-): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const req = await tx.planChangeRequest.findUnique({
-      where: { id: planChangeRequestId },
-      include: { subscription: true },
-    });
-    if (!req) throw new Error("Solicitud no encontrada.");
-    if (req.status !== "PENDING_PAYMENT") throw new Error("La solicitud ya fue procesada.");
-
-    await tx.planChangeRequest.update({
-      where: { id: planChangeRequestId },
-      data: { status: "CONFIRMED", confirmedByUserId, confirmedAt: new Date() },
-    });
-
-    await tx.subscriptionPayment.create({
-      data: {
-        subscriptionId: req.subscriptionId,
-        planChangeRequestId: req.id,
-        amountUsdCents: req.newPriceUsdCents,
-        currency: "USDT",
-        txHash,
-        status: "CONFIRMED",
-        paidAt: new Date(),
-        confirmedByUserId,
-        metadata: { manualConfirmation: true } as object,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        companyId: req.subscription.companyId,
-        entityId: planChangeRequestId,
-        entityName: "PlanChangeRequest",
-        action: "PLAN_CHANGE_CONFIRMED",
-        userId: confirmedByUserId,
-        ipAddress,
-        userAgent,
-        newValue: { txHash, toPlan: req.toPlan, effectiveDate: req.effectiveDate } as object,
-      },
-    });
-  });
-}
-
 // ─── applyDuePlanChanges (cron) ───────────────────────────────────────────────
 
 /** Aplica todos los PlanChangeRequest CONFIRMED con effectiveDate <= now(). ADR-040 D-5. */
