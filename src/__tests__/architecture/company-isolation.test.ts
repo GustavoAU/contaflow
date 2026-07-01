@@ -38,6 +38,9 @@ const ALLOWLIST_IMPLICIT_SCOPE: Record<string, string> = {
     "findUnique by PK id — Company table has no cross-tenant leak risk (each op uses companyId as PK or RIF).",
   "src/modules/fiscal-close/services/FiscalYearCloseService.ts":
     "appropriateFiscalYearResult: findFirst on transaction uses companyId prefix. All other queries include companyId.",
+  "src/modules/billing/services/PlanChangeService.ts":
+    "applyDuePlanChanges: findMany by status/effectiveDate — system cron, processes all companies by design (ADR-040 D-5, ADR-004-EXCEPTION). " +
+    "requestPlanChange: findFirst by subscriptionId derived from subscription.findUnique({companyId}); confirm/cancel: findUnique/updateMany by PK planChangeRequestId (CUID). No cross-tenant leak.",
 };
 
 // ─── Files to audit ───────────────────────────────────────────────────────────
@@ -55,6 +58,7 @@ const SERVICE_FILES: string[] = [
   "src/modules/bank-reconciliation/services/BankAccountService.ts",
   "src/modules/bank-reconciliation/services/BankStatementService.ts",
   "src/modules/bank-reconciliation/services/BankingService.ts",
+  "src/modules/billing/services/PlanChangeService.ts",
 ];
 
 const ACTION_FILES: string[] = [
