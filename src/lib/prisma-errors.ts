@@ -17,6 +17,17 @@ const TECHNICAL_DB_KEYWORDS = [
   "prisma",
 ];
 
+// Señales de límites de infraestructura/plataforma que llegan en inglés y exponen al
+// proveedor (p.ej. Neon: "Your account or project has exceeded the compute time quota.
+// Upgrade your plan to increase limits."). Los mensajes de negocio están en español y no
+// contienen estas cadenas, así que no se ocultan por error.
+const INFRA_LIMIT_KEYWORDS = [
+  "quota",
+  "compute time",
+  "exceeded",
+  "upgrade your plan",
+];
+
 const GENERIC_DB_ERROR =
   "No se pudo completar la operación por un problema de base de datos. Intenta de nuevo; si el problema persiste, contacta al administrador.";
 
@@ -27,7 +38,10 @@ function isConnectionError(error: Error): boolean {
 
 function isTechnicalDbError(error: Error): boolean {
   const msg = error.message.toLowerCase();
-  return TECHNICAL_DB_KEYWORDS.some((kw) => msg.includes(kw));
+  return (
+    TECHNICAL_DB_KEYWORDS.some((kw) => msg.includes(kw)) ||
+    INFRA_LIMIT_KEYWORDS.some((kw) => msg.includes(kw))
+  );
 }
 
 /**
