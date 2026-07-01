@@ -13,8 +13,13 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/modules/accounting/services/PeriodService", () => ({
+  PeriodService: { assertDateInOpenPeriod: vi.fn() },
+}));
+
 import prisma from "@/lib/prisma";
 import { PaymentBatchService } from "../services/PaymentBatchService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
@@ -145,6 +150,7 @@ describe("PaymentBatchService.createBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx();
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
   });
 
   it("happy path — crea batch DRAFT con dos líneas", async () => {
@@ -242,6 +248,27 @@ describe("PaymentBatchService.createBatch", () => {
       })
     ).rejects.toThrow(/pagada/);
   });
+
+  it("H-004 (R-3): fecha fuera de período abierto → rechaza y no crea el batch", async () => {
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValue(
+      new Error("La fecha (04/2026) está fuera del período contable abierto (05/2026).")
+    );
+
+    await expect(
+      PaymentBatchService.createBatch({
+        companyId: COMPANY_ID,
+        method: "TRANSFERENCIA",
+        totalAmountVes: new Decimal("150000"),
+        date: new Date("2026-04-15"),
+        createdBy: USER_ID,
+        idempotencyKey: "idem-key-period",
+        lines: [{ invoiceId: INV_A, amountVes: new Decimal("150000") }],
+      })
+    ).rejects.toThrow(/fuera del período contable abierto/);
+
+    expect(prisma.paymentBatch.create).not.toHaveBeenCalled();
+    expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
+  });
 });
 
 // ─── applyBatch ───────────────────────────────────────────────────────────────
@@ -250,6 +277,7 @@ describe("PaymentBatchService.applyBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx();
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
   });
 
   it("happy path — aplica batch, crea InvoicePayment por línea y cambia estado a APPLIED", async () => {
@@ -433,6 +461,20 @@ describe("PaymentBatchService.applyBatch", () => {
         data: expect.objectContaining({ paymentStatus: "PARTIAL" }),
       })
     );
+  });
+
+  it("H-004 (R-3): fecha del DRAFT fuera de período abierto → rechaza y no aplica", async () => {
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue(BASE_BATCH as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValue(
+      new Error("La fecha (05/2026) está fuera del período contable abierto (06/2026).")
+    );
+
+    await expect(
+      PaymentBatchService.applyBatch({ batchId: BATCH_ID, companyId: COMPANY_ID, userId: USER_ID })
+    ).rejects.toThrow(/fuera del período contable abierto/);
+
+    expect(prisma.invoicePayment.create).not.toHaveBeenCalled();
+    expect(prisma.paymentBatch.update).not.toHaveBeenCalled();
   });
 
   it("lanza error de concurrencia cuando P2034 persiste tras 3 intentos", async () => {

@@ -4,6 +4,7 @@ import { PaymentMethod, Currency, PaymentBatchStatus } from "@prisma/client";
 import { PaymentGLService } from "./PaymentGLService";
 import { VEN_TAX_RATES } from "@/lib/tax-config";
 import { IGTFService } from "@/modules/igtf/services/IGTFService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -197,6 +198,9 @@ export class PaymentBatchService {
     }
 
     return prisma.$transaction(async (tx) => {
+      // H-004 follow-up (R-3): la fecha del lote debe caer en el período contable abierto
+      await PeriodService.assertDateInOpenPeriod(input.companyId, input.date, tx);
+
       // Validar cada factura: A/P, misma empresa, no anulada (ADR-022 D-3)
       for (const line of input.lines) {
         const invoice = await tx.invoice.findFirst({
@@ -343,6 +347,9 @@ export class PaymentBatchService {
             if (batch.status !== "DRAFT") {
               throw new Error(`El lote no puede aplicarse — estado actual: ${batch.status}`);
             }
+
+            // H-004 follow-up (R-3): la fecha del lote debe caer en el período contable abierto
+            await PeriodService.assertDateInOpenPeriod(input.companyId, batch.date, tx);
 
             // Validar invariante de suma (ADR-022 D-1)
             PaymentBatchService.validateSumInvariant(batch);
