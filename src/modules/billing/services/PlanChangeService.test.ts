@@ -25,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    subscriptionPayment: { create: vi.fn(), update: vi.fn() },
+    subscriptionPayment: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
     company: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -179,6 +179,7 @@ describe("createPlanChangeCheckout", () => {
 
   it("crea SubscriptionPayment PENDING ligado a la request + AuditLog y devuelve invoiceUrl", async () => {
     vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(PENDING_REQ as never);
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue(null); // sin PENDING previo
     vi.mocked(prisma.subscriptionPayment.create).mockResolvedValue({ id: "pay-1" } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
@@ -202,6 +203,24 @@ describe("createPlanChangeCheckout", () => {
     // persiste el nowpaymentsOrderId del invoice
     const updArg = vi.mocked(prisma.subscriptionPayment.update).mock.calls[0][0];
     expect(updArg.data.nowpaymentsOrderId).toBe("inv-1");
+  });
+
+  it("cleanup: reusa el SubscriptionPayment PENDING existente (no crea otro) y regenera el invoice", async () => {
+    vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(PENDING_REQ as never);
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({ id: "pay-existente" } as never);
+    vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
+    vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(INVOICE as never);
+    mockTransaction();
+
+    const res = await createPlanChangeCheckout("req-1", USER_ID, null, null);
+
+    expect(res.subscriptionPaymentId).toBe("pay-existente");
+    expect(res.invoiceUrl).toBe("https://pay");
+    // no crea un pago nuevo ni AuditLog de checkout (reusa el existente)
+    expect(prisma.subscriptionPayment.create).not.toHaveBeenCalled();
+    // regenera el invoice con orderId = pago existente (idempotencia por mismo order_id)
+    const invArg = vi.mocked(nowpayments.createNowPaymentsInvoice).mock.calls[0][0];
+    expect(invArg.orderId).toBe("pay-existente");
   });
 
   it("rechaza si la request no existe", async () => {
