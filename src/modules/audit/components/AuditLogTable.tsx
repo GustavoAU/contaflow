@@ -28,6 +28,9 @@ const ENTITY_LABELS: Record<string, string> = {
   InventoryItem: "Ítem Inventario",
   InventoryMovement: "Movimiento Inventario",
   FixedAsset: "Activo Fijo",
+  // Compras y Ventas (AUD-01)
+  Quotation: "Cotización / Presupuesto",
+  Order: "Orden de Compra / Venta",
   // Empresa / Config
   Company: "Empresa",
   ExchangeRate: "Tasa de Cambio",
@@ -68,6 +71,7 @@ const MODULE_ENTITIES: Record<string, string[]> = {
     "PayrollConfig",
   ],
   Inventario: ["InventoryItem", "InventoryMovement", "FixedAsset"],
+  "Compras y Ventas": ["Quotation", "Order"],
   Fiscal: ["Invoice", "InvoicePayment", "Retencion", "IGTFTransaction", "PaymentRecord"],
   Bancos: ["BankStatement", "BankTransaction"],
   Empresa: ["Company", "ExchangeRate", "INPCRate"],

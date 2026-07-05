@@ -19,6 +19,15 @@ import { type QuotationType, type OrderStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
+// AUD-01 (R-6): captura ipAddress/userAgent para el rastro de auditoría
+async function netContext() {
+  const h = await headers();
+  const ipAddress =
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { ipAddress, userAgent };
+}
+
 // ── createOrderAction — ROLES.OPERATIONS ─────────────────────────────────────
 export async function createOrderAction(
   companyId: string,
@@ -43,12 +52,19 @@ export async function createOrderAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const order = await OrderService.createOrder(companyId, userId, {
-      ...parsed.data,
-      expectedDate: parsed.data.expectedDate
-        ? new Date(parsed.data.expectedDate)
-        : undefined,
-    });
+    const { ipAddress, userAgent } = await netContext();
+    const order = await OrderService.createOrder(
+      companyId,
+      userId,
+      {
+        ...parsed.data,
+        expectedDate: parsed.data.expectedDate
+          ? new Date(parsed.data.expectedDate)
+          : undefined,
+      },
+      ipAddress,
+      userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: order.id, number: order.number } };
   } catch (e) {
@@ -77,7 +93,8 @@ export async function approveOrderAction(
 
   try {
     // CRITICAL-1: companyId guard enforced inside OrderService.approveOrder
-    await OrderService.approveOrder(companyId, orderId, userId);
+    const { ipAddress, userAgent } = await netContext();
+    await OrderService.approveOrder(companyId, orderId, userId, ipAddress, userAgent);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -203,20 +220,27 @@ export async function cloneOrderAction(
     const original = await OrderService.getOrder(companyId, orderId);
     if (!original) return { success: false, error: "Orden no encontrada" };
 
-    const cloned = await OrderService.createOrder(companyId, userId, {
-      type: original.type,
-      counterpartName: original.counterpartName,
-      counterpartRif: original.counterpartRif ?? undefined,
-      notes: original.notes ?? undefined,
-      currency: original.currency,
-      items: original.items.map((i) => ({
-        description: i.description,
-        unit: i.unit,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-        taxRate: i.taxRate,
-      })),
-    });
+    const { ipAddress, userAgent } = await netContext();
+    const cloned = await OrderService.createOrder(
+      companyId,
+      userId,
+      {
+        type: original.type,
+        counterpartName: original.counterpartName,
+        counterpartRif: original.counterpartRif ?? undefined,
+        notes: original.notes ?? undefined,
+        currency: original.currency,
+        items: original.items.map((i) => ({
+          description: i.description,
+          unit: i.unit,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
+        })),
+      },
+      ipAddress,
+      userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
   } catch (e) {

@@ -6,6 +6,7 @@
 //   LOW-1:  VIEWER excluded — all mutations require ROLES.OPERATIONS or ROLES.ACCOUNTING
 
 import { auth } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
@@ -15,6 +16,15 @@ import { QuotationService } from "../services/QuotationService";
 import { type QuotationType, type QuotationStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+
+// AUD-01 (R-6): captura ipAddress/userAgent para el rastro de auditoría
+async function netContext() {
+  const h = await headers();
+  const ipAddress =
+    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  return { ipAddress, userAgent };
+}
 
 // ── createQuotationAction — ROLES.OPERATIONS (ADMINISTRATIVE+) ───────────────
 export async function createQuotationAction(
@@ -40,10 +50,14 @@ export async function createQuotationAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const quotation = await QuotationService.createQuotation(companyId, userId, {
-      ...parsed.data,
-      validUntil: new Date(parsed.data.validUntil),
-    });
+    const { ipAddress, userAgent } = await netContext();
+    const quotation = await QuotationService.createQuotation(
+      companyId,
+      userId,
+      { ...parsed.data, validUntil: new Date(parsed.data.validUntil) },
+      ipAddress,
+      userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: quotation.id, number: quotation.number } };
   } catch (e) {
@@ -70,7 +84,8 @@ export async function submitForApprovalAction(
     return { success: false, error: "Acceso denegado" };
 
   try {
-    await QuotationService.submitForApproval(companyId, quotationId);
+    const { ipAddress, userAgent } = await netContext();
+    await QuotationService.submitForApproval(companyId, quotationId, userId, ipAddress, userAgent);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -98,7 +113,8 @@ export async function approveQuotationAction(
     return { success: false, error: "Acceso denegado" };
 
   try {
-    await QuotationService.approveQuotation(companyId, quotationId, userId);
+    const { ipAddress, userAgent } = await netContext();
+    await QuotationService.approveQuotation(companyId, quotationId, userId, ipAddress, userAgent);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -125,7 +141,8 @@ export async function rejectQuotationAction(
     return { success: false, error: "Acceso denegado" };
 
   try {
-    await QuotationService.rejectQuotation(companyId, quotationId);
+    const { ipAddress, userAgent } = await netContext();
+    await QuotationService.rejectQuotation(companyId, quotationId, userId, ipAddress, userAgent);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -179,21 +196,28 @@ export async function cloneQuotationAction(
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + 30);
 
-    const cloned = await QuotationService.createQuotation(companyId, userId, {
-      type: original.type,
-      counterpartName: original.counterpartName,
-      counterpartRif: original.counterpartRif ?? undefined,
-      validUntil,
-      notes: original.notes ?? undefined,
-      currency: original.currency,
-      items: original.items.map((i) => ({
-        description: i.description,
-        unit: i.unit,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-        taxRate: i.taxRate,
-      })),
-    });
+    const { ipAddress, userAgent } = await netContext();
+    const cloned = await QuotationService.createQuotation(
+      companyId,
+      userId,
+      {
+        type: original.type,
+        counterpartName: original.counterpartName,
+        counterpartRif: original.counterpartRif ?? undefined,
+        validUntil,
+        notes: original.notes ?? undefined,
+        currency: original.currency,
+        items: original.items.map((i) => ({
+          description: i.description,
+          unit: i.unit,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
+        })),
+      },
+      ipAddress,
+      userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
   } catch (e) {

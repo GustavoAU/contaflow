@@ -94,12 +94,19 @@ function makeOrderDb(overrides = {}) {
 describe("OrderService.createOrder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // AUD-01: createOrder envuelve create + quotation.update + auditLog en $transaction
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+      fn({
+        orderNumberSequence: prisma.orderNumberSequence,
+        order: prisma.order,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
   it("crea una OC sin cotización origen", async () => {
@@ -156,7 +163,14 @@ describe("OrderService.createOrder", () => {
 });
 
 describe("OrderService.approveOrder", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // AUD-01: approveOrder envuelve update + auditLog en $transaction
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ order: prisma.order, auditLog: prisma.auditLog })) as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
 
   it("DRAFT → APPROVED", async () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb() as never);
@@ -168,6 +182,12 @@ describe("OrderService.approveOrder", () => {
       where: { id: "order-1" },
       data: { status: "APPROVED", approvedBy: "user-1", approvedAt: expect.any(Date) },
     });
+    // AUD-01: rastro de auditoría
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ entityName: "Order", action: "APPROVE" }),
+      })
+    );
   });
 
   it("CRITICAL-1: lanza error si orden no pertenece a companyId", async () => {
@@ -441,11 +461,17 @@ describe("OrderService — OM-08: inventoryItemId validation en createOrder", ()
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+      fn({
+        orderNumberSequence: prisma.orderNumberSequence,
+        order: prisma.order,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
   it("omite validación si no hay inventoryItemId en los ítems", async () => {
