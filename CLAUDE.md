@@ -204,7 +204,8 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 ## Rate Limiting
 
-- `limiters.fiscal` (30/min) + `limiters.ocr` (10/min) — Upstash sliding window
+- `limiters.fiscal` (60/min) + `limiters.ocr` (10/min) — Upstash sliding window
+- `fiscal` es un balde COMPARTIDO por todas las mutaciones fiscales del usuario (crear→enviar→aprobar→convertir = 4 llamadas). Subido de 10→60/min (2026-07) para no bloquear trabajo interactivo. `fiscal` falla CERRADO si Redis cae; el resto fail-open
 - Sin `UPSTASH_REDIS_REST_URL` → no-op. Redis falla en runtime → silencioso, permite
 - Mock: `vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }), limiters: { fiscal: {}, ocr: {} } }))`
 
