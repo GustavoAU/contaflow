@@ -30,13 +30,18 @@ export function fiscalKey(companyId: string, userId: string): string {
 }
 
 export const limiters = {
-  // Mutaciones fiscales: facturas, retenciones, IGTF, cuentas
-  // 10/min por (empresa × usuario) — previene doble-submit y spam fiscal
-  // Clave: fiscalKey(companyId, userId) — ver helper arriba
+  // Mutaciones fiscales: facturas, retenciones, IGTF, cuentas, órdenes, cotizaciones…
+  // 60/min por usuario — previene doble-submit y spam fiscal SIN bloquear el trabajo
+  // interactivo legítimo. Ojo: es un balde compartido por TODAS las mutaciones fiscales
+  // del usuario (crear→enviar→aprobar→convertir un documento = 4 llamadas), por eso el
+  // límite debe ser holgado. El valor anterior (10/min) bloqueaba a un contador que
+  // procesaba varios documentos seguidos al cierre de mes (auditoría Compras y Ventas 2026-07).
+  // Clave: idealmente fiscalKey(companyId, userId); hoy la mayoría de actions pasan solo
+  // userId (deuda técnica documentada en DECISIONS.md) — no afecta a usuarios mono-empresa.
   fiscal: redis
     ? new Ratelimit({
         redis,
-        limiter: Ratelimit.slidingWindow(10, "1 m"),
+        limiter: Ratelimit.slidingWindow(60, "1 m"),
         prefix: "rl:fiscal",
       })
     : null,
