@@ -186,7 +186,9 @@ export const OrderService = {
   async createOrder(
     companyId: string,
     userId: string,
-    input: CreateOrderInput
+    input: CreateOrderInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<OrderRow> {
     // CRITICAL-1 (HIGH-1): if quotationId provided, verify it belongs to this company
     if (input.quotationId) {
@@ -213,49 +215,80 @@ export const OrderService = {
     const number = await getNextOrderNumber(companyId, input.type);
     const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
 
-    const order = await prisma.order.create({
-      data: {
-        companyId,
-        type: input.type,
-        number,
-        quotationId: input.quotationId ?? null,
-        counterpartName: input.counterpartName.trim(),
-        counterpartRif: input.counterpartRif?.trim() || null,
-        expectedDate: input.expectedDate ?? null,
-        notes: input.notes?.trim() || null,
-        subtotal,
-        taxAmount,
-        total,
-        currency: (input.currency ?? "VES") as never,
-        createdBy: userId,
-        items: {
-          create: computed.map((c) => ({
-            description: c.description,
-            unit: c.unit,
-            quantity: c.quantity,
-            unitPrice: c.unitPrice,
-            taxRate: c.taxRate,
-            totalPrice: c.totalPrice,
-            inventoryItemId: c.inventoryItemId, // OM-08
-          })),
+    // AUD-01 (R-6): create + marca de cotización + AuditLog en el mismo $transaction
+    // (además hace atómica la conversión Cotización→Orden, antes en dos awaits sueltos).
+    const order = await prisma.$transaction(async (tx) => {
+      const o = await tx.order.create({
+        data: {
+          companyId,
+          type: input.type,
+          number,
+          quotationId: input.quotationId ?? null,
+          counterpartName: input.counterpartName.trim(),
+          counterpartRif: input.counterpartRif?.trim() || null,
+          expectedDate: input.expectedDate ?? null,
+          notes: input.notes?.trim() || null,
+          subtotal,
+          taxAmount,
+          total,
+          currency: (input.currency ?? "VES") as never,
+          createdBy: userId,
+          items: {
+            create: computed.map((c) => ({
+              description: c.description,
+              unit: c.unit,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              taxRate: c.taxRate,
+              totalPrice: c.totalPrice,
+              inventoryItemId: c.inventoryItemId, // OM-08
+            })),
+          },
         },
-      },
-      include: { items: true },
-    });
-
-    // Mark source quotation as CONVERTED
-    if (input.quotationId) {
-      await prisma.quotation.update({
-        where: { id: input.quotationId },
-        data: { status: "CONVERTED" },
+        include: { items: true },
       });
-    }
+
+      // Mark source quotation as CONVERTED
+      if (input.quotationId) {
+        await tx.quotation.update({
+          where: { id: input.quotationId },
+          data: { status: "CONVERTED" },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: o.id,
+          entityName: "Order",
+          action: "CREATE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: {
+            number,
+            type: input.type,
+            counterpartName: o.counterpartName,
+            total: total.toString(),
+            fromQuotation: input.quotationId ?? null,
+          },
+        },
+      });
+
+      return o;
+    });
 
     return serializeOrder(order);
   },
 
   // ── approve — DRAFT → APPROVED ────────────────────────────────────────────
-  async approveOrder(companyId: string, orderId: string, userId: string): Promise<void> {
+  async approveOrder(
+    companyId: string,
+    orderId: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<void> {
     // CRITICAL-1: companyId guard — no findUnique by PK alone
     const order = await prisma.order.findFirst({
       where: { id: orderId, companyId, deletedAt: null },
@@ -264,9 +297,24 @@ export const OrderService = {
     if (order.status !== "DRAFT")
       throw new Error("Solo se puede aprobar una orden en Borrador");
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
+    // AUD-01 (R-6): update + AuditLog en el mismo $transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: orderId,
+          entityName: "Order",
+          action: "APPROVE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { status: "APPROVED", approvedBy: userId },
+        },
+      });
     });
   },
 
@@ -302,6 +350,24 @@ export const OrderService = {
 
       // Determine invoice type
       const invoiceType = order.type === "PURCHASE" ? "PURCHASE" : "SALE";
+
+      // E-14 (R-3): la factura resultante no puede caer en un período CERRADO.
+      // Espejo de InvoiceService.createInvoice — la conversión NO debe evadir el guard
+      // de período que sí aplica la emisión directa de facturas. Mismos getters (locales)
+      // que InvoiceService para que una orden y una factura directa con la misma fecha
+      // resuelvan al mismo período. Auto-asigna periodId si el caller no lo provee.
+      const invYear = invoiceData.date.getFullYear();
+      const invMonth = invoiceData.date.getMonth() + 1; // getMonth() es 0-based
+      const periodForDate = await tx.accountingPeriod.findFirst({
+        where: { companyId, year: invYear, month: invMonth },
+        select: { id: true, status: true, year: true, month: true },
+      });
+      if (periodForDate?.status === "CLOSED") {
+        throw new Error(
+          `No se puede convertir a factura en el período ${String(periodForDate.month).padStart(2, "0")}/${periodForDate.year} porque está CERRADO. Use una fecha en el período activo.`
+        );
+      }
+      const resolvedPeriodId = invoiceData.periodId ?? periodForDate?.id ?? null;
 
       // H-8: respetar stockControlLevel + config GL para causación automática (hallazgo #2)
       const settings = await tx.companySettings.findUnique({
@@ -352,7 +418,7 @@ export const OrderService = {
           currency: order.currency,
           totalAmountVes: order.total,
           createdBy: userId,
-          periodId: invoiceData.periodId ?? null,
+          periodId: resolvedPeriodId,
           orderId: order.id,
           ivaRetentionAmount: 0,
           igtfBase: 0,
@@ -405,7 +471,7 @@ export const OrderService = {
             invoiceNumber: invoiceData.invoiceNumber,
             counterpartName: order.counterpartName,
             date: invoiceData.date,
-            periodId: invoiceData.periodId ?? null,
+            periodId: resolvedPeriodId,
             totalAmountVes,
             taxLines: derivedTaxLines.map((tl) => ({
               taxType: tl.taxType,

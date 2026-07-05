@@ -66,16 +66,46 @@ function makeQuotationDb(overrides = {}) {
 describe("QuotationService.createQuotation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock $transaction to execute the callback with a fake tx
+    // Mock $transaction to execute the callback with a fake tx (secuencia + create+audit)
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         orderNumberSequence: prisma.orderNumberSequence,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
       })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({
       lastNumber: 1,
     } as never);
     vi.mocked(prisma.quotation.create).mockResolvedValue(makeQuotationDb() as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("AUD-01: escribe AuditLog Quotation/CREATE en la misma $transaction", async () => {
+    await QuotationService.createQuotation(
+      COMPANY_ID,
+      USER_ID,
+      {
+        type: "PURCHASE",
+        counterpartName: "Proveedor S.A.",
+        validUntil: new Date("2026-05-31"),
+        items: [ITEM_INPUT],
+      },
+      "10.0.0.1",
+      "vitest-ua"
+    );
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          entityName: "Quotation",
+          action: "CREATE",
+          userId: USER_ID,
+          ipAddress: "10.0.0.1",
+          userAgent: "vitest-ua",
+        }),
+      })
+    );
   });
 
   it("crea una cotización PURCHASE y devuelve number COT-XXXX", async () => {
@@ -122,18 +152,34 @@ describe("QuotationService.createQuotation", () => {
 });
 
 describe("QuotationService — status transitions", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // AUD-01: submit/approve/reject ahora envuelven update + auditLog en $transaction
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
 
   it("submitForApproval: DRAFT → PENDING_APPROVAL", async () => {
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(makeQuotationDb() as never);
     vi.mocked(prisma.quotation.update).mockResolvedValue({} as never);
 
-    await QuotationService.submitForApproval(COMPANY_ID, "quot-1");
+    await QuotationService.submitForApproval(COMPANY_ID, "quot-1", USER_ID);
 
     expect(prisma.quotation.update).toHaveBeenCalledWith({
       where: { id: "quot-1" },
       data: { status: "PENDING_APPROVAL" },
     });
+    // AUD-01: rastro de auditoría
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ entityName: "Quotation", action: "SUBMIT" }),
+      })
+    );
   });
 
   it("submitForApproval: lanza error si no está en DRAFT", async () => {
@@ -142,7 +188,7 @@ describe("QuotationService — status transitions", () => {
     );
 
     await expect(
-      QuotationService.submitForApproval(COMPANY_ID, "quot-1")
+      QuotationService.submitForApproval(COMPANY_ID, "quot-1", USER_ID)
     ).rejects.toThrow("Solo se puede enviar a aprobación");
   });
 
@@ -176,7 +222,7 @@ describe("QuotationService — status transitions", () => {
     );
     vi.mocked(prisma.quotation.update).mockResolvedValue({} as never);
 
-    await QuotationService.rejectQuotation(COMPANY_ID, "quot-1");
+    await QuotationService.rejectQuotation(COMPANY_ID, "quot-1", USER_ID);
 
     expect(prisma.quotation.update).toHaveBeenCalledWith({
       where: { id: "quot-1" },
@@ -274,10 +320,15 @@ describe("QuotationService — OM-08: inventoryItemId validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+      fn({
+        orderNumberSequence: prisma.orderNumberSequence,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.quotation.create).mockResolvedValue(makeQuotationDb() as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
   it("omite validación si no hay inventoryItemId en los ítems", async () => {

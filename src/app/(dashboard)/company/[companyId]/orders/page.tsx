@@ -10,6 +10,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { QuotationService } from "@/modules/orders/services/QuotationService";
 import { OrderService } from "@/modules/orders/services/OrderService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { QuotationForm } from "@/modules/orders/components/QuotationForm";
 import { QuotationList } from "@/modules/orders/components/QuotationList";
 import { OrderForm } from "@/modules/orders/components/OrderForm";
@@ -32,14 +33,30 @@ export default async function OrdersPage({ params }: Props) {
   const isOperations = canAccess(role, ROLES.OPERATIONS);   // OWNER, ADMIN, ADMINISTRATIVE
   const isAccounting = canAccess(role, ROLES.ACCOUNTING);   // OWNER, ADMIN, ACCOUNTANT
 
-  // Cargar cotizaciones y órdenes en paralelo
-  const [quotations, orders] = await Promise.all([
+  // Cargar cotizaciones, órdenes y período activo en paralelo
+  const [quotations, orders, activePeriod] = await Promise.all([
     QuotationService.getQuotations(companyId),
     OrderService.getOrders(companyId),
+    PeriodService.getActivePeriod(companyId),
   ]);
 
   // Para el OrderForm: mostrar solo cotizaciones aprobadas que aún no tienen orden
   const approvedQuotations = quotations.filter((q) => q.status === "APPROVED");
+
+  // E-14: fecha por defecto para el modal "Convertir a Factura" dentro del período
+  // abierto. Si hoy cae en el período abierto → hoy; si no → último día de ese mes
+  // (día alto para evitar el desfase de mes en husos negativos como Venezuela UTC-4).
+  // Sin período abierto → hoy (el guard del servidor decide igualmente).
+  let defaultInvoiceDate = new Date().toISOString().split("T")[0]!;
+  if (activePeriod) {
+    const now = new Date();
+    const inOpenPeriod =
+      now.getFullYear() === activePeriod.year && now.getMonth() + 1 === activePeriod.month;
+    if (!inOpenPeriod) {
+      const lastDay = new Date(activePeriod.year, activePeriod.month, 0).getDate();
+      defaultInvoiceDate = `${activePeriod.year}-${String(activePeriod.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
@@ -114,6 +131,7 @@ export default async function OrdersPage({ params }: Props) {
           orders={orders}
           canApprove={isAccounting}
           canOperate={isOperations}
+          defaultInvoiceDate={defaultInvoiceDate}
         />
       </section>
     </div>

@@ -18,6 +18,9 @@ interface Props {
   orders: OrderRow[];
   canApprove: boolean;   // ACCOUNTANT+
   canOperate: boolean;   // ADMINISTRATIVE+
+  // E-14: fecha por defecto del modal de conversión, dentro del período contable
+  // abierto (calculada server-side). Evita proponer una fecha fuera de período.
+  defaultInvoiceDate: string;
 }
 
 const TYPE_BADGE: Record<string, string> = {
@@ -28,16 +31,19 @@ const TYPE_BADGE: Record<string, string> = {
 function ConvertModal({
   order,
   companyId,
+  defaultInvoiceDate,
   onClose,
 }: {
   order: OrderRow;
   companyId: string;
+  defaultInvoiceDate: string;
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [controlNumber, setControlNumber] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]!);
+  // E-14: por defecto una fecha del período abierto (no "hoy" a ciegas, que puede caer fuera)
+  const [date, setDate] = useState(defaultInvoiceDate);
   const [dueDate, setDueDate] = useState("");
 
   const inputCls = "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -118,7 +124,7 @@ function ConvertModal({
   );
 }
 
-export function OrderList({ companyId, orders, canApprove, canOperate }: Props) {
+export function OrderList({ companyId, orders, canApprove, canOperate, defaultInvoiceDate }: Props) {
   const [isPending, startTransition] = useTransition();
   const [convertingOrder, setConvertingOrder] = useState<OrderRow | null>(null);
 
@@ -148,6 +154,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate }: Props) 
         <ConvertModal
           order={convertingOrder}
           companyId={companyId}
+          defaultInvoiceDate={defaultInvoiceDate}
           onClose={() => setConvertingOrder(null)}
         />
       )}

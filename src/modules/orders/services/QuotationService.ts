@@ -169,7 +169,9 @@ export const QuotationService = {
   async createQuotation(
     companyId: string,
     userId: string,
-    input: CreateQuotationInput
+    input: CreateQuotationInput,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
   ): Promise<QuotationRow> {
     // OM-08: validar que inventoryItemIds (si se especifican) pertenecen a la empresa
     const itemIds = input.items.map((i) => i.inventoryItemId).filter(Boolean) as string[];
@@ -186,33 +188,56 @@ export const QuotationService = {
     const number = await getNextQuotationNumber(companyId, input.type);
     const { computed, subtotal, taxAmount, total } = computeTotals(input.items);
 
-    const quotation = await prisma.quotation.create({
-      data: {
-        companyId,
-        type: input.type,
-        number,
-        counterpartName: input.counterpartName.trim(),
-        counterpartRif: input.counterpartRif?.trim() || null,
-        validUntil: input.validUntil,
-        notes: input.notes?.trim() || null,
-        subtotal,
-        taxAmount,
-        total,
-        currency: (input.currency ?? "VES") as never,
-        createdBy: userId,
-        items: {
-          create: computed.map((c) => ({
-            description: c.description,
-            unit: c.unit,
-            quantity: c.quantity,
-            unitPrice: c.unitPrice,
-            taxRate: c.taxRate,
-            totalPrice: c.totalPrice,
-            inventoryItemId: c.inventoryItemId, // OM-08
-          })),
+    // AUD-01 (R-6): create + AuditLog en el mismo $transaction
+    const quotation = await prisma.$transaction(async (tx) => {
+      const q = await tx.quotation.create({
+        data: {
+          companyId,
+          type: input.type,
+          number,
+          counterpartName: input.counterpartName.trim(),
+          counterpartRif: input.counterpartRif?.trim() || null,
+          validUntil: input.validUntil,
+          notes: input.notes?.trim() || null,
+          subtotal,
+          taxAmount,
+          total,
+          currency: (input.currency ?? "VES") as never,
+          createdBy: userId,
+          items: {
+            create: computed.map((c) => ({
+              description: c.description,
+              unit: c.unit,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              taxRate: c.taxRate,
+              totalPrice: c.totalPrice,
+              inventoryItemId: c.inventoryItemId, // OM-08
+            })),
+          },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: q.id,
+          entityName: "Quotation",
+          action: "CREATE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: {
+            number,
+            type: input.type,
+            counterpartName: q.counterpartName,
+            total: total.toString(),
+          },
+        },
+      });
+
+      return q;
     });
 
     return serializeQuotation(quotation);
@@ -311,7 +336,13 @@ export const QuotationService = {
   },
 
   // ── submit → PENDING_APPROVAL ─────────────────────────────────────────────
-  async submitForApproval(companyId: string, quotationId: string): Promise<void> {
+  async submitForApproval(
+    companyId: string,
+    quotationId: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<void> {
     const q = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
     });
@@ -319,14 +350,35 @@ export const QuotationService = {
     if (q.status !== "DRAFT")
       throw new Error("Solo se puede enviar a aprobación una cotización en Borrador");
 
-    await prisma.quotation.update({
-      where: { id: quotationId },
-      data: { status: "PENDING_APPROVAL" },
+    // AUD-01 (R-6): update + AuditLog en el mismo $transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.quotation.update({
+        where: { id: quotationId },
+        data: { status: "PENDING_APPROVAL" },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: quotationId,
+          entityName: "Quotation",
+          action: "SUBMIT",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { status: "PENDING_APPROVAL" },
+        },
+      });
     });
   },
 
   // ── approve → APPROVED ────────────────────────────────────────────────────
-  async approveQuotation(companyId: string, quotationId: string, userId: string): Promise<void> {
+  async approveQuotation(
+    companyId: string,
+    quotationId: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<void> {
     const q = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
     });
@@ -334,14 +386,35 @@ export const QuotationService = {
     if (q.status !== "PENDING_APPROVAL")
       throw new Error("Solo se puede aprobar una cotización en Pendiente de Aprobación");
 
-    await prisma.quotation.update({
-      where: { id: quotationId },
-      data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
+    // AUD-01 (R-6): update + AuditLog en el mismo $transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.quotation.update({
+        where: { id: quotationId },
+        data: { status: "APPROVED", approvedBy: userId, approvedAt: new Date() },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: quotationId,
+          entityName: "Quotation",
+          action: "APPROVE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { status: "APPROVED", approvedBy: userId },
+        },
+      });
     });
   },
 
   // ── reject → REJECTED ─────────────────────────────────────────────────────
-  async rejectQuotation(companyId: string, quotationId: string): Promise<void> {
+  async rejectQuotation(
+    companyId: string,
+    quotationId: string,
+    userId: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<void> {
     const q = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
     });
@@ -349,9 +422,24 @@ export const QuotationService = {
     if (q.status !== "PENDING_APPROVAL")
       throw new Error("Solo se puede rechazar una cotización en Pendiente de Aprobación");
 
-    await prisma.quotation.update({
-      where: { id: quotationId },
-      data: { status: "REJECTED" },
+    // AUD-01 (R-6): update + AuditLog en el mismo $transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.quotation.update({
+        where: { id: quotationId },
+        data: { status: "REJECTED" },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: quotationId,
+          entityName: "Quotation",
+          action: "REJECT",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: { status: "REJECTED" },
+        },
+      });
     });
   },
 

@@ -21,6 +21,7 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: { create: vi.fn() },
     inventoryItem: { findMany: vi.fn() }, // OM-08
     companySettings: { findUnique: vi.fn() }, // H-8
+    accountingPeriod: { findFirst: vi.fn() }, // E-14: guard de período en conversión
   },
 }));
 
@@ -93,12 +94,19 @@ function makeOrderDb(overrides = {}) {
 describe("OrderService.createOrder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // AUD-01: createOrder envuelve create + quotation.update + auditLog en $transaction
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+      fn({
+        orderNumberSequence: prisma.orderNumberSequence,
+        order: prisma.order,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
   it("crea una OC sin cotización origen", async () => {
@@ -155,7 +163,14 @@ describe("OrderService.createOrder", () => {
 });
 
 describe("OrderService.approveOrder", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // AUD-01: approveOrder envuelve update + auditLog en $transaction
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ order: prisma.order, auditLog: prisma.auditLog })) as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
 
   it("DRAFT → APPROVED", async () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb() as never);
@@ -167,6 +182,12 @@ describe("OrderService.approveOrder", () => {
       where: { id: "order-1" },
       data: { status: "APPROVED", approvedBy: "user-1", approvedAt: expect.any(Date) },
     });
+    // AUD-01: rastro de auditoría
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ entityName: "Order", action: "APPROVE" }),
+      })
+    );
   });
 
   it("CRITICAL-1: lanza error si orden no pertenece a companyId", async () => {
@@ -200,6 +221,8 @@ describe("OrderService.convertOrderToInvoice", () => {
       ivaDFAccountId: null, ivaCFAccountId: null,
       ivaRetentionPayableAccountId: null, igtfPayableAccountId: null,
     } as never);
+    // E-14: por defecto no hay período para la fecha (no CLOSED) → conversión permitida
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         order: prisma.order,
@@ -208,6 +231,7 @@ describe("OrderService.convertOrderToInvoice", () => {
         invoiceLine: prisma.invoiceLine,
         auditLog: prisma.auditLog,
         companySettings: prisma.companySettings,
+        accountingPeriod: prisma.accountingPeriod, // E-14
         inventoryMovement: { findMany: vi.fn().mockResolvedValue([]) }, // hallazgo #2
       })) as never
     );
@@ -217,6 +241,23 @@ describe("OrderService.convertOrderToInvoice", () => {
     invoiceNumber: "F-0001",
     date: new Date("2026-04-14"),
   };
+
+  it("E-14 (R-3): lanza error si la fecha cae en un período CERRADO", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
+      { id: "per-closed", status: "CLOSED", year: 2026, month: 4 } as never
+    );
+
+    await expect(
+      OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
+    ).rejects.toThrow(/CERRADO/);
+
+    // No debe haberse creado la factura ni tocado el estado de la orden
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+    expect(prisma.order.update).not.toHaveBeenCalled();
+  });
 
   it("CRITICAL-1: lanza error si orderId no pertenece a companyId", async () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
@@ -374,6 +415,7 @@ describe("OrderService.convertOrderToInvoice", () => {
       invoiceLine: prisma.invoiceLine,
       auditLog: prisma.auditLog,
       companySettings: prisma.companySettings,
+      accountingPeriod: prisma.accountingPeriod, // E-14
       inventoryMovement: { findMany: vi.fn().mockResolvedValue([mockDraftMovement]) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn(mockTx)) as never);
@@ -419,11 +461,17 @@ describe("OrderService — OM-08: inventoryItemId validation en createOrder", ()
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
+      fn({
+        orderNumberSequence: prisma.orderNumberSequence,
+        order: prisma.order,
+        quotation: prisma.quotation,
+        auditLog: prisma.auditLog,
+      })) as never
     );
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
   it("omite validación si no hay inventoryItemId en los ítems", async () => {
