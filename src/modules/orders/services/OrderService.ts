@@ -303,6 +303,24 @@ export const OrderService = {
       // Determine invoice type
       const invoiceType = order.type === "PURCHASE" ? "PURCHASE" : "SALE";
 
+      // E-14 (R-3): la factura resultante no puede caer en un período CERRADO.
+      // Espejo de InvoiceService.createInvoice — la conversión NO debe evadir el guard
+      // de período que sí aplica la emisión directa de facturas. Mismos getters (locales)
+      // que InvoiceService para que una orden y una factura directa con la misma fecha
+      // resuelvan al mismo período. Auto-asigna periodId si el caller no lo provee.
+      const invYear = invoiceData.date.getFullYear();
+      const invMonth = invoiceData.date.getMonth() + 1; // getMonth() es 0-based
+      const periodForDate = await tx.accountingPeriod.findFirst({
+        where: { companyId, year: invYear, month: invMonth },
+        select: { id: true, status: true, year: true, month: true },
+      });
+      if (periodForDate?.status === "CLOSED") {
+        throw new Error(
+          `No se puede convertir a factura en el período ${String(periodForDate.month).padStart(2, "0")}/${periodForDate.year} porque está CERRADO. Use una fecha en el período activo.`
+        );
+      }
+      const resolvedPeriodId = invoiceData.periodId ?? periodForDate?.id ?? null;
+
       // H-8: respetar stockControlLevel + config GL para causación automática (hallazgo #2)
       const settings = await tx.companySettings.findUnique({
         where: { companyId },
@@ -352,7 +370,7 @@ export const OrderService = {
           currency: order.currency,
           totalAmountVes: order.total,
           createdBy: userId,
-          periodId: invoiceData.periodId ?? null,
+          periodId: resolvedPeriodId,
           orderId: order.id,
           ivaRetentionAmount: 0,
           igtfBase: 0,
@@ -405,7 +423,7 @@ export const OrderService = {
             invoiceNumber: invoiceData.invoiceNumber,
             counterpartName: order.counterpartName,
             date: invoiceData.date,
-            periodId: invoiceData.periodId ?? null,
+            periodId: resolvedPeriodId,
             totalAmountVes,
             taxLines: derivedTaxLines.map((tl) => ({
               taxType: tl.taxType,

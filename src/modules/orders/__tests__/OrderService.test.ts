@@ -21,6 +21,7 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: { create: vi.fn() },
     inventoryItem: { findMany: vi.fn() }, // OM-08
     companySettings: { findUnique: vi.fn() }, // H-8
+    accountingPeriod: { findFirst: vi.fn() }, // E-14: guard de período en conversión
   },
 }));
 
@@ -200,6 +201,8 @@ describe("OrderService.convertOrderToInvoice", () => {
       ivaDFAccountId: null, ivaCFAccountId: null,
       ivaRetentionPayableAccountId: null, igtfPayableAccountId: null,
     } as never);
+    // E-14: por defecto no hay período para la fecha (no CLOSED) → conversión permitida
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         order: prisma.order,
@@ -208,6 +211,7 @@ describe("OrderService.convertOrderToInvoice", () => {
         invoiceLine: prisma.invoiceLine,
         auditLog: prisma.auditLog,
         companySettings: prisma.companySettings,
+        accountingPeriod: prisma.accountingPeriod, // E-14
         inventoryMovement: { findMany: vi.fn().mockResolvedValue([]) }, // hallazgo #2
       })) as never
     );
@@ -217,6 +221,23 @@ describe("OrderService.convertOrderToInvoice", () => {
     invoiceNumber: "F-0001",
     date: new Date("2026-04-14"),
   };
+
+  it("E-14 (R-3): lanza error si la fecha cae en un período CERRADO", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
+      { id: "per-closed", status: "CLOSED", year: 2026, month: 4 } as never
+    );
+
+    await expect(
+      OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
+    ).rejects.toThrow(/CERRADO/);
+
+    // No debe haberse creado la factura ni tocado el estado de la orden
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+    expect(prisma.order.update).not.toHaveBeenCalled();
+  });
 
   it("CRITICAL-1: lanza error si orderId no pertenece a companyId", async () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(null);
@@ -374,6 +395,7 @@ describe("OrderService.convertOrderToInvoice", () => {
       invoiceLine: prisma.invoiceLine,
       auditLog: prisma.auditLog,
       companySettings: prisma.companySettings,
+      accountingPeriod: prisma.accountingPeriod, // E-14
       inventoryMovement: { findMany: vi.fn().mockResolvedValue([mockDraftMovement]) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn(mockTx)) as never);
