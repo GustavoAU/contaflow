@@ -5,6 +5,7 @@
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
 import { type QuotationStatus, type QuotationType } from "@prisma/client";
+import { getNextDocumentNumber } from "../utils/sequence";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -139,27 +140,10 @@ function serializeQuotation(q: {
   };
 }
 
-// ─── Secuencia — Serializable (previene doble número bajo concurrencia) ───────
+// ─── Secuencia — Serializable + retry P2034 (compartida con OrderService) ─────
 
-async function getNextQuotationNumber(
-  companyId: string,
-  type: QuotationType
-): Promise<string> {
-  const docType =
-    type === "PURCHASE" ? "PURCHASE_QUOTATION" : "SALE_QUOTATION";
-  const prefix = type === "PURCHASE" ? "COT" : "PRE";
-
-  return prisma.$transaction(
-    async (tx) => {
-      const seq = await tx.orderNumberSequence.upsert({
-        where: { companyId_docType: { companyId, docType } },
-        create: { companyId, docType, lastNumber: 1 },
-        update: { lastNumber: { increment: 1 } },
-      });
-      return `${prefix}-${String(seq.lastNumber).padStart(4, "0")}`;
-    },
-    { isolationLevel: "Serializable" }
-  );
+function getNextQuotationNumber(companyId: string, type: QuotationType): Promise<string> {
+  return getNextDocumentNumber(companyId, type === "PURCHASE" ? "PURCHASE_QUOTATION" : "SALE_QUOTATION");
 }
 
 // ─── QuotationService ─────────────────────────────────────────────────────────

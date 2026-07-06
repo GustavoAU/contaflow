@@ -15,6 +15,7 @@ import { type OrderStatus, type QuotationType, type IvaLineRate } from "@prisma/
 import { type QuotationItemInput } from "./QuotationService";
 import type { InvoiceLineInput } from "@/modules/invoices/schemas/invoice.schema";
 import { computeLineTotals, deriveInvoiceTaxLines, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
+import { getNextDocumentNumber } from "../utils/sequence";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 
@@ -148,26 +149,10 @@ function serializeOrder(o: {
   };
 }
 
-// ─── Secuencia — Serializable ─────────────────────────────────────────────────
+// ─── Secuencia — Serializable + retry P2034 (compartida con QuotationService) ─
 
-async function getNextOrderNumber(
-  companyId: string,
-  type: QuotationType
-): Promise<string> {
-  const docType = type === "PURCHASE" ? "PURCHASE_ORDER" : "SALE_ORDER";
-  const prefix = type === "PURCHASE" ? "OC" : "OV";
-
-  return prisma.$transaction(
-    async (tx) => {
-      const seq = await tx.orderNumberSequence.upsert({
-        where: { companyId_docType: { companyId, docType } },
-        create: { companyId, docType, lastNumber: 1 },
-        update: { lastNumber: { increment: 1 } },
-      });
-      return `${prefix}-${String(seq.lastNumber).padStart(4, "0")}`;
-    },
-    { isolationLevel: "Serializable" }
-  );
+function getNextOrderNumber(companyId: string, type: QuotationType): Promise<string> {
+  return getNextDocumentNumber(companyId, type === "PURCHASE" ? "PURCHASE_ORDER" : "SALE_ORDER");
 }
 
 // Fase 37C: mapea taxRate numérico de OrderItem al enum IvaLineRate
