@@ -214,6 +214,9 @@ export async function getRetencionesSufridas(
         currency: true,
       },
       orderBy: { date: "asc" },
+      // MEDIUM-01 follow-up: cap defensivo. Es un drill-down de UI acotado a un mes
+      // (el total fiscal C1 viene del service, no de esta lista) — truncar no corrompe.
+      take: 1000,
     });
 
     return {

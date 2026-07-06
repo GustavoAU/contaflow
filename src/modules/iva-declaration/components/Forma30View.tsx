@@ -345,6 +345,16 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
                       No se encontraron comprobantes con retención IVA en este período.
                     </p>
                   )}
+                  {/* security-agent LOW: la action limita a 1.000 filas (take defensivo).
+                      El total C1 se calcula en el service sobre TODAS las facturas —
+                      sin este aviso, la suma visible no cuadraría con el total y
+                      parecería un error de la declaración. */}
+                  {c1Detail && c1Detail.length >= 1000 && (
+                    <p className="mb-1 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Mostrando las primeras 1.000 facturas del mes — el total C1 de la
+                      declaración incluye todas.
+                    </p>
+                  )}
                   {c1Detail && c1Detail.length > 0 && (
                     <div className="overflow-x-auto rounded-md border border-blue-100">
                       <table className="w-full text-xs">

@@ -7,13 +7,54 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     $queryRaw: vi.fn(),
     invoiceTaxLine: { groupBy: vi.fn() },
-    invoice: { findMany: vi.fn() },
+    invoice: { groupBy: vi.fn() }, // MEDIUM-01: aging agrega en BD
     bankTransaction: { count: vi.fn() },
     exchangeRate: { findMany: vi.fn() },
   },
 }));
 
 beforeEach(() => vi.clearAllMocks());
+
+type AgingFixture = {
+  type: "SALE" | "PURCHASE";
+  dueDate: Date | null;
+  pendingAmount: Decimal | null;
+};
+
+/**
+ * Emula `invoice.groupBy(by: ["type"], _sum: { pendingAmount })` de Postgres:
+ * filtra por el rango de dueDate (gt/lte), agrupa por type y suma (NULLs fuera).
+ */
+function emulateInvoiceGroupBy(rows: AgingFixture[]) {
+  vi.mocked(prisma.invoice.groupBy).mockImplementation(((args: {
+    where: { dueDate?: { gt?: Date; lte?: Date } };
+  }) => {
+    const range = args.where.dueDate;
+    const inWindow = rows.filter((f) => {
+      if (range) {
+        if (!f.dueDate) return false; // rango sobre columna NULL → excluida
+        if (range.gt && f.dueDate <= range.gt) return false;
+        if (range.lte && f.dueDate > range.lte) return false;
+      }
+      return true;
+    });
+    const byType = new Map<string, Decimal | null>();
+    for (const f of inWindow) {
+      const prev = byType.get(f.type);
+      if (f.pendingAmount == null) {
+        if (prev === undefined) byType.set(f.type, null); // SUM de solo NULLs = NULL
+        continue;
+      }
+      byType.set(f.type, (prev ?? new Decimal(0)).plus(f.pendingAmount.toString()));
+    }
+    return Promise.resolve(
+      [...byType.entries()].map(([type, sum]) => ({
+        type,
+        _sum: { pendingAmount: sum },
+      })),
+    );
+  }) as never);
+}
 
 // ─── getRevenueExpenseTrend ───────────────────────────────────────────────────
 
@@ -105,36 +146,22 @@ describe("DashboardAnalyticsService.getAgingBuckets", () => {
       return d;
     };
 
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+    emulateInvoiceGroupBy([
       // CxC — SALE — 15 días vencida → bucket "0-30"
-      {
-        type: "SALE",
-        dueDate: daysAgo(15),
-        pendingAmount: new Decimal("1000.00"),
-      },
+      { type: "SALE", dueDate: daysAgo(15), pendingAmount: new Decimal("1000.00") },
       // CxP — PURCHASE — 45 días vencida → bucket "31-60"
-      {
-        type: "PURCHASE",
-        dueDate: daysAgo(45),
-        pendingAmount: new Decimal("2000.00"),
-      },
+      { type: "PURCHASE", dueDate: daysAgo(45), pendingAmount: new Decimal("2000.00") },
       // CxC — SALE — 75 días vencida → bucket "61-90"
-      {
-        type: "SALE",
-        dueDate: daysAgo(75),
-        pendingAmount: new Decimal("500.00"),
-      },
+      { type: "SALE", dueDate: daysAgo(75), pendingAmount: new Decimal("500.00") },
       // CxP — PURCHASE — 100 días vencida → bucket "90+"
-      {
-        type: "PURCHASE",
-        dueDate: daysAgo(100),
-        pendingAmount: new Decimal("3000.00"),
-      },
-    ] as never);
+      { type: "PURCHASE", dueDate: daysAgo(100), pendingAmount: new Decimal("3000.00") },
+    ]);
 
     const result = await DashboardAnalyticsService.getAgingBuckets("co-1");
 
     expect(result).toHaveLength(4);
+    // Una consulta agregada por bucket — no se cargan filas individuales
+    expect(prisma.invoice.groupBy).toHaveBeenCalledTimes(4);
 
     const b0_30 = result.find((r) => r.bucket === "0-30")!;
     expect(b0_30.cxcAmount).toBe("1000.00");
@@ -152,7 +179,7 @@ describe("DashboardAnalyticsService.getAgingBuckets", () => {
   });
 
   it("devuelve todos los buckets en cero cuando no hay facturas pendientes", async () => {
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
+    emulateInvoiceGroupBy([]);
 
     const result = await DashboardAnalyticsService.getAgingBuckets("co-1");
     expect(result).toHaveLength(4);
@@ -162,11 +189,11 @@ describe("DashboardAnalyticsService.getAgingBuckets", () => {
     });
   });
 
-  it("ignora facturas sin dueDate o sin pendingAmount", async () => {
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+  it("excluye facturas sin dueDate (rango sobre NULL) e ignora sumas NULL", async () => {
+    emulateInvoiceGroupBy([
       { type: "SALE", dueDate: null, pendingAmount: new Decimal("500") },
       { type: "SALE", dueDate: new Date(), pendingAmount: null },
-    ] as never);
+    ]);
 
     const result = await DashboardAnalyticsService.getAgingBuckets("co-1");
     result.forEach((b) => {
