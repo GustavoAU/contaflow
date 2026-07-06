@@ -141,6 +141,7 @@ INVARIANTES
 [ ] R-5: ¿CERO number nativo en variables de dinero?
 [ ] R-6: ¿ipAddress/userAgent en AuditLog? ¿SeniatSubmission en mismo $transaction?
 [ ] R-7: ¿CERTIFIED_VERSION sin modificar (o proceso SENIAT cumplido)?
+[ ] ¿Modelo Prisma nuevo → ENABLE+FORCE RLS + policy company_isolation (USING+WITH CHECK) en la MISMA migración? (ADR-007 A1-bis; verificar con scripts/verify-rls.mjs)
 
 CALIDAD
 [ ] tsc --noEmit = 0 errores

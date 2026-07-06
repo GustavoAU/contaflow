@@ -66,6 +66,32 @@ Origen de cada paso:
    `withCompanyContext` (policies con subquery cross-tabla).
 3. Aislamiento: query con `companyId` ajeno → 0 filas (RLS sigue activa).
 
+## Fase A1-bis — cobertura completa (2026-07-06)
+
+La migración `20260706_rls_a1bis` cerró el gap de "tablas restantes" listado al final
+de `20260611_rls_force_with_check`: **51 tablas más** bajo ENABLE+FORCE+policy
+(`company_isolation` con USING+WITH CHECK). Diseño verificado tabla por tabla
+(mapa Explore 2026-07-06):
+
+- **Ninguna tabla pendiente era global** — todas tenant-scoped (INPCRate y
+  PublicHoliday incluidas: tienen `companyId` propio).
+- **Casos especiales:** `Company` → policy self-id (`id = contexto`);
+  `ManagedClient` → `despachoCompanyId`; 10 tablas sin `companyId` propio →
+  policy con subquery al padre (patrón JournalEntry): InvoiceTaxLine→Invoice,
+  OrderItem→Order, QuotationItem→Quotation, PaymentBatchLine→PaymentBatch,
+  InventoryMovementLot/Serial→InventoryMovement, IncomeDistributionLine/Audit→
+  IncomeDistribution, SubscriptionPayment/PlanChangeRequest→Subscription.
+- **Grupo de riesgo** (consultadas bajo `authenticated` HOY vía withCompanyContext):
+  Company, CompanySettings, ExchangeRate, INPCRate, InflationAdjustment,
+  FixedAssetINPCRestatement, InvoiceTaxLine — el contexto siempre coincide con el
+  companyId de esas queries (verificado en call-sites); smoke funcional PASS
+  (contexto propio ve filas; contexto ajeno → 0, fail-closed).
+- Grants: sin cambios — cubiertos por 20260611 (blanket + default privileges) y
+  20260628 (USAGE de schema).
+
+Con esto TODAS las tablas de negocio del schema tienen RLS. Tablas nuevas: incluir
+ENABLE+FORCE+policy en su migración de creación (checklist pre-merge).
+
 ## Rollback (emergencia)
 
 ```sql
