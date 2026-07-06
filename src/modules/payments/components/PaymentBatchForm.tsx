@@ -13,6 +13,7 @@ import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-r
 import { formatAmount } from "@/lib/format";
 import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
 import { listBankAccountsAction, type BankAccountOption } from "../actions/payment.actions";
+import { genIdempotencyKey } from "../utils/idempotency";
 
 type Props = {
   companyId: string;
@@ -31,12 +32,6 @@ function fmtVes(v: string) {
   return isNaN(n)
     ? v
     : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
-
-function genIdempotencyKey() {
-  return typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random()}`;
 }
 
 let lineKeySeq = 0;

@@ -267,7 +267,8 @@ describe("recordPaymentAction", () => {
   });
 
   it("idempotencyKey duplicada → mensaje de pago duplicado", async () => {
-    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValueOnce({ id: "dup-1" } as never);
+    // security-agent LOW: el pre-check ahora es findFirst con companyId (no oráculo global)
+    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValueOnce({ id: "dup-1" } as never);
     const res = await recordPaymentAction(VALID_INPUT);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toContain("Pago duplicado");

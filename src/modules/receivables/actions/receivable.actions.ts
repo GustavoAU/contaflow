@@ -215,9 +215,11 @@ export async function recordPaymentAction(
           // H-004 (R-3): la fecha del pago debe caer en el período contable abierto
           await PeriodService.assertDateInOpenPeriod(d.companyId, d.date, tx);
 
-          // Idempotencia: paridad con el flujo legacy (InvoicePayment.idempotencyKey)
-          const existing = await tx.paymentRecord.findUnique({
-            where: { idempotencyKey: d.idempotencyKey },
+          // Idempotencia: paridad con el flujo legacy (InvoicePayment.idempotencyKey).
+          // companyId en el where (security-agent LOW): el pre-check no debe actuar
+          // como oráculo global de existencia de claves de otros tenants (ADR-004).
+          const existing = await tx.paymentRecord.findFirst({
+            where: { idempotencyKey: d.idempotencyKey, companyId: d.companyId },
             select: { id: true },
           });
           if (existing) {
