@@ -6,7 +6,7 @@ import { Decimal } from "decimal.js";
 const mockPrisma = vi.hoisted(() => ({
   company: { findUnique: vi.fn() },
   accountingPeriod: { findUnique: vi.fn() },
-  invoice: { findMany: vi.fn() },
+  invoice: { findMany: vi.fn(), count: vi.fn() }, // count: guard de volumen (MEDIUM-01)
   retencion: { findMany: vi.fn() },
   iGTFTransaction: { findMany: vi.fn() },
 }));
@@ -65,9 +65,20 @@ describe("DeclaracionIVAService.calculate", () => {
     vi.clearAllMocks();
     mockPrisma.company.findUnique.mockResolvedValue(BASE_COMPANY);
     mockPrisma.accountingPeriod.findUnique.mockResolvedValue(BASE_PERIOD);
+    mockPrisma.invoice.count.mockResolvedValue(0); // bajo el guard de volumen
     mockPrisma.invoice.findMany.mockResolvedValue([]);
     mockPrisma.retencion.findMany.mockResolvedValue([]);
     mockPrisma.iGTFTransaction.findMany.mockResolvedValue([]);
+  });
+
+  it("guard de volumen: mes con más de 50.000 facturas → error de negocio, sin truncar", async () => {
+    mockPrisma.invoice.count.mockResolvedValue(50_001);
+
+    await expect(
+      DeclaracionIVAService.calculate(COMPANY_ID, YEAR, MONTH),
+    ).rejects.toThrow(/excede el máximo procesable/);
+    // NUNCA se cargan facturas parciales — la Forma 30 no se calcula truncada
+    expect(mockPrisma.invoice.findMany).not.toHaveBeenCalled();
   });
 
   it("retorna ceros cuando no hay datos en el período", async () => {

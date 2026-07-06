@@ -135,56 +135,53 @@ export const DashboardAnalyticsService = {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const unpaidInvoices = await prisma.invoice.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        paymentStatus: { in: ["UNPAID", "PARTIAL"] },
-        dueDate: { not: null },
-      },
-      select: {
-        type: true,
-        dueDate: true,
-        pendingAmount: true,
-      },
-    });
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const t31 = new Date(today.getTime() - 31 * MS_PER_DAY);
+    const t61 = new Date(today.getTime() - 61 * MS_PER_DAY);
+    const t91 = new Date(today.getTime() - 91 * MS_PER_DAY);
 
-    const buckets: Record<AgingBucketPoint["bucket"], { cxc: Decimal; cxp: Decimal }> = {
-      "0-30": { cxc: new Decimal(0), cxp: new Decimal(0) },
-      "31-60": { cxc: new Decimal(0), cxp: new Decimal(0) },
-      "61-90": { cxc: new Decimal(0), cxp: new Decimal(0) },
-      "90+": { cxc: new Decimal(0), cxp: new Decimal(0) },
-    };
+    // MEDIUM-01 follow-up: suma en BD por (ventana × tipo). Antes cargaba TODA la
+    // cartera impaga a memoria solo para clasificarla — O(filas) sin límite.
+    // Equivalencia exacta con floor((hoy−dueDate)/día): floor(y)≤30 ⇔ y<31 →
+    // "0-30" = dueDate > hoy−31d (incluye vencimientos futuros, igual que antes).
+    // Un rango sobre dueDate excluye NULL (reemplaza el { not: null }).
+    const windows = [
+      { bucket: "0-30" as const,  range: { gt: t31 } },
+      { bucket: "31-60" as const, range: { gt: t61, lte: t31 } },
+      { bucket: "61-90" as const, range: { gt: t91, lte: t61 } },
+      { bucket: "90+" as const,   range: { lte: t91 } },
+    ];
 
-    for (const inv of unpaidInvoices) {
-      if (!inv.dueDate || !inv.pendingAmount) continue;
+    const perWindow = await Promise.all(
+      windows.map((w) =>
+        prisma.invoice.groupBy({
+          by: ["type"],
+          where: {
+            companyId,
+            deletedAt: null,
+            paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+            dueDate: w.range,
+          },
+          _sum: { pendingAmount: true },
+        }),
+      ),
+    );
 
-      const daysOverdue = Math.floor(
-        (today.getTime() - inv.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-
-      const bucketKey: AgingBucketPoint["bucket"] =
-        daysOverdue <= 30
-          ? "0-30"
-          : daysOverdue <= 60
-            ? "31-60"
-            : daysOverdue <= 90
-              ? "61-90"
-              : "90+";
-
-      const amount = new Decimal(inv.pendingAmount.toString());
-      if (inv.type === InvoiceType.SALE) {
-        buckets[bucketKey].cxc = buckets[bucketKey].cxc.plus(amount);
-      } else {
-        buckets[bucketKey].cxp = buckets[bucketKey].cxp.plus(amount);
+    return windows.map((w, i) => {
+      let cxc = new Decimal(0);
+      let cxp = new Decimal(0);
+      for (const row of perWindow[i]) {
+        if (!row._sum.pendingAmount) continue;
+        const amount = new Decimal(row._sum.pendingAmount.toString());
+        if (row.type === InvoiceType.SALE) cxc = cxc.plus(amount);
+        else cxp = cxp.plus(amount);
       }
-    }
-
-    return (["0-30", "31-60", "61-90", "90+"] as const).map((bucket) => ({
-      bucket,
-      cxcAmount: buckets[bucket].cxc.toFixed(2),
-      cxpAmount: buckets[bucket].cxp.toFixed(2),
-    }));
+      return {
+        bucket: w.bucket,
+        cxcAmount: cxc.toFixed(2),
+        cxpAmount: cxp.toFixed(2),
+      };
+    });
   },
 
   /**

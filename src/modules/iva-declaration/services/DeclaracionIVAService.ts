@@ -61,6 +61,25 @@ export class DeclaracionIVAService {
       select: { id: true },
     });
 
+    // ── 2b. Guard de volumen (MEDIUM-01 follow-up) ───────────────────────────
+    // La Forma 30 DEBE procesar TODAS las facturas del mes — un `take` truncaría
+    // la declaración (infracción SENIAT). El guard protege la infraestructura
+    // (memoria) sin poder corromper el cálculo: si el mes excede el máximo,
+    // falla con error de negocio en vez de degradar el proceso.
+    const MAX_INVOICES_PER_PERIOD = 50_000;
+    const invoiceCount = await db.invoice.count({
+      where: {
+        companyId,
+        date: { gte: periodStart, lt: periodEnd },
+        deletedAt: null,
+      },
+    });
+    if (invoiceCount > MAX_INVOICES_PER_PERIOD) {
+      throw new Error(
+        `El período ${String(month).padStart(2, "0")}/${year} tiene ${invoiceCount.toLocaleString("es-VE")} facturas — excede el máximo procesable (${MAX_INVOICES_PER_PERIOD.toLocaleString("es-VE")}). Contacte a soporte.`,
+      );
+    }
+
     // ── 3. Facturas de VENTA ─────────────────────────────────────────────────
     const saleInvoices = await db.invoice.findMany({
       where: {

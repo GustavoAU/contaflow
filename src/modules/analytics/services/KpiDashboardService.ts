@@ -44,15 +44,17 @@ export class KpiDashboardService {
     const now = new Date();
     const since30d = new Date(now.getTime() - 30 * MS_PER_DAY);
 
-    const [unpaidInvoices, recentSales] = await Promise.all([
-      // Todas las facturas activas no pagadas / parciales
-      prisma.invoice.findMany({
+    const [pendingByType, recentSales] = await Promise.all([
+      // MEDIUM-01 follow-up: suma en BD por tipo. Antes cargaba TODAS las facturas
+      // impagas a memoria solo para sumarlas en JS — O(cartera) que crece sin límite.
+      prisma.invoice.groupBy({
+        by: ["type"],
         where: {
           companyId,
           deletedAt: null,
           paymentStatus: { in: ["UNPAID", "PARTIAL"] },
         },
-        select: { type: true, pendingAmount: true },
+        _sum: { pendingAmount: true },
       }),
 
       // Ventas de los últimos 30 días para calcular DSO
@@ -70,10 +72,10 @@ export class KpiDashboardService {
     let cxc = new Decimal(0);
     let cxp = new Decimal(0);
 
-    for (const inv of unpaidInvoices) {
-      if (!inv.pendingAmount) continue;
-      const amount = new Decimal(inv.pendingAmount.toString());
-      if (inv.type === InvoiceType.SALE) {
+    for (const row of pendingByType) {
+      if (!row._sum.pendingAmount) continue;
+      const amount = new Decimal(row._sum.pendingAmount.toString());
+      if (row.type === InvoiceType.SALE) {
         cxc = cxc.plus(amount);
       } else {
         cxp = cxp.plus(amount);
@@ -108,52 +110,49 @@ export class KpiDashboardService {
     const now = new Date();
     now.setUTCHours(0, 0, 0, 0);
 
+    const d30 = new Date(now.getTime() + 30 * MS_PER_DAY);
+    const d60 = new Date(now.getTime() + 60 * MS_PER_DAY);
     const d90 = new Date(now.getTime() + 90 * MS_PER_DAY);
 
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        paymentStatus: { in: ["UNPAID", "PARTIAL"] },
-        dueDate: { gte: now, lte: d90 },
-      },
-      select: { type: true, dueDate: true, pendingAmount: true },
-    });
+    // MEDIUM-01 follow-up: suma en BD por (ventana × tipo). Equivalencia exacta con
+    // el bucketing anterior por ceil((dueDate−hoy)/día): ceil(y)≤30 ⇔ y≤30 →
+    // [hoy, +30d] · (＋30d, +60d] · (+60d, +90d]. Un rango sobre dueDate excluye NULL.
+    const windows = [
+      { label: "0-30d" as const,  range: { gte: now, lte: d30 } },
+      { label: "31-60d" as const, range: { gt: d30, lte: d60 } },
+      { label: "61-90d" as const, range: { gt: d60, lte: d90 } },
+    ];
 
-    type BucketAccum = { collections: Decimal; payments: Decimal };
-    const buckets: Record<"0-30d" | "31-60d" | "61-90d", BucketAccum> = {
-      "0-30d":  { collections: new Decimal(0), payments: new Decimal(0) },
-      "31-60d": { collections: new Decimal(0), payments: new Decimal(0) },
-      "61-90d": { collections: new Decimal(0), payments: new Decimal(0) },
-    };
+    const perWindow = await Promise.all(
+      windows.map((w) =>
+        prisma.invoice.groupBy({
+          by: ["type"],
+          where: {
+            companyId,
+            deletedAt: null,
+            paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+            dueDate: w.range,
+          },
+          _sum: { pendingAmount: true },
+        }),
+      ),
+    );
 
-    for (const inv of invoices) {
-      if (!inv.dueDate || !inv.pendingAmount) continue;
-
-      const daysAhead = Math.ceil(
-        (inv.dueDate.getTime() - now.getTime()) / MS_PER_DAY,
-      );
-
-      const key: keyof typeof buckets =
-        daysAhead <= 30
-          ? "0-30d"
-          : daysAhead <= 60
-            ? "31-60d"
-            : "61-90d";
-
-      const amount = new Decimal(inv.pendingAmount.toString());
-      if (inv.type === InvoiceType.SALE) {
-        buckets[key].collections = buckets[key].collections.plus(amount);
-      } else {
-        buckets[key].payments = buckets[key].payments.plus(amount);
+    return windows.map((w, i) => {
+      let collections = new Decimal(0);
+      let payments = new Decimal(0);
+      for (const row of perWindow[i]) {
+        if (!row._sum.pendingAmount) continue;
+        const amount = new Decimal(row._sum.pendingAmount.toString());
+        if (row.type === InvoiceType.SALE) collections = collections.plus(amount);
+        else payments = payments.plus(amount);
       }
-    }
-
-    return (["0-30d", "31-60d", "61-90d"] as const).map((label) => ({
-      label,
-      collections: buckets[label].collections.toFixed(2),
-      payments: buckets[label].payments.toFixed(2),
-      net: buckets[label].collections.minus(buckets[label].payments).toFixed(2),
-    }));
+      return {
+        label: w.label,
+        collections: collections.toFixed(2),
+        payments: payments.toFixed(2),
+        net: collections.minus(payments).toFixed(2),
+      };
+    });
   }
 }
