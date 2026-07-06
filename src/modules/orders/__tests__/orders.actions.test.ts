@@ -23,6 +23,8 @@ vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue(new Map()) }
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  // ADR-041: el guard usa fiscalKey(companyId, userId) como identifier
+  fiscalKey: (companyId: string, userId: string) => `${companyId}:${userId}`,
   limiters: { fiscal: {} },
 }));
 
@@ -102,7 +104,7 @@ describe("createQuotationAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const r = await createQuotationAction(COMPANY_ID, VALID_QUOTATION_INPUT);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
+    expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
   });
 
   it("sin membresía retorna acceso denegado", async () => {
@@ -142,7 +144,7 @@ describe("approveQuotationAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await approveQuotationAction(COMPANY_ID, "quot-1");
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
+    expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
   });
 
   it("HIGH-2: rate limit bloqueado devuelve error", async () => {
@@ -224,7 +226,7 @@ describe("approveOrderAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await approveOrderAction(COMPANY_ID, "order-1");
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
+    expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
   });
 
   it("HIGH-2: rate limit bloqueado", async () => {
@@ -265,7 +267,7 @@ describe("convertOrderToInvoiceAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await convertOrderToInvoiceAction(COMPANY_ID, VALID_CONVERT);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
+    expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
   });
 
   it("HIGH-2: rate limit bloqueado en conversión", async () => {

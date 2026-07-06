@@ -6,64 +6,48 @@
 //   HIGH-1: companyId from member record, never from request body
 //   HIGH-2: rate limit on approve + convert (fiscal mutations)
 //   LOW-1:  VIEWER excluded from all mutations
+//
+// ADR-041: módulo PILOTO de requireCompanyAction — el ritual auth → rate limit →
+// member → rol (+ ip/ua para R-6) vive en src/lib/action-guard.ts, no aquí.
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { CreateOrderSchema, ConvertOrderSchema } from "../schemas/order.schema";
 import { OrderService } from "../services/OrderService";
 import { type QuotationType, type OrderStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-// AUD-01 (R-6): captura ipAddress/userAgent para el rastro de auditoría
-async function netContext() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
-
 // ── createOrderAction — ROLES.OPERATIONS ─────────────────────────────────────
 export async function createOrderAction(
   companyId: string,
   raw: unknown
 ): Promise<ActionResult<{ id: string; number: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  // HIGH-1: member lookup — companyId is authoritative from DB
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true, // AUD-01 (R-6)
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   const parsed = CreateOrderSchema.safeParse(raw);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const { ipAddress, userAgent } = await netContext();
     const order = await OrderService.createOrder(
       companyId,
-      userId,
+      ctx.userId,
       {
         ...parsed.data,
         expectedDate: parsed.data.expectedDate
           ? new Date(parsed.data.expectedDate)
           : undefined,
       },
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: order.id, number: order.number } };
@@ -77,24 +61,16 @@ export async function approveOrderAction(
   companyId: string,
   orderId: string
 ): Promise<ActionResult<void>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  // HIGH-2: rate limit
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal, // HIGH-2
+    captureNet: true, // AUD-01 (R-6)
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     // CRITICAL-1: companyId guard enforced inside OrderService.approveOrder
-    const { ipAddress, userAgent } = await netContext();
-    await OrderService.approveOrder(companyId, orderId, userId, ipAddress, userAgent);
+    await OrderService.approveOrder(companyId, orderId, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -110,33 +86,22 @@ export async function convertOrderToInvoiceAction(
   companyId: string,
   raw: unknown
 ): Promise<ActionResult<{ invoiceId: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  // HIGH-2: rate limit on conversion (creates an Invoice)
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal, // HIGH-2: la conversión crea una Invoice
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   const parsed = ConvertOrderSchema.safeParse(raw);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
     const result = await OrderService.convertOrderToInvoice(
       companyId,
       parsed.data.orderId,
-      userId,
+      ctx.userId,
       {
         invoiceNumber: parsed.data.invoiceNumber,
         controlNumber: parsed.data.controlNumber,
@@ -144,8 +109,8 @@ export async function convertOrderToInvoiceAction(
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
         periodId: parsed.data.periodId,
       },
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     revalidatePath(`/company/${companyId}/invoices`);
@@ -155,18 +120,13 @@ export async function convertOrderToInvoiceAction(
   }
 }
 
-// ── getOrdersAction — ROLES.ALL (lectura) ─────────────────────────────────────
+// ── getOrdersAction — lectura (solo membresía, sin canAccess — incluye SENIAT) ─
 export async function getOrdersAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: OrderStatus }
 ): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrders>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, {});
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await OrderService.getOrders(companyId, filters);
@@ -176,18 +136,13 @@ export async function getOrdersAction(
   }
 }
 
-// ── getOrderAction — ROLES.ALL (lectura) ──────────────────────────────────────
+// ── getOrderAction — lectura (solo membresía) ─────────────────────────────────
 export async function getOrderAction(
   companyId: string,
   orderId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrder>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, {});
+  if (!ctx.ok) return ctx.error;
 
   try {
     // CRITICAL-1: companyId guard in service
@@ -203,27 +158,20 @@ export async function cloneOrderAction(
   companyId: string,
   orderId: string
 ): Promise<ActionResult<{ id: string; number: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     const original = await OrderService.getOrder(companyId, orderId);
     if (!original) return { success: false, error: "Orden no encontrada" };
 
-    const { ipAddress, userAgent } = await netContext();
     const cloned = await OrderService.createOrder(
       companyId,
-      userId,
+      ctx.userId,
       {
         type: original.type,
         counterpartName: original.counterpartName,
@@ -238,8 +186,8 @@ export async function cloneOrderAction(
           taxRate: i.taxRate,
         })),
       },
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
