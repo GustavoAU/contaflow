@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.sch
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { formatAmount } from "@/lib/format";
 import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
+import { genIdempotencyKey } from "../utils/idempotency";
 
 type Props = {
   companyId: string;
@@ -41,6 +42,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
 
   // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%)
   const [ivaRetentionAmount, setIvaRetentionAmount] = useState("");
+
+  // H6 (ADR-032): clave de idempotencia ESTABLE mientras el usuario reintenta el mismo
+  // pago (timeout de red → retry usa la misma key → el servidor deduplica). Se rota
+  // solo tras un éxito (el siguiente pago es una operación nueva).
+  const [idempotencyKey, setIdempotencyKey] = useState(genIdempotencyKey);
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -142,6 +148,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setCasheaIgtf(false);
     setBankAccountId("");
     setIvaRetentionAmount("");
+    // H6: el siguiente pago es una operación nueva → key nueva
+    setIdempotencyKey(genIdempotencyKey());
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -167,6 +175,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         date,
         notes: concept,
         createdBy: userId,
+        // H6 (ADR-032): dedupe de doble-submit — misma key en cada retry de ESTE pago
+        idempotencyKey,
       };
 
       if (method === "PAGOMOVIL" || method === "TRANSFERENCIA") {

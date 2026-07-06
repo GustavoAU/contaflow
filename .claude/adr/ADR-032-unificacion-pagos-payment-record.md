@@ -180,8 +180,14 @@ Descartada: la lógica de guards (año fiscal cerrado vía `FiscalYearCloseServi
   F2 redirija receivables/payables a la vía canónica:** generar UUID en cliente + capturar
   P2002 en el service. Subtileza: la captura debe resolver el lookup del record existente
   *fuera* de la transacción abortada (un P2002 dentro del `$transaction` lo deja en estado
-  abort) — pre-check por `idempotencyKey` o reintento en tx nueva. **Estado: PENDIENTE F2**
-  (danger-zone Z-2 → requiere security-agent + tests; no se cierra en una pasada de ADRs).
+  abort) — pre-check por `idempotencyKey` o reintento en tx nueva.
+  **✅ RESUELTO (2026-07-05, rama `fix/payment-idempotency-h6`):** `idempotencyKey` es
+  **obligatoria** en `CreatePaymentSchema`; el cliente la genera con
+  `genIdempotencyKey()` (`payments/utils/idempotency.ts` — compartido con PaymentBatchForm)
+  y la mantiene **estable durante los reintentos del mismo pago** (se rota solo tras éxito).
+  `createPaymentAction` hace **pre-check por key dentro del `$transaction`** (evita el
+  estado abort del P2002) y captura el **race** P2002 acotado al target `idempotencyKey`
+  como backstop. Paridad completa con `recordPaymentAction` (CxC) y ADR-022.
 
 ---
 
@@ -191,7 +197,7 @@ Descartada: la lógica de guards (año fiscal cerrado vía `FiscalYearCloseServi
 - [x] `onDelete: Cascade` AUSENTE
 - [x] Montos siguen en `Decimal @db.Decimal(19,4)` — el campo nuevo es `Boolean`, no monetario
 - [x] `deletedAt` ya existe en `PaymentRecord` (void = soft-delete, ADR-030)
-- [x] Idempotencia: `idempotencyKey @unique` YA en schema; captura P2002 + UUID cliente PENDIENTE F2 (ver Restricciones, hallazgo 6)
+- [x] Idempotencia: `idempotencyKey @unique` + UUID cliente + pre-check en tx + captura P2002 race — RESUELTO 2026-07-05 (ver Restricciones, hallazgo 6)
 - [x] Índices: sin nuevos — `appliedToInvoice` no es filtro de listado; `@@index([invoiceId])` ya existe
 - [x] `AuditLog` en mismo `$transaction` (R-6)
 - [x] Análisis de riesgo de migración documentado (additiva, sin backfill, rollback = DROP COLUMN)

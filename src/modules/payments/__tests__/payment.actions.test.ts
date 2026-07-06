@@ -25,6 +25,8 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: { findFirst: vi.fn() },
     company: { findFirst: vi.fn() },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
+    paymentRecord: { findUnique: vi.fn() }, // H6: pre-check de idempotencia
+
     paymentAttachment: { findFirst: vi.fn() },
     companySettings: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -60,6 +62,7 @@ vi.mock("@/modules/accounting/services/PeriodService", () => ({
 }));
 
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
@@ -78,6 +81,7 @@ const VALID_INPUT = {
   date: "2026-03-10",
   referenceNumber: "REF-001",       // TRANSFERENCIA requiere referencia (#2)
   notes: "Concepto de prueba",      // obligatorio desde #12
+  idempotencyKey: "idem-valid-1",   // H6: obligatoria desde ADR-032 F2
 };
 
 const MOCK_PAYMENT = {
@@ -100,8 +104,10 @@ describe("createPaymentAction — security", () => {
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
     );
+    // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -218,6 +224,89 @@ describe("createPaymentAction — security", () => {
 // R-3 / Z-3: la FECHA del pago debe caer en el período contable OPEN. Un pago con
 // fecha fuera del período (cerrado o inexistente) debe rechazarse SIEMPRE, genere
 // asiento o no — consistente con Caja Chica (assertDateInOpenPeriod).
+// ─── H6 (ADR-032): idempotencia en la vía individual de pagos ─────────────────
+describe("createPaymentAction — H6 idempotencia (Z-2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    mockCheckRateLimit.mockResolvedValue({ allowed: true });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: unknown) => unknown) =>
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
+    );
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never);
+    vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+  });
+
+  it("rechaza el input sin idempotencyKey (Zod — obligatoria en la vía canónica)", async () => {
+    const { idempotencyKey: _omit, ...withoutKey } = VALID_INPUT;
+    const result = await createPaymentAction(withoutKey);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("idempotencia");
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("reintento con la misma key NO crea un segundo pago (pre-check dentro de la tx)", async () => {
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue({ id: "pay-previo" } as never);
+
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("clave de idempotencia");
+    expect(prisma.paymentRecord.findUnique).toHaveBeenCalledWith({
+      where: { idempotencyKey: "idem-valid-1" },
+      select: { id: true },
+    });
+    expect(PaymentService.create).not.toHaveBeenCalled();
+  });
+
+  it("race de dos submits simultáneos: el @unique de BD gana → mensaje de negocio", async () => {
+    // Ambos pasan el pre-check (aún no existe fila) pero el segundo insert choca con el unique
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "test",
+      meta: { target: ["idempotencyKey"] },
+    });
+    vi.mocked(PaymentService.create).mockRejectedValue(p2002);
+
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("Pago duplicado");
+  });
+
+  it("un P2002 de OTRO unique no se disfraza de duplicado de idempotencia", async () => {
+    const p2002Other = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "test",
+      meta: { target: ["glTransactionId"] },
+    });
+    vi.mocked(PaymentService.create).mockRejectedValue(p2002Other);
+
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).not.toContain("Pago duplicado");
+  });
+
+  it("happy path: la key llega al service para persistirse en PaymentRecord", async () => {
+    const result = await createPaymentAction(VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(PaymentService.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ idempotencyKey: "idem-valid-1" }),
+    );
+  });
+});
+
 describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,8 +316,10 @@ describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", (
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
     );
+    // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
@@ -291,6 +382,7 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
     amountOriginal: "50",    // 50 USD reales
     date: "2026-04-03",
     notes: "Pago Zelle prueba",
+    idempotencyKey: "idem-zelle-1", // H6
   };
 
   beforeEach(() => {
@@ -302,8 +394,10 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
     );
+    // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
@@ -404,6 +498,7 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     invoiceId: "invoice-1",
     date: "2026-04-03",
     notes: "Pago Zelle prueba",     // obligatorio desde #12
+    idempotencyKey: "idem-usd-1",   // H6
   };
 
   beforeEach(() => {
@@ -414,8 +509,10 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice })) as never,
+        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
     );
+    // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
+    vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);

@@ -18,6 +18,7 @@ import { PaymentGLService } from "../services/PaymentGLService";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { isPrismaError } from "@/lib/prisma-errors";
 
 // ─── Crear registro de pago ───────────────────────────────────────────────────
 export async function createPaymentAction(
@@ -93,6 +94,17 @@ export async function createPaymentAction(
           // H-004 (R-3): la fecha del pago debe caer en el período contable abierto
           await PeriodService.assertDateInOpenPeriod(d.companyId, dateObj, tx);
 
+          // H6 (ADR-032): idempotencia — un reintento (timeout de red, doble pestaña,
+          // POST directo) con la misma clave NO crea un segundo pago. Paridad con
+          // recordPaymentAction (CxC). El @unique de BD es el backstop ante el race.
+          const dupe = await (tx as typeof prisma).paymentRecord.findUnique({
+            where: { idempotencyKey: d.idempotencyKey },
+            select: { id: true },
+          });
+          if (dupe) {
+            throw new Error("Pago duplicado — ya existe un pago con esta clave de idempotencia");
+          }
+
           // ADR-032 F1: PaymentRecord es la vía canónica — aplica el pago al saldo
           // de la factura DENTRO del mismo $transaction. FOR UPDATE serializa
           // contra pagos concurrentes; guards: anulada, año cerrado, sobre-pago.
@@ -128,6 +140,8 @@ export async function createPaymentAction(
             bankAccountId: d.bankAccountId,
             // ADR-032 F1: el saldo ya fue decrementado arriba dentro de esta tx
             appliedToInvoice: !!d.invoiceId,
+            // H6 (ADR-032): dedupe de doble-submit — @unique en BD
+            idempotencyKey: d.idempotencyKey,
           });
 
           // Acumular igtfBase/igtfAmount en la factura vinculada.
@@ -224,6 +238,18 @@ export async function createPaymentAction(
     revalidatePath(`/company/${d.companyId}/payments`);
     return { success: true, data: result };
   } catch (err) {
+    // H6 (ADR-032): duplicado detectado por el pre-check dentro de la tx
+    if (err instanceof Error && err.message.includes("clave de idempotencia")) {
+      return { success: false, error: err.message };
+    }
+    // H6: race — dos submits simultáneos con la misma key; el @unique de BD ganó.
+    // Acotado al target idempotencyKey para no enmascarar otros uniques de la tx.
+    if (
+      isPrismaError(err, "P2002") &&
+      (err.meta?.target as string[] | undefined)?.includes("idempotencyKey")
+    ) {
+      return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
+    }
     // Sanitización centralizada: errores de negocio (español) pasan; errores técnicos
     // de BD/Postgres (p.ej. "permission denied for schema public") → mensaje genérico en español.
     return toActionError(err);
