@@ -125,7 +125,7 @@ export async function getOrdersAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: OrderStatus }
 ): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrders>>>> {
-  const ctx = await requireCompanyAction(companyId, {});
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -141,7 +141,7 @@ export async function getOrderAction(
   companyId: string,
   orderId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof OrderService.getOrder>>>> {
-  const ctx = await requireCompanyAction(companyId, {});
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;
 
   try {

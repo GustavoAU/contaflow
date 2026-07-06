@@ -35,7 +35,7 @@ No leer nada más hasta que el árbol lo indique.
 | ¿Sesiones con actividad (IP/device)? | `useUser().user.getSessions()` → `SessionWithActivitiesResource[]` (latestActivity + revoke). NO useSessionList |
 | ¿Step-up config centralizado? | `src/lib/step-up.ts` — STEP_UP_CONFIG + reverificationError + StepUpError |
 | ¿Tests con step-up actions? | Agregar `has: () => true` al mock de auth() + `if ('clerk_error' in result) throw` antes de `expect(result.success)` |
-| ¿Action nueva? | `requireCompanyAction(companyId, {roles, limiter, captureNet})` de `src/lib/action-guard.ts` (ADR-041) — NUNCA el ritual manual auth→rl→member→canAccess. Checks extra (ADMIN_ONLY, step-up, hasModuleAccess) van DESPUÉS del guard |
+| ¿Action nueva? | `requireCompanyAction(companyId, {roles, limiter, captureNet})` de `src/lib/action-guard.ts` (ADR-041) — NUNCA el ritual manual auth→rl→member→canAccess. `roles` es OBLIGATORIO: array de ROLES.X o `"MEMBER_ANY"` (solo membresía, lecturas). Checks extra (ADMIN_ONLY, step-up, hasModuleAccess) van DESPUÉS del guard |
 | ¿ActionResult / toActionError / ip-ua? | Fuente única `src/lib/{action-result,action-errors,net-context}.ts` — las copias de módulos son re-exports (ADR-041). IP siempre `.at(-1)` de x-forwarded-for |
 
 ---

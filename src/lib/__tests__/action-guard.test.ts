@@ -146,12 +146,14 @@ describe("requireCompanyAction — rol (paso 4, canAccess REAL)", () => {
     });
   });
 
-  it("roles omitido con rol SENIAT → ok:true (solo membresía — preserva lecturas legacy)", async () => {
+  it('roles: "MEMBER_ANY" con rol SENIAT → ok:true (solo membresía — preserva lecturas legacy)', async () => {
+    // security-agent MEDIUM: roles es OBLIGATORIO — el sentinel explícito reemplaza
+    // la omisión silenciosa; una mutación sin roles ya no compila.
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
       role: "SENIAT",
     } as never);
 
-    const ctx = await requireCompanyAction(COMPANY_ID, {});
+    const ctx = await requireCompanyAction(COMPANY_ID, { roles: "MEMBER_ANY" });
 
     expect(ctx.ok).toBe(true);
     if (!ctx.ok) throw new Error("unreachable");

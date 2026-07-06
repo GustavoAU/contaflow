@@ -77,11 +77,15 @@ type GuardResult =
   | { ok: false; error: ActionResult<never> };
 ```
 
-**Mensajes de error idénticos a los actuales** — "No autorizado" / "Empresa no encontrada o acceso denegado" / mensaje del limiter. Cero cambio observable para el cliente ni para los tests existentes.
+**Mensajes de error estandarizados al patrón dominante** — "No autorizado" (rol insuficiente) / "Empresa no encontrada o acceso denegado" (sin membresía) / mensaje del limiter. Nota de exactitud (security-agent INFO 2026-07-05): en el piloto `orders` esto SÍ cambió los mensajes — ese módulo era el outlier con "Acceso denegado" para ambos casos; sus tests fueron actualizados. Módulos que ya usaban el patrón dominante (payments, receivables, invoices…) no ven cambio.
+
+**`roles` es OBLIGATORIO con sentinel explícito** (security-agent MEDIUM 2026-07-05): `roles: UserRole[] | "MEMBER_ANY"`. No existe omisión — una mutación futura sin roles no compila; `"MEMBER_ANY"` declara conscientemente "solo membresía" (lecturas legacy sin `canAccess`, incluye SENIAT). Esto hace estructuralmente imposible relajar authz por olvido durante las ~150 migraciones restantes.
+
+**Riesgo aceptado (security-agent LOW 2026-07-05):** `fiscalKey(companyId, userId)` se evalúa antes de la verificación de membresía, por lo que un usuario autenticado que rote `companyId` inventados obtiene buckets frescos para martillar `companyMember.findFirst`. Aceptado: la clave incluye SU userId (no consume cuota ajena), requiere sesión Clerk válida, la query es indexada y barata, y las lecturas legacy ya permitían ese findFirst sin límite alguno. Reevaluar si aparece abuso real (mitigación: segundo check por userId solo).
 
 ### D-4 — Migración incremental, NO big-bang
 
-- **Piloto migrado en esta rama:** módulo `orders` (7 actions).
+- **Piloto migrado en esta rama:** módulo `orders` (12 actions: 6 en order.actions.ts + 6 en quotation.actions.ts).
 - **Regla hacia adelante:** toda Server Action **NUEVA** usa `requireCompanyAction` obligatoriamente. Las existentes migran **módulo a módulo, en tasks separados** con su propio phase gate (tsc + vitest + security-agent), respetando la regla de aislamiento de scope de `CLAUDE.md`.
 - **Invariante de seguridad:** el helper **NUNCA relaja un guard**. Checks adicionales — `ADMIN_ONLY` (ADR-006 D-1), step-up 2FA, `hasModuleAccess` (ADR-025) — van **DESPUÉS** del helper, en la action, no dentro del helper. `requireCompanyAction` es el piso mínimo, no el techo.
 
@@ -123,5 +127,5 @@ type GuardResult =
 - `src/lib/action-errors.ts` — `toActionError()` canónico
 - `src/lib/net-context.ts` — `netContext()` (regla `.at(-1)`, UA truncado a 512)
 - `src/lib/action-guard.ts` — `requireCompanyAction(companyId, opts)`
-- `src/modules/orders/actions/*.actions.ts` — piloto migrado (7 actions)
+- `src/modules/orders/actions/*.actions.ts` — piloto migrado (12 actions)
 - `src/modules/*/types/action-result.ts` + `src/modules/*/utils/action-errors.ts` — re-exports de una línea (salvo excepciones D-1)

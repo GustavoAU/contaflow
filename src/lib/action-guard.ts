@@ -31,10 +31,12 @@ import type { ActionResult } from "@/lib/action-result";
 
 export type GuardOptions = {
   /**
-   * Roles permitidos — usar constantes de ROLES (auth-helpers).
-   * Omitir = solo membresía (lecturas que hoy no llaman canAccess; incluye SENIAT).
+   * Roles permitidos — usar constantes de ROLES (auth-helpers), OBLIGATORIO.
+   * `"MEMBER_ANY"` = solo membresía, sin canAccess (lecturas legacy; incluye SENIAT).
+   * Security-agent MEDIUM (2026-07-05): el sentinel explícito hace imposible relajar
+   * authz por omisión silenciosa — el compilador fuerza la decisión en cada call-site.
    */
-  roles?: UserRole[];
+  roles: UserRole[] | "MEMBER_ANY";
   /** Limiter a aplicar (p.ej. limiters.fiscal). Omitir = sin rate limit (solo lecturas baratas) */
   limiter?: Ratelimit | null;
   /** Capturar ipAddress/userAgent para AuditLog (R-6). Default false */
@@ -80,8 +82,10 @@ export async function requireCompanyAction(
   });
   if (!member) return fail("Empresa no encontrada o acceso denegado");
 
-  // 4. Rol — si se omite roles, la membresía basta (lecturas legacy sin canAccess)
-  if (opts.roles && !canAccess(member.role, opts.roles)) return fail("No autorizado");
+  // 4. Rol — "MEMBER_ANY" = la membresía basta (lecturas legacy sin canAccess)
+  if (opts.roles !== "MEMBER_ANY" && !canAccess(member.role, opts.roles)) {
+    return fail("No autorizado");
+  }
 
   // 5. Contexto de red (R-6) — solo si la action lo necesita para AuditLog
   const net = opts.captureNet ? await netContext() : { ipAddress: null, userAgent: null };

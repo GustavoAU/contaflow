@@ -123,7 +123,7 @@ export async function getQuotationsAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: QuotationStatus }
 ): Promise<ActionResult<Awaited<ReturnType<typeof QuotationService.getQuotations>>>> {
-  const ctx = await requireCompanyAction(companyId, {});
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;
 
   try {
