@@ -97,8 +97,10 @@ export async function createPaymentAction(
           // H6 (ADR-032): idempotencia — un reintento (timeout de red, doble pestaña,
           // POST directo) con la misma clave NO crea un segundo pago. Paridad con
           // recordPaymentAction (CxC). El @unique de BD es el backstop ante el race.
-          const dupe = await (tx as typeof prisma).paymentRecord.findUnique({
-            where: { idempotencyKey: d.idempotencyKey },
+          // companyId en el where (security-agent LOW): el pre-check no debe actuar
+          // como oráculo global de existencia de claves de otros tenants (ADR-004).
+          const dupe = await (tx as typeof prisma).paymentRecord.findFirst({
+            where: { idempotencyKey: d.idempotencyKey, companyId: d.companyId },
             select: { id: true },
           });
           if (dupe) {

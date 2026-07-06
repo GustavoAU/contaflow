@@ -3,8 +3,10 @@
 // La clave viaja con el request; el servidor la persiste en PaymentRecord/PaymentBatch
 // (@unique) y rechaza reintentos (timeout de red, doble pestaña, POST directo) con la
 // misma clave. La protección vive en BD, no en la UI (LL-011).
+//
+// UUID estricto — el schema Zod lo exige con .uuid() (security-agent: el unique es
+// global en la tabla, sin fallback de texto libre). crypto.randomUUID está disponible
+// en todo secure context (HTTPS/localhost) y en Node 19+.
 export function genIdempotencyKey(): string {
-  return typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random()}`;
+  return crypto.randomUUID();
 }

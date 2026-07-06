@@ -70,12 +70,12 @@ export const CreatePaymentSchema = z
     // ADR-030: FK opcional a BankAccount para GL auto-posting
     bankAccountId: z.string().optional(),
     // H6 (ADR-032): dedupe de doble-submit — UUID generado por el cliente ANTES del
-    // submit. OBLIGATORIO: la idempotencia no puede ser opcional en la entidad canónica
-    // de pago (paridad con RecordPaymentSchema de CxC y payment-batch).
+    // submit. OBLIGATORIO y formato UUID estricto (security-agent: el unique es global
+    // en la tabla; texto libre contaminaría ese namespace). Paridad exacta con
+    // RecordPaymentSchema de CxC (receivable.schema.ts).
     idempotencyKey: z
       .string({ error: "Falta la clave de idempotencia" })
-      .min(1, { error: "Falta la clave de idempotencia" })
-      .max(200),
+      .uuid({ error: "Clave de idempotencia inválida" }),
     // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%) — opcional
     ivaRetentionAmount: z
       .string()
