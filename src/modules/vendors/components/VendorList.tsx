@@ -1,10 +1,12 @@
 "use client";
 // src/modules/vendors/components/VendorList.tsx
 // Q3-2: CRM básico — categoría (LEAD/REGULAR/VIP), notas, historial de interacciones.
+// P2 (audit 2026-07-05): form crear/editar extraído a VendorForm (RHF + zodResolver);
+// gestión de grupos extraída a GroupsPanel. 27 useState → 8 en VendorList.
 
-import { useState, useTransition, useMemo } from "react";
+import { Fragment, useState, useTransition, useMemo } from "react";
 import {
-  PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon, Edit2Icon, CheckIcon,
+  PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon, Edit2Icon,
   MessageSquarePlusIcon, ChevronDownIcon, ChevronUpIcon, StickyNoteIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +19,7 @@ import type { ContactCategory } from "../schemas/vendor.schemas";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { ContactGroupRow } from "../services/ContactGroupService";
+import { VendorForm, EMPTY_VENDOR_FORM, type VendorFormOutput } from "./VendorForm";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +130,73 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
   );
 }
 
+// ─── Componente GroupsPanel ────────────────────────────────────────────────────
+// Dueño único del input "nombre del grupo". Las mutaciones viven en el padre
+// (comparten su transition/error); onCreateGroup limpia el input solo en éxito.
+
+type GroupsPanelProps = {
+  groups: ContactGroupRow[];
+  canDelete: boolean;
+  isPending: boolean;
+  onCreateGroup: (name: string, onSuccess: () => void) => void;
+  onDeleteGroup: (groupId: string, name: string) => void;
+};
+
+function GroupsPanel({ groups, canDelete, isPending, onCreateGroup, onDeleteGroup }: GroupsPanelProps) {
+  const [newGroupName, setNewGroupName] = useState("");
+
+  function handleCreate() {
+    if (!newGroupName.trim()) return;
+    onCreateGroup(newGroupName.trim(), () => setNewGroupName(""));
+  }
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+      <p className="text-sm font-medium text-zinc-700">Grupos de proveedores</p>
+      {groups.length === 0 ? (
+        <p className="text-sm text-zinc-400">Sin grupos creados.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 rounded border bg-white">
+          {groups.map(g => (
+            <li key={g.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <span className="font-medium text-zinc-800">{g.name}</span>
+              <span className="flex items-center gap-2 text-zinc-400">
+                <span>{g._count?.members ?? 0} prov.</span>
+                {canDelete && (
+                  <button
+                    onClick={() => onDeleteGroup(g.id, g.name)}
+                    disabled={isPending}
+                    className="text-red-400 hover:text-red-600 disabled:opacity-40"
+                    title="Eliminar grupo"
+                  >
+                    <Trash2Icon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          className="flex-1 rounded border px-2 py-1.5 text-sm"
+          placeholder="Nombre del grupo"
+          value={newGroupName}
+          onChange={e => setNewGroupName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleCreate()}
+        />
+        <button
+          onClick={handleCreate}
+          disabled={!newGroupName.trim() || isPending}
+          className="rounded bg-zinc-700 px-3 py-1 text-sm text-white disabled:opacity-50"
+        >
+          Agregar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ──────────────────────────────────────────────────────
 
 type Props = {
@@ -143,34 +213,10 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
   const [showCreate, setShowCreate] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  // ── Create fields ──────────────────────────────────────────────────────────
-  const [createName, setCreateName] = useState("");
-  const [createRif, setCreateRif] = useState("");
-  const [createEmail, setCreateEmail] = useState("");
-  const [createPhone, setCreatePhone] = useState("");
-  const [createCode, setCreateCode] = useState("");
-  const [createGroupId, setCreateGroupId] = useState("");
-  const [createIsCE, setCreateIsCE] = useState(false);
-  const [createCategory, setCreateCategory] = useState<ContactCategory>("REGULAR");
-  const [createNotes, setCreateNotes] = useState("");
-
-  // ── Edit fields ────────────────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editRif, setEditRif] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editCode, setEditCode] = useState("");
-  const [editGroupId, setEditGroupId] = useState("");
-  const [editIsCE, setEditIsCE] = useState(false);
-  const [editCategory, setEditCategory] = useState<ContactCategory>("REGULAR");
-  const [editNotes, setEditNotes] = useState("");
-
-  const [newGroupName, setNewGroupName] = useState("");
   const [search, setSearch] = useState("");
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const [isPending, startTransition] = useTransition();
 
   const filteredVendors = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -185,40 +231,18 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  function handleCreate() {
+  function handleCreate(values: VendorFormOutput) {
     setError(null);
     startTransition(async () => {
-      const r = await createVendorAction(companyId, {
-        name: createName,
-        rif: createRif || undefined,
-        email: createEmail || undefined,
-        phone: createPhone || undefined,
-        code: createCode || undefined,
-        groupId: createGroupId || undefined,
-        isSpecialContributor: createIsCE,
-        category: createCategory,
-        notes: createNotes || undefined,
-      });
+      const r = await createVendorAction(companyId, values);
       if (!r.success) { setError(r.error); return; }
       setVendors(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
       setShowCreate(false);
-      setCreateName(""); setCreateRif(""); setCreateEmail(""); setCreatePhone("");
-      setCreateCode(""); setCreateGroupId(""); setCreateIsCE(false);
-      setCreateCategory("REGULAR"); setCreateNotes("");
     });
   }
 
-  function handleStartEdit(v: VendorRow) {
-    setEditingId(v.id);
-    setEditName(v.name);
-    setEditRif(v.rif ?? "");
-    setEditEmail(v.email ?? "");
-    setEditPhone(v.phone ?? "");
-    setEditCode(v.code ?? "");
-    setEditGroupId(v.groupId ?? "");
-    setEditIsCE(v.isSpecialContributor);
-    setEditCategory(v.category ?? "REGULAR");
-    setEditNotes(v.notes ?? "");
+  function handleStartEdit(vendorId: string) {
+    setEditingId(vendorId);
     setError(null);
   }
 
@@ -227,21 +251,10 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     setError(null);
   }
 
-  function handleSaveEdit(vendorId: string) {
-    if (!editName.trim()) return;
+  function handleSaveEdit(vendorId: string, values: VendorFormOutput) {
     setError(null);
     startTransition(async () => {
-      const r = await updateVendorAction(companyId, vendorId, {
-        name: editName,
-        rif: editRif || undefined,
-        email: editEmail || undefined,
-        phone: editPhone || undefined,
-        code: editCode || undefined,
-        groupId: editGroupId || undefined,
-        isSpecialContributor: editIsCE,
-        category: editCategory,
-        notes: editNotes || undefined,
-      });
+      const r = await updateVendorAction(companyId, vendorId, values);
       if (!r.success) { setError(r.error); return; }
       setVendors(prev =>
         prev.map(v => v.id === vendorId ? r.data : v).sort((a, b) => a.name.localeCompare(b.name))
@@ -269,13 +282,12 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     });
   }
 
-  function handleCreateGroup() {
-    if (!newGroupName.trim()) return;
+  function handleCreateGroup(name: string, onSuccess: () => void) {
     startTransition(async () => {
-      const r = await createVendorGroupAction(companyId, newGroupName.trim());
+      const r = await createVendorGroupAction(companyId, name);
       if (!r.success) { setError(r.error); return; }
       setGroups(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewGroupName("");
+      onSuccess();
     });
   }
 
@@ -323,146 +335,26 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
 
       {/* Groups manager */}
       {showGroups && canWrite && (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
-          <p className="text-sm font-medium text-zinc-700">Grupos de proveedores</p>
-          {groups.length === 0 ? (
-            <p className="text-sm text-zinc-400">Sin grupos creados.</p>
-          ) : (
-            <ul className="divide-y divide-zinc-100 rounded border bg-white">
-              {groups.map(g => (
-                <li key={g.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span className="font-medium text-zinc-800">{g.name}</span>
-                  <span className="flex items-center gap-2 text-zinc-400">
-                    <span>{g._count?.members ?? 0} prov.</span>
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDeleteGroup(g.id, g.name)}
-                        disabled={isPending}
-                        className="text-red-400 hover:text-red-600 disabled:opacity-40"
-                        title="Eliminar grupo"
-                      >
-                        <Trash2Icon className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex gap-2">
-            <input
-              className="flex-1 rounded border px-2 py-1.5 text-sm"
-              placeholder="Nombre del grupo"
-              value={newGroupName}
-              onChange={e => setNewGroupName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleCreateGroup()}
-            />
-            <button
-              onClick={handleCreateGroup}
-              disabled={!newGroupName.trim() || isPending}
-              className="rounded bg-zinc-700 px-3 py-1 text-sm text-white disabled:opacity-50"
-            >
-              Agregar
-            </button>
-          </div>
-        </div>
+        <GroupsPanel
+          groups={groups}
+          canDelete={canDelete}
+          isPending={isPending}
+          onCreateGroup={handleCreateGroup}
+          onDeleteGroup={handleDeleteGroup}
+        />
       )}
 
       {/* Create form */}
       {showCreate && canWrite && (
-        <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 space-y-3">
-          <p className="text-sm font-medium text-indigo-800">Nuevo proveedor</p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input
-              className="rounded border px-2 py-1.5 text-sm"
-              placeholder="Nombre *"
-              value={createName}
-              onChange={e => setCreateName(e.target.value)}
-            />
-            <input
-              className="rounded border px-2 py-1.5 text-sm"
-              placeholder="RIF (J-12345678-9)"
-              value={createRif}
-              onChange={e => setCreateRif(e.target.value)}
-            />
-            <input
-              className="rounded border px-2 py-1.5 text-sm"
-              placeholder="Email"
-              value={createEmail}
-              onChange={e => setCreateEmail(e.target.value)}
-            />
-            <input
-              className="rounded border px-2 py-1.5 text-sm"
-              placeholder="Teléfono"
-              value={createPhone}
-              onChange={e => setCreatePhone(e.target.value)}
-            />
-            <input
-              className="rounded border px-2 py-1.5 text-sm"
-              placeholder="Código (ej: P-001)"
-              value={createCode}
-              onChange={e => setCreateCode(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <select
-                className="flex-1 rounded border px-2 py-1.5 text-sm text-zinc-700"
-                value={createGroupId}
-                onChange={e => setCreateGroupId(e.target.value)}
-              >
-                <option value="">Sin grupo</option>
-                {groups.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-              <select
-                className="w-32 rounded border px-2 py-1.5 text-sm text-zinc-700"
-                value={createCategory}
-                onChange={e => setCreateCategory(e.target.value as ContactCategory)}
-              >
-                <option value="LEAD">Lead</option>
-                <option value="REGULAR">Regular</option>
-                <option value="VIP">VIP</option>
-              </select>
-            </div>
-          </div>
-          <textarea
-            className="w-full rounded border px-2 py-1.5 text-sm resize-none"
-            placeholder="Notas (ej: requiere orden de compra firmada)"
-            rows={2}
-            value={createNotes}
-            onChange={e => setCreateNotes(e.target.value)}
-            maxLength={2000}
-          />
-          <label className="flex items-center gap-2 text-sm text-indigo-900 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={createIsCE}
-              onChange={e => setCreateIsCE(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            Contribuyente Especial (aplican retenciones IVA/ISLR)
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={!createName.trim() || isPending}
-              className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-            >
-              {isPending ? "Guardando…" : "Guardar"}
-            </button>
-            <button
-              onClick={() => {
-                setShowCreate(false);
-                setCreateName(""); setCreateRif(""); setCreateCode("");
-                setCreateGroupId(""); setCreateIsCE(false);
-                setCreateCategory("REGULAR"); setCreateNotes("");
-              }}
-              className="rounded border px-3 py-1 text-sm text-gray-600"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
+        <VendorForm
+          variant="create"
+          defaultValues={EMPTY_VENDOR_FORM}
+          groups={groups}
+          isPending={isPending}
+          submitLabel="Guardar"
+          onSubmit={handleCreate}
+          onCancel={() => setShowCreate(false)}
+        />
       )}
 
       {error && (
@@ -527,114 +419,34 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                 // ── Edit row ────────────────────────────────────────────────
                 if (editingId === v.id) {
                   return (
-                    <tr key={v.id} className="bg-indigo-50">
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-1">
-                          <input
-                            className="rounded border px-2 py-1 text-sm w-full min-w-35"
-                            placeholder="Nombre *"
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                          />
-                          <div className="flex gap-1">
-                            <select
-                              className="flex-1 rounded border px-2 py-1 text-xs text-zinc-600"
-                              value={editGroupId}
-                              onChange={e => setEditGroupId(e.target.value)}
-                            >
-                              <option value="">Sin grupo</option>
-                              {groups.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                              ))}
-                            </select>
-                            <select
-                              className="w-24 rounded border px-2 py-1 text-xs text-zinc-600"
-                              value={editCategory}
-                              onChange={e => setEditCategory(e.target.value as ContactCategory)}
-                            >
-                              <option value="LEAD">Lead</option>
-                              <option value="REGULAR">Regular</option>
-                              <option value="VIP">VIP</option>
-                            </select>
-                          </div>
-                          <textarea
-                            className="rounded border px-2 py-1 text-xs resize-none"
-                            placeholder="Notas…"
-                            rows={2}
-                            value={editNotes}
-                            onChange={e => setEditNotes(e.target.value)}
-                            maxLength={2000}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className="rounded border px-2 py-1 text-sm w-full min-w-20"
-                          placeholder="P-001"
-                          value={editCode}
-                          onChange={e => setEditCode(e.target.value)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className="rounded border px-2 py-1 text-sm w-full min-w-30"
-                          placeholder="J-12345678-9"
-                          value={editRif}
-                          onChange={e => setEditRif(e.target.value)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className="rounded border px-2 py-1 text-sm w-full min-w-35"
-                          placeholder="email@ejemplo.com"
-                          value={editEmail}
-                          onChange={e => setEditEmail(e.target.value)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className="rounded border px-2 py-1 text-sm w-full min-w-25"
-                          placeholder="+58 412…"
-                          value={editPhone}
-                          onChange={e => setEditPhone(e.target.value)}
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={editIsCE}
-                          onChange={e => setEditIsCE(e.target.checked)}
-                          className="rounded border-gray-300 cursor-pointer"
-                          title="Contribuyente Especial"
-                        />
-                      </td>
-                      <td className="px-3 py-2" colSpan={canWrite ? 2 : 1}>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSaveEdit(v.id)}
-                            disabled={!editName.trim() || isPending}
-                            className="flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
-                          >
-                            <CheckIcon className="h-3 w-3" />
-                            {isPending ? "Guardando…" : "Guardar"}
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            disabled={isPending}
-                            className="rounded border px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <VendorForm
+                      key={v.id}
+                      variant="edit"
+                      canWrite={canWrite}
+                      defaultValues={{
+                        name: v.name,
+                        rif: v.rif ?? "",
+                        email: v.email ?? "",
+                        phone: v.phone ?? "",
+                        code: v.code ?? "",
+                        groupId: v.groupId ?? "",
+                        isSpecialContributor: v.isSpecialContributor,
+                        category: v.category ?? "REGULAR",
+                        notes: v.notes ?? "",
+                      }}
+                      groups={groups}
+                      isPending={isPending}
+                      submitLabel="Guardar"
+                      onSubmit={(values) => handleSaveEdit(v.id, values)}
+                      onCancel={handleCancelEdit}
+                    />
                   );
                 }
 
                 // ── Display row ─────────────────────────────────────────────
                 return (
-                  <>
-                    <tr key={v.id} className="hover:bg-gray-50">
+                  <Fragment key={v.id}>
+                    <tr className="hover:bg-gray-50">
                       <td data-label="Proveedor" className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
                           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
@@ -706,7 +518,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                               {notesOpen ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
                             </button>
                             <button
-                              onClick={() => handleStartEdit(v)}
+                              onClick={() => handleStartEdit(v.id)}
                               disabled={isPending}
                               className="text-zinc-400 hover:text-indigo-600 disabled:opacity-40"
                               title="Editar proveedor"
@@ -728,7 +540,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                     </tr>
                     {/* Timeline de notas — fila expandible */}
                     {notesOpen && (
-                      <tr key={`${v.id}-notes`} className="bg-zinc-50/80">
+                      <tr className="bg-zinc-50/80">
                         <td colSpan={canWrite ? 8 : 7} className="px-6 py-3">
                           <VendorNoteTimeline
                             companyId={companyId}
@@ -738,7 +550,7 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
