@@ -2,7 +2,6 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { PaymentMethod } from "@prisma/client";
@@ -17,6 +16,7 @@ import {
 import { PaymentBatchService, PaymentBatchSummary } from "../services/PaymentBatchService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { netContext } from "@/lib/net-context";
 
 export type UnpaidPurchaseInvoice = {
   id: string;
@@ -31,10 +31,9 @@ async function getAuthContext() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  // ADR-041 D-2: derivación canónica — antes usaba `[0]` (primera IP de
+  // x-forwarded-for, spoofeable por el cliente); el canónico usa `.at(-1)`.
+  const { ipAddress, userAgent } = await netContext();
 
   return { userId, ipAddress, userAgent };
 }

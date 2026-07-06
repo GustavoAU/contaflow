@@ -1,6 +1,2 @@
-import { mapPrismaError } from "@/lib/prisma-errors";
-import type { ActionResult } from "../types/action-result";
-
-export function toActionError(error: unknown): ActionResult<never> {
-  return { success: false, error: mapPrismaError(error) };
-}
+// Re-export del canónico (ADR-041) — fuente única en src/lib/action-errors.ts
+export { toActionError } from "@/lib/action-errors";

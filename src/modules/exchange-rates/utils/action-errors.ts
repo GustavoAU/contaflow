@@ -1,16 +1,6 @@
-import { headers } from "next/headers";
-import { mapPrismaError } from "@/lib/prisma-errors";
-import type { ActionResult } from "../types/action-result";
+// Re-export del canónico (ADR-041) — fuente única en src/lib/action-errors.ts
+export { toActionError } from "@/lib/action-errors";
 
-export function toActionError(error: unknown): ActionResult<never> {
-  return { success: false, error: mapPrismaError(error) };
-}
-
-// Exchange-rates actions use .at(-1) (last proxy hop) — preserve pattern.
-export async function resolveIpUa() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
+// Alias local conservado por compatibilidad: las actions de exchange-rates ya
+// usaban este nombre. La implementación canónica vive en src/lib/net-context.ts.
+export { netContext as resolveIpUa } from "@/lib/net-context";

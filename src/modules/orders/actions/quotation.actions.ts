@@ -4,59 +4,43 @@
 //   HIGH-1: companyId from member.companyId, never from request body
 //   HIGH-2: rate limit on approve/reject (fiscal mutations)
 //   LOW-1:  VIEWER excluded — all mutations require ROLES.OPERATIONS or ROLES.ACCOUNTING
+//
+// ADR-041: módulo PILOTO de requireCompanyAction — el ritual auth → rate limit →
+// member → rol (+ ip/ua para R-6) vive en src/lib/action-guard.ts, no aquí.
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { CreateQuotationSchema } from "../schemas/quotation.schema";
 import { QuotationService } from "../services/QuotationService";
 import { type QuotationType, type QuotationStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-// AUD-01 (R-6): captura ipAddress/userAgent para el rastro de auditoría
-async function netContext() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
-
 // ── createQuotationAction — ROLES.OPERATIONS (ADMINISTRATIVE+) ───────────────
 export async function createQuotationAction(
   companyId: string,
   raw: unknown
 ): Promise<ActionResult<{ id: string; number: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  // HIGH-1: member lookup — companyId from DB, not from client
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true, // AUD-01 (R-6)
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   const parsed = CreateQuotationSchema.safeParse(raw);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const { ipAddress, userAgent } = await netContext();
     const quotation = await QuotationService.createQuotation(
       companyId,
-      userId,
+      ctx.userId,
       { ...parsed.data, validUntil: new Date(parsed.data.validUntil) },
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: quotation.id, number: quotation.number } };
@@ -70,22 +54,17 @@ export async function submitForApprovalAction(
   companyId: string,
   quotationId: string
 ): Promise<ActionResult<void>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
-    const { ipAddress, userAgent } = await netContext();
-    await QuotationService.submitForApproval(companyId, quotationId, userId, ipAddress, userAgent);
+    await QuotationService.submitForApproval(
+      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -98,23 +77,17 @@ export async function approveQuotationAction(
   companyId: string,
   quotationId: string
 ): Promise<ActionResult<void>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  // HIGH-2: rate limit on fiscal approval mutations
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal, // HIGH-2
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
-    const { ipAddress, userAgent } = await netContext();
-    await QuotationService.approveQuotation(companyId, quotationId, userId, ipAddress, userAgent);
+    await QuotationService.approveQuotation(
+      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -127,22 +100,17 @@ export async function rejectQuotationAction(
   companyId: string,
   quotationId: string
 ): Promise<ActionResult<void>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
-    const { ipAddress, userAgent } = await netContext();
-    await QuotationService.rejectQuotation(companyId, quotationId, userId, ipAddress, userAgent);
+    await QuotationService.rejectQuotation(
+      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+    );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
   } catch (e) {
@@ -150,18 +118,13 @@ export async function rejectQuotationAction(
   }
 }
 
-// ── getQuotationsAction — ROLES.ALL (lectura) — VIEWER incluido ───────────────
+// ── getQuotationsAction — lectura (solo membresía, incluye SENIAT) ────────────
 export async function getQuotationsAction(
   companyId: string,
   filters?: { type?: QuotationType; status?: QuotationStatus }
 ): Promise<ActionResult<Awaited<ReturnType<typeof QuotationService.getQuotations>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await QuotationService.getQuotations(companyId, filters);
@@ -176,18 +139,12 @@ export async function cloneQuotationAction(
   companyId: string,
   quotationId: string
 ): Promise<ActionResult<{ id: string; number: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes, intenta más tarde" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     const original = await QuotationService.getQuotation(companyId, quotationId);
@@ -196,10 +153,9 @@ export async function cloneQuotationAction(
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + 30);
 
-    const { ipAddress, userAgent } = await netContext();
     const cloned = await QuotationService.createQuotation(
       companyId,
-      userId,
+      ctx.userId,
       {
         type: original.type,
         counterpartName: original.counterpartName,
@@ -215,8 +171,8 @@ export async function cloneQuotationAction(
           taxRate: i.taxRate,
         })),
       },
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: { id: cloned.id, number: cloned.number } };
