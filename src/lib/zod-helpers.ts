@@ -54,3 +54,33 @@ export const zExchangeRate = z.coerce
     },
     { error: "Tasa de cambio inválida: debe ser > 0 con máximo 4 decimales" }
   );
+
+/**
+ * Texto opcional de formulario: "" (campo vacío) → null — Prisma LIMPIA la columna;
+ * undefined (campo ausente en un update parcial) se preserva — Prisma NO la toca.
+ *
+ * Reemplaza el patrón roto `.optional().or(z.literal("").transform(() => undefined))`:
+ * su branch `.or` era código MUERTO cuando "" ya pasaba la validación previa
+ * (phone/code/notes/address llegaban como "" a la BD), y en los campos validados
+ * (rif/email) producía undefined en updates → el campo era IMBORRABLE (Prisma omite
+ * undefined). Con "" en columnas @unique (Vendor.rif/code por empresa) además
+ * provocaba P2002 al segundo registro vacío.
+ */
+export const zOptionalText = (max: number, msg?: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, msg)
+    .nullable()
+    .transform((v) => (v === "" ? null : v))
+    // .optional() al FINAL: mantiene la key opcional en el objeto (un .transform
+    // terminal la volvería requerida en el tipo inferido)
+    .optional();
+
+/**
+ * Variante para campos opcionales CON validación de formato (regex/email/cuid):
+ * "" salta la validación y se vuelve null; un valor no vacío se valida normal.
+ */
+export function zEmptyAsNull<T extends z.ZodType<string>>(validated: T) {
+  return z.union([z.literal("").transform(() => null), validated]).nullish();
+}

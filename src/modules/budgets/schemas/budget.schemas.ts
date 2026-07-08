@@ -2,6 +2,7 @@
 // Q3-3: Presupuestos y Proyecciones
 
 import { z } from "zod";
+import { zOptionalText } from "@/lib/zod-helpers";
 import Decimal from "decimal.js";
 
 // ── Custom validator: positive Decimal string ─────────────────────────────────
@@ -43,12 +44,9 @@ export const UpdateBudgetSchema = z.object({
 export const UpsertBudgetLineSchema = z.object({
   accountId: z.string().min(1, "Cuenta requerida"),
   amount: zDecimalPositive,
-  notes: z
-    .string()
-    .trim()
-    .max(500)
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+  // "" → null (zOptionalText): el branch .or anterior era código muerto — "" pasaba
+  // .max(500) y llegaba a la BD como string vacío (el service usa ?? null, que no atrapa "")
+  notes: zOptionalText(500),
 });
 
 export const DeleteBudgetLineSchema = z.object({

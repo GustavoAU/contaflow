@@ -185,18 +185,17 @@ describe("VendorList — smoke del refactor RHF (P2)", () => {
 
     await waitFor(() => expect(createVendorAction).toHaveBeenCalledTimes(1));
     // Payload exacto según el schema REAL (comportamiento actual, pineado):
-    // - email/groupId vacíos → undefined ("" falla .email()/.cuid() → cae al branch transform)
-    // - phone/code/notes vacíos → "" ("" YA pasa .trim().max(N) en el primer branch del
-    //   union, así que el branch `.or(z.literal("").transform(() => undefined))` es código
-    //   muerto para esos campos — quirk del schema del server, NO introducido por el refactor RHF)
+    // Normalización uniforme del schema (fix del quirk 2026-07-07): TODO campo opcional
+    // vacío → null — limpia columna, hace borrables rif/email en updates y evita
+    // P2002 por "" en @@unique(companyId, rif/code).
     expect(createVendorAction).toHaveBeenCalledWith("company-1", {
       name: "Proveedor Nuevo",
       rif: "J-12345678-9",
-      email: undefined,
-      phone: "",
-      code: "",
-      groupId: undefined,
-      notes: "",
+      email: null,
+      phone: null,
+      code: null,
+      groupId: null,
+      notes: null,
       isSpecialContributor: false,
       category: "REGULAR",
     });
@@ -270,15 +269,15 @@ describe("VendorList — smoke del refactor RHF (P2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() => expect(updateVendorAction).toHaveBeenCalledTimes(1));
-    // phone/notes vacíos → "" (mismo quirk del schema documentado en el test de create)
+    // campos vacíos → null (normalización uniforme del schema)
     expect(updateVendorAction).toHaveBeenCalledWith("company-1", "vendor-1", {
       name: "Alfa Suministros C.A.",
       rif: "J-11111111-1",
       email: "alfa@ejemplo.com",
-      phone: "",
+      phone: null,
       code: "P-001",
-      groupId: undefined,
-      notes: "",
+      groupId: null,
+      notes: null,
       isSpecialContributor: false,
       category: "REGULAR",
     });

@@ -1,6 +1,7 @@
 // src/modules/vendors/schemas/vendor.schemas.ts
 import { z } from "zod";
 import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
+import { zOptionalText, zEmptyAsNull } from "@/lib/zod-helpers";
 
 export const CONTACT_CATEGORIES = ["LEAD", "REGULAR", "VIP"] as const;
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number];
@@ -10,32 +11,23 @@ const categoryField = z
   .optional()
   .default("REGULAR");
 
-const rifField = z
-  .string()
-  .trim()
-  .regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+// "" → null: limpia la columna en updates y evita P2002 por "" en @@unique([companyId, rif])
+const rifField = zEmptyAsNull(z.string().trim().regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)"));
 
-const codeField = z
-  .string()
-  .trim()
-  .max(30, "Máximo 30 caracteres")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+const codeField = zOptionalText(30, "Máximo 30 caracteres");
 
-const groupIdField = z.string().cuid().optional().or(z.literal("").transform(() => undefined));
+const groupIdField = zEmptyAsNull(z.string().cuid());
 
 export const CreateVendorSchema = z.object({
   name:                 z.string().trim().min(1, "Nombre requerido").max(200),
   rif:                  rifField,
-  email:                z.string().trim().email("Email inválido").optional().or(z.literal("").transform(() => undefined)),
-  phone:                z.string().trim().max(50).optional().or(z.literal("").transform(() => undefined)),
-  address:              z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
+  email:                zEmptyAsNull(z.string().trim().email("Email inválido")),
+  phone:                zOptionalText(50),
+  address:              zOptionalText(500),
   isSpecialContributor: z.boolean().optional().default(false),
   code:                 codeField,
   groupId:              groupIdField,
-  notes:                z.string().trim().max(2000).optional().or(z.literal("").transform(() => undefined)),
+  notes:                zOptionalText(2000),
   category:             categoryField,
 });
 
@@ -44,12 +36,12 @@ export const UpdateVendorSchema = CreateVendorSchema.partial();
 export const CreateCustomerSchema = z.object({
   name:     z.string().trim().min(1, "Nombre requerido").max(200),
   rif:      rifField,
-  email:    z.string().trim().email("Email inválido").optional().or(z.literal("").transform(() => undefined)),
-  phone:    z.string().trim().max(50).optional().or(z.literal("").transform(() => undefined)),
-  address:  z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
+  email:    zEmptyAsNull(z.string().trim().email("Email inválido")),
+  phone:    zOptionalText(50),
+  address:  zOptionalText(500),
   code:     codeField,
   groupId:  groupIdField,
-  notes:    z.string().trim().max(2000).optional().or(z.literal("").transform(() => undefined)),
+  notes:    zOptionalText(2000),
   category: categoryField,
 });
 
