@@ -36,10 +36,10 @@ describe("CreateVendorSchema — text fields (MEDIUM-1 trim)", () => {
   it("rechaza email inválido", () => {
     expect(CreateVendorSchema.safeParse({ name: "Acme", email: "no-es-email" }).success).toBe(false);
   });
-  it("convierte string vacío en undefined (email)", () => {
+  it('convierte string vacío en null (email) — "" limpia la columna en updates', () => {
     const r = CreateVendorSchema.safeParse({ name: "Acme", email: "" });
     expect(r.success).toBe(true);
-    if (r.success) expect(r.data.email).toBeUndefined();
+    if (r.success) expect(r.data.email).toBeNull();
   });
 });
 

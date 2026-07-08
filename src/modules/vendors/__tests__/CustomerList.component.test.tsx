@@ -2,8 +2,8 @@
 // Smoke tests del refactor P2 (audit 2026-07-05): CustomerList + CustomerForm (RHF + zodResolver).
 // Suite espejo de VendorList.component.test.tsx adaptada al dominio cliente:
 // SIN isSpecialContributor, actions de customer.actions, columna "Último contacto"
-// y ClientPortalTokenButton gated por canDelete. Mismo quirk de schema pineado:
-// phone/code/notes vacíos llegan como "" (branch .or(z.literal("")) muerto).
+// y ClientPortalTokenButton gated por canDelete. Normalización del schema pineada:
+// campos vacíos → null (zOptionalText/zEmptyAsNull — limpia columna, evita "" en @unique).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CustomerList } from "../components/CustomerList";
@@ -206,19 +206,18 @@ describe("CustomerList — smoke del refactor RHF (P2)", () => {
 
     await waitFor(() => expect(createCustomerAction).toHaveBeenCalledTimes(1));
     // Payload exacto según el schema REAL (comportamiento actual, pineado):
-    // - email/groupId vacíos → undefined ("" falla .email()/.cuid() → cae al branch transform)
-    // - phone/code/notes vacíos → "" ("" YA pasa .trim().max(N) en el primer branch del
-    //   union, así que el branch `.or(z.literal("").transform(() => undefined))` es código
-    //   muerto para esos campos — quirk del schema del server, NO introducido por el refactor RHF)
+    // Normalización uniforme del schema (fix del quirk 2026-07-07): TODO campo opcional
+    // vacío → null. En BD limpia la columna; en updates hace borrables rif/email
+    // (antes undefined → Prisma omitía) y evita P2002 por "" en @@unique(companyId, rif/code).
     // - SIN isSpecialContributor: CreateCustomerSchema no tiene ese campo
     expect(createCustomerAction).toHaveBeenCalledWith("company-1", {
       name: "Cliente Nuevo",
       rif: "J-12345678-9",
-      email: undefined,
-      phone: "",
-      code: "",
-      groupId: undefined,
-      notes: "",
+      email: null,
+      phone: null,
+      code: null,
+      groupId: null,
+      notes: null,
       category: "REGULAR",
     });
   });
@@ -296,10 +295,10 @@ describe("CustomerList — smoke del refactor RHF (P2)", () => {
       name: "Alfa Comercial C.A.",
       rif: "J-11111111-1",
       email: "alfa@ejemplo.com",
-      phone: "",
+      phone: null,
       code: "C-001",
-      groupId: undefined,
-      notes: "",
+      groupId: null,
+      notes: null,
       category: "REGULAR",
     });
 
