@@ -101,7 +101,8 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     fireEvent.click(submitBtn());
     await waitFor(() => expect(createPaymentAction).toHaveBeenCalledTimes(2));
 
-    const calls = vi.mocked(createPaymentAction).mock.calls;
+    // createPaymentAction recibe `input: unknown` — tipar el payload para los asserts
+    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [{ idempotencyKey: string }][];
     // LA regresión H6: retry con la misma key → el servidor deduplica (ADR-032)
     expect(calls[0][0].idempotencyKey).toBe("key-1");
     expect(calls[1][0].idempotencyKey).toBe("key-1");
@@ -122,7 +123,8 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     fireEvent.click(submitBtn());
     await waitFor(() => expect(createPaymentAction).toHaveBeenCalledTimes(2));
 
-    const calls = vi.mocked(createPaymentAction).mock.calls;
+    // createPaymentAction recibe `input: unknown` — tipar el payload para los asserts
+    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [{ idempotencyKey: string }][];
     expect(calls[0][0].idempotencyKey).toBe("key-1");
     expect(calls[1][0].idempotencyKey).toBe("key-2");
   });
