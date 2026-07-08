@@ -1,6 +1,22 @@
 "use client";
+// src/modules/payments/components/PaymentForm.tsx
+// P2 (audit 2026-07-05): refactor de legibilidad EXTRA-CONSERVADOR a React Hook Form.
+// 22 useState → 6 useState + useForm. Form FISCAL (Z-2-adyacente): payload, mensajes,
+// visual y semántica de idempotencyKey (H6, ADR-032) intactos.
+//
+// DECISIÓN DE VALIDACIÓN (documentada a propósito): SIN zodResolver. La única
+// validación client-side visible hoy es el check manual de monto ("El monto debe ser
+// mayor a Bs.D 0,00" en el banner de error) + atributos nativos required/pattern.
+// Meter CreatePaymentSchema (superRefine por método) al client mostraría mensajes
+// nuevos en lugares nuevos → delta visible. RHF se usa SOLO para estado de campos;
+// el server sigue validando con CreatePaymentSchema (fuente única de verdad).
+//
+// FUERA de RHF (estado async/derivado, no son campos de usuario):
+//   idempotencyKey (H6 — estable entre retries, rota SOLO tras éxito),
+//   bankAccounts (fetch), bcvRate/bcvLoading (fetch), error, success.
 
 import { useTransition, useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { Loader2Icon, BuildingIcon } from "lucide-react";
 import { Decimal } from "decimal.js";
 import { createPaymentAction, listBankAccountsAction, type BankAccountOption } from "../actions/payment.actions";
@@ -31,6 +47,56 @@ const METHODS_WITH_BANK: PaymentMethodType[] = ["TRANSFERENCIA", "PAGOMOVIL"];
 const METHODS_USD: PaymentMethodType[] = ["ZELLE"];
 const PHONE_PATTERN = /^[\d\s\-+()]{7,20}$/;
 
+// Campos de usuario del form. Todos strings (el server recibe strings; R-5:
+// Decimal.js solo en cálculos) salvo el checkbox casheaIgtf.
+type PaymentFormValues = {
+  date: string;
+  method: PaymentMethodType;
+  amountVes: string;
+  /** Concepto obligatorio (#12) — se envía como `notes`. */
+  concept: string;
+  // Transferencia / PagoMóvil
+  referenceNumber: string;
+  originBank: string;
+  destBank: string;
+  // PagoMóvil teléfonos (#1/#16)
+  senderPhone: string;
+  destPhone: string;
+  // Zelle / Efectivo USD — se envía como `amountOriginal`
+  amountUsd: string;
+  // Efectivo — moneda (toggle, no input registrado: setValue/watch)
+  efectivoCurrency: "VES" | "USD";
+  // Cashea
+  commissionPct: string;
+  casheaIgtf: boolean;
+  // ADR-030
+  bankAccountId: string;
+  // Riesgo-6 (Prov. 0049)
+  ivaRetentionAmount: string;
+};
+
+// Fecha calculada al momento de la llamada (mount y cada resetForm) — misma
+// semántica que el `today` de render del código anterior.
+function makeDefaultValues(): PaymentFormValues {
+  return {
+    date: new Date().toISOString().split("T")[0],
+    method: "PAGOMOVIL",
+    amountVes: "",
+    concept: "",
+    referenceNumber: "",
+    originBank: "",
+    destBank: "",
+    senderPhone: "",
+    destPhone: "",
+    amountUsd: "",
+    efectivoCurrency: "USD",
+    commissionPct: "3.50",
+    casheaIgtf: false,
+    bankAccountId: "",
+    ivaRetentionAmount: "",
+  };
+}
+
 export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -38,43 +104,28 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
 
   // ADR-030: cuentas bancarias para GL auto-posting
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
-  const [bankAccountId, setBankAccountId] = useState("");
-
-  // Riesgo-6 audit: IVA retenido por cliente CE (Prov. 0049 75%/100%)
-  const [ivaRetentionAmount, setIvaRetentionAmount] = useState("");
 
   // H6 (ADR-032): clave de idempotencia ESTABLE mientras el usuario reintenta el mismo
   // pago (timeout de red → retry usa la misma key → el servidor deduplica). Se rota
   // solo tras un éxito (el siguiente pago es una operación nueva).
+  // Vive FUERA de RHF a propósito: reset() del form no debe tocarla.
   const [idempotencyKey, setIdempotencyKey] = useState(genIdempotencyKey);
 
-  const today = new Date().toISOString().split("T")[0];
-  const [date, setDate] = useState(today);
-  const [method, setMethod] = useState<PaymentMethodType>("PAGOMOVIL");
-  const [amountVes, setAmountVes] = useState("");
-  // Concepto obligatorio (#12)
-  const [concept, setConcept] = useState("");
-
-  // Transferencia / PagoMóvil
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [originBank, setOriginBank] = useState("");
-  const [destBank, setDestBank] = useState("");
-
-  // PagoMóvil teléfonos (#1/#16)
-  const [senderPhone, setSenderPhone] = useState("");
-  const [destPhone, setDestPhone] = useState("");
-
-  // Zelle / Efectivo USD
-  const [amountUsd, setAmountUsd] = useState("");
   const [bcvRate, setBcvRate] = useState<number | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
 
-  // Efectivo — moneda
-  const [efectivoCurrency, setEfectivoCurrency] = useState<"VES" | "USD">("USD");
+  const { register, handleSubmit, watch, setValue, reset } = useForm<PaymentFormValues>({
+    defaultValues: makeDefaultValues(),
+  });
 
-  // Cashea
-  const [commissionPct, setCommissionPct] = useState("3.50");
-  const [casheaIgtf, setCasheaIgtf] = useState(false);
+  // Campos observados: alimentan render condicional por método y derivados.
+  const method = watch("method");
+  const amountVes = watch("amountVes");
+  const amountUsd = watch("amountUsd");
+  const efectivoCurrency = watch("efectivoCurrency");
+  const commissionPct = watch("commissionPct");
+  const casheaIgtf = watch("casheaIgtf");
+  const bankAccountId = watch("bankAccountId");
 
   const vesNum = parseFloat(amountVes) || 0;
   const commPct = parseFloat(commissionPct) || 0;
@@ -112,105 +163,94 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   }, [needsBcv, companyId]);
 
   // ─── Auto-calcular VES = USD × tasa BCV ──────────────────────────────────
+  // H-003: el campo mostrado es solo-lectura; el servidor recalcula al guardar.
   useEffect(() => {
     if (!needsBcv || !bcvRate || !amountUsd) return;
     const usdNum = parseFloat(amountUsd);
-    if (!isNaN(usdNum) && usdNum > 0) setAmountVes((usdNum * bcvRate).toFixed(2));
-  }, [amountUsd, bcvRate, needsBcv]);
+    if (!isNaN(usdNum) && usdNum > 0) setValue("amountVes", (usdNum * bcvRate).toFixed(2));
+  }, [amountUsd, bcvRate, needsBcv, setValue]);
 
   // ─── Limpiar campos al cambiar método (#9) ────────────────────────────────
-  function handleMethodChange(m: PaymentMethodType) {
-    setMethod(m);
-    setAmountVes("");
-    setAmountUsd("");
-    setReferenceNumber("");
-    setOriginBank("");
-    setDestBank("");
-    setSenderPhone("");
-    setDestPhone("");
-    setEfectivoCurrency("USD");
+  // Mismos campos que el handleMethodChange anterior; `method` lo actualiza RHF
+  // vía register("method", { onChange }).
+  function clearMethodFields() {
+    setValue("amountVes", "");
+    setValue("amountUsd", "");
+    setValue("referenceNumber", "");
+    setValue("originBank", "");
+    setValue("destBank", "");
+    setValue("senderPhone", "");
+    setValue("destPhone", "");
+    setValue("efectivoCurrency", "USD");
   }
 
   function resetForm() {
-    setDate(today);
-    setMethod("PAGOMOVIL");
-    setAmountVes("");
-    setConcept("");
-    setReferenceNumber("");
-    setOriginBank("");
-    setDestBank("");
-    setSenderPhone("");
-    setDestPhone("");
-    setAmountUsd("");
+    // Repone TODOS los defaults (fecha de hoy incluida) — mismo efecto que el
+    // resetForm anterior campo a campo.
+    reset(makeDefaultValues());
     setBcvRate(null);
-    setEfectivoCurrency("USD");
-    setCommissionPct("3.50");
-    setCasheaIgtf(false);
-    setBankAccountId("");
-    setIvaRetentionAmount("");
     // H6: el siguiente pago es una operación nueva → key nueva
     setIdempotencyKey(genIdempotencyKey());
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function submitPayment(values: PaymentFormValues) {
     setError(null);
     setSuccess(false);
 
-    // Validación de monto en español (#7)
-    const vesFloat = parseFloat(amountVes);
-    if (!amountVes || isNaN(vesFloat) || vesFloat < 0.01) {
+    // Validación de monto en español (#7) — único mensaje client-side, intacto.
+    const vesFloat = parseFloat(values.amountVes);
+    if (!values.amountVes || isNaN(vesFloat) || vesFloat < 0.01) {
       setError("El monto debe ser mayor a Bs.D 0,00");
       return;
     }
 
     startTransition(async () => {
-      const isUsdMethod = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
+      const isUsdMethod = values.method === "ZELLE" || (values.method === "EFECTIVO" && values.efectivoCurrency === "USD");
 
       const payload: Record<string, string | undefined> = {
         companyId,
-        method,
-        amountVes,
+        method: values.method,
+        amountVes: values.amountVes,
         currency: isUsdMethod ? "USD" : "VES",
-        date,
-        notes: concept,
+        date: values.date,
+        notes: values.concept,
         createdBy: userId,
         // H6 (ADR-032): dedupe de doble-submit — misma key en cada retry de ESTE pago
         idempotencyKey,
       };
 
-      if (method === "PAGOMOVIL" || method === "TRANSFERENCIA") {
-        payload.referenceNumber = referenceNumber;
-        payload.originBank = originBank || undefined;
-        payload.destBank = destBank || undefined;
+      if (values.method === "PAGOMOVIL" || values.method === "TRANSFERENCIA") {
+        payload.referenceNumber = values.referenceNumber;
+        payload.originBank = values.originBank || undefined;
+        payload.destBank = values.destBank || undefined;
       }
 
-      if (method === "PAGOMOVIL") {
-        payload.senderPhone = senderPhone || undefined;
-        payload.destPhone = destPhone || undefined;
+      if (values.method === "PAGOMOVIL") {
+        payload.senderPhone = values.senderPhone || undefined;
+        payload.destPhone = values.destPhone || undefined;
       }
 
-      if (method === "ZELLE") {
-        payload.amountOriginal = amountUsd;
+      if (values.method === "ZELLE") {
+        payload.amountOriginal = values.amountUsd;
       }
 
-      if (method === "EFECTIVO" && efectivoCurrency === "USD") {
-        payload.amountOriginal = amountUsd;
+      if (values.method === "EFECTIVO" && values.efectivoCurrency === "USD") {
+        payload.amountOriginal = values.amountUsd;
       }
 
-      if (method === "CASHEA") {
-        payload.commissionPct = commissionPct;
+      if (values.method === "CASHEA") {
+        payload.commissionPct = values.commissionPct;
         payload.commissionAmount = commAmount;
       }
 
       // ADR-030: incluir bankAccountId si se seleccionó
-      if (bankAccountId) {
-        payload.bankAccountId = bankAccountId;
+      if (values.bankAccountId) {
+        payload.bankAccountId = values.bankAccountId;
       }
 
       // Riesgo-6: IVA retenido por cliente CE (Prov. 0049) — solo si se ingresó
-      if (ivaRetentionAmount && parseFloat(ivaRetentionAmount) > 0) {
-        payload.ivaRetentionAmount = ivaRetentionAmount;
+      if (values.ivaRetentionAmount && parseFloat(values.ivaRetentionAmount) > 0) {
+        payload.ivaRetentionAmount = values.ivaRetentionAmount;
       }
 
       const result = await createPaymentAction(payload);
@@ -227,21 +267,20 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const inputCls = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
+    <form onSubmit={(e) => void handleSubmit(submitPayment)(e)} className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
       <h2 className="font-semibold text-zinc-800">Registrar Pago</h2>
 
       {/* Fecha + Método */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Fecha</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
+          <input type="date" required className={inputCls} {...register("date")} />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Medio de pago</label>
           <select
-            value={method}
-            onChange={(e) => handleMethodChange(e.target.value as PaymentMethodType)}
             className={inputCls}
+            {...register("method", { onChange: clearMethodFields })}
           >
             {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethodType[]).map((m) => (
               <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
@@ -258,8 +297,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Monto en USD <span className="text-red-500">*</span>
             </label>
-            <input type="number" min="0.01" step="0.01" value={amountUsd}
-              onChange={(e) => setAmountUsd(e.target.value)} placeholder="0.00" required className={`${inputCls} font-mono`} />
+            <input type="number" min="0.01" step="0.01" placeholder="0.00" required
+              className={`${inputCls} font-mono`} {...register("amountUsd")} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -269,9 +308,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
             </label>
             {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-            <input type="number" value={amountVes} readOnly tabIndex={-1} placeholder="0.00"
+            <input type="number" readOnly tabIndex={-1} placeholder="0.00"
               title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
-              className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} />
+              className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} {...register("amountVes")} />
           </div>
           {vesNum > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -289,12 +328,12 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <p className="text-xs font-medium text-orange-700">Moneda del efectivo</p>
             <div className="flex overflow-hidden rounded-md border border-orange-200 text-xs">
               <button type="button"
-                onClick={() => { setEfectivoCurrency("USD"); setAmountVes(""); setAmountUsd(""); }}
+                onClick={() => { setValue("efectivoCurrency", "USD"); setValue("amountVes", ""); setValue("amountUsd", ""); }}
                 className={`px-3 py-1 transition-colors ${efectivoCurrency === "USD" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}>
                 USD
               </button>
               <button type="button"
-                onClick={() => { setEfectivoCurrency("VES"); setAmountVes(""); setAmountUsd(""); }}
+                onClick={() => { setValue("efectivoCurrency", "VES"); setValue("amountVes", ""); setValue("amountUsd", ""); }}
                 className={`px-3 py-1 transition-colors ${efectivoCurrency === "VES" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}>
                 Bs.D
               </button>
@@ -306,8 +345,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
                   Monto en USD <span className="text-red-500">*</span>
                 </label>
-                <input type="number" min="0.01" step="0.01" value={amountUsd}
-                  onChange={(e) => setAmountUsd(e.target.value)} placeholder="0.00" required className={`${inputCls} font-mono`} />
+                <input type="number" min="0.01" step="0.01" placeholder="0.00" required
+                  className={`${inputCls} font-mono`} {...register("amountUsd")} />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -317,9 +356,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                   {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
                 </label>
                 {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-                <input type="number" value={amountVes} readOnly tabIndex={-1} placeholder="0.00"
+                <input type="number" readOnly tabIndex={-1} placeholder="0.00"
                   title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
-                  className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} />
+                  className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} {...register("amountVes")} />
               </div>
               {vesNum > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -338,9 +377,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D (VES)</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input type="number" min="0.01" step="0.01" value={amountVes}
-            onChange={(e) => setAmountVes(e.target.value)} placeholder="0.00"
-            className={`${inputCls} font-mono`} />
+          <input type="number" min="0.01" step="0.01" placeholder="0.00"
+            className={`${inputCls} font-mono`} {...register("amountVes")} />
         </div>
       )}
 
@@ -351,9 +389,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input type="number" min="0.01" step="0.01" value={amountVes}
-            onChange={(e) => setAmountVes(e.target.value)} placeholder="0.00"
-            className={`${inputCls} font-mono`} />
+          <input type="number" min="0.01" step="0.01" placeholder="0.00"
+            className={`${inputCls} font-mono`} {...register("amountVes")} />
         </div>
       )}
 
@@ -365,20 +402,20 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Número de referencia <span className="text-red-500">*</span>
             </label>
-            <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)}
-              placeholder="REF-00123456" required className={inputCls} />
+            <input type="text" placeholder="REF-00123456" required className={inputCls}
+              {...register("referenceNumber")} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco origen</label>
-              <select value={originBank} onChange={(e) => setOriginBank(e.target.value)} className={inputCls}>
+              <select className={inputCls} {...register("originBank")}>
                 <option value="">— Seleccionar —</option>
                 {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco destino</label>
-              <select value={destBank} onChange={(e) => setDestBank(e.target.value)} className={inputCls}>
+              <select className={inputCls} {...register("destBank")}>
                 <option value="">— Seleccionar —</option>
                 {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
@@ -395,24 +432,23 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Número de referencia <span className="text-red-500">*</span>
             </label>
-            <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)}
-              placeholder="REF-12345678" required className={inputCls} />
+            <input type="text" placeholder="REF-12345678" required className={inputCls}
+              {...register("referenceNumber")} />
           </div>
           {/* Teléfono del emisor (#1) */}
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Teléfono del emisor <span className="text-red-500">*</span>
             </label>
-            <input type="tel" value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)}
-              placeholder="0414-1234567" required
+            <input type="tel" placeholder="0414-1234567" required
               pattern={PHONE_PATTERN.source}
               title="Formato: 04XX-XXXXXXX o +58-4XX-XXXXXXX"
-              className={inputCls} />
+              className={inputCls} {...register("senderPhone")} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco origen</label>
-              <select value={originBank} onChange={(e) => setOriginBank(e.target.value)} className={inputCls}>
+              <select className={inputCls} {...register("originBank")}>
                 <option value="">— Seleccionar —</option>
                 {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
@@ -421,7 +457,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               <label className="mb-1 block text-sm font-medium text-zinc-700">
                 Banco destino <span className="text-red-500">*</span>
               </label>
-              <select value={destBank} onChange={(e) => setDestBank(e.target.value)} required className={inputCls}>
+              <select required className={inputCls} {...register("destBank")}>
                 <option value="">— Seleccionar —</option>
                 {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
@@ -430,8 +466,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
           {/* Teléfono del receptor (#16) */}
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Teléfono del receptor</label>
-            <input type="tel" value={destPhone} onChange={(e) => setDestPhone(e.target.value)}
-              placeholder="0424-7654321" className={inputCls} />
+            <input type="tel" placeholder="0424-7654321" className={inputCls}
+              {...register("destPhone")} />
           </div>
         </div>
       )}
@@ -445,9 +481,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               Comisión Cashea (%) <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
-              <input type="number" min="0" step="0.01" value={commissionPct}
-                onChange={(e) => setCommissionPct(e.target.value)}
-                className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" />
+              <input type="number" min="0" step="0.01"
+                className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                {...register("commissionPct")} />
               {vesNum > 0 && (
                 <span className="text-sm text-zinc-600">
                   = <span className="font-mono font-semibold">Bs.D {fmtNum(commAmount)}</span>
@@ -456,7 +492,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             </div>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
-            <input type="checkbox" checked={casheaIgtf} onChange={(e) => setCasheaIgtf(e.target.checked)} className="rounded" />
+            <input type="checkbox" className="rounded" {...register("casheaIgtf")} />
             Cashea liquida en USD (aplica IGTF 3%)
           </label>
           {casheaIgtf && vesNum > 0 && (
@@ -472,10 +508,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         <label className="mb-1 block text-sm font-medium text-zinc-700">
           Concepto / Descripción <span className="text-red-500">*</span>
         </label>
-        <input type="text" value={concept} onChange={(e) => setConcept(e.target.value)}
-          placeholder="Ej: Pago factura proveedor ABC, período mayo 2026"
+        <input type="text" placeholder="Ej: Pago factura proveedor ABC, período mayo 2026"
           required
-          className={inputCls} />
+          className={inputCls} {...register("concept")} />
       </div>
 
       {/* ─── Cuenta Bancaria para GL auto-posting (ADR-030) ─── */}
@@ -490,11 +525,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             No hay cuentas bancarias configuradas. Configure una en Conciliación Bancaria para habilitar el asiento automático.
           </p>
         ) : (
-          <select
-            value={bankAccountId}
-            onChange={(e) => setBankAccountId(e.target.value)}
-            className={inputCls}
-          >
+          <select className={inputCls} {...register("bankAccountId")}>
             <option value="">— Sin asiento automático —</option>
             {bankAccounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -517,9 +548,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             min="0"
             step="0.01"
             placeholder="0.00"
-            value={ivaRetentionAmount}
-            onChange={(e) => setIvaRetentionAmount(e.target.value)}
             className="block w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            {...register("ivaRetentionAmount")}
           />
           <p className="text-xs text-zinc-400">
             Si el cliente es Contribuyente Especial y retuvo el IVA (75%/100%), ingrese el monto retenido en Bs.
