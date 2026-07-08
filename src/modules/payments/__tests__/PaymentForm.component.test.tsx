@@ -93,6 +93,9 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     // Primer intento → falla
     fireEvent.click(submitBtn());
     expect(await screen.findByText("Error transitorio — intenta de nuevo.")).toBeTruthy();
+    // Anti-flake: bajo workers lentos el 2º click puede caer con el botón aún
+    // disabled (isPending de la transición) y perderse — esperar a idle.
+    await waitFor(() => expect(submitBtn().disabled).toBe(false));
 
     // Reintento del MISMO pago (los campos siguen llenos — no hubo reset)
     fireEvent.click(submitBtn());
@@ -111,6 +114,8 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     fillPagomovil();
     fireEvent.click(submitBtn());
     expect(await screen.findByText("Pago registrado correctamente.")).toBeTruthy();
+    // Anti-flake: esperar a que la transición termine antes del siguiente pago
+    await waitFor(() => expect(submitBtn().disabled).toBe(false));
 
     // Segundo pago = operación nueva → resetForm rotó la key
     fillPagomovil("2000.00");
