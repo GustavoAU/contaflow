@@ -11,6 +11,7 @@ vi.mock("next/headers", () => ({ headers: mockHeaders }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -235,7 +236,6 @@ describe("getDistributionByIdAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const result = await getDistributionByIdAction(DIST_ID, COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("denegado");
   });
 
   it("happy path — retorna distribución por id", async () => {

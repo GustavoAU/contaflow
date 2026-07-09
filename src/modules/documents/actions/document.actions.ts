@@ -4,25 +4,17 @@
 // Q3-1: Server Actions para Gestión Documental.
 // R-6: ipAddress + userAgent en AuditLog de operaciones relevantes.
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { signDocShareToken } from "@/lib/document-share-jwt";
 import type { DocShareType } from "@/lib/document-share-jwt";
 import { DocumentService, type DocumentRow, type DocumentFilters } from "../services/DocumentService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-
-async function resolveIpUa() {
-  const h = await headers();
-  const ipAddress = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null;
-  const userAgent = h.get("user-agent") ?? null;
-  return { ipAddress, userAgent };
-}
 
 const FiltersSchema = z.object({
   docType: z.string().optional(),
@@ -38,16 +30,9 @@ export async function listDocumentsAction(
   rawFilters: unknown,
 ): Promise<ActionResult<{ items: DocumentRow[]; total: number; page: number }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // VIEWER y superiores pueden ver documentos
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const parsed = FiltersSchema.safeParse(rawFilters);
     if (!parsed.success) return { success: false, error: "Filtros inválidos" };
@@ -70,19 +55,14 @@ export async function generateDocShareTokenAction(
   docId: string,
 ): Promise<ActionResult<{ url: string; expiresAt: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // Solo OWNER/ADMIN/ACCOUNTANT pueden compartir documentos
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
 
     // Verificar que el documento pertenece a esta empresa (ADR-004 cross-tenant guard)
     if (docType === "INVOICE") {
@@ -108,8 +88,6 @@ export async function generateDocShareTokenAction(
     const expiresAt = expiresAtDate.toISOString();
 
     // AuditLog + DocShareToken en mismo $transaction (R-6 + M6 revocación)
-    const { ipAddress, userAgent } = await resolveIpUa();
-
     await prisma.$transaction([
       prisma.docShareToken.create({
         data: { companyId, jti, docType, docId, createdBy: userId, expiresAt: expiresAtDate },
@@ -121,8 +99,8 @@ export async function generateDocShareTokenAction(
           entityName: docType === "INVOICE" ? "Invoice" : "Retencion",
           action: "DOC_SHARED",
           userId,
-          ipAddress,
-          userAgent,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
           newValue: { docType, expiresAt, jti },
         },
       }),
@@ -141,15 +119,9 @@ export async function revokeDocShareTokenAction(
   jti: string,
 ): Promise<ActionResult<{ revoked: true }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, captureNet: true });
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
 
     const record = await prisma.docShareToken.findFirst({
       where: { jti, companyId },
@@ -157,8 +129,6 @@ export async function revokeDocShareTokenAction(
     });
     if (!record) return { success: false, error: "Token no encontrado" };
     if (record.revokedAt) return { success: false, error: "El enlace ya estaba revocado" };
-
-    const { ipAddress, userAgent } = await resolveIpUa();
 
     await prisma.$transaction([
       prisma.docShareToken.update({
@@ -172,8 +142,8 @@ export async function revokeDocShareTokenAction(
           entityName: "DocShareToken",
           action: "DOC_SHARE_REVOKED",
           userId,
-          ipAddress,
-          userAgent,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
           newValue: { jti, revokedAt: new Date().toISOString() },
         },
       }),
