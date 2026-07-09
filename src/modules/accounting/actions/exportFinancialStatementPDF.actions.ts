@@ -2,9 +2,9 @@
 
 // src/modules/accounting/actions/exportFinancialStatementPDF.actions.ts
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction, getTrialBalanceAction } from "./report.actions";
@@ -32,14 +32,10 @@ type GuardResult =
 
 async function guardAccounting(companyId: string): Promise<GuardResult> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const [member, company, settings] = await Promise.all([
-      prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } }),
+    const [company, settings] = await Promise.all([
       prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
       prisma.companySettings.findUnique({
         where: { companyId },
@@ -47,12 +43,10 @@ async function guardAccounting(companyId: string): Promise<GuardResult> {
       }),
     ]);
 
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Acceso denegado" };
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
     return {
-      userId,
+      userId: ctx.userId,
       companyName: company.name,
       companyRif: company.rif,
       accountant: {

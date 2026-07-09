@@ -8,10 +8,9 @@
 //   26-04 MEDIUM   — Imagen: se envía base64 a Gemini Vision (sandbox Google) — no se ejecuta
 //   26-05 MEDIUM   — Rol mínimo: ROLES.ACCOUNTING
 
-import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { AIContextBuilderService } from "../services/AIContextBuilderService";
 import { FiscalAnomalyDetectorService } from "../services/FiscalAnomalyDetectorService";
 import type { FiscalAnomalyReport } from "../services/FiscalAnomalyDetectorService";
@@ -76,21 +75,10 @@ async function callGemini(
 type AIGuardResult = { userId: string } | { success: false; error: string };
 
 async function guardAIAccess(companyId: string): Promise<AIGuardResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
-
-  // IDOR guard (26-01 CRITICAL): el usuario debe ser miembro de esta empresa
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-  });
-  if (!member) return { success: false, error: "Sin acceso" };
-
-  // Role guard (26-05 MEDIUM): mínimo rol Contador
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Rol insuficiente" };
-  }
-
-  return { userId };
+  // IDOR guard (26-01 CRITICAL) + Role guard (26-05 MEDIUM): mínimo rol Contador
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
+  return { userId: ctx.userId };
 }
 
 // ─── Modo auditoría — fallback con PendingTasksService ────────────────────────

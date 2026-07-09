@@ -2,14 +2,13 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import prisma from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import * as MemberService from "../services/MemberService";
 import {
@@ -36,28 +35,13 @@ function toZodFieldErrors(error: z.ZodError): ActionResult<never> {
   return { success: false, error: "Datos inválidos", fieldErrors };
 }
 
-async function resolveIpUa() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
-
 // ─── Listar miembros ──────────────────────────────────────────────────────────
 
 export async function getMembersAction(
   companyId: string
 ): Promise<ActionResult<MemberService.MemberRow[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-  });
-  if (!member || !canAccess(member.role, ROLES.ALL)) {
-    return { success: false, error: "No autorizado" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const members = await MemberService.listMembers(companyId);
@@ -73,31 +57,22 @@ export async function addMemberAction(
   input: AddMemberInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(input.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const validated = AddMemberSchema.parse(input);
-
-    const actor = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!actor) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(actor.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo Administrador o Propietario puede gestionar miembros." };
-    }
-
-    const { ipAddress, userAgent } = await resolveIpUa();
 
     const member = await MemberService.addMember(
       validated.companyId,
       validated.email,
       validated.role as UserRole,
-      userId,
-      ipAddress,
-      userAgent
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);
@@ -114,27 +89,19 @@ export async function updateMemberRoleAction(
   input: UpdateMemberRoleInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(input.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const validated = UpdateMemberRoleSchema.parse(input);
-
-    const actor = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!actor) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(actor.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo Administrador o Propietario puede gestionar miembros." };
-    }
 
     const updated = await MemberService.updateMemberRole(
       validated.companyId,
       validated.targetUserId,
       validated.role as UserRole,
-      userId
+      ctx.userId
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);
@@ -151,35 +118,28 @@ export async function removeMemberAction(
   input: RemoveMemberInput
 ): Promise<ActionResult<null> | StepUpError> {
   try {
-    const { userId, has } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(input.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para eliminar miembro
+    // ADR-041 D-4: check extra/más restrictivo DESPUÉS del guard central
+    const { has } = await auth();
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
     const validated = RemoveMemberSchema.parse(input);
-
-    const actor = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!actor) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(actor.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo Administrador o Propietario puede gestionar miembros." };
-    }
-
-    const { ipAddress, userAgent } = await resolveIpUa();
 
     await MemberService.removeMember(
       validated.companyId,
       validated.targetUserId,
-      userId,
-      ipAddress,
-      userAgent
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);

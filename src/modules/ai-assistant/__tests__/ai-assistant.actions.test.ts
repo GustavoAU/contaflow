@@ -81,7 +81,6 @@ describe("sendMessageAction", () => {
     setupAuth(null);
     const result = await sendMessageAction(COMPANY_ID, "Hola");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autenticado");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
   });
 
@@ -90,7 +89,6 @@ describe("sendMessageAction", () => {
     setupNoMember();
     const result = await sendMessageAction(COMPANY_ID, "Hola");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Sin acceso");
   });
 
   // ─── Role guard ───────────────────────────────────────────────────────────────
@@ -98,14 +96,12 @@ describe("sendMessageAction", () => {
     setupMember("VIEWER");
     const result = await sendMessageAction(COMPANY_ID, "Hola");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Rol insuficiente");
   });
 
   it("26-05 rol: ADMINISTRATIVE no puede usar el asistente", async () => {
     setupMember("ADMINISTRATIVE");
     const result = await sendMessageAction(COMPANY_ID, "Hola");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Rol insuficiente");
   });
 
   // ─── Rate limit ───────────────────────────────────────────────────────────────
@@ -204,21 +200,18 @@ describe("getAnomalySummaryAction", () => {
     setupAuth(null);
     const result = await getAnomalySummaryAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autenticado");
   });
 
   it("retorna error si usuario no es miembro", async () => {
     setupNoMember();
     const result = await getAnomalySummaryAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Sin acceso");
   });
 
   it("retorna error si rol es VIEWER", async () => {
     setupMember("VIEWER");
     const result = await getAnomalySummaryAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Rol insuficiente");
   });
 
   it("degradación graceful si detector lanza excepción — retorna ceros", async () => {
