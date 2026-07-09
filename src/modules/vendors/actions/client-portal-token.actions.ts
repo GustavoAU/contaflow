@@ -3,8 +3,8 @@
 // Genera un enlace firmado de portal para que el cliente consulte su CxC.
 // Solo accesible por ADMIN_ONLY (mismo nivel que Portal del Empleado).
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { signClientToken } from "@/lib/client-portal-jwt";
 
@@ -16,17 +16,8 @@ export async function generateClientPortalTokenAction(
   companyId: string,
   customerId: string,
 ): Promise<GenerateClientPortalTokenResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Sin acceso a esta empresa" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol Administrador para generar el enlace" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+  if (!ctx.ok) return ctx.error;
 
   // Guard cross-tenant: el cliente debe pertenecer a esta empresa
   const customer = await prisma.customer.findFirst({

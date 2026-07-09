@@ -3,8 +3,8 @@
 // Genera un enlace firmado de portal para que el empleado consulte su información.
 // Solo accesible por ADMIN_ONLY (R-6).
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
 
@@ -16,17 +16,8 @@ export async function generatePortalTokenAction(
   companyId: string,
   employeeId: string,
 ): Promise<GeneratePortalTokenResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autenticado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Sin acceso a esta empresa" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol Administrador para generar el enlace" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+  if (!ctx.ok) return ctx.error;
 
   // Verificar que el empleado existe y pertenece a esta empresa (cross-tenant guard)
   const employee = await prisma.employee.findFirst({

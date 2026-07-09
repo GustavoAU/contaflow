@@ -2,8 +2,8 @@
 // Autocompletado de contraparte en InvoiceForm — busca en Vendor + Customer por RIF o nombre
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -20,17 +20,11 @@ export async function searchContactsByRifAction(
   query: string
 ): Promise<ActionResult<ContactSuggestion[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const q = query.trim();
     if (!companyId || q.length < 2) return { success: true, data: [] };
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { id: true },
-    });
-    if (!member) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const [vendors, customers] = await Promise.all([
       prisma.vendor.findMany({

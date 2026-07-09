@@ -2,11 +2,11 @@
 
 // src/modules/settings/actions/accountant-config.actions.ts
 
-import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { revalidatePath } from "next/cache";
 
 const AccountantConfigSchema = z.object({
@@ -24,15 +24,8 @@ export type AccountantConfig = {
 export async function getAccountantConfigAction(
   companyId: string,
 ): Promise<{ success: true; data: AccountantConfig } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   const settings = await prisma.companySettings.findUnique({
     where: { companyId },
@@ -53,18 +46,11 @@ export async function saveAccountantConfigAction(
   companyId: string,
   formData: FormData,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
   });
-  if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Acceso denegado" };
+  if (!ctx.ok) return ctx.error;
 
   const parsed = AccountantConfigSchema.safeParse({
     accountantName: formData.get("accountantName") || undefined,
