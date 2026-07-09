@@ -1,24 +1,12 @@
-﻿// src/components/invoices/InvoiceForm.tsx
+// src/components/invoices/InvoiceForm.tsx
 "use client";
 
 import { useState, useTransition, useId, useRef, useEffect, useCallback } from "react";
 import { useFormDraft, DRAFT_AUTO_SAVE_MS } from "@/hooks/useFormDraft";
-import { Loader2Icon, AlertTriangleIcon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { RifInput } from "@/components/invoices/RifInput";
-import { RelatedInvoicePicker } from "@/components/invoices/RelatedInvoicePicker";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Decimal } from "decimal.js";
 import {
   createInvoiceAction,
@@ -29,6 +17,14 @@ import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-r
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { type ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
 import { OCR_SESSION_KEY } from "@/components/ocr/InvoiceUploader";
+import type { TaxLine, TaxLineType, InvoiceDraft } from "./invoice-form/types";
+import { calcAmount, sumTaxLines, updateTaxLineState, validateTaxLinesBeforeSubmit } from "./invoice-form/helpers";
+import { InvoiceOcrBanners } from "./invoice-form/InvoiceOcrBanners";
+import { InvoiceHeaderFields } from "./invoice-form/InvoiceHeaderFields";
+import { InvoiceTaxLinesSection } from "./invoice-form/InvoiceTaxLinesSection";
+import { InvoiceRetentionsIgtfSection } from "./invoice-form/InvoiceRetentionsIgtfSection";
+import { InvoiceTotalsPanel } from "./invoice-form/InvoiceTotalsPanel";
+import { InvoiceFormDialogs } from "./invoice-form/InvoiceFormDialogs";
 
 // Duplicate pre-fill key — set by InvoiceBook "Dup" button, read once on mount
 export const DUPLICATE_SESSION_KEY = "cf-invoice-dup";
@@ -42,18 +38,6 @@ type DuplicateData = {
   taxLines: Array<{ taxType: string; base: string; rate: string; amount: string }>;
 };
 
-type TaxLineType = "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
-
-type TaxLine = {
-  id: string;
-  taxType: TaxLineType;
-  description: string;
-  base: string;
-  rate: string;
-  amount: string;
-  luxuryGroupId: string | null;
-};
-
 type Props = {
   companyId: string;
   userId: string;
@@ -61,58 +45,6 @@ type Props = {
   isSpecialContributor: boolean;
   defaultType?: "SALE" | "PURCHASE";
 };
-
-const DOC_TYPES = [
-  { value: "FACTURA", label: "Factura" },
-  { value: "NOTA_DEBITO", label: "Nota de Débito" },
-  { value: "NOTA_CREDITO", label: "Nota de Crédito" },
-  { value: "REPORTE_Z", label: "Reporte Z (Máquina Fiscal)" },
-  { value: "RESUMEN_VENTAS", label: "Resumen de Ventas" },
-  { value: "PLANILLA_IMPORTACION", label: "Planilla de Importación" },
-  { value: "OTRO", label: "Otro" },
-];
-
-const TAX_CATEGORIES = [
-  { value: "GRAVADA", label: "Gravada" },
-  { value: "EXENTA", label: "Exenta" },
-  { value: "EXONERADA", label: "Exonerada" },
-  { value: "NO_SUJETA", label: "No Sujeta" },
-  { value: "IMPORTACION", label: "Importación" },
-];
-
-// ─── Calcula monto IVA usando Decimal.js exclusivamente ───────────────────────
-function calcAmount(base: string, rate: string): string {
-  try {
-    const b = new Decimal(base || "0");
-    const r = new Decimal(rate || "0");
-    if (b.isNaN() || r.isNaN() || b.isNegative() || r.isNegative()) return "0.00";
-    return b.mul(r).div(100).toFixed(2);
-  } catch {
-    return "0.00";
-  }
-}
-
-// ─── Suma total IVA usando Decimal.js exclusivamente ─────────────────────────
-function sumTaxLines(lines: TaxLine[]): string {
-  return lines
-    .reduce((acc, l) => {
-      try {
-        return acc.plus(new Decimal(l.amount || "0"));
-      } catch {
-        return acc;
-      }
-    }, new Decimal(0))
-    .toFixed(2);
-}
-
-// ─── Formatea monto con símbolo de moneda ────────────────────────────────────
-function formatCurrencyAmount(amount: string, currency: string): string {
-  const num = parseFloat(amount) || 0;
-  if (currency === "VES") return `Bs.D ${num.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (currency === "USD") return `$ ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (currency === "EUR") return `€ ${num.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return `${currency} ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export function InvoiceForm({
   companyId,
@@ -154,14 +86,6 @@ export function InvoiceForm({
   const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
 
   // ─── Autosave borrador (Q1-3) ────────────────────────────────────────────────
-  type InvoiceDraft = {
-    type: "SALE" | "PURCHASE";
-    currency: "VES" | "USD" | "EUR";
-    docType: string;
-    taxCategory: string;
-    counterpartName: string;
-    taxLines: TaxLine[];
-  };
   const { draft, saveDraft, clearDraft } = useFormDraft<InvoiceDraft>(`invoice-new-${companyId}`);
   const [showDraftAlert, setShowDraftAlert] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -351,110 +275,7 @@ export function InvoiceForm({
 
   // ─── updateTaxLine unificado ──────────────────────────────────────────────────
   function updateTaxLine(id: string, field: keyof TaxLine, value: string) {
-    setTaxLines((prev) => {
-      const line = prev.find((l) => l.id === id);
-      if (!line) return prev;
-
-      // 1. CAMBIO A IVA_ADICIONAL — limpiar líneas huérfanas y crear par limpio
-      if (field === "taxType" && value === "IVA_ADICIONAL") {
-        // Primero eliminar cualquier línea vinculada anterior de esta línea
-        const cleanPrev = line.luxuryGroupId
-          ? prev.filter((l) => l.luxuryGroupId !== line.luxuryGroupId || l.id === id)
-          : prev;
-
-        const groupId = crypto.randomUUID();
-        return [
-          ...cleanPrev.map((l) =>
-            l.id === id
-              ? {
-                  ...l,
-                  taxType: "IVA_ADICIONAL" as TaxLineType,
-                  rate: "15",
-                  amount: calcAmount(l.base, "15"),
-                  luxuryGroupId: groupId,
-                }
-              : l
-          ),
-          {
-            id: crypto.randomUUID(),
-            taxType: "IVA_GENERAL" as TaxLineType,
-            description: "",
-            base: line.base,
-            rate: "16",
-            amount: calcAmount(line.base, "16"),
-            luxuryGroupId: groupId,
-          },
-        ];
-      }
-
-      // 2. CAMBIO DESDE IVA_ADICIONAL A OTRO TIPO — eliminar línea hermana vinculada
-      if (field === "taxType" && line.taxType === "IVA_ADICIONAL" && value !== "IVA_ADICIONAL") {
-        const rateMap: Record<string, string> = {
-          IVA_GENERAL: "16",
-          IVA_REDUCIDO: "8",
-          EXENTO: "0",
-        };
-        const newRate = rateMap[value] ?? "0";
-        // Eliminar la línea hermana IVA_GENERAL vinculada
-        const withoutSister = prev.filter(
-          (l) => !(l.luxuryGroupId === line.luxuryGroupId && l.id !== id)
-        );
-        return withoutSister.map((l) =>
-          l.id === id
-            ? {
-                ...l,
-                taxType: value as TaxLineType,
-                rate: newRate,
-                amount: calcAmount(l.base, newRate),
-                luxuryGroupId: null,
-              }
-            : l
-        );
-      }
-
-      // 3. SINCRONIZACIÓN ATÓMICA DE BASES — espejo entre líneas vinculadas
-      if (field === "base" && line.luxuryGroupId) {
-        return prev.map((l) =>
-          l.luxuryGroupId === line.luxuryGroupId
-            ? { ...l, base: value, amount: calcAmount(value, l.rate) }
-            : l
-        );
-      }
-
-      // 4. CAMBIO DE TIPO NORMAL — líneas no vinculadas
-      if (field === "taxType") {
-        const rateMap: Record<string, string> = {
-          IVA_GENERAL: "16",
-          IVA_REDUCIDO: "8",
-          EXENTO: "0",
-        };
-        const newRate = rateMap[value] ?? "0";
-        return prev.map((l) =>
-          l.id === id
-            ? {
-                ...l,
-                taxType: value as TaxLineType,
-                rate: newRate,
-                amount: calcAmount(l.base, newRate),
-                luxuryGroupId: null,
-              }
-            : l
-        );
-      }
-
-      // 5. CAMBIO DE BASE O TASA — líneas normales
-      return prev.map((l) => {
-        if (l.id !== id) return l;
-        const updated = { ...l, [field]: value };
-        if (field === "base" || field === "rate") {
-          updated.amount = calcAmount(
-            field === "base" ? value : l.base,
-            field === "rate" ? value : l.rate
-          );
-        }
-        return updated;
-      });
-    });
+    setTaxLines((prev) => updateTaxLineState(prev, id, field, value));
   }
 
   // ─── Verificar si línea IVA_ADICIONAL tiene su hermana IVA_GENERAL ──────────
@@ -464,58 +285,11 @@ export function InvoiceForm({
     return hasAdicional && !hasGeneral;
   }
 
-  // ─── Validación pre-submit ───────────────────────────────────────────────────
-  function validateBeforeSubmit(): string | null {
-    const hasAdicional = taxLines.some((l) => l.taxType === "IVA_ADICIONAL");
-    const hasGeneral = taxLines.some((l) => l.taxType === "IVA_GENERAL");
-
-    if (hasAdicional && !hasGeneral) {
-      return "Una factura de bien suntuario requiere una línea de IVA General (16%). El par no está completo.";
-    }
-
-    if (hasAdicional && hasGeneral) {
-      const adicional = taxLines.find((l) => l.taxType === "IVA_ADICIONAL")!;
-      const general = taxLines.find(
-        (l) => l.taxType === "IVA_GENERAL" && l.luxuryGroupId === adicional.luxuryGroupId
-      );
-      if (!general || adicional.base !== general.base) {
-        return "Las bases de IVA General (16%) e IVA Adicional (15%) deben ser iguales en bienes suntuarios.";
-      }
-    }
-
-    const linesWithBase = taxLines.filter(
-      (l) => l.taxType !== "EXENTO" && l.base && !new Decimal(l.base || "0").isZero()
-    );
-
-    if (linesWithBase.length === 0 && taxCategory === "GRAVADA") {
-      return "Debes ingresar al menos una base imponible mayor a cero.";
-    }
-
-    for (const line of linesWithBase) {
-      const expected = calcAmount(line.base, line.rate);
-      if (line.amount !== expected) {
-        return `Monto IVA inconsistente en línea ${line.taxType.replace(/_/g, " ")}. Recalculando...`;
-      }
-    }
-
-    const categoryForcesZero = ["EXENTA", "EXONERADA", "NO_SUJETA"].includes(taxCategory);
-    if (categoryForcesZero) {
-      const hasNonZeroIva = taxLines.some(
-        (l) => l.taxType !== "EXENTO" && l.base && !new Decimal(l.base || "0").isZero()
-      );
-      if (hasNonZeroIva) {
-        return `Una factura ${taxCategory.toLowerCase()} no puede tener líneas de IVA con base imponible. Cambia las líneas a 'Exento / Exonerado' o corrige la categoría fiscal.`;
-      }
-    }
-
-    return null;
-  }
-
   // ─── Submit ──────────────────────────────────────────────────────────────────
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const validationError = validateBeforeSubmit();
+    const validationError = validateTaxLinesBeforeSubmit(taxLines, taxCategory);
     if (validationError) {
       toast.error(validationError);
       return;
@@ -632,42 +406,11 @@ export function InvoiceForm({
       <div className="rounded-lg border bg-white p-6">
         <h2 className="mb-4 font-semibold">Registrar Factura</h2>
 
-        {/* Banner OCR pre-fill — diferencia entre extracción limpia y con riesgos */}
-        {ocrLoaded && !ocrHasCriticalRisks && (
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-            <span className="mt-0.5 text-blue-500">★</span>
-            <div className="flex-1 text-sm">
-              <p className="font-semibold text-blue-800">Datos prellenados desde OCR</p>
-              <p className="text-blue-600">
-                Revisa y corrige los campos antes de guardar — precisión ~95%
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOcrLoaded(false)}
-              className="text-blue-400 hover:text-blue-600"
-              aria-label="Cerrar aviso OCR"
-            >
-              ×
-            </button>
-          </div>
-        )}
-        {/* ALERTA 13/14/15: banner de alto riesgo cuando OCR detectó problemas en campos fiscales */}
-        {ocrLoaded && ocrHasCriticalRisks && (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-            <AlertTriangleIcon className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" aria-hidden />
-            <div className="flex-1">
-              <p className="font-semibold text-amber-800">
-                Datos OCR con campos fiscales en revisión
-              </p>
-              <p className="mt-0.5 text-amber-700">
-                El RIF o N° de Control extraídos podrían contener errores de lectura.
-                Verifica <strong>ambos campos</strong> contra la factura física antes de guardar.
-                Un RIF incorrecto invalida el crédito fiscal (PA-00071 Art. 15).
-              </p>
-            </div>
-          </div>
-        )}
+        <InvoiceOcrBanners
+          ocrLoaded={ocrLoaded}
+          ocrHasCriticalRisks={ocrHasCriticalRisks}
+          setOcrLoaded={setOcrLoaded}
+        />
 
         {/* Selector Compra / Venta */}
         <div className="mb-6 flex rounded-lg border p-1">
@@ -686,574 +429,65 @@ export function InvoiceForm({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tipo de documento y categoría fiscal */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Tipo de Documento
-              </label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {DOC_TYPES.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Categoría Fiscal
-              </label>
-              <select
-                value={taxCategory}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  if (["EXENTA", "EXONERADA", "NO_SUJETA"].includes(newValue)) {
-                    setPendingCategory(newValue);
-                    setShowAlert(true);
-                    // NO aplicar el cambio aún — esperar confirmación
-                  } else {
-                    setTaxCategory(newValue);
-                    prevCategoryRef.current = newValue;
-                  }
-                }}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {TAX_CATEGORIES.filter((c) => type === "PURCHASE" || c.value !== "IMPORTACION").map(
-                  (c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-          </div>
+          <InvoiceHeaderFields
+            companyId={companyId}
+            type={type}
+            docType={docType}
+            setDocType={setDocType}
+            taxCategory={taxCategory}
+            setTaxCategory={setTaxCategory}
+            setPendingCategory={setPendingCategory}
+            setShowAlert={setShowAlert}
+            prevCategoryRef={prevCategoryRef}
+            isReporteZ={isReporteZ}
+            currency={currency}
+            setCurrency={setCurrency}
+            counterpartName={counterpartName}
+            setCounterpartName={setCounterpartName}
+            counterpartNameRef={counterpartNameRef}
+            counterpartAddress={counterpartAddress}
+            setCounterpartAddress={setCounterpartAddress}
+            counterpartIsSpecialContributor={counterpartIsSpecialContributor}
+            setCounterpartIsSpecialContributor={setCounterpartIsSpecialContributor}
+            relatedInvoiceId={relatedInvoiceId}
+            setRelatedInvoiceId={setRelatedInvoiceId}
+            invoiceNumberRef={invoiceNumberRef}
+            controlNumberRef={controlNumberRef}
+            dateRef={dateRef}
+            ocrRifKey={ocrRifKey}
+            ocrCounterpartRif={ocrCounterpartRif}
+          />
 
-          {/* Números de documento */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Número de Factura <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={invoiceNumberRef}
-                name="invoiceNumber"
-                required
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="0000001"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Número de Control{" "}
-                {type === "PURCHASE" && <span className="text-red-500">*</span>}
-              </label>
-              {type === "SALE" ? (
-                <div className="flex w-full items-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-400">
-                  <span>Se asignará automáticamente</span>
-                  <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600">Prov. 0071 Art. 14</span>
-                </div>
-              ) : (
-                <input
-                  ref={controlNumberRef}
-                  name="controlNumber"
-                  required
-                  pattern="\d{2}-\d{8}"
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="00-00000001"
-                />
-              )}
-            </div>
-          </div>
+          <InvoiceTaxLinesSection
+            taxLines={taxLines}
+            taxCategory={taxCategory}
+            currency={currency}
+            totalIva={totalIva}
+            bcvLoading={bcvLoading}
+            bcvRate={bcvRate}
+            addTaxLine={addTaxLine}
+            removeTaxLine={removeTaxLine}
+            updateTaxLine={updateTaxLine}
+            hasAdditionalWithoutGeneral={hasAdditionalWithoutGeneral}
+          />
 
-          {/* Reporte Z */}
-          {isReporteZ && (
-            <div className="grid gap-3 rounded-lg bg-zinc-50 p-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  N° Inicial (Reporte Z)
-                </label>
-                <input
-                  name="reportZStart"
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="0000001"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  N° Final (Reporte Z)
-                </label>
-                <input
-                  name="reportZEnd"
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="0000050"
-                />
-              </div>
-            </div>
-          )}
+          <InvoiceRetentionsIgtfSection
+            type={type}
+            paidInForeign={paidInForeign}
+            setPaidInForeign={setPaidInForeign}
+            igtfApplies={igtfApplies}
+            igtfBase={igtfBase}
+            setIgtfBase={setIgtfBase}
+            igtfCalculation={igtfCalculation}
+          />
 
-          {/* Nota relacionada e importación */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                N° Nota Déb/Cré relacionada
-              </label>
-              <input
-                name="relatedDocNumber"
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="Opcional"
-              />
-            </div>
-            {(type === "PURCHASE" || taxCategory === "IMPORTACION") && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  N° Planilla de Importación{" "}
-                  {taxCategory === "IMPORTACION" && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  name="importFormNumber"
-                  required={taxCategory === "IMPORTACION"}
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder={taxCategory === "IMPORTACION" ? "Requerido" : "Opcional"}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Factura original — sólo para NC/ND */}
-          {(docType === "NOTA_CREDITO" || docType === "NOTA_DEBITO") && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <label className="mb-2 block text-xs font-medium text-zinc-700">
-                Factura original <span className="text-red-500">*</span>
-              </label>
-              <RelatedInvoicePicker
-                companyId={companyId}
-                type={type}
-                value={relatedInvoiceId}
-                onChange={setRelatedInvoiceId}
-              />
-              <p className="mt-1.5 text-xs text-amber-700">
-                El número de documento relacionado se deriva automáticamente de la factura seleccionada.
-              </p>
-            </div>
-          )}
-
-          {/* Fecha + Moneda */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Fecha <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={dateRef}
-                name="date"
-                type="date"
-                required
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Moneda</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as "VES" | "USD" | "EUR")}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="VES">Bs.D (VES)</option>
-                <option value="USD">USD — Dólar</option>
-                <option value="EUR">EUR — Euro</option>
-              </select>
-            </div>
-          </div>
-          {currency !== "VES" && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-              Los montos se ingresan en VES (conversión a la tasa BCV del día). Use el widget{" "}
-              <strong>BCV</strong> en el encabezado para actualizar la tasa del día. Si no existe
-              tasa para la fecha seleccionada, la factura no podrá guardarse.
-            </div>
-          )}
-
-          {/* Contraparte */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                {type === "PURCHASE" ? "Proveedor" : "Cliente"}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                ref={counterpartNameRef}
-                name="counterpartName"
-                required
-                value={counterpartName}
-                onChange={(e) => setCounterpartName(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="Razón Social"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
-                RIF <span className="text-red-500">*</span>
-              </label>
-              <RifInput
-                key={ocrRifKey}
-                companyId={companyId}
-                name="counterpartRif"
-                defaultValue={ocrCounterpartRif}
-                required
-                onLegalNameFound={(name) => {
-                  if (!counterpartName) setCounterpartName(name);
-                }}
-                onContactSelected={(contact) => {
-                  if (!counterpartName) setCounterpartName(contact.name);
-                  if (!counterpartAddress && contact.address) setCounterpartAddress(contact.address);
-                  setCounterpartIsSpecialContributor(contact.isSpecialContributor);
-                }}
-              />
-            </div>
-          </div>
-
-          {/* H-1: Dirección fiscal — Art. 57 Ley IVA, Art. 13 Prov. 00071 */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Dirección Fiscal{" "}
-              <span className="font-normal text-zinc-400" title="Art. 57 Ley IVA: el libro debe registrar la dirección del contribuyente">(recomendada)</span>
-              {counterpartIsSpecialContributor && (
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase" title="Contribuyente Especial — aplica retención IVA (Prov. 0049)">CE</span>
-              )}
-            </label>
-            <input
-              type="text"
-              name="counterpartAddress"
-              value={counterpartAddress}
-              onChange={(e) => setCounterpartAddress(e.target.value)}
-              placeholder="Ej: Av. Principal, Edif. Torre, Piso 3, Caracas"
-              className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* ─── Desglose de impuestos ──────────────────────────────────────── */}
-          <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-700">Desglose de Impuestos (IVA)</p>
-              {(() => {
-                const isBlocked = ["EXENTA", "EXONERADA", "NO_SUJETA"].includes(taxCategory);
-                return (
-                  <button
-                    type="button"
-                    onClick={addTaxLine}
-                    disabled={isBlocked}
-                    title={isBlocked ? "No aplica para categoría fiscal seleccionada" : undefined}
-                    className={`text-sm font-medium ${
-                      isBlocked
-                        ? "cursor-not-allowed text-zinc-400"
-                        : "text-blue-600 hover:text-blue-800"
-                    }`}
-                  >
-                    + Agregar línea
-                  </button>
-                );
-              })()}
-            </div>
-
-            {/* Aviso bien suntuario */}
-            {hasAdditionalWithoutGeneral() && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                ⚠️ Falta la línea de <strong>IVA General (16%)</strong> requerida para bienes
-                suntuarios. Agrégala sobre la misma base imponible.
-              </div>
-            )}
-
-            {taxLines.map((line, idx) => (
-              <div
-                key={line.id}
-                className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-                    Línea {idx + 1}
-                    {line.luxuryGroupId && (
-                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
-                        Bloque suntuario
-                      </span>
-                    )}
-                  </span>
-                  {(() => {
-                    // Slave IVA_GENERAL de un par suntuario: nunca mostrar eliminar —
-                    // se gestiona como bloque desde la línea IVA_ADICIONAL.
-                    if (line.taxType === "IVA_GENERAL" && line.luxuryGroupId) return null;
-
-                    // Calcular cuántas líneas quedarían tras eliminar
-                    const isLuxuryMaster = line.taxType === "IVA_ADICIONAL" && !!line.luxuryGroupId;
-                    const remaining = isLuxuryMaster
-                      ? taxLines.filter((l) => l.luxuryGroupId !== line.luxuryGroupId).length
-                      : taxLines.filter((l) => l.id !== line.id).length;
-
-                    if (remaining < 1) return null; // no dejar el form sin líneas
-
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => removeTaxLine(line.id)}
-                        className="text-xs font-medium text-red-400 hover:text-red-600"
-                      >
-                        {isLuxuryMaster ? "Eliminar bloque" : "Eliminar"}
-                      </button>
-                    );
-                  })()}
-                </div>
-
-                {/* Tipo de impuesto */}
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">
-                    Tipo de Impuesto
-                  </label>
-                  <select
-                    value={line.taxType}
-                    disabled={line.taxType === "IVA_GENERAL" && line.luxuryGroupId !== null}
-                    onChange={(e) =>
-                      updateTaxLine(line.id, "taxType", e.target.value as TaxLineType)
-                    }
-                    className="w-full rounded-md border bg-white px-3 py-2 text-sm font-medium text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-                  >
-                    <option value="IVA_GENERAL">IVA General (16%)</option>
-                    <option value="IVA_REDUCIDO">IVA Reducido (8%)</option>
-                    <option value="IVA_ADICIONAL">IVA Lujo (15% Adicional)</option>
-                    <option value="EXENTO">Exento / Exonerado</option>
-                  </select>
-
-                  {line.taxType === "IVA_ADICIONAL" && (
-                    <p className="mt-1 rounded border border-amber-100 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                      ⚠️ Esta línea calcula el 15% adicional. La línea de IVA General (16%) se
-                      gestionará automáticamente.
-                    </p>
-                  )}
-                </div>
-
-                {/* Glosa / descripción de la línea */}
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">
-                    Glosa{" "}
-                    <span className="font-normal text-zinc-400" title="Prov. 00071: el libro debe identificar la naturaleza de la operación">(recomendada)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={line.description}
-                    onChange={(e) => updateTaxLine(line.id, "description", e.target.value)}
-                    placeholder="Ej: Venta de mercancías, Servicio de consultoría..."
-                    className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* Base + Tasa + Monto */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600">
-                      Base Imponible
-                      {line.luxuryGroupId && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
-                          Vinculado
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={line.base}
-                      disabled={line.taxType === "IVA_GENERAL" && !!line.luxuryGroupId}
-                      onChange={(e) => updateTaxLine(line.id, "base", e.target.value)}
-                      className="w-full rounded-md border px-3 py-2 font-mono text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-600">Tasa %</label>
-                    <input
-                      type="text"
-                      value={`${line.rate}%`}
-                      readOnly
-                      className="w-full cursor-not-allowed rounded-md border bg-zinc-100 px-3 py-2 text-center font-mono text-sm text-zinc-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-600">
-                      Monto IVA
-                    </label>
-                    <input
-                      type="text"
-                      value={formatCurrencyAmount(line.amount, currency)}
-                      readOnly
-                      className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* Total IVA */}
-            <div className="flex justify-end border-t border-zinc-200 pt-2">
-              <span className="mr-2 text-sm font-semibold text-zinc-600">Total IVA:</span>
-              <span className="font-mono text-sm font-bold text-blue-700 tabular-nums">
-                {formatCurrencyAmount(totalIva, currency)}
-              </span>
-            </div>
-            {currency !== "VES" && (
-              <div className="flex justify-end mt-1">
-                <span className="text-xs text-zinc-500 tabular-nums">
-                  {bcvLoading ? (
-                    "Consultando tasa BCV..."
-                  ) : bcvRate ? (
-                    <>
-                      ≈ Bs.D{" "}
-                      {formatCurrencyAmount(
-                        (parseFloat(totalIva) * parseFloat(bcvRate.rate)).toFixed(2),
-                        "VES"
-                      ).replace("Bs.D ", "")}{" "}
-                      (tasa BCV: {parseFloat(bcvRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })})
-                    </>
-                  ) : (
-                    "Sin tasa BCV registrada para esta fecha"
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Retenciones */}
-          <div className="space-y-3 rounded-lg bg-orange-50 p-4">
-            <p className="text-sm font-semibold text-orange-700">Retenciones</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  Monto IVA Retenido
-                </label>
-                <input
-                  name="ivaRetentionAmount"
-                  type="number"
-                  step="0.01"
-                  defaultValue="0"
-                  className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  N° Comprobante Retención IVA
-                </label>
-                <input
-                  name="ivaRetentionVoucher"
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                  placeholder="Opcional"
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  Fecha Comprobante Retención IVA
-                </label>
-                <input
-                  name="ivaRetentionDate"
-                  type="date"
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                />
-              </div>
-              {type === "PURCHASE" && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">
-                    Monto ISLR Retenido
-                  </label>
-                  <input
-                    name="islrRetentionAmount"
-                    type="number"
-                    step="0.01"
-                    defaultValue="0"
-                    className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* IGTF — Ventas y Compras en divisas (H-003) */}
-          <div className="space-y-3 rounded-lg bg-yellow-50 p-4">
-            <p className="text-sm font-semibold text-yellow-700">Detalle de Pago / IGTF</p>
-            <label className="flex items-center gap-2 text-sm text-zinc-700">
-              <input
-                type="checkbox"
-                checked={paidInForeign}
-                onChange={(e) => setPaidInForeign(e.target.checked)}
-                className="rounded"
-              />
-              {type === "SALE" ? "Pago recibido en divisas" : "Pago realizado en divisas"}
-            </label>
-              {igtfApplies && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-600">
-                      Base IGTF (3%)
-                      <span className="ml-1 font-normal text-zinc-400">(subtotal + IVA)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={igtfBase}
-                      onChange={(e) => setIgtfBase(e.target.value)}
-                      className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-600">
-                      Monto IGTF Percibido
-                    </label>
-                    <input
-                      type="text"
-                      value={igtfCalculation?.igtfAmount ?? "0.00"}
-                      readOnly
-                      className="w-full rounded-md border bg-yellow-100 px-3 py-2 font-mono text-sm font-semibold text-yellow-800"
-                    />
-                  </div>
-                </div>
-              )}
-          </div>
-
-          {/* ─── Resumen de la factura ────────────────────────────────────── */}
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-2">
-            <p className="text-sm font-semibold text-zinc-700">Resumen</p>
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Subtotal (Base Imponible)</span>
-                <span className="font-mono font-medium text-zinc-800 tabular-nums">
-                  {formatCurrencyAmount(subtotal, currency)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Total IVA</span>
-                <span className="font-mono font-medium text-zinc-800 tabular-nums">
-                  {formatCurrencyAmount(totalIva, currency)}
-                </span>
-              </div>
-              {igtfCalculation && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">IGTF (3%)</span>
-                  <span className="font-mono font-medium text-yellow-700 tabular-nums">
-                    {formatCurrencyAmount(igtfCalculation.igtfAmount, currency)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-zinc-200 pt-2">
-                <span className="font-semibold text-zinc-700">Total a Pagar</span>
-                <span className="font-mono font-bold text-blue-700 tabular-nums">
-                  {formatCurrencyAmount(totalAmount, currency)}
-                </span>
-              </div>
-            </div>
-          </div>
+          <InvoiceTotalsPanel
+            subtotal={subtotal}
+            totalIva={totalIva}
+            totalAmount={totalAmount}
+            currency={currency}
+            igtfCalculation={igtfCalculation}
+          />
 
           {/* Q3-6: aria-keyshortcuts documenta Ctrl+S / Ctrl+Enter para usuarios de teclado */}
           <Button
@@ -1271,80 +505,22 @@ export function InvoiceForm({
 
       <Toaster richColors position="top-right" />
 
-      {/* AlertDialog — restaurar borrador guardado automáticamente */}
-      <AlertDialog open={showDraftAlert && !!draft && !ocrLoaded} onOpenChange={setShowDraftAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Restaurar borrador?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Hay un borrador guardado{" "}
-              {draft
-                ? `el ${new Date(draft.savedAt).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
-                : ""}
-              {" "}con líneas de impuesto y datos de la contraparte. ¿Deseas continuar donde lo dejaste?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setShowDraftAlert(false); clearDraft(); }}>
-              Descartar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={restoreDraft}>
-              Restaurar borrador
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* AlertDialog — confirmación cascada al cambiar a categoría sin IVA */}
-      <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Cambiar categoría fiscal?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Al cambiar a{" "}
-              <strong>
-                {TAX_CATEGORIES.find((c) => c.value === pendingCategory)?.label ?? pendingCategory}
-              </strong>
-              , todas las líneas de impuesto se reiniciarán a una sola línea{" "}
-              <strong>Exento / Exonerado</strong>. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setShowAlert(false);
-                setPendingCategory(null);
-                // El select revierte solo porque taxCategory no se actualizó
-              }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingCategory) {
-                  setTaxCategory(pendingCategory);
-                  setTaxLines([
-                    {
-                      id: newLineId(),
-                      taxType: "EXENTO",
-                      description: "",
-                      base: "",
-                      rate: "0",
-                      amount: "0.00",
-                      luxuryGroupId: null,
-                    },
-                  ]);
-                  prevCategoryRef.current = pendingCategory;
-                }
-                setShowAlert(false);
-                setPendingCategory(null);
-              }}
-            >
-              Confirmar cambio
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <InvoiceFormDialogs
+        showDraftAlert={showDraftAlert}
+        setShowDraftAlert={setShowDraftAlert}
+        draft={draft}
+        ocrLoaded={ocrLoaded}
+        clearDraft={clearDraft}
+        restoreDraft={restoreDraft}
+        showAlert={showAlert}
+        setShowAlert={setShowAlert}
+        pendingCategory={pendingCategory}
+        setPendingCategory={setPendingCategory}
+        setTaxCategory={setTaxCategory}
+        setTaxLines={setTaxLines}
+        prevCategoryRef={prevCategoryRef}
+        newLineId={newLineId}
+      />
     </>
   );
 }
