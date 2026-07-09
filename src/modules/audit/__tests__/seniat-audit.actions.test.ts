@@ -10,7 +10,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember: { findUnique: vi.fn() },
+    companyMember: { findFirst: vi.fn() },
     invoice: { findMany: vi.fn(), count: vi.fn() },
     paymentRecord: { findMany: vi.fn(), count: vi.fn() },
   },
@@ -29,7 +29,7 @@ describe("getInvoiceAuditReportAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(adminMember as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(adminMember as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
   });
@@ -45,7 +45,7 @@ describe("getInvoiceAuditReportAction", () => {
   });
 
   it("rol SENIAT recibe informe de facturas", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "SENIAT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "SENIAT" } as never);
 
     const r = await getInvoiceAuditReportAction(COMPANY_ID);
     expect(r.success).toBe(true);
@@ -59,14 +59,14 @@ describe("getInvoiceAuditReportAction", () => {
   });
 
   it("sin membresía retorna error no autorizado", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
 
     const r = await getInvoiceAuditReportAction(COMPANY_ID);
     expect(r).toEqual({ success: false, error: "No autorizado" });
   });
 
   it("ACCOUNTANT es rechazado", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
 
     const r = await getInvoiceAuditReportAction(COMPANY_ID);
     expect(r).toEqual({ success: false, error: "No autorizado" });
@@ -130,7 +130,7 @@ describe("getCashAuditReportAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(adminMember as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(adminMember as never);
     vi.mocked(prisma.paymentRecord.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.paymentRecord.count).mockResolvedValue(0 as never);
   });

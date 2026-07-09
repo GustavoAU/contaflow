@@ -7,10 +7,9 @@
 //
 // ADR-006 D-1: auth → checkRateLimit → safeParse → companyMember → lógica
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { z } from "zod";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { GeminiOCRService } from "../services/GeminiOCRService";
 import { ExtractedInvoiceSchema, type ExtractedInvoice } from "../schemas/invoice.schema";
 import { generateOcrDraftPDF } from "../services/OcrDraftPDFService";
@@ -44,38 +43,28 @@ export async function extractInvoiceAction(
   base64: string,
   mimeType: string = "image/jpeg",
 ): Promise<ActionResult<ExtractedInvoice>> {
-  // 1. Autenticación
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  // 1. Autenticación + membresía (cualquier rol puede usar OCR) + rate limit
+  //    (12/min — margen sobre límite gratuito Gemini 15 RPM) + IP/UA para AuditLog (R-6)
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.ocr,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const userId = ctx.userId;
+  const ipAddress = ctx.ipAddress;
+  const userAgent = ctx.userAgent;
 
-  // 2. Rate limit (12/min — margen sobre límite gratuito Gemini 15 RPM)
-  const rl = await checkRateLimit(userId, limiters.ocr);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intenta más tarde." };
-
-  // 3. Validar input
+  // 2. Validar input
   const parsed = Schema.safeParse({ companyId, base64, mimeType });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  // 4. Verificar membresía (cualquier rol puede usar OCR)
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId },
-    select: { role: true },
-  });
-  if (!member) {
-    return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  }
-
-  // 5. Verificar que GEMINI_API_KEY esté configurada
+  // 3. Verificar que GEMINI_API_KEY esté configurada
   if (!process.env.GEMINI_API_KEY) {
     return { success: false, error: "OCR no disponible — GEMINI_API_KEY no configurada" };
   }
-
-  // Capturar IP/UA para AuditLog (R-6)
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await GeminiOCRService.extractFromImage(
@@ -125,19 +114,13 @@ export async function exportOcrDraftPDFAction(
   companyId: string,
   extracted: ExtractedInvoice,
 ): Promise<ActionResult<{ pdf: string; filename: string }>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+  if (!ctx.ok) return ctx.error;
 
   const parsed = ExportPDFSchema.safeParse({ companyId, extracted });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
   try {
     const company = await prisma.company.findUnique({
