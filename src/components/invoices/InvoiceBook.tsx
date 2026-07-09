@@ -1,9 +1,8 @@
-﻿// src/components/invoices/InvoiceBook.tsx
+// src/components/invoices/InvoiceBook.tsx
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Loader2Icon, InboxIcon, PlusIcon, ScanIcon, CopyIcon, UploadIcon } from "lucide-react";
-import React from "react";
+import { Loader2Icon, InboxIcon, PlusIcon, ScanIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,11 +14,11 @@ import {
   exportInvoiceVoucherPDFAction,
 } from "@/modules/invoices/actions/invoice.actions";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
-import { CreditDebitNotesPanel } from "@/components/invoices/CreditDebitNotesPanel";
-import { MoneyBadge } from "@/components/ui/MoneyBadge";
-import { fmtDate } from "@/lib/format";
 import { DUPLICATE_SESSION_KEY } from "@/components/invoices/InvoiceForm";
 import { InvoiceBatchImportDialog } from "@/components/invoices/InvoiceBatchImportDialog";
+import { exportInvoiceBookExcel, exportInvoiceBookTXT } from "./invoice-book/export-helpers";
+import { InvoiceBookTable } from "./invoice-book/InvoiceBookTable";
+import { InvoiceBookSummaryPanel } from "./invoice-book/InvoiceBookSummaryPanel";
 
 type Props = {
   companyId: string;
@@ -44,38 +43,8 @@ const MONTHS = [
   "Diciembre",
 ];
 
-const TAX_LINE_LABELS: Record<string, string> = {
-  IVA_GENERAL: "IVA General",
-  IVA_REDUCIDO: "IVA Reducido",
-  IVA_ADICIONAL: "IVA Adicional",
-  EXENTO: "Exento",
-};
-
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
-
-// ─── Badge estado SENIAT (PA-121) ─────────────────────────────────────────────
-
-type SeniatStatus = "PENDING" | "SENT" | "FAILED";
-
-const SENIAT_BADGE: Record<SeniatStatus, { label: string; title: string; className: string }> = {
-  SENT:    { label: "SENIAT ✓", title: "Transmitido al SENIAT",        className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  PENDING: { label: "SENIAT ◌", title: "Pendiente de transmisión",     className: "bg-amber-50 text-amber-700 border border-amber-200" },
-  FAILED:  { label: "SENIAT ✗", title: "Error en transmisión SENIAT",  className: "bg-red-50 text-red-700 border border-red-200" },
-};
-
-function SeniatBadge({ status }: { status: SeniatStatus }) {
-  const cfg = SENIAT_BADGE[status];
-  return (
-    <span
-      title={cfg.title}
-      aria-label={cfg.title}
-      className={`rounded px-1.5 py-0.5 text-10 font-semibold whitespace-nowrap ${cfg.className}`}
-    >
-      {cfg.label}
-    </span>
-  );
-}
 
 export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", activePeriodMonth, activePeriodYear }: Props) {
   const router = useRouter();
@@ -169,215 +138,14 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
     });
   }
 
-  async function handleExportExcel() {
+  function handleExportExcel() {
     if (!result) return;
-
-    const bookName = type === "SALE" ? "Libro de Ventas" : "Libro de Compras";
-    const period = `${MONTHS[month - 1]} ${year}`;
-
-    const { default: ExcelJS } = await import("exceljs");
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(bookName.substring(0, 31));
-
-    ws.addRow([companyName]);
-    ws.addRow([bookName]);
-    ws.addRow([period]);
-    ws.addRow([]);
-    ws.addRow([
-      "Fecha",
-      type === "PURCHASE" ? "Proveedor" : "Cliente",
-      "RIF",
-      "N° Factura",
-      "N° Control",
-      "Tipo Doc",
-      "Categoría",
-      "N° Doc Rel.",
-      ...(type === "PURCHASE" ? ["N° Planilla Imp."] : []),
-      "Impuesto",
-      "Base Imponible",
-      "Tasa %",
-      "Monto IVA",
-      "IVA Retenido",
-      "Comprobante IVA",
-      ...(type === "PURCHASE" ? ["ISLR Retenido"] : []),
-      ...(type === "SALE" ? ["Base IGTF", "Monto IGTF"] : []),
-      "Total",
-    ]);
-
-    result.rows.forEach((row: InvoiceBookRow) => {
-      if (row.taxLines.length === 0) {
-        const rowTotalExcel = parseFloat(row.igtfAmount);
-        ws.addRow([
-          fmtDate(row.date),
-          row.counterpartName,
-          row.counterpartRif,
-          row.invoiceNumber,
-          row.controlNumber ?? "",
-          row.docType,
-          row.taxCategory,
-          row.relatedDocNumber ?? "",
-          ...(type === "PURCHASE" ? [row.importFormNumber ?? ""] : []),
-          "—", "", "", "",
-          row.ivaRetentionAmount,
-          row.ivaRetentionVoucher ?? "",
-          ...(type === "PURCHASE" ? [row.islrRetentionAmount] : []),
-          ...(type === "SALE" ? [row.igtfBase, row.igtfAmount] : []),
-          rowTotalExcel > 0 ? rowTotalExcel : "—",
-        ]);
-      } else {
-        const rowTotalExcel = row.taxLines.reduce(
-          (acc, l) => acc + parseFloat(l.base) + parseFloat(l.amount),
-          0
-        ) + parseFloat(row.igtfAmount);
-        row.taxLines.forEach((line, idx) => {
-          ws.addRow([
-            idx === 0 ? fmtDate(row.date) : "",
-            idx === 0 ? row.counterpartName : "",
-            idx === 0 ? row.counterpartRif : "",
-            idx === 0 ? row.invoiceNumber : "",
-            idx === 0 ? (row.controlNumber ?? "") : "",
-            idx === 0 ? row.docType : "",
-            idx === 0 ? row.taxCategory : "",
-            idx === 0 ? (row.relatedDocNumber ?? "") : "",
-            ...(type === "PURCHASE" ? [idx === 0 ? (row.importFormNumber ?? "") : ""] : []),
-            TAX_LINE_LABELS[line.taxType] ?? line.taxType,
-            line.base,
-            line.rate,
-            line.amount,
-            idx === 0 ? row.ivaRetentionAmount : "",
-            idx === 0 ? (row.ivaRetentionVoucher ?? "") : "",
-            ...(type === "PURCHASE" ? [idx === 0 ? row.islrRetentionAmount : ""] : []),
-            ...(type === "SALE"
-              ? [idx === 0 ? row.igtfBase : "", idx === 0 ? row.igtfAmount : ""]
-              : []),
-            idx === 0 ? rowTotalExcel : "",
-          ]);
-        });
-      }
-    });
-
-    const s = result.summary;
-    ws.addRow([]);
-    ws.addRow([
-      "TOTALES", "", "", "", "", "", "", "",
-      ...(type === "PURCHASE" ? [""] : []),
-      "",
-      s.totalBaseGeneral, "",
-      s.totalIvaGeneral,
-      s.totalIvaRetention, "",
-      ...(type === "PURCHASE" ? [s.totalIslrRetention] : []),
-      ...(type === "SALE" ? ["", s.totalIgtf] : []),
-      result.rows.reduce((acc, row) => {
-        return acc + row.taxLines.reduce((a, l) => a + parseFloat(l.base) + parseFloat(l.amount), 0) + parseFloat(row.igtfAmount);
-      }, 0),
-    ]);
-
-    const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${bookName} - ${period}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void exportInvoiceBookExcel(result, type, companyName, year, month);
   }
 
-  // ALERTA 5: Exportación TXT compatible con SIVIT/SENIAT (Providencia 00071)
-  // Formato: pipe-delimited, una línea por factura, fecha DD/MM/YYYY, decimales con punto
-  // Verificar campos exactos con versión vigente de SIVIT antes de carga al portal
   function handleExportTXT() {
     if (!result) return;
-
-    const DOC_TYPE: Record<string, string> = {
-      FACTURA:      "01",
-      NOTA_DEBITO:  "02",
-      NOTA_CREDITO: "03",
-    };
-
-    const fmtNum = (v: string | number) =>
-      parseFloat(String(v)).toFixed(2);
-
-    const fmtDateSivit = (d: Date | string) => {
-      const dt = d instanceof Date ? d : new Date(d);
-      const dd = String(dt.getUTCDate()).padStart(2, "0");
-      const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
-      const yyyy = dt.getUTCFullYear();
-      return `${dd}/${mm}/${yyyy}`;
-    };
-
-    // Cabecera del archivo
-    const header = [
-      `# ContaFlow — ${type === "SALE" ? "Libro de Ventas" : "Libro de Compras"}`,
-      `# Empresa: ${companyName}`,
-      `# Período: ${MONTHS[month - 1]} ${year}`,
-      `# Formato SIVIT/SENIAT — Providencia 00071`,
-      `# RIF|Nombre|Nro.Factura|Nro.Control|Fecha|TipoDoc|Base16%|IVA16%|Base8%|IVA8%|Exento|IVARetenido${type === "PURCHASE" ? "|ISLRRetenido" : "|BaseIGTF|IGTF"}`,
-    ].join("\n");
-
-    const lines = result.rows.map((row) => {
-      // Agregar bases e IVA por alícuota
-      let base16 = 0, iva16 = 0, base8 = 0, iva8 = 0, exento = 0;
-      for (const tl of row.taxLines) {
-        if (tl.taxType === "IVA_GENERAL" || tl.taxType === "IVA_ADICIONAL") {
-          base16 += parseFloat(tl.base);
-          iva16  += parseFloat(tl.amount);
-        } else if (tl.taxType === "IVA_REDUCIDO") {
-          base8 += parseFloat(tl.base);
-          iva8  += parseFloat(tl.amount);
-        } else {
-          exento += parseFloat(tl.base);
-        }
-      }
-
-      const fields = [
-        row.counterpartRif ?? "",
-        row.counterpartName,
-        row.invoiceNumber,
-        row.controlNumber ?? "",
-        fmtDateSivit(row.date),
-        DOC_TYPE[row.docType] ?? "01",
-        fmtNum(base16),
-        fmtNum(iva16),
-        fmtNum(base8),
-        fmtNum(iva8),
-        fmtNum(exento),
-        fmtNum(row.ivaRetentionAmount),
-        ...(type === "PURCHASE"
-          ? [fmtNum(row.islrRetentionAmount)]
-          : [fmtNum(row.igtfBase), fmtNum(row.igtfAmount)]),
-      ];
-
-      return fields.join("|");
-    });
-
-    const s = result.summary;
-    const footer = [
-      "",
-      `# TOTALES`,
-      [
-        "TOTAL", "", "", "", "", "",
-        fmtNum(s.totalBaseGeneral),
-        fmtNum(s.totalIvaGeneral),
-        fmtNum(s.totalBaseReduced),
-        fmtNum(s.totalIvaReduced),
-        fmtNum(s.totalExempt),
-        fmtNum(s.totalIvaRetention),
-        ...(type === "PURCHASE"
-          ? [fmtNum(s.totalIslrRetention)]
-          : ["", fmtNum(s.totalIgtf)]),
-      ].join("|"),
-    ].join("\n");
-
-    const content = [header, ...lines, footer].join("\n");
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportInvoiceBookTXT(result, type, companyName, year, month);
   }
 
   const bookTitle = type === "SALE" ? "Libro de Ventas" : "Libro de Compras";
@@ -603,344 +371,25 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm border-separate border-spacing-0">
-                  <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
-                    <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                      <th scope="col" className="px-4 py-3 text-left w-25 whitespace-nowrap">Fecha</th>
-                      <th scope="col" className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-left min-w-50">
-                        {type === "PURCHASE" ? "Proveedor" : "Cliente"}
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">RIF</th>
-                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">N° Factura</th>
-                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">N° Control</th>
-                      <th scope="col" className="px-4 py-3 text-left"></th>
-                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Impuesto</th>
-                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">Base</th>
-                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-20">Tasa %</th>
-                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA</th>
-                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IVA Ret.</th>
-                      {type === "PURCHASE" && <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">ISLR Ret.</th>}
-                      {type === "SALE" && <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">IGTF</th>}
-                      <th scope="col" className="px-4 py-3 text-right whitespace-nowrap min-w-44">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.map((row) => {
-                      const isFactura = row.docType === "FACTURA";
-                      const ncNdOpen = expandedNcNdId === row.id;
-                      const totalBase = row.taxLines.reduce((acc, l) => acc + parseFloat(l.base), 0);
-                      const totalIva  = row.taxLines.reduce((acc, l) => acc + parseFloat(l.amount), 0);
-                      const igtf = parseFloat(row.igtfAmount);
-                      const rowTotal = totalBase + totalIva + igtf;
-
-
-                      // Botón NC/ND solo para FACTURAs
-                      const ncNdButton = isFactura ? (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedNcNdId(ncNdOpen ? null : row.id)}
-                          title={ncNdOpen ? "Ocultar NC/ND" : "Ver Notas de Crédito/Débito vinculadas"}
-                          className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${ncNdOpen ? "bg-purple-100 text-purple-700" : "text-purple-600 hover:bg-purple-50"}`}
-                        >
-                          NC/ND
-                        </button>
-                      ) : null;
-
-                      const expansionRow = ncNdOpen ? (
-                        <tr key={`ncnd-${row.id}`} className="bg-zinc-50">
-                          <td colSpan={13} className="border-t p-0">
-                            <CreditDebitNotesPanel companyId={companyId} invoiceId={row.id} />
-                          </td>
-                        </tr>
-                      ) : null;
-
-                      return (
-                        <React.Fragment key={row.id}>
-                          {row.taxLines.length === 0 ? (
-                            <tr className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                {fmtDate(row.date)}
-                              </td>
-                              <td className="sticky left-0 z-10 bg-white px-4 py-3 min-w-50"
-                                  title={row.counterpartName}>
-                                {row.counterpartName}
-                              </td>
-                              <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{row.counterpartRif}</td>
-                              <td className="px-4 py-3 font-mono text-xs">
-                                <div className="flex flex-col gap-0.5">
-                                  <span>{row.invoiceNumber}</span>
-                                  {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
-                                    row.relatedDocNumber && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-10 font-medium text-amber-800">
-                                        &#8594; Factura {row.relatedDocNumber}
-                                      </span>
-                                    )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-xs">
-                                {row.controlNumber ?? "—"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1 items-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
-                                    disabled={isPendingVoucher && pendingVoucherId === row.id}
-                                    title="Descargar PDF de factura"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                                    aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
-                                  >
-                                    {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDuplicate(row)}
-                                    title="Duplicar esta factura (pre-llena el formulario con los mismos datos)"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                                    aria-label={`Duplicar factura ${row.invoiceNumber}`}
-                                  >
-                                    <CopyIcon className="inline h-3 w-3" />
-                                  </button>
-                                  {ncNdButton}
-                                  {type === "SALE" && row.seniatStatus && (
-                                    <SeniatBadge status={row.seniatStatus} />
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-zinc-400">—</td>
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
-                              <td className="px-4 py-3 text-right font-mono whitespace-nowrap">—</td>
-                              <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                                <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" />
-                              </td>
-                              {type === "PURCHASE" && (
-                                <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                                  <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" />
-                                </td>
-                              )}
-                              {type === "SALE" && (
-                                <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
-                                  <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" />
-                                </td>
-                              )}
-                              <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
-                                {rowTotal > 0
-                                  ? <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
-                                  : "—"}
-                              </td>
-                            </tr>
-                          ) : (
-                            row.taxLines.map((line, idx) => (
-                              <tr key={`${row.id}-${line.id}`} className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {idx === 0 ? fmtDate(row.date) : ""}
-                            </td>
-                            <td className="sticky left-0 z-10 bg-white px-4 py-3 min-w-50"
-                                title={idx === 0 ? row.counterpartName : undefined}>
-                              {idx === 0 ? row.counterpartName : ""}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                              {idx === 0 ? row.counterpartRif : ""}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs">
-                              {idx === 0 ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <span>{row.invoiceNumber}</span>
-                                  {(row.docType === "NOTA_CREDITO" || row.docType === "NOTA_DEBITO") &&
-                                    row.relatedDocNumber && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-10 font-medium text-amber-800">
-                                        &#8594; Factura {row.relatedDocNumber}
-                                      </span>
-                                    )}
-                                </div>
-                              ) : ""}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs">
-                              {idx === 0 ? (row.controlNumber ?? "—") : ""}
-                            </td>
-                            <td className="px-4 py-3">
-                              {idx === 0 && (
-                                <div className="flex flex-wrap gap-1 items-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExportInvoiceVoucher(row.id, row.invoiceNumber)}
-                                    disabled={isPendingVoucher && pendingVoucherId === row.id}
-                                    title="Descargar PDF de factura"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                                    aria-label={`Descargar PDF factura ${row.invoiceNumber}`}
-                                  >
-                                    {isPendingVoucher && pendingVoucherId === row.id ? "…" : "PDF"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDuplicate(row)}
-                                    title="Duplicar esta factura"
-                                    className="rounded px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                                    aria-label={`Duplicar factura ${row.invoiceNumber}`}
-                                  >
-                                    <CopyIcon className="inline h-3 w-3" />
-                                  </button>
-                                  {ncNdButton}
-                                  {type === "SALE" && row.seniatStatus && (
-                                    <SeniatBadge status={row.seniatStatus} />
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                                {TAX_LINE_LABELS[line.taxType] ?? line.taxType}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <MoneyBadge amount={line.base} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
-                            </td>
-                            <td className="px-4 py-3 text-right font-mono whitespace-nowrap">{line.rate}%</td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap">
-                              <MoneyBadge amount={line.amount} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
-                            </td>
-                            <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                              {idx === 0 ? <MoneyBadge amount={row.ivaRetentionAmount} currency="VES" align="right" /> : ""}
-                            </td>
-                            {type === "PURCHASE" && (
-                              <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                                {idx === 0 ? <MoneyBadge amount={row.islrRetentionAmount} currency="VES" align="right" /> : ""}
-                              </td>
-                            )}
-                            {type === "SALE" && (
-                              <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
-                                {idx === 0 ? <MoneyBadge amount={row.igtfAmount} currency="VES" align="right" /> : ""}
-                              </td>
-                            )}
-                            <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
-                              {idx === 0 && (
-                                <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
-                              )}
-                            </td>
-                          </tr>
-                            ))
-                          )}
-                          {expansionRow}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-
-                  {/* Totales */}
-                  <tfoot className="bg-zinc-50 font-semibold text-sm">
-                    <tr className="[&>td]:border-t-2 [&>td]:border-zinc-200">
-                      <td className="px-4 py-3" />
-                      <td className="sticky left-0 z-10 bg-zinc-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-500 whitespace-nowrap">
-                        TOTALES
-                      </td>
-                      <td colSpan={4} className="px-4 py-3" />
-                      <td className="px-4 py-3" />{/* Impuesto col */}
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <MoneyBadge amount={result.summary.totalBaseGeneral} currency="VES" />
-                      </td>
-                      <td className="px-4 py-3" />{/* Tasa% col */}
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
-                      </td>
-                      <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                        <MoneyBadge amount={result.summary.totalIvaRetention} currency="VES" align="right" />
-                      </td>
-                      {type === "PURCHASE" && (
-                        <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
-                          <MoneyBadge amount={result.summary.totalIslrRetention} currency="VES" align="right" />
-                        </td>
-                      )}
-                      {type === "SALE" && (
-                        <td className="px-4 py-3 text-right text-yellow-700 whitespace-nowrap">
-                          <MoneyBadge amount={result.summary.totalIgtf} currency="VES" align="right" />
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
-                        <MoneyBadge
-                          amount={result.rows.reduce((acc, row) => {
-                            const rt = row.taxLines.reduce(
-                              (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
-                              0
-                            ) + parseFloat(row.igtfAmount);
-                            return acc + rt;
-                          }, 0)}
-                          currency="VES"
-                        />
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              <InvoiceBookTable
+                result={result}
+                type={type}
+                companyId={companyId}
+                expandedNcNdId={expandedNcNdId}
+                onToggleNcNd={(rowId) => setExpandedNcNdId(expandedNcNdId === rowId ? null : rowId)}
+                pendingVoucherId={pendingVoucherId}
+                isPendingVoucher={isPendingVoucher}
+                onExportVoucher={handleExportInvoiceVoucher}
+                onDuplicate={handleDuplicate}
+              />
             )}
           </div>
         )}
 
         {/* ALERTA 6: Subtotales por alícuota — requerido por Providencia 00071 */}
-        {result && result.rows.length > 0 && (() => {
-          const s = result.summary;
-          const hasReduced    = parseFloat(s.totalBaseReduced) > 0;
-          const hasAdditional = parseFloat(s.totalBaseAdditional) > 0;
-          const hasExempt     = parseFloat(s.totalExempt) > 0;
-          const hasIslr       = type === "PURCHASE" && parseFloat(s.totalIslrRetention) > 0;
-          const hasIgtf       = type === "SALE"     && parseFloat(s.totalIgtf) > 0;
-
-          const Row = ({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
-            label: string; base: string; iva: string; baseLabel?: string; ivaLabel?: string;
-          }) => (
-            <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 last:border-0">
-              <span className="text-zinc-600 whitespace-nowrap">{label}</span>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{baseLabel}</p>
-                  <MoneyBadge amount={base} currency="VES" />
-                </div>
-                <div className="text-right min-w-22.5">
-                  <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{ivaLabel}</p>
-                  <MoneyBadge amount={iva} currency="VES" />
-                </div>
-              </div>
-            </div>
-          );
-
-          return (
-            <div className="rounded-lg border bg-white p-5 shadow-sm">
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-zinc-500">
-                Resumen del Período — Subtotales por Alícuota
-              </h3>
-              <div className="divide-y divide-zinc-100">
-                <Row label="Operaciones gravadas al 16%" base={s.totalBaseGeneral} iva={s.totalIvaGeneral} />
-                {hasReduced    && <Row label="Operaciones gravadas al 8% (Reducido)" base={s.totalBaseReduced} iva={s.totalIvaReduced} />}
-                {hasAdditional && <Row label="Operaciones gravadas al 31% (Lujo)" base={s.totalBaseAdditional} iva={s.totalIvaAdditional} />}
-                {hasExempt && (
-                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100">
-                    <span className="text-zinc-600">Operaciones exentas / no sujetas</span>
-                    <MoneyBadge amount={s.totalExempt} currency="VES" />
-                  </div>
-                )}
-                {parseFloat(s.totalIvaRetention) > 0 && (
-                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
-                    <span>IVA Retenido (comprobantes)</span>
-                    <MoneyBadge amount={s.totalIvaRetention} currency="VES" />
-                  </div>
-                )}
-                {hasIslr && (
-                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
-                    <span>ISLR Retenido</span>
-                    <MoneyBadge amount={s.totalIslrRetention} currency="VES" />
-                  </div>
-                )}
-                {hasIgtf && (
-                  <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-yellow-700">
-                    <span>IGTF (3%)</span>
-                    <MoneyBadge amount={s.totalIgtf} currency="VES" />
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {result && result.rows.length > 0 && (
+          <InvoiceBookSummaryPanel result={result} type={type} />
+        )}
       </div>
 
       <Toaster richColors position="top-right" />
