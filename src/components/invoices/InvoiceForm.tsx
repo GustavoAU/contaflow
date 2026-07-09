@@ -1,7 +1,32 @@
 // src/components/invoices/InvoiceForm.tsx
 "use client";
+// P2 (2026-07-09): refactor de legibilidad EXTRA-CONSERVADOR a React Hook Form.
+// 20 useState → 10 useState (sin tocar) + useForm (10 campos simples de usuario).
+// Form FISCAL más delicado del repo (Z-2: IVA, IGTF, retenciones, NC/ND) — cambia
+// el mecanismo de estado, NUNCA el comportamiento ni el payload.
+//
+// DECISIÓN DE VALIDACIÓN (documentada a propósito, igual que PaymentForm — molde
+// aprobado en src/modules/payments/components/PaymentForm.tsx): SIN zodResolver.
+// La única validación client-side es `validateTaxLinesBeforeSubmit`
+// (invoice-form/helpers.ts, ya extraída) que corre ANTES del submit y muestra
+// toast.error. El server sigue validando con los schemas de invoice.actions
+// (fuente única de verdad). RHF se usa SOLO como mecanismo de estado para los 10
+// campos listados en InvoiceFormValues — nada de resolvers ni registro extra.
+//
+// FUERA de RHF a propósito (estado async/derivado/reducer — no son campos simples
+// de usuario, o son inputs no controlados leídos vía FormData):
+//   taxLines (reducer con pares suntuarios IVA_GENERAL/IVA_ADICIONAL),
+//   showAlert/pendingCategory (diálogo de cascada de categoría fiscal),
+//   bcvRate/bcvLoading (fetch tasa BCV),
+//   showDraftAlert (diálogo de borrador — Q1-3),
+//   ocrLoaded/ocrHasCriticalRisks/ocrCounterpartRif/ocrRifKey (banners OCR).
+// Los inputs no controlados leídos por FormData(form) en el submit (invoiceNumber,
+// controlNumber, date, reportZStart/End, relatedDocNumber, importFormNumber,
+// ivaRetentionAmount/Voucher/Date, islrRetentionAmount) NO se registran en RHF —
+// siguen siendo refs/inputs nativos sin value/onChange, exactamente igual que antes.
 
 import { useState, useTransition, useId, useRef, useEffect, useCallback } from "react";
+import { useForm } from "react-hook-form";
 import { useFormDraft, DRAFT_AUTO_SAVE_MS } from "@/hooks/useFormDraft";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +71,36 @@ type Props = {
   defaultType?: "SALE" | "PURCHASE";
 };
 
+// Campos de usuario controlados vía RHF — únicamente mecanismo de estado (SIN
+// resolver Zod, ver comentario de cabecera). Strings salvo los dos booleans.
+type InvoiceFormValues = {
+  type: "SALE" | "PURCHASE";
+  currency: "VES" | "USD" | "EUR";
+  docType: string;
+  taxCategory: string;
+  paidInForeign: boolean;
+  igtfBase: string;
+  counterpartName: string;
+  counterpartAddress: string;
+  counterpartIsSpecialContributor: boolean;
+  relatedInvoiceId: string;
+};
+
+function makeDefaultValues(defaultType: "SALE" | "PURCHASE"): InvoiceFormValues {
+  return {
+    type: defaultType,
+    currency: "VES",
+    docType: "FACTURA",
+    taxCategory: "GRAVADA",
+    paidInForeign: false,
+    igtfBase: "",
+    counterpartName: "",
+    counterpartAddress: "",
+    counterpartIsSpecialContributor: false,
+    relatedInvoiceId: "",
+  };
+}
+
 export function InvoiceForm({
   companyId,
   userId,
@@ -57,10 +112,37 @@ export function InvoiceForm({
   const newLineId = () => `${baseId}-${crypto.randomUUID()}`;
 
   const [isPending, startTransition] = useTransition();
-  const [type, setType] = useState<"SALE" | "PURCHASE">(defaultType);
-  const [currency, setCurrency] = useState<"VES" | "USD" | "EUR">("VES");
-  const [docType, setDocType] = useState("FACTURA");
-  const [taxCategory, setTaxCategory] = useState("GRAVADA");
+
+  const { watch, setValue } = useForm<InvoiceFormValues>({
+    defaultValues: makeDefaultValues(defaultType),
+  });
+
+  // Campos observados — mismos nombres que los useState anteriores a propósito,
+  // para que el resto del componente (JSX, efectos, submit) no cambie de línea.
+  const type = watch("type");
+  const currency = watch("currency");
+  const docType = watch("docType");
+  const taxCategory = watch("taxCategory");
+  const paidInForeign = watch("paidInForeign");
+  const igtfBase = watch("igtfBase");
+  const counterpartName = watch("counterpartName");
+  const counterpartAddress = watch("counterpartAddress");
+  const counterpartIsSpecialContributor = watch("counterpartIsSpecialContributor");
+  const relatedInvoiceId = watch("relatedInvoiceId");
+
+  // Setters — wrapper delgado sobre setValue; misma firma (value) => void que los
+  // setState anteriores, consumida igual por los subcomponentes ya extraídos.
+  const setType = (v: InvoiceFormValues["type"]) => setValue("type", v);
+  const setCurrency = (v: InvoiceFormValues["currency"]) => setValue("currency", v);
+  const setDocType = (v: string) => setValue("docType", v);
+  const setTaxCategory = (v: string) => setValue("taxCategory", v);
+  const setPaidInForeign = (v: boolean) => setValue("paidInForeign", v);
+  const setIgtfBase = (v: string) => setValue("igtfBase", v);
+  const setCounterpartName = (v: string) => setValue("counterpartName", v);
+  const setCounterpartAddress = (v: string) => setValue("counterpartAddress", v);
+  const setCounterpartIsSpecialContributor = (v: boolean) => setValue("counterpartIsSpecialContributor", v);
+  const setRelatedInvoiceId = (v: string) => setValue("relatedInvoiceId", v);
+
   const prevCategoryRef = useRef<string>("GRAVADA");
   const [showAlert, setShowAlert] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
@@ -75,15 +157,9 @@ export function InvoiceForm({
       luxuryGroupId: null,
     },
   ]);
-  const [paidInForeign, setPaidInForeign] = useState(false);
-  const [igtfBase, setIgtfBase] = useState("");
   const [bcvRate, setBcvRate] = useState<{ rate: string; date: string } | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
-  const [counterpartName, setCounterpartName] = useState("");
   const counterpartNameRef = useRef<HTMLInputElement>(null);
-  const [counterpartAddress, setCounterpartAddress] = useState("");
-  const [counterpartIsSpecialContributor, setCounterpartIsSpecialContributor] = useState(false);
-  const [relatedInvoiceId, setRelatedInvoiceId] = useState("");
 
   // ─── Autosave borrador (Q1-3) ────────────────────────────────────────────────
   const { draft, saveDraft, clearDraft } = useFormDraft<InvoiceDraft>(`invoice-new-${companyId}`);
