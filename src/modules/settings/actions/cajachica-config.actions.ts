@@ -6,13 +6,12 @@
 // en sí un control de seguridad: quien lo sube debilita el step-up).
 
 import Decimal from "decimal.js";
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { CAJA_CHICA_STEP_UP_THRESHOLD_VES } from "@/lib/step-up";
 import type { ActionResult } from "../types/action-result";
@@ -23,16 +22,8 @@ export async function getCajaChicaStepUpThresholdAction(
   companyId: string,
 ): Promise<ActionResult<{ threshold: string | null; defaultThreshold: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "No autorizado" };
-    }
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const settings = await prisma.companySettings.findUnique({
       where: { companyId },
@@ -65,19 +56,12 @@ export async function updateCajaChicaStepUpThresholdAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo propietarios y administradores pueden cambiar esta configuración" };
-    }
+    if (!ctx.ok) return ctx.error;
 
     // Validar el monto DESPUÉS de auth + rol (gate security-agent: no hacer trabajo de
     // parseo/Decimal para peticiones no autenticadas). vacío → null (default); con valor → Decimal > 0 y acotado.
@@ -99,9 +83,6 @@ export async function updateCajaChicaStepUpThresholdAction(
       value = dec.toDecimalPlaces(2);
     }
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
     const dbValue = value === null ? null : value.toFixed(2);
 
     await prisma.$transaction(async (tx) => {
@@ -116,9 +97,9 @@ export async function updateCajaChicaStepUpThresholdAction(
           entityName: "CompanySettings",
           entityId: parsed.data.companyId,
           action: "UPDATE_CAJACHICA_STEPUP_THRESHOLD",
-          userId,
-          ipAddress,
-          userAgent,
+          userId: ctx.userId,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
           newValue: { cajaChicaStepUpThresholdVes: dbValue },
         },
       });
