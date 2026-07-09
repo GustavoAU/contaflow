@@ -1,12 +1,12 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { CreateExportJobSchema } from "../schemas/export.schema";
 import { generateExportZip } from "../services/ExportService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -26,20 +26,14 @@ export async function createExportJobAction(
   const dateTo   = parsed.data.dateTo   ?? new Date();
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     // Rate limit — MEDIUM-2: exports son costosos
-    const rl = await checkRateLimit(userId, limiters.export);
-    if (!rl.allowed) return { success: false, error: (rl as { allowed: false; error: string }).error };
-
     // CRITICAL-1: cross-tenant guard — verifica membresía
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.export,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Sin permisos para exportar" };
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
 
     // MEDIUM-1: bloquear exports concurrentes por empresa
     const inProgress = await prisma.exportJob.findFirst({
@@ -117,18 +111,12 @@ export async function listExportJobsAction(
   createdAt: Date;
 }>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     // CRITICAL-1: verify membership
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const jobs = await prisma.exportJob.findMany({
-      where: { companyId, createdBy: userId },
+      where: { companyId, createdBy: ctx.userId },
       select: {
         id: true,
         status: true,

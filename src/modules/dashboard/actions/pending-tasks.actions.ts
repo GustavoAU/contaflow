@@ -7,10 +7,9 @@
 //   26B-03 HIGH     — Rate limit Gemini: limiters.ocr (10/min) en el path de IA
 //   26B-05 MEDIUM   — Rol mínimo: ROLES.ACCOUNTING
 
-import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { ROLES } from "@/lib/auth-helpers";
 import { PendingTasksService, type PendingTasksData } from "../services/PendingTasksService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -68,25 +67,11 @@ export async function getPendingTasksAction(
   companyId: string,
 ): Promise<DashboardTasksResult> {
   try {
-    // Auth (26B-01)
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autenticado" };
-
-    // IDOR guard (26B-01 CRITICAL)
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-    });
-    if (!member) return { success: false, error: "Sin acceso" };
-
-    // Role guard (26B-05 MEDIUM) — mínimo ACCOUNTING
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "Rol insuficiente" };
-    }
-
-    // Rate limit base: lectura de tareas pendientes del dashboard — limiter de lecturas
+    // Auth (26B-01) + IDOR guard + Role guard (26B-05 MEDIUM, mínimo ACCOUNTING) +
+    // rate limit base: lectura de tareas pendientes del dashboard — limiter de lecturas
     // (120/min por empresa×usuario), no el fiscal (10/min). El resumen IA (abajo) mantiene `ocr`.
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intenta en un momento." };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     // Obtener tareas (queries determinísticas)
     const data = await PendingTasksService.getPendingTasks(companyId);
@@ -94,7 +79,7 @@ export async function getPendingTasksAction(
     // Resumen IA — rate limit OCR independiente (26B-03 HIGH)
     let aiSummary: string | null = null;
     if (data.tasks.length > 0) {
-      const aiRl = await checkRateLimit(userId, limiters.ocr);
+      const aiRl = await checkRateLimit(ctx.userId, limiters.ocr);
       if (aiRl.allowed) {
         aiSummary = await generateAISummary(data.tasks);
       }

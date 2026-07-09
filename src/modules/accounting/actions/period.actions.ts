@@ -1,15 +1,13 @@
 // src/modules/accounting/actions/period.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import prisma from "@/lib/prisma";
 import { PeriodService } from "../services/PeriodService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { extractRequestContext } from "../utils/request-context";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -31,13 +29,8 @@ export async function getActivePeriodAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof PeriodService.getActivePeriod>>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
     const period = await PeriodService.getActivePeriod(companyId);
     return { success: true, data: period };
   } catch (error) {
@@ -51,13 +44,8 @@ export async function getPeriodsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof PeriodService.getPeriods>>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
     const periods = await PeriodService.getPeriods(companyId);
     return { success: true, data: periods };
   } catch (error) {
@@ -71,26 +59,21 @@ export async function openPeriodAction(
   input: z.infer<typeof OpenPeriodSchema>
 ): Promise<ActionResult<{ id: string; year: number; month: number }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const validated = OpenPeriodSchema.parse(input);
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    const ctx = await requireCompanyAction(validated.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
-    const { ipAddress, userAgent } = await extractRequestContext();
+    if (!ctx.ok) return ctx.error;
 
     const period = await PeriodService.openPeriod(
       validated.companyId,
       validated.year,
       validated.month,
-      userId,
-      ipAddress,
-      userAgent,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent,
     );
 
     revalidatePath(`/company/${validated.companyId}/settings`);
@@ -107,20 +90,15 @@ export async function closePeriodAction(
   input: z.infer<typeof ClosePeriodSchema>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const validated = ClosePeriodSchema.parse(input);
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    const ctx = await requireCompanyAction(validated.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
-    const { ipAddress, userAgent } = await extractRequestContext();
-
-    const period = await PeriodService.closePeriod(validated.companyId, userId, ipAddress, userAgent);
+    const period = await PeriodService.closePeriod(validated.companyId, ctx.userId, ctx.ipAddress, ctx.userAgent);
 
     revalidatePath(`/company/${validated.companyId}/settings`);
 

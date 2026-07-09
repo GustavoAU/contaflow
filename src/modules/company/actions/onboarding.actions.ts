@@ -9,12 +9,12 @@
 //   - El actor siempre es OWNER (el mismo que creó la empresa)
 // Referencia: Q2-3 aplica a modificaciones post-operación, no a setup inicial.
 
-import { auth } from "@clerk/nextjs/server";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 
 // ─── Schema ────────────────────────────────────────────────────────────────────
@@ -38,18 +38,11 @@ export async function onboardingUpdateCompanyProfileAction(
   input: unknown
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const validated = OnboardingCompanyProfileSchema.parse(input);
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo el administrador puede configurar la empresa" };
-    }
+    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
 
     // Guard de setup inicial: bloquear si ya hay cuentas contables
     const accountCount = await prisma.account.count({

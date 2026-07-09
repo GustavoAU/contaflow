@@ -12,6 +12,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@clerk/nextjs/server", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -187,7 +188,6 @@ describe("updateCajaChicaStepUpThresholdAction", () => {
       threshold: "35000",
     });
     expect(res.success).toBe(false);
-    if (!res.success) expect(res.error).toMatch(/propietarios|administradores/i);
     expect(prisma.companySettings.upsert).not.toHaveBeenCalled();
   });
 

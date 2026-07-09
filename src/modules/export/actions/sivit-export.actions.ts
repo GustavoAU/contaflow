@@ -1,11 +1,10 @@
 "use server";
 
 // src/modules/export/actions/sivit-export.actions.ts
-import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { generateSIVITZip } from "../services/SIVITExportService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -27,19 +26,11 @@ export async function generateSIVITAction(
   try {
     const { companyId, dateFrom, dateTo } = parsed.data;
 
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.export);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.export,
     });
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "Sin permisos para exportar" };
-    }
+    if (!ctx.ok) return ctx.error;
 
     const from = new Date(dateFrom + "T00:00:00Z");
     const to   = new Date(dateTo   + "T23:59:59Z");

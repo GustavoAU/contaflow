@@ -1,11 +1,10 @@
 "use server";
 
 // ADR-034: Fase Despacho — Server Actions (auth + companyId guard + R-6 IP/UA)
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import {
   AddManagedClientSchema,
@@ -21,34 +20,11 @@ import {
   upgradeDespachoTier,
 } from "../services/DespachoService";
 
-// ─── Auth context ─────────────────────────────────────────────────────────────
-
-async function getAuthContext() {
-  const { userId } = await auth();
-  if (!userId) return null;
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { userId, ipAddress, userAgent };
-}
-
-async function assertMember(companyId: string, userId: string, allowed = ROLES.WRITERS) {
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) throw new Error("No perteneces a esta empresa");
-  if (!canAccess(member.role, allowed)) throw new Error("No autorizado");
-}
-
 // ─── getDespachoStatusAction ──────────────────────────────────────────────────
 
 export async function getDespachoStatusAction(companyId: string) {
-  const ctx = await getAuthContext();
-  if (!ctx) return { success: false as const, error: "No autorizado" };
-
-  await assertMember(companyId, ctx.userId);
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return { success: false as const, error: ctx.error.error };
 
   const subscription = await prisma.subscription.findUnique({
     where: { companyId },
@@ -68,13 +44,11 @@ export async function getDespachoStatusAction(companyId: string) {
 // ─── listManagedClientsAction ─────────────────────────────────────────────────
 
 export async function listManagedClientsAction(companyId: string) {
-  const ctx = await getAuthContext();
-  if (!ctx) return { success: false as const, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return { success: false as const, error: ctx.error.error };
 
   const parsed = ListManagedClientsSchema.safeParse({ companyId });
   if (!parsed.success) return { success: false as const, error: "Parámetros inválidos" };
-
-  await assertMember(companyId, ctx.userId);
 
   const clients = await listManagedClients(companyId);
   const { currentCount, limit } = await canAddManagedClient(companyId);
@@ -85,12 +59,6 @@ export async function listManagedClientsAction(companyId: string) {
 // ─── addManagedClientAction ───────────────────────────────────────────────────
 
 export async function addManagedClientAction(formData: FormData) {
-  const ctx = await getAuthContext();
-  if (!ctx) return { success: false as const, error: "No autorizado" };
-
-  const rl = await checkRateLimit(`despacho-add:${ctx.userId}`, limiters.fiscal);
-  if (!rl.allowed) return { success: false as const, error: "Demasiadas solicitudes. Intenta en un minuto." };
-
   const raw = {
     companyId: formData.get("companyId") as string,
     rif: (formData.get("rif") as string ?? "").toUpperCase().trim(),
@@ -105,7 +73,12 @@ export async function addManagedClientAction(formData: FormData) {
     return { success: false as const, error: errors };
   }
 
-  await assertMember(parsed.data.companyId, ctx.userId, ROLES.ADMIN_ONLY);
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return { success: false as const, error: ctx.error.error };
 
   const result = await addManagedClient(
     parsed.data.companyId,
@@ -129,19 +102,18 @@ export async function upgradeDespachoTierAction(input: {
   companyId: string;
   tier: "STARTER" | "PRO" | "UNLIMITED";
 }) {
-  const ctx = await getAuthContext();
-  if (!ctx) return { success: false as const, error: "No autorizado" };
-
-  const rl = await checkRateLimit(`despacho-upgrade:${ctx.userId}`, limiters.fiscal);
-  if (!rl.allowed) return { success: false as const, error: "Demasiadas solicitudes. Intenta en un minuto." };
-
   const parsed = UpgradeDespachoTierSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues.map((i) => i.message).join(", ") };
   }
 
   // ADR-034 §6.3: gestionar el tier (pago) es exclusivo del Propietario.
-  await assertMember(parsed.data.companyId, ctx.userId, ["OWNER"]);
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ["OWNER"],
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return { success: false as const, error: ctx.error.error };
 
   return upgradeDespachoTier(
     parsed.data.companyId,
@@ -155,16 +127,17 @@ export async function upgradeDespachoTierAction(input: {
 // ─── archiveManagedClientAction ───────────────────────────────────────────────
 
 export async function archiveManagedClientAction(formData: FormData) {
-  const ctx = await getAuthContext();
-  if (!ctx) return { success: false as const, error: "No autorizado" };
-
   const parsed = ArchiveManagedClientSchema.safeParse({
     companyId: formData.get("companyId"),
     managedClientId: formData.get("managedClientId"),
   });
   if (!parsed.success) return { success: false as const, error: "Parámetros inválidos" };
 
-  await assertMember(parsed.data.companyId, ctx.userId, ROLES.ADMIN_ONLY);
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    captureNet: true,
+  });
+  if (!ctx.ok) return { success: false as const, error: ctx.error.error };
 
   const result = await archiveManagedClient(
     parsed.data.companyId,

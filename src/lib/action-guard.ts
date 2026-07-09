@@ -27,7 +27,6 @@ import prisma from "@/lib/prisma";
 import { canAccess } from "@/lib/auth-helpers";
 import { checkRateLimit, fiscalKey } from "@/lib/ratelimit";
 import { netContext } from "@/lib/net-context";
-import type { ActionResult } from "@/lib/action-result";
 
 export type GuardOptions = {
   /**
@@ -53,8 +52,13 @@ export type GuardContext = {
 
 export type GuardFailure = {
   ok: false;
-  /** Retornable directamente desde la action: `if (!ctx.ok) return ctx.error;` */
-  error: ActionResult<never>;
+  /**
+   * Retornable directamente desde la action: `if (!ctx.ok) return ctx.error;`
+   * Tipado como la rama de fallo pura (no `ActionResult<never>`) para que sea
+   * asignable tanto a `ActionResult<T>` como a returns con forma custom
+   * (`{ success: true; url: string } | { success: false; error: string }`).
+   */
+  error: { success: false; error: string };
 };
 
 function fail(error: string): GuardFailure {

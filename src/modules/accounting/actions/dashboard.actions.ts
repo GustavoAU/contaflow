@@ -1,11 +1,11 @@
 // src/modules/accounting/actions/dashboard.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -26,22 +26,12 @@ export async function getDashboardMetricsAction(
   companyId: string
 ): Promise<ActionResult<DashboardMetrics>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     // Lectura del dashboard (render de cada entrada a la empresa). Usa limiters.read (120/min
     // por empresa×usuario) — NO limiters.fiscal (10/min, cupo de mutaciones): el fiscal bloqueaba
     // al usuario (redirect a /dashboard) tras varias recargas. read da protección anti-abuso
-    // sin falsos positivos. Sigue con auth + IDOR debajo.
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member || !canAccess(member.role, ROLES.ALL))
-      return { success: false, error: "Acceso denegado" };
+    // sin falsos positivos.
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const now = new Date();
     const year = now.getUTCFullYear();

@@ -2,12 +2,10 @@
 
 // src/modules/income-distribution/actions/income-distribution.actions.ts
 
-import { headers } from "next/headers";
-import { auth } from "@clerk/nextjs/server";
 import { Decimal } from "decimal.js";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import prisma from "@/lib/prisma";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import {
   CreateIncomeDistributionSchema,
   ApplyDistributionSchema,
@@ -31,24 +29,13 @@ import { toActionError } from "../utils/action-errors";
 async function guardAccounting(
   companyId: string,
 ): Promise<{ userId: string; ipAddress: string | null; userAgent: string | null } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-  return { userId, ipAddress, userAgent };
+  if (!ctx.ok) return ctx.error;
+  return { userId: ctx.userId, ipAddress: ctx.ipAddress, userAgent: ctx.userAgent };
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────

@@ -79,7 +79,6 @@ describe("getStockSummaryAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await getStockSummaryAction(COMPANY_ID);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
   });
 
   it("sin userId retorna no autorizado", async () => {

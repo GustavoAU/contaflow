@@ -26,6 +26,7 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { ocr: {} },
 }));
 

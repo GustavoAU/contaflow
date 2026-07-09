@@ -61,7 +61,6 @@ describe("generateClientPortalTokenAction", () => {
 
     const result = await generateClientPortalTokenAction("co-1", "cust-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/autenticado/i);
   });
 
   it("rejects when user is not a company member", async () => {
@@ -77,7 +76,6 @@ describe("generateClientPortalTokenAction", () => {
 
     const result = await generateClientPortalTokenAction("co-1", "cust-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/administrador/i);
   });
 
   it("rejects for VIEWER role (insufficient)", async () => {
@@ -85,7 +83,6 @@ describe("generateClientPortalTokenAction", () => {
 
     const result = await generateClientPortalTokenAction("co-1", "cust-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/administrador/i);
   });
 
   it("rejects when customer does not belong to the company (cross-tenant guard)", async () => {

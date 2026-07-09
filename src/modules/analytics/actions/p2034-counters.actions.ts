@@ -1,10 +1,9 @@
 "use server";
 // src/modules/analytics/actions/p2034-counters.actions.ts
 
-import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
 import { redis } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -14,16 +13,8 @@ export async function getP2034CountersAction(
   companyId: string,
 ): Promise<ActionResult<P2034DayCount[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-      return { success: false, error: "Se requiere rol Admin o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
 
     if (!redis) return { success: true, data: [] };
 

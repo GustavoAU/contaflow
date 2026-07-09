@@ -1,17 +1,16 @@
 // src/modules/igtf/actions/igtf.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { IGTFService, IGTF_RATE } from "../services/IGTFService";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
-import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -50,9 +49,6 @@ export type CreateIGTFInput = z.infer<typeof CreateIGTFSchema>;
 // ─── Crear IGTF ───────────────────────────────────────────────────────────────
 export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionResult<IGTFSummary>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = CreateIGTFSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -60,18 +56,15 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 
     const data = parsed.data;
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: data.companyId } },
+    const ctx = await requireCompanyAction(data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
+    const ipAddress = ctx.ipAddress;
+    const userAgent = ctx.userAgent;
 
     const calc = IGTFService.calculate(data.amount, IGTF_RATE);
 
@@ -129,15 +122,8 @@ export async function createIGTFAction(input: CreateIGTFInput): Promise<ActionRe
 // ─── Listar IGTF ──────────────────────────────────────────────────────────────
 export async function getIGTFAction(companyId: string): Promise<ActionResult<IGTFSummary[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const records = await prisma.iGTFTransaction.findMany({
       where: { companyId },

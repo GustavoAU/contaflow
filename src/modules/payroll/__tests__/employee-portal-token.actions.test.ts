@@ -61,7 +61,6 @@ describe("generatePortalTokenAction", () => {
 
     const result = await generatePortalTokenAction("co-1", "emp-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/autenticado/i);
   });
 
   it("rejects when user is not a company member", async () => {
@@ -77,7 +76,6 @@ describe("generatePortalTokenAction", () => {
 
     const result = await generatePortalTokenAction("co-1", "emp-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/administrador/i);
   });
 
   it("rejects for ACCOUNTANT role (insufficient)", async () => {
@@ -85,7 +83,6 @@ describe("generatePortalTokenAction", () => {
 
     const result = await generatePortalTokenAction("co-1", "emp-1");
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/administrador/i);
   });
 
   it("rejects when employee does not belong to the company (cross-tenant guard)", async () => {

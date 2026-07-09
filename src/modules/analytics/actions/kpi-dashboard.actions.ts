@@ -1,10 +1,9 @@
 "use server";
 // src/modules/analytics/actions/kpi-dashboard.actions.ts
 
-import { auth } from "@clerk/nextjs/server";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import {
   KpiDashboardService,
   type KpiSummary,
@@ -22,21 +21,10 @@ export async function getKpiDashboardAction(
   companyId: string,
 ): Promise<ActionResult<KpiDashboardData>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     // Lectura de KPIs del dashboard — limiter de lecturas (120/min por empresa×usuario),
     // no el fiscal (10/min).
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const [summary, cashFlow] = await Promise.all([
       KpiDashboardService.getKpiSummary(companyId),

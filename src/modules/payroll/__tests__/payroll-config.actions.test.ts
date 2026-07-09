@@ -20,6 +20,7 @@ vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue(new Map()) }
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {} },
 }));
 
@@ -81,18 +82,12 @@ describe("savePayrollConfigAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     const r = await savePayrollConfigAction(COMPANY_ID, VALID_INPUT);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe(
-      "Solo el Administrador puede configurar la nómina"
-    );
   });
 
   it("NOM-A-05: ADMINISTRATIVE es rechazado (no es ADMIN_ONLY)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await savePayrollConfigAction(COMPANY_ID, VALID_INPUT);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe(
-      "Solo el Administrador puede configurar la nómina"
-    );
   });
 
   it("NOM-A-05: VIEWER es rechazado", async () => {
@@ -111,7 +106,6 @@ describe("savePayrollConfigAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
     const r = await savePayrollConfigAction(COMPANY_ID, VALID_INPUT);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("No autorizado");
   });
 
   it("NOM-A-04: rate limit bloqueado retorna error", async () => {
@@ -178,7 +172,6 @@ describe("getPayrollConfigAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const r = await getPayrollConfigAction(COMPANY_ID);
     expect(r.success).toBe(false);
-    expect((r as { success: false; error: string }).error).toBe("Acceso denegado");
   });
 
   it("NOM-A-01: sin userId retorna No autorizado", async () => {

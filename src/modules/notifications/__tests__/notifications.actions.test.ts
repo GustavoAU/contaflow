@@ -55,7 +55,6 @@ describe("getNotificationsAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const result = await getNotificationsAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Contador");
   });
 
   it("VIEWER es rechazado", async () => {

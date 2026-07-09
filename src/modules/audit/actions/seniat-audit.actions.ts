@@ -8,8 +8,8 @@
  * Los queries filtran siempre por companyId — nunca retornan datos de otras empresas.
  */
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import type { ActionResult } from "../types/action-result";
 
@@ -54,18 +54,10 @@ export interface CashAuditReport {
 // ─── Guard compartido ─────────────────────────────────────────────────────────
 
 async function guardSeniatAccess(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-    select: { role: true },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: [...ROLES.ADMIN_ONLY, ...ROLES.SENIAT_READ],
   });
-
-  if (!member) return null;
-  if (!canAccess(member.role, [...ROLES.ADMIN_ONLY, ...ROLES.SENIAT_READ])) return null;
-
-  return member;
+  return ctx.ok ? ctx : null;
 }
 
 // ─── Informe de facturas (Libro de Ventas SENIAT) ─────────────────────────────
