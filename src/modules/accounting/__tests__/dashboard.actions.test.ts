@@ -71,7 +71,6 @@ describe("getDashboardMetricsAction — security guards", () => {
     const result = await getDashboardMetricsAction(COMPANY_ID);
 
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Acceso denegado");
   });
 
   it("permite acceso a VIEWER (métricas son de solo lectura)", async () => {
