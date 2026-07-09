@@ -1,12 +1,11 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction, type GuardContext } from "@/lib/action-guard";
 import { MODULE_KEYS } from "@/lib/app-modules";
 import type { AppModule } from "@/lib/app-modules";
 import type { UserRole } from "@prisma/client";
@@ -20,35 +19,18 @@ const ToggleSchema = z.object({
   module: z.enum(MODULE_KEYS),
 });
 
-async function getActorMember(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return null;
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  return member ? { ...member, userId } : null;
-}
-
-async function getIpAndUa(): Promise<{ ipAddress: string | null; userAgent: string | null }> {
-  const h = await headers();
-  const ipAddress = h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? null;
-  const userAgent = h.get("user-agent") ?? null;
-  return { ipAddress, userAgent };
-}
-
 type PermGuardResult =
-  | { actor: { userId: string; role: UserRole } }
+  | { actor: GuardContext }
   | { success: false; error: string };
 
 async function guardAdminPermission(companyId: string): Promise<PermGuardResult> {
-  const actor = await getActorMember(companyId);
-  if (!actor) return { success: false, error: "Sin acceso" };
-  if (!canAccess(actor.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo ADMIN o OWNER pueden modificar permisos" };
-  const { allowed } = await checkRateLimit(actor.userId, limiters.fiscal);
-  if (!allowed) return { success: false, error: "Demasiadas solicitudes. Intenta más tarde." };
-  return { actor };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  return { actor: ctx };
 }
 
 /** Devuelve los grants de una empresa — solo ADMIN/OWNER. */
@@ -56,16 +38,8 @@ export async function getGrantsAction(
   companyId: string
 ): Promise<ActionResult<{ role: string; module: string }[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autenticado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Sin acceso" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-      return { success: false, error: "Sin acceso" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
 
     const rows = await prisma.rolePermission.findMany({
       where: { companyId },
@@ -92,8 +66,6 @@ export async function grantPermissionAction(input: {
   if ("success" in g) return g;
 
   try {
-    const { ipAddress, userAgent } = await getIpAndUa();
-
     await prisma.$transaction(async (tx) => {
       await tx.rolePermission.upsert({
         where: { companyId_role_module: { companyId, role, module } },
@@ -109,8 +81,8 @@ export async function grantPermissionAction(input: {
           action: "GRANT",
           userId: g.actor.userId,
           newValue: { role, module },
-          ipAddress,
-          userAgent,
+          ipAddress: g.actor.ipAddress,
+          userAgent: g.actor.userAgent,
         },
       });
     });
@@ -137,8 +109,6 @@ export async function revokePermissionAction(input: {
   if ("success" in g) return g;
 
   try {
-    const { ipAddress, userAgent } = await getIpAndUa();
-
     await prisma.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { companyId, role, module } });
       await tx.auditLog.create({
@@ -150,8 +120,8 @@ export async function revokePermissionAction(input: {
           action: "REVOKE",
           userId: g.actor.userId,
           newValue: { role, module },
-          ipAddress,
-          userAgent,
+          ipAddress: g.actor.ipAddress,
+          userAgent: g.actor.userAgent,
         },
       });
     });

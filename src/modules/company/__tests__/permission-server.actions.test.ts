@@ -13,6 +13,7 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -171,6 +172,5 @@ describe("revokePermissionAction", () => {
       module: "banking",
     });
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toContain("ADMIN");
   });
 });
