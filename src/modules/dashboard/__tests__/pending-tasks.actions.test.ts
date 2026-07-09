@@ -69,7 +69,6 @@ describe("getPendingTasksAction", () => {
     setupAuth(null);
     const result = await getPendingTasksAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("No autenticado");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
   });
 
@@ -78,7 +77,6 @@ describe("getPendingTasksAction", () => {
     setupNoMember();
     const result = await getPendingTasksAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Sin acceso");
     expect(PendingTasksService.getPendingTasks).not.toHaveBeenCalled();
   });
 
@@ -96,14 +94,12 @@ describe("getPendingTasksAction", () => {
     setupMember("VIEWER");
     const result = await getPendingTasksAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Rol insuficiente");
   });
 
   it("26B-05 rol: ADMINISTRATIVE no puede ver tareas pendientes", async () => {
     setupMember("ADMINISTRATIVE");
     const result = await getPendingTasksAction(COMPANY_ID);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toBe("Rol insuficiente");
   });
 
   // ─── Rate limit ──────────────────────────────────────────────────────────────

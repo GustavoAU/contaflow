@@ -9,11 +9,12 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember: { findUnique: vi.fn() },
+    companyMember: { findFirst: vi.fn() },
   },
 }));
 vi.mock("../services/ImportService", () => ({
@@ -40,7 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockAuth.mockResolvedValue({ userId: USER_ID });
   mockCheckRateLimit.mockResolvedValue({ allowed: true });
-  vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(ADMIN_MEMBER as never);
+  vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
   vi.mocked(ImportService.importAccounts).mockResolvedValue({ created: 1, skipped: 0, errors: [] });
   vi.mocked(ImportService.generateAccountsTemplate).mockResolvedValue(Buffer.from("xlsx-data"));
 });
@@ -63,14 +64,14 @@ describe("importAccountsAction", () => {
   });
 
   it("retorna error si no es miembro de la empresa", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null);
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("Empresa no encontrada");
   });
 
   it("solo ADMIN puede importar cuentas", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("autorizado");

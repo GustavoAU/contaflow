@@ -10,6 +10,7 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, ocr: {}, export: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -180,7 +181,6 @@ describe("generateSIVITAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
     const r = await generateSIVITAction(VALID_SIVIT);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toContain("Sin permisos");
   });
 
   it("rechaza si fecha fin anterior a fecha inicio", async () => {

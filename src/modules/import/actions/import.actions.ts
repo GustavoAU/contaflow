@@ -3,11 +3,11 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/prisma";
 import { ImportService } from "../services/ImportService";
 import type { ImportAccountRow } from "../schemas/import.schema";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -17,23 +17,17 @@ export async function importAccountsAction(
   rows: ImportAccountRow[]
 ): Promise<ActionResult<{ created: number; skipped: number; errors: string[] }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     if (rows.length > 1000) {
       return { success: false, error: "El archivo supera el límite de 1000 cuentas por importación." };
     }
 
-    const result = await ImportService.importAccounts(companyId, userId, rows);
+    const result = await ImportService.importAccounts(companyId, ctx.userId, rows);
     revalidatePath(`/company/${companyId}/accounts`);
     return { success: true, data: result };
   } catch (error) {

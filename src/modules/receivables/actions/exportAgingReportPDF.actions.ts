@@ -2,9 +2,9 @@
 
 // src/modules/receivables/actions/exportAgingReportPDF.actions.ts
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { ReceivableService } from "../services/ReceivableService";
 import { generateAgingReportPDF } from "../services/AgingReportPDFService";
@@ -14,22 +14,13 @@ import type { ActionResult } from "../types/action-result";
 type PDFResult = ActionResult<{ pdf: string; filename: string }>;
 
 // ─── Guard compartido ─────────────────────────────────────────────────────────
+// ADR-025: ROLES.ALL — CxC/CxP visible para todos los roles (incluye VIEWER)
 
 async function guardReceivables(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { success: false as const, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
-  const rl = await checkRateLimit(userId, limiters.read);
-  if (!rl.allowed) return { success: false as const, error: "Demasiadas solicitudes. Intente más tarde." };
-
-  const [member, company] = await Promise.all([
-    prisma.companyMember.findFirst({ where: { companyId, userId }, select: { role: true } }),
-    prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } }),
-  ]);
-
-  // ADR-025: ROLES.ALL — CxC/CxP visible para todos los roles (incluye VIEWER)
-  if (!member || !canAccess(member.role, ROLES.ALL))
-    return { success: false as const, error: "Acceso denegado" };
+  const company = await prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } });
   if (!company) return { success: false as const, error: "Empresa no encontrada" };
 
   return { success: true as const, companyName: company.name, companyRif: company.rif };
