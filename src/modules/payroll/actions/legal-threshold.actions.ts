@@ -8,13 +8,11 @@
 //   - companyMember.findFirst siempre verifica pertenencia (IDOR guard)
 //   - rate limit con limiters.fiscal en escrituras
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import Decimal from "decimal.js";
 import { LegalThresholdService, type LegalThresholdRow } from "../services/LegalThresholdService";
 import type { LegalThresholdType } from "@prisma/client";
@@ -36,35 +34,13 @@ const CreateSchema = z.object({
   notes: z.string().max(200).optional(),
 });
 
-async function guardAccounting(companyId: string, userId: string): Promise<{ success: false; error: string } | null> {
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Se requiere rol Administrador o Contador" };
-  return null;
-}
-
-async function guardAny(companyId: string): Promise<{ userId: string } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ALL))
-    return { success: false, error: "Acceso denegado" };
-  return { userId };
-}
-
 // ── getLegalThresholdsAction ──────────────────────────────────────────────────
 export async function getLegalThresholdsAction(
   companyId: string,
 ): Promise<ActionResult<LegalThresholdRow[]>> {
   try {
-    const guard = await guardAny(companyId);
-    if ("error" in guard) return guard;
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
     const data = await LegalThresholdService.list(companyId);
     return { success: true, data };
   } catch (e) {
@@ -78,31 +54,26 @@ export async function createLegalThresholdAction(
   rawInput: unknown,
 ): Promise<ActionResult<LegalThresholdRow>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const guard = await guardAccounting(companyId, userId);
-    if (guard) return guard;
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const parsed = CreateSchema.safeParse(rawInput);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const { type, effectiveFrom, value, notes } = parsed.data;
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const data = await LegalThresholdService.create(companyId, {
       type: type as LegalThresholdType,
       effectiveFrom: new Date(effectiveFrom),
       value: new Decimal(value),
       notes,
-      userId,
-      ipAddress,
-      userAgent,
+      userId: ctx.userId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
     });
 
     revalidatePath(`/payroll/legal-thresholds`);
@@ -121,20 +92,14 @@ export async function deleteLegalThresholdAction(
   id: string,
 ): Promise<ActionResult<void>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const guard = await guardAccounting(companyId, userId);
-    if (guard) return guard;
-
-    const h2 = await headers();
-    const ipAddress2 = h2.get("x-real-ip") ?? h2.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent2 = (h2.get("user-agent") ?? "").slice(0, 512) || null;
-
-    await LegalThresholdService.delete(companyId, id, userId, ipAddress2, userAgent2);
+    await LegalThresholdService.delete(companyId, id, ctx.userId, ctx.ipAddress, ctx.userAgent);
     revalidatePath(`/payroll/legal-thresholds`);
     return { success: true, data: undefined };
   } catch (e) {
