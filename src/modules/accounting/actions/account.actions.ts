@@ -1,16 +1,15 @@
 // src/modules/accounting/actions/account.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { extractRequestContext } from "../utils/request-context";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -63,15 +62,8 @@ export async function getAccountsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
     const accounts = await prisma.account.findMany({
       where: { companyId, deletedAt: null },
       orderBy: { code: "asc" },
@@ -88,23 +80,15 @@ export async function createAccountAction(
   input: z.infer<typeof CreateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    // Auth and role check FIRST — before any DB queries (ADR-006 D-1)
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const { ipAddress, userAgent } = await extractRequestContext();
+    const ctx = await requireCompanyAction(input.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     const validated = CreateAccountSchema.parse(input);
-
-    const memberCheck = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-      select: { role: true },
-    });
-    if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(memberCheck.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
 
     // Verificar que el codigo no exista en esta empresa
     const existingCode = await prisma.account.findUnique({
@@ -198,10 +182,6 @@ export async function updateAccountAction(
   input: z.infer<typeof UpdateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const { ipAddress, userAgent } = await extractRequestContext();
     const validated = UpdateAccountSchema.parse(input);
     const { id, ...data } = validated;
 
@@ -211,12 +191,12 @@ export async function updateAccountAction(
     });
     if (!before) return { success: false, error: "Cuenta no encontrada" };
 
-    const memberCheck = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: before.companyId } },
-      select: { role: true },
+    const ctx = await requireCompanyAction(before.companyId, {
+      roles: ROLES.ACCOUNTING,
+      captureNet: true,
     });
-    if (!memberCheck) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(memberCheck.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     if (data.code) {
       // FIX CRÍTICO-1 (ADR-004): unicidad de código scoped a companyId.
@@ -275,15 +255,8 @@ export async function getNextAccountCodeAction(
   companyId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
     const range = RANGES[type];
 
     const accounts = await prisma.account.findMany({
