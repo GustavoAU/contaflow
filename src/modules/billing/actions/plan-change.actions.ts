@@ -1,10 +1,9 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import * as PlanChangeService from "../services/PlanChangeService";
 import {
   RequestPlanChangeSchema,
@@ -13,13 +12,6 @@ import {
 import type { SubscriptionPlan } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-
-function getIpUa(h: Awaited<ReturnType<typeof headers>>) {
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
 
 // ─── requestPlanChangeAction ──────────────────────────────────────────────────
 
@@ -33,24 +25,18 @@ export async function requestPlanChangeAction(input: {
   invoiceUrl: string | null;
 }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
-
     const validated = RequestPlanChangeSchema.parse(input);
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
+    // ADR-025: intencionalmente solo OWNER puede gestionar el plan
+    const ctx = await requireCompanyAction(validated.companyId, {
+      roles: ["OWNER"],
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (member.role !== "OWNER") {
-      return { success: false, error: "Solo el Propietario puede cambiar el plan." };
-    }
-
-    const h = await headers();
-    const { ipAddress, userAgent } = getIpUa(h);
+    if (!ctx.ok) return ctx.error;
+    const userId = ctx.userId;
+    const ipAddress = ctx.ipAddress;
+    const userAgent = ctx.userAgent;
 
     const result = await PlanChangeService.requestPlanChange(
       validated.companyId,
@@ -98,33 +84,24 @@ export async function payPlanChangeAction(input: {
   planChangeRequestId: string;
 }): Promise<ActionResult<{ invoiceUrl: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
-
     const req = await prisma.planChangeRequest.findUnique({
       where: { id: input.planChangeRequestId },
       include: { subscription: { select: { companyId: true } } },
     });
     if (!req) return { success: false, error: "Solicitud no encontrada" };
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: req.subscription.companyId } },
+    const ctx = await requireCompanyAction(req.subscription.companyId, {
+      roles: ["OWNER"],
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member || member.role !== "OWNER") {
-      return { success: false, error: "No tienes permiso para pagar esta solicitud." };
-    }
-
-    const h = await headers();
-    const { ipAddress, userAgent } = getIpUa(h);
+    if (!ctx.ok) return ctx.error;
 
     const checkout = await PlanChangeService.createPlanChangeCheckout(
       input.planChangeRequestId,
-      userId,
-      ipAddress,
-      userAgent,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent,
     );
 
     return { success: true, data: { invoiceUrl: checkout.invoiceUrl } };
@@ -140,9 +117,6 @@ export async function cancelPlanChangeAction(input: {
   reason?: string;
 }): Promise<ActionResult<void>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const validated = CancelPlanChangeSchema.parse(input);
 
     // Verificar que el requestedByUserId coincide o que el usuario es OWNER de la empresa
@@ -152,22 +126,18 @@ export async function cancelPlanChangeAction(input: {
     });
     if (!req) return { success: false, error: "Solicitud no encontrada" };
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: req.subscription.companyId } },
+    const ctx = await requireCompanyAction(req.subscription.companyId, {
+      roles: ["OWNER"],
+      captureNet: true,
     });
-    if (!member || member.role !== "OWNER") {
-      return { success: false, error: "No tienes permiso para cancelar esta solicitud." };
-    }
-
-    const h = await headers();
-    const { ipAddress, userAgent } = getIpUa(h);
+    if (!ctx.ok) return ctx.error;
 
     await PlanChangeService.cancelPlanChange(
       validated.planChangeRequestId,
-      userId,
+      ctx.userId,
       validated.reason,
-      ipAddress,
-      userAgent,
+      ctx.ipAddress,
+      ctx.userAgent,
     );
 
     revalidatePath(`/settings/plan`);
@@ -193,13 +163,8 @@ export async function getSubscriptionStatusAction(companyId: string): Promise<Ac
   } | null;
 }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const subscription = await prisma.subscription.findUnique({
       where: { companyId },
