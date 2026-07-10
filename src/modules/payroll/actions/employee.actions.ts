@@ -8,12 +8,10 @@
 //   NOM-B-03 (HIGH):     SalaryHistory + AuditLog dentro de $transaction (en service)
 //   NOM-B-04 (HIGH):     write = ADMIN_ONLY; read = WRITERS (todos menos VIEWER)
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import {
   CreateEmployeeSchema,
   UpdateEmployeeSchema,
@@ -26,18 +24,6 @@ import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { isPrismaError } from "@/lib/prisma-errors";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function resolveAuth(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { userId: null, member: null };
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  return { userId, member };
-}
-
 function revalidate(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/employees`);
 }
@@ -47,12 +33,9 @@ export async function listEmployeesAction(
   companyId: string
 ): Promise<ActionResult<EmployeeListRow[]>> {
   try {
-    const { userId, member } = await resolveAuth(companyId);
-    if (!userId || !member) return { success: false, error: "No autorizado" };
-
     // VIEWER no accede a datos de empleados (datos sensibles)
-    if (!canAccess(member.role, ROLES.WRITERS))
-      return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+    if (!ctx.ok) return ctx.error;
 
     const rows = await EmployeeService.list(companyId);
     return { success: true, data: rows };
@@ -67,9 +50,8 @@ export async function getEmployeeAction(
   employeeId: string
 ): Promise<ActionResult<EmployeeRow | null>> {
   try {
-    const { userId, member } = await resolveAuth(companyId);
-    if (!userId || !member) return { success: false, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+    if (!ctx.ok) return ctx.error;
 
     const emp = await EmployeeService.getById(companyId, employeeId);
     return { success: true, data: emp };
@@ -83,28 +65,20 @@ export async function createEmployeeAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<EmployeeRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-
   // NOM-B-04: solo ADMIN puede crear empleados
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede registrar empleados" };
-
-  // Rate limit (datos fiscales)
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
 
   const parsed = CreateEmployeeSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const emp = await EmployeeService.create(companyId, userId, parsed.data, ipAddress, userAgent);
+    const emp = await EmployeeService.create(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -121,25 +95,19 @@ export async function updateEmployeeAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<EmployeeRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede modificar empleados" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
 
   const parsed = UpdateEmployeeSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const emp = await EmployeeService.update(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
+    const emp = await EmployeeService.update(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -153,25 +121,19 @@ export async function terminateEmployeeAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<EmployeeRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede registrar egresos" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
 
   const parsed = TerminateEmployeeSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const emp = await EmployeeService.terminate(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
+    const emp = await EmployeeService.terminate(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -185,25 +147,19 @@ export async function addSalaryAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<SalaryHistoryRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede modificar salarios" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
 
   const parsed = AddSalarySchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const entry = await EmployeeService.addSalary(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
+    const entry = await EmployeeService.addSalary(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: entry };
   } catch (err) {
@@ -217,9 +173,8 @@ export async function getSalaryHistoryAction(
   employeeId: string
 ): Promise<ActionResult<SalaryHistoryRow[]>> {
   try {
-    const { userId, member } = await resolveAuth(companyId);
-    if (!userId || !member) return { success: false, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+    if (!ctx.ok) return ctx.error;
 
     const rows = await EmployeeService.getSalaryHistory(companyId, employeeId);
     return { success: true, data: rows };
