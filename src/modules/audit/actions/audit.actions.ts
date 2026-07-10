@@ -4,10 +4,10 @@
 // Consulta paginada del AuditLog — solo OWNER/ADMIN
 // OM-04: exportAuditLogPDFAction — PDF firmado digitalmente (R-2 contentHash en AuditLog)
 
-import { auth } from "@clerk/nextjs/server";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { createHash } from "crypto";
 import { AuditLogService, type AuditLogFilters, type AuditLogPage } from "../services/AuditLogService";
 import { generateAuditLogPDF } from "../services/AuditLogPDFService";
@@ -22,21 +22,12 @@ import { toActionError } from "../utils/action-errors";
 type AuditGuardResult = { userId: string } | { success: false; error: string };
 
 async function guardAuditAccess(companyId: string): Promise<AuditGuardResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-  const member = await prisma.companyMember.findUnique({
-    where: { userId_companyId: { userId, companyId } },
-    select: { role: true },
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
   });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Solo OWNER y ADMIN pueden acceder al registro de auditoría" };
-  }
-  return { userId };
+  if (!ctx.ok) return ctx.error;
+  return { userId: ctx.userId };
 }
 
 // ─── Listar registros de auditoría ────────────────────────────────────────────

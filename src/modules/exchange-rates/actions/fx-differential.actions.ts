@@ -3,19 +3,19 @@
 // src/modules/exchange-rates/actions/fx-differential.actions.ts
 // ADR-027: Acciones server para cálculo y registro del diferencial cambiario (NIC 21).
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import {
   ExchangeDifferentialService,
   type FxDiffSummary,
   type FxDiffLine,
 } from "../services/ExchangeDifferentialService";
 import type { ActionResult } from "../types/action-result";
-import { toActionError, resolveIpUa } from "../utils/action-errors";
+import { toActionError } from "../utils/action-errors";
 
 export type FxDiffLineDto = {
   invoiceId: string;
@@ -88,18 +88,10 @@ export async function calculateFxDifferentialAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const { companyId, currency, revalRate } = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "No autorizado" };
-    }
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const rate = new Decimal(revalRate);
     if (rate.lessThanOrEqualTo(0)) {
@@ -129,20 +121,14 @@ export async function postFxDifferentialAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const { ipAddress, userAgent } = await resolveIpUa();
-
     const { companyId, currency, revalRate, revaluationDate, periodId } = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      captureNet: true,
     });
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "No autorizado" };
-    }
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     const settings = await prisma.companySettings.findUnique({
       where: { companyId },

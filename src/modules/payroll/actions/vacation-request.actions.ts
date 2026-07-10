@@ -11,14 +11,11 @@
 //   - companyMember.findFirst siempre verifica pertenencia (IDOR guard)
 //   - rate limit con limiters.fiscal en escrituras
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import type { UserRole } from "@prisma/client";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import Decimal from "decimal.js";
 import {
   VacationRequestService,
@@ -27,29 +24,6 @@ import {
 } from "../services/VacationRequestService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-
-// ─── Guards ───────────────────────────────────────────────────────────────────
-
-async function guardMember(
-  companyId: string
-): Promise<{ userId: string; role: UserRole } | { success: false; error: string }> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member || !canAccess(member.role, ROLES.ALL))
-    return { success: false, error: "Acceso denegado" };
-  return { userId, role: member.role };
-}
-
-async function getIpUa(): Promise<{ ipAddress: string | null; userAgent: string | null }> {
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -80,8 +54,8 @@ export async function getVacationRequestsAction(
   employeeId?: string
 ): Promise<ActionResult<VacationRequestRow[]>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
     const data = employeeId
       ? await VacationRequestService.listByEmployee(companyId, employeeId)
       : await VacationRequestService.listPending(companyId);
@@ -97,8 +71,8 @@ export async function getVacationBalanceAction(
   employeeId: string
 ): Promise<ActionResult<VacationBalanceRow>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
     const data = await VacationRequestService.getBalance(companyId, employeeId);
     return { success: true, data };
   } catch (e) {
@@ -112,13 +86,12 @@ export async function createVacationRequestAction(
   rawInput: unknown
 ): Promise<ActionResult<VacationRequestRow>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
-    if (!canAccess(guard.role, ROLES.WRITERS))
-      return { success: false, error: "Se requiere rol Escritor o superior" };
-
-    const rl = await checkRateLimit(guard.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const parsed = CreateSchema.safeParse(rawInput);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -128,16 +101,15 @@ export async function createVacationRequestAction(
     const end = new Date(endDate);
     if (end < start) return { success: false, error: "La fecha de fin no puede ser anterior al inicio" };
 
-    const { ipAddress, userAgent } = await getIpUa();
     const data = await VacationRequestService.create(companyId, {
       employeeId,
       startDate: start,
       endDate: end,
       daysRequested: new Decimal(daysRequested),
       notes,
-      createdByUserId: guard.userId,
-      ipAddress,
-      userAgent,
+      createdByUserId: ctx.userId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
     });
 
     revalidatePath(`/company/${companyId}/payroll/employees/${employeeId}`);
@@ -155,17 +127,15 @@ export async function approveVacationRequestAction(
   requestId: string
 ): Promise<ActionResult<VacationRequestRow>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
-    if (!canAccess(guard.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Se requiere rol Administrador o Contador" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
-    const rl = await checkRateLimit(guard.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const { ipAddress, userAgent } = await getIpUa();
     const data = await VacationRequestService.approve(
-      companyId, requestId, guard.userId, ipAddress, userAgent
+      companyId, requestId, ctx.userId, ctx.ipAddress, ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -183,20 +153,18 @@ export async function rejectVacationRequestAction(
   rawInput: unknown
 ): Promise<ActionResult<VacationRequestRow>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
-    if (!canAccess(guard.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Se requiere rol Administrador o Contador" };
-
-    const rl = await checkRateLimit(guard.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const parsed = RejectSchema.safeParse(rawInput);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-    const { ipAddress, userAgent } = await getIpUa();
     const data = await VacationRequestService.reject(
-      companyId, requestId, guard.userId, parsed.data.rejectionReason, ipAddress, userAgent
+      companyId, requestId, ctx.userId, parsed.data.rejectionReason, ctx.ipAddress, ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -213,14 +181,14 @@ export async function cancelVacationRequestAction(
   requestId: string
 ): Promise<ActionResult<VacationRequestRow>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
-    if (!canAccess(guard.role, ROLES.WRITERS))
-      return { success: false, error: "Se requiere rol Escritor o superior" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
-    const { ipAddress, userAgent } = await getIpUa();
     const data = await VacationRequestService.cancel(
-      companyId, requestId, guard.userId, ipAddress, userAgent
+      companyId, requestId, ctx.userId, ctx.ipAddress, ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -237,25 +205,23 @@ export async function setInitialVacationBalanceAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
   try {
-    const guard = await guardMember(companyId);
-    if ("error" in guard) return guard;
-    if (!canAccess(guard.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Se requiere rol Administrador o Contador" };
-
-    const rl = await checkRateLimit(guard.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const parsed = InitialBalanceSchema.safeParse(rawInput);
     if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-    const { ipAddress, userAgent } = await getIpUa();
     await VacationRequestService.setInitialVacationBalance(
       companyId,
       parsed.data.employeeId,
       new Decimal(parsed.data.initialVacationDays),
-      guard.userId,
-      ipAddress,
-      userAgent
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/employees/${parsed.data.employeeId}`);
