@@ -5,17 +5,17 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { BankingService } from "../services/BankingService";
 import { BankReconciliationService } from "../services/BankReconciliationService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { CsvParserService } from "../services/CsvParserService";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountSchema } from "../schemas/bank-account.schema";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { getAuthUserId, getMemberRole } from "../utils/bank-action-guard";
 
 // ─── Schemas Zod ─────────────────────────────────────────────────────────────
 
@@ -93,9 +93,6 @@ export async function createBankAccountAction(
   input: unknown
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = CreateBankAccountSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -103,14 +100,13 @@ export async function createBankAccountAction(
 
     const { companyId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado para esta operación" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const account = await BankAccountService.create({ ...parsed.data, createdBy: userId });
+    const account = await BankAccountService.create({ ...parsed.data, createdBy: ctx.userId });
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
 
@@ -127,9 +123,6 @@ export async function importStatementAction(
   input: unknown
 ): Promise<ActionResult<{ statementId: string; transactionCount: number }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = ImportStatementSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -137,12 +130,11 @@ export async function importStatementAction(
 
     const { bankAccountId, companyId, csvContent, openingBalance, closingBalance, columnMap } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const csvRows = CsvParserService.parseBankCsv(csvContent, columnMap);
 
@@ -152,7 +144,7 @@ export async function importStatementAction(
       csvRows,
       new Decimal(openingBalance),
       new Decimal(closingBalance),
-      userId
+      ctx.userId
     );
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
@@ -170,9 +162,6 @@ export async function reconcileTransactionAction(
   input: unknown
 ): Promise<ActionResult<{ id: string; isReconciled: boolean }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = ReconcileTransactionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -180,18 +169,17 @@ export async function reconcileTransactionAction(
 
     const { bankTransactionId, invoicePaymentId, companyId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const updated = await BankingService.reconcileTransaction(
       bankTransactionId,
       invoicePaymentId,
       companyId,
-      userId
+      ctx.userId
     );
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
@@ -209,9 +197,6 @@ export async function unreconcileTransactionAction(
   input: unknown
 ): Promise<ActionResult<{ id: string; isReconciled: boolean }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = UnreconcileTransactionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -219,14 +204,13 @@ export async function unreconcileTransactionAction(
 
     const { bankTransactionId, companyId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado para esta operación" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const updated = await BankingService.unreconcileTransaction(bankTransactionId, companyId, userId);
+    const updated = await BankingService.unreconcileTransaction(bankTransactionId, companyId, ctx.userId);
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
 
@@ -244,9 +228,6 @@ export async function getUnreconciledTransactionsAction(
   input: unknown
 ): Promise<ActionResult<Array<Record<string, unknown>>>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = GetUnreconciledSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -254,9 +235,8 @@ export async function getUnreconciledTransactionsAction(
 
     const { bankAccountId, companyId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const transactions = await BankingService.getUnreconciledTransactions(bankAccountId, companyId);
 
@@ -281,9 +261,6 @@ export async function matchBankTransactionAction(
   input: unknown
 ): Promise<ActionResult<{ id: string; isReconciled: boolean }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = MatchBankTransactionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -291,18 +268,17 @@ export async function matchBankTransactionAction(
 
     const { bankTransactionId, companyId, matchType, targetId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
 
     const updated = await BankReconciliationService.matchTransaction(
       bankTransactionId,
       { type: matchType, id: targetId },
       companyId,
-      userId
+      ctx.userId
     );
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
@@ -321,9 +297,6 @@ export async function searchJournalEntriesAction(
   input: unknown
 ): Promise<ActionResult<Array<{ id: string; number: string; date: string; description: string }>>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = SearchJournalEntriesSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -331,9 +304,8 @@ export async function searchJournalEntriesAction(
 
     const { companyId, query } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const entries = await prisma.transaction.findMany({
       where: {
@@ -386,9 +358,6 @@ export async function searchPaymentRecordsAction(
   >
 > {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = SearchPaymentRecordsSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -396,9 +365,8 @@ export async function searchPaymentRecordsAction(
 
     const { companyId, method } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const records = await prisma.paymentRecord.findMany({
       where: {
@@ -445,9 +413,6 @@ export async function getReconciliationSummaryAction(
   ActionResult<{ total: number; reconciled: number; pending: number; difference: string }>
 > {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = GetSummarySchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -455,9 +420,8 @@ export async function getReconciliationSummaryAction(
 
     const { bankStatementId, companyId } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const summary = await BankingService.getReconciliationSummary(bankStatementId, companyId);
 
