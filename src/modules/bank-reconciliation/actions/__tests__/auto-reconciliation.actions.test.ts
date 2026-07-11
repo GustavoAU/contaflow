@@ -5,7 +5,7 @@ const { mockAuth, mockRevalidatePath, mockPrisma, mockGemini, mockAutoService, m
   mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockPrisma: {
-    companyMember: { findUnique: vi.fn() },
+    companyMember: { findFirst: vi.fn() },
     bankTransaction: { findMany: vi.fn() },
   },
   mockGemini: { extractFromPdf: vi.fn() },
@@ -18,9 +18,10 @@ const { mockAuth, mockRevalidatePath, mockPrisma, mockGemini, mockAutoService, m
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+vi.mock("@/lib/prisma", () => ({ default: mockPrisma, prisma: mockPrisma }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { ocr: {}, fiscal: {} },
 }));
 vi.mock("../../services/GeminiBankStatementService", () => ({
@@ -64,7 +65,7 @@ const viewerMember = { role: "VIEWER" as const };
 beforeEach(() => {
   vi.resetAllMocks();
   mockAuth.mockResolvedValue({ userId: USER_ID });
-  mockPrisma.companyMember.findUnique.mockResolvedValue(adminMember);
+  mockPrisma.companyMember.findFirst.mockResolvedValue(adminMember);
   mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
   mockImportStatement.mockResolvedValue({ statementId: "stmt-1", transactionCount: 1 });
   mockCheckRateLimit.mockResolvedValue({ allowed: true });
@@ -82,7 +83,7 @@ describe("parseBankStatementAction", () => {
   });
 
   it("VIEWER puede parsear (solo lectura, no muta DB)", async () => {
-    mockPrisma.companyMember.findUnique.mockResolvedValueOnce(viewerMember);
+    mockPrisma.companyMember.findFirst.mockResolvedValueOnce(viewerMember);
     const extracted = { rows: [], openingBalance: null, closingBalance: null, accountNumber: null, bankName: null, periodStart: null, periodEnd: null, holderName: null };
     mockGemini.extractFromPdf.mockResolvedValueOnce(extracted);
     const result = await parseBankStatementAction({ companyId: COMPANY_ID, base64Pdf: "x".repeat(100) });
@@ -131,7 +132,7 @@ describe("runAutoReconciliationAction", () => {
   };
 
   it("VIEWER → error No autorizado para esta operación", async () => {
-    mockPrisma.companyMember.findUnique.mockResolvedValueOnce(viewerMember);
+    mockPrisma.companyMember.findFirst.mockResolvedValueOnce(viewerMember);
     const result = await runAutoReconciliationAction(validInput);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toMatch(/módulo contable|no autorizado/i);
@@ -163,7 +164,7 @@ describe("runAutoReconciliationAction", () => {
 
 describe("confirmSuggestedAction", () => {
   it("VIEWER → error No autorizado para esta operación", async () => {
-    mockPrisma.companyMember.findUnique.mockResolvedValueOnce(viewerMember);
+    mockPrisma.companyMember.findFirst.mockResolvedValueOnce(viewerMember);
     const result = await confirmSuggestedAction({
       companyId: COMPANY_ID,
       confirmations: [{ bankTransactionId: "btx-1", matchType: "INVOICE_PAYMENT", matchId: "pay-1" }],

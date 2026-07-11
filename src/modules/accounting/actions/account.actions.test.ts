@@ -41,6 +41,7 @@ vi.mock("@/lib/prisma-rls", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, read: {}, ocr: {} },
 }));
 
@@ -74,7 +75,7 @@ describe("createAccountAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
         fn({ account: prisma.account, auditLog: prisma.auditLog })) as never
@@ -265,7 +266,7 @@ describe("updateAccountAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
         fn({ account: prisma.account, auditLog: prisma.auditLog })) as never
@@ -292,12 +293,12 @@ describe("updateAccountAction", () => {
 
   it("retorna error cuando userId es null — no autorizado", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
 
     const result = await updateAccountAction({ id: "acc-1", name: "Nueva" });
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
-    expect(prisma.account.findUnique).not.toHaveBeenCalled();
   });
 
   it("retorna error cuando la cuenta no existe", async () => {

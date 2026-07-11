@@ -7,7 +7,8 @@ import { revalidatePath } from "next/cache";
 
 import prisma, { withDbRetry } from "@/lib/prisma";
 import { CompanyService } from "../services/CompanyService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -59,23 +60,19 @@ export async function updateCompanySeniatDataAction(
   input: z.infer<typeof UpdateCompanySeniatSchema>
 ): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const { userId, has } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const validated = UpdateCompanySeniatSchema.parse(input);
+
+    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para modificar datos fiscales SENIAT
+    // ADR-041 D-4: check extra/más restrictivo DESPUÉS del guard central
+    const { has } = await auth();
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const validated = UpdateCompanySeniatSchema.parse(input);
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
-    const company = await CompanyService.updateSeniatData(validated.companyId, userId, {
+    const company = await CompanyService.updateSeniatData(validated.companyId, ctx.userId, {
       name: validated.name,
       rif: validated.rif || null,
       address: validated.address || null,
@@ -143,16 +140,10 @@ export async function updateScopeProfileAction(
   input: z.infer<typeof UpdateScopeProfileSchema>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const validated = UpdateScopeProfileSchema.parse(input);
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: validated.companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
+    if (!ctx.ok) return ctx.error;
 
     await prisma.$transaction(async (tx) => {
       const old = await tx.company.findUniqueOrThrow({ where: { id: validated.companyId } });
@@ -166,9 +157,9 @@ export async function updateScopeProfileAction(
           entityId: validated.companyId,
           entityName: "Company",
           action: "UPDATE",
-          userId,
-          ipAddress: null,
-          userAgent: null,
+          userId: ctx.userId,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
           oldValue: old as object,
           newValue: updated as object,
         },
@@ -190,21 +181,17 @@ export async function archiveCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const { userId, has } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para archivar empresa
+    // ADR-041 D-4: check extra/más restrictivo DESPUÉS del guard central
+    const { has } = await auth();
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
-    const company = await CompanyService.archiveCompany(companyId, userId);
+    const company = await CompanyService.archiveCompany(companyId, ctx.userId);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
@@ -219,16 +206,10 @@ export async function reactivateCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    if (!ctx.ok) return ctx.error;
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "No autorizado" };
-
-    const company = await CompanyService.reactivateCompany(companyId, userId);
+    const company = await CompanyService.reactivateCompany(companyId, ctx.userId);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {

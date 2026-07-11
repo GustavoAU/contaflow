@@ -3,11 +3,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { GeminiBankStatementService } from "../services/GeminiBankStatementService";
 import { AutoReconciliationService } from "../services/AutoReconciliationService";
 import { BankingService } from "../services/BankingService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { BankReconciliationService } from "../services/BankReconciliationService";
 import { parseAmount } from "../services/CsvParserService";
 import {
@@ -20,7 +21,6 @@ import {
 import { Decimal } from "decimal.js";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { getAuthUserId, getMemberRole } from "../utils/bank-action-guard";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,9 +51,6 @@ export async function parseBankStatementAction(
   input: unknown
 ): Promise<ActionResult<ExtractedBankStatement>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = ParseBankStatementSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -61,15 +58,15 @@ export async function parseBankStatementAction(
 
     const { companyId, base64Pdf } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.ocr,
+    });
+    if (!ctx.ok) return ctx.error;
 
     if (!process.env.GEMINI_API_KEY) {
       return { success: false, error: "El servicio de análisis de PDF no está configurado" };
     }
-
-    const rl = await checkRateLimit(userId, limiters.ocr);
-    if (!rl.allowed) return { success: false, error: rl.error };
 
     const result = await GeminiBankStatementService.extractFromPdf(base64Pdf);
 
@@ -90,9 +87,6 @@ export async function runAutoReconciliationAction(
   input: unknown
 ): Promise<ActionResult<AutoReconciliationResult>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = RunAutoReconciliationSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -100,12 +94,12 @@ export async function runAutoReconciliationAction(
 
     const { companyId, bankAccountId, rows, openingBalance, closingBalance } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     // Calcular el período a partir de las fechas de las filas
     const dates = rows.map((r) => parseStatementDate(r.date));
@@ -211,9 +205,6 @@ export async function confirmSuggestedAction(
   input: unknown
 ): Promise<ActionResult<{ confirmed: number }>> {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = ConfirmSuggestedSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -221,12 +212,12 @@ export async function confirmSuggestedAction(
 
     const { companyId, confirmations } = parsed.data;
 
-    const role = await getMemberRole(userId, companyId);
-    if (!role) return { success: false, error: "No tienes permisos en esta empresa" };
-    if (!canAccess(role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     let confirmed = 0;
     for (const c of confirmations) {

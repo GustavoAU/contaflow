@@ -4,13 +4,12 @@
 // Estas actions gestionan la configuración de las 6 cuentas GL en CompanySettings
 // y el posting retroactivo de facturas que quedaron sin asiento.
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod/v4";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -50,14 +49,8 @@ export async function getGLConfigAction(companyId: string): Promise<
   }>
 > {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const [settings, unbookedCount] = await Promise.all([
       prisma.companySettings.findUnique({
@@ -118,23 +111,12 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo el Administrador puede modificar la configuración contable." };
-    }
-
-    const hdrs = await headers();
-    const ipAddress = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? hdrs.get("x-real-ip") ?? null;
-    const userAgent = hdrs.get("user-agent") ?? null;
+    if (!ctx.ok) return ctx.error;
 
     const { companyId, ...fields } = parsed.data;
 
@@ -151,9 +133,9 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
           entityId: companyId,
           entityName: "CompanySettings",
           action: "UPDATE",
-          userId,
-          ipAddress,
-          userAgent,
+          userId: ctx.userId,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
           newValue: fields,
         },
       });
@@ -173,23 +155,13 @@ export async function postUnbookedInvoicesAction(
   companyId: string
 ): Promise<ActionResult<{ posted: number; skipped: number }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member || !canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo el Administrador puede ejecutar la causación retroactiva." };
-    }
-
-    const hdrs = await headers();
-    const ipAddress = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? hdrs.get("x-real-ip") ?? null;
-    const userAgent = hdrs.get("user-agent") ?? null;
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     const settings = await prisma.companySettings.findUnique({
       where: { companyId },

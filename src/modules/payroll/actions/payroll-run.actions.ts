@@ -10,14 +10,12 @@
 
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
-import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
 import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
 import {
@@ -31,17 +29,6 @@ import {
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function resolveAuth(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { userId: null, member: null };
-  const member = await prisma.companyMember.findFirst({
-    where: { userId, companyId },
-  });
-  return { userId, member };
-}
-
 function revalidate(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/runs`);
 }
@@ -50,10 +37,8 @@ function revalidate(companyId: string) {
 export async function getPayrollRunsAction(
   companyId: string
 ): Promise<ActionResult<PayrollRunRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const runs = await PayrollRunService.list(companyId);
@@ -69,10 +54,8 @@ export async function getPayrollRunDetailAction(
   companyId: string,
   runId: string
 ): Promise<ActionResult<PayrollRunDetailRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const run = await PayrollRunService.getById(companyId, runId);
@@ -91,28 +74,22 @@ export async function createPayrollRunAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<PayrollRunRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
-  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
     return { success: false, error: moduleAccessError("payroll") };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede procesar nómina" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
 
   const parsed = CreatePayrollRunSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const run = await PayrollRunService.create(companyId, userId, parsed.data, ipAddress, userAgent);
+    const run = await PayrollRunService.create(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -138,28 +115,22 @@ export async function approvePayrollRunAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<PayrollRunRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
-  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
     return { success: false, error: moduleAccessError("payroll") };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede aprobar nómina" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
 
   const parsed = ApprovePayrollRunSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
-    const run = await PayrollRunService.approve(companyId, userId, parsed.data.runId, ipAddress, userAgent);
+    const run = await PayrollRunService.approve(companyId, ctx.userId, parsed.data.runId, ctx.ipAddress, ctx.userAgent);
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -175,34 +146,28 @@ export async function cancelPayrollRunAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<PayrollRunRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  // ADR-025: verifica acceso base + grants granulares al módulo Nómina
-  if (!await hasModuleAccess(companyId, member.role, "payroll"))
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
     return { success: false, error: moduleAccessError("payroll") };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Solo el Administrador puede cancelar nómina" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed)
-    return { success: false, error: "Demasiadas solicitudes. Intenta en unos minutos." };
 
   const parsed = CancelPayrollRunSchema.safeParse(rawInput);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
     const run = await PayrollRunService.cancel(
       companyId,
-      userId,
+      ctx.userId,
       parsed.data.runId,
       parsed.data.reason,
-      ipAddress,
-      userAgent
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidate(companyId);
     return { success: true, data: run };
@@ -219,14 +184,9 @@ export async function exportPayrollBankTxtAction(
   companyId: string,
   runId: string,
 ): Promise<ActionResult<BankPaymentFile>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Acceso denegado" };
-
   // HIGH-06: rate limit en exportación de datos bancarios sensibles
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: "Límite de exportación alcanzado. Intente en unos minutos." };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const file = await PayrollBankTxtService.generate(companyId, runId);

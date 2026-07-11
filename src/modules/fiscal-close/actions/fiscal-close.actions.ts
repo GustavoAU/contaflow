@@ -2,12 +2,12 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 import {
@@ -18,28 +18,13 @@ import {
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-async function resolveIpUa() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
-
 // ─── Obtener historial de cierres ──────────────────────────────────────────────
 export async function getFiscalYearCloseHistoryAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof FiscalYearCloseService.getFiscalYearCloseHistory>>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const history = await FiscalYearCloseService.getFiscalYearCloseHistory(companyId);
     return { success: true, data: history };
@@ -65,39 +50,31 @@ export async function closeFiscalYearAction(
   }
 
   try {
-    const { userId, has } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para cierre de ejercicio
+    // ADR-041 D-4: check extra/más restrictivo DESPUÉS del guard central
+    const { has } = await auth();
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    // Solo ADMIN puede ejecutar el cierre de ejercicio
-    const { ipAddress, userAgent } = await resolveIpUa();
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
       return { success: false, error: moduleAccessError("accounting") };
-    }
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo el Administrador puede cerrar el ejercicio económico." };
     }
 
     const result = await FiscalYearCloseService.closeFiscalYear(
       parsed.data.companyId,
       parsed.data.year,
-      userId,
-      ipAddress,
-      userAgent
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/fiscal-close`);
@@ -129,41 +106,31 @@ export async function appropriateFiscalYearResultAction(
   }
 
   try {
-    const { userId, has } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para apropiación del resultado
+    // ADR-041 D-4: check extra/más restrictivo DESPUÉS del guard central
+    const { has } = await auth();
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const { ipAddress, userAgent } = await resolveIpUa();
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
       return { success: false, error: moduleAccessError("accounting") };
-    }
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return {
-        success: false,
-        error: "Solo el Administrador puede registrar la apropiación del resultado.",
-      };
     }
 
     const result = await FiscalYearCloseService.appropriateFiscalYearResult(
       parsed.data.companyId,
       parsed.data.year,
-      userId,
-      ipAddress,
-      userAgent
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/fiscal-close`);
@@ -184,28 +151,17 @@ export async function updateFiscalConfigAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const { ipAddress, userAgent } = await resolveIpUa();
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
+
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, member.role, "accounting")) {
+    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
       return { success: false, error: moduleAccessError("accounting") };
-    }
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return {
-        success: false,
-        error: "Solo el Administrador puede modificar la configuración contable.",
-      };
     }
 
     // Validar que las cuentas existen, pertenecen a la empresa y son EQUITY
@@ -287,15 +243,8 @@ export async function getFiscalConfigAction(companyId: string): Promise<
   }>
 > {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "No autorizado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },

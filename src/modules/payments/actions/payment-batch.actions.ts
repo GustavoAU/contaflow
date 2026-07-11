@@ -1,12 +1,12 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { PaymentMethod } from "@prisma/client";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import {
   CreateBatchSchema,
   ApplyBatchSchema,
@@ -16,7 +16,6 @@ import {
 import { PaymentBatchService, PaymentBatchSummary } from "../services/PaymentBatchService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { netContext } from "@/lib/net-context";
 
 export type UnpaidPurchaseInvoice = {
   id: string;
@@ -27,28 +26,11 @@ export type UnpaidPurchaseInvoice = {
   date: string;
 };
 
-async function getAuthContext() {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  // ADR-041 D-2: derivación canónica — antes usaba `[0]` (primera IP de
-  // x-forwarded-for, spoofeable por el cliente); el canónico usa `.at(-1)`.
-  const { ipAddress, userAgent } = await netContext();
-
-  return { userId, ipAddress, userAgent };
-}
-
 // ─── Crear lote DRAFT ─────────────────────────────────────────────────────────
 export async function createPaymentBatchAction(
   input: unknown
 ): Promise<ActionResult<PaymentBatchSummary>> {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
     const parsed = CreateBatchSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
@@ -57,12 +39,12 @@ export async function createPaymentBatchAction(
 
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId: ctx.userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const dateObj = new Date(d.date + "T00:00:00.000Z");
 
@@ -109,12 +91,6 @@ export async function applyPaymentBatchAction(
   input: unknown
 ): Promise<ActionResult<PaymentBatchSummary>> {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
     const parsed = ApplyBatchSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
@@ -123,12 +99,12 @@ export async function applyPaymentBatchAction(
 
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId: ctx.userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const result = await PaymentBatchService.applyBatch({
       batchId: d.batchId,
@@ -152,12 +128,6 @@ export async function voidPaymentBatchAction(
   input: unknown
 ): Promise<ActionResult<PaymentBatchSummary>> {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
     const parsed = VoidBatchSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
@@ -166,12 +136,12 @@ export async function voidPaymentBatchAction(
 
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId: ctx.userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const result = await PaymentBatchService.voidBatch({
       batchId: d.batchId,
@@ -196,12 +166,6 @@ export async function discardPaymentBatchAction(
   input: unknown
 ): Promise<ActionResult<PaymentBatchSummary>> {
   try {
-    const ctx = await getAuthContext();
-    if (!ctx) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
     const parsed = DiscardBatchSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
@@ -210,12 +174,12 @@ export async function discardPaymentBatchAction(
 
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId: ctx.userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const result = await PaymentBatchService.discardBatch({
       batchId: d.batchId,
@@ -240,15 +204,8 @@ export async function getPaymentBatchAction(
   batchId: string
 ): Promise<ActionResult<PaymentBatchSummary | null>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const data = await PaymentBatchService.getById(batchId, companyId);
     return { success: true, data };
@@ -263,18 +220,8 @@ export async function listPaymentBatchesAction(
   cursor?: string
 ): Promise<ActionResult<{ batches: PaymentBatchSummary[]; nextCursor: string | null }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const data = await PaymentBatchService.list(companyId, cursor);
     return { success: true, data };
@@ -288,18 +235,8 @@ export async function listUnpaidPurchaseInvoicesAction(
   companyId: string
 ): Promise<ActionResult<UnpaidPurchaseInvoice[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const invoices = await prisma.invoice.findMany({
       where: {

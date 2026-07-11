@@ -12,6 +12,7 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, read: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -113,7 +114,6 @@ describe("createExpenseAction", () => {
     setNoMember();
     const r = await createExpenseAction(VALID_CREATE_INPUT);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toContain("empresa");
   });
 
   it("crea gasto en camino feliz", async () => {

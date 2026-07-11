@@ -11,10 +11,10 @@
 
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import {
   PayrollReportService,
   type IvssReportData,
@@ -32,20 +32,6 @@ import { toActionError } from "../utils/action-errors";
 type PdfResult = { success: true; buffer: string } | { success: false; error: string };
 type TxtResult = { success: true; txt: string; filename: string } | { success: false; error: string };
 
-// ─── Helper de auth + companyId guard ────────────────────────────────────────
-
-async function resolveAccounting(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { userId: null, ok: false as const };
-  const member = await prisma.companyMember.findFirst({
-    where: { userId, companyId },
-    select: { role: true },
-  });
-  if (!member) return { userId, ok: false as const };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { userId, ok: false as const };
-  return { userId, ok: true as const };
-}
-
 // ─── IVSS ─────────────────────────────────────────────────────────────────────
 
 export async function getIvssReportAction(
@@ -53,8 +39,8 @@ export async function getIvssReportAction(
   year: number,
   month: number
 ): Promise<ActionResult<IvssReportData>> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIvssReport(companyId, year, month);
@@ -69,11 +55,8 @@ export async function exportIvssPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIvssReport(companyId, year, month);
@@ -91,8 +74,8 @@ export async function getBanavihReportAction(
   year: number,
   month: number
 ): Promise<ActionResult<BanavihReportData>> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getBanavihReport(companyId, year, month);
@@ -107,11 +90,8 @@ export async function exportBanavihPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getBanavihReport(companyId, year, month);
@@ -129,8 +109,8 @@ export async function getIncesReportAction(
   year: number,
   quarter: number
 ): Promise<ActionResult<IncesReportData>> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIncesReport(companyId, year, quarter);
@@ -145,11 +125,8 @@ export async function exportIncesPdfAction(
   year: number,
   quarter: number
 ): Promise<PdfResult> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIncesReport(companyId, year, quarter);
@@ -167,8 +144,8 @@ export async function getArcReportAction(
   employeeId: string,
   year: number
 ): Promise<ActionResult<ArcReportData>> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   // IDOR guard: verificar que el empleado pertenezca a la empresa
   const emp = await prisma.employee.findFirst({
@@ -190,11 +167,8 @@ export async function exportArcPdfAction(
   employeeId: string,
   year: number
 ): Promise<PdfResult> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   // IDOR guard
   const emp = await prisma.employee.findFirst({
@@ -219,11 +193,8 @@ export async function exportIvssExcelAction(
   year: number,
   month: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIvssReport(companyId, year, month);
@@ -265,11 +236,8 @@ export async function exportBanavihExcelAction(
   year: number,
   month: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getBanavihReport(companyId, year, month);
@@ -309,11 +277,8 @@ export async function exportIncesExcelAction(
   year: number,
   quarter: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await PayrollReportService.getIncesReport(companyId, year, quarter);
@@ -350,11 +315,8 @@ export async function exportConstanciaTrabajoAction(
   companyId: string,
   employeeId: string
 ): Promise<PdfResult> {
-  const { userId, ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const [company, emp] = await Promise.all([
@@ -400,8 +362,8 @@ export async function exportBanavihTxtAction(
   year: number,
   month: number
 ): Promise<TxtResult> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const txt = await PayrollBankTxtService.generateBanavihTxt(companyId, year, month);
@@ -419,8 +381,8 @@ export async function exportMintraCsvAction(
   year: number,
   quarter: number
 ): Promise<TxtResult> {
-  const { ok } = await resolveAccounting(companyId);
-  if (!ok) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const result = await MintraReportService.generateCsv(companyId, year, quarter);
