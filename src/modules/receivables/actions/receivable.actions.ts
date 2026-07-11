@@ -1,17 +1,16 @@
 // src/modules/receivables/actions/receivable.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import type { Currency, PaymentMethod } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { ReceivableService } from "../services/ReceivableService";
 import type { AgingReport, InvoicePaymentSummary, ReceivablePage } from "../services/ReceivableService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import {
   RecordPaymentSchema,
   CancelPaymentSchema,
@@ -39,16 +38,9 @@ export async function getReceivablesAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // ADR-025: ROLES.ALL — todos los roles pueden consultar CxC (incluye VIEWER y ADMINISTRATIVE)
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const report = await ReceivableService.getReceivables(companyId, parsed.data.asOf);
     return { success: true, data: report };
@@ -68,16 +60,9 @@ export async function getPayablesAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // ADR-025: ROLES.ALL — todos los roles pueden consultar CxP
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const report = await ReceivableService.getPayables(companyId, parsed.data.asOf);
     return { success: true, data: report };
@@ -94,16 +79,9 @@ export async function getReceivablesPaginatedAction(
   limit?: number
 ): Promise<ActionResult<ReceivablePage>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // ADR-025: ROLES.ALL
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const page = await ReceivableService.getReceivablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
@@ -120,16 +98,9 @@ export async function getPayablesPaginatedAction(
   limit?: number
 ): Promise<ActionResult<ReceivablePage>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // ADR-025: ROLES.ALL
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const page = await ReceivableService.getPayablesPaginated(companyId, asOf, cursor, limit);
     return { success: true, data: page };
@@ -150,20 +121,15 @@ export async function recordPaymentAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
-
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     // ── H-003 follow-up (Z-2, CRÍTICO): amountVes autoritativo server-side ─────
     // El dialog de CxC permite cobrar en USD/EUR (EFECTIVO/ZELLE) y envía `amount`
@@ -204,10 +170,6 @@ export async function recordPaymentAction(
     const computedIgtf = igtfApplies
       ? new Decimal(IGTFService.calculate(amountVes.toString(), IGTF_RATE).igtfAmount)
       : undefined;
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const result = await prisma.$transaction(
       async (tx) =>
@@ -382,24 +344,13 @@ export async function cancelPaymentAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "No autorizado" };
-    }
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     // ADR-032 F2: detectar el origen del pago. Los pagos canónicos (PaymentRecord)
     // se anulan con reverso GL + restauración de saldo; los legacy (InvoicePayment)
@@ -476,19 +427,9 @@ export async function getPaymentsByInvoiceAction(
   companyId: string
 ): Promise<ActionResult<InvoicePaymentSummary[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // ADR-025: ROLES.ALL
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const payments = await ReceivableService.getPaymentsByInvoice(invoiceId, companyId);
     return { success: true, data: payments };
@@ -508,24 +449,13 @@ export async function updatePaymentTermsAction(
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-      return { success: false, error: "Solo los administradores pueden cambiar el plazo de pago" };
-    }
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes alcanzado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     // MEDIUM-04: AuditLog en el mismo $transaction que la mutación — R-6
     const company = await prisma.$transaction(async (tx) => {
