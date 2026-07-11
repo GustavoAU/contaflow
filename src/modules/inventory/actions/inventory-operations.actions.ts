@@ -2,12 +2,11 @@
 "use server";
 // Dominio ADMINISTRATIVE — crear/editar ítems, registrar movimientos DRAFT, anular DRAFT
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import {
   CreateInventoryItemSchema,
   UpdateInventoryItemSchema,
@@ -26,39 +25,20 @@ import {
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-async function getInventoryAuthContext() {
-  const { userId } = await auth();
-  if (!userId) return null;
-  const h = await headers();
-  const ipAddress =
-    h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { userId, ipAddress, userAgent };
-}
-
 // ─── Crear ítem ───────────────────────────────────────────────────────────────
 
 export async function createInventoryItemAction(
   input: unknown
 ): Promise<ActionResult<string>> {
-  // LOW-1: auth() primero, safeParse después
-  const ctx = await getInventoryAuthContext();
-  if (!ctx) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
   const parsed = CreateInventoryItemSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId: ctx.userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  // HIGH-1: VIEWER no puede crear ítems
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Se requiere rol Administrativo o superior" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     const item = await createInventoryItem(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
@@ -74,22 +54,15 @@ export async function createInventoryItemAction(
 export async function updateInventoryItemAction(
   input: unknown
 ): Promise<ActionResult<string>> {
-  const ctx = await getInventoryAuthContext();
-  if (!ctx) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
   const parsed = UpdateInventoryItemSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId: ctx.userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Se requiere rol Administrativo o superior" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     const item = await updateInventoryItem(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
@@ -106,20 +79,13 @@ export async function softDeleteInventoryItemAction(
   companyId: string,
   itemId: string
 ): Promise<ActionResult<boolean>> {
-  const ctx = await getInventoryAuthContext();
-  if (!ctx) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId: ctx.userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
   // Solo ADMIN/OWNER pueden eliminar
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY))
-    return { success: false, error: "Se requiere rol Administrador o superior" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
 
   try {
     await softDeleteInventoryItem(itemId, companyId, ctx.userId, ctx.ipAddress, ctx.userAgent);
@@ -135,23 +101,15 @@ export async function softDeleteInventoryItemAction(
 export async function createMovementAction(
   input: unknown
 ): Promise<ActionResult<string>> {
-  const ctx = await getInventoryAuthContext();
-  if (!ctx) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
   const parsed = CreateMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId: ctx.userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  // HIGH-1: VIEWER no puede registrar movimientos
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Se requiere rol Administrativo o superior" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     const movement = await createDraftMovement(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
@@ -167,22 +125,15 @@ export async function createMovementAction(
 export async function voidDraftMovementAction(
   input: unknown
 ): Promise<ActionResult<boolean>> {
-  const ctx = await getInventoryAuthContext();
-  if (!ctx) return { success: false, error: "No autorizado" };
-
-  const rl = await checkRateLimit(ctx.userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
   const parsed = VoidMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId: ctx.userId },
-    select: { role: true },
+  const ctx = await requireCompanyAction(parsed.data.companyId, {
+    roles: ROLES.OPERATIONS,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Se requiere rol Administrativo o superior" };
+  if (!ctx.ok) return ctx.error;
 
   try {
     await voidDraftMovement(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
@@ -198,16 +149,8 @@ export async function voidDraftMovementAction(
 export async function getInventoryItemsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof getInventoryItems>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.WRITERS))
-    return { success: false, error: "Se requiere autenticación" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const items = await getInventoryItems(companyId);
@@ -221,16 +164,8 @@ export async function getItemMovementsAction(
   companyId: string,
   itemId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof getItemMovements>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.WRITERS))
-    return { success: false, error: "Se requiere autenticación" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const movements = await getItemMovements(companyId, itemId);
@@ -243,16 +178,8 @@ export async function getItemMovementsAction(
 export async function getDraftMovementsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof getDraftMovements>>>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Se requiere rol Administrativo o superior" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.OPERATIONS });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const movements = await getDraftMovements(companyId);
@@ -267,16 +194,8 @@ export async function searchInventoryItemsAction(
   companyId: string,
   query: string
 ): Promise<ActionResult<{ id: string; name: string; sku: string; stockQuantity: string; baseUnitAbbr: string }[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Acceso denegado" };
-  if (!canAccess(member.role, ROLES.OPERATIONS))
-    return { success: false, error: "Acceso denegado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.OPERATIONS });
+  if (!ctx.ok) return ctx.error;
 
   const q = query.trim();
   if (q.length < 2) return { success: true, data: [] };

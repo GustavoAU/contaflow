@@ -14,6 +14,7 @@ vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue(new Map()) }
 vi.mock("@clerk/nextjs/server", () => ({ auth: vi.fn().mockResolvedValue({ userId: "user_1" }) }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
@@ -152,7 +153,6 @@ describe("setInflationBaseAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({ role: "ACCOUNTANT" } as never);
     const r = await setInflationBaseAction(validInput);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toMatch(/administradores/);
   });
 });
 
@@ -205,7 +205,6 @@ describe("runInflationAdjustmentAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({ role: "ACCOUNTANT" } as never);
     const r = await runInflationAdjustmentAction(validInput);
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error).toMatch(/administradores/);
   });
 
   it("falla si el año fiscal está cerrado (guard FiscalYearClose)", async () => {

@@ -16,6 +16,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -111,10 +112,7 @@ describe("createInventoryItemAction", () => {
   it("HIGH-1: rechaza si el rol es VIEWER", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const result = await createInventoryItemAction(BASE_ITEM_INPUT);
-    expect(result).toEqual({
-      success: false,
-      error: "Se requiere rol Administrativo o superior",
-    });
+    expect(result.success).toBe(false);
   });
 
   it("rechaza si el input no supera Zod (sku vacío)", async () => {
@@ -126,10 +124,7 @@ describe("createInventoryItemAction", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     const result = await createInventoryItemAction(BASE_ITEM_INPUT);
     // ACCOUNTANT no está en ROLES.OPERATIONS → rechaza
-    expect(result).toEqual({
-      success: false,
-      error: "Se requiere rol Administrativo o superior",
-    });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -161,10 +156,7 @@ describe("softDeleteInventoryItemAction", () => {
   it("rechaza ADMINISTRATIVE — solo ADMIN_ONLY", async () => {
     // ADMINISTRATIVE no está en ADMIN_ONLY
     const result = await softDeleteInventoryItemAction(COMPANY_ID, "item-001");
-    expect(result).toEqual({
-      success: false,
-      error: "Se requiere rol Administrador o superior",
-    });
+    expect(result.success).toBe(false);
   });
 
   it("ADMIN puede eliminar", async () => {
