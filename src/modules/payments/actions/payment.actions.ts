@@ -2,15 +2,14 @@
 
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
-import { Currency, PaymentMethod, UserRole } from "@prisma/client";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { Currency, PaymentMethod } from "@prisma/client";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { CreatePaymentSchema } from "../schemas/payment.schema";
 import { PaymentService, PaymentRecordSummary } from "../services/PaymentService";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PaymentAttachmentService, AttachmentSummary } from "../services/PaymentAttachmentService";
@@ -25,16 +24,6 @@ export async function createPaymentAction(
   input: unknown,
 ): Promise<ActionResult<PaymentRecordSummary>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
     const parsed = CreatePaymentSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos inválidos";
@@ -43,12 +32,13 @@ export async function createPaymentAction(
 
     const d = parsed.data;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: d.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(d.companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     const dateObj = new Date(d.date + "T00:00:00.000Z");
 
@@ -265,21 +255,14 @@ export async function voidPaymentRecordAction(
   voidReason: string,
 ): Promise<ActionResult<PaymentRecordSummary>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
     if (!voidReason?.trim()) return { success: false, error: "El motivo de anulación es obligatorio" };
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     // Verificar que el pago pertenece a esta empresa y no está ya anulado
     const existing = await prisma.paymentRecord.findFirst({
@@ -343,15 +326,8 @@ export async function getPaymentAttachmentsAction(
   paymentRecordId: string,
 ): Promise<ActionResult<AttachmentSummary[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const data = await PaymentAttachmentService.getAttachmentsByPaymentRecord(
       paymentRecordId,
@@ -370,29 +346,14 @@ export async function deleteAttachmentAction(
   attachmentId: string,
 ): Promise<ActionResult<void>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const h = await headers();
-    const ipAddress =
-      h.get("x-real-ip") ??
-      h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
-      null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // Solo OWNER/ADMIN/ACCOUNTANT pueden eliminar comprobantes (ADR-029 D-5)
-    const deleteAllowed = canAccess(member.role, ["OWNER", "ADMIN", "ACCOUNTANT"] as UserRole[]);
-    if (!deleteAllowed) {
-      return { success: false, error: "No autorizado para eliminar comprobantes" };
-    }
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ["OWNER", "ADMIN", "ACCOUNTANT"],
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
 
     await PaymentAttachmentService.softDeleteAttachment(
       attachmentId,
@@ -421,15 +382,8 @@ export async function listBankAccountsAction(
   companyId: string,
 ): Promise<ActionResult<BankAccountOption[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const accounts = await prisma.bankAccount.findMany({
       where: { companyId, isActive: true, deletedAt: null },
@@ -475,21 +429,12 @@ export async function analyzeReceiptAction(
   attachmentId: string,
 ): Promise<ActionResult<ReceiptAnalysisResult>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.ocr);
-    if (!rl.allowed) {
-      return { success: false, error: "Demasiadas solicitudes de análisis. Intente en un momento." };
-    }
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
     // VIEWER no puede analizar comprobantes (ADR-030 D-4.2)
-    if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.ocr,
+    });
+    if (!ctx.ok) return ctx.error;
 
     // Verificar que el adjunto pertenece a esta empresa (ADR-004)
     const attachment = await prisma.paymentAttachment.findFirst({
@@ -635,18 +580,8 @@ export async function listPaymentsAction(
   companyId: string,
 ): Promise<ActionResult<PaymentRecordSummary[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
+    if (!ctx.ok) return ctx.error;
 
     const data = await PaymentService.list(companyId);
     return { success: true, data };
