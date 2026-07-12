@@ -10,17 +10,10 @@ type Props = {
   type: "SALE" | "PURCHASE";
 };
 
-export function InvoiceBookSummaryPanel({ result, type }: Props) {
-  const s = result.summary;
-  const hasReduced    = parseFloat(s.totalBaseReduced) > 0;
-  const hasAdditional = parseFloat(s.totalBaseAdditional) > 0;
-  const hasExempt     = parseFloat(s.totalExempt) > 0;
-  const hasIslr       = type === "PURCHASE" && parseFloat(s.totalIslrRetention) > 0;
-  const hasIgtf       = type === "SALE"     && parseFloat(s.totalIgtf) > 0;
-
-  const Row = ({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
-    label: string; base: string; iva: string; baseLabel?: string; ivaLabel?: string;
-  }) => (
+function Row({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
+  label: string; base: string; iva: string; baseLabel?: string; ivaLabel?: string;
+}) {
+  return (
     <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 last:border-0">
       <span className="text-zinc-600 whitespace-nowrap">{label}</span>
       <div className="flex items-center gap-6">
@@ -35,6 +28,15 @@ export function InvoiceBookSummaryPanel({ result, type }: Props) {
       </div>
     </div>
   );
+}
+
+export function InvoiceBookSummaryPanel({ result, type }: Props) {
+  const s = result.summary;
+  const hasReduced    = parseFloat(s.totalBaseReduced) > 0;
+  const hasAdditional = parseFloat(s.totalBaseAdditional) > 0;
+  const hasExempt     = parseFloat(s.totalExempt) > 0;
+  const hasIslr       = type === "PURCHASE" && parseFloat(s.totalIslrRetention) > 0;
+  const hasIgtf       = type === "SALE"     && parseFloat(s.totalIgtf) > 0;
 
   return (
     <div className="rounded-lg border bg-white p-5 shadow-sm">
