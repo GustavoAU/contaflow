@@ -407,13 +407,14 @@ src/modules/[name]/{schemas,services,actions,components,__tests__}/
 
 ## Roadmap — pre-lanzamiento (ADR-012)
 
-**Backlog pre-lanzamiento COMPLETO** (2026-06-15).
-Pendientes antes de LAUNCH:
-1. `/despacho/upgrade` page — falta (DespachoTierCard ya linkea a ella; NOWPayments flow reutiliza ADR-032)
-2. Fijar precios reales tier Despacho (reemplazar TODO en `DespachoService.DESPACHO_TIER_PRICES_USD_CENTS`)
-3. Tanda B landing (testimonios) — DIFERIDA a post-Alpha (no hay testimonios reales aún)
-4. Tanda D (checkout embebido) — DIFERIDA (spike post-Alpha)
-5. **LAUNCH** 🚀
+**Backlog pre-lanzamiento COMPLETO** (2026-06-15). Items 1 y 2 (verificados
+2026-07-12): `/despacho/upgrade` page existe y `DespachoService.DESPACHO_TIER_PRICES_USD_CENTS`
+ya tiene precios reales — ambos quedaron HECHOS por "Fase Despacho — flujo de
+pago" y "Precios definitivos lanzamiento" (ver Current status). Solo quedan
+diferidos por decisión, no bloqueantes:
+1. Tanda B landing (testimonios) — DIFERIDA a post-Alpha (no hay testimonios reales aún)
+2. Tanda D (checkout embebido) — DIFERIDA (spike post-Alpha)
+3. **LAUNCH** 🚀 — sin bloqueantes de backlog conocidos
 
 Fases 35B/35C/36A/36B diferidas a post-lanzamiento.
 
