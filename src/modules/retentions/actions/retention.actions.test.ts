@@ -182,7 +182,7 @@ describe("createRetentionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     // Por defecto: sin factura vinculada y sin cuentas GL → no genera asiento GL
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
@@ -450,7 +450,7 @@ describe("getRetentionsAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
   });
 
   it("retorna lista de retenciones de la empresa", async () => {
@@ -496,7 +496,7 @@ describe("getRetentionsAction", () => {
   });
 
   it("retorna { success: false } si el usuario no es miembro de la empresa", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
 
     const result = await getRetentionsAction("company-1");
 
@@ -782,7 +782,7 @@ describe("createRetentionAction — ALERTA 20: período contable activo", () => 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
@@ -851,10 +851,13 @@ describe("createRetentionAction — ALERTA 20: período contable activo", () => 
 // ─── getActivePeriodAction ────────────────────────────────────────────────────
 
 describe("getActivePeriodAction", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+  });
 
   it("retorna el período activo cuando existe", async () => {
-    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
       year: 2026,
       month: 3,
@@ -868,7 +871,6 @@ describe("getActivePeriodAction", () => {
   });
 
   it("retorna null cuando no hay período activo", async () => {
-    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
 
     const result = await getActivePeriodAction("company-1");
@@ -886,6 +888,17 @@ describe("getActivePeriodAction", () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
   });
+
+  // Fix ADR-041: getActivePeriodAction ahora verifica membresía (antes cualquier
+  // usuario autenticado podía consultar el período activo de OTRA empresa).
+  it("retorna error si el usuario no es miembro de la empresa", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
+
+    const result = await getActivePeriodAction("company-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("acceso denegado");
+  });
 });
 
 // ─── ALERTA 18: createRetentionAction — validación base imponible vs factura ──
@@ -894,7 +907,7 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null); // sin restricción de período
     vi.mocked(prisma.$transaction).mockImplementation(

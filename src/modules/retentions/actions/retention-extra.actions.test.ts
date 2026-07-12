@@ -94,7 +94,7 @@ describe("enterRetentionAction", () => {
   });
 
   it("no member → error", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
     const res = await enterRetentionAction(VALID_INPUT);
     expect(res.success).toBe(false);
   });
@@ -138,7 +138,7 @@ describe("getAccountsForEnteramientoAction", () => {
   });
 
   it("no member → error", async () => {
-    vi.mocked(prisma.companyMember.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
     const res = await getAccountsForEnteramientoAction(COMPANY_ID);
     expect(res.success).toBe(false);
   });
