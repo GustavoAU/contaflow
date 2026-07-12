@@ -1,16 +1,15 @@
 // src/modules/invoices/actions/invoice.actions.ts
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { checkRateLimit, fiscalKey, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
 import { getNextControlNumber } from "../services/InvoiceSequenceService";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
@@ -39,27 +38,19 @@ export async function createInvoiceAction(input: unknown) {
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false as const, error: rl.error };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares al módulo de Facturación
-    if (!await hasModuleAccess(parsed.data.companyId, member.role, "invoicing")) {
+    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(parsed.data.companyId);
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const key = parsed.data.idempotencyKey ?? crypto.randomUUID();
 
@@ -209,16 +200,10 @@ export async function getInvoicesPaginatedAction(
   limit?: number
 ): Promise<ActionResult<InvoicePage>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
     // N14 (ADR-025): verifica acceso base + grants granulares al módulo facturación
-    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false, error: moduleAccessError("invoicing") };
     }
 
@@ -238,18 +223,18 @@ export async function exportInvoiceBookPDFAction(params: {
   month: number
 }): Promise<{ success: true; url: string; contentHash: string } | { success: false; error: string }> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.export);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de exportaciones excedido" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId: params.companyId, userId },
-      include: { company: true },
+    const ctx = await requireCompanyAction(params.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.export,
     });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
+
+    const company = await prisma.company.findUnique({
+      where: { id: params.companyId },
+      select: { name: true, rif: true },
+    });
+    if (!company) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
     const { rows, summary } = await InvoiceService.getBook({
       companyId: params.companyId,
@@ -266,8 +251,8 @@ export async function exportInvoiceBookPDFAction(params: {
 
     const pdfBuffer = await generateInvoiceBookPDF({
       companyId: params.companyId,
-      companyName: membership.company.name,
-      companyRif: membership.company.rif ?? "",
+      companyName: company.name,
+      companyRif: company.rif ?? "",
       periodId: `${params.year}-${mm}`,
       periodLabel: monthLabel,
       invoiceType: params.type,
@@ -311,18 +296,11 @@ export async function exportInvoiceVoucherPDFAction(
   companyId: string,
 ): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Límite de solicitudes excedido" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
     });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(membership.role, ROLES.ACCOUNTING)) return { success: false, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const invoice = await InvoiceService.getById(invoiceId, companyId);
     if (!invoice) return { success: false, error: "Factura no encontrada" };
@@ -389,16 +367,11 @@ export async function exportInvoiceXMLAction(
   companyId: string,
 ): Promise<{ success: true; xml: string; filename: string } | { success: false; error: string }> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.read,
     });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    if (!ctx.ok) return ctx.error;
 
     const invoice = await InvoiceService.getById(invoiceId, companyId);
     if (!invoice) return { success: false, error: "Factura no encontrada" };
@@ -448,27 +421,19 @@ export async function createCreditNoteAction(input: unknown) {
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
-
     const companyId = parsed.data.companyId;
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false as const, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
-    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
@@ -502,27 +467,19 @@ export async function createDebitNoteAction(input: unknown) {
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
-
     const companyId = parsed.data.companyId;
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false as const, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
-    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
-
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
     const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
@@ -567,15 +524,8 @@ export async function searchInvoicesForPickerAction(
   type: "SALE" | "PURCHASE",
   query: string,
 ): Promise<ActionResult<InvoicePickerItem[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const invoices = await prisma.invoice.findMany({
@@ -632,15 +582,8 @@ export async function getCreditDebitNotesAction(
   companyId: string,
   invoiceId: string,
 ): Promise<ActionResult<CreditDebitNoteItem[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
-  });
-  if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-  if (!canAccess(member.role, ROLES.WRITERS)) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const notes = await prisma.invoice.findMany({
@@ -683,18 +626,11 @@ export async function getInvoiceBookAction(input: unknown) {
   }
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false as const, error: "No autorizado" };
-
-    const rl = await checkRateLimit(fiscalKey(parsed.data.companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false as const, error: rl.error ?? "Límite de solicitudes excedido" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
     });
-    if (!member) return { success: false as const, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false as const, error: "No autorizado" };
+    if (!ctx.ok) return ctx.error;
 
     const result = await InvoiceService.getBook(parsed.data);
     return { success: true as const, data: result };
