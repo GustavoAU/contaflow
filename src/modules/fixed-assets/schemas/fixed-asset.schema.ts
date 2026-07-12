@@ -1,6 +1,6 @@
 // src/modules/fixed-assets/schemas/fixed-asset.schema.ts
 import { z } from "zod";
-import { zMoneyAmount, zMoneyPositive } from "@/lib/zod-helpers";
+import { zMoneyAmount, zMoneyPositive, zBusinessDate } from "@/lib/zod-helpers";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const CreateFixedAssetSchema = z.object({
@@ -10,7 +10,7 @@ export const CreateFixedAssetSchema = z.object({
   assetAccountId: z.string().min(1, "Cuenta del activo requerida"),
   depreciationAccountId: z.string().min(1, "Cuenta de gasto de depreciación requerida"),
   accDepreciationAccountId: z.string().min(1, "Cuenta de depreciación acumulada requerida"),
-  acquisitionDate: z.coerce.date({ error: "Fecha de adquisición requerida" }),
+  acquisitionDate: zBusinessDate({ error: "Fecha de adquisición requerida" }),
   acquisitionCost: zMoneyPositive,
   // N2: moneda de adquisición y tasa BCV histórica
   acquisitionCurrency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
@@ -30,7 +30,7 @@ export const CreateFixedAssetSchema = z.object({
   invoiceNumber:    z.string().max(50).optional().nullable(),
   providerRif:      z.string().max(20).optional().nullable(),
   serialNumber:     z.string().max(100).optional().nullable(),
-  serviceStartDate: z.coerce.date().optional().nullable(),
+  serviceStartDate: zBusinessDate().optional().nullable(),
   internalCode:     z.string().max(50).optional().nullable(),
   // Hallazgo #8: cuenta origen de la adquisición para el asiento GL inicial
   // Dr Activos Fijos Brutos (assetAccountId) / Cr acquisitionCounterpartAccountId
@@ -73,7 +73,7 @@ export type DisposalReason = keyof typeof DISPOSAL_REASONS;
 export const DisposeFixedAssetSchema = z.object({
   assetId:   z.string().min(1),
   companyId: z.string().min(1),
-  disposalDate: z.coerce.date({ error: "Fecha de baja requerida" }),
+  disposalDate: zBusinessDate({ error: "Fecha de baja requerida" }),
   reason: z.enum(["SALE", "LOSS", "OBSOLETE", "DONATION"]),
   saleProceeds: zMoneyAmount.default("0"),
   /** Cuenta Banco/CxC — obligatoria cuando saleProceeds > 0 */

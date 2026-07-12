@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 function isValidAmount(v: string | undefined): boolean {
   if (!v || v === "") return true; // optional fields
@@ -35,7 +36,7 @@ export const CreateTransactionSchema = z
     description: z.string().min(3, "Minimo 3 caracteres").max(255),
     reference: z.string().max(100).optional(),
     notes: z.string().max(500).optional(),
-    date: z.coerce.date(),
+    date: zBusinessDate(),
     type: z.enum(["DIARIO", "APERTURA", "AJUSTE", "CIERRE"]).default("DIARIO"),
     entries: z.array(JournalEntrySchema).min(2, "Minimo 2 lineas"),
   })

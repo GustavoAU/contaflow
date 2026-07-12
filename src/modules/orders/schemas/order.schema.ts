@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { QuotationItemSchema } from "./quotation.schema";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { zBusinessDateString } from "@/lib/zod-helpers";
 
 export const CreateOrderSchema = z.object({
   type: z.enum(["PURCHASE", "SALE"], { error: "Tipo de orden inválido" }),
@@ -10,9 +11,7 @@ export const CreateOrderSchema = z.object({
   quotationId: z.string().cuid().optional(),
   counterpartName: z.string().trim().min(1, "Nombre de contraparte requerido").max(200),
   counterpartRif: z.string().trim().max(20).optional(),
-  expectedDate: z.string().refine((v) => !v || !isNaN(Date.parse(v)), {
-    error: "Fecha esperada inválida",
-  }).optional(),
+  expectedDate: zBusinessDateString.or(z.literal("")).optional(),
   notes: z.string().trim().max(500).optional(),
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   items: z
@@ -25,10 +24,8 @@ export const ConvertOrderSchema = z.object({
   orderId: z.string().cuid("ID de orden inválido"),
   invoiceNumber: z.string().trim().min(1, "Número de factura requerido").max(20),
   controlNumber: z.string().trim().max(20).optional(),
-  date: z.string().refine((v) => !isNaN(Date.parse(v)), { error: "Fecha inválida" }),
-  dueDate: z.string().refine((v) => !v || !isNaN(Date.parse(v)), {
-    error: "Fecha de vencimiento inválida",
-  }).optional(),
+  date: zBusinessDateString,
+  dueDate: zBusinessDateString.or(z.literal("")).optional(),
   periodId: z.string().cuid().optional(),
 });
 

@@ -1,6 +1,6 @@
 // src/modules/orders/schemas/quotation.schema.ts
 import { z } from "zod";
-import { zMoneyPositive } from "@/lib/zod-helpers";
+import { zMoneyPositive, zBusinessDateString } from "@/lib/zod-helpers";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 
 export const QuotationItemSchema = z.object({
@@ -23,9 +23,7 @@ export const CreateQuotationSchema = z.object({
   // HIGH-1: companyId NO viene del cliente — se resuelve server-side desde member
   counterpartName: z.string().trim().min(1, "Nombre de contraparte requerido").max(200),
   counterpartRif: z.string().trim().max(20).optional(),
-  validUntil: z.string().refine((v) => !isNaN(Date.parse(v)), {
-    error: "Fecha de validez inválida",
-  }),
+  validUntil: zBusinessDateString,
   notes: z.string().trim().max(500).optional(),
   currency: z.enum(SUPPORTED_CURRENCIES).optional(),
   items: z

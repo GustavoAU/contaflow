@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const InvoiceTypeSchema = z.enum(["SALE", "PURCHASE"]);
@@ -99,7 +100,7 @@ export const CreateInvoiceSchema = z.object({
   importFormNumber: z.string().optional(),
   reportZStart: z.string().optional(),
   reportZEnd: z.string().optional(),
-  date: z.coerce.date(),
+  date: zBusinessDate(),
 
   // Contraparte
   counterpartName: z.string().min(1, { error: "El nombre es requerido" }).trim().max(200),
@@ -128,7 +129,7 @@ export const CreateInvoiceSchema = z.object({
       { error: "Monto fuera del rango permitido" }
     ),
   ivaRetentionVoucher: z.string().optional(),
-  ivaRetentionDate: z.coerce.date().optional(),
+  ivaRetentionDate: zBusinessDate().optional(),
   islrRetentionAmount: z
     .string()
     .default("0")
@@ -220,8 +221,8 @@ export const InvoiceBookFilterSchema = z.object({
   type: InvoiceTypeSchema,
   year:      z.number().int().min(2000).max(2100).optional(),
   month:     z.number().int().min(1).max(12).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate:   z.coerce.date().optional(),
+  startDate: zBusinessDate().optional(),
+  endDate:   zBusinessDate().optional(),
 }).superRefine((data, ctx) => {
   const hasRange  = !!(data.startDate && data.endDate);
   const hasPeriod = data.year !== undefined && data.month !== undefined;

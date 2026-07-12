@@ -89,6 +89,13 @@ function computeTotals(items: QuotationItemInput[]) {
   return { computed, subtotal, taxAmount, total: subtotal.add(taxAmount) };
 }
 
+// H-2 (auditoría Compras/Ventas 2026-07): una fila con fecha corrupta en BD produce
+// un Invalid Date al releerse — su .toISOString() lanza RangeError y tumbaba el
+// listado COMPLETO del módulo. Una fecha ilegible se muestra vacía, nunca revienta.
+function safeDateOnly(d: Date | null): string | null {
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString().split("T")[0]! : null;
+}
+
 function serializeOrder(o: {
   id: string;
   type: QuotationType;
@@ -125,9 +132,7 @@ function serializeOrder(o: {
     quotationId: o.quotationId,
     counterpartName: o.counterpartName,
     counterpartRif: o.counterpartRif,
-    expectedDate: o.expectedDate
-      ? o.expectedDate.toISOString().split("T")[0]!
-      : null,
+    expectedDate: safeDateOnly(o.expectedDate),
     notes: o.notes,
     subtotal: new Decimal(o.subtotal.toString()).toFixed(2),
     taxAmount: new Decimal(o.taxAmount.toString()).toFixed(2),

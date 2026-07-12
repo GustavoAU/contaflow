@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 export const RecordPaymentSchema = z.object({
   companyId:      z.string().min(1, { error: "companyId requerido" }),
@@ -44,7 +45,7 @@ export const RecordPaymentSchema = z.object({
   destBank:       z.string().optional(),
   commissionPct:  z.string().optional(),
   igtfAmount:     z.string().optional(),
-  date:           z.coerce.date(),
+  date:           zBusinessDate(),
   notes:          z.string().optional(),
   createdBy:      z.string().optional(), // ignorado: el action usa el userId de auth() — nunca el del cliente
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }),
@@ -60,7 +61,7 @@ export const CancelPaymentSchema = z.object({
 export const AgingReportFilterSchema = z.object({
   companyId: z.string().min(1),
   type:      z.enum(["CXC", "CXP"]),
-  asOf:      z.coerce.date().optional(),
+  asOf:      zBusinessDate().optional(),
 });
 
 export const UpdatePaymentTermsSchema = z.object({
