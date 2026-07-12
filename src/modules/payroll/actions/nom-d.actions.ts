@@ -11,14 +11,13 @@
 
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import Decimal from "decimal.js";
 import { BenefitAccrualService, type BenefitBalanceRow, type BcvRateRow } from "../services/BenefitAccrualService";
 import { BenefitAdvanceService, type BenefitAdvanceRow } from "../services/BenefitAdvanceService";
@@ -43,15 +42,6 @@ import { toActionError } from "../utils/action-errors";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function resolveAuth(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { userId: null, member: null };
-  const member = await prisma.companyMember.findFirst({
-    where: { userId, companyId },
-  });
-  return { userId, member };
-}
-
 function revalidateNomD(companyId: string) {
   revalidatePath(`/company/${companyId}/payroll/benefits`);
   revalidatePath(`/company/${companyId}/payroll/terminations`);
@@ -66,23 +56,18 @@ export async function createBcvRateAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<BcvRateRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = CreateBcvRateSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await BenefitAccrualService.createBcvRate(
@@ -114,11 +99,8 @@ export async function createBcvRateAction(
 export async function listBcvRatesAction(
   companyId: string
 ): Promise<ActionResult<BcvRateRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await BenefitAccrualService.listBcvRates(companyId);
@@ -134,23 +116,18 @@ export async function accrueQuarterAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<{ employeesProcessed: number; totalAccrued: string }>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = AccrueQuarterSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await BenefitAccrualService.accrueQuarter(
@@ -175,23 +152,18 @@ export async function postBenefitInterestAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<{ employeesProcessed: number; totalInterest: string }>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = PostBenefitInterestSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h2 = await headers();
-  const ipAddress2 = h2.get("x-real-ip") ?? h2.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent2 = (h2.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await BenefitAccrualService.postBenefitInterest(
@@ -199,8 +171,8 @@ export async function postBenefitInterestAction(
       userId,
       parsed.data.year,
       parsed.data.month,
-      ipAddress2,
-      userAgent2
+      ipAddress,
+      userAgent
     );
     revalidateNomD(companyId);
     return { success: true, data };
@@ -215,11 +187,8 @@ export async function getBenefitBalanceAction(
   companyId: string,
   employeeId: string
 ): Promise<ActionResult<BenefitBalanceRow | null>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await BenefitAccrualService.getBalance(companyId, employeeId);
@@ -236,23 +205,18 @@ export async function createVacationAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<VacationRecordRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = CreateVacationSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await VacationService.create(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
@@ -276,11 +240,8 @@ export async function listVacationsAction(
   companyId: string,
   employeeId: string
 ): Promise<ActionResult<VacationRecordRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await VacationService.listByEmployee(companyId, employeeId);
@@ -297,23 +258,18 @@ export async function calculateProfitSharingAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<ProfitSharingRecordRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = CalculateProfitSharingSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await ProfitSharingService.calculate(
@@ -344,11 +300,8 @@ export async function listProfitSharingAction(
   companyId: string,
   employeeId: string
 ): Promise<ActionResult<ProfitSharingRecordRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await ProfitSharingService.listByEmployee(companyId, employeeId);
@@ -365,23 +318,18 @@ export async function createTerminationAction(
   employeeId: string,
   rawInput: unknown
 ): Promise<ActionResult<TerminationRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = CreateTerminationSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await TerminationService.create(
@@ -413,23 +361,18 @@ export async function updateTerminationAction(
   terminationId: string,
   rawInput: unknown
 ): Promise<ActionResult<TerminationRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = UpdateTerminationSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await TerminationService.update(
@@ -451,18 +394,13 @@ export async function finalizeTerminationAction(
   companyId: string,
   terminationId: string
 ): Promise<ActionResult<TerminationRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   try {
     const data = await TerminationService.finalize(companyId, userId, terminationId, ipAddress, userAgent);
@@ -477,11 +415,8 @@ export async function getTerminationAction(
   companyId: string,
   terminationId: string
 ): Promise<ActionResult<TerminationRow | null>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await TerminationService.getById(companyId, terminationId);
@@ -494,11 +429,8 @@ export async function getTerminationAction(
 export async function listTerminationsAction(
   companyId: string
 ): Promise<ActionResult<TerminationRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await TerminationService.list(companyId);
@@ -514,23 +446,18 @@ export async function registerBenefitAdvanceAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<BenefitAdvanceRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const parsed = RegisterBenefitAdvanceSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
 
   try {
     const data = await BenefitAdvanceService.registerAdvance(companyId, userId, {
@@ -550,11 +477,8 @@ export async function listBenefitAdvancesAction(
   companyId: string,
   employeeId: string
 ): Promise<ActionResult<BenefitAdvanceRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) {
-    return { success: false, error: "Se requiere rol de Contador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const data = await BenefitAdvanceService.listAdvances(companyId, employeeId);
@@ -571,18 +495,13 @@ export async function listBenefitAdvancesAction(
 export async function backfillBenefitsAction(
   companyId: string
 ): Promise<ActionResult<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador" };
-  }
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes excedido" };
-
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   try {
     const data = await BenefitAccrualService.backfillAllQuarters(companyId, userId, ipAddress, userAgent);
@@ -596,11 +515,8 @@ export async function backfillBenefitsAction(
 export async function getVacationAlertsAction(
   companyId: string
 ): Promise<ActionResult<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) {
-    return { success: false, error: "Se requiere rol de Administrador o superior" };
-  }
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+  if (!ctx.ok) return ctx.error;
   try {
     const data = await VacationService.getEmployeesWithLowVacationBalance(companyId);
     return { success: true, data };
@@ -614,13 +530,13 @@ export async function setInitialBenefitBalanceAction(
   companyId: string,
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado" };
-  if (!canAccess(member.role, ROLES.ACCOUNTING))
-    return { success: false, error: "Se requiere rol Administrador o Contador" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  const { userId, ipAddress, userAgent } = ctx;
 
   const schema = z.object({
     employeeId: z.string().min(1),
@@ -636,10 +552,6 @@ export async function setInitialBenefitBalanceAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const { employeeId, initialBalance, initialInterestBalance } = parsed.data;
-  const h = await headers();
-  const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-
   try {
     await prisma.$transaction(async (tx) => {
       await tx.benefitBalance.upsert({
