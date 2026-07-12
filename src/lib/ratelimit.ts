@@ -130,7 +130,10 @@ export async function checkRateLimit(
       };
     }
     return { allowed: true };
-  } catch {
+  } catch (err) {
+    // El catch era silencioso — sin esto, una caída/timeout de Upstash es indiagnosticable
+    // en producción (el usuario solo ve "servicio no disponible", sin rastro en logs).
+    console.error("[ratelimit] checkRateLimit: fallo al contactar Redis", err);
     // B5: limiters.fiscal falla cerrado — Redis caído bloquea mutaciones fiscales
     // para prevenir que una caída de Redis elimine la protección contra spam fiscal.
     if (limiter === limiters.fiscal) {

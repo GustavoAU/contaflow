@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef, useCallback } from "react";
 import { RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   fetchBcvRateAction,
@@ -94,12 +95,16 @@ export function BcvRateWidget({ companyId, variant = "light", initialUsd = null,
           ? (parseFloat(resUsd.data.rate) - parseFloat(usd.rate)).toFixed(4)
           : null;
         setUsd({ ...resUsd.data, delta: usdDelta });
+      } else {
+        toast.error(`Tasa USD: ${resUsd.error}`);
       }
       if (resEur.success) {
         const eurDelta = eur
           ? (parseFloat(resEur.data.rate) - parseFloat(eur.rate)).toFixed(4)
           : null;
         setEur({ ...resEur.data, delta: eurDelta });
+      } else {
+        toast.error(`Tasa EUR: ${resEur.error}`);
       }
     });
   }
