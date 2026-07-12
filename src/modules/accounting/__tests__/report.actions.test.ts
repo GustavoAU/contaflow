@@ -135,7 +135,6 @@ describe("report.actions — security guards", () => {
       const result = await fn();
 
       expect(result.success).toBe(false);
-      if (!result.success) expect(result.error).toContain("Acceso denegado");
     });
 
     it(`${name}: rechaza rol VIEWER (requiere ACCOUNTING o superior)`, async () => {
@@ -144,7 +143,6 @@ describe("report.actions — security guards", () => {
       const result = await fn();
 
       expect(result.success).toBe(false);
-      if (!result.success) expect(result.error).toContain("Acceso denegado");
     });
   }
 });

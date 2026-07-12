@@ -2,10 +2,10 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { Decimal } from "decimal.js";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import { IncomeStatementService } from "../services/IncomeStatementService";
 import { BalanceSheetService } from "../services/BalanceSheetService";
 import { TX_STATUS } from "../constants";
@@ -62,35 +62,6 @@ function validateDateRange(dateFrom?: Date, dateTo?: Date): string | null {
   return null;
 }
 
-// ─── Guard de acceso al módulo de Contabilidad ────────────────────────────────
-
-// Verifica autenticación, rate limit y rol antes de ejecutar cualquier acción.
-// Retorna { userId } si el acceso está permitido, o { success: false, error } si no.
-async function guardAccounting(
-  companyId: string,
-): Promise<{ userId: string } | { success: false; error: string }> {
-  try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    // Lectura de reportes (Diario/Mayor/Balance/etc.) — limiter de lecturas (120/min por
-    // empresa×usuario), no el de mutaciones fiscales (10/min). Evita bloquear navegación intensa.
-    const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
-    if (!rl.allowed) return { success: false, error: "Demasiadas solicitudes. Intente más tarde." };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Acceso denegado" };
-
-    return { userId };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Error de conexión" };
-  }
-}
-
 // MEDIUM-01 (auditoría Reportes): topes para acotar el volumen de filas que cada
 // reporte puede traer a memoria en un solo request. En navegación normal los reportes
 // ya están acotados por el filtro de fecha (año fiscal corriente por defecto), así que
@@ -113,8 +84,8 @@ export async function getJournalAction(
   dateTo?: Date,
   search?: string,
 ): Promise<ActionResult<{ transactions: JournalTransaction[]; hasMore: boolean }>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
   if (dateError) return { success: false, error: dateError };
@@ -217,8 +188,8 @@ export async function getLedgerAction(
   dateFrom?: Date,
   dateTo?: Date,
 ): Promise<ActionResult<LedgerAccount[]>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
   if (dateError) return { success: false, error: dateError };
@@ -350,8 +321,8 @@ export async function getTrialBalanceAction(
   dateFrom?: Date,
   dateTo?: Date,
 ): Promise<ActionResult<TrialBalanceRow[]>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
   if (dateError) return { success: false, error: dateError };
@@ -424,8 +395,8 @@ export async function getIncomeStatementAction(
   compareDateFrom?: Date,
   compareDateTo?: Date,
 ): Promise<ActionResult<IncomeStatementResult>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   // R-01: validar ambos rangos antes de pasar a los servicios
   const dateError =
@@ -465,8 +436,8 @@ export async function getBalanceSheetAction(
   companyId: string,
   dateTo?: Date,
 ): Promise<ActionResult<BalanceSheet>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(undefined, dateTo);
   if (dateError) return { success: false, error: dateError };
@@ -488,8 +459,8 @@ export async function getBalanceSheetAction(
 export async function getCompanyHeaderAction(
   companyId: string,
 ): Promise<ActionResult<{ name: string; rif: string | null }>> {
-  const guard = await guardAccounting(companyId);
-  if ("error" in guard) return guard;
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  if (!ctx.ok) return ctx.error;
 
   try {
     const company = await prisma.company.findUnique({

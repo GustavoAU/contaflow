@@ -1,16 +1,15 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
-import { checkRateLimit, fiscalKey, limiters, redis } from "@/lib/ratelimit";
+import { limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import type { Retencion } from "@prisma/client";
 import {
@@ -50,25 +49,12 @@ export type RetentionSummary = {
   createdAt: Date;
 };
 
-async function getIpAndUa() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    h.get("x-real-ip") ??
-    null;
-  const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
-  return { ipAddress, userAgent };
-}
-
 // ─── Crear retención ──────────────────────────────────────────────────────────
 export async function createRetentionAction(
   input: CreateRetentionInput
 ): Promise<ActionResult<RetentionSummary>> {
   let txStart = 0;
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = CreateRetentionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -76,20 +62,17 @@ export async function createRetentionAction(
 
     const data = parsed.data;
 
-    const { ipAddress, userAgent } = await getIpAndUa();
-
-    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: data.companyId } },
+    const ctx = await requireCompanyAction(data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
+
     // ADR-025: verifica acceso base + grants granulares al módulo Facturación
-    if (!await hasModuleAccess(data.companyId, member.role, "invoicing"))
+    if (!await hasModuleAccess(data.companyId, ctx.role, "invoicing"))
       return { success: false, error: moduleAccessError("invoicing") };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(data.companyId);
 
@@ -396,9 +379,6 @@ export async function enterRetentionAction(
   input: EnterRetentionInput
 ): Promise<ActionResult<{ retentionId: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
     const parsed = EnterRetentionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -406,20 +386,17 @@ export async function enterRetentionAction(
 
     const data = parsed.data;
 
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId: data.companyId } },
+    const ctx = await requireCompanyAction(data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
+
     // ADR-025: verifica acceso base + grants granulares al módulo Facturación
-    if (!await hasModuleAccess(data.companyId, member.role, "invoicing"))
+    if (!await hasModuleAccess(data.companyId, ctx.role, "invoicing"))
       return { success: false, error: moduleAccessError("invoicing") };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
-
-    const rl = await checkRateLimit(fiscalKey(data.companyId, userId), limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error };
-
-    const { ipAddress, userAgent } = await getIpAndUa();
 
     await enterRetention(data, userId, ipAddress, userAgent);
 
@@ -437,14 +414,8 @@ export async function exportRetentionVoucherPDFAction(
   companyId: string
 ): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      include: { company: true },
-    });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const retention = await prisma.retencion.findFirst({
       where: { id: retentionId, companyId, deletedAt: null },
@@ -499,19 +470,13 @@ export async function linkRetentionToInvoiceAction(
   companyId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      captureNet: true,
     });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(membership.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
 
-    const { ipAddress, userAgent } = await getIpAndUa();
-    await linkRetentionToInvoice(retentionId, invoiceId, companyId, ipAddress, userAgent);
+    await linkRetentionToInvoice(retentionId, invoiceId, companyId, ctx.ipAddress, ctx.userAgent);
 
     revalidatePath("/accounting/retentions");
     return { success: true };
@@ -543,13 +508,8 @@ export async function findInvoiceByNumberAction(
   companyId: string
 ): Promise<ActionResult<InvoiceMatch[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const membership = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-    });
-    if (!membership) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const invoices = await prisma.invoice.findMany({
       where: {
@@ -605,8 +565,10 @@ export async function getActivePeriodAction(
   companyId: string
 ): Promise<ActionResult<ActivePeriod | null>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    // Fix ADR-041: la versión anterior no verificaba membresía — cualquier usuario
+    // autenticado podía consultar el período activo de OTRA empresa pasando su companyId.
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const period = await prisma.accountingPeriod.findFirst({
       where: { companyId, status: "OPEN" },
@@ -625,14 +587,8 @@ export async function getRetentionsAction(
   companyId: string
 ): Promise<ActionResult<RetentionSummary[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const retentions = await prisma.retencion.findMany({
       where: { companyId },
@@ -660,14 +616,8 @@ export async function getAccountsForEnteramientoAction(
   companyId: string
 ): Promise<ActionResult<AccountOption[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findUnique({
-      where: { userId_companyId: { userId, companyId } },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+    if (!ctx.ok) return ctx.error;
 
     const accounts = await prisma.account.findMany({
       where: {
@@ -711,16 +661,8 @@ export async function getRetentionReconciliationAction(
   month: number
 ): Promise<ActionResult<ReconciliationRow[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const periodStart = new Date(Date.UTC(year, month - 1, 1));
     const lastDay = new Date(Date.UTC(year, month, 0)).getDate();

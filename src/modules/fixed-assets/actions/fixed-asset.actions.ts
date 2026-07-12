@@ -5,7 +5,8 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
@@ -29,18 +30,12 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     // Guard: no permitir en año fiscal cerrado
     const acqYear = parsed.data.acquisitionDate.getFullYear();
@@ -74,18 +69,12 @@ export async function postMonthlyDepreciationAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     // Guard: año cerrado
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
@@ -141,18 +130,12 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo administradores pueden dar de baja activos" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     // Guard R-3: año fiscal cerrado
     const disposalYear = parsed.data.disposalDate.getFullYear();
@@ -203,16 +186,8 @@ export async function getFixedAssetsAction(
   companyId: string,
 ): Promise<ActionResult<Awaited<ReturnType<typeof FixedAssetService.getSummary>>>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    // ADR-025: ROLES.ALL — todos los miembros pueden consultar el resumen de activos
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const assets = await FixedAssetService.getSummary(companyId);
     return { success: true, data: assets };
@@ -234,16 +209,8 @@ export async function getDepreciationScheduleAction(
   companyId: string,
 ): Promise<ActionResult<SerializedSchedule>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    // ADR-025: ROLES.ALL — todos los miembros pueden ver la tabla de depreciación
-    if (!canAccess(member.role, ROLES.ALL)) return { success: false, error: "No autorizado" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
+    if (!ctx.ok) return ctx.error;
 
     const schedule = await FixedAssetService.getSchedule(assetId, companyId);
 
@@ -295,18 +262,12 @@ export async function catchUpAssetDepreciationAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     const asset = await prisma.fixedAsset.findFirst({
       where: { id: parsed.data.assetId, companyId: parsed.data.companyId },
@@ -427,18 +388,12 @@ export async function catchUpAllAssetsDepreciationAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     const assets = await prisma.fixedAsset.findMany({
       where: { companyId: parsed.data.companyId, status: "ACTIVE", deletedAt: null },
@@ -579,19 +534,12 @@ export async function postFixedAssetINPCRestatementAction(
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.fiscal);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(parsed.data.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     // Guard R-3: año fiscal cerrado
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
@@ -652,19 +600,11 @@ export async function getFixedAssetGLReconciliationAction(
   companyId: string,
 ): Promise<ActionResult<GLReconciliationResultRow[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const rl = await checkRateLimit(userId, limiters.read);
-    if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
     });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    if (!ctx.ok) return ctx.error;
 
     const rows = await FixedAssetService.getGLReconciliation(companyId);
     return {
@@ -704,16 +644,8 @@ export async function getFixedAssetINPCHistoryAction(
   assetId?: string,
 ): Promise<ActionResult<INPCRestatementHistoryRow[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const rows = await FixedAssetService.getINPCRestatementHistory(companyId, assetId);
     return {
@@ -753,16 +685,8 @@ export async function getExpensesForAssetImportAction(
   companyId: string,
 ): Promise<ActionResult<ExpenseForAssetImport[]>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
-
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-    if (!canAccess(member.role, ROLES.ACCOUNTING))
-      return { success: false, error: "Módulo contable: se requiere rol Contador o superior" };
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+    if (!ctx.ok) return ctx.error;
 
     const expenses = await prisma.expense.findMany({
       where: { companyId, status: "CONFIRMED", deletedAt: null },

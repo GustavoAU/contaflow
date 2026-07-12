@@ -39,6 +39,7 @@ vi.mock("@/lib/ratelimit", () => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     companyMember: { findFirst: vi.fn() },
+    company: { findUnique: vi.fn() },
     invoice: { findFirst: vi.fn() },
     fiscalYearClose: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -433,6 +434,7 @@ describe("exportInvoiceBookPDFAction", () => {
   it("happy path: sube a Vercel Blob y retorna url + contentHash (M9 R-2)", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
     vi.mocked(InvoiceService.getBook).mockResolvedValue({
       rows: [],
       summary: EMPTY_SUMMARY,

@@ -1,11 +1,10 @@
 "use server";
 
-import { headers } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
-import type { UserRole } from "@prisma/client";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
 import prisma from "@/lib/prisma";
-import { canAccess, ROLES } from "@/lib/auth-helpers";
+import { ROLES } from "@/lib/auth-helpers";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { mapPrismaError } from "@/lib/prisma-errors";
 import {
   STEP_UP_CONFIG,
@@ -69,14 +68,6 @@ import { logRejection, shouldLogRejection } from "../utils/log-rejection";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function getIpAndUa() {
-  const h = await headers();
-  const ipAddress =
-    h.get("x-forwarded-for")?.split(",")[0].trim() ?? h.get("x-real-ip") ?? undefined;
-  const userAgent = h.get("user-agent") ?? undefined;
-  return { ipAddress, userAgent };
-}
-
 // HC-08 (ADR-037 D-2): registra el rechazo de regla de negocio (best-effort, fuera del
 // $transaction) ANTES de devolver el error al usuario. `reason` = el MISMO mensaje de
 // negocio que ve el usuario (mapPrismaError), nunca input crudo (sin PII). El comportamiento
@@ -108,35 +99,28 @@ async function rejectAndReport(
   return toActionError(e);
 }
 
-type GuardResult = { ok: true; userId: string } | { ok: false; error: string };
+type GuardResult =
+  | { ok: true; userId: string; ipAddress?: string; userAgent?: string }
+  | { ok: false; error: string };
 
-async function guardRole(
-  companyId: string,
-  roles: UserRole[],
-  roleError: string,
-): Promise<GuardResult> {
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "No autenticado" };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { ok: false, error: "Límite de solicitudes superado" };
-
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId },
-    select: { role: true },
+async function guardAdmin(companyId: string): Promise<GuardResult> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
   });
-  if (!member) return { ok: false, error: "No eres miembro de esta empresa" };
-  if (!canAccess(member.role, roles)) return { ok: false, error: roleError };
-
-  return { ok: true, userId };
+  if (!ctx.ok) return { ok: false, error: ctx.error.error };
+  return { ok: true, userId: ctx.userId, ipAddress: ctx.ipAddress ?? undefined, userAgent: ctx.userAgent ?? undefined };
 }
 
-function guardAdmin(companyId: string): Promise<GuardResult> {
-  return guardRole(companyId, ROLES.ADMIN_ONLY, "Se requiere rol ADMIN o superior");
-}
-
-function guardOperations(companyId: string): Promise<GuardResult> {
-  return guardRole(companyId, ROLES.WRITERS, "Rol insuficiente");
+async function guardOperations(companyId: string): Promise<GuardResult> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return { ok: false, error: ctx.error.error };
+  return { ok: true, userId: ctx.userId, ipAddress: ctx.ipAddress ?? undefined, userAgent: ctx.userAgent ?? undefined };
 }
 
 // ─── CajaCaja ─────────────────────────────────────────────────────────────────
@@ -150,7 +134,7 @@ export async function createCajaCajaAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await createCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -213,7 +197,7 @@ export async function closeCajaCajaAction(
     if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
   }
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     await closeCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
@@ -248,7 +232,7 @@ export async function reopenCajaCajaAction(
     if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
   }
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     await reopenCajaCaja(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
@@ -274,7 +258,7 @@ export async function assignCustodianAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await assignCustodian(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -302,7 +286,7 @@ export async function createDepositAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await createDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -327,7 +311,7 @@ export async function voidDepositAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     await voidDeposit(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
@@ -370,7 +354,7 @@ export async function createMovementAction(
   const g = await guardOperations(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await createMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -395,7 +379,7 @@ export async function approveMovementAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await approveMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -421,7 +405,7 @@ export async function voidMovementAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     await voidMovement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
@@ -464,7 +448,7 @@ export async function createReimbursementAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await createReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -489,7 +473,7 @@ export async function postReimbursementAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     const data = await postReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data };
@@ -515,7 +499,7 @@ export async function voidReimbursementAction(
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
 
-  const { ipAddress, userAgent } = await getIpAndUa();
+  const { ipAddress, userAgent } = g;
   try {
     await voidReimbursement(parsed.data, g.userId, ipAddress, userAgent);
     return { success: true, data: undefined };
