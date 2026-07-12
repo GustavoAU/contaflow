@@ -222,7 +222,10 @@ jobs:
 
             if [ -n "$FILES" ]; then
               for FILE in $FILES; do
-                if ! grep -q "checkRateLimit" "$FILE"; then
+                # Rate limit directo (checkRateLimit) o vía guard ADR-041
+                # (requireCompanyAction con opcion `limiter:`, que llama
+                # checkRateLimit internamente en src/lib/action-guard.ts)
+                if ! grep -q "checkRateLimit" "$FILE" && ! { grep -q "requireCompanyAction" "$FILE" && grep -q "limiter:" "$FILE"; }; then
                   MISSING_LIMIT+=("$action (en $FILE)")
                 fi
               done
@@ -233,7 +236,8 @@ jobs:
             echo "CRITICAL: Acciones sin rate limiting:"
             printf '%s\n' "${MISSING_LIMIT[@]}"
             echo ""
-            echo "Solucion: agrega checkRateLimit(limiters.fiscal) despues de auth()"
+            echo "Solucion: agrega checkRateLimit(limiters.fiscal) despues de auth(),"
+            echo "o migra a requireCompanyAction(companyId, { limiter: limiters.fiscal }) (ADR-041)"
             echo "Referencia: ADR-006 D-5"
             exit 1
           fi
