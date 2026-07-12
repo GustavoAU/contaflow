@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 // ─── Tabla ISLR Decreto 1808 (completa) ──────────────────────────────────────
 export const ISLR_RATES: Record<string, { pct: number; subtrahend: number; description: string }> =
@@ -102,7 +103,7 @@ export const CreateRetentionSchema = z.object({
     .string()
     .regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),
   invoiceNumber: z.string().min(1, { error: "Número de factura requerido" }),
-  invoiceDate: z.coerce.date(),
+  invoiceDate: zBusinessDate(),
   invoiceAmount: z
     .string()
     .refine(positiveBelowCeiling, { error: "Monto inválido o fuera del rango permitido" }),
@@ -131,7 +132,7 @@ export const EnterRetentionSchema = z.object({
   companyId: z.string().min(1, { error: "Empresa requerida" }),
   liabilityAccountId: z.string().min(1, { error: "Cuenta pasivo (Retenciones por Pagar) requerida" }),
   bankAccountId: z.string().min(1, { error: "Cuenta banco/caja requerida" }),
-  enterDate: z.coerce.date(),
+  enterDate: zBusinessDate(),
 });
 
 export type EnterRetentionInput = z.infer<typeof EnterRetentionSchema>;

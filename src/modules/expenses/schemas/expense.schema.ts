@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 const MAX_AMOUNT = "999999999999999"; // 19 dígitos, compatible con @db.Decimal(19,4)
 
@@ -75,7 +76,7 @@ export const CreateExpenseSchema = z
     isDeductible: z.boolean().default(true),
 
     invoiceNumber: z.string().max(50).optional(),
-    invoiceDate: z.coerce.date().optional(),
+    invoiceDate: zBusinessDate().optional(),
     attachmentUrl: z.string().url({ error: "URL de comprobante inválida" }).optional(),
 
     expenseAccountId: z.string().optional(),

@@ -84,6 +84,12 @@ function computeTotals(items: QuotationItemInput[]) {
   return { computed, subtotal, taxAmount, total: subtotal.add(taxAmount) };
 }
 
+// H-2 (auditoría Compras/Ventas 2026-07): mismo blindaje que serializeOrder — una
+// fecha corrupta en BD no debe tumbar el listado completo con RangeError.
+function safeDateOnly(d: Date | null): string | null {
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString().split("T")[0]! : null;
+}
+
 function serializeQuotation(q: {
   id: string;
   type: QuotationType;
@@ -118,7 +124,7 @@ function serializeQuotation(q: {
     number: q.number,
     counterpartName: q.counterpartName,
     counterpartRif: q.counterpartRif,
-    validUntil: q.validUntil.toISOString().split("T")[0]!,
+    validUntil: safeDateOnly(q.validUntil) ?? "",
     notes: q.notes,
     subtotal: new Decimal(q.subtotal.toString()).toFixed(2),
     taxAmount: new Decimal(q.taxAmount.toString()).toFixed(2),

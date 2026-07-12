@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 const MAX_RANGE_DAYS = 366;
 
@@ -8,8 +9,8 @@ export const CreateExportJobSchema = z
   .object({
     companyId: z.string().min(1, { error: "La empresa es requerida" }),
     allHistory: z.boolean().optional().default(false),
-    dateFrom: z.coerce.date({ error: "Fecha de inicio inválida" }).optional(),
-    dateTo: z.coerce.date({ error: "Fecha de fin inválida" }).optional(),
+    dateFrom: zBusinessDate({ error: "Fecha de inicio inválida" }).optional(),
+    dateTo: zBusinessDate({ error: "Fecha de fin inválida" }).optional(),
   })
   .superRefine((d, ctx) => {
     if (d.allHistory) return; // sin validación de rango

@@ -84,3 +84,41 @@ export const zOptionalText = (max: number, msg?: string) =>
 export function zEmptyAsNull<T extends z.ZodType<string>>(validated: T) {
   return z.union([z.literal("").transform(() => null), validated]).nullish();
 }
+
+// ─── Fechas de negocio con rango acotado ──────────────────────────────────────
+// Auditoría Compras/Ventas 2026-07 (H-1/H-2): un typo de año ("12026") pasaba
+// `Date.parse`/`z.coerce.date()` (JS acepta años hasta 275760), se persistía, y al
+// releerse desde Neon producía un Invalid Date cuyo `.toISOString()` lanzaba
+// RangeError — tumbando el listado COMPLETO del módulo para toda la empresa.
+// Toda fecha ingresada por el usuario debe validarse con estos helpers, nunca con
+// `z.coerce.date()` ni `Date.parse` a secas.
+
+const MIN_BUSINESS_DATE = Date.UTC(1900, 0, 1);
+const MAX_BUSINESS_DATE = Date.UTC(2100, 11, 31, 23, 59, 59, 999);
+
+function inBusinessRange(d: Date): boolean {
+  const t = d.getTime();
+  return !Number.isNaN(t) && t >= MIN_BUSINESS_DATE && t <= MAX_BUSINESS_DATE;
+}
+
+/**
+ * Fecha coercida (output `Date`) con rango [1900, 2100].
+ * Reemplazo directo de `z.coerce.date()` para input de usuario.
+ */
+export function zBusinessDate(opts?: { error?: string }) {
+  return z.coerce
+    .date(opts?.error ? { error: opts.error } : undefined)
+    .refine(inBusinessRange, { error: "Fecha fuera del rango permitido (1900–2100)" });
+}
+
+/**
+ * Fecha como string (output `string`, sin transformar) con rango [1900, 2100].
+ * Reemplazo directo del patrón `z.string().refine((v) => !isNaN(Date.parse(v)))`.
+ * Rechaza "" — para campos opcionales que aceptan vacío, componer con
+ * `.or(z.literal("")).optional()` en el call site.
+ */
+export const zBusinessDateString = z
+  .string()
+  .refine((v) => inBusinessRange(new Date(v)), {
+    error: "Fecha inválida o fuera del rango permitido (1900–2100)",
+  });

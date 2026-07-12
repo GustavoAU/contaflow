@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
+import { zBusinessDate } from "@/lib/zod-helpers";
 
 const balanceAmountSchema = z
   .string()
@@ -13,8 +14,8 @@ const balanceAmountSchema = z
 
 export const CreateBankStatementSchema = z.object({
   bankAccountId: z.string().min(1),
-  periodStart: z.coerce.date(),
-  periodEnd: z.coerce.date(),
+  periodStart: zBusinessDate(),
+  periodEnd: zBusinessDate(),
   openingBalance: balanceAmountSchema,
   closingBalance: balanceAmountSchema,
   importedBy: z.string().min(1),
@@ -25,7 +26,7 @@ export type CreateBankStatementInput = z.infer<typeof CreateBankStatementSchema>
 export const CreateBankTransactionSchema = z.object({
   statementId: z.string().min(1),
   companyId: z.string().min(1),
-  date: z.coerce.date(),
+  date: zBusinessDate(),
   description: z.string().min(1).max(500).trim(),
   type: z.enum(["CREDIT", "DEBIT"]),
   amount: z
