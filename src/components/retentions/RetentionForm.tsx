@@ -630,7 +630,7 @@ export function RetentionForm({ companyId, userId }: Props) {
                           <span className="font-mono font-medium">{inv.invoiceNumber}</span>
                           {" "}— {inv.counterpartName}
                           <span className="ml-2 text-xs text-zinc-400">
-                            {new Date(inv.date).toLocaleDateString("es-VE")}
+                            {new Date(inv.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                           </span>
                           {/* ALERTA 19: ya tiene retención vinculada */}
                           {inv.hasLinkedRetention && (

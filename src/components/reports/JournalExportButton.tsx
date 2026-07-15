@@ -36,7 +36,7 @@ export function JournalExportButton({ transactions, period, companyName }: Props
         ws.addRow([
           folio,
           tx.number,
-          new Date(tx.date).toLocaleDateString("es-VE"),
+          new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" }),
           TYPE_LABELS[tx.type] ?? tx.type,
           tx.description,
           tx.reference ?? "",

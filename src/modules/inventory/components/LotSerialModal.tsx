@@ -72,7 +72,7 @@ function computeFefo(lots: AvailableLot[], required: number): LotAllocation[] {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "Sin vencimiento";
-  return new Date(iso).toLocaleDateString("es-VE");
+  return new Date(iso).toLocaleDateString("es-VE", { timeZone: "UTC" });
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────

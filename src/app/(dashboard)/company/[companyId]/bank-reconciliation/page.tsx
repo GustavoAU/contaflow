@@ -125,9 +125,9 @@ export default async function BankReconciliationPage({ params, searchParams }: P
                   {statements.map((stmt) => (
                     <tr key={stmt.id} className="hover:bg-zinc-50">
                       <td className="px-4 py-3 font-mono text-xs text-zinc-600">
-                        {new Date(stmt.periodStart).toLocaleDateString("es-VE")}
+                        {new Date(stmt.periodStart).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                         {" — "}
-                        {new Date(stmt.periodEnd).toLocaleDateString("es-VE")}
+                        {new Date(stmt.periodEnd).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                       </td>
                       <td
                         className="px-4 py-3 text-right font-mono font-medium"

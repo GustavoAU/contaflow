@@ -67,7 +67,7 @@ export default async function TransactionDetailPage({ params }: Props) {
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
           <div>
             <p className="text-zinc-400 text-xs">Fecha</p>
-            <p className="font-medium">{new Date(tx.date).toLocaleDateString("es-VE")}</p>
+            <p className="font-medium">{new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</p>
           </div>
           <div>
             <p className="text-zinc-400 text-xs">Tipo</p>

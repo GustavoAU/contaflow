@@ -53,6 +53,7 @@ export interface QuotationRow {
     unitPrice: string;
     taxRate: string;
     totalPrice: string;
+    inventoryItemId: string | null; // OM-08: para que OrderForm herede el vínculo al clonar/convertir
   }[];
 }
 
@@ -115,6 +116,7 @@ function serializeQuotation(q: {
     unitPrice: { toString(): string };
     taxRate: { toString(): string };
     totalPrice: { toString(): string };
+    inventoryItemId?: string | null;
   }[];
 }): QuotationRow {
   return {
@@ -142,6 +144,7 @@ function serializeQuotation(q: {
       unitPrice: new Decimal(i.unitPrice.toString()).toFixed(2),
       taxRate: new Decimal(i.taxRate.toString()).toFixed(2),
       totalPrice: new Decimal(i.totalPrice.toString()).toFixed(2),
+      inventoryItemId: i.inventoryItemId ?? null, // OM-08
     })),
   };
 }

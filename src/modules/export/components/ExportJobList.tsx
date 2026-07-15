@@ -31,6 +31,17 @@ function formatDate(d: Date): string {
   });
 }
 
+// Fechas de negocio (rango del export, medianoche UTC) — sin timeZone UTC se muestran −1 día en VET.
+// formatDate (local) queda para timestamps reales como createdAt.
+function formatDateUTC(d: Date): string {
+  return new Date(d).toLocaleDateString("es-VE", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case "DONE":
@@ -76,7 +87,7 @@ export function ExportJobList({ jobs }: Props) {
             <div key={job.id} className="flex items-center justify-between px-4 py-3 gap-4">
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="text-sm font-medium">
-                  {formatDate(job.dateFrom)} — {formatDate(job.dateTo)}
+                  {formatDateUTC(job.dateFrom)} — {formatDateUTC(job.dateTo)}
                 </p>
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <ClockIcon className="h-3 w-3" />

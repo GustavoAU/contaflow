@@ -69,6 +69,7 @@ function formatDate(date: Date | null | undefined): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "UTC", // fecha de negocio (medianoche UTC) — sin esto se muestra −1 día en VET
   });
 }
 

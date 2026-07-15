@@ -537,7 +537,7 @@ export default async function CompanyDashboardPage({ params, searchParams }: Pro
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-zinc-500">
-                    {new Date(m.lastTransaction.date).toLocaleDateString("es-VE")}
+                    {new Date(m.lastTransaction.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                   </p>
                   <Link
                     href={`/company/${companyId}/transactions`}

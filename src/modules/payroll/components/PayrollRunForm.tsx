@@ -113,7 +113,7 @@ export function PayrollRunForm({
     : null;
 
   const salMinLastUpdateFormatted = salMinLastUpdate
-    ? new Date(salMinLastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })
+    ? new Date(salMinLastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
     : null;
 
   return (

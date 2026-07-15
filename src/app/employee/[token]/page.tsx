@@ -23,7 +23,7 @@ function fmt(amount: string | Decimal | null | undefined, fractionDigits = 2): s
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
-  return dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 }
 
 export default async function EmployeePortalPage({ params }: Props) {
@@ -370,7 +370,7 @@ export default async function EmployeePortalPage({ params }: Props) {
       </section>
 
       <p className="text-center text-xs text-gray-400">
-        Enlace generado el {fmtDate(new Date())}. Válido por 30 días.
+        Enlace generado el {new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })}. Válido por 30 días.
       </p>
     </div>
   );
