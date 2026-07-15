@@ -5,11 +5,34 @@
 
 ---
 
-## 📋 ACTA DE LA PARTE 2A — PEGAR AQUÍ
+## 📋 ACTA DE LA PARTE 2A (2026-07-14) — contexto heredado
 
-```
-[EL USUARIO PEGA AQUÍ EL ACTA DE PARTE 2A]
-```
+Heredado: E-2..E-6, E-8, E-9 ✅ (ciclo v1) — sin re-correr.
+
+- **E-1** Sin ítems: bloqueado (validación nativa; no se puede quitar la última fila). ✅
+- **E-7** Total manipulado: no manipulable desde la UI (total derivado). ✅
+- **E-10/E-11** Transiciones inválidas: bloqueadas por ocultamiento del control según estado. ✅
+- **E-12** Doble conversión: orden Convertida solo ofrece "Clonar"; un solo asiento FAC-F-2001. ✅
+- **E-13** Editar documento terminal: no existe acción de edición en la UI. ✅
+- **E-14** ⚠️ HALLAZGO: conversión con fecha 15/01/2025 (mes SIN período contable) fue ACEPTADA
+  — factura F-9002 creada y asiento FAC-F-9002 "Contabilizado" con fecha 14/1/2025. No hay
+  validación de período inexistente en la conversión (solo bloquea período CERRADO).
+- **E-15** Reportado como CRÍTICO en 2A, **RECLASIFICADO tras verificación en código/BD**: el
+  duplicado observado fue VENTA F-2001 vs COMPRA F-2001. El número de una factura de COMPRA
+  pertenece al PROVEEDOR y puede coincidir legítimamente con la serie propia de venta. La
+  unicidad real (verificada a nivel BD, índices parciales Fix A3): venta única por
+  (empresa + número); compra única por (empresa + RIF proveedor + número). → **Falso positivo
+  por diseño**. NO re-reportar en el informe final; registrarlo en "falsos positivos descartados".
+- **E-16** ⚠️ HALLAZGO: RIF malformado "X-99" aceptado en la orden (OC-0006) y PROPAGADO a la
+  factura fiscal F-9003 y al Libro de Compras. La conversión no valida RIF antes de crear el
+  documento fiscal.
+
+Documentos residuales: OV-0004 → Convertida (F-9002, fecha 14/1/2025) · OC-TESA-001 →
+Convertida (F-2001 compra) · OC-0006 → Convertida (F-9003, RIF X-99) · sin cambios:
+COT-0004 (Aprobada), PRE-0006 (Borrador), OC-0003/OV-0003 (Borrador), OV-TESA-001 (Aprobada).
+
+> Nota para esta sesión 2B: los hallazgos E-14/E-16 (y los 2 de Parte 1: fecha de asiento
+> −1 día, SALIDA de inventario no generada) YA están en el expediente — NO los re-reportes.
 
 ## 🪫 PRESUPUESTO DE ACCIONES (OBLIGATORIO)
 

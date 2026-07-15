@@ -32,7 +32,11 @@ internos. Lo no observable → "no verificable desde la UI".
 - Sin cuentas GL configuradas → factura sin asiento = degradación correcta.
 - Ítems no vinculados al catálogo → sin movimiento de inventario = correcto.
 - Documentos anulados/convertidos visibles en historial = trazabilidad correcta.
-- Salto de correlativo tras un error ≠ bug; DUPLICADO sí es hallazgo (CRÍTICO).
+- Salto de correlativo tras un error ≠ bug; DUPLICADO sí es hallazgo (CRÍTICO) — PERO: el
+  número de una factura de COMPRA es el del PROVEEDOR y puede coincidir con la serie propia
+  de VENTA (unicidad real: venta por empresa+número; compra por empresa+RIF+número). El caso
+  E-15 de la Parte 2A se reclasificó como falso positivo por diseño — va en la sección 9 del
+  informe, no en hallazgos.
 - Si la tabla de Auditoría no muestra un dato (ej. User-Agent), verifica si se puede ver de
   otra forma o pregunta al Asistente IA antes de concluir "no se graba". *(Nota: que la
   columna User-Agent no sea visible en la tabla ya está reportado como mejora — no lo
