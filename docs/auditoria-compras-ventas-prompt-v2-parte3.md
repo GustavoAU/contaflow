@@ -1,22 +1,25 @@
-# Prompt — Auditoría Compras y Ventas · ContaFlow (v2 · PARTE 3 de 3)
+# Prompt — Auditoría Compras y Ventas · ContaFlow (v2 · PARTE 3 de 4)
 ### Para usar en: Claude Browser (claude.ai/new con herramienta de navegación web)
 > **PARTE 3 = Fases 4 y 5**: integración con otros módulos + INFORME FINAL consolidado.
-> Requiere las ACTAS de las Partes 1 y 2.
+> Secuencia completa: 1 → 2A → 2B → 3. Requiere el ACTA de la Parte 2B (que encadena las
+> anteriores).
 
 ---
 
 ## 📋 ACTAS DE LAS PARTES ANTERIORES — PEGAR AQUÍ
 
 ```
-[EL USUARIO PEGA AQUÍ EL ACTA DE PARTE 2 — que incluye embebida la de PARTE 1]
+[EL USUARIO PEGA AQUÍ EL ACTA DE PARTE 2B — que encadena las de 2A y Parte 1]
 ```
 
 ---
 
-## 📸 ECONOMÍA DE CONTEXTO (OBLIGATORIA)
+## 🪫 PRESUPUESTO DE ACCIONES (OBLIGATORIO — dos sesiones anteriores murieron por contexto)
 
-- Captura **SOLO** evidencia de hallazgos ⚠️/❌ y (opcional) UNA captura del asiento contable
-  verificado. Todo lo demás EN TEXTO.
+- Mínimo de navegaciones; no revisites páginas. Captura **SOLO** evidencia de hallazgos ⚠️/❌
+  y (opcional) UNA captura del asiento contable verificado. Todo lo demás EN TEXTO.
+- Si la sesión se alarga antes de terminar la Fase 4, corta y emite el informe con lo cubierto,
+  marcando lo no ejecutado como "pendiente" — un informe parcial vale más que una sesión muerta.
 
 ## 🔒 NATURALEZA: QA MANUAL DE CAJA NEGRA
 
