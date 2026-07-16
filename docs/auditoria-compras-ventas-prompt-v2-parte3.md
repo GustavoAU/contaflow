@@ -149,6 +149,15 @@ internos. Lo no observable → "no verificable desde la UI".
   Σ(débitos)=Σ(créditos). Cotizaciones/órdenes NO deben aparecer.
 - **4.3 Inventario**: para ítems vinculados al catálogo — movimiento (SALIDA venta / ENTRADA
   compra), stock y costo promedio ajustados.
+  **IMPORTANTE — fixes 2026-07-15 aplicados**: el hallazgo "SALIDA no generada" de la
+  Parte 1 fue corregido (el vínculo al producto no se persistía al crear la orden). Los
+  documentos de las actas son PRE-FIX y no tienen vínculo — para esta prueba crea UNA
+  orden de venta NUEVA seleccionando un producto del catálogo en el combobox del ítem,
+  apruébala y conviértela a factura. Verifica que ahora SÍ aparece el movimiento SALIDA.
+  También quedaron corregidos: fechas de asiento −1 día (verifícalo de paso: la fecha
+  del asiento debe coincidir con la de conversión) · E-14 (fecha en mes sin período
+  ahora se RECHAZA) · E-16 (RIF inválido ahora se RECHAZA al convertir). Si los
+  re-pruebas, repórtalos como ✅ fixes verificados, no como hallazgos.
 - **4.4 Correlativos**: con todos los documentos creados en las 3 partes, confirma series
   consecutivas y SIN duplicados (COT/PRE/OC/OV).
 - **4.5 Auditoría**: crear/aprobar/rechazar/convertir quedan en el log con usuario, fecha/hora
