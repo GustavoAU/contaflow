@@ -176,7 +176,7 @@ export function TransactionList({ companyId, transactions }: Props) {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-zinc-600 whitespace-nowrap">
-                      {new Date(tx.date).toLocaleDateString("es-VE")}
+                      {new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                     </td>
                     <td className="px-4 py-3 max-w-xs truncate">{tx.description}</td>
                     <td className="px-4 py-3 whitespace-nowrap">

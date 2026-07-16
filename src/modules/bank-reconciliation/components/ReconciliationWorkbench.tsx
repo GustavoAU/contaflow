@@ -650,7 +650,7 @@ function InvoicePaymentPanel({
                 )}
               </div>
               <div className="mt-0.5 text-xs text-zinc-400">
-                {new Date(payment.date as string).toLocaleDateString("es-VE")}
+                {new Date(payment.date as string).toLocaleDateString("es-VE", { timeZone: "UTC" })}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
@@ -725,7 +725,7 @@ function JournalEntryPanel({
                 <div className="min-w-0 flex-1 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-semibold text-zinc-700">{entry.number}</span>
-                    <span className="text-xs text-zinc-400">{new Date(entry.date).toLocaleDateString("es-VE")}</span>
+                    <span className="text-xs text-zinc-400">{new Date(entry.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</span>
                   </div>
                   <div className="mt-0.5 truncate text-xs text-zinc-500">{entry.description}</div>
                 </div>
@@ -776,7 +776,7 @@ function PaymentRecordPanel({
                 )}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-400">
-                <span>{new Date(record.date).toLocaleDateString("es-VE")}</span>
+                <span>{new Date(record.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</span>
                 {record.currency !== "VES" && record.amountOriginal && (
                   <span className="text-green-600">
                     {record.amountOriginal} {record.currency}

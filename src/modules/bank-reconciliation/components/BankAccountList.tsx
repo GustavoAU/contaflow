@@ -268,7 +268,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-zinc-500">
                     {account.lastStatementDate
-                      ? new Date(account.lastStatementDate).toLocaleDateString("es-VE")
+                      ? new Date(account.lastStatementDate).toLocaleDateString("es-VE", { timeZone: "UTC" })
                       : "—"}
                   </td>
                   <td className="px-4 py-3">

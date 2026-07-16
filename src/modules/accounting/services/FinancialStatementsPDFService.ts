@@ -376,6 +376,7 @@ function LedgerAccountBlock(account: LedgerAccount) {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+      timeZone: "UTC", // fecha de negocio (medianoche UTC) — sin esto se muestra −1 día en VET
     });
 
     return React.createElement(

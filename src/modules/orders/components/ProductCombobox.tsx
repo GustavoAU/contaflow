@@ -19,7 +19,13 @@ interface InventoryHit {
 interface Props {
   companyId: string;
   value: string;
-  onChange: (description: string, unit?: string, stockQuantity?: string) => void;
+  /** inventoryItemId llega SOLO al seleccionar del catálogo; texto libre lo limpia (null). */
+  onChange: (
+    description: string,
+    unit?: string,
+    stockQuantity?: string,
+    inventoryItemId?: string | null,
+  ) => void;
   inputCls: string;
   placeholder?: string;
   required?: boolean;
@@ -69,7 +75,10 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setQuery(v);
-    onChange(v); // free-text passthrough
+    // Texto libre: limpia el vínculo al catálogo (null) — el texto ya no corresponde
+    // necesariamente al producto que se había seleccionado (hallazgo auditoría 2026-07:
+    // el ID nunca se propagaba y la conversión a factura no generaba movimiento SALIDA)
+    onChange(v, undefined, undefined, null);
     search(v);
   }
 
@@ -77,7 +86,7 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
     setQuery(hit.name);
     setOpen(false);
     setResults([]);
-    onChange(hit.name, hit.baseUnitAbbr, hit.stockQuantity);
+    onChange(hit.name, hit.baseUnitAbbr, hit.stockQuantity, hit.id);
   }
 
   // Q2-5: color + icono — doble indicador para daltonismo (WCAG 1.4.1)

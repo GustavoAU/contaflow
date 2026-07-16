@@ -82,7 +82,7 @@ export default function BenefitBalancePanel({
             <p className="font-medium">Historial salarial incompleto — cálculos históricos pueden ser imprecisos</p>
             <p className="mt-0.5 text-xs text-amber-700">
               {oldestSalaryDate
-                ? `El registro salarial más antiguo es del ${new Date(oldestSalaryDate).toLocaleDateString("es-VE")}, pero el empleado ingresó el ${new Date(hireDate!).toLocaleDateString("es-VE")}.`
+                ? `El registro salarial más antiguo es del ${new Date(oldestSalaryDate).toLocaleDateString("es-VE", { timeZone: "UTC" })}, pero el empleado ingresó el ${new Date(hireDate!).toLocaleDateString("es-VE", { timeZone: "UTC" })}.`
                 : "No hay registros salariales para este empleado."}
               {" "}Los trimestres anteriores al primer registro usaron el salario disponible como proxy, lo que puede subestimar o sobrestimar las prestaciones históricas.
               Registre el historial completo de salarios en la pestaña <strong>Historial Salarial</strong> para garantizar la auditabilidad ante el MINPPTRASS.

@@ -125,7 +125,7 @@ export default function LegalThresholdsPanel({
             </p>
             <p className="text-red-700">
               {lastSalMin
-                ? `El último valor registrado (Bs. ${Number(lastSalMin.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}) es del ${new Date(lastSalMin.effectiveFrom).toLocaleDateString("es-VE")}.`
+                ? `El último valor registrado (Bs. ${Number(lastSalMin.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}) es del ${new Date(lastSalMin.effectiveFrom).toLocaleDateString("es-VE", { timeZone: "UTC" })}.`
                 : "No hay salario mínimo registrado."}{" "}
               Mientras no se actualice, los topes de cotización usados son:
             </p>

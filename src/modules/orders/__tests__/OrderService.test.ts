@@ -67,7 +67,9 @@ function makeOrderDb(overrides = {}) {
     number: "OC-0001",
     quotationId: null,
     counterpartName: "Proveedor S.A.",
-    counterpartRif: null,
+    // E-16: la conversión a factura exige RIF válido — el default del fixture debe
+    // pasar el guard; los tests de E-16 lo anulan con overrides
+    counterpartRif: "J-12345678-9",
     expectedDate: null,
     notes: null,
     subtotal: { toString: () => "275" },
@@ -257,6 +259,64 @@ describe("OrderService.convertOrderToInvoice", () => {
     // No debe haberse creado la factura ni tocado el estado de la orden
     expect(prisma.invoice.create).not.toHaveBeenCalled();
     expect(prisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it("E-14 (auditoría CV 2026-07): lanza error si el mes NO tiene período y la empresa YA usa períodos", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
+    // 1ª llamada: período del mes de la factura → no existe
+    // 2ª llamada: ¿la empresa tiene algún período? → sí (usa disciplina de períodos)
+    vi.mocked(prisma.accountingPeriod.findFirst)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "per-otro" } as never);
+
+    await expect(
+      OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, {
+        ...INVOICE_DATA,
+        date: new Date("2025-01-15"), // caso literal del acta: fecha sin período
+      })
+    ).rejects.toThrow(/No existe un período contable para 01\/2025/);
+
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+  });
+
+  it("E-14: permite convertir cuando la empresa NO tiene ningún período (pre-onboarding)", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
+    // Ambas llamadas null: ni período del mes ni ningún período en la empresa
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-np" } as never);
+    vi.mocked(prisma.order.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await OrderService.convertOrderToInvoice(
+      COMPANY_ID, "order-1", USER_ID, INVOICE_DATA
+    );
+    expect(result.invoiceId).toBe("inv-np");
+  });
+
+  it("E-16 (auditoría CV 2026-07): lanza error si el RIF de la orden es inválido", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED", counterpartRif: "X-99" }) as never
+    );
+
+    await expect(
+      OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
+    ).rejects.toThrow(/RIF de la contraparte/);
+
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+  });
+
+  it("E-16: lanza error si la orden no tiene RIF (documento fiscal lo exige)", async () => {
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED", counterpartRif: null }) as never
+    );
+
+    await expect(
+      OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
+    ).rejects.toThrow(/RIF de la contraparte/);
   });
 
   it("CRITICAL-1: lanza error si orderId no pertenece a companyId", async () => {

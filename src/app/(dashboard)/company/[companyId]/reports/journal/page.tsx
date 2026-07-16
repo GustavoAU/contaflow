@@ -35,7 +35,7 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
           </span>
         )}
         <span className="w-24 text-sm text-zinc-500">
-          {new Date(tx.date).toLocaleDateString("es-VE")}
+          {new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
         </span>
         <Link
           href={`/company/${companyId}/transactions/${tx.id}`}

@@ -90,7 +90,7 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
                   )}
                 </div>
                 <div className="text-xs text-zinc-500 mt-0.5">
-                  {new Date(dist.date).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
+                  {new Date(dist.date).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
                   {" · "}
                   {dist.lines.length} destinatario{dist.lines.length !== 1 ? "s" : ""}
                   {dist.description && ` · ${dist.description}`}

@@ -217,7 +217,7 @@ export function PaymentRecordList({ companyId, payments, canDelete = false, onVo
                     </button>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-zinc-600">
-                    {new Date(p.date).toLocaleDateString("es-VE")}
+                    {new Date(p.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${METHOD_BADGE[p.method as PaymentMethodType] ?? "bg-zinc-100 text-zinc-600"}`}>

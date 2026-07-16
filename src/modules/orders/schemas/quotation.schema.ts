@@ -6,6 +6,11 @@ import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 export const QuotationItemSchema = z.object({
   description: z.string().trim().min(1, "Descripción requerida").max(200),
   unit: z.string().trim().min(1, "Unidad requerida").max(50),
+  // OM-08: vínculo opcional al catálogo de inventario. Sin este campo en el schema,
+  // Zod stripeaba el ID que enviaba el form y el vínculo NUNCA se persistía
+  // (hallazgo ALTO auditoría Compras/Ventas 2026-07 — la conversión a factura no
+  // generaba movimiento de inventario). La validación cross-tenant vive en el service.
+  inventoryItemId: z.string().cuid().nullable().optional(),
   quantity: z
     .string()
     .refine((v) => !isNaN(Number(v)) && Number(v) > 0, {

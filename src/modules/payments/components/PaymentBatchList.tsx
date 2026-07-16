@@ -200,7 +200,7 @@ function BatchRow({
           )}
         </td>
         <td className="px-4 py-3 font-mono text-xs text-zinc-600">
-          {new Date(batch.date).toLocaleDateString("es-VE")}
+          {new Date(batch.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
         </td>
         <td className="px-4 py-3">
           <span

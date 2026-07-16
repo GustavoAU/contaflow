@@ -45,7 +45,7 @@ export function LedgerExportButton({ accounts, period, companyName }: Props) {
       for (const entry of account.entries) {
         ws.addRow([
           "",
-          new Date(entry.date).toLocaleDateString("es-VE"),
+          new Date(entry.date).toLocaleDateString("es-VE", { timeZone: "UTC" }),
           entry.number,
           entry.description,
           entry.debit ? parseFloat(entry.debit) : "",

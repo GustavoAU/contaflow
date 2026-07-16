@@ -21,7 +21,7 @@ const TAX_RATES = [
   { value: "16", label: "16% — General" },
 ];
 
-const DEFAULT_ITEM = { description: "", unit: "und", quantity: "1", unitPrice: "", taxRate: "16", stockQuantity: null as string | null };
+const DEFAULT_ITEM = { description: "", unit: "und", quantity: "1", unitPrice: "", taxRate: "16", stockQuantity: null as string | null, inventoryItemId: null as string | null };
 
 export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -51,6 +51,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
           unitPrice: Number(i.unitPrice).toString(),
           taxRate: Math.round(Number(i.taxRate)).toString() as "0" | "8" | "16",
           stockQuantity: null,
+          inventoryItemId: i.inventoryItemId ?? null, // OM-08: hereda el vínculo de la cotización
         }))
       );
     }
@@ -65,11 +66,20 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   function updateItem(idx: number, field: string, value: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   }
-  function updateItemDescription(idx: number, description: string, unit?: string, stockQuantity?: string) {
+  function updateItemDescription(idx: number, description: string, unit?: string, stockQuantity?: string, inventoryItemId?: string | null) {
     setItems((prev) =>
       prev.map((item, i) =>
         i === idx
-          ? { ...item, description, ...(unit !== undefined ? { unit } : {}), stockQuantity: stockQuantity ?? null }
+          ? {
+              ...item,
+              description,
+              ...(unit !== undefined ? { unit } : {}),
+              stockQuantity: stockQuantity ?? null,
+              // Vínculo al catálogo (OM-08): se setea al seleccionar del combobox y se
+              // limpia (null) al teclear texto libre — es lo que habilita el movimiento
+              // de inventario al convertir la orden a factura
+              inventoryItemId: inventoryItemId ?? null,
+            }
           : item
       )
     );
@@ -203,7 +213,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
                   <ProductCombobox
                     companyId={companyId}
                     value={item.description}
-                    onChange={(desc, unit, stock) => updateItemDescription(idx, desc, unit, stock)}
+                    onChange={(desc, unit, stock, invItemId) => updateItemDescription(idx, desc, unit, stock, invItemId)}
                     inputCls={inputCls}
                     placeholder="Nombre o SKU…"
                     required
