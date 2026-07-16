@@ -8,6 +8,7 @@ import type { OrderRow } from "../services/OrderService";
 import { formatAmount, fmtDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { VEN_RIF_REGEX } from "@/lib/tax-config";
 
 const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
 const fmtCurrency = (code: string, amount: string) =>
@@ -49,8 +50,19 @@ function ConvertModal({
   const inputCls = "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
+  // E-16 (auditoría CV 2026-07): el RIF viene heredado de la orden y no era visible aquí.
+  // La conversión lo valida server-side (documento fiscal), pero sin mostrarlo el usuario
+  // recibía el rechazo sin saber cuál era el RIF ofensor ni poder corregirlo. Lo exponemos
+  // solo-lectura con indicador de validez; si es inválido, se bloquea el submit de entrada.
+  const rif = order.counterpartRif?.trim() ?? "";
+  const rifValid = VEN_RIF_REGEX.test(rif);
+
   function handleConvert(e: React.FormEvent) {
     e.preventDefault();
+    if (!rifValid) {
+      toast.error("El RIF de la contraparte no es válido para emitir una factura. Clona la orden con el RIF corregido antes de convertir.");
+      return;
+    }
     startTransition(async () => {
       const r = await convertOrderToInvoiceAction(companyId, {
         orderId: order.id,
@@ -74,6 +86,23 @@ function ConvertModal({
         <h3 className="mb-4 text-base font-semibold text-gray-900">
           Convertir {order.number} a Factura
         </h3>
+
+        {/* Contraparte + RIF (solo-lectura) con indicador de validez fiscal */}
+        <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-gray-600">{order.counterpartName}</span>
+            <span className={`shrink-0 font-mono ${rifValid ? "text-gray-700" : "text-red-600"}`}>
+              {rif || "sin RIF"}
+            </span>
+          </div>
+          {!rifValid && (
+            <p className="mt-1.5 text-red-600">
+              ⚠ El RIF no tiene un formato válido (esperado J-12345678-9). No se puede facturar:
+              clona la orden con el RIF corregido.
+            </p>
+          )}
+        </div>
+
         <form onSubmit={handleConvert} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -112,8 +141,9 @@ function ConvertModal({
             </button>
             <button
               type="submit"
-              disabled={isPending}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              disabled={isPending || !rifValid}
+              title={!rifValid ? "RIF de la contraparte inválido — no se puede facturar" : undefined}
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isPending ? "Convirtiendo…" : "Convertir"}
             </button>
