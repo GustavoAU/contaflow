@@ -187,7 +187,8 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
                         })}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {new Date(mov.date).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}
+                        {/* Fecha de negocio (medianoche UTC) — con America/Caracas se mostraba −1 día */}
+                        {new Date(mov.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">
                         {mov.reference ?? "—"}

@@ -12,6 +12,7 @@ import {
 } from "./InvoiceLineService";
 import { InvoiceGLPostingService } from "./InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { SeniatReportingService } from "./SeniatReportingService";
 import {
   createCreditNote as _createCreditNote,
@@ -230,24 +231,20 @@ export class InvoiceService {
 
     // ─── Escrituras DB atomizadas + GL posting (ADR-026) ─────────────────────
     const doCreate = async (db: Prisma.TransactionClient) => {
-      // OM-05: bloquear fechas en períodos contables CERRADOS
+      // OM-05 + E-14: la factura debe caer en un período existente y no CERRADO (o la
+      // empresa no usa períodos aún). Guard centralizado en PeriodService — espejo exacto
+      // de la conversión Orden→Factura (OrderService.convertOrderToInvoice).
       // Hallazgo #9: auto-asignar periodId desde el período del mes de la factura cuando el
       // caller no lo provee — garantiza que `getInvoiceBookPaginated` y reportes por período
       // encuentren la factura aunque la UI use filtro por fecha.
       const invoiceDate = new Date(input.date);
-      const invYear = invoiceDate.getFullYear();
-      const invMonth = invoiceDate.getMonth() + 1; // getMonth() es 0-based
-      const periodForDate = await db.accountingPeriod.findFirst({
-        where: { companyId: input.companyId, year: invYear, month: invMonth },
-        select: { id: true, status: true, year: true, month: true },
-      });
-      if (periodForDate?.status === "CLOSED") {
-        throw new Error(
-          `No se puede registrar una factura en el período ${String(periodForDate.month).padStart(2, "0")}/${periodForDate.year} porque está CERRADO. Use una fecha en el período activo.`
-        );
-      }
-      // Auto-asignar: si el caller no proveyó periodId, usar el período encontrado (si existe)
-      const resolvedPeriodId = input.periodId ?? periodForDate?.id ?? null;
+      const resolvedFromDate = await PeriodService.resolveFiscalPeriodId(
+        db,
+        input.companyId,
+        invoiceDate,
+        "una factura",
+      );
+      const resolvedPeriodId = input.periodId ?? resolvedFromDate;
 
       // H-12: validar unicidad de Nº Control por proveedor (COT Art. 101 — ilícito formal)
       // Solo aplica a compras con controlNumber presente

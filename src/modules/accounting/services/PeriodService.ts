@@ -51,6 +51,58 @@ export class PeriodService {
   }
 
   /**
+   * E-14 (auditoría Compras/Ventas 2026-07): resuelve el periodId de un documento
+   * FISCAL (factura directa o convertida desde orden) fechado en `date`.
+   *
+   * Reglas:
+   * - Período del mes CLOSED → error (R-3, comportamiento previo conservado).
+   * - Mes SIN período cuando la empresa YA usa disciplina de períodos (tiene ≥1
+   *   período) → error. Antes esto pasaba silencioso: periodId quedaba null y el
+   *   asiento se contabilizaba en un mes sin período (hallazgo E-14: factura
+   *   aceptada con fecha 15/01/2025 teniendo solo julio 2026 abierto).
+   * - Empresa SIN ningún período (demo/pre-onboarding) → null, se permite — la
+   *   disciplina de períodos es opt-in hasta que se abre el primero; exigirla
+   *   aquí rompería la emisión de facturas en el onboarding.
+   *
+   * Getters UTC: las fechas de negocio se construyen como `new Date("YYYY-MM-DD")`
+   * (medianoche UTC); getters locales desplazan el mes en husos negativos (VET −4)
+   * — mismo criterio que assertDateInOpenPeriod.
+   */
+  static async resolveFiscalPeriodId(
+    db: Prisma.TransactionClient,
+    companyId: string,
+    date: Date,
+    docLabel = "el documento",
+  ): Promise<string | null> {
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+    const mm = String(month).padStart(2, "0");
+
+    const periodForDate = await db.accountingPeriod.findFirst({
+      where: { companyId, year, month },
+      select: { id: true, status: true },
+    });
+    if (periodForDate?.status === "CLOSED") {
+      throw new Error(
+        `No se puede registrar ${docLabel} en el período ${mm}/${year} porque está CERRADO. Use una fecha en el período activo.`,
+      );
+    }
+    if (!periodForDate) {
+      const anyPeriod = await db.accountingPeriod.findFirst({
+        where: { companyId },
+        select: { id: true },
+      });
+      if (anyPeriod) {
+        throw new Error(
+          `No existe un período contable para ${mm}/${year}. Ábralo en Contabilidad → Períodos o use una fecha del período activo.`,
+        );
+      }
+      return null;
+    }
+    return periodForDate.id;
+  }
+
+  /**
    * Obtiene todos los períodos de una empresa ordenados por fecha.
    */
   static async getPeriods(companyId: string) {
