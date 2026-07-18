@@ -1,9 +1,13 @@
 // src/app/(dashboard)/company/[companyId]/transactions/[id]/page.tsx
 import { notFound } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import prisma from "@/lib/prisma";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeftIcon } from "lucide-react";
 import { getTransactionByIdAction } from "@/modules/accounting/actions/transaction.actions";
+import { VoidTransactionButton } from "@/modules/accounting/components/VoidTransactionButton";
 import { fmtVen } from "@/lib/fmt-ven";
 import Decimal from "decimal.js";
 
@@ -36,6 +40,17 @@ export default async function TransactionDetailPage({ params }: Props) {
 
   const tx = result.data;
 
+  // Anular requiere ADMIN/OWNER (mismo gate que voidTransactionAction).
+  const { userId } = await auth();
+  let canVoid = false;
+  if (userId) {
+    const member = await prisma.companyMember.findFirst({
+      where: { companyId, userId },
+      select: { role: true },
+    });
+    canVoid = !!member && canAccess(member.role, ROLES.ADMIN_ONLY);
+  }
+
   const debits = tx.entries.filter((e) => new Decimal(e.amount.toString()).gt(0));
   const credits = tx.entries.filter((e) => new Decimal(e.amount.toString()).lt(0));
   const totalDebit = debits.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
@@ -60,9 +75,18 @@ export default async function TransactionDetailPage({ params }: Props) {
             <h1 className="text-xl font-bold font-mono">{tx.number}</h1>
             <p className="text-zinc-600 mt-1">{tx.description}</p>
           </div>
-          <Badge variant={tx.status === "POSTED" ? "default" : "destructive"}>
-            {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant={tx.status === "POSTED" ? "default" : "destructive"}>
+              {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
+            </Badge>
+            {canVoid && tx.status === "POSTED" && userId && (
+              <VoidTransactionButton
+                transactionId={tx.id}
+                transactionNumber={tx.number}
+                userId={userId}
+              />
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
           <div>
