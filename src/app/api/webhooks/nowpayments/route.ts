@@ -4,13 +4,12 @@ import * as Sentry from "@sentry/nextjs";
 import { verifyNowPaymentsSignature, type NowPaymentsIPN } from "@/lib/nowpayments";
 import * as BillingService from "@/modules/billing/services/BillingService";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/net-context";
 
 export async function POST(request: NextRequest) {
-  // Rate limit by IP to prevent replay flood before reading body
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
+  // Rate limit by IP to prevent replay flood before reading body.
+  // IP confiable `.at(-1)` (no la primera, spoofeable) — D-1 auditoría STRIDE 2026-07.
+  const ip = clientIpFromHeaders(request.headers) ?? "unknown";
   const rl = await checkRateLimit(ip, limiters.nowpayments);
   if (!rl.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
