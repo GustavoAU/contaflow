@@ -2,9 +2,9 @@
 
 // src/modules/iva-declaration/actions/exportForma30PDF.action.ts
 
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
 import { generateForma30PDF } from "../services/Forma30PDFService";
@@ -31,28 +31,17 @@ export async function exportForma30PDFAction(
   month: number,
   creditoFiscalPeriodoAnterior?: number,
 ): Promise<ActionResult<string>> {
-  // 1. Autenticación
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  // 1. Auth + rate limit + membresía (cualquier rol puede exportar reportes) — ADR-041
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.export });
+  if (!ctx.ok) return ctx.error;
 
-  // 2. Rate limit
-  const rl = await checkRateLimit(userId, limiters.export);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
-
-  // 3. Validar input
+  // 2. Validar input
   const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
   try {
-    // 4. Verificar membresía (cualquier rol puede exportar reportes)
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-
     // Obtener datos de la empresa para el encabezado PA-121 del PDF
     const company = await prisma.company.findUnique({
       where: { id: parsed.data.companyId },

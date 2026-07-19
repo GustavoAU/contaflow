@@ -2,12 +2,12 @@
 // Importación masiva de facturas desde CSV — ALERTA 12 UX
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { InvoiceService } from "../services/InvoiceService";
+import { requireCompanyAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
 import { hasModuleAccess } from "@/lib/module-access";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -39,22 +39,17 @@ export async function importInvoiceBatchAction(
   rows: BatchRow[]
 ): Promise<ActionResult<BatchImportResult>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    // Import masivo (loop de creación) → rate-limit fiscal + captura R-6 (ADR-041)
+    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+    if (!ctx.ok) return ctx.error;
 
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-
-    if (!await hasModuleAccess(companyId, member.role, "invoicing")) {
+    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false, error: "Sin acceso al módulo de facturación" };
     }
 
-    const h = await headers();
-    const ipAddress = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? null;
-    const userAgent = (h.get("user-agent") ?? "").slice(0, 512) || null;
+    const userId = ctx.userId;
+    const ipAddress = ctx.ipAddress;
+    const userAgent = ctx.userAgent;
 
     let createdCount = 0;
     const errors: { row: number; message: string }[] = [];
