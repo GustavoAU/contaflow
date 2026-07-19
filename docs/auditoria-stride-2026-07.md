@@ -39,7 +39,7 @@ un control primario que los cubre).
 | **D-1** | BAJO | ✅ **CORREGIDO** | commit `fix(security): rate-limit … IP no spoofeable` — helper `clientIpFromHeaders` + `.at(-1)` en ambas rutas. 3148 tests GREEN. |
 | **D-2** | BAJO/INFO | ⏸️ **NO SE CORRIGE (por diseño)** | Capar con `take` truncaría agregaciones fiscales → cierre incorrecto / export incompleto. Ya mitigado por rate-limit + acotado por tenant/período. Vía correcta = paginación/streaming (cambio mayor, no un “detalle”). |
 | **I-1** | INFO | ⏸️ **DIFERIDO** | Quitar `unsafe-inline` de `style-src` rompe los inline styles de React en toda la app; ya está en el roadmap post-lanzamiento de endurecimiento CSP. No verificable con la BD Neon caída. |
-| **C-1** | INFO | ⏸️ **NO APLICA / DEUDA MENOR** | 3 de las 8 (`user`, `locale`, `view-mode`) NO tienen `companyId` → legítimamente fuera del guard. Las demás ya tienen guard manual correcto; migrarlas es refactor con riesgo sobre código financiero probado y cero ganancia de seguridad. |
+| **C-1** | INFO | ✅ **CORREGIDO** | Las 5 actions con `companyId` migradas a `requireCompanyAction`. Bonus real: `employee-loan` guardaba el `x-forwarded-for` completo (spoofeable) → ahora `.at(-1)` vía `captureNet` (R-6); `invoice-batch` ganó rate-limit fiscal. Las 3 sin `companyId` (`user`/`locale`/`view-mode`) quedan fuera correctamente. 3148 tests GREEN. |
 
 ---
 
@@ -142,9 +142,9 @@ central es justo donde antes se escondía la clase de bug de IP spoofeable.
    vía `clientIpFromHeaders`.
 2. **(BAJO) D-2** — NO capar con `take` (truncaría fiscales). Si el volumen se vuelve un problema
    real, paginar/streaming en `ExportService`; ya mitigado por rate-limit + acotado por período.
-3. **(INFO) C-1** — opcional: migrar a `requireCompanyAction` solo las 5 con `companyId`
-   (`invoice-batch`, `iva-declaration` ×2, `employee-loan`, `rif-validation`) si se busca
-   uniformidad; ninguna es vulnerabilidad. Las 3 sin `companyId` quedan fuera correctamente.
+3. ~~**(INFO) C-1** — migrar las 5 con `companyId` a `requireCompanyAction`.~~ ✅ **HECHO**
+   (2026-07-19): incluyó un fix real de captura de IP en `employee-loan` y rate-limit en
+   `invoice-batch`. Las 3 sin `companyId` quedan fuera correctamente.
 4. **(INFO) I-1** — endurecer `style-src` en la tanda CSP post-lanzamiento ya planificada (rompe
    inline styles de React si se hace sin migrarlos; no hacer aislado).
 5. **Pendiente de verificación runtime:** correr `verify-rls.mjs` cuando la BD esté estable, para
