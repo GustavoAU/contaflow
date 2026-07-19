@@ -2,11 +2,10 @@
 
 // src/modules/rif-validation/actions/validateRifAction.ts
 
-import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { checkRateLimit, limiters, redis } from "@/lib/ratelimit";
+import { limiters, redis } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { validateVenezuelanRif } from "@/lib/fiscal-validators";
-import prisma from "@/lib/prisma";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,29 +141,15 @@ export async function validateRifAction(
   companyId: string,
   rif: string,
 ): Promise<RifValidationResult> {
-  // 1. Autenticación
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  // 1. Auth + rate limit (rif: 5/min — SENIAT bloquea IPs con demasiados requests)
+  //    + membresía (cualquier rol puede consultar RIFs) — ADR-041
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.rif });
+  if (!ctx.ok) return ctx.error;
 
-  // 2. Rate limit (5/min — SENIAT puede bloquear IPs con demasiados requests)
-  const rl = await checkRateLimit(userId, limiters.rif);
-  if (!rl.allowed) {
-    return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intenta más tarde." };
-  }
-
-  // 3. Validar input
+  // 2. Validar input
   const parsed = Schema.safeParse({ companyId, rif });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
-  }
-
-  // 4. Verificar membresía (cualquier rol puede consultar RIFs)
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId: parsed.data.companyId, userId },
-    select: { role: true },
-  });
-  if (!member) {
-    return { success: false, error: "Empresa no encontrada o acceso denegado" };
   }
 
   const normalizedRif = parsed.data.rif.trim().toUpperCase();

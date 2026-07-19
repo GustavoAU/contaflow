@@ -1,40 +1,29 @@
 // src/modules/payroll/actions/employee-loan.actions.ts
 // Server Actions para gestión de préstamos a empleados.
 //
-// Seguridad:
-//   - companyMember.findFirst verifica tenant antes de toda query // ADR-004-EXCEPTION: IDOR guard — where:{userId,companyId}
+// Seguridad (ADR-041):
+//   - requireCompanyAction: auth + rate limit + membresía (tenant) + net context
 //   - create = ACCOUNTING o superior; approve/reject/cancel = ADMIN_ONLY
-//   - checkRateLimit(limiters.fiscal) en toda acción write
-//   - R-6: ipAddress + userAgent en AuditLog en todo write
+//   - R-6: ipAddress + userAgent (captureNet) en AuditLog en todo write
 
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction, type GuardContext } from "@/lib/action-guard";
 import { EmployeeLoanService, type EmployeeLoanRow } from "../services/EmployeeLoanService";
 import { createLoanSchema, rejectLoanSchema } from "../schemas/employee-loan.schema";
 import type { LoanStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-async function resolveAuth(companyId: string) {
-  const { userId } = await auth();
-  if (!userId) return { userId: null, member: null };
-  const member = await prisma.companyMember.findFirst({
-    where: { userId, companyId },
-  });
-  return { userId, member };
-}
-
-async function getAuditMeta() {
-  const hdrs = await headers();
+// El service acepta `{ ipAddress?: string; userAgent?: string }`; el guard entrega
+// `string | null` → normalizamos null a undefined. IP confiable `.at(-1)` (R-6, D-1).
+function auditMeta(ctx: GuardContext) {
   return {
-    ipAddress: hdrs.get("x-forwarded-for") ?? hdrs.get("x-real-ip") ?? undefined,
-    userAgent: hdrs.get("user-agent") ?? undefined,
+    ipAddress: ctx.ipAddress ?? undefined,
+    userAgent: ctx.userAgent ?? undefined,
   };
 }
 
@@ -49,19 +38,15 @@ export async function createLoanAction(
   companyId: string,
   rawInput: unknown,
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado. Intente más tarde." };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  if (!ctx.ok) return ctx.error;
+  if (!canAccess(ctx.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
 
   const parsed = createLoanSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   try {
-    const meta = await getAuditMeta();
-    const loan = await EmployeeLoanService.create(companyId, parsed.data, userId, meta);
+    const loan = await EmployeeLoanService.create(companyId, parsed.data, ctx.userId, auditMeta(ctx));
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -75,16 +60,12 @@ export async function approveLoanAction(
   companyId: string,
   loanId: string,
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado." };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  if (!ctx.ok) return ctx.error;
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
 
   try {
-    const meta = await getAuditMeta();
-    const loan = await EmployeeLoanService.approve(companyId, loanId, userId, meta);
+    const loan = await EmployeeLoanService.approve(companyId, loanId, ctx.userId, auditMeta(ctx));
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -99,19 +80,15 @@ export async function rejectLoanAction(
   loanId: string,
   rawInput: unknown,
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado." };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  if (!ctx.ok) return ctx.error;
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
 
   const parsed = rejectLoanSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   try {
-    const meta = await getAuditMeta();
-    const loan = await EmployeeLoanService.reject(companyId, loanId, userId, parsed.data.rejectionReason, meta);
+    const loan = await EmployeeLoanService.reject(companyId, loanId, ctx.userId, parsed.data.rejectionReason, auditMeta(ctx));
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -125,9 +102,9 @@ export async function listLoansAction(
   companyId: string,
   filters?: { employeeId?: string; status?: LoanStatus },
 ): Promise<ActionResult<EmployeeLoanRow[]>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+  if (!ctx.ok) return ctx.error;
+  if (!canAccess(ctx.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
 
   try {
     const loans = await EmployeeLoanService.list(companyId, filters);
@@ -143,16 +120,12 @@ export async function cancelLoanAction(
   companyId: string,
   loanId: string,
 ): Promise<ActionResult<void>> {
-  const { userId, member } = await resolveAuth(companyId);
-  if (!userId || !member) return { success: false, error: "No autorizado." };
-  if (!canAccess(member.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
-
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: "Límite de solicitudes alcanzado. Intente más tarde." };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  if (!ctx.ok) return ctx.error;
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
 
   try {
-    const meta = await getAuditMeta();
-    await EmployeeLoanService.cancel(companyId, loanId, userId, meta);
+    await EmployeeLoanService.cancel(companyId, loanId, ctx.userId, auditMeta(ctx));
     revalidateLoans(companyId);
     return { success: true, data: undefined };
   } catch (err) {

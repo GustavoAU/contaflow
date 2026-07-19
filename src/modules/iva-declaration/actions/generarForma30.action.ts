@@ -2,9 +2,9 @@
 
 // src/modules/iva-declaration/actions/generarForma30.action.ts
 
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { limiters } from "@/lib/ratelimit";
+import { requireCompanyAction } from "@/lib/action-guard";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { GenerarForma30Schema } from "../schemas/generarForma30.schema";
 import { DeclaracionIVAService } from "../services/DeclaracionIVAService";
@@ -116,29 +116,18 @@ export async function generarForma30Action(
   month: number,
   creditoFiscalPeriodoAnterior?: number
 ): Promise<ActionResult<Forma30ActionResult>> {
-  // 1. Autenticación
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  // 1. Auth + rate limit + membresía (cualquier rol puede generar reportes) — ADR-041
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal });
+  if (!ctx.ok) return ctx.error;
 
-  // 2. Rate limit
-  const rl = await checkRateLimit(userId, limiters.fiscal);
-  if (!rl.allowed) return { success: false, error: rl.error ?? "Demasiadas solicitudes. Intente más tarde." };
-
-  // 3. Validar input
+  // 2. Validar input
   const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
   try {
-    // 4. Verificar membresía (cualquier rol puede generar reportes)
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId: parsed.data.companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-
-    // 5. FiscalYearClose — informativo, no bloquea
+    // 3. FiscalYearClose — informativo, no bloquea
     const fiscalYearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
       parsed.data.year
@@ -181,16 +170,10 @@ export async function getRetencionesSufridas(
   year: number,
   month: number,
 ): Promise<ActionResult<RetenciónSufridaRow[]>> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "No autorizado" };
+  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
+  if (!ctx.ok) return ctx.error;
 
   try {
-    const member = await prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    });
-    if (!member) return { success: false, error: "Empresa no encontrada o acceso denegado" };
-
     const periodStart = new Date(year, month - 1, 1);
     const periodEnd = new Date(year, month, 1);
 
