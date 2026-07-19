@@ -92,6 +92,15 @@ prueba vigente** (ver aviso abajo).
 > un banner rojo de solo-lectura; si lo ves, no arranques. (El corte también puede activarse a
 > mitad de sesión si la suscripción vence ese mismo día.)
 
+> ⚠️ **PRERREQUISITO DE ENTORNO — base de datos (Neon) con cómputo disponible.** Si al cargar
+> listados o reportes aparece el banner **"Error inesperado"**, o si las mutaciones/lecturas
+> fallan de forma **intermitente y sin patrón**, puede deberse a que el proyecto Neon agotó su
+> **cuota mensual de cómputo** (compute allowance al 100%) y está estrangulando conexiones. Eso
+> NO es un hallazgo de la aplicación: es infraestructura. Detén la sesión y avísale al usuario —
+> se resuelve del lado del entorno (upgrade del plan Neon o el reset mensual de la cuota), no en
+> la app. Mientras el compute esté estrangulado, ningún resultado (lectura o escritura) es
+> confiable para la auditoría.
+
 ---
 
 ## FASE 0 — RECONOCIMIENTO (observar, no tocar)
@@ -157,6 +166,9 @@ Períodos en esta sesión.
   local (Redis) — repórtalo como prerequisito de entorno y detén la sesión.
 - Si TODAS las mutaciones fallan con "Tu suscripción venció. Estás en modo solo lectura…", es el
   gate de facturación (suscripción de la empresa de prueba vencida), NO un bug — repórtalo como
+  prerequisito de entorno y detén la sesión (ver el aviso de prerrequisitos arriba).
+- Si aparece "Error inesperado" al cargar listados/reportes o los errores son intermitentes y sin
+  patrón, puede ser la cuota de cómputo de Neon agotada (infra), NO un bug — repórtalo como
   prerequisito de entorno y detén la sesión (ver el aviso de prerrequisitos arriba).
 - **NO cierres ningún período en esta sesión.** El cierre es irreversible desde la UI y se
   audita en la Parte 3.

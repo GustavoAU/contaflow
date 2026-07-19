@@ -204,6 +204,11 @@ Estado para la Parte 3:
 - Menú siempre; 404 por URL tecleada NO es hallazgo.
 - Rate limiter → espera 1 minuto. "Servicio temporalmente no disponible" en todas las mutaciones
   → infra local (Redis), prerequisito de entorno, detén la sesión.
+- Banner "Error inesperado" al cargar listados/reportes, o errores intermitentes sin patrón →
+  puede ser la cuota de cómputo de Neon agotada (infra), NO un bug — prerequisito de entorno,
+  detén la sesión.
+- Banner "Tu suscripción venció. Estás en modo solo lectura…" → gate de facturación (suscripción
+  de la empresa de prueba vencida), NO un bug — prerequisito de entorno, detén la sesión.
 - **NO cierres ningún período en esta sesión.** El cierre es irreversible desde la UI y se
   audita en la Parte 3.
 ```

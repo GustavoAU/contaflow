@@ -141,5 +141,10 @@ Fecha: [hoy] | Auditora: Daniela Quintero, CPC 51.077
 - Menú siempre; 404 por URL tecleada NO es hallazgo.
 - Rate limiter → espera 1 minuto. "Servicio temporalmente no disponible" en todas las mutaciones
   → infra local (Redis), prerequisito de entorno, detén la sesión.
+- Banner "Error inesperado" al cargar listados/reportes, o errores intermitentes sin patrón →
+  puede ser la cuota de cómputo de Neon agotada (infra), NO un bug — prerequisito de entorno,
+  detén la sesión. (Crítico en esta Parte: no cierres un período si la BD está inestable.)
+- Banner "Tu suscripción venció. Estás en modo solo lectura…" → gate de facturación, NO un bug —
+  prerequisito de entorno, detén la sesión.
 - **Deja el mes corriente ABIERTO al final** (paso 3.5-3.6) para no dejar la empresa sin período
   de trabajo. No cierres el período recién abierto.
