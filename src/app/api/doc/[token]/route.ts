@@ -9,6 +9,7 @@ import { verifyDocShareToken } from "@/lib/document-share-jwt";
 import { DocumentService } from "@/modules/documents/services/DocumentService";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/net-context";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ): Promise<Response> {
-  // N6: rate limit por IP — ruta pública sin auth (30/min)
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? "unknown";
+  // N6: rate limit por IP — ruta pública sin auth (30/min).
+  // IP confiable `.at(-1)` (no la primera, spoofeable) — D-1 auditoría STRIDE 2026-07.
+  const ip = clientIpFromHeaders(req.headers) ?? "unknown";
   const rl = await checkRateLimit(`doc:${ip}`, limiters.publicDoc);
   if (!rl.allowed) {
     return new Response("Demasiadas solicitudes.", { status: 429 });
