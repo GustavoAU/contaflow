@@ -8,7 +8,8 @@
 // (facturas, retenciones, proveedores) rechaza. Resultado: empresas creadas con un RIF
 // que después falla en todo documento fiscal.
 //
-// La fuente única es VEN_RIF_REGEX en src/lib/tax-config.ts (dígito verificador
+// La fuente única es `taxIdRegex` en src/lib/countries/ven/config.ts, expuesta
+// como VEN_RIF_REGEX desde src/lib/tax-config.ts (dígito verificador
 // obligatorio). Este test impide que la variante laxa reaparezca por copy-paste.
 //
 // Environment: node (default)
@@ -49,8 +50,12 @@ function rel(abs: string): string {
   return abs.replace(ROOT + path.sep, "").replace(/\\/g, "/");
 }
 
-/** Única ubicación autorizada para definir la regex del RIF */
-const ALLOWED = new Set(["src/lib/tax-config.ts"]);
+/**
+ * Única ubicación autorizada para definir la regex del RIF: el perfil fiscal de
+ * Venezuela (ADR-042 MP-2 la movió aquí desde src/lib/tax-config.ts, que ahora
+ * es un re-export fino).
+ */
+const ALLOWED = new Set(["src/lib/countries/ven/config.ts"]);
 
 describe("Arquitectura: VEN_RIF_REGEX es fuente única (MP-1 / ADR-042)", () => {
   it("ningún archivo de producción reescribe la regex del RIF inline", () => {

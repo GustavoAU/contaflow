@@ -1,140 +1,63 @@
 // src/lib/tax-config.ts
-// Q3-5: Arquitectura Multi-País — fuente de verdad para configuración fiscal por país.
+// ADR-042 — Re-export fino de `@/lib/countries`.
 //
-// DISEÑO: Toda la config fiscal vive aquí — alícuotas IVA, IGTF, regex de ID tributario,
-// moneda, etc. Los servicios y schemas deben importar FISCAL_CONFIGS en lugar de
-// hardcodear valores numéricos como "0.16".
+// La configuración fiscal vive ahora en `src/lib/countries/` (registry + una
+// carpeta por país). Este archivo se conserva para no romper los ~30 módulos
+// que ya importaban de aquí, y como hogar de los alias VEN-only.
 //
-// YAGNI: Solo Venezuela está implementado. La interfaz está lista para Colombia/Argentina
-// cuando haya un contrato firmado (ver CLAUDE.md — contaflow-contract.md).
+// ¿Qué usar en código nuevo?
+//   - Módulo país-neutral  → `getFiscalConfig(ctx.country)` de "@/lib/countries"
+//   - Módulo 100% VEN      → los alias `VEN_*` de este archivo
 //
-// Uso:
-//   import { getFiscalConfig, VEN_FISCAL_CONFIG } from "@/lib/tax-config";
-//   const cfg = getFiscalConfig(company.country);  // para código multi-país
-//   const cfg = VEN_FISCAL_CONFIG;                 // para código VEN-only explícito
+// El test de arquitectura `country-coupling` (MP-3) vigila que los módulos
+// país-neutrales no usen los alias VEN.
 
-// ── Tipos ─────────────────────────────────────────────────────────────────────
+export type {
+  ClientFiscalConfig,
+  CountryCode,
+  FiscalCapabilities,
+  FiscalConfig,
+  FiscalProvider,
+  TaxLineRateInfo,
+  TaxRates,
+} from "./countries";
 
-/**
- * Códigos de país soportados (ISO 3166-1 alpha-3).
- * Extensible: agregar "COL" | "ARG" | "PAN" cuando haya contrato.
- */
-export type CountryCode = "VEN";
+export {
+  FISCAL_CONFIGS,
+  FiscalProviderFactory,
+  SUPPORTED_COUNTRIES,
+  VEN_FISCAL_CONFIG,
+  VenezuelaFiscalProvider,
+  getFiscalConfig,
+  getTaxLineRate,
+  getTaxRates,
+  hasCapability,
+  isSupportedCountry,
+  memoizePerCountry,
+  toClientFiscalConfig,
+} from "./countries";
 
-/**
- * Alícuotas impositivas del país.
- * Todos los valores son strings de precisión decimal (R-5: no float).
- */
-export type TaxRates = {
-  /** Alícuota IVA general (VEN: "0.16" = 16%) */
-  ivaGeneral: string;
-  /** Alícuota IVA reducida para rubros especiales (VEN: "0.08" = 8%) */
-  ivaReduced: string;
-  /** Alícuota IVA adicional de bienes de lujo (VEN: "0.15" = 15%) */
-  ivaLuxury: string;
-  /**
-   * Total combinado para bienes de lujo = general + luxury.
-   * Calculado una vez aquí para no recomputar en servicios.
-   */
-  ivaCombined: string;
-  /** IGTF — Impuesto a Grandes Transacciones Financieras (VEN: "0.03" = 3%) */
-  igtf: string;
-};
+import { VEN_FISCAL_CONFIG } from "./countries";
 
-/**
- * Configuración fiscal completa por país.
- * Agrupa reglas de identificación tributaria, moneda y alícuotas.
- */
-export type FiscalConfig = {
-  countryCode:            CountryCode;
-  countryName:            string;
-  /** Moneda funcional (ISO 4217) */
-  currency:               string;
-  /** Etiqueta del ID tributario en la UI ("RIF" para VEN, "NIT" para COL, etc.) */
-  taxIdLabel:             string;
-  /** Regex de validación del ID tributario — para Zod .refine() */
-  taxIdRegex:             RegExp;
-  /** Ejemplo de ID tributario para placeholder en formularios */
-  taxIdPlaceholder:       string;
-  /** Regex de número de control de documentos fiscales (SENIAT PA-071 para VEN) */
-  controlNumberRegex?:    RegExp;
-  taxRates:               TaxRates;
-};
+// ── Alias VEN-only ────────────────────────────────────────────────────────────
+// Para módulos que solo existen en Venezuela (retenciones, IGTF, declaración
+// IVA, INPC, SENIAT, despacho). En módulos país-neutrales usar getFiscalConfig.
 
-// ── Configuraciones por país ──────────────────────────────────────────────────
+/** Regex del RIF venezolano — dígito verificador obligatorio */
+export const VEN_RIF_REGEX = VEN_FISCAL_CONFIG.taxIdRegex;
 
-export const FISCAL_CONFIGS: Record<CountryCode, FiscalConfig> = {
-  VEN: {
-    countryCode:       "VEN",
-    countryName:       "Venezuela",
-    currency:          "VES",
-    taxIdLabel:        "RIF",
-    // RIF venezolano: J=Jurídica, V=Natural, E=Extranjero, G=Gobierno, C=Comunal, P=Pasaporte
-    // Formato: X-12345678-9 o X-123456789 (con o sin guión verificador)
-    taxIdRegex:        /^[JVEGCP]-\d{8}-?\d$/i,
-    taxIdPlaceholder:  "J-12345678-9",
-    // Nº Control SENIAT — Providencia 0071 Art. 14: XX-XXXXXXXX
-    controlNumberRegex: /^\d{2}-\d{8}$/,
-    taxRates: {
-      ivaGeneral:  "0.16",   // 16% — Art. 27 LIVA
-      ivaReduced:  "0.08",   // 8%  — Art. 62 LIVA (rubros especiales)
-      ivaLuxury:   "0.15",   // 15% adicional — Art. 61 LIVA (bienes suntuarios)
-      ivaCombined: "0.31",   // 31% = 16% + 15% para bienes de lujo
-      igtf:        "0.03",   // 3%  — Ley IGTF Art. 4
-    },
-  },
-};
+/** Alícuotas venezolanas — evita "0.16" hardcodeado en servicios */
+export const VEN_TAX_RATES = VEN_FISCAL_CONFIG.taxRates;
 
-// ── Funciones de consulta ─────────────────────────────────────────────────────
-
-/**
- * Retorna la FiscalConfig para el país dado.
- * Si el país no está implementado, hace fallback a VEN (única opción actual).
- * Esto permite código multi-país genérico sin romper nada en producción.
- */
-export function getFiscalConfig(country: string): FiscalConfig {
-  const config = FISCAL_CONFIGS[country as CountryCode];
-  // Fallback defensivo: VEN es el único país soportado por ahora
-  return config ?? FISCAL_CONFIGS.VEN;
-}
-
-/**
- * Retorna las alícuotas del país dado.
- * Convenience wrapper — evita repetir `getFiscalConfig(c).taxRates`.
- */
-export function getTaxRates(country: string): TaxRates {
-  return getFiscalConfig(country).taxRates;
-}
-
-/**
- * Lista de países disponibles para el selector de empresa.
- * Amplíar cuando se agregue soporte a nuevos países.
- */
-export const SUPPORTED_COUNTRIES: Array<{ code: CountryCode; name: string }> = [
-  { code: "VEN", name: "Venezuela" },
-];
-
-// ── Re-exports para compatibilidad con código VEN-only existente ──────────────
-// Permite migración gradual: módulos que solo manejan VEN pueden usar estas
-// constantes directamente en lugar de llamar getFiscalConfig().
-
-/** Config fiscal completa para Venezuela — atajo para código VEN-only */
-export const VEN_FISCAL_CONFIG    = FISCAL_CONFIGS.VEN;
-
-/** Regex del RIF venezolano — re-export para `fiscal-validators.ts` */
-export const VEN_RIF_REGEX        = FISCAL_CONFIGS.VEN.taxIdRegex;
-
-/** Alícuotas impositivas venezolanas — úsalas en servicios para evitar "0.16" hardcodeado */
-export const VEN_TAX_RATES        = FISCAL_CONFIGS.VEN.taxRates;
-
-/** Regex Nº Control SENIAT */
-export const VEN_CONTROL_NUMBER_REGEX = FISCAL_CONFIGS.VEN.controlNumberRegex!;
+/** Regex del Nº Control SENIAT (Providencia 0071 Art. 14) */
+export const VEN_CONTROL_NUMBER_REGEX = VEN_FISCAL_CONFIG.controlNumberRegex!;
 
 // ── Monedas ───────────────────────────────────────────────────────────────────
 
 /**
- * Monedas soportadas (ISO 4217) — fuente única de verdad para z.enum en schemas.
- * Agregar aquí cuando se soporte una nueva moneda funcional.
+ * Monedas soportadas (ISO 4217) — fuente única para los `z.enum` de schemas.
+ * Al agregar un país con moneda propia: añadir aquí y agregar el valor al enum
+ * Prisma `Currency` con `ALTER TYPE` (ADR-042 D-12).
  */
 export const SUPPORTED_CURRENCIES = ["VES", "USD", "EUR"] as const;
-export type SupportedCurrency = typeof SUPPORTED_CURRENCIES[number];
+export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
