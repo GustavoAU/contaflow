@@ -22,14 +22,15 @@ describe("getFiscalConfig", () => {
     expect(cfg.taxIdLabel).toBe("RIF");
   });
 
-  it("fallback defensivo a VEN para país desconocido", () => {
-    const cfg = getFiscalConfig("COL");
-    expect(cfg.countryCode).toBe("VEN");
+  // ADR-042 D-8: antes hacía fallback silencioso a VEN. En un contexto
+  // multi-país eso significaría aplicar impuestos venezolanos a una empresa
+  // extranjera sin que nadie se entere — ahora lanza.
+  it("lanza para país no soportado", () => {
+    expect(() => getFiscalConfig("COL")).toThrow(/País no soportado/);
   });
 
-  it("fallback defensivo a VEN para string vacío", () => {
-    const cfg = getFiscalConfig("");
-    expect(cfg.countryCode).toBe("VEN");
+  it("lanza para string vacío", () => {
+    expect(() => getFiscalConfig("")).toThrow(/País no soportado/);
   });
 });
 
@@ -138,9 +139,8 @@ describe("FiscalProviderFactory", () => {
     expect(provider.countryCode).toBe("VEN");
   });
 
-  it("forCountry fallback a VEN para país desconocido", () => {
-    const provider = FiscalProviderFactory.forCountry("COL");
-    expect(provider.countryCode).toBe("VEN");
+  it("forCountry lanza para país no soportado (ADR-042 D-8)", () => {
+    expect(() => FiscalProviderFactory.forCountry("COL")).toThrow(/País no soportado/);
   });
 
   it("ven() retorna provider VEN directamente", () => {
