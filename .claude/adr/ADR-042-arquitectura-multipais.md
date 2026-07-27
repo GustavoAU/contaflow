@@ -210,10 +210,15 @@ los 15+26 call-sites NO se migran; quirks preservados (`fmtVen(null)→"—"`,
   seam falló.
 - **Positivo:** el ratchet impide regresión de acoplamiento mientras se desarrollan
   features en paralelo.
-- **Positivo (colateral):** el plan corrige 3 bugs reales encontrados en la auditoría
+- **Positivo (colateral):** el plan corrige 4 bugs reales encontrados en la auditoría
   (regex RIF laxa con dígito verificador opcional en el alta de empresa, float para
-  dinero en DisposeAssetModal, regex Nº control duplicada en OCR) — fase MP-1, único
-  cambio de comportamiento sancionado.
+  dinero en DisposeAssetModal con doble redondeo que divergía del asiento del server,
+  float para dinero en BenefitAdvanceForm/BenefitBalancePanel, regex Nº control
+  duplicada en OCR) — fase MP-1, único cambio de comportamiento sancionado.
+  El endurecimiento del RIF incorpora **grandfathering** (`assertRifEditable`): el
+  formato canónico se exige solo cuando el RIF CAMBIA, para no dejar sin poder editar
+  sus datos SENIAT a las empresas creadas con la regex laxa (hallazgo MEDIUM-1 de la
+  auditoría de seguridad de MP-1).
 - **Neutral:** los consts VEN de compatibilidad son permanentes-ligeros (ancla de tipos
   + módulos VEN-only). No son deuda: son el perfil Venezuela.
 - **Acotado:** nómina queda gated por capability, no portada — el motor COL es un

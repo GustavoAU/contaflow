@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { createCompanyAction } from "@/modules/company/actions/company.actions";
+import { VEN_RIF_REGEX } from "@/lib/tax-config";
 import { cn } from "@/lib/utils";
 
 type ScopeProfile = "SOLO" | "EMPRESA" | "DESPACHO";
@@ -60,7 +61,7 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = "El nombre es obligatorio";
     if (name.trim().length < 2) newErrors.name = "El nombre debe tener al menos 2 caracteres";
-    if (rif.trim() && !/^[JVEGCP]-\d{8}-?\d?$/i.test(rif.trim())) {
+    if (rif.trim() && !VEN_RIF_REGEX.test(rif.trim())) {
       newErrors.rif = "RIF inválido (ej: J-12345678-9)";
     }
     if (!phone.trim()) {

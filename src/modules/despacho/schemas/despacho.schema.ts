@@ -1,5 +1,5 @@
 // ADR-034: Fase Despacho — schemas Zod para validación client + server
-import { z } from "zod/v4";
+import { z } from "zod";
 import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
 
 export const AddManagedClientSchema = z.object({

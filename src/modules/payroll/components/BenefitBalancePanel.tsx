@@ -283,7 +283,7 @@ export default function BenefitBalancePanel({
             <BenefitAdvanceForm
               companyId={companyId}
               employeeId={employeeId}
-              maxAmount={Number(balance.currentBalance)}
+              maxAmount={balance.currentBalance}
               onRegistered={(adv) => {
                 setAdvances((prev) => [adv, ...prev]);
                 setShowAdvanceForm(false);

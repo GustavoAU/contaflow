@@ -6,8 +6,17 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import type Decimal from "decimal.js";
 import { disposeFixedAssetAction } from "../actions/fixed-asset.actions";
 import { DISPOSAL_REASONS, type DisposalReason } from "../schemas/fixed-asset.schema";
+import {
+  ART66_MONTHS,
+  ZERO,
+  calcArt66Reintegro,
+  calcSaleIva,
+  monthsBetween,
+  parseMoney,
+} from "../services/disposal-preview";
 import { formatAmount } from "@/lib/format";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -41,8 +50,8 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function fmt(n: number): string {
-  return formatAmount(String(n));
+function fmt(d: Decimal): string {
+  return formatAmount(d.toFixed(2));
 }
 
 const REASON_OPTS = Object.entries(DISPOSAL_REASONS).map(([value, label]) => ({
@@ -70,50 +79,48 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
   const glAccounts     = accounts.filter((a) => a.type === "EXPENSE" || a.type === "REVENUE");
 
   // ── Cálculo en tiempo real ────────────────────────────────────────────────
-  const cost       = parseFloat(asset.acquisitionCost)         || 0;
-  const accDep     = parseFloat(asset.accumulatedDepreciation)  || 0;
-  const bookVal    = parseFloat(asset.bookValue)                || 0;
-  const procNum    = reason === "SALE" ? (parseFloat(proceeds) || 0) : 0;
-  const gainLoss   = procNum - bookVal;          // + ganancia, − pérdida (sobre precio neto s/IVA)
-  const isGain     = gainLoss > 0.01;
-  const isLoss     = gainLoss < -0.01;
+  // R-5: Decimal.js — mismas fórmulas y redondeo que el server (disposal-preview.ts)
+  const cost       = parseMoney(asset.acquisitionCost);
+  const accDep     = parseMoney(asset.accumulatedDepreciation);
+  const bookVal    = parseMoney(asset.bookValue);
+  const procNum    = reason === "SALE" ? parseMoney(proceeds) : ZERO;
+  const gainLoss   = procNum.minus(bookVal);     // + ganancia, − pérdida (sobre precio neto s/IVA)
+  const isGain     = gainLoss.greaterThan("0.01");
+  const isLoss     = gainLoss.lessThan("-0.01");
   const hasGainLoss = isGain || isLoss;
 
   // FA-3: IVA en venta de activo (Art. 3 LIVA) — solo si hay precio y cuenta DF configurada
-  const canApplyIva     = reason === "SALE" && procNum > 0.001 && ivaDFAccountId !== null;
+  const canApplyIva     = reason === "SALE" && procNum.greaterThan("0.001") && ivaDFAccountId !== null;
   const effectiveIva    = applyIva && canApplyIva;
-  const ivaAmount       = effectiveIva ? Math.round(procNum * 0.16 * 100) / 100 : 0;
-  const totalReceivable = procNum + ivaAmount;
+  const ivaAmount       = effectiveIva ? calcSaleIva(procNum) : ZERO;
+  const totalReceivable = procNum.plus(ivaAmount);
 
   // Art. 66 LIVA — Reintegro IVA Crédito Fiscal por baja anticipada (< 36 meses)
   // Aplica a CUALQUIER tipo de baja (incluyendo venta) si el activo tiene < 36 meses de uso
   const acqDate     = new Date(asset.acquisitionDate);
   const dispDate    = new Date(disposalDate + "T12:00:00");
-  const monthsUsed  = Math.max(
-    0,
-    (dispDate.getFullYear() - acqDate.getFullYear()) * 12 +
-    (dispDate.getMonth()    - acqDate.getMonth()),
-  );
-  const art66Months        = 36;
-  const canApplyArt66      = monthsUsed < art66Months && ivaCFAccountId !== null;
-  const art66Fraction      = canApplyArt66 ? (art66Months - monthsUsed) / art66Months : 0;
-  const art66BaseIva       = Math.round(cost * 0.16 * 100) / 100;
-  const art66ReintegroAmt  = canApplyArt66 ? Math.round(art66BaseIva * art66Fraction * 100) / 100 : 0;
-  const effectiveArt66     = applyArt66 && canApplyArt66 && art66ReintegroAmt > 0.001;
+  const monthsUsed  = monthsBetween(acqDate, dispDate);
+  const canApplyArt66      = monthsUsed < ART66_MONTHS && ivaCFAccountId !== null;
+  const art66FractionPct   = canApplyArt66
+    ? ((ART66_MONTHS - monthsUsed) / ART66_MONTHS * 100).toFixed(1)
+    : "0.0";
+  const art66ReintegroAmt  = canApplyArt66 ? calcArt66Reintegro(cost, monthsUsed) : ZERO;
+  const effectiveArt66     = applyArt66 && canApplyArt66 && art66ReintegroAmt.greaterThan("0.001");
 
   // DEBE/HABER totales para el preview (con IVA: banco recibe proceeds+iva; HABER incluye IVA DF)
-  const debeTotal  = (accDep > 0.001 ? accDep : 0)
-                   + (totalReceivable > 0.001 ? totalReceivable : 0)
-                   + (isLoss ? Math.abs(gainLoss) : 0)
-                   + (effectiveArt66 ? art66ReintegroAmt : 0);
-  const haberTotal = cost + (isGain ? gainLoss : 0)
-                   + (effectiveIva    ? ivaAmount         : 0)
-                   + (effectiveArt66  ? art66ReintegroAmt : 0);
-  const isBalanced = Math.abs(debeTotal - haberTotal) < 0.02;
+  const debeTotal  = (accDep.greaterThan("0.001") ? accDep : ZERO)
+    .plus(totalReceivable.greaterThan("0.001") ? totalReceivable : ZERO)
+    .plus(isLoss ? gainLoss.abs() : ZERO)
+    .plus(effectiveArt66 ? art66ReintegroAmt : ZERO);
+  const haberTotal = cost
+    .plus(isGain ? gainLoss : ZERO)
+    .plus(effectiveIva ? ivaAmount : ZERO)
+    .plus(effectiveArt66 ? art66ReintegroAmt : ZERO);
+  const isBalanced = debeTotal.minus(haberTotal).abs().lessThan("0.02");
 
   // ── Validación ────────────────────────────────────────────────────────────
   function validate(): string | null {
-    if (reason === "SALE" && procNum > 0.001 && !proceedsAccId)
+    if (reason === "SALE" && procNum.greaterThan("0.001") && !proceedsAccId)
       return "Selecciona la cuenta bancaria o CxC donde se recibió el cobro.";
     if (hasGainLoss && !glAccId)
       return isGain
@@ -137,7 +144,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
         companyId,
         reason,
         disposalDate:      new Date(disposalDate + "T12:00:00"),
-        saleProceeds:      String(procNum),
+        saleProceeds:      procNum.toFixed(2),
         proceedsAccountId: proceedsAccId || null,
         gainLossAccountId: glAccId || null,
         notes:             notes || null,
@@ -295,11 +302,11 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                   </label>
                   <p className="text-xs text-violet-700 mt-0.5">
                     El activo tiene <strong>{monthsUsed}</strong> mes{monthsUsed !== 1 ? "es" : ""} de uso (menos de 36).
-                    Se debe reintegrar {((art66Fraction) * 100).toFixed(1)}% del IVA crédito original:
+                    Se debe reintegrar {art66FractionPct}% del IVA crédito original:
                     {" "}<strong>Bs. {fmt(art66ReintegroAmt)}</strong>
                   </p>
                   <p className="text-xs text-violet-500 mt-0.5">
-                    Cálculo: {"{"}costo Bs. {fmt(cost)} × 16% × ({art66Months} − {monthsUsed})/{art66Months}{"}"}
+                    Cálculo: {"{"}costo Bs. {fmt(cost)} × 16% × ({ART66_MONTHS} − {monthsUsed})/{ART66_MONTHS}{"}"}
                   </p>
                 </div>
               </div>
@@ -325,7 +332,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
           )}
 
           {/* Cuenta de cobro — solo si hay precio > 0 */}
-          {reason === "SALE" && procNum > 0.001 && (
+          {reason === "SALE" && procNum.greaterThan("0.001") && (
             <div>
               <label className={lc}>Cuenta de cobro (Banco / CxC) *</label>
               <select
@@ -380,14 +387,14 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-100">
-                {accDep > 0.001 && (
+                {accDep.greaterThan("0.001") && (
                   <tr>
                     <td className="py-1 text-gray-600">Dep. Acumulada</td>
                     <td className="py-1 text-right text-gray-900 tabular-nums">{fmt(accDep)}</td>
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
-                {totalReceivable > 0.001 && (
+                {totalReceivable.greaterThan("0.001") && (
                   <tr>
                     <td className="py-1 text-gray-600">
                       Banco / CxC (cobro){effectiveIva ? " + IVA" : ""}
@@ -396,7 +403,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
-                {effectiveIva && ivaAmount > 0.001 && (
+                {effectiveIva && ivaAmount.greaterThan("0.001") && (
                   <tr>
                     <td className="py-1 text-emerald-700">IVA Débito Fiscal (16%)</td>
                     <td className="py-1 text-right text-gray-400">—</td>
@@ -406,7 +413,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                 {isLoss && (
                   <tr>
                     <td className="py-1 text-red-600">Pérdida en baja</td>
-                    <td className="py-1 text-right text-red-700 tabular-nums">{fmt(Math.abs(gainLoss))}</td>
+                    <td className="py-1 text-right text-red-700 tabular-nums">{fmt(gainLoss.abs())}</td>
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
