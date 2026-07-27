@@ -6,6 +6,7 @@
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import Decimal from "decimal.js";
 import { registerBenefitAdvanceAction } from "../actions/nom-d.actions";
 import type { BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import { formatAmount } from "@/lib/format";
@@ -19,10 +20,14 @@ const REASON_LABELS = {
 interface Props {
   companyId: string;
   employeeId: string;
-  maxAmount: number;
+  /** Saldo de garantía serializado (Decimal → string). R-5: nunca number para dinero. */
+  maxAmount: string;
   onRegistered: (advance: BenefitAdvanceRow) => void;
   onCancel: () => void;
 }
+
+/** Art. 144 LOTTT — mismo ratio que MAX_ADVANCE_RATIO en BenefitAdvanceService */
+const MAX_ADVANCE_RATIO = new Decimal("0.75");
 
 export default function BenefitAdvanceForm({
   companyId,
@@ -36,9 +41,8 @@ export default function BenefitAdvanceForm({
   const [reason, setReason] = useState<"HOUSING" | "HEALTH" | "EDUCATION">("HOUSING");
   const [notes, setNotes] = useState("");
 
-  const limit75Raw = maxAmount * 0.75;
-  const limit75 = limit75Raw.toFixed(2);
-  const limit75Fmt = formatAmount(limit75Raw);
+  const limit75 = new Decimal(maxAmount || "0").times(MAX_ADVANCE_RATIO).toFixed(2);
+  const limit75Fmt = formatAmount(limit75);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,7 +69,7 @@ export default function BenefitAdvanceForm({
       </p>
       <p className="text-xs text-amber-700">
         Máximo permitido: <span className="font-mono font-semibold">{limit75Fmt}</span>{" "}
-        (75% del saldo de garantía {maxAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })})
+        (75% del saldo de garantía {formatAmount(maxAmount)})
       </p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -76,7 +80,7 @@ export default function BenefitAdvanceForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             min={0.01}
-            max={Number(limit75)}
+            max={limit75}
             step={0.01}
             placeholder={`Máx ${limit75}`}
             required

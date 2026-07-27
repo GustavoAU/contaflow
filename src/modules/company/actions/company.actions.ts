@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import prisma, { withDbRetry } from "@/lib/prisma";
 import { CompanyService } from "../services/CompanyService";
+import { VEN_RIF_REGEX } from "@/lib/tax-config";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
@@ -18,11 +19,12 @@ import { toActionError } from "../utils/action-errors";
 const UpdateCompanySeniatSchema = z.object({
   companyId: z.string().min(1),
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-  rif: z
-    .string()
-    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, "RIF inválido (ej: J-12345678-9)")
-    .optional()
-    .or(z.literal("")),
+  // El formato NO se valida aquí: una regex laxa anterior (dígito verificador
+  // opcional) dejó empresas con RIF legacy en BD. Validarlo en el schema las
+  // dejaría sin poder editar NINGÚN dato SENIAT (dirección, teléfono, CIIU…).
+  // La validación estricta se aplica abajo solo si el RIF CAMBIA — ver
+  // assertRifEditable. MP-1 / ADR-042.
+  rif: z.string().max(20).optional().or(z.literal("")),
   address: z.string().max(300).optional(),
   telefono: z.string().max(30).optional(),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
@@ -36,7 +38,7 @@ const CreateCompanySchema = z.object({
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
   rif: z
     .string()
-    .regex(/^[JVEGCP]-\d{8}-?\d?$/i, "RIF inválido (ej: J-12345678-9)")
+    .regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)")
     .optional()
     .or(z.literal(""))
     .or(z.undefined()),
@@ -53,6 +55,35 @@ const UpdateScopeProfileSchema = z.object({
   companyId: z.string().min(1),
   scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]),
 });
+
+// ─── Validación de RIF con grandfathering (MP-1 / ADR-042) ───────────────────
+
+/**
+ * Valida el RIF entrante contra la regex canónica, tolerando el RIF legacy ya
+ * almacenado.
+ *
+ * Contexto: hasta MP-1 el alta de empresa usaba una regex con el dígito
+ * verificador OPCIONAL, así que puede haber empresas con un `rif` que la regex
+ * canónica rechaza. Bloquearlas al guardar dejaría al ADMIN sin poder editar
+ * dirección, teléfono, CIIU ni `isSpecialContributor` — un lockout funcional.
+ *
+ * Regla: si el RIF no cambia respecto al almacenado, se acepta tal cual
+ * (grandfathering). Si el usuario lo CAMBIA, el nuevo valor debe cumplir el
+ * formato canónico. Así ninguna empresa queda bloqueada y ningún RIF inválido
+ * NUEVO entra al sistema.
+ *
+ * @returns mensaje de error, o null si es aceptable
+ */
+export function assertRifEditable(
+  incoming: string | null,
+  stored: string | null,
+): string | null {
+  const next = incoming?.trim() || null;
+  if (next === null) return null;              // limpiar el RIF siempre se permite
+  if (next === (stored ?? null)) return null;  // sin cambios → grandfathering
+  if (VEN_RIF_REGEX.test(next)) return null;   // cambio válido
+  return "RIF inválido (ej: J-12345678-9)";
+}
 
 // ─── Actualizar datos SENIAT ──────────────────────────────────────────────────
 
@@ -71,6 +102,14 @@ export async function updateCompanySeniatDataAction(
     if (!has({ reverification: STEP_UP_CONFIG })) {
       return reverificationError(STEP_UP_CONFIG);
     }
+
+    // Formato del RIF: estricto solo si cambia (grandfathering de RIF legacy)
+    const current = await prisma.company.findUnique({
+      where: { id: validated.companyId },
+      select: { rif: true },
+    });
+    const rifError = assertRifEditable(validated.rif ?? null, current?.rif ?? null);
+    if (rifError) return { success: false, error: rifError };
 
     const company = await CompanyService.updateSeniatData(validated.companyId, ctx.userId, {
       name: validated.name,

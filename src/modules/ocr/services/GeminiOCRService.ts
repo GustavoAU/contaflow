@@ -10,7 +10,7 @@
 
 import { ExtractedInvoiceSchema, type ExtractedInvoice, type FieldRisk } from "../schemas/invoice.schema";
 import { parseLocalNumber } from "@/lib/format";
-import { validateVenezuelanRif } from "@/lib/fiscal-validators";
+import { validateVenezuelanRif, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
 
 // Normaliza un string de monto en formato regional (VE o americano) a formato estándar.
 // Solo actúa si detecta coma o múltiples puntos; preserva strings ya en formato estándar.
@@ -213,7 +213,7 @@ Reglas:
       });
     }
 
-    if (extracted.numeroControl !== undefined && !/^\d{2}-\d{8}$/.test(extracted.numeroControl)) {
+    if (extracted.numeroControl !== undefined && !CONTROL_NUMBER_REGEX.test(extracted.numeroControl)) {
       risks.push({
         field: "numeroControl",
         label: "N° Control",
