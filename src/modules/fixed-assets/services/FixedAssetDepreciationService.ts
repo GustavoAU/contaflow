@@ -525,10 +525,13 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   if (input.applyArt66 && input.art66ExpenseAccountId && input.ivaCFAccountId) {
     const acqDate  = asset.acquisitionDate;
     const dispDate = input.disposalDate;
+    // MEDIUM-3: getters UTC — las fechas de negocio son medianoche UTC. Debe dar
+    // EXACTAMENTE lo mismo que monthsBetween() de disposal-preview.ts, que es lo
+    // que ve el usuario antes de confirmar (paridad fijada por test).
     const mUsed    = Math.max(
       0,
-      (dispDate.getFullYear() - acqDate.getFullYear()) * 12 +
-      (dispDate.getMonth()    - acqDate.getMonth()),
+      (dispDate.getUTCFullYear() - acqDate.getUTCFullYear()) * 12 +
+      (dispDate.getUTCMonth()    - acqDate.getUTCMonth()),
     );
     if (mUsed < 36) {
       const art66Amount = cost
