@@ -55,10 +55,14 @@ describe("parseMoney", () => {
 });
 
 describe("monthsBetween", () => {
-  // Fechas locales explícitas: monthsBetween usa getMonth()/getFullYear() (hora local),
-  // igual que el server. Construirlas con new Date("YYYY-MM-DD") las parsea como UTC
-  // y desplazaría el mes en zonas horarias negativas como la de Venezuela.
+  // MEDIUM-3: monthsBetween usa getters UTC (getUTCMonth/getUTCFullYear), igual que
+  // el server, porque las fechas de negocio se persisten a medianoche UTC. Estas
+  // fechas se construyen al mediodía local para que el día no cruce a otro mes y los
+  // casos de abajo midan solo la aritmética de meses.
   const local = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0);
+
+  /** Fecha de negocio tal como la persiste Prisma: medianoche UTC. */
+  const utcDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
   it("cuenta meses calendario, ignorando el día", () => {
     expect(monthsBetween(local(2026, 1, 31), local(2026, 2, 1))).toBe(1);
@@ -68,6 +72,47 @@ describe("monthsBetween", () => {
 
   it("nunca es negativo (baja anterior a la adquisición)", () => {
     expect(monthsBetween(local(2026, 6, 1), local(2026, 1, 1))).toBe(0);
+  });
+
+  // MEDIUM-3 — regresión. Con getters LOCALES este caso daba 11 en el navegador
+  // (Venezuela, UTC−4: el 01/03 a medianoche UTC se lee 28/02 20:00 → febrero) y 12
+  // en el server (proceso UTC → marzo). El usuario veía un reintegro Art. 66
+  // distinto del que se contabilizaba, por costo×16%/36 de diferencia.
+  //
+  // Nota: en un runner con TZ=UTC local y UTC coinciden y este caso pasa igual; lo
+  // que discrimina es correrlo en una zona negativa — que es justo donde vive el
+  // usuario y donde el bug se manifestaba.
+  it("MEDIUM-3: fechas de negocio (medianoche UTC) no se desplazan al mes anterior", () => {
+    const adquisicion = utcDate("2025-03-01");
+    const baja = utcDate("2026-03-01");
+    expect(monthsBetween(adquisicion, baja)).toBe(12);
+  });
+
+  it("MEDIUM-3: caso asimétrico — solo una de las dos fechas cruza el mes", () => {
+    // 15/01 no cruza en UTC−4; 01/03 sí (se leería como 28/02 → febrero).
+    const adquisicion = utcDate("2026-01-15");
+    const baja = utcDate("2026-03-01");
+    // UTC: (2026−2026)×12 + (marzo−enero) = 2. Con getters locales daba 1.
+    expect(monthsBetween(adquisicion, baja)).toBe(2);
+  });
+
+  it("MEDIUM-3: el server usa la MISMA fórmula — paridad exacta", () => {
+    // Réplica literal de FixedAssetDepreciationService (bloque Art. 66).
+    const serverMonths = (acq: Date, disp: Date) =>
+      Math.max(
+        0,
+        (disp.getUTCFullYear() - acq.getUTCFullYear()) * 12 +
+          (disp.getUTCMonth() - acq.getUTCMonth()),
+      );
+    const casos: Array<[string, string]> = [
+      ["2026-01-15", "2026-03-01"],
+      ["2025-12-31", "2026-01-01"],
+      ["2024-02-29", "2026-03-01"],
+      ["2026-03-01", "2026-03-01"],
+    ];
+    for (const [a, d] of casos) {
+      expect(monthsBetween(utcDate(a), utcDate(d))).toBe(serverMonths(utcDate(a), utcDate(d)));
+    }
   });
 });
 

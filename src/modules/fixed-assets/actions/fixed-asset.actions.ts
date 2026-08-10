@@ -38,7 +38,10 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
     const { userId } = ctx;
 
     // Guard: no permitir en año fiscal cerrado
-    const acqYear = parsed.data.acquisitionDate.getFullYear();
+    // MEDIUM-3: getters UTC — las fechas de negocio son medianoche UTC. Con
+    // getters locales, un activo del 01/01 podía resolver al ejercicio ANTERIOR y
+    // saltarse el guard de año cerrado (R-3).
+    const acqYear = parsed.data.acquisitionDate.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(parsed.data.companyId, acqYear);
     if (yearClosed) {
       return {
@@ -138,7 +141,8 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     const { userId } = ctx;
 
     // Guard R-3: año fiscal cerrado
-    const disposalYear = parsed.data.disposalDate.getFullYear();
+    // MEDIUM-3: getters UTC (ver createFixedAssetAction).
+    const disposalYear = parsed.data.disposalDate.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
       disposalYear,
@@ -151,7 +155,7 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     }
 
     // Guard R-3: período mensual cerrado
-    const disposalMonth = parsed.data.disposalDate.getMonth() + 1;
+    const disposalMonth = parsed.data.disposalDate.getUTCMonth() + 1;
     const periodClosed = await prisma.accountingPeriod.findFirst({
       where: {
         companyId: parsed.data.companyId,

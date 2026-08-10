@@ -35,12 +35,19 @@ export function parseMoney(value: string | null | undefined): Decimal {
 /**
  * Meses calendario entre adquisición y baja (misma fórmula que el server:
  * diferencia año×12 + mes, sin días, mínimo 0).
+ *
+ * MEDIUM-3 — getters UTC, NO locales. Las fechas de negocio se persisten a
+ * medianoche UTC; con getters locales este archivo (que corre en el navegador,
+ * UTC−4 en Venezuela) leía el día anterior y podía caer en el mes previo,
+ * mientras el server —proceso en UTC— leía el mes correcto. Resultado: el
+ * reintegro del Art. 66 que se le MOSTRABA al usuario no era el que se
+ * contabilizaba, con una diferencia de costo×16%/36 por cada mes de desfase.
  */
 export function monthsBetween(acquisitionDate: Date, disposalDate: Date): number {
   return Math.max(
     0,
-    (disposalDate.getFullYear() - acquisitionDate.getFullYear()) * 12 +
-      (disposalDate.getMonth() - acquisitionDate.getMonth()),
+    (disposalDate.getUTCFullYear() - acquisitionDate.getUTCFullYear()) * 12 +
+      (disposalDate.getUTCMonth() - acquisitionDate.getUTCMonth()),
   );
 }
 
