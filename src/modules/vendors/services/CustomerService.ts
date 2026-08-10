@@ -1,5 +1,6 @@
 // src/modules/vendors/services/CustomerService.ts
 import prisma from "@/lib/prisma";
+import { normalizeRifOrNull } from "@/lib/tax-config";
 import type { CreateCustomerInput, UpdateCustomerInput, ContactCategory } from "../schemas/vendor.schemas";
 
 export type CustomerRow = {
@@ -111,6 +112,9 @@ export const CustomerService = {
       data: {
         companyId,
         ...data,
+        // MEDIUM-2: canonicalizar para que el @@unique([companyId, rif]) no deje
+        // pasar el mismo cliente escrito con otro formato.
+        rif: normalizeRifOrNull(data.rif),
         groupId: data.groupId ?? null,
         category: data.category ?? "REGULAR",
         notes: data.notes ?? null,
@@ -126,6 +130,8 @@ export const CustomerService = {
       where: { id: customerId },
       data: {
         ...data,
+        // MEDIUM-2: solo si viene en el payload — undefined significa "no tocar".
+        ...(data.rif !== undefined ? { rif: normalizeRifOrNull(data.rif) } : {}),
         ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}),
         ...(data.notes !== undefined ? { notes: data.notes ?? null } : {}),
       },

@@ -1,5 +1,6 @@
 // src/modules/vendors/services/VendorService.ts
 import prisma from "@/lib/prisma";
+import { normalizeRifOrNull } from "@/lib/tax-config";
 import type { CreateVendorInput, UpdateVendorInput, ContactCategory } from "../schemas/vendor.schemas";
 
 export type VendorRow = {
@@ -47,6 +48,9 @@ export const VendorService = {
       data: {
         companyId,
         ...data,
+        // MEDIUM-2: canonicalizar para que el @@unique([companyId, rif]) no deje
+        // pasar el mismo proveedor escrito con otro formato.
+        rif: normalizeRifOrNull(data.rif),
         groupId: data.groupId ?? null,
         category: data.category ?? "REGULAR",
         notes: data.notes ?? null,
@@ -62,6 +66,8 @@ export const VendorService = {
       where: { id: vendorId },
       data: {
         ...data,
+        // MEDIUM-2: solo si viene en el payload — undefined significa "no tocar".
+        ...(data.rif !== undefined ? { rif: normalizeRifOrNull(data.rif) } : {}),
         ...(data.groupId !== undefined ? { groupId: data.groupId ?? null } : {}),
         ...(data.notes !== undefined ? { notes: data.notes ?? null } : {}),
       },

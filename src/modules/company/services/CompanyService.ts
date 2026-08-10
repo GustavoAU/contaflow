@@ -1,5 +1,6 @@
 // src/modules/company/services/CompanyService.ts
 import prisma from "@/lib/prisma";
+import { normalizeRifOrNull } from "@/lib/tax-config";
 import { seedExpenseCategories } from "@/modules/expenses/services/ExpenseService";
 
 export class CompanyService {
@@ -7,17 +8,22 @@ export class CompanyService {
    * Crea una nueva empresa y la vincula al usuario como OWNER (Propietario).
    */
   static async createCompany(name: string, userId: string, rif?: string, address?: string, scopeProfile?: "SOLO" | "EMPRESA" | "DESPACHO", telefono?: string) {
+    // MEDIUM-2: canonicalizar ANTES de buscar y de guardar. El @unique de Postgres
+    // compara strings crudos, así que sin esto "J-12345678-9" y "j-123456789"
+    // entrarían como dos empresas distintas con la misma identidad fiscal.
+    const normalizedRif = normalizeRifOrNull(rif);
+
     // Verificar que el RIF no exista ya
-    if (rif) {
-      const existing = await prisma.company.findUnique({ where: { rif } });
-      if (existing) throw new Error(`Ya existe una empresa con el RIF ${rif}.`);
+    if (normalizedRif) {
+      const existing = await prisma.company.findUnique({ where: { rif: normalizedRif } });
+      if (existing) throw new Error(`Ya existe una empresa con el RIF ${normalizedRif}.`);
     }
 
     const company = await prisma.$transaction(async (tx) => {
       const created = await tx.company.create({
         data: {
           name,
-          rif,
+          rif: normalizedRif,
           address,
           telefono: telefono ?? null,
           status: "ACTIVE",
@@ -70,6 +76,9 @@ export class CompanyService {
       isSpecialContributor: boolean;
     }
   ) {
+    // MEDIUM-2: canonicalizar antes de comparar y de persistir (ver createCompany).
+    data = { ...data, rif: normalizeRifOrNull(data.rif) };
+
     if (data.rif) {
       const existing = await prisma.company.findUnique({
         where: { rif: data.rif },
