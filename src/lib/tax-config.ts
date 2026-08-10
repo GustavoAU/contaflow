@@ -46,6 +46,13 @@ import { VEN_FISCAL_CONFIG } from "./countries";
 /** Regex del RIF venezolano — dígito verificador obligatorio */
 export const VEN_RIF_REGEX = VEN_FISCAL_CONFIG.taxIdRegex;
 
+/**
+ * Normalización del RIF a su forma canónica. OBLIGATORIO antes de persistir o de
+ * comparar un RIF: sin esto el `@unique` de Postgres deja pasar la misma identidad
+ * fiscal escrita distinto (MEDIUM-2).
+ */
+export { normalizeRif, normalizeRifOrNull } from "./countries/ven/config";
+
 /** Alícuotas venezolanas — evita "0.16" hardcodeado en servicios */
 export const VEN_TAX_RATES = VEN_FISCAL_CONFIG.taxRates;
 

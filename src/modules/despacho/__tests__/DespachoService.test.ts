@@ -192,6 +192,26 @@ describe("addManagedClient", () => {
     );
   });
 
+  // MEDIUM-2: el @@unique([despachoCompanyId, rif]) compara strings crudos, así que
+  // sin canonicalizar "j 123456789" entraba como un SEGUNDO cliente con la misma
+  // identidad fiscal y le comía otro cupo del tier que el despacho paga.
+  it("persiste el RIF canonicalizado, no el que tecleó el usuario", async () => {
+    // arrange
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue(SUBSCRIPTION_STARTER as never);
+    vi.mocked(prisma.managedClient.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.managedClient.create).mockResolvedValue(MANAGED_CLIENT as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // act — minúsculas y sin el guion opcional: AMBAS formas pasan VEN_RIF_REGEX,
+    // que es justo lo que hacía evadible al @@unique.
+    await addManagedClient(COMPANY_ID, { ...BASE_INPUT, rif: "j-123456789" }, ACTOR_ID, IP, UA);
+    // assert
+    expect(prisma.managedClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ rif: "J-12345678-9" }),
+      })
+    );
+  });
+
   it("happy path STARTER con cupo disponible → success:true con client", async () => {
     // arrange
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(SUBSCRIPTION_STARTER as never);

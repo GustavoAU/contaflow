@@ -63,3 +63,49 @@ export const VEN_FISCAL_CONFIG: FiscalConfig = {
     payrollEngine: "VEN",
   },
 };
+
+// ── Normalización del RIF (MEDIUM-2, auditoría de seguridad MP-1) ────────────
+//
+// El `@unique` de Postgres compara strings crudos, así que "J-12345678-9",
+// "j-123456789" y "J 12345678 9" convivían como tres empresas distintas con la
+// MISMA identidad fiscal. En `ManagedClient` el efecto era peor: cada variante
+// consumía un cupo del tier que el despacho paga.
+//
+// La solución es una forma canónica ÚNICA que se guarda en BD; así el `@unique`
+// existente vuelve a significar lo que promete, sin índices funcionales ni
+// columnas espejo que mantener en sincronía.
+//
+// NO unifica deliberadamente el RIF legacy sin dígito verificador ("J-12345678")
+// con el completo ("J-12345678-9"): son identificadores distintos y decidir que
+// uno "es" el otro requiere inventar el dígito. Ver `assertRifEditable` para el
+// grandfathering de esos valores heredados.
+const RIF_CANONICAL = /^([JVEGCP])(\d+)$/;
+
+/**
+ * Forma canónica de un RIF: mayúsculas y separadores normalizados.
+ *
+ *   "j-123456789"  → "J-12345678-9"
+ *   "J 12345678 9" → "J-12345678-9"
+ *   "J-12345678"   → "J-12345678"    (legacy sin verificador, se respeta)
+ *
+ * Si el valor no tiene forma de RIF se devuelve recortado y en mayúsculas, sin
+ * inventarle estructura — validar el formato es tarea de `taxIdRegex`.
+ */
+export function normalizeRif(raw: string): string {
+  const trimmed = raw.trim();
+  const compact = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const match = RIF_CANONICAL.exec(compact);
+  if (!match) return trimmed.toUpperCase();
+
+  const [, letter, digits] = match;
+  // 9 dígitos = 8 de cédula/registro + verificador
+  if (digits.length === 9) return `${letter}-${digits.slice(0, 8)}-${digits[8]}`;
+  return `${letter}-${digits}`;
+}
+
+/** Igual que `normalizeRif` pero tolerando null/undefined/"" → null. */
+export function normalizeRifOrNull(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const normalized = normalizeRif(raw);
+  return normalized === "" ? null : normalized;
+}

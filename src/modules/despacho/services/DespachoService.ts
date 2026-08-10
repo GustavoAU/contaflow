@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { isPrismaError } from "@/lib/prisma-errors";
 import { createNowPaymentsInvoice } from "@/lib/nowpayments";
 import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
+import { normalizeRif } from "@/lib/tax-config";
 
 // ─── Constantes — ADR-034, precios fijados 2026-06-15 ───────────────────────
 // Los límites y precios viven aquí, NO en el schema (ADR-034 D-3).
@@ -68,7 +69,15 @@ export async function addManagedClient(
   ip: string | null,
   userAgent: string | null,
 ): Promise<{ success: true; client: ManagedClient } | { success: false; error: string }> {
-  if (!VEN_RIF_REGEX.test(input.rif)) {
+  // MEDIUM-2: normalizar ANTES de validar. Sin canonicalizar, "J-12345678-9" y
+  // "j-123456789" pasan ambos la regex, son strings distintos para el
+  // @@unique([despachoCompanyId, rif]) y entran como DOS clientes — cada uno
+  // consumiendo un cupo del tier que el despacho paga.
+  // El orden importa: validar el crudo rechazaría formas que el usuario teclea de
+  // buena fe ("J123456789") y que tienen una canónica perfectamente válida.
+  const rif = normalizeRif(input.rif);
+
+  if (!VEN_RIF_REGEX.test(rif)) {
     return { success: false, error: "RIF inválido — debe tener formato J/V/E/G/C/P-XXXXXXXX" };
   }
 
@@ -86,7 +95,7 @@ export async function addManagedClient(
       const managed = await (tx as typeof prisma).managedClient.create({
         data: {
           despachoCompanyId: companyId,
-          rif: input.rif,
+          rif,
           clientName: input.clientName,
           ciiu: input.ciiu ?? null,
           notes: input.notes ?? null,
