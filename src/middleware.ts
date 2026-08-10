@@ -1,6 +1,8 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import { buildSignInUrl } from "@/lib/sign-in-redirect";
+
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
@@ -38,7 +40,28 @@ function buildCsp(nonce: string): string {
 
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
-    await auth.protect();
+    // `auth.protect()` en middleware redirige a la signInUrl de Clerk cuando no hay
+    // sesión, PERO solo si puede resolverla; si no, cae a un 404. En producción llega
+    // vacía (`signInUrl:""` en el HTML servido), así que toda ruta protegida devolvía
+    // un 404 pelado: indistinguible de una ruta inexistente, y el usuario cree que la
+    // app se rompió al recargar con la sesión vencida. Se pasa la URL explícita para
+    // no depender de una env var que puede faltar en un entorno nuevo.
+    if (request.nextUrl.pathname.startsWith("/api")) {
+      // En /api NO se redirige: un 302 a HTML rompería a los clientes que esperan
+      // JSON (anomaly-summary, attachments/upload). Ahí el 404 de Clerk es correcto.
+      await auth.protect();
+    } else {
+      // Devuelve al usuario a donde iba tras autenticarse. `<SignIn />` honra
+      // `redirect_url` sin configuración extra. Ver la invariante de open redirect
+      // documentada en buildSignInUrl.
+      await auth.protect({
+        unauthenticatedUrl: buildSignInUrl(
+          request.url,
+          request.nextUrl.pathname,
+          request.nextUrl.search,
+        ),
+      });
+    }
   }
 
   // Generate a fresh cryptographic nonce for each request (Edge-compatible Web Crypto).
