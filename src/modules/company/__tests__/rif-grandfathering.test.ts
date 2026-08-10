@@ -10,7 +10,14 @@
 // Regla implementada: estricto solo cuando el RIF CAMBIA.
 
 import { describe, it, expect } from "vitest";
-import { assertRifEditable } from "../actions/company.actions";
+import { VEN_RIF_REGEX } from "@/lib/tax-config";
+import { assertRifEditable as assertRifEditableWith } from "../utils/rif-grandfathering";
+
+// El helper recibe el patrón por parámetro (ADR-042: no acopla a Venezuela).
+// Aquí se fija el patrón VEN una sola vez para que las aserciones sigan leyéndose
+// como el caso de negocio real.
+const assertRifEditable = (incoming: string | null, stored: string | null) =>
+  assertRifEditableWith(incoming, stored, VEN_RIF_REGEX);
 
 describe("assertRifEditable — grandfathering de RIF legacy (MP-1)", () => {
   it("permite guardar sin tocar un RIF legacy inválido (sin dígito verificador)", () => {
@@ -52,5 +59,15 @@ describe("assertRifEditable — grandfathering de RIF legacy (MP-1)", () => {
       "RIF inválido (ej: J-12345678-9)",
     );
     expect(assertRifEditable("X-12345678-9", null)).toBe("RIF inválido (ej: J-12345678-9)");
+  });
+
+  // Bloquea la regresión de volver a hardcodear la regex VEN dentro del helper:
+  // si alguien ignora el parámetro, este test falla.
+  it("usa el patrón recibido, no uno propio (ADR-042)", () => {
+    const soloNumeros = /^\d{4}$/;
+    expect(assertRifEditableWith("1234", null, soloNumeros)).toBeNull();
+    expect(assertRifEditableWith("J-12345678-9", null, soloNumeros)).toBe(
+      "RIF inválido (ej: J-12345678-9)",
+    );
   });
 });

@@ -13,6 +13,9 @@ import { requireCompanyAction } from "@/lib/action-guard";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+// Helper sincrónico: vive fuera de este módulo porque "use server" solo admite
+// exports async. Ver src/modules/company/utils/rif-grandfathering.ts
+import { assertRifEditable } from "../utils/rif-grandfathering";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -56,35 +59,6 @@ const UpdateScopeProfileSchema = z.object({
   scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]),
 });
 
-// ─── Validación de RIF con grandfathering (MP-1 / ADR-042) ───────────────────
-
-/**
- * Valida el RIF entrante contra la regex canónica, tolerando el RIF legacy ya
- * almacenado.
- *
- * Contexto: hasta MP-1 el alta de empresa usaba una regex con el dígito
- * verificador OPCIONAL, así que puede haber empresas con un `rif` que la regex
- * canónica rechaza. Bloquearlas al guardar dejaría al ADMIN sin poder editar
- * dirección, teléfono, CIIU ni `isSpecialContributor` — un lockout funcional.
- *
- * Regla: si el RIF no cambia respecto al almacenado, se acepta tal cual
- * (grandfathering). Si el usuario lo CAMBIA, el nuevo valor debe cumplir el
- * formato canónico. Así ninguna empresa queda bloqueada y ningún RIF inválido
- * NUEVO entra al sistema.
- *
- * @returns mensaje de error, o null si es aceptable
- */
-export function assertRifEditable(
-  incoming: string | null,
-  stored: string | null,
-): string | null {
-  const next = incoming?.trim() || null;
-  if (next === null) return null;              // limpiar el RIF siempre se permite
-  if (next === (stored ?? null)) return null;  // sin cambios → grandfathering
-  if (VEN_RIF_REGEX.test(next)) return null;   // cambio válido
-  return "RIF inválido (ej: J-12345678-9)";
-}
-
 // ─── Actualizar datos SENIAT ──────────────────────────────────────────────────
 
 export async function updateCompanySeniatDataAction(
@@ -108,7 +82,7 @@ export async function updateCompanySeniatDataAction(
       where: { id: validated.companyId },
       select: { rif: true },
     });
-    const rifError = assertRifEditable(validated.rif ?? null, current?.rif ?? null);
+    const rifError = assertRifEditable(validated.rif ?? null, current?.rif ?? null, VEN_RIF_REGEX);
     if (rifError) return { success: false, error: rifError };
 
     const company = await CompanyService.updateSeniatData(validated.companyId, ctx.userId, {
