@@ -5,11 +5,12 @@ import { useState, useTransition } from "react";
 import { generateSIVITAction } from "../actions/sivit-export.actions";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, LoaderIcon } from "lucide-react";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = { companyId: string };
 
 export function SIVITExportForm({ companyId }: Props) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalISO();
   const firstOfMonth = today.slice(0, 8) + "01";
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth);

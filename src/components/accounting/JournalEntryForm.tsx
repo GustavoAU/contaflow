@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 
 import { createTransactionAction } from "@/modules/accounting/actions/transaction.actions";
+import { todayLocalISO } from "@/lib/today";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalISO();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),

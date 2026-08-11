@@ -15,6 +15,8 @@ export const VEN_FISCAL_CONFIG: FiscalConfig = {
   currency: "VES",
   currencySymbol: "Bs.",
   locale: "es-VE",
+  // VET, UTC−4 sin horario de verano desde 2016
+  timezone: "America/Caracas",
   // VEN-NIF: los negativos se muestran entre paréntesis, nunca con guión
   negativeParens: true,
 

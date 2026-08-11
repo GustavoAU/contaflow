@@ -105,6 +105,14 @@ export type FiscalConfig = {
   currencySymbol: string;
   /** Locale para Intl.NumberFormat / toLocaleDateString ("es-VE") */
   locale: string;
+  /**
+   * Zona horaria IANA del país ("America/Caracas").
+   *
+   * El servidor corre en UTC: sin esto, derivar "hoy" con `toISOString()` da el
+   * día SIGUIENTE durante las últimas horas del día del usuario. Ver
+   * `src/lib/today.ts`.
+   */
+  timezone: string;
   /** Convención contable: negativos entre paréntesis (VEN-NIF) en vez de guión */
   negativeParens: boolean;
 
@@ -148,6 +156,7 @@ export type ClientFiscalConfig = {
   currency: string;
   currencySymbol: string;
   locale: string;
+  timezone: string;
   negativeParens: boolean;
   taxIdLabel: string;
   /** Fuente de `taxIdRegex` — reconstruir con `new RegExp(pattern, "i")` */

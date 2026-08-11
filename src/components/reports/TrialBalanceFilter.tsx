@@ -3,6 +3,9 @@
 // src/components/reports/TrialBalanceFilter.tsx
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
+// Fecha local del usuario: toISOString() devolvía el día SIGUIENTE después de
+// las 20:00 en VET (UTC−4). Ver src/lib/today.ts.
+import { toLocalISODate as toDateStr } from "@/lib/today";
 
 interface Props {
   defaultFrom?: string;
@@ -10,9 +13,6 @@ interface Props {
   defaultPreset?: string;
 }
 
-function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 type Preset = { label: string; key: string; range: () => { from: string; to: string } };
 

@@ -2,6 +2,9 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
+// Fecha local del usuario: toISOString() devolvía el día SIGUIENTE después de
+// las 20:00 en VET (UTC−4). Ver src/lib/today.ts.
+import { toLocalISODate as toDateStr } from "@/lib/today";
 
 export interface PeriodOption {
   year: number;
@@ -20,9 +23,6 @@ const MONTHS_ES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 function periodToRange(year: number, month: number) {
   const mm = String(month).padStart(2, "0");

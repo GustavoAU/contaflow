@@ -25,6 +25,7 @@ import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-r
 import { formatAmount } from "@/lib/format";
 import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
 import { genIdempotencyKey } from "../utils/idempotency";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -79,7 +80,7 @@ type PaymentFormValues = {
 // semántica que el `today` de render del código anterior.
 function makeDefaultValues(): PaymentFormValues {
   return {
-    date: new Date().toISOString().split("T")[0],
+    date: todayLocalISO(),
     method: "PAGOMOVIL",
     amountVes: "",
     concept: "",

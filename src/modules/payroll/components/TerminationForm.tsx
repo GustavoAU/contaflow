@@ -8,6 +8,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createTerminationAction } from "../actions/nom-d.actions";
+import { todayLocalISO } from "@/lib/today";
 
 interface EmployeeOption {
   id: string;
@@ -61,7 +62,7 @@ export default function TerminationForm({ companyId, employees }: Props) {
   const [employeeId, setEmployeeId] = useState("");
   const [reason, setReason] = useState("RESIGNATION");
   const [terminationDate, setTerminationDate] = useState(
-    new Date().toISOString().split("T")[0]
+    todayLocalISO()
   );
   const [idempotencyKey] = useState(generateUUID);
 

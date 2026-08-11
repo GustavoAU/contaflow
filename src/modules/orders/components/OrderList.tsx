@@ -9,6 +9,7 @@ import { formatAmount, fmtDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VEN_RIF_REGEX } from "@/lib/tax-config";
+import { todayLocalISO } from "@/lib/today";
 
 const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
 const fmtCurrency = (code: string, amount: string) =>
@@ -213,7 +214,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {orders.map((o) => {
-              const today = new Date().toISOString().split("T")[0]!;
+              const today = todayLocalISO();
               const isExpired =
                 o.expectedDate &&
                 o.expectedDate < today &&

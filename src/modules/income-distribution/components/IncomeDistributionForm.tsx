@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createDistributionAction } from "../actions/income-distribution.actions";
+import { todayLocalISO } from "@/lib/today";
 
 type Account = { id: string; code: string; name: string; type: string };
 type Company = { id: string; name: string };
@@ -34,7 +35,7 @@ const emptyLine = (): LineInput => ({
 });
 
 export function IncomeDistributionForm({ companyId, accounts, companies, onSuccess, onCancel }: Props) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISO());
   const [description, setDescription] = useState("");
   const [currencyCode, setCurrencyCode] = useState("VES");
   const [totalAmountOriginal, setTotalAmountOriginal] = useState("");

@@ -32,6 +32,7 @@ vi.mock("@/modules/exchange-rates/actions/exchange-rate.actions", () => ({
 
 import { createPaymentAction, listBankAccountsAction } from "../actions/payment.actions";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
+import { todayLocalISO } from "@/lib/today";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,10 +41,12 @@ const BASE_PROPS = {
   userId: "user-1",
 };
 
-// Misma computación que makeDefaultValues() del componente.
-function today(): string {
-  return new Date().toISOString().split("T")[0];
-}
+// Misma computación que makeDefaultValues() del componente. Ojo: NO vale replicar
+// aquí `toISOString()`, que es lo que había — este test empezó a fallar en una
+// máquina en VET a las 21:22 porque el patrón viejo ya devolvía el día siguiente
+// mientras el componente devolvía el correcto. Se importa el helper real a
+// propósito, para que test y componente no puedan divergir.
+const today = todayLocalISO;
 
 function submitBtn(): HTMLButtonElement {
   return screen.getByRole("button", { name: /Registrar pago|Guardando/ }) as HTMLButtonElement;

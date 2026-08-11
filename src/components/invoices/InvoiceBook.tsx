@@ -19,6 +19,7 @@ import { InvoiceBatchImportDialog } from "@/components/invoices/InvoiceBatchImpo
 import { exportInvoiceBookExcel, exportInvoiceBookTXT } from "./invoice-book/export-helpers";
 import { InvoiceBookTable } from "./invoice-book/InvoiceBookTable";
 import { InvoiceBookSummaryPanel } from "./invoice-book/InvoiceBookSummaryPanel";
+import { todayLocalISO, toLocalISODate } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -59,9 +60,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
   const [filterMode, setFilterMode] = useState<"period" | "range">("period");
   const [rangeStart, setRangeStart] = useState(() => {
     const d = new Date(); d.setDate(1);
-    return d.toISOString().slice(0, 10);
+    return toLocalISODate(d);
   });
-  const [rangeEnd, setRangeEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rangeEnd, setRangeEnd] = useState(() => todayLocalISO());
   const [result, setResult] = useState<InvoiceBookResult | null>(null);
   const [expandedNcNdId, setExpandedNcNdId] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
