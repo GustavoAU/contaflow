@@ -2,12 +2,12 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
-import { zBusinessDate } from "@/lib/zod-helpers";
+import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 function isValidAmount(v: string | undefined): boolean {
   if (!v || v === "") return true; // optional fields
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
   } catch {
     return false;

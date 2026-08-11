@@ -6,6 +6,7 @@
 // Saldo inicial previo al sistema para empleados con prestaciones antes de ContaFlow
 
 import { useState } from "react";
+import Decimal from "decimal.js";
 import type { BenefitBalanceRow } from "../services/BenefitAccrualService";
 import type { BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import BenefitAdvanceForm from "./BenefitAdvanceForm";
@@ -50,10 +51,17 @@ export default function BenefitBalancePanel({
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
   const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
 
-  const hasInitial = Number(balance.initialBalance) > 0 || Number(balance.initialInterestBalance) > 0;
-  const totalInitial = Number(balance.initialBalance) + Number(balance.initialInterestBalance);
-  const total = Number(balance.currentBalance) + Number(balance.interestBalance) + totalInitial;
-  const totalAdvances = advances.reduce((s, a) => s + Number(a.amount), 0);
+  // LOW-4 (R-5): estas sumas eran de floats. Son prestaciones sociales —
+  // Decimal.js, como en el resto de la app.
+  const d = (v: string | number | null | undefined) => new Decimal(v ?? "0");
+  const hasInitial = d(balance.initialBalance).gt(0) || d(balance.initialInterestBalance).gt(0);
+  const totalInitial = d(balance.initialBalance).plus(d(balance.initialInterestBalance));
+  // LOW-3: la MISMA base que usa BenefitAdvanceService para el tope del 75%
+  // (currentBalance + interestBalance, sin los saldos iniciales). El formulario
+  // recibía solo currentBalance y por eso bloqueaba anticipos legítimos.
+  const advanceBase = d(balance.currentBalance).plus(d(balance.interestBalance));
+  const total = advanceBase.plus(totalInitial);
+  const totalAdvances = advances.reduce((s, a) => s.plus(d(a.amount)), new Decimal(0));
 
   // F-01: brecha en historial salarial — el salario más antiguo no cubre toda la antigüedad
   const salaryHistoryGap = hireDate && (
@@ -283,7 +291,7 @@ export default function BenefitBalancePanel({
             <BenefitAdvanceForm
               companyId={companyId}
               employeeId={employeeId}
-              maxAmount={balance.currentBalance}
+              maxAmount={advanceBase.toFixed(2)}
               onRegistered={(adv) => {
                 setAdvances((prev) => [adv, ...prev]);
                 setShowAdvanceForm(false);

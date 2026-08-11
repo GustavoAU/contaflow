@@ -4,8 +4,42 @@ import { Decimal } from "decimal.js";
 
 const MAX_MONEY = new Decimal("999999999.99");
 
+/**
+ * Formato decimal llano — dígitos, un punto opcional y nada más.
+ *
+ * `Decimal` acepta prefijos de base, notación científica y separadores:
+ *   "0x64" → 100 · "0b11" → 3 · "0o17" → 15 · "1e3" → 1000 · "1_000" → 1000
+ *
+ * Sin este filtro, un monto escrito así se guardaba como algo DISTINTO de lo
+ * tecleado y sin ningún aviso: "0x64" pasaba la validación y llegaba a la BD
+ * como 100,00. Para una cifra contable eso es inaceptable — mejor rechazarlo y
+ * que la persona corrija.
+ */
+const PLAIN_DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
+
+/** `true` si el string es un decimal llano. Ver `PLAIN_DECIMAL`. */
+export function isPlainDecimal(v: string): boolean {
+  return PLAIN_DECIMAL.test(v);
+}
+
+/**
+ * `new Decimal` estricto: **lanza** si el formato no es decimal llano.
+ *
+ * Pensado para el interior del `try` de un `.refine()`, donde el `catch` ya
+ * traduce cualquier fallo en "valor inválido". Los schemas que validan montos a
+ * mano usaban `new Decimal(v)` directo y por eso aceptaban "0x64" como 100.
+ *
+ * Los schemas que ya anteponen una regex estricta (bank-statement,
+ * inventory-movement) no lo necesitan: el formato queda filtrado antes.
+ */
+export function strictDecimal(v: string): Decimal {
+  if (!isPlainDecimal(v)) throw new RangeError(`Formato decimal no llano: ${v}`);
+  return new Decimal(v);
+}
+
 function isValidMoney(v: string, positive = false): boolean {
   try {
+    if (!PLAIN_DECIMAL.test(v)) return false;
     const d = new Decimal(v);
     if (!d.isFinite()) return false;
     if (d.decimalPlaces() > 2) return false;
@@ -46,6 +80,7 @@ export const zExchangeRate = z.coerce
   .refine(
     (v) => {
       try {
+        if (!PLAIN_DECIMAL.test(v)) return false; // mismo motivo que en isValidMoney
         const d = new Decimal(v);
         return d.isFinite() && d.gt(0) && d.decimalPlaces() <= 4 && d.lte(new Decimal("9999999.9999"));
       } catch {

@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
-import { zBusinessDate } from "@/lib/zod-helpers";
+import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 const MAX_AMOUNT = "999999999999999"; // 19 dígitos, compatible con @db.Decimal(19,4)
 
@@ -31,7 +31,7 @@ export const CreateExpenseSchema = z
       .refine(
         (v) => {
           try {
-            const d = new Decimal(v);
+            const d = strictDecimal(v);
             return d.gt(0) && d.lte(new Decimal(MAX_AMOUNT));
           } catch {
             return false;
@@ -49,7 +49,7 @@ export const CreateExpenseSchema = z
         (v) => {
           if (!v) return true;
           try {
-            return new Decimal(v).gt(0);
+            return strictDecimal(v).gt(0);
           } catch {
             return false;
           }
@@ -65,7 +65,7 @@ export const CreateExpenseSchema = z
         (v) => {
           if (!v) return true;
           try {
-            return new Decimal(v).gte(0);
+            return strictDecimal(v).gte(0);
           } catch {
             return false;
           }

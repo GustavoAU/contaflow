@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
-import { zBusinessDate } from "@/lib/zod-helpers";
+import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 // ─── Tabla ISLR Decreto 1808 (completa) ──────────────────────────────────────
 export const ISLR_RATES: Record<string, { pct: number; subtrahend: number; description: string }> =
@@ -79,7 +79,7 @@ export const FAT_RATE = {
 // Helper: validate positive amount with ceiling (ADR-006 D-2)
 function positiveBelowCeiling(v: string): boolean {
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
   } catch {
     return false;
@@ -88,7 +88,7 @@ function positiveBelowCeiling(v: string): boolean {
 
 function nonNegativeBelowCeiling(v: string): boolean {
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
   } catch {
     return false;
