@@ -27,6 +27,7 @@ import prisma from "@/lib/prisma";
 import { canAccess } from "@/lib/auth-helpers";
 import { checkRateLimit, fiscalKey } from "@/lib/ratelimit";
 import { netContext } from "@/lib/net-context";
+import { isSupportedCountry, type CountryCode } from "@/lib/countries";
 
 export type GuardOptions = {
   /**
@@ -46,6 +47,12 @@ export type GuardContext = {
   ok: true;
   userId: string;
   role: UserRole;
+  /**
+   * País de la empresa (ADR-042 D-2) — la clave para despachar config fiscal:
+   * `getFiscalConfig(ctx.country)`, schema factories, timezone, capabilities.
+   * Sale del MISMO findFirst de membresía; no añade round-trip.
+   */
+  country: CountryCode;
   ipAddress: string | null;
   userAgent: string | null;
 };
@@ -82,7 +89,7 @@ export async function requireCompanyAction(
   // 3. Membresía — companyId autoritativo desde BD, nunca del body (ADR-004)
   const member = await prisma.companyMember.findFirst({
     where: { companyId, userId },
-    select: { role: true },
+    select: { role: true, company: { select: { country: true } } },
   });
   if (!member) return fail("Empresa no encontrada o acceso denegado");
 
@@ -91,8 +98,17 @@ export async function requireCompanyAction(
     return fail("No autorizado");
   }
 
-  // 5. Contexto de red (R-6) — solo si la action lo necesita para AuditLog
+  // 5. País (ADR-042 D-2). Fallback "VEN" — el ÚNICO fallback silencioso del plan
+  // multi-país — cubre dos casos: (a) los ~160 mocks legacy de tests que devuelven
+  // solo { role } sin company anidada, y (b) un valor no soportado en BD (el guard
+  // no puede lanzar: tumbaría TODAS las actions de esa empresa; getFiscalConfig sí
+  // lanza en país no soportado, a propósito).
+  const rawCountry = member.company?.country;
+  const country: CountryCode =
+    rawCountry && isSupportedCountry(rawCountry) ? rawCountry : "VEN";
+
+  // 6. Contexto de red (R-6) — solo si la action lo necesita para AuditLog
   const net = opts.captureNet ? await netContext() : { ipAddress: null, userAgent: null };
 
-  return { ok: true, userId, role: member.role, ...net };
+  return { ok: true, userId, role: member.role, country, ...net };
 }

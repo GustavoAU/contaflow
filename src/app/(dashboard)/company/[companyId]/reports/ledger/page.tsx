@@ -8,6 +8,7 @@ import { LedgerAccountBlock } from "@/components/reports/LedgerAccountBlock";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { redirect } from "next/navigation";
+import { todayForCompany } from "@/lib/today-server";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -22,10 +23,11 @@ export default async function LedgerPage({ params, searchParams }: Props) {
   // contaminando la vista con asientos de períodos anteriores (ej. FAC-TESA-007 enero 2026).
   // Redirigir al año fiscal corriente cuando no hay filtro de fechas.
   if (!from && !to) {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const today = now.toISOString().split("T")[0];
-    redirect(`/company/${companyId}/reports/ledger?from=${year}-01-01&to=${today}`);
+    // "Hoy" en la zona de la empresa. El año del from sale del MISMO string: con
+    // getUTCFullYear(), la noche del 31/12 en VET producía from=añoSiguiente-01-01
+    // con to=hoy — un rango invertido.
+    const today = await todayForCompany(companyId);
+    redirect(`/company/${companyId}/reports/ledger?from=${today.slice(0, 4)}-01-01&to=${today}`);
   }
 
   const dateFrom = from ? new Date(from) : undefined;

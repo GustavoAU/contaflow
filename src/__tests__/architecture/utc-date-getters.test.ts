@@ -56,27 +56,6 @@ const TODAY_VIA_UTC =
   /(?:new Date\(\)|\b(?:now|today|hoy)\b)\.toISOString\(\)\.(?:slice\(0,\s*(?:10|7)\)|split\("T"\)\[0\])/g;
 
 /**
- * Archivos de SERVIDOR que aún resuelven "hoy" en UTC porque no tienen a mano el
- * país de la empresa; se arreglan en MP-4 (ADR-042), cuando el guard exponga
- * `ctx.country` y se pueda llamar a `todayInTimeZone(cfg.timezone)`.
- *
- * Impacto medido de lo que queda: los cinco reports solo redirigen a `?to=<hoy>`
- * (la cifra no cambia, la URL sí); `issueDate` es la fecha impresa en la
- * constancia; el `date` de exchange-rate se valida pero no se usa aguas abajo.
- *
- * Al cerrar MP-4 hay que VACIAR esta lista, no ampliarla.
- */
-const PENDING_MP4 = new Set([
-  "src/app/(dashboard)/company/[companyId]/reports/balance-sheet/page.tsx",
-  "src/app/(dashboard)/company/[companyId]/reports/trial-balance/page.tsx",
-  "src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx",
-  "src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx",
-  "src/app/(dashboard)/company/[companyId]/reports/income-statement/page.tsx",
-  "src/modules/exchange-rates/actions/exchange-rate.actions.ts",
-  "src/modules/payroll/actions/payroll-reports.actions.ts",
-]);
-
-/**
  * Usos donde el día UTC es CORRECTO: claves de métrica y sellos de nombre de
  * archivo. No son fechas de negocio — ahí UTC es incluso preferible, porque no
  * depende de dónde corra el proceso.
@@ -97,7 +76,7 @@ describe("Arquitectura: fechas UTC", () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
       const rel = relative(process.cwd(), file).split("\\").join("/");
-      if (PENDING_MP4.has(rel) || UTC_IS_CORRECT.has(rel)) continue;
+      if (UTC_IS_CORRECT.has(rel)) continue;
 
       const content = readFileSync(file, "utf8");
       for (const match of content.matchAll(TODAY_VIA_UTC)) {
@@ -118,7 +97,9 @@ describe("Arquitectura: fechas UTC", () => {
   // esto las listas crecen y nadie las poda — es el mismo trinquete de MP-3.
   it("las listas de excepción no tienen entradas obsoletas", () => {
     const stale: string[] = [];
-    for (const rel of [...PENDING_MP4, ...UTC_IS_CORRECT]) {
+    // (La lista PENDING_MP4 que vivía aquí se vació y eliminó en MP-4, como
+    // estaba anotado: guard con ctx.country + todayForCountry/todayForCompany.)
+    for (const rel of UTC_IS_CORRECT) {
       const full = join(process.cwd(), rel);
       let content: string;
       try {
@@ -132,7 +113,7 @@ describe("Arquitectura: fechas UTC", () => {
     }
     expect(
       stale,
-      "Entradas obsoletas en PENDING_MP4 / UTC_IS_CORRECT — bórralas:\n" + stale.join("\n"),
+      "Entradas obsoletas en UTC_IS_CORRECT — bórralas:\n" + stale.join("\n"),
     ).toHaveLength(0);
   });
 

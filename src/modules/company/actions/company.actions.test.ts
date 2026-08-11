@@ -129,6 +129,77 @@ describe("createCompanyAction", () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("RIF");
   });
+
+  // ── MP-4 (ADR-042): país en el alta ────────────────────────────────────────
+
+  it("MP-4: persiste el country elegido en el create", async () => {
+    vi.mocked(prisma.companyMember.count).mockResolvedValue(0);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.company.create).mockResolvedValue(mockCompany as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await createCompanyAction({
+      name: "Empresa VEN C.A.",
+      userId: "user-1",
+      country: "VEN",
+      rif: "J-12345678-9",
+      telefono: "0412-1234567",
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.company.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ country: "VEN" }),
+      }),
+    );
+  });
+
+  it("MP-4: country ausente → default VEN (callers legacy sin selector)", async () => {
+    vi.mocked(prisma.companyMember.count).mockResolvedValue(0);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.company.create).mockResolvedValue(mockCompany as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await createCompanyAction({
+      name: "Empresa Legacy C.A.",
+      userId: "user-1",
+      telefono: "0412-1234567",
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.company.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ country: "VEN" }),
+      }),
+    );
+  });
+
+  it("MP-4: country no soportado → error explícito, NUNCA coerción silenciosa", async () => {
+    const result = await createCompanyAction({
+      name: "Empresa COL S.A.S.",
+      userId: "user-1",
+      country: "COL",
+      telefono: "0412-1234567",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe("País no soportado todavía.");
+    expect(prisma.company.create).not.toHaveBeenCalled();
+  });
+
+  it("MP-4: el formato del ID tributario se valida contra la config del país", async () => {
+    const result = await createCompanyAction({
+      name: "Empresa RIF Malo C.A.",
+      userId: "user-1",
+      country: "VEN",
+      rif: "J-1234", // no cumple taxIdRegex de VEN
+      telefono: "0412-1234567",
+    });
+
+    expect(result.success).toBe(false);
+    // Mensaje derivado de la config (taxIdLabel + taxIdPlaceholder), no hardcodeado
+    if (!result.success) expect(result.error).toBe("RIF inválido (ej: J-12345678-9)");
+  });
 });
 
 describe("archiveCompanyAction", () => {

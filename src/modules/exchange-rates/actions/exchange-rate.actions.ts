@@ -10,6 +10,7 @@ import { requireCompanyAction } from "@/lib/action-guard";
 import { ExchangeRateService, ExchangeRateSummary } from "../services/ExchangeRateService";
 import { BcvFetchService } from "../services/BcvFetchService";
 import { limiters } from "@/lib/ratelimit";
+import { todayForCountry } from "@/lib/today-server";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -205,7 +206,9 @@ export async function getLatestRateAction(
     const parsed = GetRateSchema.safeParse({
       companyId,
       currency,
-      date: new Date().toISOString().split("T")[0],
+      // "Hoy" en la zona del país de la empresa (ctx.country, ADR-042) — en UTC
+      // era el día siguiente desde las 20:00 VET
+      date: todayForCountry(ctx.country),
     });
     if (!parsed.success) return { success: false, error: "Parámetros inválidos" };
 

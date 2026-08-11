@@ -17,6 +17,8 @@ import { APP_VERSION, CERTIFIED_VERSION } from "@/lib/version";
 import { AlertTriangleIcon, SlidersHorizontalIcon } from "lucide-react";
 import Link from "next/link";
 import { getLatestRatesWithDeltaAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
+import { getFiscalConfig, isSupportedCountry, toClientFiscalConfig } from "@/lib/countries";
+import { FiscalUIProvider } from "@/lib/countries/client";
 
 type Props = {
   children: React.ReactNode;
@@ -37,6 +39,12 @@ export default async function CompanyLayout({ children, params }: Props) {
 
   const showNotifications = canAccess(company.role, ROLES.ACCOUNTING);
   const showAIAssistant = canAccess(company.role, ROLES.ACCOUNTING);
+
+  // ADR-042 D-3: config fiscal del país de la empresa, serializada para el árbol
+  // cliente vía FiscalUIProvider. Mismo fallback VEN que el guard (D-2).
+  const fiscalConfig = toClientFiscalConfig(
+    getFiscalConfig(isSupportedCountry(company.country) ? company.country : "VEN"),
+  );
 
   // getCompanyGrants usa unstable_cache pero la query interna puede lanzar (cold start).
   // Si lanza, continuamos con permisos vacíos para no bloquear el layout.
@@ -71,6 +79,7 @@ export default async function CompanyLayout({ children, params }: Props) {
     : null;
 
   return (
+    <FiscalUIProvider config={fiscalConfig}>
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       {/* Skip-to-content — WCAG 2.4.1: bypass blocks */}
       <a
@@ -156,5 +165,6 @@ export default async function CompanyLayout({ children, params }: Props) {
         />
       )}
     </div>
+    </FiscalUIProvider>
   );
 }

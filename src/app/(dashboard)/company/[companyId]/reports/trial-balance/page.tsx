@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { fmtVen } from "@/lib/fmt-ven";
 import Decimal from "decimal.js";
+import { todayForCompany } from "@/lib/today-server";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -42,10 +43,11 @@ export default async function TrialBalancePage({ params, searchParams }: Props) 
   // Hallazgo #4: misma guarda que Ledger — sin fechas el Balance de Comprobación
   // mostraría acumulados históricos mezclando todos los períodos.
   if (!from && !to) {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const today = now.toISOString().split("T")[0];
-    redirect(`/company/${companyId}/reports/trial-balance?from=${year}-01-01&to=${today}`);
+    // "Hoy" en la zona de la empresa. El año del from sale del MISMO string: con
+    // getUTCFullYear(), la noche del 31/12 en VET producía from=añoSiguiente-01-01
+    // con to=hoy — un rango invertido.
+    const today = await todayForCompany(companyId);
+    redirect(`/company/${companyId}/reports/trial-balance?from=${today.slice(0, 4)}-01-01&to=${today}`);
   }
 
   const dateFrom = from ? new Date(from) : undefined;
