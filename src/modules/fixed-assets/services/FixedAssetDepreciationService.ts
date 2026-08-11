@@ -460,9 +460,9 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   // Número único por construcción: un activo solo puede darse de baja una vez
   // (status === "DISPOSED" guard arriba). Elimina race condition de count()+1 (Fix #4).
   const disposalDateStr = [
-    input.disposalDate.getFullYear(),
-    String(input.disposalDate.getMonth() + 1).padStart(2, "0"),
-    String(input.disposalDate.getDate()).padStart(2, "0"),
+    input.disposalDate.getUTCFullYear(),
+    String(input.disposalDate.getUTCMonth() + 1).padStart(2, "0"),
+    String(input.disposalDate.getUTCDate()).padStart(2, "0"),
   ].join("");
   const txNumber = `BAJA-${disposalDateStr}-${input.assetId.slice(-8).toUpperCase()}`;
   const label = asset.name;

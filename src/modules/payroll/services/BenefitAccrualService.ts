@@ -700,8 +700,8 @@ export const BenefitAccrualService = {
         (balance.accrualLines ?? []).map((l) => `${l.year}-Q${l.quarter}`)
       );
 
-      const startYear = emp.hireDate.getFullYear();
-      const startQuarter = Math.ceil((emp.hireDate.getMonth() + 1) / 3);
+      const startYear = emp.hireDate.getUTCFullYear();
+      const startQuarter = Math.ceil((emp.hireDate.getUTCMonth() + 1) / 3);
 
       let empCurrentBalance = new Decimal(balance.currentBalance.toString());
       let empProcessed = false;

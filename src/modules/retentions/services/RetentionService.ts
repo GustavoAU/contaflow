@@ -15,8 +15,9 @@ export async function getNextVoucherNumber(
   companyId: string,
   date: Date = new Date()
 ): Promise<string> {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  // Fecha de NEGOCIO: getters UTC.
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
   const seq = await tx.retentionSequence.upsert({
     where: { companyId_year_month: { companyId, year, month } },
     create: { companyId, year, month, lastNumber: 1 },
@@ -193,7 +194,7 @@ export async function enterRetention(
     const enterCount = await tx.retencion.count({
       where: { companyId: input.companyId, enteradoAt: { not: null } },
     });
-    const txNumber = `ENT-${input.enterDate.getFullYear()}-${String(enterCount + 1).padStart(5, "0")}`;
+    const txNumber = `ENT-${input.enterDate.getUTCFullYear()}-${String(enterCount + 1).padStart(5, "0")}`;
 
     // Journal entry: Debit liability, Credit bank
     const enterEntries = [

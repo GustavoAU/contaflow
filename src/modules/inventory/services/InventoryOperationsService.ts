@@ -206,8 +206,9 @@ export async function createDraftMovement(
 
   // R-09 auditoría SENIAT: bloquear movimientos en períodos cerrados
   const movDate = new Date(rest.date);
-  const movYear = movDate.getFullYear();
-  const movMonth = movDate.getMonth() + 1; // getMonth() es 0-based
+  // Fecha de NEGOCIO: getters UTC — resuelve el período contable (R-3).
+  const movYear = movDate.getUTCFullYear();
+  const movMonth = movDate.getUTCMonth() + 1; // getUTCMonth() es 0-based
   const closedPeriod = await prisma.accountingPeriod.findFirst({
     where: { companyId, status: "CLOSED", year: movYear, month: movMonth },
     select: { year: true, month: true },

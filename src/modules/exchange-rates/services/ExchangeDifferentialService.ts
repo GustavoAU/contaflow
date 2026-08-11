@@ -161,8 +161,8 @@ export class ExchangeDifferentialService {
       throw new Error("No hay diferencial cambiario que registrar.");
     }
 
-    const mm = String(revaluationDate.getMonth() + 1).padStart(2, "0");
-    const yyyy = revaluationDate.getFullYear();
+    const mm = String(revaluationDate.getUTCMonth() + 1).padStart(2, "0");
+    const yyyy = revaluationDate.getUTCFullYear();
     const desc = `Revaluación diferencial cambiario ${mm}/${yyyy} (NIC 21)`;
 
     const entries: Array<{ accountId: string; amount: Decimal; description: string }> = [];

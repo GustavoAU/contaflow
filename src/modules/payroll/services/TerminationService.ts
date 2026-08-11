@@ -226,7 +226,7 @@ export const TerminationService = {
     const vacationBonusFractionalAmount = vacBonusFracDays.mul(dailyNormalWage).toDecimalPlaces(4);
 
     // ── 3. Utilidades fraccionadas ────────────────────────────────────────
-    const currentFiscalYear = terminationDate.getFullYear();
+    const currentFiscalYear = terminationDate.getUTCFullYear();
     const fiscalYearStart = new Date(currentFiscalYear, 0, 1);
     const periodStart = employee.hireDate > fiscalYearStart
       ? employee.hireDate
@@ -472,14 +472,14 @@ export const TerminationService = {
     const period = await prisma.accountingPeriod.findFirst({
       where: {
         companyId,
-        year: terminationDate.getFullYear(),
-        month: terminationDate.getMonth() + 1,
+        year: terminationDate.getUTCFullYear(),
+        month: terminationDate.getUTCMonth() + 1,
         status: "OPEN",
       },
     });
     if (!period) {
       throw new Error(
-        `El período contable ${terminationDate.getFullYear()}-${String(terminationDate.getMonth() + 1).padStart(2, "0")} está cerrado o no existe`
+        `El período contable ${terminationDate.getUTCFullYear()}-${String(terminationDate.getUTCMonth() + 1).padStart(2, "0")} está cerrado o no existe`
       );
     }
 

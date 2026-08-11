@@ -159,8 +159,8 @@ export async function postFxDifferentialAction(
     }
 
     const dateObj = new Date(revaluationDate + "T00:00:00.000Z");
-    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getUTCMonth() + 1).padStart(2, "0");
+    const yyyy = dateObj.getUTCFullYear();
     const txNumber = `FX-REVAL-${yyyy}${mm}`;
 
     // Guard: evitar doble-registro del mismo período

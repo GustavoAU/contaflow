@@ -66,7 +66,8 @@ export async function createInvoiceAction(input: unknown) {
     }
 
     // Fase 15: Guard — no permitir facturas en ejercicios cerrados
-    const invoiceYear = parsed.data.date.getFullYear();
+    // Fecha de NEGOCIO: getters UTC — alimenta el guard de ejercicio cerrado (R-3).
+    const invoiceYear = parsed.data.date.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
       invoiceYear
@@ -83,9 +84,9 @@ export async function createInvoiceAction(input: unknown) {
     if (parsed.data.currency !== "VES") {
       const dateOnly = new Date(
         Date.UTC(
-          parsed.data.date.getFullYear(),
-          parsed.data.date.getMonth(),
-          parsed.data.date.getDate(),
+          parsed.data.date.getUTCFullYear(),
+          parsed.data.date.getUTCMonth(),
+          parsed.data.date.getUTCDate(),
         ),
       );
       try {
