@@ -76,7 +76,8 @@ export async function createRetentionAction(
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(data.companyId);
 
-    const retYear = data.invoiceDate.getFullYear();
+    // Fecha de NEGOCIO: getters UTC — alimenta el guard de ejercicio cerrado (R-3).
+    const retYear = data.invoiceDate.getUTCFullYear();
     const retYearClosed = await FiscalYearCloseService.isFiscalYearClosed(data.companyId, retYear);
     if (retYearClosed) {
       return {
@@ -126,12 +127,14 @@ export async function createRetentionAction(
     });
     if (activePeriod) {
       const periodStart = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, 1));
-      const lastDay = new Date(Date.UTC(activePeriod.year, activePeriod.month, 0)).getDate();
+      // getUTCDate: la fecha se construye con Date.UTC, leerla en local devolvía el
+      // día ANTERIOR en zonas negativas (30 en vez de 31) y recortaba el período.
+      const lastDay = new Date(Date.UTC(activePeriod.year, activePeriod.month, 0)).getUTCDate();
       const periodEnd = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, lastDay, 23, 59, 59));
       const invDate = new Date(Date.UTC(
-        data.invoiceDate.getFullYear(),
-        data.invoiceDate.getMonth(),
-        data.invoiceDate.getDate()
+        data.invoiceDate.getUTCFullYear(),
+        data.invoiceDate.getUTCMonth(),
+        data.invoiceDate.getUTCDate()
       ));
       if (invDate < periodStart || invDate > periodEnd) {
         const mm = String(activePeriod.month).padStart(2, "0");
@@ -665,7 +668,7 @@ export async function getRetentionReconciliationAction(
     if (!ctx.ok) return ctx.error;
 
     const periodStart = new Date(Date.UTC(year, month - 1, 1));
-    const lastDay = new Date(Date.UTC(year, month, 0)).getDate();
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const periodEnd = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59, 999));
 
     // Retenciones del período

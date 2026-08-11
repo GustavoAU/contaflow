@@ -74,8 +74,8 @@ export async function createCreditNote(
 
       // Fix A2: período CLOSED guard (R-3) + auto-assign periodId (igual que createInvoice)
       const ncDate = new Date(data.date);
-      const ncYear = ncDate.getFullYear();
-      const ncMonth = ncDate.getMonth() + 1;
+      const ncYear = ncDate.getUTCFullYear();
+      const ncMonth = ncDate.getUTCMonth() + 1;
       const periodForDate = await tx.accountingPeriod.findFirst({
         where: { companyId, year: ncYear, month: ncMonth },
         select: { id: true, status: true, year: true, month: true },
@@ -309,8 +309,8 @@ export async function createDebitNote(
 
       // Fix A2: período CLOSED guard (R-3) + auto-assign periodId
       const ndDate = new Date(data.date);
-      const ndYear = ndDate.getFullYear();
-      const ndMonth = ndDate.getMonth() + 1;
+      const ndYear = ndDate.getUTCFullYear();
+      const ndMonth = ndDate.getUTCMonth() + 1;
       const ndPeriodForDate = await tx.accountingPeriod.findFirst({
         where: { companyId, year: ndYear, month: ndMonth },
         select: { id: true, status: true, year: true, month: true },

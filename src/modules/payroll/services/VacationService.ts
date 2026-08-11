@@ -125,14 +125,14 @@ export const VacationService = {
     const period = await prisma.accountingPeriod.findFirst({
       where: {
         companyId,
-        year: startDateObj.getFullYear(),
-        month: startDateObj.getMonth() + 1,
+        year: startDateObj.getUTCFullYear(),
+        month: startDateObj.getUTCMonth() + 1,
         status: "OPEN",
       },
     });
     if (!period) {
       throw new Error(
-        `El período contable ${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")} está cerrado o no existe`
+        `El período contable ${startDateObj.getUTCFullYear()}-${String(startDateObj.getUTCMonth() + 1).padStart(2, "0")} está cerrado o no existe`
       );
     }
 
@@ -396,7 +396,7 @@ export const VacationService = {
     const annualBonusDays = Math.max(7, 6 + yearsOfService);
 
     // Meses completos en el año de servicio actual (ADR-014 Dec. 8)
-    const yearStart = new Date(terminationDate.getFullYear(), 0, 1);
+    const yearStart = new Date(Date.UTC(terminationDate.getUTCFullYear(), 0, 1));
     const referenceStart = terminationDate > yearStart ? yearStart : hireDate;
     const monthsInYear = countCompleteMonths(referenceStart, terminationDate);
 

@@ -74,7 +74,7 @@ async function generateTxNumber(
   companyId: string,
   date: Date,
 ): Promise<string> {
-  const year = date.getFullYear();
+  const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const prefix = `${year}-${month}-`;
 

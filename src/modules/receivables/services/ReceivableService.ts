@@ -462,7 +462,7 @@ export class ReceivableService {
         if (!payment) throw new Error("Pago no encontrado o ya cancelado");
 
         // Guard: año fiscal cerrado
-        const invoiceYear = payment.invoice.date.getFullYear();
+        const invoiceYear = payment.invoice.date.getUTCFullYear();
         const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
         if (yearClosed) {
           throw new Error(

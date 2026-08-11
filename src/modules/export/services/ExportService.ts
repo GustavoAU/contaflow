@@ -272,21 +272,14 @@ async function fetchForma30(params: ExportDataParams) {
   const rows: Record<string, unknown>[] = [];
 
   // Enumerate each month in [dateFrom, dateTo]
-  const start = new Date(
-    params.dateFrom.getFullYear(),
-    params.dateFrom.getMonth(),
-    1
-  );
-  const end = new Date(
-    params.dateTo.getFullYear(),
-    params.dateTo.getMonth(),
-    1
-  );
+  // Fechas de NEGOCIO: leer y construir en UTC de punta a punta.
+  const start = new Date(Date.UTC(params.dateFrom.getUTCFullYear(), params.dateFrom.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(params.dateTo.getUTCFullYear(), params.dateTo.getUTCMonth(), 1));
 
   const cursor = new Date(start);
   while (cursor <= end) {
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth() + 1; // 1-12
+    const year = cursor.getUTCFullYear();
+    const month = cursor.getUTCMonth() + 1; // 1-12
     try {
       const result = await DeclaracionIVAService.calculate(
         params.companyId,
@@ -331,7 +324,7 @@ async function fetchForma30(params: ExportDataParams) {
       });
     }
     // advance one month
-    cursor.setMonth(cursor.getMonth() + 1);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
 
   return rows;

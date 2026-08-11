@@ -9,8 +9,9 @@ import type { Prisma } from "@prisma/client";
 type Tx = Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
 export async function getNextJournalNumber(tx: Tx, companyId: string, date: Date): Promise<string> {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  // Fecha de NEGOCIO: getters UTC (se persiste a medianoche UTC).
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
 
   const seq = await tx.$queryRaw<[{ last_number: number }]>`
     INSERT INTO "JournalSequence" ("id", "companyId", "year", "month", "lastNumber")

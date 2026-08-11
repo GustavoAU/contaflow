@@ -206,7 +206,8 @@ export class PaymentService {
     if (invoice.paymentStatus === "PAID") throw new Error("La factura ya está completamente pagada");
 
     // Guard: año fiscal cerrado (paridad con ReceivableService.recordPayment)
-    const invoiceYear = invoice.date.getFullYear();
+    // Fecha de NEGOCIO: getters UTC (R-3).
+    const invoiceYear = invoice.date.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
     if (yearClosed) {
       throw new Error(
@@ -257,7 +258,8 @@ export class PaymentService {
     if (!invoice) throw new Error("Factura no encontrada o no pertenece a esta empresa");
 
     // Guard: año fiscal cerrado (paridad con ReceivableService.cancelPayment)
-    const invoiceYear = invoice.date.getFullYear();
+    // Fecha de NEGOCIO: getters UTC (R-3).
+    const invoiceYear = invoice.date.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
     if (yearClosed) {
       throw new Error(
