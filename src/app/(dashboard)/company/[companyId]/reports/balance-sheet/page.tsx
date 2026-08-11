@@ -6,6 +6,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
+import { todayForCompany } from "@/lib/today-server";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -90,7 +91,8 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
 
   // Sin fecha de corte → redirige a hoy para que la URL siempre refleje el período real (hallazgo #6)
   if (!to) {
-    const today = new Date().toISOString().split("T")[0];
+    // "Hoy" en la zona de la empresa — en UTC saltaba al día siguiente desde las 20:00 VET
+    const today = await todayForCompany(companyId);
     redirect(`/company/${companyId}/reports/balance-sheet?to=${today}`);
   }
 

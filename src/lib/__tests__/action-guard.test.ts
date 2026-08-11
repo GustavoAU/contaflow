@@ -113,11 +113,55 @@ describe("requireCompanyAction — membresía (paso 3)", () => {
       success: false,
       error: "Empresa no encontrada o acceso denegado",
     });
-    // companyId autoritativo desde BD (ADR-004)
+    // companyId autoritativo desde BD (ADR-004); country del mismo query (ADR-042 D-2)
     expect(prisma.companyMember.findFirst).toHaveBeenCalledWith({
       where: { companyId: COMPANY_ID, userId: USER_ID },
-      select: { role: true },
+      select: { role: true, company: { select: { country: true } } },
     });
+  });
+});
+
+describe("requireCompanyAction — país (paso 5, ADR-042 D-2)", () => {
+  it("devuelve el country de la empresa cuando el query lo trae", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ACCOUNTANT",
+      company: { country: "VEN" },
+    } as never);
+
+    const ctx = await requireCompanyAction(COMPANY_ID, { roles: ROLES.ACCOUNTING });
+
+    expect(ctx.ok).toBe(true);
+    if (!ctx.ok) throw new Error("unreachable");
+    expect(ctx.country).toBe("VEN");
+  });
+
+  it("mock legacy sin company anidada → fallback VEN (el único fallback silencioso)", async () => {
+    // Los ~160 tests de actions existentes mockean findFirst con solo { role }.
+    // Sin este fallback, TODOS romperían a la vez. Documentado en ADR-042.
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ACCOUNTANT",
+    } as never);
+
+    const ctx = await requireCompanyAction(COMPANY_ID, { roles: ROLES.ACCOUNTING });
+
+    expect(ctx.ok).toBe(true);
+    if (!ctx.ok) throw new Error("unreachable");
+    expect(ctx.country).toBe("VEN");
+  });
+
+  it("country no soportado en BD → fallback VEN en vez de tumbar la action", async () => {
+    // getFiscalConfig SÍ lanza ante país no soportado; el guard no puede — dejaría
+    // a la empresa entera sin ninguna action operativa.
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ACCOUNTANT",
+      company: { country: "XXX" },
+    } as never);
+
+    const ctx = await requireCompanyAction(COMPANY_ID, { roles: ROLES.ACCOUNTING });
+
+    expect(ctx.ok).toBe(true);
+    if (!ctx.ok) throw new Error("unreachable");
+    expect(ctx.country).toBe("VEN");
   });
 });
 
@@ -141,6 +185,7 @@ describe("requireCompanyAction — rol (paso 4, canAccess REAL)", () => {
       ok: true,
       userId: USER_ID,
       role: "ACCOUNTANT",
+      country: "VEN",
       ipAddress: null,
       userAgent: null,
     });

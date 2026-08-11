@@ -26,6 +26,7 @@ import { PayrollPdfReportService, type ConstanciaTrabajoData } from "../services
 import { PayrollBankTxtService } from "../services/PayrollBankTxtService";
 import { MintraReportService } from "../services/MintraReportService";
 import { mapPrismaError } from "@/lib/prisma-errors";
+import { todayForCountry } from "@/lib/today-server";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -345,7 +346,8 @@ export async function exportConstanciaTrabajoAction(
       hireDate: new Date(emp.hireDate).toISOString().slice(0, 10),
       terminationDate: emp.terminationDate ? new Date(emp.terminationDate).toISOString().slice(0, 10) : null,
       salaryMensual: emp.salaryHistory[0]?.amount?.toString() ?? "0.00",
-      issueDate: new Date().toISOString().slice(0, 10),
+      // Fecha impresa en la constancia: la del calendario de la empresa, no la UTC
+      issueDate: todayForCountry(ctx.country),
     };
 
     const buffer = await PayrollPdfReportService.generateConstanciaPdf(data);

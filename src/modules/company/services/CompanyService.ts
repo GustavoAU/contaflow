@@ -7,7 +7,7 @@ export class CompanyService {
   /**
    * Crea una nueva empresa y la vincula al usuario como OWNER (Propietario).
    */
-  static async createCompany(name: string, userId: string, rif?: string, address?: string, scopeProfile?: "SOLO" | "EMPRESA" | "DESPACHO", telefono?: string) {
+  static async createCompany(name: string, userId: string, rif?: string, address?: string, scopeProfile?: "SOLO" | "EMPRESA" | "DESPACHO", telefono?: string, country?: string) {
     // MEDIUM-2: canonicalizar ANTES de buscar y de guardar. El @unique de Postgres
     // compara strings crudos, así que sin esto "J-12345678-9" y "j-123456789"
     // entrarían como dos empresas distintas con la misma identidad fiscal.
@@ -28,6 +28,9 @@ export class CompanyService {
           telefono: telefono ?? null,
           status: "ACTIVE",
           scopeProfile: scopeProfile ?? null,
+          // MP-4 (ADR-042): el action ya validó con isSupportedCountry; el default
+          // del schema Prisma también es "VEN", esto solo lo hace explícito.
+          country: country ?? "VEN",
           members: {
             create: {
               userId,

@@ -7,7 +7,10 @@ import { revalidatePath } from "next/cache";
 
 import prisma, { withDbRetry } from "@/lib/prisma";
 import { CompanyService } from "../services/CompanyService";
-import { VEN_RIF_REGEX } from "@/lib/tax-config";
+// MP-4 (ADR-042): nada de VEN_* aquí — el formato del ID tributario sale de la
+// config del país (getFiscalConfig), que en el alta viene del selector y en la
+// edición SENIAT del guard (ctx.country).
+import { getFiscalConfig, isSupportedCountry, type CountryCode } from "@/lib/countries";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
@@ -39,9 +42,15 @@ const UpdateCompanySeniatSchema = z.object({
 const CreateCompanySchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
+  // MP-4: el país decide el formato del ID tributario. Ausente = "VEN" (callers
+  // legacy); un valor NO soportado es ERROR, nunca coerción silenciosa — en
+  // escritura, coercer input del usuario guardaría algo distinto de lo elegido.
+  country: z.string().optional(),
+  // El formato se valida DESPUÉS del parse, contra taxIdRegex del país elegido
+  // (el schema es estático y el país es dinámico).
   rif: z
     .string()
-    .regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)")
+    .max(20)
     .optional()
     .or(z.literal(""))
     .or(z.undefined()),
@@ -77,12 +86,17 @@ export async function updateCompanySeniatDataAction(
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    // Formato del RIF: estricto solo si cambia (grandfathering de RIF legacy)
+    // Formato del RIF: estricto solo si cambia (grandfathering de RIF legacy).
+    // MP-4: la regex sale del país de la empresa (ctx.country, ADR-042 D-2).
     const current = await prisma.company.findUnique({
       where: { id: validated.companyId },
       select: { rif: true },
     });
-    const rifError = assertRifEditable(validated.rif ?? null, current?.rif ?? null, VEN_RIF_REGEX);
+    const rifError = assertRifEditable(
+      validated.rif ?? null,
+      current?.rif ?? null,
+      getFiscalConfig(ctx.country).taxIdRegex,
+    );
     if (rifError) return { success: false, error: rifError };
 
     const company = await CompanyService.updateSeniatData(validated.companyId, ctx.userId, {
@@ -121,6 +135,24 @@ export async function createCompanyAction(
 
     const validated = CreateCompanySchema.parse(input);
 
+    // MP-4: país soportado o error explícito; ausente = VEN (callers legacy)
+    const country: CountryCode = (() => {
+      if (validated.country === undefined || validated.country === "") return "VEN";
+      if (!isSupportedCountry(validated.country)) {
+        throw Object.assign(new Error("UNSUPPORTED_COUNTRY"), { isUnsupportedCountry: true });
+      }
+      return validated.country;
+    })();
+
+    // Formato del ID tributario según el país elegido
+    const cfg = getFiscalConfig(country);
+    if (validated.rif && !cfg.taxIdRegex.test(validated.rif)) {
+      return {
+        success: false,
+        error: `${cfg.taxIdLabel} inválido (ej: ${cfg.taxIdPlaceholder})`,
+      };
+    }
+
     // withDbRetry: reintenta hasta 2 veces si Neon cierra la conexión durante cold start.
     // El retry espera 2s entre intentos para que PgBouncer tenga tiempo de reconectar.
     const company = await withDbRetry(async () => {
@@ -130,7 +162,7 @@ export async function createCompanyAction(
       if (ownedCount >= COMPANY_LIMIT_PER_USER) {
         throw Object.assign(new Error("PLAN_LIMIT"), { isPlanLimit: true });
       }
-      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile, validated.telefono);
+      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile, validated.telefono, country);
     });
 
     revalidatePath("/dashboard");
@@ -142,6 +174,9 @@ export async function createCompanyAction(
         success: false,
         error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
       };
+    }
+    if (error instanceof Error && (error as Error & { isUnsupportedCountry?: boolean }).isUnsupportedCountry) {
+      return { success: false, error: "País no soportado todavía." };
     }
     return toActionError(error);
   }

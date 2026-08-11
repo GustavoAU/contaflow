@@ -97,10 +97,8 @@ const PERMANENT: string[] = [
  * Al completar una fase: borrar sus entradas. Si sobra alguna, el test avisa.
  */
 const TEMPORAL: Record<string, string> = {
-  // MP-4 — al activar Company.country, el alta de empresa resuelve la config
-  // del país elegido en vez de asumir Venezuela.
-  "src/modules/company/actions/company.actions.ts": "MP-4",
-  "src/components/company/NewCompanyForm.tsx": "MP-4",
+  // (Las 2 entradas MP-4 —company.actions y NewCompanyForm— se cerraron: el alta
+  // resuelve la config del país elegido vía getFiscalConfig, sin aliases VEN_*.)
 
   // MP-5a/5b — schema factories: la regex sale de la config, no del alias.
   "src/modules/invoices/schemas/invoice.schema.ts": "MP-5a",

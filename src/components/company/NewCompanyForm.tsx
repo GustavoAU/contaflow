@@ -1,14 +1,17 @@
 // src/components/company/NewCompanyForm.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2Icon, BuildingIcon, UserIcon, LayoutGridIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { createCompanyAction } from "@/modules/company/actions/company.actions";
-import { VEN_RIF_REGEX } from "@/lib/tax-config";
+// MP-4 (ADR-042): sin constantes VEN_* — etiqueta, placeholder y regex del ID
+// tributario salen de la config del país seleccionado. Aquí no hay empresa aún
+// (es el alta), así que no aplica useFiscalConfig(): el país es estado del form.
+import { getFiscalConfig, SUPPORTED_COUNTRIES, type CountryCode } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 
 type ScopeProfile = "SOLO" | "EMPRESA" | "DESPACHO";
@@ -52,17 +55,21 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
   const [rif, setRif] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [country, setCountry] = useState<CountryCode>("VEN");
   const [profile, setProfile] = useState<ScopeProfile | undefined>(
     (["SOLO", "EMPRESA", "DESPACHO"].includes(initialProfile ?? "") ? initialProfile as ScopeProfile : undefined)
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Config del país elegido: taxIdLabel ("RIF"), placeholder y regex de validación
+  const cfg = useMemo(() => getFiscalConfig(country), [country]);
+
   function validate() {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = "El nombre es obligatorio";
     if (name.trim().length < 2) newErrors.name = "El nombre debe tener al menos 2 caracteres";
-    if (rif.trim() && !VEN_RIF_REGEX.test(rif.trim())) {
-      newErrors.rif = "RIF inválido (ej: J-12345678-9)";
+    if (rif.trim() && !cfg.taxIdRegex.test(rif.trim())) {
+      newErrors.rif = `${cfg.taxIdLabel} inválido (ej: ${cfg.taxIdPlaceholder})`;
     }
     if (!phone.trim()) {
       newErrors.phone = "El teléfono es obligatorio";
@@ -85,6 +92,7 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
       const result = await createCompanyAction({
         name: name.trim(),
         userId,
+        country,
         rif: rif.trim() || undefined,
         address: address.trim() || undefined,
         telefono: phone.trim(),
@@ -147,6 +155,35 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
 
         <div className="h-px bg-zinc-100 dark:bg-zinc-800" />
 
+        {/* País — decide el formato del ID tributario y la config fiscal (ADR-042).
+            Con un solo país soportado el select tiene una opción; cuando exista un
+            segundo país basta registrarlo en SUPPORTED_COUNTRIES. */}
+        <div>
+          <label htmlFor="new-company-country" className="mb-1 block text-sm font-medium text-zinc-700">
+            País <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="new-company-country"
+            value={country}
+            onChange={(e) => {
+              const next = e.target.value as CountryCode;
+              setCountry(next);
+              // La regex del ID tributario cambió: limpiar un error obsoleto
+              setErrors((prev) => {
+                const { rif: _drop, ...rest } = prev;
+                return rest;
+              });
+            }}
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+          >
+            {SUPPORTED_COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Nombre */}
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -164,17 +201,17 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
           {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
         </div>
 
-        {/* RIF */}
+        {/* ID tributario — etiqueta y placeholder según el país (RIF en VEN) */}
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
-            RIF
+            {cfg.taxIdLabel}
             <span className="ml-1 font-normal text-zinc-400">(opcional)</span>
           </label>
           <input
             type="text"
             value={rif}
             onChange={(e) => setRif(e.target.value)}
-            placeholder="Ej: J-12345678-9"
+            placeholder={`Ej: ${cfg.taxIdPlaceholder}`}
             className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
               errors.rif ? "border-red-400" : "border-zinc-300"
             }`}

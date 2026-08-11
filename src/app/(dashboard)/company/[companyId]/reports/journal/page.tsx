@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import type { JournalTransaction } from "@/modules/accounting/actions/report.actions";
 import { fmtVen } from "@/lib/fmt-ven";
+import { todayForCompany } from "@/lib/today-server";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -100,9 +101,10 @@ export default async function JournalPage({ params, searchParams }: Props) {
   let defaultFrom: string | undefined;
   let defaultTo: string | undefined;
   if (!rawFrom && !rawTo) {
-    const now = new Date();
-    defaultFrom = `${now.getUTCFullYear()}-01-01`;
-    defaultTo = now.toISOString().split("T")[0];
+    // "Hoy" y su año en la zona de la empresa (misma corrección que los otros reports)
+    const today = await todayForCompany(companyId);
+    defaultFrom = `${today.slice(0, 4)}-01-01`;
+    defaultTo = today;
   }
 
   // Rango efectivo: parámetros explícitos de la URL o, en su defecto, el año fiscal corriente.
