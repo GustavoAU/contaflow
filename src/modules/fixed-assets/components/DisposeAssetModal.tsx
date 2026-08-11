@@ -18,6 +18,7 @@ import {
   parseMoney,
 } from "../services/disposal-preview";
 import { formatAmount } from "@/lib/format";
+import { todayLocalISO } from "@/lib/today";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ type Props = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return todayLocalISO();
 }
 
 function fmt(d: Decimal): string {

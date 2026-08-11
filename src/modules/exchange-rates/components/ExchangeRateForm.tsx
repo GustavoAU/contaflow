@@ -4,6 +4,7 @@ import { useTransition, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { upsertExchangeRateAction, fetchBcvRateAction } from "../actions/exchange-rate.actions";
 import type { ExchangeRateSummary } from "../services/ExchangeRateService";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -11,7 +12,7 @@ type Props = {
   onSuccess?: (rate: ExchangeRateSummary) => void;
 };
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => todayLocalISO();
 
 export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();

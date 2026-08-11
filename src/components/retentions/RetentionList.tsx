@@ -14,6 +14,7 @@ import {
   type AccountOption,
 } from "@/modules/retentions/actions/retention.actions";
 import { formatAmount } from "@/lib/format";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -42,7 +43,7 @@ function EnterRetentionModal({
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [liabilityAccountId, setLiabilityAccountId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
-  const [enterDate, setEnterDate] = useState(new Date().toISOString().slice(0, 10));
+  const [enterDate, setEnterDate] = useState(todayLocalISO());
 
   useEffect(() => {
     getAccountsForEnteramientoAction(companyId).then((r) => {

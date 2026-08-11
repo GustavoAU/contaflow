@@ -11,6 +11,8 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { QuotationService } from "@/modules/orders/services/QuotationService";
 import { OrderService } from "@/modules/orders/services/OrderService";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
+import { getFiscalConfig, isSupportedCountry } from "@/lib/countries";
+import { todayInTimeZone } from "@/lib/today";
 import { QuotationForm } from "@/modules/orders/components/QuotationForm";
 import { QuotationList } from "@/modules/orders/components/QuotationList";
 import { OrderForm } from "@/modules/orders/components/OrderForm";
@@ -47,11 +49,15 @@ export default async function OrdersPage({ params }: Props) {
   // abierto. Si hoy cae en el período abierto → hoy; si no → último día de ese mes
   // (día alto para evitar el desfase de mes en husos negativos como Venezuela UTC-4).
   // Sin período abierto → hoy (el guard del servidor decide igualmente).
-  let defaultInvoiceDate = new Date().toISOString().split("T")[0]!;
+  // El proceso corre en UTC: "hoy" hay que resolverlo en la zona de la empresa o a
+  // las 20:00 de Venezuela ya devuelve mañana (y el 31 a las 22:00, el mes siguiente).
+  const companyTz = getFiscalConfig(
+    isSupportedCountry(member.company.country) ? member.company.country : "VEN",
+  ).timezone;
+  let defaultInvoiceDate = todayInTimeZone(companyTz);
   if (activePeriod) {
-    const now = new Date();
-    const inOpenPeriod =
-      now.getFullYear() === activePeriod.year && now.getMonth() + 1 === activePeriod.month;
+    const [todayYear, todayMonth] = defaultInvoiceDate.split("-").map(Number);
+    const inOpenPeriod = todayYear === activePeriod.year && todayMonth === activePeriod.month;
     if (!inOpenPeriod) {
       const lastDay = new Date(activePeriod.year, activePeriod.month, 0).getDate();
       defaultInvoiceDate = `${activePeriod.year}-${String(activePeriod.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;

@@ -11,6 +11,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
 import { listUomsAction } from "../actions/inventory-uom.actions";
+import { todayLocalISO } from "@/lib/today";
 
 type ItemOption = {
   id: string;
@@ -153,7 +154,7 @@ export function MovementForm({ companyId, items, counterpartAccounts, currentBcv
     });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalISO();
   const hasAltUnits = units.length > 1;
   const needsCounterpart = movType === "ENTRADA" || movType === "AJUSTE";
 

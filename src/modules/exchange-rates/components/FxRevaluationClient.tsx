@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { todayLocalISO } from "@/lib/today";
 import {
   Select,
   SelectContent,
@@ -72,7 +73,7 @@ export function FxRevaluationClient({
   hasGLConfig,
   openPeriodId,
 }: Props) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
 
   const [currency, setCurrency] = useState<"USD" | "EUR">("USD");
   const [revalRate, setRevalRate] = useState(latestRates.USD ?? "");

@@ -13,6 +13,7 @@ import type { QuotationRow } from "../services/QuotationService";
 import { formatAmount, fmtDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { todayLocalISO } from "@/lib/today";
 
 const CURRENCY_LABEL: Record<string, string> = { VES: "Bs.", USD: "USD $", EUR: "EUR €" };
 const fmtCurrency = (code: string, amount: string) =>
@@ -94,7 +95,7 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white">
           {quotations.map((q) => {
-            const today = new Date().toISOString().split("T")[0]!;
+            const today = todayLocalISO();
             const isExpired =
               q.validUntil &&
               q.validUntil < today &&

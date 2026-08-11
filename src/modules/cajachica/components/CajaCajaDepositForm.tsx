@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createDepositAction } from "../actions/cajachica.actions";
+import { todayLocalISO } from "@/lib/today";
 
 type Account = { id: string; code: string; name: string; type: string };
 
@@ -28,7 +29,7 @@ export function CajaCajaDepositForm({
   onSuccess,
   onCancel,
 }: Props) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocalISO());
   const [sourceAccountId, setSourceAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");

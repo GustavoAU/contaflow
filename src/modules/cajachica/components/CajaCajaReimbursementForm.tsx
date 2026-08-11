@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createReimbursementAction } from "../actions/cajachica.actions";
+import { currentMonthLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -20,7 +21,7 @@ export function CajaCajaReimbursementForm({
   onCancel,
 }: Props) {
   // <input type="month"> devuelve "YYYY-MM" nativamente — justo el formato del schema.
-  const [monthYear, setMonthYear] = useState(new Date().toISOString().slice(0, 7));
+  const [monthYear, setMonthYear] = useState(currentMonthLocalISO());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 

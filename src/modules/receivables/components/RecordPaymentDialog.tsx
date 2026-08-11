@@ -28,6 +28,7 @@ import { listBankAccountsAction, type BankAccountOption } from "@/modules/paymen
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import type { ReceivableRow } from "../services/ReceivableService";
 import { Decimal } from "decimal.js";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -59,7 +60,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
   const [selectedCurrency, setSelectedCurrency] = useState<"VES" | "USD" | "EUR">("VES");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() => todayLocalISO());
   // ADR-032 F2: cuenta bancaria opcional — con ella el pago genera asiento GL automático
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);

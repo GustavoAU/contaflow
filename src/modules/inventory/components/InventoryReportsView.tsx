@@ -16,6 +16,7 @@ import {
 } from "../actions/inventory-reports.actions";
 import type { StockSummary, MovementReportItem, RotationReportItem } from "../services/InventoryReportService";
 import { TopProductsChart } from "./TopProductsChart";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -190,7 +191,7 @@ function MovementsTab({
   companyId: string;
   itemOptions: { id: string; sku: string; name: string }[];
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   const firstOfMonth = today.slice(0, 7) + "-01";
 
   const [from, setFrom] = useState(firstOfMonth);
@@ -413,7 +414,7 @@ function SortIcon({ col, current, dir }: { col: SortKey; current: SortKey; dir: 
 }
 
 function RotationTab({ companyId }: { companyId: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   const firstOfYear = today.slice(0, 4) + "-01-01";
 
   const [from, setFrom] = useState(firstOfYear);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createExportJobAction } from "../actions/export.actions";
 import { Button } from "@/components/ui/button";
 import { DownloadIcon, LoaderIcon, HistoryIcon } from "lucide-react";
+import { toLocalISODate } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -17,16 +18,13 @@ export function ExportForm({ companyId }: Props) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [allHistory, setAllHistory] = useState(false);
 
-  // Default: last 12 months
+  // Default: last 12 months. Fechas en la zona del usuario — con toISOString() el
+  // rango arrancaba un día tarde después de las 20:00 en VET (ver src/lib/today.ts).
   const today = new Date();
-  const defaultDateTo = today.toISOString().split("T")[0];
-  const defaultDateFrom = new Date(
-    today.getFullYear() - 1,
-    today.getMonth(),
-    today.getDate()
-  )
-    .toISOString()
-    .split("T")[0];
+  const defaultDateTo = toLocalISODate(today);
+  const defaultDateFrom = toLocalISODate(
+    new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
+  );
 
   const [dateFrom, setDateFrom] = useState(defaultDateFrom);
   const [dateTo, setDateTo] = useState(defaultDateTo);

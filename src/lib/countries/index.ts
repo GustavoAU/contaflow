@@ -130,6 +130,7 @@ export function toClientFiscalConfig(cfg: FiscalConfig): ClientFiscalConfig {
     currency: cfg.currency,
     currencySymbol: cfg.currencySymbol,
     locale: cfg.locale,
+    timezone: cfg.timezone,
     negativeParens: cfg.negativeParens,
     taxIdLabel: cfg.taxIdLabel,
     taxIdPattern: cfg.taxIdRegex.source,

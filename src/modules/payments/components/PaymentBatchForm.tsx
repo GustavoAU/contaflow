@@ -14,6 +14,7 @@ import { formatAmount } from "@/lib/format";
 import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
 import { listBankAccountsAction, type BankAccountOption } from "../actions/payment.actions";
 import { genIdempotencyKey } from "../utils/idempotency";
+import { todayLocalISO } from "@/lib/today";
 
 type Props = {
   companyId: string;
@@ -44,7 +45,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalISO();
   const [date, setDate] = useState(today);
   const [method, setMethod] = useState<PaymentMethodType>("TRANSFERENCIA");
   const [referenceNumber, setReferenceNumber] = useState("");
