@@ -2,10 +2,11 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { strictDecimal } from "@/lib/zod-helpers";
 
 function isPositiveDecimal(v: string) {
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
   } catch {
     return false;
@@ -14,7 +15,7 @@ function isPositiveDecimal(v: string) {
 
 function isNonNegativeDecimal(v: string) {
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
   } catch {
     return false;
@@ -23,7 +24,7 @@ function isNonNegativeDecimal(v: string) {
 
 function isValidPct(v: string) {
   try {
-    const d = new Decimal(v);
+    const d = strictDecimal(v);
     return d.gte(0) && d.lte(new Decimal("100"));
   } catch {
     return false;

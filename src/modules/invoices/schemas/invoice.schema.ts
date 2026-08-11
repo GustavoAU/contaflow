@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { VEN_RIF_REGEX, MAX_INVOICE_AMOUNT, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
-import { zBusinessDate } from "@/lib/zod-helpers";
+import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export const InvoiceTypeSchema = z.enum(["SALE", "PURCHASE"]);
@@ -44,7 +44,7 @@ export const TaxLineSchema = z
       .refine(
         (v) => {
           try {
-            return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+            return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
           } catch {
             return false;
           }
@@ -58,7 +58,7 @@ export const TaxLineSchema = z
       .refine(
         (v) => {
           try {
-            return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+            return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
           } catch {
             return false;
           }
@@ -121,7 +121,7 @@ export const CreateInvoiceSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+          return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
         }
@@ -136,7 +136,7 @@ export const CreateInvoiceSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+          return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
         }
@@ -151,7 +151,7 @@ export const CreateInvoiceSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+          return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
         }
@@ -164,7 +164,7 @@ export const CreateInvoiceSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
+          return strictDecimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
         }
@@ -267,7 +267,7 @@ export const InvoiceLineInputSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).gt(0);
+          return strictDecimal(v).gt(0);
         } catch {
           return false;
         }
@@ -281,7 +281,7 @@ export const InvoiceLineInputSchema = z.object({
     .refine(
       (v) => {
         try {
-          return new Decimal(v).gte(0);
+          return strictDecimal(v).gte(0);
         } catch {
           return false;
         }

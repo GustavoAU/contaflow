@@ -69,7 +69,7 @@ export default function BenefitAdvanceForm({
       </p>
       <p className="text-xs text-amber-700">
         Máximo permitido: <span className="font-mono font-semibold">{limit75Fmt}</span>{" "}
-        (75% del saldo de garantía {formatAmount(maxAmount)})
+        (75% del saldo de garantía + intereses: {formatAmount(maxAmount)})
       </p>
 
       <div className="grid grid-cols-2 gap-3">

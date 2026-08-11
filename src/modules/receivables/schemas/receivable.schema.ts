@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
-import { zBusinessDate } from "@/lib/zod-helpers";
+import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 export const RecordPaymentSchema = z.object({
   companyId:      z.string().min(1, { error: "companyId requerido" }),
@@ -14,7 +14,7 @@ export const RecordPaymentSchema = z.object({
     .refine(
       (v) => {
         try {
-          const d = new Decimal(v);
+          const d = strictDecimal(v);
           return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
@@ -29,7 +29,7 @@ export const RecordPaymentSchema = z.object({
       (v) => {
         if (!v) return true;
         try {
-          const d = new Decimal(v);
+          const d = strictDecimal(v);
           return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;

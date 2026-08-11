@@ -2,17 +2,18 @@
 
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { strictDecimal } from "@/lib/zod-helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const decimalString = z
   .string()
-  .refine((v) => { try { return new Decimal(v).greaterThan(0); } catch { return false; } },
+  .refine((v) => { try { return strictDecimal(v).greaterThan(0); } catch { return false; } },
     { error: "Debe ser un número positivo" });
 
 const percentageString = z
   .string()
-  .refine((v) => { try { const d = new Decimal(v); return d.greaterThan(0) && d.lessThanOrEqualTo(100); } catch { return false; } },
+  .refine((v) => { try { const d = strictDecimal(v); return d.greaterThan(0) && d.lessThanOrEqualTo(100); } catch { return false; } },
     { error: "Porcentaje debe estar entre 0.01 y 100" });
 
 // ─── Line ─────────────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ export const CreateIncomeDistributionSchema = z
     totalAmountOriginal: decimalString,
     exchangeRate: z
       .string()
-      .refine((v) => { try { return new Decimal(v).greaterThan(0); } catch { return false; } },
+      .refine((v) => { try { return strictDecimal(v).greaterThan(0); } catch { return false; } },
         { error: "Tasa de cambio debe ser positiva" })
       .default("1"),
     originAccountId: z.string().cuid({ error: "Cuenta origen inválida" }),

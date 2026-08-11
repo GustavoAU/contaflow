@@ -19,6 +19,7 @@ import {
 } from "../services/disposal-preview";
 import { formatAmount } from "@/lib/format";
 import { todayLocalISO } from "@/lib/today";
+import { zMoneyAmount } from "@/lib/zod-helpers";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,16 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
 
   // ── Validación ────────────────────────────────────────────────────────────
   function validate(): string | null {
+    // LOW-2: `parseMoney` es indulgente a propósito (devuelve 0 ante basura) y
+    // `toFixed(2)` redondea. Juntos hacían que "abc" se enviara como 0,00 y que
+    // "100.999" llegara al asiento como 101,00 — el servidor nunca veía el valor
+    // tecleado, así que su `zMoneyAmount` no llegaba a rechazarlo. Se valida con
+    // la MISMA regla del servidor antes de normalizar.
+    if (reason === "SALE") {
+      const raw = proceeds.trim() === "" ? "0" : proceeds.trim();
+      if (!zMoneyAmount.safeParse(raw).success)
+        return "Importe de venta inválido: usa solo dígitos y hasta 2 decimales.";
+    }
     if (reason === "SALE" && procNum.greaterThan("0.001") && !proceedsAccId)
       return "Selecciona la cuenta bancaria o CxC donde se recibió el cobro.";
     if (hasGainLoss && !glAccId)

@@ -220,11 +220,26 @@ export class FixedAssetService {
       orderBy: { createdAt: "asc" },
     });
 
+    // LOW-1: la acumulada se calcula SUMANDO los asientos, igual que
+    // `disposeAsset` (aggregate _sum). Antes se leía el snapshot
+    // `accumulatedDepreciation` del último asiento por período, que diverge en
+    // cuanto hay un asiento retroactivo (el "último" por período ya no es el de
+    // saldo mayor) o un ajuste. Esa divergencia se veía en el preview de la baja:
+    // el usuario aprobaba unas cifras y se contabilizaban otras.
+    const sums = await (
+      await import("@/lib/prisma")
+    ).default.depreciationEntry.groupBy({
+      by: ["fixedAssetId"],
+      where: { fixedAssetId: { in: assets.map((a) => a.id) } },
+      _sum: { amount: true },
+    });
+    const accByAsset = new Map(
+      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+    );
+
     return assets.map((a) => {
       const lastEntry = a.entries[0];
-      const accumulated = lastEntry
-        ? new Decimal(lastEntry.accumulatedDepreciation.toString())
-        : new Decimal(0);
+      const accumulated = accByAsset.get(a.id) ?? new Decimal(0);
       const cost = new Decimal(a.acquisitionCost.toString());
 
       return {
@@ -293,17 +308,23 @@ export class FixedAssetService {
     // 1. Activos no-DISPOSED agrupados por cuenta de Dep. Acumulada
     const assets = await prisma.fixedAsset.findMany({
       where: { companyId, status: { not: "DISPOSED" }, deletedAt: null },
-      select: {
-        accDepreciationAccountId: true,
-        entries: {
-          orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
-          take: 1,
-          select: { accumulatedDepreciation: true },
-        },
-      },
+      select: { id: true, accDepreciationAccountId: true },
     });
 
     if (assets.length === 0) return [];
+
+    // LOW-1: misma corrección que en getSummary, y aquí pesa más: esta conciliación
+    // compara el total del módulo contra el saldo del Mayor. Con el snapshot del
+    // último asiento, un asiento retroactivo inventaba una diferencia que no existía
+    // (o tapaba una real). La acumulada se suma, como en disposeAsset.
+    const sums = await prisma.depreciationEntry.groupBy({
+      by: ["fixedAssetId"],
+      where: { fixedAssetId: { in: assets.map((a) => a.id) } },
+      _sum: { amount: true },
+    });
+    const accByAsset = new Map(
+      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+    );
 
     // 2. Agrupar por cuenta — suma depreciación acumulada del módulo
     const moduleGroups = new Map<string, { total: Decimal; count: number }>();
@@ -312,10 +333,7 @@ export class FixedAssetService {
         total: new Decimal(0),
         count: 0,
       };
-      const lastEntry = a.entries[0];
-      const accDep = lastEntry
-        ? new Decimal(lastEntry.accumulatedDepreciation.toString())
-        : new Decimal(0);
+      const accDep = accByAsset.get(a.id) ?? new Decimal(0);
       moduleGroups.set(a.accDepreciationAccountId, {
         total: existing.total.plus(accDep),
         count: existing.count + 1,

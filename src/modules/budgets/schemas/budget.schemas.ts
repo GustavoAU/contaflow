@@ -2,7 +2,7 @@
 // Q3-3: Presupuestos y Proyecciones
 
 import { z } from "zod";
-import { zOptionalText } from "@/lib/zod-helpers";
+import { strictDecimal, zOptionalText } from "@/lib/zod-helpers";
 import Decimal from "decimal.js";
 
 // ── Custom validator: positive Decimal string ─────────────────────────────────
@@ -11,7 +11,7 @@ const zDecimalPositive = z
   .trim()
   .refine((v) => {
     try {
-      return new Decimal(v).gt(0);
+      return strictDecimal(v).gt(0);
     } catch {
       return false;
     }

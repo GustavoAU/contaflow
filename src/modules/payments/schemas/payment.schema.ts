@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
+import { strictDecimal } from "@/lib/zod-helpers";
 
 export const PaymentMethodSchema = z.enum([
   "EFECTIVO",
@@ -28,7 +29,7 @@ export const CreatePaymentSchema = z
     amountVes: z.string().refine(
       (v) => {
         try {
-          const d = new Decimal(v);
+          const d = strictDecimal(v);
           return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
         } catch {
           return false;
@@ -43,7 +44,7 @@ export const CreatePaymentSchema = z
         (v) => {
           if (!v) return true;
           try {
-            const d = new Decimal(v);
+            const d = strictDecimal(v);
             return d.gt(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
           } catch {
             return false;
@@ -83,7 +84,7 @@ export const CreatePaymentSchema = z
         (v) => {
           if (!v) return true;
           try {
-            const d = new Decimal(v);
+            const d = strictDecimal(v);
             return d.gte(0) && d.lte(new Decimal(MAX_INVOICE_AMOUNT));
           } catch {
             return false;

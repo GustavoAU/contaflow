@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { strictDecimal } from "@/lib/zod-helpers";
 
 export const CurrencySchema = z.enum(["USD", "EUR"]);
 export type ForeignCurrency = z.infer<typeof CurrencySchema>;
@@ -10,7 +11,7 @@ export const UpsertExchangeRateSchema = z.object({
   rate: z.string().refine(
     (v) => {
       try {
-        const d = new Decimal(v);
+        const d = strictDecimal(v);
         return d.gt(0) && d.lte(new Decimal("100000")); // reasonable ceiling for VES exchange rate
       } catch {
         return false;
