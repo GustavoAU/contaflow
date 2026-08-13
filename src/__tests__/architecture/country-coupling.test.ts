@@ -100,8 +100,8 @@ const TEMPORAL: Record<string, string> = {
   // (Las 2 entradas MP-4 —company.actions y NewCompanyForm— se cerraron: el alta
   // resuelve la config del país elegido vía getFiscalConfig, sin aliases VEN_*.)
 
-  // MP-5a/5b — schema factories: la regex sale de la config, no del alias.
-  "src/modules/invoices/schemas/invoice.schema.ts": "MP-5a",
+  // MP-5b — schema factories: la regex sale de la config, no del alias.
+  // (invoice.schema se cerró en MP-5a: getInvoiceSchemas(cfg) + ancla VEN.)
   "src/modules/vendors/schemas/vendor.schemas.ts": "MP-5b",
   "src/modules/cajachica/schemas/cajachica.schema.ts": "MP-5b",
 

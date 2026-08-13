@@ -157,3 +157,45 @@ export const zBusinessDateString = z
   .refine((v) => inBusinessRange(new Date(v)), {
     error: "Fecha inválida o fuera del rango permitido (1900–2100)",
   });
+
+// ─── Campos fiscales por país (ADR-042 D-1) ───────────────────────────────────
+// El formato del ID tributario y del Nº de control lo decide el país, no el
+// módulo. Estos helpers reciben la `FiscalConfig` para que un schema pueda
+// construirse por país sin importar constantes VEN_*.
+//
+// Precedente de estilo: zBusinessDate — helper parametrizado, un solo sitio donde
+// vive la regla.
+
+/**
+ * ID tributario obligatorio (RIF en VEN, NIT en COL) validado contra el país.
+ *
+ * El mensaje se deriva de la config (`taxIdLabel` + `taxIdPlaceholder`), así que
+ * un país nuevo no exige tocar ni un string de este archivo.
+ */
+export function zTaxId(cfg: TaxIdConfig) {
+  return z
+    .string()
+    .min(1, { error: `El ${cfg.taxIdLabel} es requerido` })
+    .regex(cfg.taxIdRegex, {
+      error: `${cfg.taxIdLabel} inválido. Formato: ${cfg.taxIdPlaceholder}`,
+    });
+}
+
+/**
+ * Valida el Nº de control del país sobre un string ya presente.
+ *
+ * Devuelve `null` si es válido (o si el país NO exige Nº de control) y el mensaje
+ * de error si no lo es. Se expone como predicado en vez de schema porque los
+ * call sites lo usan dentro de un `superRefine` condicional — en VEN el Nº de
+ * control solo es obligatorio en COMPRAS.
+ */
+export function checkControlNumber(cfg: ControlNumberConfig, value: string): string | null {
+  if (!cfg.controlNumberRegex) return null; // el país no usa Nº de control
+  if (cfg.controlNumberRegex.test(value)) return null;
+  return `Nº Control inválido. Formato: ${cfg.controlNumberPlaceholder ?? "00-00000001"}`;
+}
+
+/** Subconjunto de FiscalConfig que necesita zTaxId — evita acoplar el helper al tipo entero. */
+type TaxIdConfig = { taxIdLabel: string; taxIdRegex: RegExp; taxIdPlaceholder: string };
+/** Subconjunto de FiscalConfig que necesita checkControlNumber. */
+type ControlNumberConfig = { controlNumberRegex?: RegExp; controlNumberPlaceholder?: string };

@@ -11,7 +11,10 @@ import { getNextControlNumber } from "../services/InvoiceSequenceService";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
-import { CreateInvoiceSchema, InvoiceBookFilterSchema, CreateCreditDebitNoteSchema } from "../schemas/invoice.schema";
+import { z } from "zod";
+import { InvoiceBookFilterSchema, getInvoiceSchemas } from "../schemas/invoice.schema";
+import type { CreateInvoiceInput } from "../schemas/invoice.schema";
+import { getFiscalConfig } from "@/lib/countries";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import type { Currency } from "@prisma/client";
@@ -30,21 +33,44 @@ import { assertWriteAllowed, READ_ONLY_MESSAGE } from "@/modules/billing/service
 import { put } from "@vercel/blob";
 import { createHash } from "crypto";
 
+// MP-5a (ADR-042 D-1): el schema definitivo depende del país, y el país sale del
+// guard — que a su vez necesita el companyId. Se extrae SOLO el companyId primero
+// (mínimo indispensable), y la validación completa ocurre ya con el país resuelto.
+// Efecto colateral bueno: autenticación y rate limit pasan a correr ANTES de la
+// validación completa, en vez de después.
+const CompanyIdOnlySchema = z.object({ companyId: z.string().min(1) });
+
+function companyIdOf(input: unknown): string | null {
+  const parsed = CompanyIdOnlySchema.safeParse(input);
+  return parsed.success ? parsed.data.companyId : null;
+}
+
 // ─── Crear factura ─────────────────────────────────────────────────────────────
 export async function createInvoiceAction(input: unknown) {
-  const parsed = CreateInvoiceSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues[0].message };
-  }
+  const companyId = companyIdOf(input);
+  if (!companyId) return { success: false as const, error: "La empresa es requerida" };
+
+  // El catch necesita los datos parseados (Z-1: P2002 del correlativo, e
+  // idempotencia), pero el parse pasó a vivir DENTRO del try porque depende del
+  // país. Esta referencia los deja accesibles desde el manejador de errores.
+  let data: CreateInvoiceInput | null = null;
 
   try {
-    const ctx = await requireCompanyAction(parsed.data.companyId, {
+    const ctx = await requireCompanyAction(companyId, {
       roles: "MEMBER_ANY",
       limiter: limiters.fiscal,
       captureNet: true,
     });
     if (!ctx.ok) return ctx.error;
     const { userId, ipAddress, userAgent } = ctx;
+
+    // Validación completa con el schema del país (ADR-042 D-1)
+    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).create.safeParse(input);
+    if (!parsed.success) {
+      return { success: false as const, error: parsed.error.issues[0].message };
+    }
+    data = parsed.data;
+
     // ADR-025: verifica acceso base + grants granulares al módulo de Facturación
     if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
@@ -163,13 +189,13 @@ export async function createInvoiceAction(input: unknown) {
     if (error instanceof Error) {
       if (isPrismaError(error, "P2002")) {
         // H-002 Z-1: P2002 en secuencia de Nº Control (upsert concurrente en ControlNumberSequence)
-        if (parsed.data.type === "SALE" && (error.meta?.target as string[] | undefined)?.includes("controlNumber")) {
+        if (data?.type === "SALE" && (error.meta?.target as string[] | undefined)?.includes("controlNumber")) {
           return { success: false as const, error: "Error transitorio al generar Nº Control — intenta de nuevo." };
         }
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
-        if (parsed.data.idempotencyKey) {
+        if (data?.idempotencyKey) {
           const existing = await prisma.invoice.findFirst({
-            where: { idempotencyKey: parsed.data.idempotencyKey, companyId: parsed.data.companyId },
+            where: { idempotencyKey: data.idempotencyKey, companyId: data.companyId },
             select: { id: true },
           });
           if (existing) return { success: true as const, data: existing.id, stockWarnings: undefined };
@@ -415,21 +441,23 @@ export async function exportInvoiceXMLAction(
 
 // ─── Crear Nota de Crédito ─────────────────────────────────────────────────────
 export async function createCreditNoteAction(input: unknown) {
-  // Parse primero para disponer de companyId en el rate-limit composite (Z-1)
-  const parsed = CreateCreditDebitNoteSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues[0].message };
-  }
+  // companyId primero para el rate-limit compuesto (Z-1) y para resolver el país
+  const companyId = companyIdOf(input);
+  if (!companyId) return { success: false as const, error: "La empresa es requerida" };
 
   try {
-    const companyId = parsed.data.companyId;
-
     const ctx = await requireCompanyAction(companyId, {
       roles: "MEMBER_ANY",
       limiter: limiters.fiscal,
       captureNet: true,
     });
     if (!ctx.ok) return ctx.error;
+
+    // Validación completa con el schema del país (ADR-042 D-1)
+    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse(input);
+    if (!parsed.success) {
+      return { success: false as const, error: parsed.error.issues[0].message };
+    }
     const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
     if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
@@ -461,21 +489,23 @@ export async function createCreditNoteAction(input: unknown) {
 
 // ─── Crear Nota de Débito ──────────────────────────────────────────────────────
 export async function createDebitNoteAction(input: unknown) {
-  // Parse primero para disponer de companyId en el rate-limit composite (Z-1)
-  const parsed = CreateCreditDebitNoteSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false as const, error: parsed.error.issues[0].message };
-  }
+  // companyId primero para el rate-limit compuesto (Z-1) y para resolver el país
+  const companyId = companyIdOf(input);
+  if (!companyId) return { success: false as const, error: "La empresa es requerida" };
 
   try {
-    const companyId = parsed.data.companyId;
-
     const ctx = await requireCompanyAction(companyId, {
       roles: "MEMBER_ANY",
       limiter: limiters.fiscal,
       captureNet: true,
     });
     if (!ctx.ok) return ctx.error;
+
+    // Validación completa con el schema del país (ADR-042 D-1)
+    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse(input);
+    if (!parsed.success) {
+      return { success: false as const, error: parsed.error.issues[0].message };
+    }
     const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
     if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {

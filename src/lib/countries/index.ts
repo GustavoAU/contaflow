@@ -37,6 +37,26 @@ const PROVIDERS: Record<CountryCode, () => FiscalProvider> = {
   VEN: () => new VenezuelaFiscalProvider(),
 };
 
+/**
+ * País de las **anclas de compatibilidad** de los schemas (ADR-042 D-1).
+ *
+ * No es "el país de la aplicación": es el país cuyo juego de schemas se exporta
+ * como const para fijar los tipos inferidos y servir a los call sites que no
+ * tienen país a mano (componentes cliente, tests). Coincide con VEN porque es el
+ * primer país implementado; el día que eso cambie, se cambia aquí.
+ *
+ * Existe con nombre propio para que los schemas NO importen `VEN_FISCAL_CONFIG`:
+ * así el ratchet de `country-coupling` sigue vigilando esos archivos y detecta
+ * cualquier acoplamiento venezolano REAL que se cuele en ellos, en vez de quedar
+ * ciego por una excepción de archivo completo.
+ */
+export const DEFAULT_COUNTRY: CountryCode = "VEN";
+
+/** Config del país de las anclas de compatibilidad. Ver `DEFAULT_COUNTRY`. */
+export function getDefaultFiscalConfig(): FiscalConfig {
+  return FISCAL_CONFIGS[DEFAULT_COUNTRY];
+}
+
 /** Países disponibles para el selector de empresa */
 export const SUPPORTED_COUNTRIES: Array<{ code: CountryCode; name: string }> = (
   Object.keys(FISCAL_CONFIGS) as CountryCode[]

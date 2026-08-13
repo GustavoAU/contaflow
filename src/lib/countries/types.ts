@@ -129,6 +129,8 @@ export type FiscalConfig = {
   taxAuthorityName: string;
   /** Regex del número de control de documentos fiscales, si el país lo exige */
   controlNumberRegex?: RegExp;
+  /** Ejemplo del Nº de control para placeholders y mensajes ("00-00000001") */
+  controlNumberPlaceholder?: string;
 
   // ── Impuestos ──
   taxRates: TaxRates;
@@ -139,6 +141,16 @@ export type FiscalConfig = {
   taxLineRates: Record<string, TaxLineRateInfo>;
   /** Clave por defecto en `taxLineRates` al crear una línea nueva */
   defaultTaxLineType: string;
+  /**
+   * Alícuotas (en %) seleccionables como tasa de UN ítem en cotizaciones y
+   * órdenes.
+   *
+   * NO se deriva de `taxLineRates` porque no todas las alícuotas existen por sí
+   * solas: el IVA Adicional venezolano (15%) es un RECARGO que siempre acompaña
+   * al General — nunca es la tasa de un ítem suelto. De ahí que en VEN esta
+   * lista sea ["0", "8", "16"] y no incluya el 15.
+   */
+  itemTaxRatePercents: string[];
 
   capabilities: FiscalCapabilities;
 };

@@ -12,7 +12,8 @@ import { revalidatePath } from "next/cache";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { CreateQuotationSchema } from "../schemas/quotation.schema";
+import { getQuotationSchemas } from "../schemas/quotation.schema";
+import { getFiscalConfig } from "@/lib/countries";
 import { QuotationService } from "../services/QuotationService";
 import { type QuotationType, type QuotationStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
@@ -30,7 +31,8 @@ export async function createQuotationAction(
   });
   if (!ctx.ok) return ctx.error;
 
-  const parsed = CreateQuotationSchema.safeParse(raw);
+  // Schema del país de la empresa (ADR-042 D-1) — ctx.country viene del guard
+  const parsed = getQuotationSchemas(getFiscalConfig(ctx.country)).create.safeParse(raw);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
