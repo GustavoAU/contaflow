@@ -1,9 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/invoices/page.tsx
-import { currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PlusIcon, ScanIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 import { InvoiceBook } from "@/components/invoices/InvoiceBook";
 import { Button } from "@/components/ui/button";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
@@ -14,21 +13,16 @@ type Props = {
 
 export default async function InvoicesPage({ params }: Props) {
   const { companyId } = await params;
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
 
-  const [company, activePeriod] = await Promise.all([
-    prisma.company.findUnique({
-      where: { id: companyId },
-      select: { name: true },
-    }),
+  // ADR-004: el nombre sale de la membresía, no de un findUnique por id suelto
+  const [{ company }, activePeriod] = await Promise.all([
+    requireCompanyPage(companyId, { name: true }),
     prisma.accountingPeriod.findFirst({
       where: { companyId, status: "OPEN" },
       orderBy: [{ year: "desc" }, { month: "desc" }],
       select: { month: true, year: true },
     }),
   ]);
-  if (!company) redirect("/dashboard");
 
   const fiscalTabs = [
     { label: "Libros IVA",    href: `/company/${companyId}/invoices` },

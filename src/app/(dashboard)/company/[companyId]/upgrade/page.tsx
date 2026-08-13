@@ -8,7 +8,7 @@ import {
   pricingProfileFor,
   type PaidPlan,
 } from "@/modules/billing/services/BillingService";
-import prisma from "@/lib/prisma";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -71,11 +71,10 @@ function usd0(cents: number): string {
 export default async function UpgradePage({ params }: Props) {
   const { companyId } = await params;
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { scopeProfile: true },
-  });
-  const scopeProfile = company?.scopeProfile ?? null;
+  // Esta página no tenía NINGÚN check de autorización: leía el perfil de
+  // cualquier companyId de la URL. El guard lo ata a la membresía (ADR-004).
+  const { company } = await requireCompanyPage(companyId, { scopeProfile: true });
+  const scopeProfile = company.scopeProfile ?? null;
   const pricingLabel = pricingProfileFor(scopeProfile) === "SOLO" ? "Individual" : "Empresa";
 
   // Solo los planes disponibles para el perfil (SOLO no tiene Early Adopter).
