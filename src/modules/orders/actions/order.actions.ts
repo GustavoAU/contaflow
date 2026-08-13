@@ -14,7 +14,8 @@ import { revalidatePath } from "next/cache";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { CreateOrderSchema, ConvertOrderSchema } from "../schemas/order.schema";
+import { getOrderSchemas, ConvertOrderSchema } from "../schemas/order.schema";
+import { getFiscalConfig } from "@/lib/countries";
 import { OrderService } from "../services/OrderService";
 import { type QuotationType, type OrderStatus } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
@@ -32,7 +33,8 @@ export async function createOrderAction(
   });
   if (!ctx.ok) return ctx.error;
 
-  const parsed = CreateOrderSchema.safeParse(raw);
+  // Schema del país de la empresa (ADR-042 D-1) — ctx.country viene del guard
+  const parsed = getOrderSchemas(getFiscalConfig(ctx.country)).create.safeParse(raw);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 

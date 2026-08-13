@@ -31,6 +31,7 @@ export const VEN_FISCAL_CONFIG: FiscalConfig = {
   taxAuthorityName: "SENIAT",
   // Nº Control — Providencia 0071 Art. 14: XX-XXXXXXXX
   controlNumberRegex: /^\d{2}-\d{8}$/,
+  controlNumberPlaceholder: "00-00000001",
 
   // ── Impuestos ──
   taxRates: {
@@ -49,6 +50,9 @@ export const VEN_FISCAL_CONFIG: FiscalConfig = {
     EXENTO: { rate: "0", percent: "0", label: "Exento (0%)" },
   },
   defaultTaxLineType: "IVA_GENERAL",
+  // Sin el 15: el IVA Adicional de lujo es un recargo sobre el General (Art. 61
+  // LIVA), no una alícuota que un ítem pueda llevar sola.
+  itemTaxRatePercents: ["0", "8", "16"],
 
   // Venezuela implementa todas las figuras: el filtro por país es la identidad.
   capabilities: {
