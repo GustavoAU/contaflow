@@ -1,7 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/inflation/page.tsx
-import { notFound } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 import { INPCService } from "@/modules/inflation/services/INPCService";
 import { INPCRateForm } from "@/modules/inflation/components/INPCRateForm";
 import { INPCRateTable } from "@/modules/inflation/components/INPCRateTable";
@@ -12,17 +11,16 @@ type Props = { params: Promise<{ companyId: string }> };
 
 export default async function InflationPage({ params }: Props) {
   const { companyId } = await params;
-  const { userId } = await auth();
-  if (!userId) notFound();
 
-  const [member, company, rates, equityAccounts, repomoAccounts] = await Promise.all([
-    prisma.companyMember.findFirst({
-      where: { companyId, userId },
-      select: { role: true },
-    }),
-    prisma.company.findUnique({
-      where: { id: companyId },
-      select: { id: true, name: true, inflationBaseYear: true, inflationBaseMonth: true },
+  // La membresía y los datos de la empresa eran DOS queries concurrentes: la fila
+  // ajena se cargaba aunque el check posterior la descartara. Ahora es una sola,
+  // atada al usuario (ADR-004).
+  const [{ company, role }, rates, equityAccounts, repomoAccounts] = await Promise.all([
+    requireCompanyPage(companyId, {
+      id: true,
+      name: true,
+      inflationBaseYear: true,
+      inflationBaseMonth: true,
     }),
     INPCService.getRates(companyId, prisma),
     prisma.account.findMany({
@@ -38,9 +36,7 @@ export default async function InflationPage({ params }: Props) {
     }),
   ]);
 
-  if (!member || !company) notFound();
-
-  const isAdmin = member.role === "ADMIN";
+  const isAdmin = role === "ADMIN";
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">

@@ -1,9 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/invoices/new/page.tsx
-import { currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 import { InvoiceForm } from "@/components/invoices/InvoiceForm";
 import { PrerequisiteGuide } from "@/components/guides/PrerequisiteGuide";
 
@@ -13,21 +12,16 @@ type Props = {
 
 export default async function NewInvoicePage({ params }: Props) {
   const { companyId } = await params;
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
 
-  const [period, company] = await Promise.all([
+  // ADR-004: `isSpecialContributor` es un atributo fiscal — se lee a través de
+  // la membresía, no con el companyId crudo de la URL
+  const [period, { company, userId }] = await Promise.all([
     prisma.accountingPeriod.findFirst({
       where: { companyId, status: "OPEN" },
       orderBy: { year: "desc" },
     }),
-    prisma.company.findUnique({
-      where: { id: companyId },
-      select: { isSpecialContributor: true },
-    }),
+    requireCompanyPage(companyId, { isSpecialContributor: true }),
   ]);
-
-  if (!company) redirect("/dashboard");
 
   if (!period) {
     return (
@@ -68,7 +62,7 @@ export default async function NewInvoicePage({ params }: Props) {
       <div className="max-w-2xl">
         <InvoiceForm
           companyId={companyId}
-          userId={user.id}
+          userId={userId}
           periodId={period.id}
           isSpecialContributor={company.isSpecialContributor}
         />

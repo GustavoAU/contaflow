@@ -1,9 +1,7 @@
 // src/app/(dashboard)/company/[companyId]/invoices/upload/page.tsx
-import { currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 import { InvoiceUploader } from "@/components/ocr/InvoiceUploader";
 
 type Props = {
@@ -12,21 +10,10 @@ type Props = {
 
 export default async function InvoiceUploadPage({ params }: Props) {
   const { companyId } = await params;
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
 
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: { name: true },
-  });
-  if (!company) redirect("/dashboard");
-
-  // Verificar membresía
-  const member = await prisma.companyMember.findFirst({
-    where: { companyId, userId: user.id },
-    select: { role: true },
-  });
-  if (!member) redirect("/dashboard");
+  // El check de membresía ya existía, pero DESPUÉS de leer la empresa: la fila
+  // ajena se cargaba igual. Ahora ambas cosas son la misma query (ADR-004).
+  const { company } = await requireCompanyPage(companyId, { name: true });
 
   return (
     <div className="space-y-6">
