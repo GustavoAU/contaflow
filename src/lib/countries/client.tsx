@@ -19,7 +19,7 @@ import { VEN_FISCAL_CONFIG, toClientFiscalConfig } from "./index";
  * (`.source`) porque una RegExp no cruza la frontera RSC; el hook las rearma.
  */
 export type FiscalUIConfig = ClientFiscalConfig & {
-  /** Reconstruida de `taxIdPattern` con flag "i" (el RIF acepta minúsculas) */
+  /** Reconstruida de `taxIdPattern` + `taxIdFlags` */
   taxIdRegex: RegExp;
   /** Reconstruida de `controlNumberPattern`; null si el país no exige Nº control */
   controlNumberRegex: RegExp | null;
@@ -43,11 +43,15 @@ export function useFiscalConfig(): FiscalUIConfig {
   const fromProvider = useContext(FiscalConfigContext);
   return useMemo(() => {
     const cfg = fromProvider ?? toClientFiscalConfig(VEN_FISCAL_CONFIG);
+    // INFO-1 (auditoría MP-4): los flags vienen serializados, no hardcodeados.
+    // Antes el cliente asumía "i" para el ID tributario y ninguno para el Nº de
+    // control; coincidía con VEN por casualidad, y el primer país con una regex
+    // case-sensitive habría validado distinto en cliente que en servidor.
     return {
       ...cfg,
-      taxIdRegex: new RegExp(cfg.taxIdPattern, "i"),
+      taxIdRegex: new RegExp(cfg.taxIdPattern, cfg.taxIdFlags),
       controlNumberRegex: cfg.controlNumberPattern
-        ? new RegExp(cfg.controlNumberPattern)
+        ? new RegExp(cfg.controlNumberPattern, cfg.controlNumberFlags ?? "")
         : null,
     };
   }, [fromProvider]);

@@ -10,7 +10,12 @@
 import { describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
 import { FiscalUIProvider, useFiscalConfig, type FiscalUIConfig } from "../client";
-import { getFiscalConfig, toClientFiscalConfig, VEN_FISCAL_CONFIG } from "../index";
+import {
+  getFiscalConfig,
+  toClientFiscalConfig,
+  SUPPORTED_COUNTRIES,
+  VEN_FISCAL_CONFIG,
+} from "../index";
 
 /** Renderiza un componente que captura el valor del hook. */
 function capture(ui: (probe: React.ReactNode) => React.ReactNode): FiscalUIConfig {
@@ -39,6 +44,28 @@ describe("useFiscalConfig", () => {
     ));
     expect(cfg.countryCode).toBe("VEN");
     expect(cfg.timezone).toBe("America/Caracas");
+  });
+
+  // INFO-1: el test de abajo pasaba por casualidad cuando los flags se
+  // hardcodeaban ("i" para taxId, ninguno para controlNumber) porque VEN es
+  // justo así. Este cierra el hueco de verdad: source Y flags deben viajar,
+  // para TODO país registrado.
+  it("source y flags sobreviven la serialización, en todo país registrado", () => {
+    for (const { code } of SUPPORTED_COUNTRIES) {
+      const server = getFiscalConfig(code);
+      const client = toClientFiscalConfig(server);
+
+      expect(client.taxIdPattern, code).toBe(server.taxIdRegex.source);
+      expect(client.taxIdFlags, code).toBe(server.taxIdRegex.flags);
+
+      const rebuilt = new RegExp(client.taxIdPattern, client.taxIdFlags);
+      expect(rebuilt.source, code).toBe(server.taxIdRegex.source);
+      expect(rebuilt.flags, code).toBe(server.taxIdRegex.flags);
+
+      if (server.controlNumberRegex) {
+        expect(client.controlNumberFlags, code).toBe(server.controlNumberRegex.flags);
+      }
+    }
   });
 
   it("las RegExp reconstruidas equivalen a las del server", () => {

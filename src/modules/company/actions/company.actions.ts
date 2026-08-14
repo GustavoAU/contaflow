@@ -12,7 +12,10 @@ import { CompanyService } from "../services/CompanyService";
 // edición SENIAT del guard (ctx.country).
 import { getFiscalConfig, isSupportedCountry, type CountryCode } from "@/lib/countries";
 import { ROLES } from "@/lib/auth-helpers";
-import { requireCompanyAction } from "@/lib/action-guard";
+import { requireCompanyAction, requireUserAction } from "@/lib/action-guard";
+import { limiters } from "@/lib/ratelimit";
+import { withSerializableRetry } from "@/lib/tx-helpers";
+import { PlanLimitError, AUDITABLE_COMPANY_FIELDS } from "../services/CompanyService";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -40,12 +43,14 @@ const UpdateCompanySeniatSchema = z.object({
 });
 
 const CreateCompanySchema = z.object({
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
+  // LOW-2: cotas de longitud. `name` se persiste y se renderiza en Sidebar,
+  // Topbar, AuditLog y PDFs fiscales; sin `.max()` un nombre de 900 KB pasaba.
+  name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(120),
   userId: z.string().optional(), // kept for backward compat — action uses auth() userId
   // MP-4: el país decide el formato del ID tributario. Ausente = "VEN" (callers
   // legacy); un valor NO soportado es ERROR, nunca coerción silenciosa — en
   // escritura, coercer input del usuario guardaría algo distinto de lo elegido.
-  country: z.string().optional(),
+  country: z.string().max(8).optional(),
   // El formato se valida DESPUÉS del parse, contra taxIdRegex del país elegido
   // (el schema es estático y el país es dinámico).
   rif: z
@@ -54,7 +59,7 @@ const CreateCompanySchema = z.object({
     .optional()
     .or(z.literal(""))
     .or(z.undefined()),
-  address: z.string().optional(),
+  address: z.string().max(300).optional(),
   // Obligatorio: se usa para recordatorios de renovación por WhatsApp/email
   telefono: z
     .string()
@@ -76,7 +81,7 @@ export async function updateCompanySeniatDataAction(
   try {
     const validated = UpdateCompanySeniatSchema.parse(input);
 
-    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY });
+    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal, captureNet: true });
     if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para modificar datos fiscales SENIAT
@@ -108,7 +113,7 @@ export async function updateCompanySeniatDataAction(
       ciiu: validated.ciiu || null,
       actividad: validated.actividad || null,
       isSpecialContributor: validated.isSpecialContributor,
-    });
+    }, ctx); // R-6: ipAddress/userAgent — cambiar datos SENIAT es mutación fiscal
 
     revalidatePath(`/company/${validated.companyId}/settings`);
     return { success: true, data: { id: company.id } };
@@ -120,18 +125,23 @@ export async function updateCompanySeniatDataAction(
 
 // ─── Crear empresa ────────────────────────────────────────────────────────────
 
-/**
- * Límite de empresas por usuario en el plan base.
- * Billing P-2: incrementar según plan suscrito cuando se integre Stripe/NOWPayments.
- */
-const COMPANY_LIMIT_PER_USER = 1;
+// El límite y su guard viven en CompanyService (ADR-043 D-1): contarlos aquí
+// dejaba el invariante fuera de la transacción que crea, y el próximo caller lo
+// saltaba sin enterarse.
 
 export async function createCompanyAction(
   input: z.infer<typeof CreateCompanySchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
-    const { userId } = await auth();
-    if (!userId) return { success: false, error: "No autorizado" };
+    // ADR-043 D-4: guard de action SIN empresa. Limiter propio y fail-open —
+    // `limiters.fiscal` falla cerrado y un hipo de Redis bloquearía el alta de
+    // alguien que acaba de pagar.
+    const ctx = await requireUserAction({
+      limiter: limiters.companyCreate,
+      captureNet: true, // R-6
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId } = ctx;
 
     const validated = CreateCompanySchema.parse(input);
 
@@ -153,23 +163,33 @@ export async function createCompanyAction(
       };
     }
 
-    // withDbRetry: reintenta hasta 2 veces si Neon cierra la conexión durante cold start.
-    // El retry espera 2s entre intentos para que PgBouncer tenga tiempo de reconectar.
-    const company = await withDbRetry(async () => {
-      const ownedCount = await prisma.companyMember.count({
-        where: { userId, role: "OWNER", company: { status: { not: "ARCHIVED" } } },
-      });
-      if (ownedCount >= COMPANY_LIMIT_PER_USER) {
-        throw Object.assign(new Error("PLAN_LIMIT"), { isPlanLimit: true });
-      }
-      return CompanyService.createCompany(validated.name, userId, validated.rif, validated.address, validated.scopeProfile, validated.telefono, country);
-    });
+    // ADR-043 D-1/D-3: el guard de límite es write skew — cuenta filas que aún no
+    // existen — así que exige Serializable; en Read Committed dos POST simultáneos
+    // leen 0 y ambos crean. `withDbRetry` (cold start de Neon) queda POR FUERA:
+    // reintentar a ciegas es seguro solo mientras el límite sea 1, porque el
+    // reintento choca contra el mismo guard. Ver la nota sobre
+    // COMPANY_LIMIT_PER_USER en CompanyService.
+    const company = await withDbRetry(() =>
+      withSerializableRetry((tx) =>
+        CompanyService.createCompany(tx, {
+          name: validated.name,
+          userId,
+          country,
+          telefono: validated.telefono,
+          rif: validated.rif ?? null,
+          address: validated.address ?? null,
+          scopeProfile: validated.scopeProfile ?? null,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        }),
+      ),
+    );
 
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id, name: company.name } };
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message };
-    if (error instanceof Error && (error as Error & { isPlanLimit?: boolean }).isPlanLimit) {
+    if (error instanceof PlanLimitError) {
       return {
         success: false,
         error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
@@ -194,10 +214,16 @@ export async function updateScopeProfileAction(
     if (!ctx.ok) return ctx.error;
 
     await prisma.$transaction(async (tx) => {
-      const old = await tx.company.findUniqueOrThrow({ where: { id: validated.companyId } });
+      // Lista blanca (MP-4): sin `select` esto devolvía la fila ENTERA —incluido
+      // `digitalInvoiceApiKeyEnc`— y acababa en oldValue/newValue del AuditLog.
+      const old = await tx.company.findUniqueOrThrow({
+        where: { id: validated.companyId },
+        select: AUDITABLE_COMPANY_FIELDS,
+      });
       const updated = await tx.company.update({
         where: { id: validated.companyId },
         data: { scopeProfile: validated.scopeProfile },
+        select: AUDITABLE_COMPANY_FIELDS,
       });
       await tx.auditLog.create({
         data: {
@@ -229,7 +255,7 @@ export async function archiveCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
     if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para archivar empresa
@@ -239,7 +265,7 @@ export async function archiveCompanyAction(
       return reverificationError(STEP_UP_CONFIG);
     }
 
-    const company = await CompanyService.archiveCompany(companyId, ctx.userId);
+    const company = await CompanyService.archiveCompany(companyId, ctx.userId, ctx);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {
@@ -254,10 +280,10 @@ export async function reactivateCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
+    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
     if (!ctx.ok) return ctx.error;
 
-    const company = await CompanyService.reactivateCompany(companyId, ctx.userId);
+    const company = await CompanyService.reactivateCompany(companyId, ctx.userId, ctx);
     revalidatePath("/dashboard");
     return { success: true, data: { id: company.id } };
   } catch (error) {

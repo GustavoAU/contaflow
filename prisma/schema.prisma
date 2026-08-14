@@ -141,7 +141,11 @@ model Company {
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
   rif                        String?                     @unique // RIF para Venezuela
-  // Q3-5 Multi-país: ISO 3166-1 alpha-3 — fuente de verdad en src/lib/tax-config.ts
+  // Q3-5 Multi-país: ISO 3166-1 alpha-3 — fuente de verdad en src/lib/countries/
+  // CHECK constraint "company_country_iso3166_alpha3" (~ '^[A-Z]{3}$') aplicado en
+  // migración 20260813_company_country_format_check. Prisma no expresa CHECKs, así
+  // que la regla vive solo en ese SQL — igual que las policies RLS (ADR-007 A1-bis).
+  // Valida FORMATO, no membresía: de eso se encarga isSupportedCountry (ADR-042 D-13).
   country                    String                      @default("VEN")
   address                    String?
   members                    CompanyMember[]
