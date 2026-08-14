@@ -41,6 +41,31 @@ Envoltorio: `withSerializableRetry` (timeout 15s / maxWait 5s + reintento P2034)
 perdedor de la carrera reintenta, lee `count = 1` y recibe `PlanLimitError` — el
 mensaje de negocio correcto, no un 500.
 
+### D-1-bis — El límite se guarda en las DOS puertas (enmienda de la auditoría pre-merge)
+
+La auditoría de seguridad sobre `3bf34cd` encontró que D-1 **no sostenía el
+invariante que enunciaba**. El guard cuenta `company: { status: { not: "ARCHIVED" } }`,
+así que el límite se evadía sin ninguna carrera:
+
+```
+crear A → archivar A → crear B (count = 0) → reactivar A   →  2 activas, 1 plan
+```
+
+Archivar A siempre pasa: una empresa recién creada no tiene `AccountingPeriod`
+abierto, que es lo único que bloquea `archiveCompany`. Y el ciclo es repetible → N.
+
+Lo que D-1 garantizaba de verdad era "≤1 activa **en el instante de crear**".
+Reactivar es la otra puerta al mismo estado, y ahora también la guarda, con la
+misma constante y dentro de su propia tx `Serializable`.
+
+Detalle que importa: se cuenta contra el **OWNER de la empresa que se reactiva**,
+no contra el caller — un ADMIN no-propietario también puede reactivar, y contar
+sus empresas dejaría el agujero abierto.
+
+> Lección para futuras enmiendas: cuando un invariante se expresa como "count de
+> filas en cierto estado", hay que enumerar **todas** las transiciones que entran a
+> ese estado, no solo la que motivó el hallazgo.
+
 ### D-2 — NO hay `@@unique` ni índice parcial. Nunca lo agregues
 
 En orden de contundencia:

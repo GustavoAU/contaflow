@@ -129,11 +129,22 @@ function makeTx(cfg: TxConfig = {}) {
         rec("companyMember.count", args);
         return cfg.ownedCount ? cfg.ownedCount() : 0;
       }),
+      // MEDIUM-1: reactivateCompany busca al OWNER de la empresa para contar
+      // contra él (no contra el caller, que puede ser un ADMIN no-propietario).
+      findFirst: vi.fn(async (args: QueryArgs) => {
+        rec("companyMember.findFirst", args);
+        return { userId: "user-1" };
+      }),
     },
     company: {
       findUnique: vi.fn(async (args: QueryArgs) => {
         rec("company.findUnique", args);
-        return cfg.rifOwner ?? null;
+        // Dos usos distintos dentro de la misma tx: por `rif` es el check de
+        // duplicado de createCompany; por `id` es la lectura del estado previo
+        // que reactivateCompany hace ahora DENTRO de la transacción (I-5).
+        const where = (args.where ?? {}) as Record<string, unknown>;
+        if ("rif" in where) return cfg.rifOwner ?? null;
+        return dbRow === null ? null : applySelect(dbRow, args.select);
       }),
       create: vi.fn(async (args: QueryArgs) => {
         rec("company.create", args);
@@ -622,6 +633,44 @@ describe("CompanyService.reactivateCompany", () => {
     expect(auditData().action).toBe("REACTIVATE");
   });
 
+  // MEDIUM-1 (auditoría pre-merge) — el límite de plan se evadía por aquí:
+  // crear A → archivar A (pasa siempre: una empresa recién creada no tiene
+  // período abierto) → crear B (count = 0, A está archivada) → reactivar A.
+  // Dos empresas ACTIVE con un plan de 1, y el ciclo era repetible.
+  it("MEDIUM-1: no reactiva si el OWNER ya tiene otra empresa activa", async () => {
+    vi.mocked(writeTx.client.companyMember.findFirst).mockResolvedValue({
+      userId: "owner-1",
+    } as never);
+    vi.mocked(writeTx.client.companyMember.count).mockResolvedValue(1 as never);
+
+    await expect(
+      CompanyService.reactivateCompany("company-1", "user-1", NET),
+    ).rejects.toBeInstanceOf(PlanLimitError);
+
+    expect(writeTx.client.company.update).not.toHaveBeenCalled();
+  });
+
+  it("MEDIUM-1: cuenta contra el OWNER de la empresa, NO contra el caller", async () => {
+    // Un ADMIN no-propietario también puede reactivar: contar sus empresas en
+    // vez de las del OWNER dejaría el agujero abierto.
+    vi.mocked(writeTx.client.companyMember.findFirst).mockResolvedValue({
+      userId: "owner-1",
+    } as never);
+    vi.mocked(writeTx.client.companyMember.count).mockResolvedValue(0 as never);
+
+    await CompanyService.reactivateCompany("company-1", "admin-distinto", NET);
+
+    expect(writeTx.client.companyMember.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: "owner-1",
+          role: "OWNER",
+          companyId: { not: "company-1" },
+        }),
+      }),
+    );
+  });
+
   it("empresa ya activa → lanza", async () => {
     dbRow = { ...COMPANY_ROW, status: "ACTIVE" };
 
@@ -631,7 +680,9 @@ describe("CompanyService.reactivateCompany", () => {
   });
 
   it("empresa inexistente → lanza 'Empresa no encontrada.'", async () => {
-    vi.mocked(prisma.company.findUnique).mockResolvedValue(null as never);
+    // I-5: reactivateCompany lee el estado previo DENTRO de la tx, así que la
+    // ausencia se simula en la fila del harness, no en el cliente de fuera.
+    dbRow = null as never;
 
     await expect(
       CompanyService.reactivateCompany("company-404", "user-1", NET),

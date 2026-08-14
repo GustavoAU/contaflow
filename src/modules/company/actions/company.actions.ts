@@ -15,7 +15,11 @@ import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction, requireUserAction } from "@/lib/action-guard";
 import { limiters } from "@/lib/ratelimit";
 import { withSerializableRetry } from "@/lib/tx-helpers";
-import { PlanLimitError, AUDITABLE_COMPANY_FIELDS } from "../services/CompanyService";
+import {
+  AUDITABLE_COMPANY_FIELDS,
+  COMPANY_LIMIT_PER_USER,
+  PlanLimitError,
+} from "../services/CompanyService";
 import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -61,9 +65,15 @@ const CreateCompanySchema = z.object({
     .or(z.undefined()),
   address: z.string().max(300).optional(),
   // Obligatorio: se usa para recordatorios de renovación por WhatsApp/email
+  // M-2: era el ÚNICO campo sin cota del schema — y el obligatorio. Con
+  // bodySizeLimit 10mb se persistían megabytes que además se replican al
+  // AuditLog y al PDF firmado. `.max(30)` alinea con UpdateCompanySeniatSchema:
+  // las dos rutas de escritura del mismo campo tenían contratos distintos.
   telefono: z
     .string()
+    .trim()
     .min(1, "El teléfono es obligatorio")
+    .max(30, "Teléfono demasiado largo")
     .refine((v) => v.replace(/\D/g, "").length >= 10, "Teléfono inválido (incluye código de área, ej: 0412-1234567)"),
   scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]).optional(),
 });
@@ -162,6 +172,15 @@ export async function createCompanyAction(
         error: `${cfg.taxIdLabel} inválido (ej: ${cfg.taxIdPlaceholder})`,
       };
     }
+
+    // M-3: pre-chequeo NO autoritativo. La decisión real sigue dentro de la tx
+    // Serializable (abajo) — esto solo evita abrir una transacción Serializable
+    // en los casos ya perdidos. Sin él, con el limiter fail-open y Redis caído,
+    // cada request abusivo costaba una tx contra un pool de 5 conexiones.
+    const alreadyOwned = await prisma.companyMember.count({
+      where: { userId, role: "OWNER", company: { status: { not: "ARCHIVED" } } },
+    });
+    if (alreadyOwned >= COMPANY_LIMIT_PER_USER) throw new PlanLimitError();
 
     // ADR-043 D-1/D-3: el guard de límite es write skew — cuenta filas que aún no
     // existen — así que exige Serializable; en Read Committed dos POST simultáneos

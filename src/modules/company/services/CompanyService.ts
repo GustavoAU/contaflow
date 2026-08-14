@@ -12,6 +12,7 @@ import prisma from "@/lib/prisma";
 import { normalizeRifOrNull } from "@/lib/tax-config";
 import { isSupportedCountry, type CountryCode } from "@/lib/countries";
 import { seedExpenseCategories } from "@/modules/expenses/services/ExpenseService";
+import { withSerializableRetry } from "@/lib/tx-helpers";
 
 /**
  * Empresas propias (OWNER, no archivadas) que permite el plan base.
@@ -43,6 +44,10 @@ export const AUDITABLE_COMPANY_FIELDS = {
   plan: true,
   scopeProfile: true,
   isSpecialContributor: true,
+  // I-1: NO es secreto y sí es fiscalmente material (canal autorizado de
+  // emisión, PA-102). Es el precio conocido de elegir lista blanca: hay que
+  // añadir a mano lo auditable, o queda oculto en silencio.
+  digitalInvoiceProvider: true,
   telefono: true,
   email: true,
   ciiu: true,
@@ -282,14 +287,42 @@ export class CompanyService {
     userId: string,
     net: { ipAddress: string | null; userAgent: string | null },
   ) {
-    const company = await prisma.company.findUnique({
-      where: { id: companyId },
-      select: AUDITABLE_COMPANY_FIELDS,
-    });
-    if (!company) throw new Error("Empresa no encontrada.");
-    if (company.status === "ACTIVE") throw new Error("La empresa ya está activa.");
+    const reactivated = await withSerializableRetry(async (tx) => {
+      // I-5: el estado previo se lee DENTRO de la tx. Fuera, dos reactivaciones
+      // concurrentes pasaban ambas el check y escribían dos AuditLog para una
+      // sola transición.
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: AUDITABLE_COMPANY_FIELDS,
+      });
+      if (!company) throw new Error("Empresa no encontrada.");
+      if (company.status === "ACTIVE") throw new Error("La empresa ya está activa.");
 
-    const reactivated = await prisma.$transaction(async (tx) => {
+      // MEDIUM-1 (auditoría pre-merge): el guard de `createCompany` cuenta solo
+      // empresas NO archivadas, así que el límite se evadía con
+      // crear A → archivar A → crear B → reactivar A. Archivar A siempre pasa
+      // porque una empresa recién creada no tiene AccountingPeriod abierto.
+      // El invariante real era "≤1 activa EN EL INSTANTE DE CREAR"; reactivar es
+      // la otra puerta por la que se entra al mismo estado, y también la guarda.
+      //
+      // Se cuenta contra el OWNER de la empresa que se reactiva, NO contra el
+      // caller: un ADMIN no-propietario también puede reactivar.
+      const owner = await tx.companyMember.findFirst({
+        where: { companyId, role: "OWNER" },
+        select: { userId: true },
+      });
+      if (owner) {
+        const otherActive = await tx.companyMember.count({
+          where: {
+            userId: owner.userId,
+            role: "OWNER",
+            companyId: { not: companyId },
+            company: { status: { not: "ARCHIVED" } },
+          },
+        });
+        if (otherActive >= COMPANY_LIMIT_PER_USER) throw new PlanLimitError();
+      }
+
       const updated = await tx.company.update({
         where: { id: companyId },
         data: { status: "ACTIVE" },
