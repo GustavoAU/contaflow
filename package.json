@@ -11,6 +11,8 @@
     "test:ui": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest --ui",
     "test:run": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest run",
     "postinstall": "prisma generate",
+    "verify:rls": "node scripts/verify-rls.mjs",
+    "verify:rls:runtime": "node scripts/verify-rls-runtime.mjs",
     "clean": "node -e \"const fs=require('fs');const p='.next';if(fs.existsSync(p)){fs.rmSync(p,{recursive:true,force:true});console.log('.next eliminado')}else{console.log('.next no existe')}\""
   },
   "dependencies": {

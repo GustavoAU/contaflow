@@ -2,6 +2,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { createBillingGateExtension } from "./prisma-billing-gate";
+import { createTenantAssertExtension, resolveMode } from "./prisma-tenant-assert";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL no está definida en las variables de entorno");
@@ -27,10 +28,19 @@ function createExtendedPrisma(): PrismaClient {
   });
   // Gate de suscripción: bloquea escrituras de negocio si la suscripción venció.
   // Usa `base` para verificar sin recursión. Ver prisma-billing-gate.ts.
-  // El gate corre en runtime; exponemos el tipo base (el cliente extendido es un
+  //
+  // Aserción multi-tenant (ADR-044 D-3): exige companyId en toda operación
+  // multi-fila sobre modelos tenant. Arranca en modo `report` — instrumenta sin
+  // romper — porque la RLS de Postgres NO cubre las lecturas (ADR-044 §2).
+  // Va por fuera del gate de billing para inspeccionar los args originales.
+  //
+  // Ambas corren en runtime; exponemos el tipo base (el cliente extendido es un
   // superset estructural) para no propagar los tipos de $extends a los ~133
   // helpers que usan Prisma.TransactionClient.
-  return base.$extends(createBillingGateExtension(base)) as unknown as PrismaClient;
+  const extended = base
+    .$extends(createBillingGateExtension(base))
+    .$extends(createTenantAssertExtension(resolveMode(process.env.TENANT_ASSERT_MODE)));
+  return extended as unknown as PrismaClient;
 }
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
