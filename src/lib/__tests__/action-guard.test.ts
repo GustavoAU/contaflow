@@ -1,5 +1,7 @@
 // src/lib/__tests__/action-guard.test.ts
-// Tests del guard canónico de Server Actions (ADR-041) — requireCompanyAction.
+// Tests de los guards canónicos de Server Actions (ADR-041):
+//   requireCompanyAction — actions CON empresa (auth → rl → membresía → rol → país → net)
+//   requireUserAction    — actions SIN empresa, p.ej. el alta (ADR-043 D-4)
 // Environment: node (global). canAccess NO se mockea: es lógica pura (auth-helpers).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -15,11 +17,16 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn(),
 }));
 
+vi.mock("@sentry/nextjs", () => ({ captureMessage: vi.fn() }));
+
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn(),
   // ADR-041: el guard usa fiscalKey(companyId, userId) como identifier
   fiscalKey: (companyId: string, userId: string) => `${companyId}:${userId}`,
-  limiters: { fiscal: {} },
+  // ADR-043 D-4: el alta de empresa usa limiter propio (fail-open), no `fiscal`.
+  // Marcados: dos `{}` son deep-equal, y entonces "se llamó con ESTE limiter" no
+  // afirmaría nada — cualquier confusión entre baldes pasaría desapercibida.
+  limiters: { fiscal: { __limiter: "fiscal" }, companyCreate: { __limiter: "companyCreate" } },
 }));
 
 // headers() configurable por test — netContext real (@/lib/net-context NO se mockea,
@@ -28,10 +35,11 @@ const mockHeaders = vi.hoisted(() => vi.fn());
 vi.mock("next/headers", () => ({ headers: mockHeaders }));
 
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import type { Ratelimit } from "@upstash/ratelimit";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { ROLES } from "@/lib/auth-helpers";
-import { requireCompanyAction } from "@/lib/action-guard";
+import { requireCompanyAction, requireUserAction } from "@/lib/action-guard";
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
@@ -163,6 +171,37 @@ describe("requireCompanyAction — país (paso 5, ADR-042 D-2)", () => {
     if (!ctx.ok) throw new Error("unreachable");
     expect(ctx.country).toBe("VEN");
   });
+
+  it("LOW-1: un country corrupto NO se degrada en silencio — avisa a Sentry", async () => {
+    // Degradar está bien; callar no. Un valor no soportado en BD es un incidente
+    // de integridad: ninguna capa de la app debería haber podido escribirlo.
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ACCOUNTANT",
+      company: { country: "XXX" },
+    } as never);
+
+    await requireCompanyAction(COMPANY_ID, { roles: ROLES.ACCOUNTING });
+
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      expect.stringContaining("no soportado"),
+      expect.objectContaining({
+        level: "warning",
+        tags: expect.objectContaining({ companyId: COMPANY_ID, country: "XXX" }),
+      }),
+    );
+  });
+
+  it("LOW-1: el caso legítimo (mock legacy sin company) NO genera ruido en Sentry", async () => {
+    // Si avisara también aquí, los ~160 tests legacy inundarían Sentry y la
+    // señal dejaría de significar nada.
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ACCOUNTANT",
+    } as never);
+
+    await requireCompanyAction(COMPANY_ID, { roles: ROLES.ACCOUNTING });
+
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe("requireCompanyAction — rol (paso 4, canAccess REAL)", () => {
@@ -243,5 +282,156 @@ describe("requireCompanyAction — contexto de red (paso 5, R-6)", () => {
     expect(ctx.ok).toBe(true);
     if (!ctx.ok) throw new Error("unreachable");
     expect(ctx.ipAddress).toBe("proxy");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// requireUserAction — guard de actions SIN empresa (ADR-043 D-4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("requireUserAction — autenticación", () => {
+  it("sin sesión → 'No autorizado' SIN tocar el limiter ni la BD", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const ctx = await requireUserAction({ limiter: limiters.companyCreate as Ratelimit });
+
+    expect(ctx.ok).toBe(false);
+    if (ctx.ok) throw new Error("unreachable");
+    expect(ctx.error).toEqual({ success: false, error: "No autorizado" });
+    // Quemar cuota de rate limit por peticiones anónimas sería un vector de DoS
+    // contra el usuario legítimo dueño de esa clave.
+    expect(checkRateLimit).not.toHaveBeenCalled();
+    expect(mockHeaders).not.toHaveBeenCalled();
+  });
+});
+
+describe("requireUserAction — rate limit", () => {
+  it("la clave es user:<userId> de Clerk, NUNCA la IP (CGNAT móvil colisiona usuarios)", async () => {
+    const ctx = await requireUserAction({ limiter: limiters.companyCreate as Ratelimit });
+
+    expect(ctx.ok).toBe(true);
+    expect(checkRateLimit).toHaveBeenCalledOnce();
+    expect(checkRateLimit).toHaveBeenCalledWith(`user:${USER_ID}`, limiters.companyCreate);
+    // No es fiscalKey(companyId, userId): aquí todavía no hay empresa
+    expect(checkRateLimit).not.toHaveBeenCalledWith(
+      expect.stringContaining(COMPANY_ID),
+      expect.anything(),
+    );
+  });
+
+  it("excedido → devuelve el error del limiter y NO sigue (no captura contexto de red)", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intenta de nuevo en 42 segundos.",
+    } as never);
+
+    const ctx = await requireUserAction({
+      limiter: limiters.companyCreate as Ratelimit,
+      captureNet: true,
+    });
+
+    expect(ctx.ok).toBe(false);
+    if (ctx.ok) throw new Error("unreachable");
+    expect(ctx.error).toEqual({
+      success: false,
+      error: "Demasiadas solicitudes. Intenta de nuevo en 42 segundos.",
+    });
+    expect(mockHeaders).not.toHaveBeenCalled();
+  });
+
+  it("limiter omitido → no llama checkRateLimit", async () => {
+    const ctx = await requireUserAction();
+
+    expect(ctx.ok).toBe(true);
+    expect(checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("checkRateLimit fail-open (Redis caído → allowed:true) → el guard deja pasar", async () => {
+    // `companyCreate` falla ABIERTO a propósito (ADR-043 D-4): un hipo de Redis no
+    // puede bloquear el alta de alguien que acaba de pagar. El invariante real —el
+    // límite de plan— lo garantiza el guard Serializable de CompanyService.
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true } as never);
+
+    const ctx = await requireUserAction({ limiter: limiters.companyCreate as Ratelimit });
+
+    expect(ctx.ok).toBe(true);
+  });
+});
+
+describe("requireUserAction — contexto de red (R-6) y contrato de salida", () => {
+  it("captureNet:true → ipAddress + userAgent reales", async () => {
+    headersWith({ "x-real-ip": "1.2.3.4", "user-agent": "vitest-agent/1.0" });
+
+    const ctx = await requireUserAction({ captureNet: true });
+
+    expect(ctx).toEqual({
+      ok: true,
+      userId: USER_ID,
+      ipAddress: "1.2.3.4",
+      userAgent: "vitest-agent/1.0",
+    });
+  });
+
+  it("captureNet:true con x-forwarded-for → última IP (.at(-1), ADR-041 D-2)", async () => {
+    headersWith({ "x-forwarded-for": "spoofeada, proxy-real" });
+
+    const ctx = await requireUserAction({ captureNet: true });
+
+    expect(ctx.ok).toBe(true);
+    if (!ctx.ok) throw new Error("unreachable");
+    expect(ctx.ipAddress).toBe("proxy-real");
+  });
+
+  it("captureNet omitido → nulls y NO llama headers()", async () => {
+    const ctx = await requireUserAction();
+
+    expect(ctx).toEqual({
+      ok: true,
+      userId: USER_ID,
+      ipAddress: null,
+      userAgent: null,
+    });
+    expect(mockHeaders).not.toHaveBeenCalled();
+  });
+
+  it("no consulta membresía: no hay empresa que evaluar (ni round-trip extra)", async () => {
+    await requireUserAction({ limiter: limiters.companyCreate as Ratelimit, captureNet: true });
+
+    expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("rate limit sin mensaje propio → texto por defecto (ambos guards)", () => {
+  // `checkRateLimit` siempre devuelve `error`, pero el tipo lo permite opcional:
+  // el `??` es la red por si un limiter futuro no lo trae. Sin cubrirlo, ese
+  // camino entregaría `undefined` como mensaje al usuario.
+  beforeEach(() => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false } as never);
+  });
+
+  it("requireUserAction", async () => {
+    const ctx = await requireUserAction({ limiter: limiters.companyCreate as Ratelimit });
+
+    expect(ctx.ok).toBe(false);
+    if (ctx.ok) throw new Error("unreachable");
+    expect(ctx.error).toEqual({
+      success: false,
+      error: "Demasiadas solicitudes, intenta más tarde",
+    });
+  });
+
+  it("requireCompanyAction", async () => {
+    const ctx = await requireCompanyAction(COMPANY_ID, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal as Ratelimit,
+    });
+
+    expect(ctx.ok).toBe(false);
+    if (ctx.ok) throw new Error("unreachable");
+    expect(ctx.error).toEqual({
+      success: false,
+      error: "Demasiadas solicitudes, intenta más tarde",
+    });
   });
 });

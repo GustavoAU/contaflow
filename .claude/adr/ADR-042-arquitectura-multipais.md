@@ -187,6 +187,39 @@ los 15+26 call-sites NO se migran; quirks preservados (`fmtVen(null)→"—"`,
 - **Anti-stale:** el test también FALLA si una entrada whitelisted ya no tiene
   violaciones → cada fase está obligada a encoger la lista al mergear.
 
+### D-13 — Escritura de `country`: contrato de persistencia (enmienda 2026-08-13)
+
+Origen: MEDIUM-1 de la auditoría de seguridad MP-4. D-8 endureció la LECTURA
+(`getFiscalConfig` lanza) y D-2 documentó que el guard **no puede** lanzar (cae a VEN
+para no dejar sin actions a la empresa entera). Consecuencia no vista: si un valor
+basura entra a la columna, **el guard lo tapa con VEN** y la empresa opera con
+impuestos venezolanos sin que nadie se entere — el escenario que D-8 declara
+inaceptable, entrando por la puerta de la persistencia. La ESCRITURA es la única
+frontera que todavía puede negarse.
+
+1. **Sin default silencioso en escritura.** `CompanyService.createCompany` recibe
+   `country: CountryCode` OBLIGATORIO. Se elimina `country ?? "VEN"`. El
+   `@default("VEN")` de Prisma queda solo como red para filas legacy, no como
+   semántica de la aplicación. Un caller sin preferencia (seeds) pasa
+   `DEFAULT_COUNTRY` explícito — que sea visible en el diff es el objetivo.
+2. **Validación en el servicio, no solo en el borde.** `isSupportedCountry` se
+   re-verifica dentro del servicio y **LANZA**. Nunca degrada a VEN: el guard ya
+   degrada por necesidad; si la escritura también degradara, no quedaría nadie que
+   rechace.
+3. **CHECK de FORMATO en BD; NO enum ni CHECK de membresía.** Un enum Prisma
+   obligaría a migración por país (rompe "agregar país = agregar archivos"), crearía
+   una segunda fuente de verdad frente a `FISCAL_CONFIGS`, y sus valores no se pueden
+   eliminar (no existe `DROP VALUE`). En su lugar:
+   `CHECK ("country" ~ '^[A-Z]{3}$')` — ISO 3166-1 alpha-3, cero coste por país nuevo.
+   Bloquea el accidente real (un teléfono en la columna); la MEMBRESÍA sigue siendo
+   responsabilidad de `isSupportedCountry`. Que `'COL'` pase el CHECK antes de que
+   exista `countries/col/` es correcto por diseño.
+   Migración `20260813_company_country_format_check`. La constraint vive **solo** en
+   SQL (Prisma no la expresa) — mismo patrón que las policies RLS de ADR-007 A1-bis.
+4. **Firmas con dos strings opcionales adyacentes quedan prohibidas** en servicios que
+   persistan `country`. Objeto de opciones con campos nombrados y tipos que no se
+   intercambien (`CountryCode` vs `string`).
+
 ### D-12 — No-hacer (explícito)
 
 - NO renombrar modelos/enums Prisma existentes (`SeniatSubmission`,

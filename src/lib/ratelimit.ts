@@ -45,6 +45,19 @@ export const limiters = {
         prefix: "rl:fiscal",
       })
     : null,
+  // Alta de empresa (ADR-043 D-4). Limiter propio y NO `fiscal`, por dos razones:
+  // `fiscal` falla CERRADO (ver B5 abajo) y un hipo de Redis bloquearía la primera
+  // acción de alguien que acaba de pagar; y crear una empresa no es una mutación
+  // fiscal. 5/min cubre a quien corrige un RIF mal tecleado 3-4 veces y corta el
+  // scripting. El invariante real (límite de plan) NO depende de esto: lo garantiza
+  // el guard Serializable dentro de CompanyService — este limiter es anti-martilleo.
+  companyCreate: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, "1 m"),
+        prefix: "rl:companycreate",
+      })
+    : null,
   // Lecturas de render (dashboard KPIs, pending-tasks, reportes Diario/Mayor/Balance,
   // listado de tasas) — 120/min por usuario. Generoso para navegación humana intensa,
   // pero limita scraping/scripts. NO usar para mutaciones (esas van en `fiscal`, 10/min).

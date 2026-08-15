@@ -171,12 +171,21 @@ export type ClientFiscalConfig = {
   timezone: string;
   negativeParens: boolean;
   taxIdLabel: string;
-  /** Fuente de `taxIdRegex` — reconstruir con `new RegExp(pattern, "i")` */
+  /**
+   * Fuente y flags de `taxIdRegex` — reconstruir con
+   * `new RegExp(taxIdPattern, taxIdFlags)`.
+   *
+   * Los flags viajan porque son parte de la regla: el RIF venezolano lleva `i`
+   * (acepta "j-12345678-9") y darlo por sentado hacía que el cliente validara
+   * distinto que el servidor en cuanto un país usara una regex case-sensitive.
+   */
   taxIdPattern: string;
+  taxIdFlags: string;
   taxIdPlaceholder: string;
   taxAuthorityName: string;
-  /** Fuente de `controlNumberRegex`, si el país lo exige */
+  /** Fuente y flags de `controlNumberRegex`, si el país lo exige */
   controlNumberPattern?: string;
+  controlNumberFlags?: string;
   taxRates: TaxRates;
   taxLineRates: Record<string, TaxLineRateInfo>;
   defaultTaxLineType: string;

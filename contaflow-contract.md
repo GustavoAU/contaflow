@@ -1841,3 +1841,83 @@ upgradeDespachoTier(companyId, newTier, callerUserId): Promise<{ success, paymen
 3. upgradeDespachoTier: solo OWNER + downgrade protection (no bajar tier si count > newLimit)
 4. /despacho/rifs route: auth.protect() activo + query no filtra solo por linkedCompanyId
 5. archiveManagedClient: IDOR — verificar managedClient.despachoCompanyId === companyId antes de operar
+
+---
+
+## ADR-043 — Alta de empresa: contrato de servicio + límite de plan (ARCH 2026-08-13)
+
+- Estado: DECIDIDO
+- ADRs: `.claude/adr/ADR-043-limite-empresas-por-usuario.md` · ADR-042 D-13 (enmienda)
+- Origen: MEDIUM-1 y MEDIUM-3, auditoría de seguridad MP-4
+
+### Contrato de función
+
+```typescript
+// Archivo owner: src/modules/company/services/CompanyService.ts
+
+export const COMPANY_LIMIT_PER_USER = 1;
+// AL SUBIR ESTE VALOR: quitar withDbRetry del call site o dar idempotencyKey
+// a la creación (ADR-043 D-3).
+
+export type CreateCompanyInput = {
+  name: string;
+  userId: string;
+  country: CountryCode;      // OBLIGATORIO — sin default (ADR-042 D-13)
+  telefono: string;          // OBLIGATORIO — ya lo exige CreateCompanySchema
+  rif?: string | null;
+  address?: string | null;
+  scopeProfile?: ScopeProfile | null;
+  ipAddress: string | null;  // R-6
+  userAgent: string | null;  // R-6
+};
+
+/**
+ * Precondiciones:
+ *   - `tx` DEBE venir de withSerializableRetry (ADR-043 D-1) — el guard de límite
+ *     es write skew y NO se sostiene en Read Committed
+ *   - `country` soportado — se re-verifica aquí y LANZA (ADR-042 D-13)
+ *
+ * Proceso (todo dentro de `tx`, en este orden):
+ *   1. count de CompanyMember OWNER con company.status != ARCHIVED → PlanLimitError
+ *   2. normalizeRifOrNull + verificación de duplicado (P2002 de respaldo)
+ *   3. company.create + nested CompanyMember OWNER
+ *   4. seedExpenseCategories(created.id, tx)
+ *   5. auditLog.create con ipAddress + userAgent (R-6)
+ *
+ * Errores de negocio:
+ *   - PlanLimitError          → "Tu plan incluye 1 empresa…"
+ *   - "País no soportado: X"  → inalcanzable desde UI (el action ya filtró)
+ *   - "Ese RIF ya está registrado."  (sin interpolar el RIF — oráculo cross-tenant)
+ *   - P2034 tras 3 intentos   → mensaje transitorio estándar
+ */
+static async createCompany(tx: Prisma.TransactionClient, input: CreateCompanyInput)
+```
+
+Los snapshots de `AuditLog` usan la lista blanca `AUDITABLE_COMPANY_FIELDS`:
+`digitalInvoiceApiKeyEnc` NUNCA se vuelca (misma clase que Z-5 / `encryptedP12`).
+
+### Schema / migración
+
+```sql
+-- 20260813_company_country_format_check
+-- Pre-flight: SELECT country, count(*) FROM "Company" GROUP BY 1;
+ALTER TABLE "Company"
+  ADD CONSTRAINT "company_country_iso3166_alpha3"
+  CHECK ("country" ~ '^[A-Z]{3}$');
+-- Rollback: ALTER TABLE "Company" DROP CONSTRAINT "company_country_iso3166_alpha3";
+```
+
+Sin enum Prisma, sin CHECK de membresía, sin índice nuevo, sin backfill.
+
+### Checklist arch-agent
+
+- [x] `country` obligatorio y tipado `CountryCode` — sin `?? "VEN"` (ADR-042 D-13)
+- [x] `isSupportedCountry` re-verificado en el servicio — LANZA, no degrada
+- [x] CHECK de formato ISO alpha-3 — enum Prisma descartado con motivo escrito
+- [x] Guard de límite DENTRO del servicio y DENTRO de la tx Serializable
+- [x] Sin `@@unique`/índice parcial — motivo en ADR-043 D-2 (no re-derivar)
+- [x] `AuditLog` en el mismo `$transaction`, con ipAddress/userAgent (R-6)
+- [x] Secretos fuera de `oldValue`/`newValue` — lista blanca, no `omit`
+- [x] Rate limit en action sin empresa: `limiters.companyCreate`, fail-open,
+      clave `user:${userId}` (ADR-043 D-4). `limiters.fiscal` PROHIBIDO aquí
+- [x] Análisis de riesgo de migración documentado

@@ -58,6 +58,12 @@ export function mapPrismaError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") return "Ya existe un registro con esos datos";
     if (error.code === "P2003") return "Datos de referencia inválidos";
+    // L-4: P2034 (write conflict / deadlock en Serializable) NO estaba mapeado.
+    // Su mensaje no contiene ninguna keyword técnica ni "prisma", así que caía
+    // al `return error.message` final y llegaba crudo al toast, en inglés. Los 8
+    // módulos que reintentan P2034 dependen de esta traducción cuando agotan los
+    // reintentos — por eso va aquí, en la fuente única, y no en cada uno.
+    if (error.code === "P2034") return "Error transitorio — intenta de nuevo.";
     // P2010: raw query failed (p.ej. SET LOCAL ROLE / set_config sin permisos RLS).
     // El mensaje crudo de Postgres viene en inglés — nunca exponerlo al usuario.
     if (error.code === "P2010") return GENERIC_DB_ERROR;
