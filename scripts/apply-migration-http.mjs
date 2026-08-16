@@ -51,16 +51,28 @@ function splitStatements(sql) {
   while (i < sql.length) {
     const rest = sql.slice(i);
 
-    // Comentario de línea
+    // Comentario de línea. Se repone el "\n": en SQL un comentario equivale a
+    // ESPACIO EN BLANCO, no a nada. Sin esto los tokens se pegan y se genera SQL
+    // inválido — `... "y" text-- nota\nDEFAULT 'z'` salía como `textDEFAULT`.
     if (rest.startsWith("--")) {
       const nl = sql.indexOf("\n", i);
+      buf += "\n";
       i = nl === -1 ? sql.length : nl + 1;
       continue;
     }
-    // Comentario de bloque
+    // Comentario de bloque. Postgres SÍ permite anidarlos, así que se lleva
+    // profundidad en vez de buscar el primer "*/" (`/* a /* b */ c */` dejaba
+    // colgando `c */`). Se repone un espacio por el mismo motivo de arriba.
     if (rest.startsWith("/*")) {
-      const end = sql.indexOf("*/", i + 2);
-      i = end === -1 ? sql.length : end + 2;
+      let depth = 1;
+      let j = i + 2;
+      while (j < sql.length && depth > 0) {
+        if (sql.startsWith("/*", j)) { depth += 1; j += 2; continue; }
+        if (sql.startsWith("*/", j)) { depth -= 1; j += 2; continue; }
+        j += 1;
+      }
+      buf += " ";
+      i = j;
       continue;
     }
     // Dollar-quoting: $$ … $$  ó  $etiqueta$ … $etiqueta$
@@ -73,11 +85,15 @@ function splitStatements(sql) {
       i = stop;
       continue;
     }
-    // Literal de cadena o identificador entrecomillado
+    // Literal de cadena o identificador entrecomillado.
+    // En una cadena `E'…'` la barra invertida SÍ escapa (`E'a\'b'`); en las
+    // normales, con standard_conforming_strings=on, no.
     if (rest[0] === "'" || rest[0] === '"') {
       const q = rest[0];
+      const isEscapeString = q === "'" && /[Ee]$/.test(buf);
       let j = i + 1;
       while (j < sql.length) {
+        if (isEscapeString && sql[j] === "\\") { j += 2; continue; }
         if (sql[j] === q) {
           if (sql[j + 1] === q) { j += 2; continue; } // '' escapado
           j += 1;
