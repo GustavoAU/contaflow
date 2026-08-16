@@ -8,7 +8,9 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     inventoryItem: { findFirstOrThrow: vi.fn() },
     inventoryItemUnit: { findFirstOrThrow: vi.fn() },
-    inventoryMovement: { findUnique: vi.fn(), findMany: vi.fn() },
+    // Sin `findUnique` a proposito: el lookup de idempotencia debe ser
+    // `findFirst` acotado por companyId (regresion IDOR cross-tenant).
+    inventoryMovement: { findFirst: vi.fn(), findMany: vi.fn() },
     accountingPeriod: { findFirst: vi.fn() },  // R-09: bloqueo períodos cerrados
     invoice: { findFirstOrThrow: vi.fn() },
     $transaction: vi.fn(),
@@ -61,7 +63,6 @@ const makeMovement = (overrides = {}) => ({
 const makeTx = () => ({
   inventoryMovement: {
     create: vi.fn().mockResolvedValue(makeMovement()),
-    findUnique: vi.fn().mockResolvedValue(null),
   },
   auditLog: { create: vi.fn().mockResolvedValue({}) },
 });
@@ -85,7 +86,7 @@ beforeEach(() => {
 
   vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue(makeItem() as never);
   vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValue(makeBoxUnit() as never);
-  vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never); // R-09: no hay período cerrado
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
@@ -207,11 +208,20 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
   });
 
   it("idempotencia: retorna movimiento existente sin llamar a inventoryItemUnit", async () => {
-    vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValueOnce(
+    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(
       makeMovement() as never
     );
     const result = await createDraftMovement(BASE_WITH_UNIT, USER_ID);
     expect(result.id).toBe("mov-001");
     expect(prisma.inventoryItemUnit.findFirstOrThrow).not.toHaveBeenCalled();
+    // ADR-004: el lookup de idempotencia va acotado a la empresa
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          idempotencyKey: BASE_WITH_UNIT.idempotencyKey,
+          companyId: COMPANY_ID,
+        }),
+      })
+    );
   });
 });

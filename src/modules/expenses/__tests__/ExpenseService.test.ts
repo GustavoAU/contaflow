@@ -2,6 +2,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Decimal } from "decimal.js";
 
+// NOTA: `expense.findUnique` NO está en el mock a propósito.
+// El lookup de idempotencia debe ser `findFirst` acotado por companyId; si
+// alguien vuelve a `findUnique({ where: { idempotencyKey } })` (el IDOR
+// cross-tenant original), el test revienta con "findUnique is not a function"
+// en vez de pasar en verde. El mock es parte de la aserción.
 vi.mock("@/lib/prisma", () => ({
   default: {
     $transaction: vi.fn((fn: (tx: unknown) => unknown) =>
@@ -15,7 +20,6 @@ vi.mock("@/lib/prisma", () => ({
       })
     ),
     expense: {
-      findUnique: vi.fn().mockResolvedValue(null),
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
     },
@@ -87,6 +91,24 @@ const makeCreateInput = (overrides = {}) => ({
   ...overrides,
 });
 
+/**
+ * `findFirst` falso que se comporta como la BD: filtra las filas por TODAS las
+ * claves escalares del `where`. Si el servicio omite `companyId`, la fila de la
+ * otra empresa hace match y el test falla — que es exactamente lo que no pasaba
+ * con `mockResolvedValue(fila)`, un mock que devuelve la fila pase lo que pase.
+ */
+function fakeFindFirst(rows: Array<Record<string, unknown>>) {
+  return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
+    const where = args?.where ?? {};
+    const scalar = Object.entries(where).filter(
+      ([, v]) => v === null || typeof v !== "object"
+    );
+    return (
+      rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null
+    );
+  });
+}
+
 // ─── seedExpenseCategories ────────────────────────────────────────────────────
 describe("seedExpenseCategories", () => {
   it("llama createMany con las 9 categorías semilla", async () => {
@@ -111,7 +133,6 @@ describe("seedExpenseCategories", () => {
 // ─── createExpense ─────────────────────────────────────────────────────────────
 describe("createExpense", () => {
   beforeEach(() => {
-    vi.mocked(prisma.expense.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.expense.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.expenseCategory.findFirstOrThrow).mockResolvedValue({ id: "cat-1" } as never);
   });
@@ -161,12 +182,106 @@ describe("createExpense", () => {
   });
 
   it("retorna el gasto existente si ya existe idempotencyKey", async () => {
-    vi.mocked(prisma.expense.findUnique).mockResolvedValue(makeDbExpense() as never);
+    vi.mocked(prisma.expense.findFirst).mockResolvedValue(makeDbExpense() as never);
     vi.mocked(prisma.$transaction).mockClear();
 
     const result = await createExpense(makeCreateInput(), "user-1");
     expect(result.id).toBe("expense-1");
     // No debe llamar a $transaction cuando existe idempotencyKey
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+// ─── createExpense — idempotencia ACOTADA a la empresa (IDOR cross-tenant) ─────
+//
+// `Expense.idempotencyKey` es `@unique` GLOBAL y el valor lo suministra el
+// CLIENTE (`z.string().uuid()` en el schema). Con el lookup sin `companyId`,
+// la empresa B que mandara la clave de la empresa A recibía de vuelta —completo
+// y serializado— el gasto de A: monto, proveedor, concepto y categoría. Y su
+// propio gasto nunca se creaba.
+describe("createExpense — idempotencia acotada a companyId (regresión IDOR)", () => {
+  const SHARED_KEY = "123e4567-e89b-12d3-a456-426614174000";
+  const VICTIM_COMPANY = "company-victima";
+  const ATTACKER_COMPANY = "company-atacante";
+
+  const victimExpense = makeDbExpense({
+    id: "expense-de-la-victima",
+    companyId: VICTIM_COMPANY,
+    supplierName: "Proveedor confidencial",
+    concept: "Honorarios abogado — litigio",
+    amount: new Decimal("999999"),
+    amountVes: new Decimal("999999"),
+    idempotencyKey: SHARED_KEY,
+    category: { name: "Honorarios Profesionales" },
+  });
+
+  beforeEach(() => {
+    vi.mocked(prisma.expenseCategory.findFirstOrThrow).mockResolvedValue({ id: "cat-1" } as never);
+    // La BD contiene el gasto de la víctima con esa clave — y nada más.
+    vi.mocked(prisma.expense.findFirst).mockClear();
+    vi.mocked(prisma.expense.findFirst).mockImplementation(fakeFindFirst([victimExpense]) as never);
+  });
+
+  it("NO devuelve el gasto de otra empresa cuando reusan la misma idempotencyKey", async () => {
+    const ownExpense = makeDbExpense({
+      id: "expense-del-atacante",
+      companyId: ATTACKER_COMPANY,
+      idempotencyKey: SHARED_KEY,
+    });
+    const txCreate = vi.fn().mockResolvedValue(ownExpense);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      (async (fn: (tx: unknown) => unknown) =>
+        fn({ expense: { create: txCreate }, auditLog: { create: vi.fn() } })) as never
+    );
+
+    const result = await createExpense(
+      makeCreateInput({ companyId: ATTACKER_COMPANY, idempotencyKey: SHARED_KEY }),
+      "user-atacante"
+    );
+
+    // 1. No se filtra NADA de la empresa víctima
+    expect(result.id).toBe("expense-del-atacante");
+    expect(result.companyId).toBe(ATTACKER_COMPANY);
+    expect(result.concept).not.toBe(victimExpense.concept);
+    expect(result.supplierName).not.toBe(victimExpense.supplierName);
+    expect(result.amount).not.toBe("999999.0000");
+
+    // 2. El gasto propio SÍ se crea (antes se perdía silenciosamente)
+    expect(txCreate).toHaveBeenCalledOnce();
+    expect(txCreate.mock.calls[0]![0].data.companyId).toBe(ATTACKER_COMPANY);
+  });
+
+  it("el where del lookup de idempotencia lleva companyId además de la clave", async () => {
+    vi.mocked(prisma.$transaction).mockImplementation(
+      (async (fn: (tx: unknown) => unknown) =>
+        fn({
+          expense: { create: vi.fn().mockResolvedValue(makeDbExpense({ companyId: ATTACKER_COMPANY })) },
+          auditLog: { create: vi.fn() },
+        })) as never
+    );
+
+    await createExpense(
+      makeCreateInput({ companyId: ATTACKER_COMPANY, idempotencyKey: SHARED_KEY }),
+      "user-atacante"
+    );
+
+    const where = vi.mocked(prisma.expense.findFirst).mock.calls[0]![0]!.where!;
+    expect(where).toMatchObject({ idempotencyKey: SHARED_KEY, companyId: ATTACKER_COMPANY });
+    expect(Object.keys(where)).toContain("companyId");
+  });
+
+  it("la idempotencia legítima sigue funcionando: misma clave + MISMA empresa devuelve la fila existente", async () => {
+    vi.mocked(prisma.$transaction).mockClear();
+
+    const result = await createExpense(
+      makeCreateInput({ companyId: VICTIM_COMPANY, idempotencyKey: SHARED_KEY }),
+      "user-victima"
+    );
+
+    expect(result.id).toBe("expense-de-la-victima");
+    expect(result.amount).toBe("999999.0000");
+    expect(result.categoryName).toBe("Honorarios Profesionales");
+    // No crea un duplicado
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

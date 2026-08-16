@@ -31,15 +31,96 @@ const FILE = new URL(`../prisma/migrations/${MIGRATION}/migration.sql`, import.m
 const raw = readFileSync(FILE, "utf8");
 const checksum = createHash("sha256").update(readFileSync(FILE)).digest("hex");
 
-// Quita comentarios de línea (--) y parte por ';'. Sirve para DDL simple
-// (sin cuerpos de función ni ';' embebidos), que es el caso de estas migraciones.
-const statements = raw
-  .split("\n")
-  .filter((l) => !l.trim().startsWith("--"))
-  .join("\n")
-  .split(";")
-  .map((s) => s.trim())
-  .filter(Boolean);
+/**
+ * Parte el SQL en sentencias respetando los `;` EMBEBIDOS.
+ *
+ * La versión anterior hacía `split(";")` a secas y sólo servía para DDL simple —
+ * lo decía su propio comentario. Se rompió con la primera migración que trajo un
+ * bloque `DO $$ … $$` (20260816), con el error "unterminated dollar-quoted string".
+ * Y volvería a romperse con ADR-044 D-4, que necesita una función plpgsql.
+ *
+ * Reconoce: cadenas entrecomilladas ('...' con '' escapado), identificadores
+ * ("..."), comentarios de línea (--) y de bloque, y dollar-quoting con etiqueta
+ * ($$ … $$ y $tag$ … $tag$, que pueden anidarse con etiquetas distintas).
+ */
+function splitStatements(sql) {
+  const out = [];
+  let buf = "";
+  let i = 0;
+
+  while (i < sql.length) {
+    const rest = sql.slice(i);
+
+    // Comentario de línea. Se repone el "\n": en SQL un comentario equivale a
+    // ESPACIO EN BLANCO, no a nada. Sin esto los tokens se pegan y se genera SQL
+    // inválido — `... "y" text-- nota\nDEFAULT 'z'` salía como `textDEFAULT`.
+    if (rest.startsWith("--")) {
+      const nl = sql.indexOf("\n", i);
+      buf += "\n";
+      i = nl === -1 ? sql.length : nl + 1;
+      continue;
+    }
+    // Comentario de bloque. Postgres SÍ permite anidarlos, así que se lleva
+    // profundidad en vez de buscar el primer "*/" (`/* a /* b */ c */` dejaba
+    // colgando `c */`). Se repone un espacio por el mismo motivo de arriba.
+    if (rest.startsWith("/*")) {
+      let depth = 1;
+      let j = i + 2;
+      while (j < sql.length && depth > 0) {
+        if (sql.startsWith("/*", j)) { depth += 1; j += 2; continue; }
+        if (sql.startsWith("*/", j)) { depth -= 1; j += 2; continue; }
+        j += 1;
+      }
+      buf += " ";
+      i = j;
+      continue;
+    }
+    // Dollar-quoting: $$ … $$  ó  $etiqueta$ … $etiqueta$
+    const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest);
+    if (dollar) {
+      const tag = dollar[0];
+      const end = sql.indexOf(tag, i + tag.length);
+      const stop = end === -1 ? sql.length : end + tag.length;
+      buf += sql.slice(i, stop);
+      i = stop;
+      continue;
+    }
+    // Literal de cadena o identificador entrecomillado.
+    // En una cadena `E'…'` la barra invertida SÍ escapa (`E'a\'b'`); en las
+    // normales, con standard_conforming_strings=on, no.
+    if (rest[0] === "'" || rest[0] === '"') {
+      const q = rest[0];
+      const isEscapeString = q === "'" && /[Ee]$/.test(buf);
+      let j = i + 1;
+      while (j < sql.length) {
+        if (isEscapeString && sql[j] === "\\") { j += 2; continue; }
+        if (sql[j] === q) {
+          if (sql[j + 1] === q) { j += 2; continue; } // '' escapado
+          j += 1;
+          break;
+        }
+        j += 1;
+      }
+      buf += sql.slice(i, j);
+      i = j;
+      continue;
+    }
+    // Fin de sentencia
+    if (rest[0] === ";") {
+      if (buf.trim()) out.push(buf.trim());
+      buf = "";
+      i += 1;
+      continue;
+    }
+    buf += sql[i];
+    i += 1;
+  }
+
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
+const statements = splitStatements(raw);
 
 try {
   const already = await sql.query(`SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1`, [MIGRATION]);
