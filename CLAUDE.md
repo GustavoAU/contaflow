@@ -144,6 +144,7 @@ INVARIANTES
 [ ] R-7: ¿CERTIFIED_VERSION sin modificar (o proceso SENIAT cumplido)?
 [ ] ¿Modelo Prisma nuevo → ENABLE+FORCE RLS + policy company_isolation (USING+WITH CHECK) en la MISMA migración? (ADR-007 A1-bis; verificar con scripts/verify-rls.mjs)
 [ ] ¿`$queryRaw`/`$executeRaw` sobre tabla con companyId → filtro `"companyId" = ${companyId}` explícito en el SQL, TAMBIÉN en los JOIN y los EXISTS anidados? (ADR-044 D-8.2 — la aserción de tenant NO puede verlo: no hay `model` que inspeccionar. Inventario 2026-08-15: 11 call-sites, todos limpios)
+[ ] ¿Migración que SUELTA un índice/constraint → `npm run verify:drift` en verde? Un `@unique` se materializa como CONSTRAINT (columna en el `CREATE TABLE`) o como ÍNDICE (añadida por `ALTER`), y **`DROP CONSTRAINT IF EXISTS` sobre un índice es un NO-OP SILENCIOSO**. Un único que sobra es invisible para Prisma (sin tipo, sin build roto, sin test) y sólo aparece como P2002 en producción. Precedente: `RetentionSequence_companyId_key` tumbó la emisión de comprobantes de retención durante 2 meses (Z-1)
 
 CALIDAD
 [ ] tsc --noEmit = 0 errores
