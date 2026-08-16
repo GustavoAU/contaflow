@@ -37,6 +37,7 @@ No leer nada más hasta que el árbol lo indique.
 | ¿Tests con step-up actions? | Agregar `has: () => true` al mock de auth() + `if ('clerk_error' in result) throw` antes de `expect(result.success)` |
 | ¿Action nueva? | `requireCompanyAction(companyId, {roles, limiter, captureNet})` de `src/lib/action-guard.ts` (ADR-041) — NUNCA el ritual manual auth→rl→member→canAccess. `roles` es OBLIGATORIO: array de ROLES.X o `"MEMBER_ANY"` (solo membresía, lecturas). Checks extra (ADMIN_ONLY, step-up, hasModuleAccess) van DESPUÉS del guard |
 | ¿ActionResult / toActionError / ip-ua? | Fuente única `src/lib/{action-result,action-errors,net-context}.ts` — las copias de módulos son re-exports (ADR-041). IP siempre `.at(-1)` de x-forwarded-for |
+| ¿La RLS me cubre esta query sin `companyId`? | **NO.** Olvidar `withCompanyContext` es fail-**OPEN**: la app conecta como `neondb_owner` (BYPASSRLS) y las policies ni se evalúan. Cubre ~15% de escrituras y ~0% de lecturas. El aislamiento real es 100% aplicativo (ADR-004 + ADR-041). Ningún hallazgo se cierra con "lo cubre la RLS" — ADR-044 |
 
 ---
 
@@ -142,6 +143,7 @@ INVARIANTES
 [ ] R-6: ¿ipAddress/userAgent en AuditLog? ¿SeniatSubmission en mismo $transaction?
 [ ] R-7: ¿CERTIFIED_VERSION sin modificar (o proceso SENIAT cumplido)?
 [ ] ¿Modelo Prisma nuevo → ENABLE+FORCE RLS + policy company_isolation (USING+WITH CHECK) en la MISMA migración? (ADR-007 A1-bis; verificar con scripts/verify-rls.mjs)
+[ ] ¿`$queryRaw`/`$executeRaw` sobre tabla con companyId → filtro `"companyId" = ${companyId}` explícito en el SQL, TAMBIÉN en los JOIN y los EXISTS anidados? (ADR-044 D-8.2 — la aserción de tenant NO puede verlo: no hay `model` que inspeccionar. Inventario 2026-08-15: 11 call-sites, todos limpios)
 
 CALIDAD
 [ ] tsc --noEmit = 0 errores
