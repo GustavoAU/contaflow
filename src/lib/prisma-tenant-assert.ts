@@ -196,14 +196,64 @@ export function buildScopeMap(models: readonly DmmfModel[]): Map<string, ScopeSp
   return map;
 }
 
-/** Mapa efectivo del schema actual: 88 modelos, los mismos que tienen RLS. */
+/**
+ * Mapa efectivo del schema actual: 88 modelos, los mismos que tienen RLS.
+ *
+ * El `?? []` no es defensivo por costumbre: esto se construye en el top level, así
+ * que un `Prisma.dmmf` ausente en algún runtime tumbaría el import de
+ * `src/lib/prisma.ts` — o sea, la app entera. Degradar a "sin vigilancia" y avisar
+ * es infinitamente mejor que un outage. Hoy no puede pasar (generator
+ * `prisma-client-js`, cero rutas edge), pero el coste de blindarlo es una línea.
+ */
 export const SCOPE_MAP: Map<string, ScopeSpec> = buildScopeMap(
-  Prisma.dmmf.datamodel.models as unknown as readonly DmmfModel[],
+  (Prisma.dmmf?.datamodel?.models ?? []) as unknown as readonly DmmfModel[],
 );
+
+if (SCOPE_MAP.size === 0) {
+  Sentry.captureMessage("tenant-assert: SCOPE_MAP vacío — el DMMF no está disponible", {
+    level: "error",
+  });
+}
 
 // ─── Detección de acotamiento ─────────────────────────────────────────────────
 
 const MAX_DEPTH = 8;
+
+/**
+ * ¿Este valor, puesto en `where.companyId`, RESTRINGE de verdad a una empresa?
+ *
+ * HIGH-1 (auditoría ADR-044): la versión anterior aceptaba la mera PRESENCIA de la
+ * clave, y eso es un falso negativo de la única capa que hoy cubre las lecturas.
+ * Todos estos pasaban por «acotado» y ninguno acota:
+ *
+ *   { companyId: { not: X } }         → todas las empresas MENOS una
+ *   { companyId: { notIn: [...] } }   → ídem
+ *   { companyId: { startsWith: "c" } }→ todos los CUID empiezan por "c" → todas
+ *   { companyId: { in: undefined } }  → Prisma ELIMINA el predicado → todas
+ *   { companyId: { equals: undefined } } → ídem
+ *
+ * Los dos últimos son los peligrosos: son el fallo silencioso, no el intencional.
+ * Por eso la comprobación es por FORMA y en lista blanca — sólo `equals` e `in`
+ * con operando definido —, no por lista negra de operadores: un operador nuevo de
+ * Prisma entra como «no acota» (ruido en `report`), nunca como «acota» (fuga).
+ */
+export function keyIsScoping(value: unknown): boolean {
+  if (typeof value === "string") return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+
+  const filter = value as Record<string, unknown>;
+  const ops = Object.keys(filter);
+  if (ops.length === 0) return false;
+
+  return ops.every((op) => {
+    const operand = filter[op];
+    if (operand === undefined) return false; // Prisma borra el predicado entero
+    if (op === "equals") return typeof operand === "string";
+    // `in: []` se acepta a propósito: devuelve vacío, que no es una fuga.
+    if (op === "in") return Array.isArray(operand);
+    return false;
+  });
+}
 
 /**
  * ¿Este `where` acota por alguna de las claves de tenant del modelo?
@@ -232,14 +282,20 @@ export function whereIsScoped(
     const value = obj[key];
     if (value === null || value === undefined) continue;
 
-    // `companyId: { in: [] }` no acota nada útil, pero tampoco filtra de más:
-    // devuelve vacío. Se acepta como acotado — no es una fuga.
-    if (spec.scalars.has(key)) return true;
+    if (spec.scalars.has(key) && keyIsScoping(value)) return true;
 
     const parentModel = spec.relations.get(key);
     if (parentModel) {
       const parentSpec = lookup(parentModel);
-      if (parentSpec && whereIsScoped(value, parentSpec, lookup, depth + 1)) return true;
+      if (!parentSpec) continue;
+      // Prisma admite dos sintaxis para filtrar por una relación to-one: el atajo
+      // `{ invoice: { companyId } }` y la explícita `{ invoice: { is: { … } } }`.
+      // `isNot` NO se desenvuelve: niega, no restringe (misma lógica que `NOT`).
+      const inner =
+        typeof value === "object" && value !== null && "is" in (value as object)
+          ? (value as Record<string, unknown>).is
+          : value;
+      if (whereIsScoped(inner, parentSpec, lookup, depth + 1)) return true;
     }
   }
 
@@ -264,7 +320,10 @@ export function createDataIsScoped(data: unknown, spec: ScopeSpec): boolean {
   return rows.every((row) => {
     if (!row || typeof row !== "object") return false;
     const obj = row as Record<string, unknown>;
-    return [...spec.scalars].some((k) => obj[k] !== null && obj[k] !== undefined);
+    // En `createMany` el tenant es un valor literal: no hay filtros ni `connect`
+    // anidado. Se exige string no vacío — `""` pasaría el chequeo de presencia y
+    // no acota nada (mismo razonamiento que HIGH-1).
+    return [...spec.scalars].some((k) => typeof obj[k] === "string" && obj[k] !== "");
   });
 }
 
@@ -311,6 +370,14 @@ export const TENANT_ASSERT_MESSAGE =
  * que desplegarlo no puede romper nada.
  */
 export function createTenantAssertExtension(mode: TenantAssertMode) {
+  // M-2 (auditoría): sin deduplicar, `report` emite un evento de Sentry POR CONSULTA
+  // violatoria. Hay violaciones en la ruta caliente (la resolución de empresas del
+  // usuario corre en cada carga de página), así que serían ≥1 evento de cuota por
+  // page-load: se agota el plan y los errores de verdad quedan sepultados bajo ruido
+  // conocido. Para el inventario de D-7 interesa el CONJUNTO de violaciones, no su
+  // volumetría — con la primera de cada `modelo.operación` basta.
+  const reported = new Set<string>();
+
   return Prisma.defineExtension({
     name: "tenant-assert",
     query: {
@@ -318,31 +385,49 @@ export function createTenantAssertExtension(mode: TenantAssertMode) {
         async $allOperations({ model, operation, args, query }) {
           if (mode === "off") return query(args);
 
-          const reason = currentUnscopedReason();
-          if (reason) {
-            // Declarado no-tenant a propósito. Se deja rastro para el inventario
-            // de D-7, no para señalar un problema.
-            Sentry.addBreadcrumb({
-              category: "tenant-assert",
-              level: "info",
-              message: `unscoped: ${model}.${operation}`,
-              data: { unscoped_reason: reason },
-            });
-            return query(args);
+          // M-1 (auditoría): TODA la instrumentación va dentro de un try/catch. El
+          // ADR prometía que `report` "no puede romper nada" y era falso: una
+          // excepción del SDK de Sentry, o un `where` patológico, se propagaba y
+          // tumbaba la CONSULTA, no sólo la telemetría. La violación se calcula
+          // aquí dentro; el `throw` de `enforce` se hace FUERA, para no tragárselo.
+          let violation: string | null = null;
+          try {
+            const reason = currentUnscopedReason();
+            if (reason) {
+              // Declarado no-tenant a propósito. Rastro para el inventario de D-7,
+              // no señal de problema.
+              Sentry.addBreadcrumb({
+                category: "tenant-assert",
+                level: "info",
+                message: `unscoped: ${model}.${operation}`,
+                data: { unscoped_reason: reason },
+              });
+              return query(args);
+            }
+
+            violation = assertViolation(model, operation, args);
+
+            if (violation && mode === "report") {
+              const key = `${model}.${operation}`;
+              if (!reported.has(key)) {
+                reported.add(key);
+                // Sólo el modelo y la operación: nunca valores de datos, ni
+                // companyId, ni PII, ni secretos.
+                Sentry.captureMessage(`tenant-assert: ${violation}`, {
+                  level: "warning",
+                  tags: { tenant_assert_violation: key },
+                });
+              }
+              if (process.env.NODE_ENV !== "production") {
+                console.warn(`[tenant-assert] ${violation}`);
+              }
+            }
+          } catch {
+            // La telemetría jamás rompe la consulta.
           }
 
-          const violation = assertViolation(model, operation, args);
-          if (violation) {
-            if (mode === "enforce") {
-              throw new Error(TENANT_ASSERT_MESSAGE);
-            }
-            Sentry.captureMessage(`tenant-assert: ${violation}`, {
-              level: "warning",
-              tags: { tenant_assert_violation: `${model}.${operation}` },
-            });
-            if (process.env.NODE_ENV !== "production") {
-              console.warn(`[tenant-assert] ${violation}`);
-            }
+          if (violation && mode === "enforce") {
+            throw new Error(TENANT_ASSERT_MESSAGE);
           }
 
           return query(args);

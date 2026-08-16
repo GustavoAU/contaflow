@@ -362,14 +362,69 @@ explícitamente. Esto vale con RLS y sin ella.
 ## 8. Checklist de cierre
 
 - [x] **D-1** ADR-007 corregido + postura real declarada (§3) — *este ADR*
-- [ ] **D-3** `prisma-tenant-assert` en modo `report` + inventario `unscoped()`
-- [ ] **D-3b** Paso a `enforce` tras una semana sin falsos positivos
+- [x] **D-3** `prisma-tenant-assert` en modo `report` — `src/lib/prisma-tenant-assert.ts`,
+      190 tests (100 % de cobertura, 16 mutantes inyectados y muertos). Auditado por
+      `security-agent`: 1 HIGH y 5 MEDIUM, los bloqueantes corregidos (ver §10).
+- [ ] **D-3b** Anotar con `unscoped()` los ~8 flujos cross-company reales
+      (`user.actions.ts:33` es ruta caliente, `dashboard/page.tsx:34`,
+      `BillingService.ts:120,213`, `PlanChangeService.ts:189`,
+      `NotificationEmailService.ts:140`, `cron/seniat-outbox`, `CompanyService.ts:319`),
+      cerrar LOW-4, y sólo entonces pasar a `enforce`
 - [ ] **D-4** Migración `app_current_company_id()` con `RAISE` + mapeo en `toActionError`
-- [ ] **D-8.2** Inventario de SQL crudo sobre tablas tenant
-- [ ] **D-8.3** `scripts/verify-rls-runtime.mjs` (conductual) en CI
+- [x] **D-8.2** Inventario de SQL crudo sobre tablas tenant — 16 usos, 11 tocan
+      tablas tenant y **los 11 llevan `companyId` explícito**, incluidos los `EXISTS`
+      anidados. Punto ciego limpio hoy; la regla ya está en el checklist de CLAUDE.md
+      porque la aserción nunca podrá vigilarlo.
+- [x] **D-8.3** `scripts/verify-rls-runtime.mjs` (conductual) — sale 1 si no puede
+      verificar nada. Falta engancharlo a CI (necesita una branch de Neon sembrada).
 - [ ] **D-6** Piloto R1 (Nómina) con modo sombra + medición de p95
 - [ ] **D-6b** R2 … R7 según §5, ratchet monótono decreciente
 - [ ] **D-7** `app_rls` sin BYPASSRLS + `prismaAdmin` restringido por test de arquitectura
+
+## 10. Auditoría de D-3 (`security-agent`, 2026-08-15)
+
+Veredicto: **GO condicionado**. 0 CRITICAL · 1 HIGH · 5 MEDIUM · 4 LOW.
+
+**HIGH-1 — corregido.** `whereIsScoped` aceptaba la *presencia* de la clave de
+tenant, no su *semántica*. Pasaban por «acotado» sin acotar nada:
+`{companyId:{not:X}}` (todas menos una), `{startsWith:"c"}` (todos los CUID
+empiezan por `c`), y —los peligrosos porque son silenciosos—
+`{in: undefined}` / `{equals: undefined}`, donde **Prisma elimina el predicado
+entero**. Un falso negativo aquí es una fuga que ninguna otra capa atrapa, porque
+la RLS cubre ≈0 % de las lecturas. Arreglado con `keyIsScoping`: lista **blanca
+por forma** (`equals`/`in` con operando definido), no lista negra de operadores —
+así un operador nuevo de Prisma entra como «no acota» (ruido en `report`) y nunca
+como «acota» (fuga).
+
+**M-1 — corregido.** La promesa «`report` no puede romper nada» era falsa: la
+instrumentación corría sin `try/catch`, así que una excepción del SDK de Sentry
+tumbaba la **consulta**, no sólo la telemetría. Ahora todo el bloque va en
+`try/catch` y el `throw` de `enforce` se hace fuera, para no tragárselo.
+
+**M-2 — corregido a medias, resto en D-3b.** Sin deduplicar, `report` emitía un
+evento de Sentry por consulta violatoria, y hay violaciones en ruta caliente
+(la resolución de empresas del usuario corre en cada carga de página). Ahora se
+reporta sólo la primera de cada `modelo.operación` por proceso. Deliberadamente
+**no** se pone un tope duro de eventos: truncaría el inventario, que es justo el
+insumo que D-7 necesita. La otra mitad —anotar las excepciones conocidas— es D-3b.
+
+**M-3 y M-4 — fuera de esta rama, tasks propios.** Dos bugs de producción
+preexistentes que la auditoría destapó al examinar la exención de `findUnique`:
+1. `Expense.idempotencyKey` e `InventoryMovement.idempotencyKey` son `@unique`
+   **global** y el valor lo **suministra el cliente**; el lookup no filtra por
+   `companyId` y **devuelve la fila ajena**. Rompe la premisa que justifica eximir
+   `findUnique` («la clave única no es adivinable»). Barrido obligatorio de los 10
+   `idempotencyKey @unique` del schema. `invoice.actions` y `payment.actions` ya lo
+   hacen bien — es un desvío, no un criterio.
+2. `IncomeDistribution.referenceNumber` es `@unique` global pero el correlativo se
+   calcula **por empresa** → la primera distribución de la segunda empresa genera
+   `DIST-000000`, que ya existe → **P2002 permanente**. Bug latente hoy.
+
+**Consecuencia para el ADR**: §4 D-3 justificaba eximir `findUnique/update/delete/
+upsert` con «un CUID no es adivinable». Eso es **falso** para claves `@unique` de
+valor suministrado por el cliente. La justificación correcta es «lo protege la
+lectura acotada previa», que es una disciplina, no una garantía — y por tanto
+superficie que la aserción no vigila por diseño.
 
 ## 9. Archivos de referencia
 

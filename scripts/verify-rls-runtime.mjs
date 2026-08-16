@@ -75,16 +75,26 @@ for (const { t } of tenantTables) {
 }
 
 if (!probe) {
-  console.log(
-    "\nSin datos suficientes (hacen falta filas de 2+ empresas en alguna tabla tenant).\n" +
-      "La verificación estructural sigue siendo válida: node scripts/verify-rls.mjs",
+  // Sale 1, NO 0. ADR-044 D-8.3 designa este script como la única prueba admisible
+  // de "RLS activa" en una auditoría: si no puede probar nada, tiene que decirlo en
+  // rojo. Un verde sin haber verificado nada es peor que no tener el script — y es
+  // el caso por defecto en CI contra una branch de Neon limpia, que es justo donde
+  // el ADR pone su credibilidad.
+  console.error(
+    "\nVERIFICACIÓN NO CONCLUYENTE: hacen falta filas de 2+ empresas en alguna tabla\n" +
+      "tenant para poder probar el aislamiento. Siembra datos de dos empresas o\n" +
+      "apunta a un entorno que los tenga. La verificación ESTRUCTURAL es otra cosa\n" +
+      "y sigue disponible: node scripts/verify-rls.mjs",
   );
-  process.exit(0);
+  process.exit(1);
 }
 
 const { table, target, total } = probe;
+// El companyId va truncado: este script apunta a un entorno REAL y su salida acaba
+// en logs de CI compartidos. Un identificador de tenant en claro ahí no aporta nada
+// al diagnóstico y sí es un dato de cliente.
 console.log(
-  `\nTabla de prueba: ${table} · ${total} filas totales · empresa objetivo ${target.cid} (${target.n} filas)\n`,
+  `\nTabla de prueba: ${table} · ${total} filas totales · empresa objetivo ${target.cid.slice(0, 8)}… (${target.n} filas)\n`,
 );
 
 // ─── 2. Las tres garantías que la RLS debe cumplir ────────────────────────────
