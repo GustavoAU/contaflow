@@ -249,9 +249,12 @@ jobs:
       # ========================================================================
       - name: "Prisma: Validar formato del schema"
         run: |
-          npx prisma format --check
-          if [ $? -ne 0 ]; then
-            echo "Schema no esta formateado. Ejecuta: npx prisma format"
+          # OJO: los `run` de Actions corren con `bash -e`, asi que comprobar $?
+          # DESPUES del comando es codigo muerto — el step aborta antes de llegar
+          # ahi y el annotation solo dice "exit code 1". El `if !` si captura el
+          # fallo y deja el mensaje accionable en el log.
+          if ! npx prisma format --check; then
+            echo "::error::Schema Prisma no esta formateado. Ejecuta: npx prisma format y commitea el resultado."
             exit 1
           fi
           echo "OK: Prisma schema formateado correctamente"

@@ -3015,7 +3015,7 @@ model IncomeDistribution {
   companyId String
   company   Company @relation("IncomeDistributions", fields: [companyId], references: [id], onDelete: Restrict)
 
-  referenceNumber String? @db.VarChar(50)
+  referenceNumber String?                  @db.VarChar(50)
   description     String?                  @db.Text
   date            DateTime                 @db.Date
   status          IncomeDistributionStatus @default(DRAFT)
