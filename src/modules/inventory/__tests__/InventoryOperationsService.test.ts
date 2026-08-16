@@ -16,7 +16,11 @@ vi.mock("@/lib/prisma", () => ({
       count: vi.fn(),
     },
     inventoryMovement: {
-      findUnique: vi.fn(),
+      // `findUnique` NO se declara a proposito: el lookup de idempotencia debe
+      // ser `findFirst` acotado por companyId. Si alguien vuelve a
+      // `findUnique({ where: { idempotencyKey } })` (el IDOR cross-tenant),
+      // estos tests revientan en vez de pasar en verde.
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       findFirstOrThrow: vi.fn(),
       update: vi.fn(),
@@ -74,7 +78,6 @@ const makeTx = () => ({
       totalCost: new Decimal("500"),
       idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
     }),
-    findUnique: vi.fn().mockResolvedValue(null),
     update: vi.fn().mockResolvedValue({ id: "mov-001", status: "VOIDED" }),
   },
   auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -89,7 +92,7 @@ beforeEach(() => {
   vi.mocked(prisma.account.findFirstOrThrow).mockResolvedValue({ id: "acc-inv" } as never);
   vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never); // R-09: no hay período cerrado
   vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue(makeItem() as never);
-  vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.inventoryMovement.findFirstOrThrow).mockResolvedValue({
     id: "mov-001",
     status: "DRAFT",
@@ -240,14 +243,23 @@ describe("createDraftMovement", () => {
   });
 
   it("es idempotente — retorna movimiento existente si ya existe idempotencyKey", async () => {
-    const existingMovement = { id: "mov-existing", status: "DRAFT" };
-    // findUnique se llama en prisma directo (no en tx)
-    vi.mocked(prisma.inventoryMovement.findUnique).mockResolvedValueOnce(
+    const existingMovement = { id: "mov-existing", status: "DRAFT", companyId: COMPANY_ID };
+    // findFirst se llama en prisma directo (no en tx)
+    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(
       existingMovement as never
     );
     const result = await createDraftMovement(BASE, USER_ID);
     expect(result).toEqual(existingMovement);
     expect(currentTx.inventoryMovement.create).not.toHaveBeenCalled();
+    // ADR-004: el lookup va acotado a la empresa, no solo a la clave
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          idempotencyKey: BASE.idempotencyKey,
+          companyId: COMPANY_ID,
+        }),
+      })
+    );
   });
 
   it("verifica ownership de invoiceId si se proporciona", async () => {
@@ -257,6 +269,100 @@ describe("createDraftMovement", () => {
     await expect(
       createDraftMovement({ ...BASE, invoiceId: "inv-other-company" }, USER_ID)
     ).rejects.toThrow("Invoice not found");
+  });
+});
+
+// ─── createDraftMovement — idempotencia acotada a companyId (regresión IDOR) ──
+//
+// `InventoryMovement.idempotencyKey` es `@unique` GLOBAL y el valor lo suministra
+// el CLIENTE. Sin `companyId` en el lookup, la empresa B que reusara la clave de
+// la empresa A recibía de vuelta el movimiento de inventario de A (`return
+// existing`) y su propio movimiento no se creaba nunca.
+
+describe("createDraftMovement — idempotencia acotada a companyId (regresión IDOR)", () => {
+  const SHARED_KEY = "550e8400-e29b-41d4-a716-446655440000";
+  const OTHER_COMPANY = "company-ajena";
+
+  const BASE = {
+    companyId: COMPANY_ID,
+    itemId: "item-001",
+    type: "ENTRADA" as const,
+    quantity: 5,
+    unitCost: "120",
+    reference: "REF-TEST-001",
+    date: new Date().toISOString(),
+    idempotencyKey: SHARED_KEY,
+  };
+
+  // Movimiento que YA existe en la BD, pero pertenece a OTRA empresa.
+  const foreignMovement = {
+    id: "mov-de-otra-empresa",
+    companyId: OTHER_COMPANY,
+    itemId: "item-ajeno",
+    type: "SALIDA",
+    quantity: new Decimal("999"),
+    idempotencyKey: SHARED_KEY,
+    status: "POSTED",
+  };
+
+  /**
+   * `findFirst` falso que se comporta como la BD: filtra por TODAS las claves
+   * escalares del `where`. Si el servicio omite `companyId`, la fila ajena hace
+   * match y el test falla — un `mockResolvedValue(fila)` plano no detectaría nada.
+   */
+  function fakeFindFirst(rows: Array<Record<string, unknown>>) {
+    return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
+      const where = args?.where ?? {};
+      const scalar = Object.entries(where).filter(
+        ([, v]) => v === null || typeof v !== "object"
+      );
+      return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
+    });
+  }
+
+  it("NO devuelve el movimiento de otra empresa cuando reusan la misma idempotencyKey", async () => {
+    vi.mocked(prisma.inventoryMovement.findFirst).mockImplementation(
+      fakeFindFirst([foreignMovement]) as never
+    );
+
+    const result = await createDraftMovement(BASE, USER_ID);
+
+    // No se filtra el movimiento ajeno...
+    expect(result.id).not.toBe("mov-de-otra-empresa");
+    // ...y el movimiento propio SÍ se crea (antes se perdía en silencio)
+    expect(currentTx.inventoryMovement.create).toHaveBeenCalledOnce();
+    expect(currentTx.inventoryMovement.create.mock.calls[0]![0].data.companyId).toBe(
+      COMPANY_ID
+    );
+  });
+
+  it("el where del lookup lleva companyId además de la clave", async () => {
+    vi.mocked(prisma.inventoryMovement.findFirst).mockImplementation(
+      fakeFindFirst([foreignMovement]) as never
+    );
+
+    await createDraftMovement(BASE, USER_ID);
+
+    const where = vi.mocked(prisma.inventoryMovement.findFirst).mock.calls[0]![0]!.where!;
+    expect(where).toMatchObject({ idempotencyKey: SHARED_KEY, companyId: COMPANY_ID });
+    expect(Object.keys(where)).toContain("companyId");
+  });
+
+  it("la idempotencia legítima sigue funcionando: misma clave + MISMA empresa devuelve la fila existente", async () => {
+    const ownMovement = {
+      id: "mov-propio-existente",
+      companyId: COMPANY_ID,
+      idempotencyKey: SHARED_KEY,
+      status: "DRAFT",
+    };
+    vi.mocked(prisma.inventoryMovement.findFirst).mockImplementation(
+      fakeFindFirst([foreignMovement, ownMovement]) as never
+    );
+
+    const result = await createDraftMovement(BASE, USER_ID);
+
+    expect(result.id).toBe("mov-propio-existente");
+    expect(currentTx.inventoryMovement.create).not.toHaveBeenCalled();
   });
 });
 

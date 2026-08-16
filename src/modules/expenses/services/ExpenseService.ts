@@ -151,9 +151,19 @@ export async function createExpense(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ): Promise<ExpenseSummary> {
-  // Idempotencia
-  const existing = await prisma.expense.findUnique({
-    where: { idempotencyKey: input.idempotencyKey },
+  // Idempotencia ACOTADA a la empresa (ADR-004).
+  //
+  // Antes era `findUnique({ where: { idempotencyKey } })` sobre un `@unique`
+  // GLOBAL cuyo valor lo suministra el CLIENTE (`z.string().uuid()`). Si dos
+  // empresas usaban la misma clave, la segunda recibía de vuelta —serializado y
+  // completo— el gasto de la primera: monto, proveedor, descripción y categoría.
+  // Y nunca llegaba a crear el suyo. Fuga cross-tenant + corrupción silenciosa.
+  //
+  // Es también el contraejemplo que refuta la premisa de ADR-044 D-3 para eximir
+  // `findUnique` de la aserción de tenant ("un CUID no es adivinable"): esta clave
+  // no la genera el servidor.
+  const existing = await prisma.expense.findFirst({
+    where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
     include: { category: { select: { name: true } } },
   });
   if (existing) {

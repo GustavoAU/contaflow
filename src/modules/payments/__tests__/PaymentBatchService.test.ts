@@ -6,7 +6,9 @@ vi.mock("@/lib/prisma", () => ({
     paymentBatch: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     paymentBatchLine: {},
     invoice: { findFirst: vi.fn(), update: vi.fn() },
-    invoicePayment: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    // Sin `findUnique` a proposito: el lookup por idempotencyKey debe ir
+    // acotado por companyId (`findFirst`). Ver regresion IDOR mas abajo.
+    invoicePayment: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     company: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -503,7 +505,7 @@ describe("PaymentBatchService.voidBatch", () => {
       ...BASE_BATCH,
       status: "APPLIED",
     } as never);
-    vi.mocked(prisma.invoicePayment.findUnique)
+    vi.mocked(prisma.invoicePayment.findFirst)
       .mockResolvedValueOnce({ id: "ip-1", amount: new Decimal("150000"), invoiceId: INV_A } as never)
       .mockResolvedValueOnce({ id: "ip-2", amount: new Decimal("350000"), invoiceId: INV_B } as never);
     vi.mocked(prisma.invoicePayment.update).mockResolvedValue({} as never);
@@ -543,6 +545,16 @@ describe("PaymentBatchService.voidBatch", () => {
     );
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: "VOID" }) })
+    );
+    // ADR-004: el lookup del InvoicePayment va acotado a la empresa, no solo a
+    // la idempotencyKey (que es @unique GLOBAL en el schema).
+    expect(prisma.invoicePayment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          idempotencyKey: `batch:${BATCH_ID}:line:${BASE_LINE_A.id}`,
+          companyId: COMPANY_ID,
+        },
+      })
     );
   });
 
@@ -592,7 +604,7 @@ describe("PaymentBatchService.voidBatch", () => {
       status: "APPLIED",
       lines: [BASE_LINE_A],
     } as never);
-    vi.mocked(prisma.invoicePayment.findUnique).mockResolvedValue({
+    vi.mocked(prisma.invoicePayment.findFirst).mockResolvedValue({
       id: "ip-1",
       amount: new Decimal("150000"),
       invoiceId: INV_A,
@@ -641,6 +653,131 @@ describe("PaymentBatchService.voidBatch", () => {
     ).rejects.toThrow(/Conflicto de concurrencia/);
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ─── voidBatch — lookup por idempotencyKey acotado a companyId (IDOR) ─────────
+//
+// `InvoicePayment.idempotencyKey` es `@unique` GLOBAL. Aquí la clave la deriva
+// el servidor (`batch:<batchId>:line:<lineId>` sobre CUIDs ya verificados), así
+// que no era explotable desde el cliente — pero es la misma clase de bug que el
+// IDOR de ExpenseService: sin `companyId`, un match de clave de OTRA empresa
+// haría que voidBatch soft-borrara un InvoicePayment ajeno.
+
+describe("PaymentBatchService.voidBatch — aislamiento del lookup por idempotencyKey", () => {
+  const OTHER_COMPANY = "company-ajena";
+
+  /**
+   * `findFirst` falso que filtra por TODAS las claves escalares del `where`:
+   * si el servicio omite `companyId`, la fila ajena hace match y el test falla.
+   */
+  function fakeFindFirst(rows: Array<Record<string, unknown>>) {
+    return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
+      const where = args?.where ?? {};
+      const scalar = Object.entries(where).filter(
+        ([, v]) => v === null || typeof v !== "object"
+      );
+      return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
+    });
+  }
+
+  const foreignPayment = {
+    id: "ip-de-otra-empresa",
+    companyId: OTHER_COMPANY,
+    idempotencyKey: `batch:${BATCH_ID}:line:${BASE_LINE_A.id}`,
+    amount: new Decimal("150000"),
+    invoiceId: "invoice-de-otra-empresa",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.paymentBatch.findFirst).mockResolvedValue({
+      ...BASE_BATCH,
+      status: "APPLIED",
+      lines: [BASE_LINE_A],
+    } as never);
+    vi.mocked(prisma.invoicePayment.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.paymentBatch.update).mockResolvedValue({
+      ...BASE_BATCH,
+      status: "VOID",
+      lines: [BASE_LINE_A],
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("NO toca el InvoicePayment de otra empresa aunque la idempotencyKey coincida", async () => {
+    vi.mocked(prisma.invoicePayment.findFirst).mockImplementation(
+      fakeFindFirst([foreignPayment]) as never
+    );
+
+    const result = await PaymentBatchService.voidBatch({
+      batchId: BATCH_ID,
+      companyId: COMPANY_ID,
+      userId: USER_ID,
+      voidReason: "Anulación legítima",
+    });
+
+    expect(result.status).toBe("VOID");
+    // Ningún soft-delete sobre la fila ajena, ni reverso de su factura
+    expect(prisma.invoicePayment.update).not.toHaveBeenCalled();
+    expect(prisma.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it("el where del lookup lleva companyId además de la clave derivada", async () => {
+    vi.mocked(prisma.invoicePayment.findFirst).mockImplementation(
+      fakeFindFirst([]) as never
+    );
+
+    await PaymentBatchService.voidBatch({
+      batchId: BATCH_ID,
+      companyId: COMPANY_ID,
+      userId: USER_ID,
+      voidReason: "Motivo",
+    });
+
+    const where = vi.mocked(prisma.invoicePayment.findFirst).mock.calls[0]![0]!.where!;
+    expect(where).toMatchObject({
+      idempotencyKey: `batch:${BATCH_ID}:line:${BASE_LINE_A.id}`,
+      companyId: COMPANY_ID,
+    });
+    expect(Object.keys(where)).toContain("companyId");
+  });
+
+  it("el reverso legítimo sigue funcionando: pago de la MISMA empresa sí se anula", async () => {
+    vi.mocked(prisma.invoicePayment.findFirst).mockImplementation(
+      fakeFindFirst([
+        foreignPayment,
+        {
+          id: "ip-propio",
+          companyId: COMPANY_ID,
+          idempotencyKey: `batch:${BATCH_ID}:line:${BASE_LINE_A.id}`,
+          amount: new Decimal("150000"),
+          invoiceId: INV_A,
+        },
+      ]) as never
+    );
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      id: INV_A,
+      pendingAmount: new Decimal("0"),
+      totalAmountVes: new Decimal("150000"),
+      paymentStatus: "PAID",
+    } as never);
+
+    await PaymentBatchService.voidBatch({
+      batchId: BATCH_ID,
+      companyId: COMPANY_ID,
+      userId: USER_ID,
+      voidReason: "Motivo",
+    });
+
+    expect(prisma.invoicePayment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "ip-propio" },
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      })
+    );
   });
 });
 

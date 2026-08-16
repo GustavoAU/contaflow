@@ -526,8 +526,12 @@ export class PaymentBatchService {
               const idempotencyKey = `batch:${batch.id}:line:${line.id}`;
 
               // Soft-delete del InvoicePayment generado
-              const payment = await tx.invoicePayment.findUnique({
-                where: { idempotencyKey },
+              // Acotado a la empresa (ADR-004). Aquí la clave la deriva el
+              // servidor de CUIDs ya verificados, así que no era explotable —
+              // pero es la misma clase que el IDOR de ExpenseService y se cierra
+              // igual: ningún lookup por `idempotencyKey` sin `companyId`.
+              const payment = await tx.invoicePayment.findFirst({
+                where: { idempotencyKey, companyId: input.companyId },
                 select: { id: true, amount: true, invoiceId: true },
               });
 

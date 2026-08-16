@@ -227,9 +227,12 @@ export async function createDraftMovement(
     });
   }
 
-  // Verificar idempotencyKey no duplicada
-  const existing = await prisma.inventoryMovement.findUnique({
-    where: { idempotencyKey: input.idempotencyKey },
+  // Verificar idempotencyKey no duplicada — ACOTADA a la empresa (ADR-004).
+  // Mismo bug que en ExpenseService: el `@unique` es GLOBAL y la clave la
+  // suministra el cliente, así que sin `companyId` la empresa B recibía el
+  // movimiento de inventario de A y jamás creaba el suyo.
+  const existing = await prisma.inventoryMovement.findFirst({
+    where: { idempotencyKey: input.idempotencyKey, companyId },
   });
   if (existing) {
     return existing; // idempotente — devuelve el movimiento existente sin error
