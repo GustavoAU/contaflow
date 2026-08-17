@@ -79,10 +79,6 @@ export function currentUnscopedReason(): UnscopedReason | undefined {
 
 /**
  * Multi-fila: un `where` incompleto devuelve/afecta filas de OTRAS empresas.
- *
- * `findUnique`/`update`/`delete`/`upsert` NO entran: operan sobre una clave única
- * (un CUID no es adivinable y no hay barrido cross-tenant). Ése es el criterio de
- * ADR-044 D-3, y coincide con el que ya usa `company-isolation.test.ts`.
  */
 export const SCOPED_OPERATIONS = new Set<string>([
   "findMany",
@@ -94,6 +90,33 @@ export const SCOPED_OPERATIONS = new Set<string>([
   "updateMany",
   "updateManyAndReturn",
   "deleteMany",
+]);
+
+/**
+ * Fila única por clave única — D-3-bis.
+ *
+ * La versión original de D-3 EXIMÍA estas cinco, con este argumento: «operan sobre
+ * una clave única (un CUID no es adivinable)». **La premisa era falsa**, y el
+ * contraejemplo apareció en la auditoría siguiente: `Expense.idempotencyKey` era
+ * `@unique` y `ExpenseService` hacía `findUnique({ where: { idempotencyKey } })`
+ * devolviendo la fila entera — pero ese valor **lo elegía el cliente**
+ * (`z.string().uuid()`). La empresa B recibía el gasto de A.
+ *
+ * El salto lógico del ADR era éste: el paréntesis justificaba «clave PRIMARIA CUID»
+ * y la conclusión se aplicaba a «cualquier clave única». La redacción correcta no
+ * habla del formato sino de la PROCEDENCIA: *la PK es un CUID **generado por el
+ * servidor***. Este bug no ocurrió porque un UUID fuera adivinable; ocurrió porque
+ * lo eligió quien atacaba.
+ *
+ * Así que se vigilan, y la exención sobrevive sólo en el caso que la premisa de
+ * verdad justificaba: `where: { id }` a secas. Ver `uniqueWhereIsScoped`.
+ */
+export const UNIQUE_ROW_OPERATIONS = new Set<string>([
+  "findUnique",
+  "findUniqueOrThrow",
+  "update",
+  "delete",
+  "upsert",
 ]);
 
 /** Operaciones donde el tenant viaja en `data`, no en `where`. */
@@ -328,6 +351,66 @@ export function createDataIsScoped(data: unknown, spec: ScopeSpec): boolean {
 }
 
 /**
+ * ¿El `where` de una operación de FILA ÚNICA acota al tenant? — D-3-bis.
+ *
+ * Se acepta en tres casos, y sólo en tres:
+ *
+ *  1. **`id` presente como string.** La PK la genera el servidor (CUID), nadie de
+ *     fuera la propone. Es lo único que la premisa original justificaba de verdad.
+ *
+ *     Las claves ADICIONALES no rompen la exención, y conviene explicar por qué,
+ *     porque la primera versión de esto exigía que `id` fuera la ÚNICA clave
+ *     «porque Prisma resolvería por cualquiera de las dos». **Eso es falso.**
+ *     Desde `extendedWhereUnique`, el selector único identifica la fila y los
+ *     campos extra son FILTROS que se conjugan con AND — o sea que sólo pueden
+ *     restringir más, nunca alcanzar otra fila. Verificado en el cliente generado,
+ *     no deducido: `WhereUniqueInput` es `AtLeast<{…}, "id"|"companyId_idempotencyKey">`
+ *     y el resto de campos aparecen tipados como `StringFilter`, no como selector.
+ *
+ *     Exigir `id` a secas habría reportado `update({ where: { id, deletedAt: null } })`
+ *     — el patrón de soft-delete de medio repo — llenando de falsos positivos justo
+ *     el inventario que D-7 necesita limpio.
+ *  2. El escalar de tenant aparece directamente (`{ id, companyId }`).
+ *  3. Va dentro de un **selector compuesto**, que es la forma canónica tras la
+ *     migración a `@@unique([companyId, …])`:
+ *     `{ companyId_idempotencyKey: { companyId, idempotencyKey } }`, o el
+ *     `{ companyId_year_month: { … } }` de los correlativos. Ahí el `companyId`
+ *     forma parte de la clave, así que la fila ajena es inalcanzable por
+ *     construcción.
+ *
+ * Todo lo demás se reporta. Sí, eso incluye lookups por una FK única generada por
+ * el servidor (`{ glTransactionId }`), que son seguros: en modo `report` eso es
+ * ruido barato, y el inventario que produce es justo lo que D-7 necesita para
+ * decidir. Preferimos afinar la lista con datos antes de `enforce` que volver a
+ * razonar por analogía — que es exactamente como nació este agujero.
+ */
+export function uniqueWhereIsScoped(
+  where: unknown,
+  spec: ScopeSpec,
+  lookup: (model: string) => ScopeSpec | undefined = (m) => SCOPE_MAP.get(m),
+): boolean {
+  if (!where || typeof where !== "object" || Array.isArray(where)) return false;
+  const obj = where as Record<string, unknown>;
+
+  // (1) PK generada por el servidor. Se exige `string` NO VACÍO: un `{ id: {...} }`
+  // sería un filtro y no pinta una sola fila, y `""` no identifica nada (mismo
+  // criterio que `createDataIsScoped`, que ya rechazaba la cadena vacía).
+  if (typeof obj.id === "string" && obj.id !== "") return true;
+
+  // (2) escalar de tenant directo
+  if (whereIsScoped(where, spec, lookup)) return true;
+
+  // (3) selector compuesto: el tenant vive un nivel más adentro
+  for (const key of Object.keys(obj)) {
+    const value = obj[key];
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    if (whereIsScoped(value, spec, lookup)) return true;
+  }
+
+  return false;
+}
+
+/**
  * Decide si una operación concreta viola el aislamiento. Función pura: es la que
  * se testea, sin necesidad de base de datos ni de cliente Prisma.
  *
@@ -349,6 +432,15 @@ export function assertViolation(
   if (CREATE_MANY_OPERATIONS.has(operation)) {
     if (createDataIsScoped(argsObj.data, spec)) return null;
     return `${model}.${operation} sin ${expected} en data`;
+  }
+
+  if (UNIQUE_ROW_OPERATIONS.has(operation)) {
+    if (uniqueWhereIsScoped(argsObj.where, spec)) return null;
+    // `Company` se acota por su propia PK, así que aquí `expected` YA es "id":
+    // sin esto el mensaje salía "sin id ni id", que invita a buscar el bug en la
+    // extensión en vez de en el call-site.
+    const falta = spec.scalars.has("id") ? "id" : `${expected} ni id`;
+    return `${model}.${operation} por clave única sin ${falta}`;
   }
 
   if (!SCOPED_OPERATIONS.has(operation)) return null;

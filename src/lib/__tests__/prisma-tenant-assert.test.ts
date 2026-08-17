@@ -1,6 +1,7 @@
 // src/lib/__tests__/prisma-tenant-assert.test.ts
 //
-// Suite de la aserción multi-tenant de ADR-044 D-3.
+// Suite de la aserción multi-tenant de ADR-044 D-3 (+ D-3-bis: las operaciones de
+// fila única dejaron de estar exentas — ver sección 4-bis).
 //
 // Todo lo que se prueba aquí es PURO: sin BD, sin cliente Prisma, sin round-trips.
 // El grueso son las funciones donde vive la decisión (`assertViolation`,
@@ -24,12 +25,14 @@ import {
   buildScopeMap,
   whereIsScoped,
   createDataIsScoped,
+  uniqueWhereIsScoped,
   keyIsScoping,
   assertViolation,
   unscoped,
   currentUnscopedReason,
   SCOPE_MAP,
   SCOPED_OPERATIONS,
+  UNIQUE_ROW_OPERATIONS,
   CREATE_MANY_OPERATIONS,
   type ScopeSpec,
 } from "../prisma-tenant-assert";
@@ -57,6 +60,16 @@ const m = (name: string, fields: SynthField[]): SynthModel => ({ name, fields })
 
 /** Modelo tenant "normal" de referencia para los sintéticos. */
 const INVOICE_LIKE = m("Invoice", [s("id"), s("companyId"), s("status")]);
+
+/**
+ * Las cinco operaciones de FILA ÚNICA (ADR-044 D-3-bis).
+ *
+ * Se escriben a mano en vez de derivarse de `UNIQUE_ROW_OPERATIONS`: si alguien
+ * vaciara ese Set, un `it.each` alimentado por él generaría CERO casos y la suite
+ * seguiría verde habiendo dejado de probar el control entero. Aquí la lista ES la
+ * expectativa, y hay un test que la confronta con el catálogo de producción.
+ */
+const UNIQUE_OPS = ["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"] as const;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 1. resolveMode — seguro por defecto
@@ -646,6 +659,320 @@ describe("createDataIsScoped", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 4-bis. uniqueWhereIsScoped — D-3-bis: se ESTRECHA la exención de fila única
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Esta función nació de un incidente, no de un diseño, y conviene que el próximo
+// que la lea sepa de cuál.
+//
+// D-3 eximía en bloque a findUnique/findUniqueOrThrow/update/delete/upsert con este
+// argumento: «operan sobre una clave única (un CUID no es adivinable)». La premisa
+// era falsa. `Expense.idempotencyKey` era `@unique` GLOBAL y `ExpenseService` hacía
+// `findUnique({ where: { idempotencyKey } })` devolviendo la fila entera — pero ese
+// valor lo elige el CLIENTE (`z.string().uuid()`). La empresa B recibía el gasto de A.
+//
+// El salto lógico estaba en el paréntesis: justificaba «clave PRIMARIA CUID» y la
+// conclusión se aplicaba a «cualquier clave única». La redacción correcta no habla
+// del formato del valor sino de su PROCEDENCIA: la PK la genera el SERVIDOR. El bug
+// no ocurrió porque un UUID fuera adivinable; ocurrió porque lo eligió quien atacaba.
+//
+// Un falso POSITIVO aquí (dar por acotado lo que no lo está) reabre ese mismo IDOR,
+// y esta extensión es la única capa que cubre el 100 % de las lecturas. De ahí que
+// la tabla de abajo sea exhaustiva hasta el aburrimiento.
+
+describe("uniqueWhereIsScoped — (1) la exención superviviente: `id` string en el where", () => {
+  const invoice = spec(["companyId"]);
+
+  it("{ id: 'inv-1' } → acotado: la PK es un CUID que emite el servidor, nadie la propone", () => {
+    expect(uniqueWhereIsScoped({ id: "inv-1" }, invoice)).toBe(true);
+  });
+
+  // ── REGLA REVISADA el 2026-08-16 — los dos tests que siguen están INVERTIDOS ──
+  //
+  // Se conservan en su sitio, con su nombre anterior escrito, porque el valor de
+  // esta pareja no es lo que afirma hoy sino que la regla CAMBIÓ y por qué. Hasta
+  // esa fecha decían:
+  //
+  //   "{ id, idempotencyKey } → NO acotado: la exención exige que `id` sea la ÚNICA clave"
+  //   "{ id, deletedAt: null } → NO acotado: mismo límite, aunque la 2.ª clave sea inocua"
+  //
+  // y se apoyaban en esta premisa: «Prisma podría resolver un where-unique de varias
+  // claves por CUALQUIERA de ellas, así que una segunda clave elegida por el cliente
+  // reabriría el IDOR». Esa premisa estaba DEDUCIDA, que es exactamente el vicio que
+  // parió D-3-bis (allí se dedujo que «un CUID no es adivinable» eximía a cualquier
+  // clave única). Ahora está VERIFICADA en el cliente generado — `.prisma/client/index.d.ts`
+  // de @prisma/client 7.8.0, el de FECHA MÁS RECIENTE: hay dos clientes generados en
+  // node_modules y el viejo es anterior a la migración, así que responde lo contrario:
+  //
+  //   ExpenseWhereUniqueInput = Prisma.AtLeast<{
+  //     id?: string                                       ← selector
+  //     transactionId?: string                            ← selector
+  //     companyId_idempotencyKey?: …CompoundUniqueInput    ← selector
+  //     AND?/OR?/NOT?: ExpenseWhereInput | …              ← FILTRO
+  //     companyId?: StringFilter<"Expense"> | string      ← FILTRO
+  //     …
+  //   }, "id" | "transactionId" | "companyId_idempotencyKey">
+  //
+  // `AtLeast<O, K>` exige ≥1 de los selectores K; todo lo demás entra tipado como
+  // `XFilter` y se conjuga con AND sobre la fila que el selector YA eligió. O sea:
+  // las claves extra sólo pueden RESTRINGIR más, nunca alcanzar otra fila. Con un
+  // `id` string presente, la fila está fijada por una PK que emite el servidor y
+  // ninguna clave adicional puede moverla.
+  //
+  // El coste de la regla vieja tampoco era teórico: `{ id, deletedAt: null }` es el
+  // patrón de soft-delete de medio repo, y reportarlo llenaba de falsos positivos
+  // justo el inventario que D-7 necesita limpio. Un control que reporta lo correcto
+  // acaba desactivado, y entonces no cubre nada.
+
+  it("{ id, idempotencyKey } → ACOTADO: la 2.ª clave es un FILTRO conjugado con AND, no un selector alternativo", () => {
+    expect(uniqueWhereIsScoped({ id: "inv-1", idempotencyKey: "k" }, invoice)).toBe(true);
+
+    // El límite no se ha movido de sitio, sólo la premisa falsa: SIN el `id`, esa
+    // misma clave elegida por el cliente sigue siendo el IDOR de D-3-bis.
+    expect(uniqueWhereIsScoped({ idempotencyKey: "k" }, invoice)).toBe(false);
+  });
+
+  it("{ id, deletedAt: null } → ACOTADO: el soft-delete deja de ser un falso positivo del inventario D-7", () => {
+    expect(uniqueWhereIsScoped({ id: "inv-1", deletedAt: null }, invoice)).toBe(true);
+    // Mismo patrón, extremo a extremo por la vía de fila única.
+    expect(
+      assertViolation("Invoice", "update", { where: { id: "inv-1", deletedAt: null } }),
+    ).toBeNull();
+  });
+
+  it("EL LÍMITE QUE SÍ QUEDA: `id` tiene que ser un string LITERAL — un filtro en `id` no pinta una sola fila", () => {
+    // Aquí es donde la exención (1) se gana el sitio. Lo que la justifica es que el
+    // valor lo emite el servidor y designa UNA fila; en cuanto `id` deja de ser un
+    // string literal ya no designa una fila, sino un CONJUNTO, y el razonamiento de
+    // arriba (la fila está fijada, los demás campos sólo restringen) se cae entero:
+    //
+    //   { id: { in: [...] } }  → tantas filas como el atacante quiera enumerar
+    //   { id: 123 }            → ni siquiera es la forma del selector
+    //
+    // Es también el mutante más apetecible de `uniqueWhereIsScoped`: cambiar
+    // `typeof obj.id === "string"` por `"id" in obj` parece equivalente y aceptaría
+    // las dos primeras. Estas aserciones son las que lo matan.
+    expect(uniqueWhereIsScoped({ id: { in: ["a", "b"] } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: { notIn: ["a"] } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: { equals: "inv-1" } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: { not: "inv-1" } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: ["a", "b"] }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: 123 }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: true }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: null }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ id: undefined }, invoice)).toBe(false);
+    // (`{ id: "" }` sí pasa por (1). No se ancla aquí a propósito: no es una fuga
+    // —no existe fila con PK vacía— y anclarlo pondría rojo un endurecimiento sano.)
+
+    // Y no se cuela por la puerta de al lado: con un `id` que es filtro, el veredicto
+    // depende de que haya un tenant DE VERDAD en el where, no del `id`.
+    expect(uniqueWhereIsScoped({ id: { in: ["a"] }, companyId: "c1" }, invoice)).toBe(true);
+    expect(uniqueWhereIsScoped({ id: { in: ["a"] }, deletedAt: null }, invoice)).toBe(false);
+
+    // Extremo a extremo: un findUnique con `id` filtrado es VIOLACIÓN.
+    expect(assertViolation("Invoice", "findUnique", { where: { id: { in: ["a"] } } })).toBe(
+      "Invoice.findUnique por clave única sin companyId ni id",
+    );
+  });
+
+  it("OJO con la asimetría de Company: ahí `id` ES el escalar de tenant, así que { id: { in } } sí acota", () => {
+    // No es una excepción a la regla de arriba: no entra por la vía (1) —donde `id`
+    // vale como PK del servidor— sino por la (2), donde `id` es la COLUMNA de tenant
+    // (override self-id) y por tanto se juzga con keyIsScoping, que sí admite
+    // `in`/`equals`. Filtrar por un conjunto de empresas propias acota; enumerar
+    // PKs de facturas ajenas, no.
+    const company = spec(["id"]);
+    expect(uniqueWhereIsScoped({ id: { in: ["cmp-1", "cmp-2"] } }, company)).toBe(true);
+    expect(uniqueWhereIsScoped({ id: { not: "cmp-1" } }, company)).toBe(false);
+  });
+
+  it("las claves con valor undefined no cuentan: { id, foo: undefined } → acotado", () => {
+    // Prisma elimina los predicados `undefined`, así que el where EFECTIVO es { id }.
+    expect(uniqueWhereIsScoped({ id: "inv-1", foo: undefined }, invoice)).toBe(true);
+    expect(uniqueWhereIsScoped({ id: "inv-1", idempotencyKey: undefined }, invoice)).toBe(true);
+
+    // NOTA DE MUTACIÓN (2026-08-16): borrar el `.filter((k) => obj[k] !== undefined)`
+    // de `uniqueWhereIsScoped` NO pone roja esta suite. No es un hueco de cobertura:
+    // el mutante es EQUIVALENTE. `keys` sólo se lee en el barrido (3), que ya descarta
+    // los valores falsy con `if (!value || typeof value !== "object" …) continue`, así
+    // que el filtro documenta la intención sin cambiar ningún veredicto. Se ancla aquí
+    // el comportamiento observable, por si algún día esa guarda del bucle se toca.
+    expect(
+      uniqueWhereIsScoped(
+        { nada: undefined, companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
+        invoice,
+      ),
+    ).toBe(true);
+    expect(uniqueWhereIsScoped({ nada: undefined, otro: { status: "PAID" } }, invoice)).toBe(false);
+  });
+
+  it("{} / undefined / null / array / primitivos → NO acotado", () => {
+    expect(uniqueWhereIsScoped({}, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped(undefined, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped(null, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped([{ companyId: "c1" }], invoice)).toBe(false);
+    expect(uniqueWhereIsScoped("inv-1", invoice)).toBe(false);
+    expect(uniqueWhereIsScoped(42, invoice)).toBe(false);
+  });
+});
+
+describe("uniqueWhereIsScoped — (2) el escalar de tenant en el where", () => {
+  const invoice = spec(["companyId"]);
+
+  it("{ companyId } → acotado", () => {
+    expect(uniqueWhereIsScoped({ companyId: "c1" }, invoice)).toBe(true);
+  });
+
+  it("{ id, companyId } → acotado: son dos claves, pero una de ellas ES el tenant", () => {
+    expect(uniqueWhereIsScoped({ id: "inv-1", companyId: "c1" }, invoice)).toBe(true);
+  });
+
+  it("HEREDA la lista blanca de keyIsScoping: { companyId: { not } } NO acota", () => {
+    expect(uniqueWhereIsScoped({ companyId: { not: "c1" } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId: { notIn: ["c1"] } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId: { startsWith: "c" } }, invoice)).toBe(false);
+  });
+
+  it("HEREDA la lista blanca: { in: [...] } y { equals: str } acotan; con undefined, no", () => {
+    expect(uniqueWhereIsScoped({ companyId: { in: ["c1"] } }, invoice)).toBe(true);
+    expect(uniqueWhereIsScoped({ companyId: { equals: "c1" } }, invoice)).toBe(true);
+    // El caso silencioso de HIGH-1: Prisma borra el predicado → todas las empresas.
+    expect(uniqueWhereIsScoped({ companyId: { in: undefined } }, invoice)).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId: { equals: undefined } }, invoice)).toBe(false);
+  });
+
+  it("Company se acota por su propia PK: ahí `id` vale como tenant aunque no vaya solo", () => {
+    const company = spec(["id"]);
+    expect(uniqueWhereIsScoped({ id: "cmp-1", rif: "J-123" }, company)).toBe(true);
+  });
+
+  it("modelo hijo: la relación al padre acota igual que en whereIsScoped", () => {
+    const childSpec = spec(["invoiceId"], [["invoice", "Invoice"]]);
+    const lookup = (model: string): ScopeSpec | undefined =>
+      model === "Invoice" ? invoice : undefined;
+
+    expect(uniqueWhereIsScoped({ invoice: { companyId: "c1" } }, childSpec, lookup)).toBe(true);
+    expect(uniqueWhereIsScoped({ invoiceId: "inv-1" }, childSpec, lookup)).toBe(true);
+    expect(uniqueWhereIsScoped({ invoice: { status: "PAID" } }, childSpec, lookup)).toBe(false);
+  });
+
+  it("con el SCOPE_MAP real (sin lookup): InvoiceTaxLine → Invoice", () => {
+    const real = SCOPE_MAP.get("InvoiceTaxLine")!;
+    expect(uniqueWhereIsScoped({ invoice: { companyId: "c1" } }, real)).toBe(true);
+    expect(uniqueWhereIsScoped({ invoice: { status: "PAID" } }, real)).toBe(false);
+  });
+});
+
+describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, …])", () => {
+  const expense = spec(["companyId"]);
+
+  it("{ companyId_idempotencyKey: { companyId, idempotencyKey } } → acotado", () => {
+    // Forma canónica tras la migración 20260816_idempotency_key_company_scoped: el
+    // companyId forma parte de la CLAVE, así que la fila ajena es inalcanzable por
+    // construcción — no por la disciplina de quien escribe la query.
+    expect(
+      uniqueWhereIsScoped(
+        { companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
+        expense,
+      ),
+    ).toBe(true);
+  });
+
+  it("{ companyId_year_month: { companyId, year, month } } → acotado (correlativos Z-1)", () => {
+    expect(
+      uniqueWhereIsScoped(
+        { companyId_year_month: { companyId: "c1", year: 2026, month: 8 } },
+        expense,
+      ),
+    ).toBe(true);
+  });
+
+  it("selector compuesto SIN tenant → NO acotado", () => {
+    expect(
+      uniqueWhereIsScoped(
+        { invoiceNumber_type: { invoiceNumber: "00001", type: "SALE" } },
+        expense,
+      ),
+    ).toBe(false);
+  });
+
+  it("selector compuesto al que le FALTA el companyId → NO acotado", () => {
+    expect(
+      uniqueWhereIsScoped({ companyId_idempotencyKey: { idempotencyKey: "k" } }, expense),
+    ).toBe(false);
+  });
+
+  it("el companyId de DENTRO del selector también pasa por keyIsScoping", () => {
+    expect(
+      uniqueWhereIsScoped(
+        { companyId_idempotencyKey: { companyId: { not: "c1" }, idempotencyKey: "k" } },
+        expense,
+      ),
+    ).toBe(false);
+  });
+
+  it("selector vacío, nulo, string o array → NO acotado", () => {
+    expect(uniqueWhereIsScoped({ companyId_idempotencyKey: {} }, expense)).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId_idempotencyKey: null }, expense)).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId_idempotencyKey: "c1_k" }, expense)).toBe(false);
+    expect(
+      uniqueWhereIsScoped({ companyId_idempotencyKey: [{ companyId: "c1" }] }, expense),
+    ).toBe(false);
+  });
+
+  it("se recorren TODAS las claves: basta un selector acotado entre varios", () => {
+    expect(
+      uniqueWhereIsScoped(
+        {
+          otro_selector: { a: 1 },
+          companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" },
+        },
+        expense,
+      ),
+    ).toBe(true);
+  });
+
+  it("APROXIMACIÓN CONOCIDA: cualquier objeto anidado con el tenant dentro cuenta", () => {
+    // El barrido de (3) no distingue un selector compuesto de un objeto cualquiera:
+    // mira si ALGÚN valor-objeto del where acota. Es una sobre-aceptación consciente
+    // —más laxa que la forma real—, contenida por el sistema de tipos de Prisma, que
+    // no admite claves arbitrarias en un where-unique. Queda anclada aquí para que
+    // cualquier intento de endurecerlo rompa a la vista y no en silencio.
+    expect(uniqueWhereIsScoped({ loQueSea: { companyId: "c1" } }, expense)).toBe(true);
+  });
+});
+
+describe("uniqueWhereIsScoped — el caso REAL que obligó a estrechar la exención", () => {
+  const expense = spec(["companyId"]);
+
+  it("REGRESIÓN IDOR: { idempotencyKey } a secas → NO acotado (esa clave la elige el cliente)", () => {
+    // ÉSTE es el bug. Con la exención vieja, esta consulta se daba por acotada y
+    // pasaba sin ruido; devolvía la fila entera de OTRA empresa.
+    expect(
+      uniqueWhereIsScoped({ idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" }, expense),
+    ).toBe(false);
+  });
+
+  it("REGRESIÓN IDOR: tampoco vale envolver la clave del cliente en equals / in", () => {
+    expect(uniqueWhereIsScoped({ idempotencyKey: { equals: "k" } }, expense)).toBe(false);
+    expect(uniqueWhereIsScoped({ idempotencyKey: { in: ["k"] } }, expense)).toBe(false);
+  });
+
+  it("FK única GENERADA POR EL SERVIDOR (glTransactionId) → NO acotado: se reporta a propósito", () => {
+    // De facto es segura. Aun así entra en el inventario de `report` en vez de
+    // eximirse por analogía: preferimos afinar la lista con datos a repetir el
+    // razonamiento que abrió el agujero. Está documentado en el JSDoc de la función.
+    expect(uniqueWhereIsScoped({ glTransactionId: "t1" }, expense)).toBe(false);
+  });
+
+  it("ninguna otra clave única de negocio exime (referenceNumber, controlNumber…)", () => {
+    expect(uniqueWhereIsScoped({ referenceNumber: "DIST-000001" }, expense)).toBe(false);
+    expect(uniqueWhereIsScoped({ controlNumber: "00-00000001" }, expense)).toBe(false);
+    expect(uniqueWhereIsScoped({ rif: "J-12345678-9" }, expense)).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 5. assertViolation
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -688,13 +1015,105 @@ describe("assertViolation", () => {
     },
   );
 
-  it.each(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"])(
-    "%s está EXENTA por diseño (clave única, sin barrido cross-tenant) → null sin companyId",
+  // ── D-3-bis: aquí vivía la exención en bloque, y se ha revertido ────────────
+  //
+  // Hasta 2026-08-16 este punto afirmaba lo contrario, con este nombre:
+  //   "%s está EXENTA por diseño (clave única, sin barrido cross-tenant) → null sin companyId"
+  // y comprobaba que `assertViolation("Invoice", op, {})` devolvía null.
+  //
+  // La decisión se revirtió con un contraejemplo real, no por gusto: la premisa del
+  // ADR («un CUID no es adivinable») justificaba la clave PRIMARIA y se aplicó a
+  // CUALQUIER clave única. `Expense.idempotencyKey` era `@unique` y lo elegía el
+  // cliente (`z.string().uuid()`): `findUnique({ where: { idempotencyKey } })`
+  // devolvía a la empresa B el gasto de A. Lo que exime no es el formato del valor
+  // sino su PROCEDENCIA — la PK la genera el servidor.
+  //
+  // Sobrevive sólo lo que la premisa justificaba de verdad, y se invierte el resto.
+
+  it.each(UNIQUE_OPS)(
+    "D-3-bis: %s con where { id } a secas SIGUE exenta — la PK la genera el servidor",
     (op) => {
       expect(assertViolation("Invoice", op, { where: { id: "inv-1" } })).toBeNull();
-      expect(assertViolation("Invoice", op, {})).toBeNull();
     },
   );
+
+  it.each(UNIQUE_OPS)(
+    "D-3-bis: %s por una clave única ELEGIDA POR EL CLIENTE → VIOLACIÓN (antes pasaba)",
+    (op) => {
+      const violation = assertViolation("Expense", op, {
+        where: { idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" },
+      });
+      expect(violation).toBeTruthy();
+      expect(violation).toContain("Expense");
+      expect(violation).toContain(op);
+      expect(violation).toContain("companyId");
+    },
+  );
+
+  it.each(UNIQUE_OPS)(
+    "D-3-bis: %s con el selector compuesto companyId_idempotencyKey → null",
+    (op) => {
+      expect(
+        assertViolation("Expense", op, {
+          where: { companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it.each(UNIQUE_OPS)("D-3-bis: %s sin where en absoluto → VIOLACIÓN", (op) => {
+    expect(assertViolation("Invoice", op, {})).toBeTruthy();
+    expect(assertViolation("Invoice", op, undefined)).toBeTruthy();
+    expect(assertViolation("Invoice", op, { where: {} })).toBeTruthy();
+  });
+
+  it("D-3-bis: el mensaje distingue la vía de fila única y nombra modelo, operación e id", () => {
+    expect(assertViolation("Expense", "findUnique", { where: { idempotencyKey: "k" } })).toBe(
+      "Expense.findUnique por clave única sin companyId ni id",
+    );
+    // ...y NO se confunde con el mensaje de las multi-fila, que apunta al `where`.
+    expect(assertViolation("Expense", "findMany", { where: { idempotencyKey: "k" } })).toBe(
+      "Expense.findMany sin companyId en where",
+    );
+  });
+
+  it("D-3-bis: en Company el mensaje NO se duplica — su escalar de tenant ya ES `id`", () => {
+    // Verruga corregida el 2026-08-16. El texto se componía siempre como
+    // `${expected} ni id`, y Company tiene el override self-id (expected === "id"),
+    // así que salía "Company.findUnique por clave única sin id ni id": un mensaje que
+    // manda a buscar el bug a la extensión en vez de al call-site, que es donde está.
+    expect(assertViolation("Company", "findUnique", { where: { rif: "J-12345678-9" } })).toBe(
+      "Company.findUnique por clave única sin id",
+    );
+    // El subrayado del defecto: la cadena duplicada NO puede reaparecer. (El literal
+    // tiene que ser "id ni id" — con "ni id ni" este expect sería verde también con
+    // la verruga puesta, o sea un test incapaz de fallar.)
+    expect(assertViolation("Company", "delete", { where: { rif: "J-12345678-9" } })).not.toContain(
+      "id ni id",
+    );
+    // Con la PK sí presente no hay nada que reportar (vía (1) y vía (2) a la vez).
+    expect(assertViolation("Company", "findUnique", { where: { id: "cmp-1" } })).toBeNull();
+
+    // El resto de modelos conserva las DOS claves en el mensaje, incluido el otro
+    // override, cuyo escalar no se llama companyId.
+    expect(assertViolation("ManagedClient", "findUnique", { where: { rif: "J-12345678-9" } })).toBe(
+      "ManagedClient.findUnique por clave única sin despachoCompanyId ni id",
+    );
+    expect(
+      assertViolation("ManagedClient", "findUnique", { where: { despachoCompanyId: "d1" } }),
+    ).toBeNull();
+  });
+
+  it("D-3-bis: el modelo hijo también queda cubierto por la vía de fila única", () => {
+    expect(
+      assertViolation("InvoiceTaxLine", "update", { where: { invoiceId: "inv-1" } }),
+    ).toBeNull();
+    const violation = assertViolation("InvoiceTaxLine", "update", {
+      where: { luxuryGroupId: "g1" },
+    });
+    expect(violation).toContain("InvoiceTaxLine.update");
+    expect(violation).toContain("invoiceId");
+  });
 
   it("operaciones no vigiladas (create, findRaw…) → null", () => {
     expect(assertViolation("Invoice", "create", { data: { total: 1 } })).toBeNull();
@@ -788,18 +1207,45 @@ describe("catálogos de operaciones", () => {
     );
   });
 
-  it("las operaciones por clave única NO están vigiladas (decisión deliberada del ADR)", () => {
-    for (const op of ["findUnique", "findUniqueOrThrow", "update", "delete", "upsert", "create"]) {
+  it("UNIQUE_ROW_OPERATIONS contiene exactamente las cinco de fila única (D-3-bis)", () => {
+    // Confronta la lista con la que alimenta los it.each de esta suite: si alguien
+    // saca una operación del catálogo de producción, los casos no desaparecen en
+    // silencio — este test se pone rojo primero.
+    expect([...UNIQUE_ROW_OPERATIONS].sort()).toEqual([...UNIQUE_OPS].sort());
+  });
+
+  it("D-3-bis: las cinco de fila única YA NO son un hueco — están vigiladas, por otra vía", () => {
+    // Este test afirmaba antes "NO están vigiladas (decisión deliberada del ADR)" y
+    // ahí se acababa la historia. Siguen fuera de SCOPED_OPERATIONS —no son multi-fila
+    // y se juzgan con uniqueWhereIsScoped, no con whereIsScoped—, pero ya no pasan
+    // sin que nadie las mire.
+    for (const op of UNIQUE_OPS) {
       expect(SCOPED_OPERATIONS.has(op)).toBe(false);
+      expect(UNIQUE_ROW_OPERATIONS.has(op)).toBe(true);
+      expect(assertViolation("Invoice", op, { where: { controlNumber: "00-1" } })).toBeTruthy();
     }
+  });
+
+  it("`create` sigue fuera de los tres catálogos: no barre nada y su tenant va en data", () => {
+    expect(SCOPED_OPERATIONS.has("create")).toBe(false);
+    expect(UNIQUE_ROW_OPERATIONS.has("create")).toBe(false);
+    expect(CREATE_MANY_OPERATIONS.has("create")).toBe(false);
   });
 
   it("CREATE_MANY_OPERATIONS cubre createMany y createManyAndReturn", () => {
     expect([...CREATE_MANY_OPERATIONS].sort()).toEqual(["createMany", "createManyAndReturn"]);
   });
 
-  it("los dos catálogos son disjuntos (un op no puede mirar where y data a la vez)", () => {
-    for (const op of CREATE_MANY_OPERATIONS) expect(SCOPED_OPERATIONS.has(op)).toBe(false);
+  it("los tres catálogos son disjuntos dos a dos (cada op se juzga por UNA sola vía)", () => {
+    // Si una operación cayera en dos catálogos, el orden de los `if` de
+    // assertViolation decidiría en silencio cuál gana. No debe poder pasar.
+    for (const op of CREATE_MANY_OPERATIONS) {
+      expect(SCOPED_OPERATIONS.has(op)).toBe(false);
+      expect(UNIQUE_ROW_OPERATIONS.has(op)).toBe(false);
+    }
+    for (const op of UNIQUE_ROW_OPERATIONS) {
+      expect(SCOPED_OPERATIONS.has(op)).toBe(false);
+    }
   });
 });
 
@@ -1194,7 +1640,7 @@ describe("createTenantAssertExtension", () => {
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
 
-  it("findUnique sin companyId pasa en enforce (exenta por clave única)", async () => {
+  it("D-3-bis: findUnique por where { id } pasa en enforce (la PK la genera el servidor)", async () => {
     const query = vi.fn().mockResolvedValue({ id: "inv-1" });
     const handler = handlerFor("enforce");
 
@@ -1206,6 +1652,78 @@ describe("createTenantAssertExtension", () => {
         query,
       }),
     ).resolves.toEqual({ id: "inv-1" });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("D-3-bis: findUnique por idempotencyKey del CLIENTE → LANZA y no llega a la BD", async () => {
+    // El IDOR de `Expense.idempotencyKey`, extremo a extremo a través del handler.
+    // Antes de D-3-bis esta llamada devolvía la fila de la otra empresa.
+    const query = vi.fn().mockResolvedValue({ id: "exp-de-otra-empresa" });
+    const handler = handlerFor("enforce");
+
+    await expect(
+      handler({
+        model: "Expense",
+        operation: "findUnique",
+        args: { where: { idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" } },
+        query,
+      }),
+    ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("D-3-bis: un delete por clave única del cliente tampoco llega a la BD", async () => {
+    const query = vi.fn().mockResolvedValue({ id: "exp-1" });
+    const handler = handlerFor("enforce");
+
+    await expect(
+      handler({
+        model: "Expense",
+        operation: "delete",
+        args: { where: { idempotencyKey: "k" } },
+        query,
+      }),
+    ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("D-3-bis: el selector compuesto companyId_idempotencyKey pasa en enforce", async () => {
+    const query = vi.fn().mockResolvedValue(null);
+    const handler = handlerFor("enforce");
+
+    await expect(
+      handler({
+        model: "Expense",
+        operation: "upsert",
+        args: {
+          where: { companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
+          create: { companyId: "c1" },
+          update: {},
+        },
+        query,
+      }),
+    ).resolves.toBeNull();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("D-3-bis: en report la violación de fila única se instrumenta con su propio tag", async () => {
+    const query = vi.fn().mockResolvedValue({ id: "exp-1" });
+    const handler = handlerFor("report");
+
+    await handler({
+      model: "Expense",
+      operation: "findUnique",
+      args: { where: { idempotencyKey: "k" } },
+      query,
+    });
+
+    expect(query).toHaveBeenCalledTimes(1); // report NO bloquea
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const [message, options] = vi.mocked(Sentry.captureMessage).mock.calls[0];
+    expect(message).toContain("por clave única");
+    expect(options).toMatchObject({
+      tags: { tenant_assert_violation: "Expense.findUnique" },
+    });
   });
 
   it("propaga el error de la consulta subyacente sin enmascararlo", async () => {

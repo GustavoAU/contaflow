@@ -149,8 +149,11 @@ en toda operación sobre modelos tenant.
 //   - Modelos cubiertos: TENANT_MODELS (los 88 de verify-rls.mjs, menos User)
 //   - Operaciones cubiertas: findMany, findFirst, count, aggregate, groupBy,
 //     updateMany, deleteMany, createMany
-//   - Exentas: findUnique/findUniqueOrThrow por PK (best-practices §1.2),
-//     modelos no-tenant, y todo lo envuelto en `unscoped()`
+//   - Exentas: `where: { id }` a secas (la PK la GENERA EL SERVIDOR), modelos
+//     no-tenant, y todo lo envuelto en `unscoped()`.
+//     ⚠️ CORREGIDO por D-3-bis (§11): la redacción original eximía
+//     findUnique/update/delete/upsert enteras «porque un CUID no es adivinable».
+//     Falso — ver §11.
 //   - Modelos hijos sin companyId propio (JournalEntry, InvoiceTaxLine,
 //     OrderItem, QuotationItem, PaymentBatchLine, InventoryMovementLot/Serial,
 //     IncomeDistributionLine/Audit, SubscriptionPayment, PlanChangeRequest):
@@ -365,6 +368,8 @@ explícitamente. Esto vale con RLS y sin ella.
 - [x] **D-3** `prisma-tenant-assert` en modo `report` — `src/lib/prisma-tenant-assert.ts`,
       190 tests (100 % de cobertura, 16 mutantes inyectados y muertos). Auditado por
       `security-agent`: 1 HIGH y 5 MEDIUM, los bloqueantes corregidos (ver §10).
+- [x] **D-3-bis** Estrechar la exención de `findUnique`/`update`/`delete`/`upsert`
+      a `where: { id }` — la premisa «un CUID no es adivinable» era falsa (§11)
 - [ ] **D-3b** Anotar con `unscoped()` los ~8 flujos cross-company reales
       (`user.actions.ts:33` es ruta caliente, `dashboard/page.tsx:34`,
       `BillingService.ts:120,213`, `PlanChangeService.ts:189`,
@@ -425,6 +430,59 @@ upsert` con «un CUID no es adivinable». Eso es **falso** para claves `@unique`
 valor suministrado por el cliente. La justificación correcta es «lo protege la
 lectura acotada previa», que es una disciplina, no una garantía — y por tanto
 superficie que la aserción no vigila por diseño.
+
+## 11. D-3-bis — la exención de `findUnique` se apoyaba en una premisa falsa
+
+**Estado**: ACEPTADO · 2026-08-16 · corrige §4 D-3 de este mismo ADR.
+
+D-3 eximía `findUnique`/`findUniqueOrThrow`/`update`/`delete`/`upsert` de la
+aserción con este argumento: *«operan sobre una clave única (un CUID no es
+adivinable y no hay barrido cross-tenant)»*.
+
+**El contraejemplo llegó a las 24 horas**, en la auditoría del propio ADR:
+`Expense.idempotencyKey` es `@unique`, y `ExpenseService` hacía
+`findUnique({ where: { idempotencyKey } })` **devolviendo la fila entera** — pero
+ese valor **lo elige el cliente** (`z.string().uuid()`, campo obligatorio del
+request). La empresa B recibía el gasto de A: monto, proveedor, descripción y
+categoría. Lo mismo en `InventoryMovement`.
+
+### El error de razonamiento, que es lo que hay que recordar
+
+El paréntesis justificaba **«clave PRIMARIA CUID»** y la conclusión se aplicaba a
+**«cualquier clave única»**. Ese salto es el bug. Y la redacción correcta no habla
+del formato del valor sino de su **procedencia**:
+
+> La PK es un CUID **generado por el servidor**.
+
+Este incidente no ocurrió porque un UUID fuera adivinable. Ocurrió porque **lo eligió
+quien atacaba**. «No adivinable» es una propiedad del formato; «generado por el
+servidor» es una propiedad de la confianza, y es la única que sostiene el argumento.
+Generalizando: *una exención de seguridad justificada por una propiedad del dato debe
+nombrar quién controla ese dato, no cómo se ve.*
+
+### Decisión
+
+Las cinco operaciones pasan a **vigiladas** (`UNIQUE_ROW_OPERATIONS`). La exención
+sobrevive sólo donde la premisa era cierta — `uniqueWhereIsScoped` acepta tres casos:
+
+1. **`where: { id }` a secas.** Tiene que ser la única clave: con `{ id, otraUnica }`
+   Prisma resolvería por cualquiera de las dos.
+2. El escalar de tenant directo (`{ id, companyId }`).
+3. Un **selector compuesto** que lo contenga —
+   `{ companyId_idempotencyKey: { … } }`, `{ companyId_year_month: { … } }` — que es
+   la forma canónica tras la migración `20260816_idempotency_key_company_scoped`.
+
+Todo lo demás se reporta, incluidos los lookups por FK única generada por el
+servidor (`{ glTransactionId }`), que **son seguros**. Es ruido deliberado: en modo
+`report` cuesta poco y el inventario que produce es el insumo de D-7. Preferimos
+afinar la lista con datos medidos antes de `enforce` que volver a razonar por
+analogía — que es exactamente como nació este agujero.
+
+### Coste asumido
+
+`update`/`delete` por `where: { id }` siguen exentas, así que la disciplina de
+«lectura acotada previa» sigue siendo la que protege ese camino. Es una disciplina,
+no una garantía, y el ADR debe decirlo así en vez de presentarlo como imposibilidad.
 
 ## 9. Archivos de referencia
 
