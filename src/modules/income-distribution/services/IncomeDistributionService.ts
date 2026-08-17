@@ -307,9 +307,44 @@ export async function applyDistribution(
             );
           }
 
-          // Correlativo Serializable (ADR-001 / ADR-023 D-3)
-          const count = await tx.incomeDistribution.count({ where: { companyId } });
-          const referenceNumber = `DIST-${String(count).padStart(6, "0")}`;
+          // Correlativo Serializable (ADR-001 / ADR-023 D-3) — MÁXIMO + 1, no `count`.
+          //
+          // Antes era `count({ where: { companyId } })`, y eso colisionaba SIN
+          // NINGUNA CARRERA. `count` cuenta FILAS, y aplicar no crea filas: la fila
+          // nace en `createDistribution` con estado DRAFT y aquí sólo se actualiza.
+          // Con dos borradores abiertos, en ejecución estrictamente serial:
+          //
+          //   crear D1 → 1 fila · crear D2 → 2 filas
+          //   aplicar D2 → count=2 → DIST-000002
+          //   aplicar D1 → count=2 → DIST-000002   ← duplicado
+          //
+          // Y como este número va también a `Transaction.number` (más abajo)
+          // contra `@@unique([companyId, number])`, el segundo apply reventaba con
+          // P2002 sobre Transaction antes de llegar al de `referenceNumber`.
+          //
+          // `Serializable` NO lo salvaba, aunque ya estuviera puesto: no hay
+          // write-skew que SSI pueda detectar porque el `count` es correcto y sigue
+          // siéndolo tras el commit ajeno — el reintento vuelve a proponer el mismo
+          // número. El nivel de aislamiento no arregla una fórmula equivocada.
+          //
+          // Máximo + 1 sí es correcto, y además sí es seguro bajo concurrencia: la
+          // transacción concurrente ESCRIBE un `referenceNumber` que cae dentro del
+          // predicado que aquí se lee, así que SSI ve la dependencia y aborta con
+          // P2034 → el retry de arriba relee el máximo nuevo. Es el mismo patrón que
+          // `TransactionService.generateTransactionNumber`, y por eso no hace falta
+          // una tabla de secuencia nueva.
+          const PREFIX = "DIST-";
+          const last = await tx.incomeDistribution.findFirst({
+            where: { companyId, referenceNumber: { startsWith: PREFIX } },
+            // Orden lexicográfico = orden numérico porque el sufijo va con relleno
+            // de ceros a 6 dígitos (misma premisa que generateTransactionNumber).
+            orderBy: { referenceNumber: "desc" },
+            select: { referenceNumber: true },
+          });
+          const lastSeq = last?.referenceNumber
+            ? Number.parseInt(last.referenceNumber.slice(PREFIX.length), 10)
+            : 0;
+          const referenceNumber = `${PREFIX}${String((Number.isFinite(lastSeq) ? lastSeq : 0) + 1).padStart(6, "0")}`;
 
           // Asiento contable: Débito origen, Crédito cada línea (ADR-023 D-3)
           const distEntries = [
