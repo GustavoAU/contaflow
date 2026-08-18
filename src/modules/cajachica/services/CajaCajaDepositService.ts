@@ -178,7 +178,35 @@ export async function voidDeposit(
           description: `Reversión depósito — ${e.description ?? ""}`.trim(),
         }));
         assertBalancedGLEntries(reverseEntries); // N4: invariante partida doble
-        const reverseCount = await tx.cajaCajaDeposit.count({ where: { companyId: input.companyId } });
+        // MÁXIMO + 1 sobre los propios números de reversión, no `count` de depósitos.
+        //
+        // Antes era `count({ where: { companyId } })` sobre `cajaCajaDeposit`, y eso
+        // colisionaba SIN NINGUNA CARRERA: anular NO crea ni borra filas de depósito
+        // —sólo pone `status: "VOIDED"` (abajo)— así que el conteo es el MISMO en
+        // todas las anulaciones. Con dos depósitos:
+        //
+        //   anular A → count=2 → DEP-REV-000003
+        //   anular B → count=2 → DEP-REV-000003   ← duplicado
+        //
+        // Y ese número va a `Transaction.number` contra `@@unique([companyId, number])`,
+        // así que la segunda anulación reventaba con P2002. Misma clase exacta que el
+        // correlativo de IncomeDistribution (ver ese servicio): contar filas de una
+        // entidad para numerar eventos de OTRA sólo funciona si ambos crecen a la par.
+        //
+        // El prefijo se filtra completo (`DEP-REV-`) a propósito: `DEP-` a secas
+        // también casaría con estas mismas filas y volvería a mezclar las dos series.
+        const REV_PREFIX = "DEP-REV-";
+        const lastRev = await tx.transaction.findFirst({
+          where: { companyId: input.companyId, number: { startsWith: REV_PREFIX } },
+          orderBy: { number: "desc" },
+          select: { number: true },
+        });
+        // Se comprueba el CAMPO, no el objeto: un `findFirst` que devuelva algo sin
+        // `number` haría reventar el `.slice`. Misma forma que en IncomeDistribution.
+        const lastRevSeq = lastRev?.number
+          ? Number.parseInt(lastRev.number.slice(REV_PREFIX.length), 10)
+          : 0;
+        const reverseCount = Number.isFinite(lastRevSeq) ? lastRevSeq : 0;
         await tx.transaction.create({
           data: {
             companyId: input.companyId,
