@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { withSerializableRetry } from "@/lib/tx-helpers";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { assertAccountOfType } from "./account-type.guard";
 import type { CreateDepositSchema, VoidDepositSchema } from "../schemas/cajachica.schema";
@@ -54,7 +55,13 @@ export async function createDeposit(
   const depositDate = new Date(input.date);
   const amountDecimal = new Decimal(input.amount);
 
-  const result = await prisma.$transaction(async (tx) => {
+  // Z-1: genera el correlativo `DEP-`, así que Serializable + retry P2034 es
+  // obligatorio. Antes era `$transaction` a secas (Read Committed): dos depósitos
+  // concurrentes leían el mismo `count` y proponían el mismo número, chocando en
+  // `Transaction.@@unique([companyId, number])`. Bajo Serializable el insert ajeno
+  // cae dentro del predicado que aquí se cuenta, así que SSI ve la dependencia,
+  // aborta con P2034 y el helper reintenta con el conteo nuevo.
+  const result = await withSerializableRetry(async (tx) => {
     const caja = await tx.cajaCaja.findFirst({
       where: { id: input.cajaCajaId, companyId: input.companyId },
     });
@@ -152,7 +159,11 @@ export async function voidDeposit(
   ipAddress?: string,
   userAgent?: string
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  // Z-1: genera el correlativo `DEP-REV-`. El fix anterior (máximo + 1) cerró la
+  // colisión DETERMINISTA, pero su seguridad bajo concurrencia depende de que SSI
+  // detecte la dependencia — y esta transacción corría en Read Committed, donde no
+  // hay predicate locking. Dos anulaciones concurrentes leían el mismo máximo.
+  await withSerializableRetry(async (tx) => {
     const deposit = await tx.cajaCajaDeposit.findFirst({
       where: { id: input.depositId, companyId: input.companyId },
     });

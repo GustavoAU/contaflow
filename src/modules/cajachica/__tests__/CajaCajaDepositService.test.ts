@@ -5,7 +5,12 @@ vi.mock("@/lib/prisma", () => ({
   default: { $transaction: vi.fn() },
 }));
 
+// withSerializableRetry avisa a Sentry en el penúltimo intento (tx-helpers.ts:31).
+// Sin este mock, los tests de retry despertarían el SDK real.
+vi.mock("@sentry/nextjs", () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
+
 import prisma from "@/lib/prisma";
+import { SERIALIZABLE_TX_OPTIONS } from "@/lib/tx-helpers";
 import { createDeposit, voidDeposit } from "../services/CajaCajaDepositService";
 
 const COMPANY_ID = "comp-1";
@@ -15,16 +20,71 @@ const SOURCE_ACCOUNT = "acc-banco";
 
 type TxOverrides = Record<string, unknown>;
 
+/**
+ * Opciones del harness de `createDeposit`:
+ * - `existingDeposits`: filas de la empresa que ya existen cuando arranca la tx.
+ * - `otherCompanyDeposits`: filas de OTRO tenant, que el `count` no debe ver (ADR-004).
+ */
+type MakeTxOptions = { existingDeposits?: number; otherCompanyDeposits?: number };
+
+/** Fila mínima de la tabla falsa de `CajaCajaDeposit` para el flujo de creación. */
+type FakeDepositRow = { id: string; companyId: string };
+
 /** Construye un tx mock con valores por defecto sanos, sobreescribibles por bloque. */
-function makeTx(overrides: TxOverrides = {}) {
-  const txCreate = vi.fn().mockResolvedValue({ id: "tx-1" });
+function makeTx(overrides: TxOverrides = {}, options: MakeTxOptions = {}) {
+  // Tabla falsa de CajaCajaDeposit. `count` NO es un valor fijo a propósito: en el
+  // servicio el `count` corre DESPUÉS del `create` (CajaCajaDepositService.ts:103),
+  // así que la fila recién insertada SE CUENTA — es lo que hace que la serie arranque
+  // en DEP-000002. Un `mockResolvedValue(0)` esconde ese off-by-one y, peor, deja el
+  // correlativo sin observar: devuelve lo mismo con la fórmula correcta y con la rota.
+  const depositRows: FakeDepositRow[] = [
+    ...Array.from({ length: options.existingDeposits ?? 0 }, (_, i) => ({
+      id: `dep-prev-${i + 1}`,
+      companyId: COMPANY_ID,
+    })),
+    ...Array.from({ length: options.otherCompanyDeposits ?? 0 }, (_, i) => ({
+      id: `dep-otra-empresa-${i + 1}`,
+      companyId: "comp-2",
+    })),
+  ];
+
+  let createdTx = 0;
+  const txCreate = vi.fn().mockImplementation(async () => ({ id: `tx-${++createdTx}` }));
   const depositUpdate = vi.fn().mockResolvedValue({});
   const txUpdate = vi.fn().mockResolvedValue({});
-  const depositCreate = vi.fn().mockResolvedValue({
-    id: "dep-1", cajaCajaId: "caja-1", date: new Date("2026-06-13"),
-    amount: new Decimal("500000"), description: "Reposición", status: "POSTED",
-    transactionId: null, createdAt: new Date(), voidedAt: null, voidReason: null,
-  });
+
+  let createdDeposits = 0;
+  const depositCreate = vi.fn().mockImplementation(
+    async (args: {
+      data: { companyId: string; date: Date; amount: Decimal; description: string };
+    }) => {
+      createdDeposits += 1;
+      const id = `dep-${createdDeposits}`;
+      depositRows.push({ id, companyId: args.data.companyId });
+      // Eco de lo persistido, como haría la BD: el summary no puede llevar valores
+      // que el servicio nunca produjo.
+      return {
+        id,
+        cajaCajaId: "caja-1",
+        date: args.data.date,
+        amount: args.data.amount,
+        description: args.data.description,
+        status: "POSTED",
+        transactionId: null,
+        createdAt: new Date("2026-06-13T10:00:00.000Z"),
+        voidedAt: null,
+        voidReason: null,
+      };
+    },
+  );
+
+  const depositCount = vi.fn().mockImplementation(
+    async (args?: { where?: { companyId?: string } }) =>
+      depositRows.filter(
+        (r) => args?.where?.companyId === undefined || r.companyId === args.where.companyId,
+      ).length,
+  );
+
   const tx = {
     cajaCaja: {
       findFirst: vi.fn().mockResolvedValue({
@@ -45,10 +105,10 @@ function makeTx(overrides: TxOverrides = {}) {
     },
     cajaCajaDeposit: {
       create: depositCreate,
-      // `count` vive aquí SOLO por createDeposit (CajaCajaDepositService.ts:96, el
+      // `count` vive aquí SOLO por createDeposit (CajaCajaDepositService.ts:103, el
       // único count del servicio). El harness de voidDeposit lo omite a propósito
       // — ver installVoidTx.
-      count: vi.fn().mockResolvedValue(0),
+      count: depositCount,
       update: depositUpdate,
       findFirst: vi.fn(),
     },
@@ -59,7 +119,7 @@ function makeTx(overrides: TxOverrides = {}) {
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (t: unknown) => unknown) => fn(tx)) as never
   );
-  return { tx, txCreate, depositUpdate, txUpdate, depositCreate };
+  return { tx, txCreate, depositUpdate, txUpdate, depositCreate, depositCount, depositRows };
 }
 
 const baseInput = {
@@ -70,6 +130,45 @@ const baseInput = {
   amount: "500000",
   description: "Reposición",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilidades compartidas — aislamiento y concurrencia
+// ─────────────────────────────────────────────────────────────────────────────
+
+type CapturedTxOptions = { isolationLevel?: string; timeout?: number; maxWait?: number };
+
+/**
+ * Opciones con las que el CÓDIGO abrió la transacción: 2º argumento de
+ * `prisma.$transaction`. El mock lo ignora al ejecutar, pero el spy lo registra —
+ * y es lo ÚNICO que distingue `$transaction(fn)` (Read Committed, sin predicate
+ * locking) de `$transaction(fn, { isolationLevel: "Serializable" })`.
+ *
+ * Sin esta aserción, todos los tests de correlativo de este archivo pasan igual con
+ * el fix y sin él. Esa ceguera es la que dejó vivir los dos bugs anteriores de la
+ * serie (count de depósitos en voidDeposit, y su gemelo de IncomeDistribution).
+ */
+function txOptionsOf(callIndex = 0): CapturedTxOptions | undefined {
+  const call = vi.mocked(prisma.$transaction).mock.calls[callIndex] as unknown[] | undefined;
+  return call?.[1] as CapturedTxOptions | undefined;
+}
+
+/** Error de serialización de Postgres tal y como lo mapea Prisma. */
+function p2034() {
+  return Object.assign(new Error("could not serialize access due to read/write dependencies"), {
+    code: "P2034",
+  });
+}
+
+/** Copia superficial de una tabla falsa, para emular el ROLLBACK de un intento abortado. */
+function snapshotRows<T extends object>(rows: T[]): T[] {
+  return rows.map((r) => ({ ...r }));
+}
+
+/** Restaura una tabla falsa al estado del snapshot (deshace lo escrito por el intento). */
+function restoreRows<T extends object>(rows: T[], snapshot: T[]): void {
+  rows.length = 0;
+  rows.push(...snapshot.map((r) => ({ ...r })));
+}
 
 describe("createDeposit — partida doble (R-1 / N4)", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -147,6 +246,170 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// createDeposit — Z-1: el nivel de aislamiento es contrato, no detalle
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("createDeposit — Z-1: aislamiento Serializable", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("abre la transacción con isolationLevel Serializable (no Read Committed)", async () => {
+    // Z-1 de CLAUDE.md: todo correlativo fiscal va en Serializable SIN EXCEPCIÓN.
+    // Aquí se numera `DEP-` a partir de un `count`; bajo Read Committed dos depósitos
+    // concurrentes leen el mismo conteo, proponen el mismo número y el segundo revienta
+    // con P2002 contra Transaction.@@unique([companyId, number]).
+    makeTx();
+
+    await createDeposit(baseInput, USER_ID);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(txOptionsOf()?.isolationLevel).toBe("Serializable");
+  });
+
+  it("M2: lleva timeout y maxWait explícitos — los 5 s por defecto no cubren el cold start de Neon", async () => {
+    makeTx();
+
+    await createDeposit(baseInput, USER_ID);
+
+    expect(txOptionsOf()).toEqual(SERIALIZABLE_TX_OPTIONS);
+    expect(txOptionsOf()!.timeout!).toBeGreaterThan(5000);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// createDeposit — correlativo DEP- (leído donde el código lo PRODUCE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("createDeposit — correlativo DEP- del asiento", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("OFF-BY-ONE CONOCIDO: el primer depósito de la empresa sale DEP-000002 — DEP-000001 no existe jamás", async () => {
+    // Defecto VIVO anclado a propósito, no conducta deseada.
+    //
+    // El servicio hace `create` (línea 89) y sólo DESPUÉS `count` (línea 103), dentro
+    // de la MISMA transacción: el conteo ya incluye la fila recién insertada, así que
+    // la serie arranca en 2 y el 000001 queda sin emitir en todas las empresas.
+    //
+    // NO se corrige aquí: renumerar la serie es una decisión aparte (los asientos ya
+    // emitidos en producción arrastran este desfase). Este test lo hace VISIBLE — si
+    // alguien mueve el `count` antes del `create`, muere y obliga a decidirlo.
+    const { txCreate } = makeTx();
+
+    await createDeposit(baseInput, USER_ID);
+
+    expect(numbersCreated(txCreate)).toEqual(["DEP-000002"]);
+    expect(numbersCreated(txCreate)).not.toContain("DEP-000001");
+  });
+
+  it("dos depósitos seriales → DEP-000002 y DEP-000003, nunca el mismo número", async () => {
+    // Sin carrera ninguna: si el `count` no viera la fila anterior (mock de valor fijo,
+    // o una tabla que no crece), ambos saldrían con el mismo número y el segundo
+    // reventaría con P2002 sobre Transaction.@@unique([companyId, number]).
+    const { txCreate } = makeTx();
+
+    await createDeposit(baseInput, USER_ID);
+    await createDeposit(baseInput, USER_ID);
+
+    const numbers = numbersCreated(txCreate);
+    expect(numbers).toEqual(["DEP-000002", "DEP-000003"]);
+    expect(new Set(numbers).size).toBe(numbers.length);
+  });
+
+  it("con 8 depósitos previos → DEP-000010 (el relleno a 6 dígitos no se rompe)", async () => {
+    const { txCreate } = makeTx({}, { existingDeposits: 8 });
+
+    await createDeposit(baseInput, USER_ID);
+
+    expect(numbersCreated(txCreate)).toEqual(["DEP-000010"]);
+  });
+
+  it("ADR-004: los depósitos de otra empresa no mueven el correlativo", async () => {
+    const { txCreate, depositCount } = makeTx({}, { otherCompanyDeposits: 5 });
+
+    await createDeposit(baseInput, USER_ID);
+
+    // El conteo se pide filtrado por empresa; si el filtro cayera, este mismo caso
+    // daría DEP-000007 y el correlativo de un tenant lo movería otro.
+    expect(depositCount.mock.calls[0][0]).toEqual({ where: { companyId: COMPANY_ID } });
+    expect(numbersCreated(txCreate)).toEqual(["DEP-000002"]);
+  });
+
+  it("el asiento del correlativo queda en el período validado y como tipo DIARIO", async () => {
+    const { txCreate } = makeTx();
+
+    await createDeposit(baseInput, USER_ID);
+
+    const data = txCreate.mock.calls[0][0].data as {
+      number: string; periodId: string; type: string; companyId: string; userId: string;
+    };
+    expect(data).toMatchObject({
+      number: "DEP-000002",
+      periodId: "period-1",
+      type: "DIARIO",
+      companyId: COMPANY_ID,
+      userId: USER_ID,
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// createDeposit — reintento P2034 (lo que hace SEGURO el correlativo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("createDeposit — reintento P2034 (Serializable)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("tras el abort de SSI RECALCULA el correlativo: DEP-000003, no reusa el DEP-000002 de la pasada abortada", async () => {
+    // Serializable no evita el conflicto: lo DETECTA. La rival escribe una fila dentro
+    // del predicado que aquí se cuenta, SSI aborta con P2034 y el helper reintenta.
+    // El valor del retry es que el segundo intento vuelva a CONTAR: si reusara el
+    // número calculado en la primera pasada, el duplicado volvería intacto.
+    const { tx, txCreate, depositRows } = makeTx();
+
+    let attempt = 0;
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (t: unknown) => unknown) => {
+      attempt += 1;
+      if (attempt === 1) {
+        const snapshot = snapshotRows(depositRows);
+        await fn(tx); // propone DEP-000002…
+        // …y aborta: ROLLBACK de su propia fila + la fila que SÍ commiteó la rival.
+        restoreRows(depositRows, snapshot);
+        depositRows.push({ id: "dep-rival", companyId: COMPANY_ID });
+        throw p2034();
+      }
+      return fn(tx);
+    }) as never);
+
+    const result = await createDeposit(baseInput, USER_ID);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(numbersCreated(txCreate)).toEqual(["DEP-000002", "DEP-000003"]);
+    // Ambos intentos van en Serializable — el retry no degrada el aislamiento.
+    expect(txOptionsOf(0)?.isolationLevel).toBe("Serializable");
+    expect(txOptionsOf(1)?.isolationLevel).toBe("Serializable");
+    // La operación termina bien: el usuario no ve el conflicto.
+    expect(result.amount).toBe("500000.00");
+  });
+
+  it("agotados los 3 intentos el P2034 sale hacia arriba (no se traga el conflicto)", async () => {
+    makeTx();
+    vi.mocked(prisma.$transaction).mockRejectedValue(p2034());
+
+    await expect(createDeposit(baseInput, USER_ID)).rejects.toMatchObject({ code: "P2034" });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+  });
+
+  it("un error que NO es P2034 propaga en el primer intento, sin reintentos", async () => {
+    // Reintentar un error de negocio multiplicaría los efectos colaterales.
+    makeTx({ cajaCaja: { findFirst: vi.fn().mockResolvedValue(null) } });
+
+    await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/Caja Chica no encontrada/i);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // voidDeposit — tabla falsa de Transaction
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -220,7 +483,7 @@ function defaultDeposits(): FakeDeposit[] {
  * ve, igual que en la BD. Eso permite encadenar dos anulaciones seriales.
  *
  * `cajaCajaDeposit.count` NO se mockea a propósito. Verificado con grep: el único
- * `count` del servicio vive en `createDeposit` (línea 96); `voidDeposit` ya no
+ * `count` del servicio vive en `createDeposit` (línea 103); `voidDeposit` ya no
  * numera contando depósitos. Si alguien lo reintroduce aquí, el flujo revienta
  * con TypeError en vez de volver a verde.
  */
@@ -394,7 +657,7 @@ describe("voidDeposit — correlativo DEP-REV- (MÁXIMO + 1, no count de depósi
     //
     // (Los asientos de depósito van DEP-000002/DEP-000003 y no 000001/000002 porque
     // createDeposit cuenta DESPUÉS de crear la fila — off-by-one real de esa serie,
-    // ajeno a este fix.)
+    // ajeno a este fix y anclado en su propio test más arriba.)
     const { txCreate } = installVoidTx([
       depositTxRow("tx-1", "DEP-000002"), // asiento del depósito que se anula ahora
       depositTxRow("tx-2", "DEP-000003"), // asiento del otro depósito
@@ -509,5 +772,85 @@ describe("voidDeposit — correlativo DEP-REV- (MÁXIMO + 1, no count de depósi
     expect(correlativeCall!.where!.number!.startsWith).toBe("DEP-REV-");
     expect(correlativeCall!.where!.companyId).toBe(COMPANY_ID);
     expect(correlativeCall!.orderBy).toEqual({ number: "desc" });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// voidDeposit — Z-1: aislamiento y reintento
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("voidDeposit — Z-1: aislamiento Serializable", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("abre la transacción con isolationLevel Serializable (no Read Committed)", async () => {
+    // El MÁXIMO + 1 cerró la colisión DETERMINISTA, pero su seguridad bajo
+    // concurrencia depende de que SSI vea la dependencia: en Read Committed no hay
+    // predicate locking y dos anulaciones simultáneas leen el mismo máximo.
+    installVoidTx([depositTxRow("tx-1", "DEP-000002")]);
+
+    await voidDep("dep-1");
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(txOptionsOf()?.isolationLevel).toBe("Serializable");
+  });
+
+  it("M2: lleva timeout y maxWait explícitos (cold start de Neon)", async () => {
+    installVoidTx([depositTxRow("tx-1", "DEP-000002")]);
+
+    await voidDep("dep-1");
+
+    expect(txOptionsOf()).toEqual(SERIALIZABLE_TX_OPTIONS);
+  });
+});
+
+describe("voidDeposit — reintento P2034 (Serializable)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("tras el abort de SSI RECALCULA el máximo: DEP-REV-000002, no reusa el DEP-REV-000001 de la pasada abortada", async () => {
+    const rows = [depositTxRow("tx-1", "DEP-000002")];
+    const { tx, txCreate, deposits } = installVoidTx(rows);
+
+    let attempt = 0;
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (t: unknown) => unknown) => {
+      attempt += 1;
+      if (attempt === 1) {
+        const rowsSnapshot = snapshotRows(rows);
+        const depositsSnapshot = snapshotRows(deposits);
+        await fn(tx); // propone DEP-REV-000001…
+        // …y aborta: ROLLBACK completo (su asiento, el status del original y el del
+        // depósito) y aparece la fila que la rival SÍ commiteó con ese mismo número.
+        restoreRows(rows, rowsSnapshot);
+        restoreRows(deposits, depositsSnapshot);
+        rows.push(revTxRow("DEP-REV-000001"));
+        throw p2034();
+      }
+      return fn(tx);
+    }) as never);
+
+    await voidDep("dep-1");
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    const numbers = numbersCreated(txCreate);
+    expect(numbers).toEqual(["DEP-REV-000001", "DEP-REV-000002"]);
+    // Lo que importa: el número que queda COMMITEADO es el recalculado.
+    expect(numbers.at(-1)).toBe("DEP-REV-000002");
+    expect(txOptionsOf(1)?.isolationLevel).toBe("Serializable");
+  });
+
+  it("agotados los 3 intentos el P2034 sale hacia arriba (no se traga el conflicto)", async () => {
+    installVoidTx([depositTxRow("tx-1", "DEP-000002")]);
+    vi.mocked(prisma.$transaction).mockRejectedValue(p2034());
+
+    await expect(voidDep("dep-1")).rejects.toMatchObject({ code: "P2034" });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(3);
+  });
+
+  it("un error que NO es P2034 propaga en el primer intento, sin reintentos", async () => {
+    installVoidTx([depositTxRow("tx-1", "DEP-000002")], []); // depósito inexistente
+
+    await expect(voidDep("dep-1")).rejects.toThrow(/Depósito no encontrado/i);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });
