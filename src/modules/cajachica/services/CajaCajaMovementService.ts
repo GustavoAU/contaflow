@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
+import { withSerializableRetry } from "@/lib/tx-helpers";
 import { assertAccountOfType } from "./account-type.guard";
 import type {
   CreateMovementSchema,
@@ -89,7 +90,12 @@ export async function createMovement(
   const movementDate = new Date(input.date);
   const amountDecimal = new Decimal(input.amount);
 
-  const result = await prisma.$transaction(async (tx) => {
+  // Z-1: genera el correlativo `CCC-` vía getNextVoucherNumber, contra
+  // `@@unique([companyId, voucherNumber])`. Antes era `$transaction` a secas
+  // (Read Committed): dos movimientos concurrentes leían el mismo `count` y
+  // proponían el mismo voucher. Con Serializable el insert ajeno cae dentro del
+  // predicado contado → P2034 → el helper reintenta.
+  const result = await withSerializableRetry(async (tx) => {
     const caja = await tx.cajaCaja.findFirst({
       where: { id: input.cajaCajaId, companyId: input.companyId },
       include: {
