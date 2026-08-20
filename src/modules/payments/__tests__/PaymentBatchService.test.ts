@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Decimal } from "decimal.js";
+import { Prisma } from "@prisma/client";
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -270,6 +271,109 @@ describe("PaymentBatchService.createBatch", () => {
 
     expect(prisma.paymentBatch.create).not.toHaveBeenCalled();
     expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+// ─── createBatch — P2002 (call-site de p2002TargetIncludes) ───────────────────
+//
+// `PaymentBatch` tiene DOS uniques que el INSERT puede violar:
+//   @@unique([companyId, idempotencyKey]) → doble submit (ADR-022 D-10)
+//   glTransactionId @unique               → asiento GL ya enlazado a otro lote
+// Sólo el primero puede convertirse en "El lote ya fue creado". Traducir el
+// segundo mandaría al usuario a refrescar la página por un problema que no es
+// suyo — esa discriminación es lo que fija este bloque.
+//
+// Errores construidos como INSTANCIAS REALES de PrismaClientKnownRequestError:
+// `p2002TargetIncludes` → `isPrismaError` → `instanceof`. Con un objeto con
+// forma de pato el helper devuelve false siempre (ver penúltima prueba).
+describe("PaymentBatchService.createBatch — P2002 por target", () => {
+  const MSG_DUP = "El lote ya fue creado — refresque la página.";
+  const RAW_MSG = "Unique constraint failed on the fields";
+
+  const p2002 = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError(RAW_MSG, {
+      code: "P2002",
+      clientVersion: "7.4.1",
+      meta: target === undefined ? {} : { target },
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({ id: INV_A, paymentStatus: "UNPAID" } as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  // Devuelve el mensaje EXACTO que recibe el llamador: comparar el mensaje es lo
+  // único que distingue "lo tradujo" de "lo propagó crudo".
+  async function messageOnCreateFailure(err: unknown): Promise<string> {
+    vi.mocked(prisma.paymentBatch.create).mockRejectedValue(err);
+    try {
+      await PaymentBatchService.createBatch({
+        companyId: COMPANY_ID,
+        method: "TRANSFERENCIA",
+        totalAmountVes: new Decimal("150000"),
+        date: DATE,
+        createdBy: USER_ID,
+        idempotencyKey: "idem-key-p2002",
+        lines: [{ invoiceId: INV_A, amountVes: new Decimal("150000") }],
+      });
+      return "__NO_LANZO__";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+
+  it("FINDING-3: P2002 de idempotencyKey (target compuesto real) → mensaje de negocio exacto", async () => {
+    expect(await messageOnCreateFailure(p2002(["companyId", "idempotencyKey"]))).toBe(MSG_DUP);
+  });
+
+  it("target histórico ['idempotencyKey'] (unique simple, pre-migración) → mismo mensaje", async () => {
+    // La columna debe reconocerse venga SOLA o acompañada: el unique pasó de
+    // simple a compuesto en la migración 20260816 y el call-site no puede
+    // depender de esa forma.
+    expect(await messageOnCreateFailure(p2002(["idempotencyKey"]))).toBe(MSG_DUP);
+  });
+
+  it("otro unique acotado por empresa (['companyId','glTransactionId']) NO se traduce", async () => {
+    // Compartir `companyId` con el unique de idempotencia no basta: el call-site
+    // discrimina por `idempotencyKey`, no por "el target menciona la empresa".
+    const msg = await messageOnCreateFailure(p2002(["companyId", "glTransactionId"]));
+    expect(msg).toBe(RAW_MSG);
+    expect(msg).not.toContain("ya fue creado");
+  });
+
+  it("P2002 de OTRO unique (glTransactionId) NO se disfraza de doble submit", async () => {
+    const msg = await messageOnCreateFailure(p2002(["glTransactionId"]));
+    expect(msg).toBe(RAW_MSG);
+    expect(msg).not.toContain("ya fue creado");
+  });
+
+  it("P2002 con target STRING (formato DETAIL de Postgres) → mismo mensaje de negocio", async () => {
+    expect(await messageOnCreateFailure(p2002("companyId, idempotencyKey"))).toBe(MSG_DUP);
+  });
+
+  it("P2002 SIN target → se propaga crudo (fail-closed: no se adivina la columna)", async () => {
+    expect(await messageOnCreateFailure(p2002())).toBe(RAW_MSG);
+  });
+
+  it("un P2002 con forma de pato (no instancia de Prisma) NO activa el mensaje de negocio", async () => {
+    const pato = Object.assign(new Error("Unique constraint"), {
+      code: "P2002",
+      meta: { target: ["companyId", "idempotencyKey"] },
+    });
+    expect(await messageOnCreateFailure(pato)).toBe("Unique constraint");
+  });
+
+  it("un P2003 con el target de idempotencyKey NO se traduce (el código importa)", async () => {
+    const p2003 = new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", {
+      code: "P2003",
+      clientVersion: "7.4.1",
+      meta: { target: ["companyId", "idempotencyKey"] },
+    });
+    expect(await messageOnCreateFailure(p2003)).toBe("Foreign key constraint failed");
   });
 });
 

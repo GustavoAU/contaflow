@@ -306,6 +306,48 @@ describe("createPaymentAction — H6 idempotencia (Z-2)", () => {
     if (!result.success) expect(result.error).not.toContain("Pago duplicado");
   });
 
+  // Refuerzo del call-site (`p2002TargetIncludes(err, "idempotencyKey")`): el
+  // target real del @@unique([companyId, idempotencyKey]) llega COMPUESTO, y con
+  // otros drivers puede llegar como string (DETAIL de Postgres). Las dos formas
+  // deben dar el mismo mensaje; sin target y con forma de pato, ninguno.
+  const p2002 = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.4.1",
+      meta: target === undefined ? {} : { target },
+    });
+
+  async function errorFor(err: unknown): Promise<string> {
+    vi.mocked(PaymentService.create).mockRejectedValue(err);
+    const result = await createPaymentAction(VALID_INPUT);
+    expect(result.success).toBe(false);
+    return result.success ? "__NO_FALLO__" : result.error;
+  }
+
+  it("target compuesto real ['companyId','idempotencyKey'] → mensaje de duplicado", async () => {
+    expect(await errorFor(p2002(["companyId", "idempotencyKey"]))).toContain("Pago duplicado");
+  });
+
+  it("target STRING 'companyId, idempotencyKey' (DETAIL de Postgres) → mensaje de duplicado", async () => {
+    expect(await errorFor(p2002("companyId, idempotencyKey"))).toContain("Pago duplicado");
+  });
+
+  it("P2002 SIN target → mensaje genérico, nunca 'Pago duplicado' (fail-closed)", async () => {
+    const error = await errorFor(p2002());
+    expect(error).not.toContain("Pago duplicado");
+    expect(error).toBe("Ya existe un registro con esos datos");
+  });
+
+  it("un P2002 con forma de pato (no instancia de Prisma) NO se traduce a duplicado", async () => {
+    // Documenta el endurecimiento a `instanceof`: si esto se pusiera verde con
+    // "Pago duplicado", alguien aflojó el guard a duck-typing.
+    const pato = Object.assign(new Error("Unique constraint failed"), {
+      code: "P2002",
+      meta: { target: ["companyId", "idempotencyKey"] },
+    });
+    expect(await errorFor(pato)).not.toContain("Pago duplicado");
+  });
+
   it("happy path: la key llega al service para persistirse en PaymentRecord", async () => {
     const result = await createPaymentAction(VALID_INPUT);
 
