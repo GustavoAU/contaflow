@@ -26,7 +26,7 @@ import {
 } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
-import { mapPrismaError, isPrismaError } from "@/lib/prisma-errors";
+import { mapPrismaError, isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -54,6 +54,16 @@ export async function createRetentionAction(
   input: CreateRetentionInput
 ): Promise<ActionResult<RetentionSummary>> {
   let txStart = 0;
+  // Izado fuera del `try` a propósito (auditoría LOW): el `catch` de P2002
+  // consulta la retención y la DEVUELVE al cliente. Antes lo hacía con `input`
+  // crudo —sin pasar por el schema ni por el guard de ADR-041— y era equivalente
+  // sólo por casualidad: en cuanto el schema gane un `.transform()` o un
+  // `.default()`, esa consulta dejaría de coincidir con la que sí se autorizó.
+  // Un valor que llega al cliente se acota con el dato VALIDADO, no con el bruto.
+  // Copia del dato VALIDADO accesible desde el `catch`. No se iza `data` misma
+  // porque TypeScript pierde el narrowing de `let` dentro de los closures del
+  // `$transaction`, y el cuerpo quedaría sembrado de `!`.
+  let validated: CreateRetentionInput | null = null;
   try {
     const parsed = CreateRetentionSchema.safeParse(input);
     if (!parsed.success) {
@@ -61,6 +71,7 @@ export async function createRetentionAction(
     }
 
     const data = parsed.data;
+    validated = data;
 
     const ctx = await requireCompanyAction(data.companyId, {
       roles: ROLES.ACCOUNTING,
@@ -348,7 +359,10 @@ export async function createRetentionAction(
           }
           if (attempt === MAX_ATTEMPTS) {
             Sentry.withScope((scope) => {
-              scope.setTag("companyId", input.companyId);
+              // Dato VALIDADO, no el bruto: misma clase que el catch de P2002.
+              // Un tag de Sentry no llega al cliente, pero si el barrido dice "el
+              // bruto no se usa", tiene que ser cierto en todas las instancias.
+              scope.setTag("companyId", validated?.companyId ?? "desconocido");
               scope.setExtra("attempt", attempt);
               scope.setExtra("duration_ms", Date.now() - txStart);
               Sentry.captureMessage("P2034 createRetentionAction", "warning");
@@ -365,9 +379,18 @@ export async function createRetentionAction(
 
     return { success: true, data: serializeRetention(retention) };
   } catch (error) {
-    if (isPrismaError(error, "P2002") && input.idempotencyKey) {
+    // Z-1: acotar POR CONSTRAINT. Antes cualquier P2002 entraba aqui, incluido
+    // el del correlativo de comprobante (getNextVoucherNumber corre dentro de
+    // esta misma transaccion). Si no habia fila recuperable caia al mensaje
+    // generico "Ya existe un registro con esos datos" — cuando una colision de
+    // correlativo debe comunicarse como transitoria y REINTENTABLE, que es lo
+    // contrario de lo que ese texto sugiere (quick-reference Z-1).
+    if (p2002TargetIncludes(error, "voucherNumber")) {
+      return { success: false, error: "Error transitorio — intenta de nuevo." };
+    }
+    if (p2002TargetIncludes(error, "idempotencyKey") && validated?.idempotencyKey) {
       const existing = await prisma.retencion.findFirst({
-        where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
+        where: { idempotencyKey: validated.idempotencyKey, companyId: validated.companyId },
       });
       if (existing) {
         return { success: true, data: serializeRetention(existing) };

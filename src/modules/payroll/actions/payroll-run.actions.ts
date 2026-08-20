@@ -16,6 +16,7 @@ import { ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
 import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
 import {
@@ -93,14 +94,32 @@ export async function createPayrollRunAction(
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
-    // NOM-C-02: P2002 del @@unique([companyId, periodStart, periodEnd])
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
+    // NOM-C-02: P2002 del @@unique([companyId, periodStart, periodEnd]).
+    //
+    // Acotado por `meta.target` (auditoría LOW): PayrollRun tiene DOS uniques
+    // compuestos —el del período y el de `idempotencyKey`— así que un
+    // doble-submit salía con el mensaje del período, que es FALSO y manda al
+    // usuario a buscar un borrador que no existe.
+    if (p2002TargetIncludes(err, "periodStart")) {
       return {
         success: false,
         error: "Ya existe un proceso de nómina para este período. Revisa los borradores existentes.",
+      };
+    }
+    if (p2002TargetIncludes(err, "idempotencyKey")) {
+      return {
+        success: false,
+        error: "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar.",
+      };
+    }
+    // P2002 sin `meta.target`: no se puede saber CUÁL de los dos uniques chocó.
+    // Se responde algo cierto en ambos casos en vez de adivinar — que era el bug.
+    // El mensaje genérico de `mapPrismaError` ("Ya existe un registro con esos
+    // datos") no le dice al usuario dónde mirar.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return {
+        success: false,
+        error: "Ya existe un proceso de nómina con esos datos. Revisa los borradores existentes antes de reintentar.",
       };
     }
     return toActionError(err);

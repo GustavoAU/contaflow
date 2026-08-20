@@ -54,6 +54,37 @@ export function isPrismaError(error: unknown, code: string): error is Prisma.Pri
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 }
 
+/**
+ * ¿Este P2002 concierne a la columna indicada?
+ *
+ * Fuente única para no repetir la forma de `meta.target`, que NO es estable:
+ * el adaptador de Neon la parsea del DETAIL de Postgres (`Key (a, b)=(...)`), así
+ * que con un `@@unique` compuesto llega como ARRAY de columnas —tras la migración
+ * 20260816 pasó de `["idempotencyKey"]` a `["companyId","idempotencyKey"]`— y en
+ * otros drivers puede llegar como string. Se cubren ambas formas.
+ *
+ * Sirve para distinguir QUÉ constraint chocó cuando un modelo tiene varios: sin
+ * esto, PayrollRun mapeaba cualquier P2002 al mensaje del período aunque el choque
+ * fuese de `idempotencyKey` (doble submit), mintiendo al usuario.
+ */
+export function p2002TargetIncludes(error: unknown, column: string): boolean {
+  if (!isPrismaError(error, "P2002")) return false;
+  const target = (error.meta as { target?: unknown } | undefined)?.target;
+  if (Array.isArray(target)) return target.some((c) => String(c) === column);
+  // Se parte por coma y se recorta, en vez de usar una clase de regex: el
+  // DETAIL de Postgres llega como `Key (companyId, idempotencyKey)=(...)`.
+  // (La versión con regex se escribió mal: la clase quedó como "coma o la letra
+  // s" en vez de "coma o espacio", y ningún tipo ni test lo veía. Sin escape no
+  // hay trampa: ni siquiera al escribir ESTE comentario, donde la barra invertida
+  // volvió a desaparecer en el primer intento.)
+  if (typeof target === "string") {
+    return target.split(",").map((c) => c.trim()).includes(column);
+  }
+  // Sin `target` no se puede afirmar que sea esa columna: se responde NO.
+  // Fail-closed hacia el mensaje genérico, que es correcto aunque menos preciso.
+  return false;
+}
+
 export function mapPrismaError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") return "Ya existe un registro con esos datos";
