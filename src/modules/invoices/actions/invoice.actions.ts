@@ -24,7 +24,7 @@ import { SeniatXMLService } from "../services/SeniatXMLService";
 import { SeniatReportingService } from "../services/SeniatReportingService";
 import { Decimal } from "decimal.js";
 import qrcode from "qrcode";
-import { mapPrismaError, isPrismaError } from "@/lib/prisma-errors";
+import { mapPrismaError, isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -188,8 +188,16 @@ export async function createInvoiceAction(input: unknown) {
     }
     if (error instanceof Error) {
       if (isPrismaError(error, "P2002")) {
-        // H-002 Z-1: P2002 en secuencia de Nº Control (upsert concurrente en ControlNumberSequence)
-        if (data?.type === "SALE" && (error.meta?.target as string[] | undefined)?.includes("controlNumber")) {
+        // H-002 Z-1: P2002 en la secuencia de Nº Control (upsert concurrente).
+        //
+        // La columna es `invoiceType`, NO `controlNumber`: el único que choca es
+        // `ControlNumberSequence_companyId_invoiceType_key`, y no existe ningún
+        // índice único con una columna llamada `controlNumber` (verificado en
+        // schema.prisma y en todas las migraciones). La condición anterior era
+        // RAMA MUERTA: una colisión de correlativo —Z-1, transitoria y
+        // reintentable— se le reportaba al usuario como "ya existe una factura con
+        // ese número", mandándolo a cambiar el número en vez de reintentar.
+        if (data?.type === "SALE" && p2002TargetIncludes(error, "invoiceType")) {
           return { success: false as const, error: "Error transitorio al generar Nº Control — intenta de nuevo." };
         }
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente

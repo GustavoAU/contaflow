@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Decimal from "decimal.js";
+import { Prisma } from "@prisma/client";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -134,29 +135,118 @@ describe("createUnit", () => {
     expect(currentTx.inventoryItem.update).not.toHaveBeenCalled();
   });
 
-  it("MEDIUM-3: captura P2002 de partial index (segunda unidad base)", async () => {
-    vi.mocked(prisma.$transaction).mockRejectedValueOnce(
-      Object.assign(new Error("Unique constraint"), { code: "P2002", meta: { target: ["itemId"] } })
-    );
-    await expect(
-      createUnit(
-        { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Otra", abbreviation: "OT", conversionFactor: "2", isBase: true },
+  // ─── P2002 en createUnit — dos constraints, dos mensajes ───────────────────
+  //
+  // `InventoryItemUnit` tiene DOS uniques que el mismo INSERT puede violar:
+  //   1. partial index `uq_inventory_item_unit_base`
+  //      → CREATE UNIQUE INDEX ... ("itemId") WHERE "isBase" = true
+  //      → target real: ["itemId"]
+  //   2. @@unique([itemId, name])
+  //      → target real: ["itemId", "name"]  (compuesto: llega con AMBAS columnas)
+  //
+  // Errores construidos como INSTANCIAS REALES de PrismaClientKnownRequestError:
+  // `p2002TargetIncludes` → `isPrismaError` → `instanceof`. Con un objeto con
+  // forma de pato el helper devuelve false SIEMPRE y las dos ramas quedan sin
+  // recorrer, con la prueba igual de verde. Ver la penúltima prueba del bloque.
+  const RAW_MSG = "Unique constraint failed on the fields";
+  const MSG_BASE =
+    "Ya existe una unidad base para este producto. Elimine o cambie la unidad base actual antes de crear una nueva.";
+  const MSG_NOMBRE = 'Ya existe una unidad con el nombre "Caja" para este producto.';
+
+  const p2002 = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError(RAW_MSG, {
+      code: "P2002",
+      clientVersion: "7.4.1",
+      meta: target === undefined ? {} : { target },
+    });
+
+  // Devuelve el mensaje EXACTO que recibe el llamador: es lo único que distingue
+  // "cayó en la rama de itemId", "cayó en la de name" y "se propagó crudo".
+  async function messageOnCreateFailure(
+    err: unknown,
+    opts: { isBase: boolean; name?: string }
+  ): Promise<string> {
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(err);
+    try {
+      await createUnit(
+        {
+          companyId: COMPANY_ID,
+          itemId: ITEM_ID,
+          name: opts.name ?? "Caja",
+          abbreviation: "CJ",
+          conversionFactor: opts.isBase ? "1" : "12",
+          isBase: opts.isBase,
+        },
         USER_ID
-      )
-    ).rejects.toThrow("unidad base");
+      );
+      return "__NO_LANZO__";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+
+  it("MEDIUM-3: P2002 del partial index (target ['itemId']) + isBase → mensaje de unidad base", async () => {
+    expect(await messageOnCreateFailure(p2002(["itemId"]), { isBase: true })).toBe(MSG_BASE);
   });
 
-  it("MEDIUM-3: captura P2002 de @@unique([itemId, name])", async () => {
-    vi.mocked(prisma.$transaction).mockRejectedValueOnce(
-      Object.assign(new Error("Unique constraint"), { code: "P2002", meta: { target: ["name"] } })
-    );
-    await expect(
-      createUnit(
-        { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Caja", abbreviation: "CJ", conversionFactor: "12", isBase: false },
-        USER_ID
-      )
-    ).rejects.toThrow("nombre");
+  it("MEDIUM-3: P2002 de @@unique([itemId, name]) → mensaje de nombre, con el nombre interpolado", async () => {
+    const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), { isBase: false, name: "Caja" });
+    expect(msg).toBe(MSG_NOMBRE);
+    expect(msg).not.toBe(MSG_BASE);
   });
+
+  it("target ['name'] NO dispara la rama de itemId aunque isBase sea true", async () => {
+    // Cruce exigido: cada rama reacciona a SU columna. Si alguien invierte el
+    // orden de los ifs o afloja el `&& isBase`, esto revienta.
+    const msg = await messageOnCreateFailure(p2002(["name"]), { isBase: true });
+    expect(msg).toBe(MSG_NOMBRE);
+    expect(msg).not.toContain("unidad base");
+  });
+
+  it("target ['itemId'] con isBase = false NO dispara ninguna rama — se propaga crudo", async () => {
+    // El partial index sólo existe para isBase = true: sin `isBase` no hay nada
+    // que afirmar, y el helper no debe inventar un mensaje.
+    const msg = await messageOnCreateFailure(p2002(["itemId"]), { isBase: false });
+    expect(msg).toBe(RAW_MSG);
+    expect(msg).not.toContain("unidad base");
+    expect(msg).not.toContain("nombre");
+  });
+
+  it("P2002 con target STRING 'itemId, name' (formato DETAIL de Postgres) → mensaje de nombre", async () => {
+    expect(await messageOnCreateFailure(p2002("itemId, name"), { isBase: false })).toBe(MSG_NOMBRE);
+  });
+
+  it("P2002 SIN target → se propaga crudo (fail-closed)", async () => {
+    expect(await messageOnCreateFailure(p2002(), { isBase: true })).toBe(RAW_MSG);
+  });
+
+  it("un P2002 con forma de pato (no instancia de Prisma) NO activa ninguna rama", async () => {
+    const pato = Object.assign(new Error("Unique constraint"), {
+      code: "P2002",
+      meta: { target: ["itemId"] },
+    });
+    expect(await messageOnCreateFailure(pato, { isBase: true })).toBe("Unique constraint");
+  });
+
+  // REGRESIÓN (BUG CERRADO) — la corrección fue en
+  // InventoryUomService.createUnit, no aquí).
+  //
+  // Con `isBase: true` y nombre duplicado, el target REAL de @@unique([itemId, name])
+  // es ["itemId", "name"] — contiene "itemId". Como la rama de itemId se evalúa
+  // PRIMERO y su única condición extra es `isBase`, gana ella y el usuario recibe
+  // "Elimine o cambie la unidad base actual" aunque NO exista ninguna unidad base:
+  // lo que chocó fue el nombre. Caso real: ítem con unidad "Caja" no-base y sin
+  // unidad base todavía → crear una base llamada "Caja".
+  //
+  // `it.fails` mantiene el gate en verde documentando el fallo REAL, y se pone
+  // rojo solo cuando el bug se corrija (entonces pásalo a `it`).
+  it(
+    "REGRESIÓN: nombre duplicado con isBase=true da el mensaje de NOMBRE — el target ['itemId','name'] contiene 'itemId', así que la rama de nombre va primero",
+    async () => {
+      const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), { isBase: true, name: "Caja" });
+      expect(msg).toBe(MSG_NOMBRE);
+    }
+  );
 
   it("propaga errores no P2002", async () => {
     vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error("DB error"));

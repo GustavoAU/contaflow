@@ -26,7 +26,7 @@ No leer nada más hasta que el árbol lo indique.
 | ¿Dónde van IP/UserAgent en auditoría? | `AuditLog.ipAddress` + `AuditLog.userAgent` (R-6) |
 | ¿SENIAT caído al emitir factura? | `SeniatSubmission` queda `PENDING` → QStash reintenta con backoff |
 | ¿Cold start Neon congela UI? | `disabled={isPending}` + `aria-busy` en botones fiscales. Ver `DECISIONS.md` |
-| ¿P2002 en correlativo al reintentar? | `isPrismaError(e, "P2002") && meta.target.includes("controlNumber")` → "Error transitorio — intenta de nuevo." |
+| ¿P2002 en correlativo al reintentar? | `p2002TargetIncludes(e, "<columna del @@unique>")` → "Error transitorio — intenta de nuevo." **La columna es la del CONSTRAINT, no la del documento**: `invoiceType` (ControlNumberSequence), `voucherNumber` (Retencion). ⚠️ La regla anterior decía `controlNumber`, columna que NO existe en ningún índice único → era rama MUERTA y el usuario recibía "ya existe una factura con ese número". Usar siempre `p2002TargetIncludes` de `prisma-errors.ts`: `meta.target` no tiene forma estable (array o string) |
 | ¿`prisma migrate dev`? | **ROTO** → usar workflow manual (ver Prisma / DB) |
 | ¿Errores Prisma al cliente? | Nunca raw. `P2002` → "Ya existe…" \| `P2003` → "Datos de referencia inválidos" |
 | ¿Zod 4 mensajes? | `{ error: "msg" }` — **NO** `{ errorMap: ... }` |

@@ -3,6 +3,7 @@
 // Stock y CPP siempre en unidad base. Conversión ocurre antes de tocar stockQuantity.
 
 import prisma from "@/lib/prisma";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import Decimal from "decimal.js";
 import type {
   CreateUomInput,
@@ -78,14 +79,19 @@ export async function createUnit(
   } catch (err: unknown) {
     // MEDIUM-3: capturar P2002 del partial index (una sola unidad base por ítem)
     if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2002") {
-      const meta = (err as { meta?: { target?: string[] } }).meta;
-      if (meta?.target?.includes("itemId") && isBase) {
+      // El orden importa. `@@unique([itemId, name])` emite el target
+      // ["itemId","name"], que TAMBIÉN contiene `itemId` — mientras que el índice
+      // parcial de unidad base es sólo ("itemId") WHERE isBase. Con la rama de
+      // `itemId` primero, crear una unidad BASE con el nombre de otra ya existente
+      // respondía "elimine o cambie la unidad base actual" aunque no hubiera
+      // ninguna unidad base. Se mira el target MÁS ESPECÍFICO primero.
+      if (p2002TargetIncludes(err, "name")) {
+        throw new Error(`Ya existe una unidad con el nombre "${name}" para este producto.`);
+      }
+      if (p2002TargetIncludes(err, "itemId") && isBase) {
         throw new Error(
           "Ya existe una unidad base para este producto. Elimine o cambie la unidad base actual antes de crear una nueva."
         );
-      }
-      if (meta?.target?.includes("name")) {
-        throw new Error(`Ya existe una unidad con el nombre "${name}" para este producto.`);
       }
     }
     throw err;

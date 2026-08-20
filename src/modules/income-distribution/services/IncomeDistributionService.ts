@@ -1,6 +1,7 @@
 // src/modules/income-distribution/services/IncomeDistributionService.ts
 
 import { createHash } from "crypto";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
@@ -242,8 +243,10 @@ export async function createDistribution(
         typeof err === "object" && err !== null &&
         "code" in err && (err as { code: string }).code === "P2002"
       ) {
-        const meta = (err as { meta?: { target?: string[] } }).meta;
-        if (meta?.target?.includes("idempotencyKey")) {
+        // Fuente única (`p2002TargetIncludes`): `meta.target` no tiene forma
+        // estable — llega como array con el adaptador de Neon, pero el tipo no lo
+        // garantiza y un `.includes()` sobre string sería match por SUBSTRING.
+        if (p2002TargetIncludes(err, "idempotencyKey")) {
           throw new Error("Esta distribución ya fue creada — refresque la página.");
         }
       }

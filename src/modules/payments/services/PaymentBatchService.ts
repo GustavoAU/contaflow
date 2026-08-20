@@ -1,4 +1,5 @@
 import { Decimal } from "decimal.js";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import prisma from "@/lib/prisma";
 import { PaymentMethod, Currency, PaymentBatchStatus } from "@prisma/client";
 import { PaymentGLService } from "./PaymentGLService";
@@ -293,8 +294,7 @@ export class PaymentBatchService {
           typeof err === "object" && err !== null &&
           "code" in err && (err as { code: string }).code === "P2002"
         ) {
-          const meta = (err as { meta?: { target?: string[] } }).meta;
-          if (meta?.target?.includes("idempotencyKey")) {
+          if (p2002TargetIncludes(err, "idempotencyKey")) {
             throw new Error("El lote ya fue creado — refresque la página.");
           }
         }

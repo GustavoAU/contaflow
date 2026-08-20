@@ -17,7 +17,7 @@ import { PaymentGLService } from "../services/PaymentGLService";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
-import { isPrismaError } from "@/lib/prisma-errors";
+import { isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 
 // ─── Crear registro de pago ───────────────────────────────────────────────────
 export async function createPaymentAction(
@@ -236,10 +236,7 @@ export async function createPaymentAction(
     }
     // H6: race — dos submits simultáneos con la misma key; el @unique de BD ganó.
     // Acotado al target idempotencyKey para no enmascarar otros uniques de la tx.
-    if (
-      isPrismaError(err, "P2002") &&
-      (err.meta?.target as string[] | undefined)?.includes("idempotencyKey")
-    ) {
+    if (p2002TargetIncludes(err, "idempotencyKey")) {
       return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
     }
     // Sanitización centralizada: errores de negocio (español) pasan; errores técnicos

@@ -1,6 +1,7 @@
 // src/modules/income-distribution/__tests__/IncomeDistributionService.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Decimal } from "decimal.js";
+import { Prisma } from "@prisma/client";
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -218,13 +219,38 @@ describe("createDistribution (mocked)", () => {
     expect(data.referenceNumber).toBeUndefined();
   });
 
-  it("lanza error de negocio cuando P2002 en idempotencyKey", async () => {
-    const p2002 = Object.assign(new Error("Unique"), { code: "P2002", meta: { target: ["idempotencyKey"] } });
-    vi.mocked(prisma.incomeDistribution.create).mockRejectedValue(p2002);
+  // ─── P2002 en createDistribution — cobertura del call-site ─────────────────
+  //
+  // `IncomeDistribution` tiene DOS uniques compuestos:
+  //   @@unique([companyId, idempotencyKey])   → doble submit
+  //   @@unique([companyId, referenceNumber])  → correlativo
+  // Sólo el primero puede traducirse a "ya fue creada". Si el segundo también se
+  // tradujera, se le estaría mintiendo al usuario: le diríamos que su distribución
+  // ya existe cuando lo que chocó fue el correlativo. Esa discriminación es la
+  // razón de ser de `p2002TargetIncludes` y es lo que aquí se fija.
+  //
+  // Los errores se construyen como INSTANCIAS REALES de
+  // `Prisma.PrismaClientKnownRequestError` porque `p2002TargetIncludes` →
+  // `isPrismaError` → `instanceof`. Un objeto con forma de pato
+  // (`Object.assign(new Error(), { code: "P2002" })`) recorre otro camino: ver la
+  // penúltima prueba de este bloque.
+  const MSG_DUP = "Esta distribución ya fue creada — refresque la página.";
+  const RAW_MSG = "Unique constraint failed on the fields";
 
+  const p2002 = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError(RAW_MSG, {
+      code: "P2002",
+      clientVersion: "7.4.1",
+      meta: target === undefined ? {} : { target },
+    });
+
+  // Devuelve el mensaje que LLEGA al llamador. Comparar el mensaje exacto (no
+  // "algo lanzó") es lo único que distingue "lo tradujo" de "lo propagó crudo".
+  async function messageOnCreateFailure(err: unknown): Promise<string> {
+    vi.mocked(prisma.incomeDistribution.create).mockRejectedValue(err);
     const { createDistribution } = await import("../services/IncomeDistributionService");
-    await expect(
-      createDistribution({
+    try {
+      await createDistribution({
         companyId: COMPANY_ID,
         date: new Date("2026-05-12"),
         currencyCode: "VES",
@@ -234,8 +260,52 @@ describe("createDistribution (mocked)", () => {
         lines: BASE_LINES,
         createdBy: USER_ID,
         idempotencyKey: "key-1",
-      })
-    ).rejects.toThrow("ya fue creada");
+      });
+      return "__NO_LANZO__";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+
+  it("P2002 de idempotencyKey (target compuesto real) → mensaje de negocio exacto", async () => {
+    // Post-migración 20260816 el unique es compuesto: el target real llega con
+    // AMBAS columnas, no sólo `idempotencyKey`.
+    expect(await messageOnCreateFailure(p2002(["companyId", "idempotencyKey"]))).toBe(MSG_DUP);
+  });
+
+  it("P2002 de OTRO unique (referenceNumber) NO se disfraza de duplicado — se propaga crudo", async () => {
+    const msg = await messageOnCreateFailure(p2002(["companyId", "referenceNumber"]));
+    expect(msg).toBe(RAW_MSG);
+    expect(msg).not.toContain("ya fue creada");
+  });
+
+  it("P2002 con target STRING (formato DETAIL de Postgres) → mismo mensaje de negocio", async () => {
+    // `meta.target` no tiene forma estable; con otros drivers llega como string.
+    expect(await messageOnCreateFailure(p2002("companyId, idempotencyKey"))).toBe(MSG_DUP);
+  });
+
+  it("P2002 SIN target → se propaga crudo (fail-closed: no se adivina la columna)", async () => {
+    expect(await messageOnCreateFailure(p2002())).toBe(RAW_MSG);
+  });
+
+  it("un P2002 con forma de pato (no instancia de Prisma) NO activa el mensaje de negocio", async () => {
+    // Documenta el endurecimiento: `isPrismaError` exige `instanceof`. Si esta
+    // prueba se pusiera verde con MSG_DUP, sería que alguien aflojó el guard a
+    // duck-typing y las pruebas de arriba dejarían de probar el camino real.
+    const pato = Object.assign(new Error("Unique"), {
+      code: "P2002",
+      meta: { target: ["companyId", "idempotencyKey"] },
+    });
+    expect(await messageOnCreateFailure(pato)).toBe("Unique");
+  });
+
+  it("un P2003 con el target de idempotencyKey NO se traduce (el código importa)", async () => {
+    const p2003 = new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", {
+      code: "P2003",
+      clientVersion: "7.4.1",
+      meta: { target: ["companyId", "idempotencyKey"] },
+    });
+    expect(await messageOnCreateFailure(p2003)).toBe("Foreign key constraint failed");
   });
 });
 
