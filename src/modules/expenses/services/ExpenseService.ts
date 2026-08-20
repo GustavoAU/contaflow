@@ -4,6 +4,7 @@
 
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import type {
   CreateExpenseCategoryInput,
   CreateExpenseInput,
@@ -199,7 +200,7 @@ export async function createExpense(
       ? amount
       : amount.mul(new Decimal(input.exchangeRate!));
 
-  const expense = await prisma.$transaction(async (tx) => {
+  const runCreate = () => prisma.$transaction(async (tx) => {
     const created = await tx.expense.create({
       data: {
         companyId: input.companyId,
@@ -246,6 +247,26 @@ export async function createExpense(
 
     return created;
   });
+
+  // TOCTOU (auditoria LOW): el pre-check de idempotencia vive FUERA de la
+  // transaccion, asi que dos submits con la misma clave lo pasan los dos. El
+  // constraint aguanta —no hay doble escritura—, pero el perdedor recibia
+  // "Ya existe un registro con esos datos" en vez de la fila que pidio: el
+  // contrato de idempotencia ("misma clave => misma respuesta") se rompia bajo
+  // carrera. Mismo patron que ya usan invoice.actions y retention.actions.
+  let expense;
+  try {
+    expense = await runCreate();
+  } catch (err) {
+    if (p2002TargetIncludes(err, "idempotencyKey")) {
+      const raced = await prisma.expense.findFirst({
+        where: { idempotencyKey: input.idempotencyKey, companyId: input.companyId },
+        include: { category: { select: { name: true } } },
+      });
+      if (raced) return serializeExpense(raced, raced.category.name);
+    }
+    throw err;
+  }
 
   return serializeExpense(expense, expense.category.name);
 }

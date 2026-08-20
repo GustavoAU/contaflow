@@ -3,6 +3,7 @@
 // No genera asientos contables — eso es responsabilidad de InventoryAccountingService
 
 import prisma from "@/lib/prisma";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import type {
   CreateInventoryItemInput,
   UpdateInventoryItemInput,
@@ -280,7 +281,7 @@ export async function createDraftMovement(
     });
   }
 
-  const movement = await prisma.$transaction(async (tx) => {
+  const runCreate = () => prisma.$transaction(async (tx) => {
     const created = await tx.inventoryMovement.create({
       data: {
         companyId,
@@ -327,6 +328,22 @@ export async function createDraftMovement(
 
     return created;
   });
+
+  // TOCTOU (auditoria LOW): mismo caso que ExpenseService — el pre-check de
+  // idempotencia esta fuera de la transaccion, asi que bajo carrera el segundo
+  // submit choca con el @@unique en vez de recibir el movimiento existente.
+  let movement;
+  try {
+    movement = await runCreate();
+  } catch (err) {
+    if (p2002TargetIncludes(err, "idempotencyKey")) {
+      const raced = await prisma.inventoryMovement.findFirst({
+        where: { idempotencyKey: input.idempotencyKey, companyId },
+      });
+      if (raced) return raced;
+    }
+    throw err;
+  }
 
   return movement;
 }

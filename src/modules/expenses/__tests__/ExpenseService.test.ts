@@ -35,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   createExpense,
@@ -394,5 +395,152 @@ describe("listExpenses", () => {
     expect(result.data).toHaveLength(50);
     expect(result.hasNextPage).toBe(true);
     expect(result.nextCursor).toBe("expense-50");
+  });
+});
+
+// ─── createExpense — recuperación TOCTOU del P2002 (auditoría LOW) ────────────
+//
+// El pre-check de idempotencia (`findFirst`) vive FUERA de la transacción, así
+// que dos submits con la misma clave lo pasan LOS DOS: ambos leen `null` antes
+// de que ninguno haya escrito. El `@@unique([companyId, idempotencyKey])` impide
+// la doble escritura —eso nunca estuvo roto—, pero el perdedor de la carrera se
+// llevaba "Ya existe un registro con esos datos" en vez de la fila que pidió:
+// el contrato de idempotencia ("misma clave ⇒ misma respuesta") se rompía.
+//
+// La carrera se modela con un `db` mutable: el pre-check lo lee vacío y el
+// `$transaction` inserta la fila del GANADOR justo antes de lanzar el P2002 —
+// exactamente el intervalo del TOCTOU.
+describe("createExpense — recuperación TOCTOU del P2002 de idempotencia", () => {
+  const KEY = "123e4567-e89b-12d3-a456-426614174000";
+  const COMPANY = "company-1";
+  const OTHER_COMPANY = "company-ajena";
+
+  const p2002 = (target: unknown) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: { target },
+    });
+
+  // Forma REAL del target con el adaptador de Neon sobre @@unique compuesto.
+  const IDEMPOTENCY_TARGET = ["companyId", "idempotencyKey"];
+
+  // Fila que el ganador commiteó entre nuestro pre-check y nuestro INSERT.
+  const winner = makeDbExpense({
+    id: "expense-del-ganador",
+    companyId: COMPANY,
+    idempotencyKey: KEY,
+    concept: "Servicio de internet",
+    category: { name: "Servicios Básicos" },
+  });
+
+  const foreignWinner = makeDbExpense({
+    id: "expense-de-otra-empresa",
+    companyId: OTHER_COMPANY,
+    idempotencyKey: KEY,
+    concept: "Honorarios abogado — litigio",
+    amount: new Decimal("999999"),
+    amountVes: new Decimal("999999"),
+    category: { name: "Honorarios Profesionales" },
+  });
+
+  let db: Array<Record<string, unknown>>;
+
+  /** Hace que el $transaction inserte `row` en el `db` y luego lance `err`. */
+  function raceThenThrow(row: Record<string, unknown> | null, err: unknown) {
+    vi.mocked(prisma.$transaction).mockImplementation((async () => {
+      if (row) db.push(row);
+      throw err;
+    }) as never);
+  }
+
+  beforeEach(() => {
+    db = [];
+    vi.mocked(prisma.expenseCategory.findFirstOrThrow).mockResolvedValue({ id: "cat-1" } as never);
+    vi.mocked(prisma.expense.findFirst).mockReset();
+    vi.mocked(prisma.expense.findFirst).mockImplementation(fakeFindFirst(db) as never);
+    vi.mocked(prisma.$transaction).mockReset();
+  });
+
+  it("devuelve la fila del ganador en vez de propagar el P2002 (misma clave ⇒ misma respuesta)", async () => {
+    raceThenThrow(winner, p2002(IDEMPOTENCY_TARGET));
+
+    const result = await createExpense(
+      makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }),
+      "user-perdedor"
+    );
+
+    expect(result.id).toBe("expense-del-ganador");
+    expect(result.categoryName).toBe("Servicios Básicos");
+    // Dos lecturas: el pre-check (vacío) y la recuperación del catch.
+    expect(vi.mocked(prisma.expense.findFirst)).toHaveBeenCalledTimes(2);
+    // Y se intentó crear una sola vez — no reintenta a ciegas.
+    expect(vi.mocked(prisma.$transaction)).toHaveBeenCalledTimes(1);
+  });
+
+  it("el findFirst de recuperación va acotado por companyId (ADR-004)", async () => {
+    raceThenThrow(winner, p2002(IDEMPOTENCY_TARGET));
+
+    await createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor");
+
+    const recoveryWhere = vi.mocked(prisma.expense.findFirst).mock.calls[1]![0]!.where!;
+    expect(recoveryWhere).toEqual({ idempotencyKey: KEY, companyId: COMPANY });
+    expect(Object.keys(recoveryWhere)).toContain("companyId");
+  });
+
+  it("NO devuelve la fila de otra empresa que reusó la clave — relanza el P2002", async () => {
+    // El `@@unique` es compuesto, así que este choque no puede pasar en la BD real;
+    // el test blinda el `where` de la recuperación: si alguien le quita el
+    // companyId, la fila ajena hace match y se devuelve al cliente equivocado.
+    const err = p2002(IDEMPOTENCY_TARGET);
+    raceThenThrow(foreignWinner, err);
+
+    await expect(
+      createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor")
+    ).rejects.toBe(err);
+  });
+
+  it("P2002 de OTRO constraint se relanza aunque exista una fila con esa clave", async () => {
+    const err = p2002(["transactionId"]);
+    raceThenThrow(winner, err); // la fila existe: lo que decide es el target, no el hallazgo
+
+    await expect(
+      createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor")
+    ).rejects.toBe(err);
+    // No se consultó la recuperación: solo hubo el pre-check.
+    expect(vi.mocked(prisma.expense.findFirst)).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2002 sin `meta.target` se relanza (fail-closed)", async () => {
+    const err = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: {},
+    });
+    raceThenThrow(winner, err);
+
+    await expect(
+      createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor")
+    ).rejects.toBe(err);
+  });
+
+  it("un error que no es P2002 se relanza intacto — no se disfraza de idempotencia", async () => {
+    const err = new Error("El período contable está CERRADO");
+    raceThenThrow(winner, err);
+
+    await expect(
+      createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor")
+    ).rejects.toBe(err);
+    expect(vi.mocked(prisma.expense.findFirst)).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2002 de idempotencyKey pero sin fila recuperable → relanza (no inventa respuesta)", async () => {
+    const err = p2002(IDEMPOTENCY_TARGET);
+    raceThenThrow(null, err); // el `db` sigue vacío: la recuperación no encuentra nada
+
+    await expect(
+      createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor")
+    ).rejects.toBe(err);
+    expect(vi.mocked(prisma.expense.findFirst)).toHaveBeenCalledTimes(2);
   });
 });

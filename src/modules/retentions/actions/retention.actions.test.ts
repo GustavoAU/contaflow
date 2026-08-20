@@ -276,7 +276,6 @@ describe("createRetentionAction", () => {
       idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
     });
 
-    if (!result.success) console.log("ERROR:", result.error);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.id).toBe("ret-1");
@@ -316,7 +315,6 @@ describe("createRetentionAction", () => {
       idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
     });
 
-    if (!result.success) console.log("ERROR:", result.error);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.id).toBe("ret-1");

@@ -40,6 +40,7 @@ import {
   getItemMovements,
 } from "../services/InventoryOperationsService";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const COMPANY_ID = "company-001";
 const USER_ID = "user-test";
@@ -447,5 +448,144 @@ describe("getItemMovements", () => {
   it("devuelve array vacío cuando no hay movimientos", async () => {
     const result = await getItemMovements(COMPANY_ID, "item-001");
     expect(result).toEqual([]);
+  });
+});
+
+// ─── createDraftMovement — recuperación TOCTOU del P2002 (auditoría LOW) ──────
+//
+// Mismo caso que ExpenseService: el pre-check de idempotencia está FUERA de la
+// transacción, así que dos submits con la misma clave lo pasan los dos y el
+// perdedor chocaba con el `@@unique([companyId, idempotencyKey])` en vez de
+// recibir el movimiento que ya se creó con su clave.
+//
+// La carrera se modela con un `db` mutable: el pre-check lo lee vacío y el
+// `$transaction` inserta la fila del GANADOR justo antes de lanzar el P2002.
+describe("createDraftMovement — recuperación TOCTOU del P2002 de idempotencia", () => {
+  const KEY = "550e8400-e29b-41d4-a716-446655440000";
+  const OTHER_COMPANY = "company-ajena";
+
+  const BASE = {
+    companyId: COMPANY_ID,
+    itemId: "item-001",
+    type: "ENTRADA" as const,
+    quantity: 5,
+    unitCost: "120",
+    reference: "REF-TOCTOU-001",
+    date: new Date().toISOString(),
+    idempotencyKey: KEY,
+  };
+
+  const p2002 = (target: unknown) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: { target },
+    });
+
+  // Forma REAL del target con el adaptador de Neon sobre @@unique compuesto.
+  const IDEMPOTENCY_TARGET = ["companyId", "idempotencyKey"];
+
+  const winner = {
+    id: "mov-del-ganador",
+    companyId: COMPANY_ID,
+    itemId: "item-001",
+    type: "ENTRADA",
+    status: "DRAFT",
+    idempotencyKey: KEY,
+  };
+
+  const foreignWinner = {
+    id: "mov-de-otra-empresa",
+    companyId: OTHER_COMPANY,
+    itemId: "item-ajeno",
+    type: "SALIDA",
+    status: "POSTED",
+    idempotencyKey: KEY,
+  };
+
+  let db: Array<Record<string, unknown>>;
+
+  /** `findFirst` que filtra por TODAS las claves escalares del `where`, como la BD. */
+  function fakeFindFirstOn(rows: Array<Record<string, unknown>>) {
+    return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
+      const where = args?.where ?? {};
+      const scalar = Object.entries(where).filter(([, v]) => v === null || typeof v !== "object");
+      return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
+    });
+  }
+
+  function raceThenThrow(row: Record<string, unknown> | null, err: unknown) {
+    vi.mocked(prisma.$transaction).mockImplementation((async () => {
+      if (row) db.push(row);
+      throw err;
+    }) as never);
+  }
+
+  beforeEach(() => {
+    db = [];
+    vi.mocked(prisma.inventoryMovement.findFirst).mockImplementation(fakeFindFirstOn(db) as never);
+  });
+
+  it("devuelve el movimiento del ganador en vez de propagar el P2002", async () => {
+    raceThenThrow(winner, p2002(IDEMPOTENCY_TARGET));
+
+    const result = await createDraftMovement(BASE, USER_ID);
+
+    expect(result.id).toBe("mov-del-ganador");
+    // Dos lecturas: pre-check (vacío) + recuperación del catch.
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(prisma.$transaction)).toHaveBeenCalledTimes(1);
+  });
+
+  it("el findFirst de recuperación va acotado por companyId (ADR-004)", async () => {
+    raceThenThrow(winner, p2002(IDEMPOTENCY_TARGET));
+
+    await createDraftMovement(BASE, USER_ID);
+
+    const recoveryWhere = vi.mocked(prisma.inventoryMovement.findFirst).mock.calls[1]![0]!.where!;
+    expect(recoveryWhere).toEqual({ idempotencyKey: KEY, companyId: COMPANY_ID });
+    expect(Object.keys(recoveryWhere)).toContain("companyId");
+  });
+
+  it("NO devuelve el movimiento de otra empresa que reusó la clave — relanza el P2002", async () => {
+    const err = p2002(IDEMPOTENCY_TARGET);
+    raceThenThrow(foreignWinner, err);
+
+    await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
+  });
+
+  it("P2002 de OTRO constraint se relanza aunque exista una fila con esa clave", async () => {
+    const err = p2002(["transactionId"]);
+    raceThenThrow(winner, err);
+
+    await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2002 sin `meta.target` se relanza (fail-closed)", async () => {
+    const err = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: {},
+    });
+    raceThenThrow(winner, err);
+
+    await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
+  });
+
+  it("un error que no es P2002 se relanza intacto — no se disfraza de idempotencia", async () => {
+    const err = new Error("Stock insuficiente: disponible 3, solicitado 5");
+    raceThenThrow(winner, err);
+
+    await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2002 de idempotencyKey pero sin fila recuperable → relanza (no inventa respuesta)", async () => {
+    const err = p2002(IDEMPOTENCY_TARGET);
+    raceThenThrow(null, err);
+
+    await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
+    expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledTimes(2);
   });
 });

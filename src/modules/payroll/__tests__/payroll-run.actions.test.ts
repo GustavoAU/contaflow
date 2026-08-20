@@ -183,7 +183,12 @@ describe("createPayrollRunAction", () => {
     if (!result.success) expect(result.error).toContain("posterior");
   });
 
-  it("maps P2002 to amigable doble-proceso message (NOM-C-02)", async () => {
+  // Antes este test asertaba `toContain("Ya existe un proceso")`, un substring que
+  // comparten DOS de las tres ramas de P2002 (la del período y la de "sin target").
+  // Pasaba en verde con el bug original —cualquier P2002 salía como choque de
+  // período— y seguiría pasando si se intercambiaran esas dos ramas: no podía
+  // fallar. Ahora afirma el mensaje EXACTO de la rama que corresponde.
+  it("maps P2002 SIN meta.target al mensaje genérico de nómina, no al del período (NOM-C-02)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
     vi.mocked(PayrollRunService.create).mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Unique constraint", {
@@ -194,7 +199,11 @@ describe("createPayrollRunAction", () => {
     );
     const result = await createPayrollRunAction(COMPANY_ID, VALID_INPUT);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Ya existe un proceso");
+    if (!result.success) {
+      expect(result.error).toBe(
+        "Ya existe un proceso de nómina con esos datos. Revisa los borradores existentes antes de reintentar."
+      );
+    }
   });
 });
 
@@ -333,5 +342,87 @@ describe("exportPayrollBankTxtAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("no encontrado");
+  });
+});
+
+// ─── createPayrollRunAction — las TRES ramas de P2002 (auditoría LOW) ─────────
+//
+// `PayrollRun` tiene DOS @@unique compuestos:
+//   @@unique([companyId, idempotencyKey])
+//   @@unique([companyId, periodStart, periodEnd])
+// La action mapeaba CUALQUIER P2002 al mensaje del período, así que un
+// doble-submit (choque de idempotencyKey) mandaba al usuario a "revisar los
+// borradores existentes" de un período donde no hay ninguno: el mensaje MENTÍA.
+//
+// Un test por rama, con el texto EXACTO. Nada de substrings: dos de los tres
+// mensajes comparten el prefijo "Ya existe un proceso de nómina", y asertar por
+// substring hace imposible detectar que las ramas se intercambien.
+describe("createPayrollRunAction — P2002 acotado por meta.target", () => {
+  const VALID_INPUT = {
+    periodStart: "2026-04-01",
+    periodEnd: "2026-04-15",
+    idempotencyKey: "key-1",
+  };
+
+  const MSG_PERIODO =
+    "Ya existe un proceso de nómina para este período. Revisa los borradores existentes.";
+  const MSG_DOBLE_SUBMIT =
+    "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar.";
+  const MSG_SIN_TARGET =
+    "Ya existe un proceso de nómina con esos datos. Revisa los borradores existentes antes de reintentar.";
+
+  async function createFailingWith(err: unknown): Promise<string> {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
+    vi.mocked(PayrollRunService.create).mockRejectedValue(err);
+    const result = await createPayrollRunAction(COMPANY_ID, VALID_INPUT);
+    expect(result.success).toBe(false);
+    return result.success ? "" : result.error;
+  }
+
+  const p2002 = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: target === undefined ? {} : { target },
+    });
+
+  it("rama 1 — target del período → mensaje del período", async () => {
+    const error = await createFailingWith(p2002(["companyId", "periodStart", "periodEnd"]));
+    expect(error).toBe(MSG_PERIODO);
+  });
+
+  it("rama 2 — target de idempotencyKey → mensaje de doble submit, NO el del período", async () => {
+    const error = await createFailingWith(p2002(["companyId", "idempotencyKey"]));
+    expect(error).toBe(MSG_DOBLE_SUBMIT);
+    // El bug exacto que se corrigió: mandar al usuario a buscar un borrador de período.
+    expect(error).not.toContain("este período");
+  });
+
+  it("rama 3 — P2002 sin target → mensaje cierto en AMBOS casos, sin adivinar", async () => {
+    const error = await createFailingWith(p2002());
+    expect(error).toBe(MSG_SIN_TARGET);
+    // No puede afirmar "para este período": no sabe cuál de los dos uniques chocó.
+    expect(error).not.toContain("para este período");
+    expect(error).not.toBe(MSG_PERIODO);
+  });
+
+  it("las tres ramas devuelven mensajes DISTINTOS (si se colapsan, esto revienta)", async () => {
+    const mensajes = [
+      await createFailingWith(p2002(["companyId", "periodStart", "periodEnd"])),
+      await createFailingWith(p2002(["companyId", "idempotencyKey"])),
+      await createFailingWith(p2002()),
+    ];
+    expect(new Set(mensajes).size).toBe(3);
+  });
+
+  it("un P2002 de un target ajeno (transactionId) cae en la rama genérica, no en la del período", async () => {
+    const error = await createFailingWith(p2002(["transactionId"]));
+    expect(error).toBe(MSG_SIN_TARGET);
+  });
+
+  it("un error que NO es P2002 no se disfraza de duplicado", async () => {
+    const error = await createFailingWith(new Error("No hay empleados activos en el período"));
+    expect(error).toBe("No hay empleados activos en el período");
+    expect(error).not.toContain("Ya existe");
   });
 });

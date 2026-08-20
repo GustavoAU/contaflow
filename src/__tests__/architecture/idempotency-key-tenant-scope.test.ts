@@ -918,23 +918,52 @@ describe("Meta: el guard PUEDE fallar sobre código real (mutación)", () => {
   const SCOPED_WHERE = "{ idempotencyKey: input.idempotencyKey, companyId: input.companyId }";
   const UNSCOPED_WHERE = "{ idempotencyKey: input.idempotencyKey }";
 
+  /** Reemplaza SOLO la ocurrencia n-ésima (0-based) de `needle`. */
+  function replaceNth(src: string, needle: string, repl: string, n: number): string {
+    let from = 0;
+    for (let i = 0; i < n; i++) {
+      from = src.indexOf(needle, from) + needle.length;
+    }
+    const at = src.indexOf(needle, from);
+    return at === -1 ? src : src.slice(0, at) + repl + src.slice(at + needle.length);
+  }
+
   it("el archivo real sale acotado; amputarle el companyId lo vuelve violación", () => {
     const target = FILES.find((f) => f.rel === TARGET);
     expect(target, `${TARGET}: el sentinela apunta a un archivo que ya no existe`).toBeDefined();
 
     const before = findFilterSites(target!.content, TARGET);
-    expect(before.length, `${TARGET}: no se detectó el lookup por idempotencyKey`).toBe(1);
-    expect(before[0]!.scoped).toBe(true);
-
-    const mutated = target!.content.replace(SCOPED_WHERE, UNSCOPED_WHERE);
+    // El número de sitios NO es invariante y no debe asertarse: la recuperación
+    // TOCTOU del P2002 (auditoría LOW) añadió un SEGUNDO lookup por la misma
+    // clave en este mismo archivo, y el `toBe(1)` original tumbó la suite por un
+    // cambio legítimo. Lo que sí es invariante: que TODOS salgan acotados y que
+    // amputarle el companyId a CUALQUIERA de ellos se detecte.
+    expect(before.length, `${TARGET}: no se detectó ningún lookup por idempotencyKey`)
+      .toBeGreaterThan(0);
     expect(
-      mutated,
-      `la mutación no se aplicó — el where cambió de forma; actualiza SCOPED_WHERE`,
-    ).not.toBe(target!.content);
+      before.filter((s) => !s.scoped),
+      `${TARGET}: hay lookups por idempotencyKey sin companyId`,
+    ).toHaveLength(0);
 
-    const after = findFilterSites(mutated, TARGET);
-    expect(after.length, "la mutación no debe hacer desaparecer el sitio").toBe(1);
-    expect(after[0]!.scoped, "el guard NO detectó la pérdida del companyId").toBe(false);
+    const scopedCount = target!.content.split(SCOPED_WHERE).length - 1;
+    expect(
+      scopedCount,
+      `el where cambió de forma; actualiza SCOPED_WHERE (sitios detectados: ${before.length})`,
+    ).toBe(before.length);
+
+    // Un sitio a la vez: si el guard solo mirara el primero, los demás quedarían
+    // sin cubrir y esta mutación lo delataría.
+    for (let i = 0; i < scopedCount; i++) {
+      const mutated = replaceNth(target!.content, SCOPED_WHERE, UNSCOPED_WHERE, i);
+      expect(mutated, `la mutación #${i + 1} no se aplicó`).not.toBe(target!.content);
+
+      const after = findFilterSites(mutated, TARGET);
+      expect(after.length, "la mutación no debe hacer desaparecer sitios").toBe(before.length);
+      expect(
+        after.filter((s) => !s.scoped).length,
+        `el guard NO detectó la pérdida del companyId en el sitio #${i + 1}`,
+      ).toBe(1);
+    }
   });
 });
 
