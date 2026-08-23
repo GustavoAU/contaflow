@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { TAB_ACTIVE, TAB_INACTIVE, DEFAULT_TAB_COLOR, type TabColor } from "./tab-colors";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 
 export type ModuleTab = {
@@ -16,24 +17,14 @@ export type ModuleTab = {
 
 type Props = {
   tabs: ModuleTab[];
-  color?: "primary" | "blue" | "amber" | "emerald" | "violet";
+  color?: TabColor;
   className?: string;
 };
 
-// "primary" deriva del token — no repite un morado literal que se desincronice
-// del brand. amber/emerald siguen siendo acentos deliberados por modulo.
-const ACTIVE: Record<string, string> = {
-  primary: "border-primary text-primary",
-  blue:    "border-blue-500 text-blue-600",
-  amber:   "border-amber-500 text-amber-700",
-  emerald: "border-emerald-500 text-emerald-600",
-  violet:  "border-violet-500 text-violet-600",
-};
-
-export function ModuleTabs({ tabs, color = "primary", className }: Props) {
+export function ModuleTabs({ tabs, color = DEFAULT_TAB_COLOR, className }: Props) {
   const pathname = usePathname();
   const { navigate } = usePageTransition();
-  const activeStyle = ACTIVE[color] ?? ACTIVE.primary;
+  const activeStyle = TAB_ACTIVE[color] ?? TAB_ACTIVE[DEFAULT_TAB_COLOR];
 
   return (
     <nav
@@ -56,9 +47,7 @@ export function ModuleTabs({ tabs, color = "primary", className }: Props) {
             }}
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
-              isActive
-                ? activeStyle
-                : "border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300"
+              isActive ? activeStyle : TAB_INACTIVE
             )}
           >
             {tab.label}

@@ -15,6 +15,7 @@
     "verify:rls:runtime": "node scripts/verify-rls-runtime.mjs",
     "verify:drift": "node scripts/verify-schema-drift.mjs",
     "verify:schema-format": "prisma format --check",
+    "verify:typography": "node scripts/verify-typography.mjs",
     "clean": "node -e \"const fs=require('fs');const p='.next';if(fs.existsSync(p)){fs.rmSync(p,{recursive:true,force:true});console.log('.next eliminado')}else{console.log('.next no existe')}\""
   },
   "dependencies": {
