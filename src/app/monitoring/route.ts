@@ -4,6 +4,7 @@
 // any other project (prevents open relay abuse). IP rate-limited at 100 req/min.
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/net-context";
 
 const BODY_LIMIT = 1 * 1024 * 1024; // 1 MB
 const SENTRY_INGEST = "https://sentry.io";
@@ -22,10 +23,10 @@ const EXPECTED_PROJECT_ID: string | null = (() => {
 
 export async function POST(request: NextRequest) {
   // Rate limit by IP — unauthenticated endpoint
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
+  // ADR-041: `.at(-1)` — la primera entrada de x-forwarded-for la escribe el
+  // cliente, así que con `[0]` bastaba rotar la cabecera para eludir el límite
+  // de este endpoint sin autenticar.
+  const ip = clientIpFromHeaders(request.headers) ?? "unknown";
   const rl = await checkRateLimit(`sentry:${ip}`, limiters.sentry);
   if (!rl.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

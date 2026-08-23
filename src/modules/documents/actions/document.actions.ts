@@ -11,6 +11,7 @@ import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { signDocShareToken } from "@/lib/document-share-jwt";
+import { isMissingPortalSecret, PORTAL_SECRET_USER_MESSAGE } from "@/lib/portal-secret";
 import type { DocShareType } from "@/lib/document-share-jwt";
 import { DocumentService, type DocumentRow, type DocumentFilters } from "../services/DocumentService";
 import type { ActionResult } from "../types/action-result";
@@ -109,6 +110,13 @@ export async function generateDocShareTokenAction(
     revalidatePath(`/company/${companyId}/documents`);
     return { success: true, data: { url, expiresAt } };
   } catch (err) {
+    // El catch ya evitaba la caída, pero mapPrismaError devuelve `error.message`
+    // para un Error común: el nombre de la variable de entorno llegaba crudo
+    // al cliente, en inglés. Se traduce antes de delegar.
+    if (isMissingPortalSecret(err)) {
+      console.error("[generateDocShareTokenAction] Falta", err.envVar, "en el entorno");
+      return { success: false, error: PORTAL_SECRET_USER_MESSAGE };
+    }
     return toActionError(err);
   }
 }

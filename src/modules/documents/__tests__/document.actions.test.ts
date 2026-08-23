@@ -44,6 +44,7 @@ import {
   revokeDocShareTokenAction,
 } from "../actions/document.actions";
 import { DocumentService } from "../services/DocumentService";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const COMPANY_ID = "company-abc";
@@ -197,6 +198,25 @@ describe("generateDocShareTokenAction", () => {
     if (res.success) {
       expect(res.data.url).toBe("https://app.contaflow.io/api/doc/signed-jwt-token");
       expect(res.data.expiresAt).toBeTruthy();
+    }
+  });
+
+  it("traduce el secreto ausente en vez de filtrar el mensaje crudo", async () => {
+    // El catch existente delegaba en mapPrismaError, que para un Error común
+    // devuelve `error.message`: llegaba al cliente en inglés y con el nombre
+    // de la variable de entorno dentro.
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTING as never);
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({ id: DOC_ID } as never);
+    mockSignDocShareToken.mockImplementationOnce(() => {
+      throw new MissingPortalSecretError("DOC_SHARE_SECRET");
+    });
+
+    const res = await generateDocShareTokenAction(COMPANY_ID, "INVOICE", DOC_ID);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(/configuración del servidor/i);
+      expect(res.error).not.toContain("DOC_SHARE_SECRET");
     }
   });
 

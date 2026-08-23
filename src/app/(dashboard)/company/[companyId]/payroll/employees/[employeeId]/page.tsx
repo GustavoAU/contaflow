@@ -222,7 +222,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
           <p className="text-xs text-indigo-600">
             Genera un enlace seguro con validez de 30 días. El empleado puede ver sus recibos de pago, vacaciones y préstamos sin necesitar cuenta en la plataforma.
           </p>
-          <div className="flex flex-wrap gap-2">
+          {/* items-start: sin esto el boton hermano se estira a la altura del
+              bloque del portal cuando este crece a 3 lineas tras generar el enlace */}
+          <div className="flex flex-wrap items-start gap-2">
             <EmployeePortalTokenButton
               companyId={companyId}
               employeeId={emp.id}

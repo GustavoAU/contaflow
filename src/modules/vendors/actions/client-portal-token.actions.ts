@@ -7,6 +7,7 @@ import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { signClientToken } from "@/lib/client-portal-jwt";
+import { isMissingPortalSecret, PORTAL_SECRET_USER_MESSAGE } from "@/lib/portal-secret";
 
 export type GenerateClientPortalTokenResult =
   | { success: true; url: string }
@@ -26,9 +27,17 @@ export async function generateClientPortalTokenAction(
   });
   if (!customer) return { success: false, error: "Cliente no encontrado" };
 
-  const token = signClientToken(customerId, companyId);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const url = `${baseUrl}/client-portal/${token}`;
-
-  return { success: true, url };
+  // Mismo blindaje que el Portal del Empleado: un secreto ausente es config,
+  // no una excepción que deba tumbar la página.
+  try {
+    const token = signClientToken(customerId, companyId);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    return { success: true, url: `${baseUrl}/client-portal/${token}` };
+  } catch (err) {
+    if (isMissingPortalSecret(err)) {
+      console.error("[generateClientPortalTokenAction] Falta", err.envVar, "en el entorno");
+      return { success: false, error: PORTAL_SECRET_USER_MESSAGE };
+    }
+    throw err;
+  }
 }

@@ -20,6 +20,8 @@ vi.mock("@/lib/client-portal-jwt", () => ({
 }));
 
 import { generateClientPortalTokenAction } from "../actions/client-portal-token.actions";
+import { signClientToken } from "@/lib/client-portal-jwt";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 const mockMember = vi.mocked(prisma.companyMember.findFirst);
 const mockCustomer = vi.mocked(prisma.customer.findFirst);
@@ -103,6 +105,24 @@ describe("generateClientPortalTokenAction", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.url).toContain("localhost:3000");
+    }
+  });
+});
+
+// ── Resiliencia de configuración (mismo blindaje que el Portal del Empleado) ──
+describe("generateClientPortalTokenAction — secreto ausente", () => {
+  it("devuelve error de negocio en vez de propagar el throw", async () => {
+    mockMember.mockResolvedValue(makeMember("ADMIN"));
+    mockCustomer.mockResolvedValue(customer);
+    vi.mocked(signClientToken).mockImplementationOnce(() => {
+      throw new MissingPortalSecretError("EMPLOYEE_PORTAL_SECRET");
+    });
+
+    const result = await generateClientPortalTokenAction("co-1", "cust-1");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/configuración del servidor/i);
+      expect(result.error).not.toContain("EMPLOYEE_PORTAL_SECRET");
     }
   });
 });
