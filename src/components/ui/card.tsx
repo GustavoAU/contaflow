@@ -2,12 +2,27 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `flush` — contenido a sangre (tablas, listas). Punto 8 del handoff de UI.
+ *
+ * La raíz mete `py-6 gap-6`, que es lo correcto para una tarjeta de texto y lo
+ * incorrecto para una que envuelve una tabla: la tabla tiene que llegar a los
+ * bordes y sus propias filas ya aportan el ritmo vertical. Sin esta variante
+ * cada call site lo deshace a mano con `py-0 gap-0`, y cada uno lo deshace
+ * distinto — de ahí salen los espacios inconsistentes entre módulos.
+ */
+function Card({
+  className,
+  flush = false,
+  ...props
+}: React.ComponentProps<"div"> & { flush?: boolean }) {
   return (
     <div
       data-slot="card"
+      data-flush={flush || undefined}
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        "bg-card text-card-foreground flex flex-col rounded-xl border shadow-sm",
+        flush ? "gap-0 py-0 overflow-hidden" : "gap-6 py-6",
         className
       )}
       {...props}

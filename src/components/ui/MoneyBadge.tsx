@@ -1,4 +1,5 @@
 ﻿import { cn } from "@/lib/utils";
+import { MoneyRateTooltip } from "@/components/ui/MoneyRateTooltip";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,9 +108,8 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
     );
   }
 
-  return (
-    // Named group avoids conflicts when MoneyBadge is nested inside other group elements
-    <span className={cn("group/mb relative inline-flex items-start gap-1.5 tabular-nums", className)}>
+  const body = (
+    <span className={cn("inline-flex items-start gap-1.5 tabular-nums", className)}>
       {/* 3 px currency colour bar — mt-[3px] centers it with the first text line */}
       <span
         className={cn("mt-0.75 inline-block h-3.5 w-0.75 shrink-0 rounded-full", barColor(currency))}
@@ -123,24 +123,15 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
           <span className="text-11 leading-none text-zinc-400 mt-0.5">{equivLine}</span>
         )}
       </span>
-
-      {/* Tooltip — CSS-only, 120 ms delay on enter, instant on leave */}
-      {tooltipContent && (
-        <span
-          role="tooltip"
-          className={cn(
-            "pointer-events-none absolute z-50 mb-2",
-            align === "right" ? "right-0 bottom-full" : "left-0 bottom-full",
-            "w-max max-w-70 rounded-lg bg-zinc-900 px-3 py-2",
-            "text-11 leading-snug text-white shadow-xl",
-            // Show after 120 ms on hover, hide instantly on mouse-out
-            "opacity-0 transition-opacity duration-100",
-            "group-hover/mb:opacity-100 group-hover/mb:delay-[120ms]"
-          )}
-        >
-          {tooltipContent}
-        </span>
-      )}
     </span>
+  );
+
+  // Sin tasa no hay tooltip, y entonces esto no cruza la frontera de cliente.
+  if (!tooltipContent) return body;
+
+  return (
+    <MoneyRateTooltip content={tooltipContent} align={align}>
+      {body}
+    </MoneyRateTooltip>
   );
 }

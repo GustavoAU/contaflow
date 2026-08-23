@@ -20,6 +20,20 @@ const buttonVariants = cva(
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Variante y tamaño POR CONTEXTO (punto 6 del handoff de UI). El radio es
+      // rounded-md = 8px en todos: no lo declares por botón.
+      //
+      //   Acción principal de la página  default   default (h-9)  una por vista
+      //   Acción secundaria en cabecera  outline   default (h-9)
+      //   Acción principal de una fila   ghost     sm (h-8)       NUNCA xs
+      //   Menú de fila                   ghost     icon-sm        glifo ⋯
+      //   Confirmar en AlertDialog       default | destructive
+      //   Chip / filtro                  secondary sm
+      //
+      // xs (h-6) = 24px: por debajo del objetivo táctil de 24×24 CSS px de la
+      // WCAG 2.5.8 en cuanto se le resta el padding del contenedor. No se borra
+      // porque sirve para adornos no interactivos, pero en una celda de tabla
+      // el patrón correcto es ghost sm, no encoger el botón hasta que quepa.
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
         xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
