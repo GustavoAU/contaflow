@@ -153,10 +153,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleClose}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
+                  <AlertDialogAction onClick={handleClose} variant="destructive">
                     Sí, cerrar ejercicio {yearToClose}
                   </AlertDialogAction>
                 </AlertDialogFooter>

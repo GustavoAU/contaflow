@@ -1,9 +1,13 @@
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 // ─── Definición centralizada de estados ──────────────────────────────────────
 //
-// Cubre paymentStatus de Invoice + status de Order/Quotation.
-// Agregar nuevos estados aquí cuando aparezcan en otros módulos.
+// Unico sistema de badge de estado de la app (punto 3 del handoff de UI):
+// cualquier <Badge> que renderice un estado de dominio debe pasar por aqui.
+//
+// Eje de los estados terminados: ROJO = lo anulo/rechazo/cancelo una persona.
+// GRIS = termino sin efecto por si solo (borrador, inactivo, periodo cerrado).
 
 type StatusKey =
   // Invoice payment status
@@ -13,6 +17,10 @@ type StatusKey =
   | "PENDING_APPROVAL" | "REJECTED"
   // Asientos contables
   | "POSTED"
+  // Períodos contables
+  | "OPEN" | "CLOSED"
+  // Préstamos de nómina
+  | "LIQUIDATED" | "OVERDUE"
   // Genérico
   | "ACTIVE" | "INACTIVE" | "PENDING";
 
@@ -20,7 +28,7 @@ type BadgeConfig = { label: string; dot: string; text: string; bg: string; borde
 
 const BADGE: Record<StatusKey, BadgeConfig> = {
   // ── Pago de facturas ──────────────────────────────────────────────────────
-  UNPAID:           { label: "Pendiente",  dot: "bg-amber-400",    text: "text-amber-800",  bg: "bg-amber-50",   border: "border-amber-200" },
+  UNPAID:           { label: "Por cobrar", dot: "bg-amber-400",    text: "text-amber-800",  bg: "bg-amber-50",   border: "border-amber-200" },
   PARTIAL:          { label: "Parcial",    dot: "bg-blue-400",     text: "text-blue-800",   bg: "bg-blue-50",    border: "border-blue-200"  },
   PAID:             { label: "Pagado",     dot: "bg-emerald-500",  text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
   VOIDED:           { label: "Anulado",    dot: "bg-red-400",      text: "text-red-700",    bg: "bg-red-50",     border: "border-red-200"   },
@@ -30,8 +38,16 @@ const BADGE: Record<StatusKey, BadgeConfig> = {
   PENDING_APPROVAL: { label: "En revisión",dot: "bg-amber-400",    text: "text-amber-800",  bg: "bg-amber-50",   border: "border-amber-200" },
   APPROVED:         { label: "Aprobada",   dot: "bg-emerald-500",  text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
   CONVERTED:        { label: "Convertida", dot: "bg-blue-500",     text: "text-blue-800",   bg: "bg-blue-50",    border: "border-blue-200"  },
-  CANCELLED:        { label: "Cancelada",  dot: "bg-zinc-400",     text: "text-zinc-500",   bg: "bg-zinc-100",   border: "border-zinc-200"  },
+  CANCELLED:        { label: "Cancelada",  dot: "bg-red-400",      text: "text-red-700",    bg: "bg-red-50",     border: "border-red-200"   },
   REJECTED:         { label: "Rechazada",  dot: "bg-red-400",      text: "text-red-700",    bg: "bg-red-50",     border: "border-red-200"   },
+
+  // ── Períodos contables ────────────────────────────────────────────────────
+  OPEN:             { label: "Abierto",    dot: "bg-emerald-500",  text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
+  CLOSED:           { label: "Cerrado",    dot: "bg-zinc-400",     text: "text-zinc-500",   bg: "bg-zinc-100",   border: "border-zinc-200"  },
+
+  // ── Préstamos de nómina ───────────────────────────────────────────────────
+  LIQUIDATED:       { label: "Liquidado",  dot: "bg-blue-500",     text: "text-blue-800",   bg: "bg-blue-50",    border: "border-blue-200"  },
+  OVERDUE:          { label: "En mora",    dot: "bg-red-500",      text: "text-red-800",    bg: "bg-red-50",     border: "border-red-200"   },
 
   // ── Asientos contables ────────────────────────────────────────────────────
   // VOIDED (arriba) cubre el asiento anulado.
@@ -55,18 +71,17 @@ type Props = {
 export function StatusBadge({ status, variant = "dot", className }: Props) {
   const cfg = BADGE[status as StatusKey] ?? { ...FALLBACK, label: status };
 
+  // Compone Badge en vez de repetir sus clases base palabra por palabra: este
+  // componente solo aporta el mapa de estados y el punto de color.
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
-        cfg.bg, cfg.text, cfg.border,
-        className
-      )}
+    <Badge
+      variant="outline"
+      className={cn("gap-1.5", cfg.bg, cfg.text, cfg.border, className)}
     >
       {variant === "dot" && (
-        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dot)} aria-hidden />
+        <span className={cn("size-1.5 rounded-full shrink-0", cfg.dot)} aria-hidden />
       )}
       {cfg.label}
-    </span>
+    </Badge>
   );
 }
