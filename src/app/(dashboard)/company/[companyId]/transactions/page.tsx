@@ -43,7 +43,7 @@ export default async function TransactionsPage({ params }: Props) {
         </Button>
       </div>
 
-      <ModuleTabs tabs={contaTabs} color="blue" />
+      <ModuleTabs tabs={contaTabs} />
 
       <TransactionList companyId={companyId} transactions={transactions} />
     </div>

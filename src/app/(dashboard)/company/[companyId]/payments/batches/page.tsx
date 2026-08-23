@@ -49,7 +49,7 @@ export default async function PaymentBatchesPage({ params }: Props) {
         </p>
       </div>
 
-      <ModuleTabs tabs={pagosTabs} color="blue" />
+      <ModuleTabs tabs={pagosTabs} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PaymentBatchForm companyId={companyId} invoices={invoices} />

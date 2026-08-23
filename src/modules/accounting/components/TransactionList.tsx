@@ -4,7 +4,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { SearchIcon, XIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatAmount } from "@/lib/format";
 
@@ -28,11 +28,6 @@ const TYPE_LABELS: Record<string, string> = {
   APERTURA: "Apertura",
   AJUSTE:   "Ajuste",
   CIERRE:   "Cierre",
-};
-
-const STATUS_COLORS: Record<string, "default" | "destructive"> = {
-  POSTED: "default",
-  VOIDED: "destructive",
 };
 
 const ALL_TYPES   = ["DIARIO", "APERTURA", "AJUSTE", "CIERRE"] as const;
@@ -73,7 +68,7 @@ export function TransactionList({ companyId, transactions }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por número o descripción…"
-            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {search && (
             <button
@@ -94,7 +89,7 @@ export function TransactionList({ companyId, transactions }: Props) {
               onClick={() => setTypeFilter(typeFilter === t ? null : t)}
               className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
                 typeFilter === t
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  ? "border-primary bg-primary/10 text-primary"
                   : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
               }`}
             >
@@ -161,34 +156,32 @@ export function TransactionList({ companyId, transactions }: Props) {
                   <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 min-w-50">Descripción</th>
                   <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Tipo</th>
                   <th scope="col" className="px-4 py-3 text-right font-medium text-zinc-500 whitespace-nowrap min-w-44">Débito</th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Status</th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((tx) => (
                   <tr key={tx.id} className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
-                    <td className="px-4 py-3 font-mono font-medium whitespace-nowrap">
+                    <td className="px-4 py-2.5 font-mono font-medium whitespace-nowrap">
                       <Link
                         href={`/company/${companyId}/transactions/${tx.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-zinc-900 hover:text-primary hover:underline"
                       >
                         {tx.number}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-zinc-600 whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-zinc-600 whitespace-nowrap">
                       {new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                     </td>
-                    <td className="px-4 py-3 max-w-xs truncate">{tx.description}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-2.5 max-w-xs truncate">{tx.description}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
                       <span className="text-zinc-500">{TYPE_LABELS[tx.type] ?? tx.type}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap">
                       {formatAmount(tx.totalDebit)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <Badge variant={STATUS_COLORS[tx.status] ?? "default"}>
-                        {tx.status === "POSTED" ? "Contabilizado" : "Anulado"}
-                      </Badge>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <StatusBadge status={tx.status} />
                     </td>
                   </tr>
                 ))}

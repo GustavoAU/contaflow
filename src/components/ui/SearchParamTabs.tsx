@@ -23,27 +23,39 @@ type Props = {
   /** Valor activo actual — proviene del searchParams del servidor */
   currentValue: string;
   paramKey?: string;
-  color?: "blue" | "emerald" | "amber" | "violet";
+  color?: "primary" | "blue" | "emerald" | "amber" | "violet";
   className?: string;
 };
 
 const ACTIVE_STYLES: Record<string, string> = {
+  primary: "border-primary text-primary",
   blue:    "border-blue-500 text-blue-600",
   emerald: "border-emerald-500 text-emerald-600",
   amber:   "border-amber-500 text-amber-700",
   violet:  "border-violet-500 text-violet-600",
 };
 
+// El badge del tab activo estaba fijo en azul: unos tabs con color="violet"
+// llevaban contador azul. Ahora sale del mismo prop `color`.
+const ACTIVE_BADGE: Record<string, string> = {
+  primary: "bg-primary/10 text-primary",
+  blue:    "bg-blue-100 text-blue-700",
+  emerald: "bg-emerald-100 text-emerald-700",
+  amber:   "bg-amber-100 text-amber-700",
+  violet:  "bg-violet-100 text-violet-700",
+};
+
 export function SearchParamTabs({
   tabs,
   currentValue,
   paramKey = "tab",
-  color = "blue",
+  color = "primary",
   className,
 }: Props) {
   const pathname    = usePathname();
   const { navigate } = usePageTransition();
-  const activeStyle  = ACTIVE_STYLES[color] ?? ACTIVE_STYLES.blue;
+  const activeStyle  = ACTIVE_STYLES[color] ?? ACTIVE_STYLES.primary;
+  const activeBadge  = ACTIVE_BADGE[color]  ?? ACTIVE_BADGE.primary;
 
   const visibleTabs = tabs.filter((t) => t.show !== false);
 
@@ -78,7 +90,7 @@ export function SearchParamTabs({
             {tab.badge !== undefined && tab.badge > 0 && (
               <span className={cn(
                 "rounded-full px-1.5 py-0.5 text-10 font-bold leading-none",
-                isActive ? "bg-blue-100 text-blue-700" : "bg-zinc-200 text-zinc-600"
+                isActive ? activeBadge : "bg-zinc-200 text-zinc-600"
               )}>
                 {tab.badge}
               </span>

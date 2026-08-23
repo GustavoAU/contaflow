@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { LifeBuoyIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SetupWizard } from "./SetupWizard";
 
 interface Props {
@@ -21,15 +22,18 @@ export function SetupWizardTrigger(props: Props) {
 
   return (
     <>
-      {/* Botón siempre visible en el dashboard para reabrir la guía */}
-      <button
+      {/* Botón siempre visible en el dashboard para reabrir la guía.
+          Era un <button> crudo con px-3 py-1.5 text-xs (~h-7) al lado de dos
+          <Button> de h-9: 8px mas bajo, con su propio anillo de foco y el icono
+          a 14px en vez de 16. Accion secundaria en cabecera = outline + h-9. */}
+      <Button
+        variant="outline"
         onClick={() => setForceOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-colors focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:outline-none"
         title="Abrir guía de configuración inicial"
       >
-        <LifeBuoyIcon className="h-3.5 w-3.5" />
+        <LifeBuoyIcon />
         Guía de configuración
-      </button>
+      </Button>
 
       <SetupWizard
         {...props}

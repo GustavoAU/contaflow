@@ -387,7 +387,7 @@ export function Sidebar({
       <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
         <Link
           href="/dashboard"
-          className="w-7 h-7 bg-blue-500 rounded-lg grid place-items-center text-white text-sm shrink-0 shadow-blue-glow hover:bg-blue-600 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1"
+          className="w-7 h-7 bg-primary rounded-lg grid place-items-center text-primary-foreground text-sm shrink-0 shadow-primary-glow hover:bg-primary/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
           title="ContaFlow"
         >
           ⚡

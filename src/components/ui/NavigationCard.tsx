@@ -47,7 +47,7 @@ export function NavigationCard({ href, className, children }: Props) {
           aria-hidden
           className="absolute inset-0 flex items-center justify-center rounded-[inherit] bg-white/70 dark:bg-zinc-950/70"
         >
-          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </span>
       )}
     </Link>

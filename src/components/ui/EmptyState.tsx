@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { LucideIcon } from "lucide-react";
 
 // ─── Inline SVG illustrations ─────────────────────────────────────────────────
@@ -120,25 +122,23 @@ export function EmptyState({
         )}
       </div>
 
+      {/* Button real: el <a> crudo recargaba la pagina entera saltandose
+          PageTransition, y ninguna de las dos ramas tenia focus-visible.
+          Button ya aporta gap-2 y [&_svg]:size-4 — sin clases en el icono. */}
       {action && (
-        action.href ? (
-          <a
-            href={action.href}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            {action.Icon && <action.Icon className="w-4 h-4" />}
-            {action.label}
-          </a>
-        ) : (
-          <button
-            type="button"
-            onClick={action.onClick}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            {action.Icon && <action.Icon className="w-4 h-4" />}
-            {action.label}
-          </button>
-        )
+        <Button asChild={!!action.href} onClick={action.onClick}>
+          {action.href ? (
+            <Link href={action.href}>
+              {action.Icon && <action.Icon />}
+              {action.label}
+            </Link>
+          ) : (
+            <>
+              {action.Icon && <action.Icon />}
+              {action.label}
+            </>
+          )}
+        </Button>
       )}
     </div>
   );
