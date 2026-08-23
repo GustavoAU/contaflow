@@ -11,6 +11,8 @@ type StatusKey =
   // Order / Quotation status
   | "DRAFT" | "APPROVED" | "CONVERTED" | "CANCELLED"
   | "PENDING_APPROVAL" | "REJECTED"
+  // Asientos contables
+  | "POSTED"
   // Genérico
   | "ACTIVE" | "INACTIVE" | "PENDING";
 
@@ -30,6 +32,10 @@ const BADGE: Record<StatusKey, BadgeConfig> = {
   CONVERTED:        { label: "Convertida", dot: "bg-blue-500",     text: "text-blue-800",   bg: "bg-blue-50",    border: "border-blue-200"  },
   CANCELLED:        { label: "Cancelada",  dot: "bg-zinc-400",     text: "text-zinc-500",   bg: "bg-zinc-100",   border: "border-zinc-200"  },
   REJECTED:         { label: "Rechazada",  dot: "bg-red-400",      text: "text-red-700",    bg: "bg-red-50",     border: "border-red-200"   },
+
+  // ── Asientos contables ────────────────────────────────────────────────────
+  // VOIDED (arriba) cubre el asiento anulado.
+  POSTED:           { label: "Contabilizado", dot: "bg-emerald-500", text: "text-emerald-800", bg: "bg-emerald-50", border: "border-emerald-200"},
 
   // ── Entidades (vendedores, clientes…) ─────────────────────────────────────
   ACTIVE:           { label: "Activo",     dot: "bg-emerald-500",  text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
