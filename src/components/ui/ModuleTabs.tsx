@@ -16,21 +16,24 @@ export type ModuleTab = {
 
 type Props = {
   tabs: ModuleTab[];
-  color?: "blue" | "amber" | "emerald" | "violet";
+  color?: "primary" | "blue" | "amber" | "emerald" | "violet";
   className?: string;
 };
 
+// "primary" deriva del token — no repite un morado literal que se desincronice
+// del brand. amber/emerald siguen siendo acentos deliberados por modulo.
 const ACTIVE: Record<string, string> = {
+  primary: "border-primary text-primary",
   blue:    "border-blue-500 text-blue-600",
   amber:   "border-amber-500 text-amber-700",
   emerald: "border-emerald-500 text-emerald-600",
   violet:  "border-violet-500 text-violet-600",
 };
 
-export function ModuleTabs({ tabs, color = "blue", className }: Props) {
+export function ModuleTabs({ tabs, color = "primary", className }: Props) {
   const pathname = usePathname();
   const { navigate } = usePageTransition();
-  const activeStyle = ACTIVE[color] ?? ACTIVE.blue;
+  const activeStyle = ACTIVE[color] ?? ACTIVE.primary;
 
   return (
     <nav

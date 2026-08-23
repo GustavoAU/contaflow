@@ -155,7 +155,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       </div>
 
       {/* Tabs de navegación */}
-      <SearchParamTabs tabs={tabs} currentValue={currentTab} color="blue" />
+      <SearchParamTabs tabs={tabs} currentValue={currentTab} />
 
       {/* ── Pestaña: Empresa ─────────────────────────────────────────────────── */}
       {currentTab === "empresa" && (

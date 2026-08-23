@@ -64,7 +64,7 @@ export default async function ReportsPage({ params }: Props) {
         <p className="text-muted-foreground mt-1 text-sm">Reportes contables de tu empresa</p>
       </div>
 
-      <ModuleTabs tabs={contaTabs} color="blue" />
+      <ModuleTabs tabs={contaTabs} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reports.map((report) => {

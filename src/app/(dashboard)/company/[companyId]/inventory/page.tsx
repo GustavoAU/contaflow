@@ -178,7 +178,6 @@ export default async function InventoryPage({ params, searchParams }: Props) {
       <SearchParamTabs
         tabs={tabs}
         currentValue={currentTab}
-        color="blue"
       />
 
       {/* ── Pestaña: Catálogo ──────────────────────────────────────────────────── */}

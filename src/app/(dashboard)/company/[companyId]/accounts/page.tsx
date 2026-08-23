@@ -24,7 +24,7 @@ export default async function AccountsPage({ params }: Props) {
         <h1 className="text-2xl font-bold tracking-tight">Plan de Cuentas</h1>
         <p className="text-muted-foreground mt-1 text-sm">Catálogo de cuentas contables de tu empresa</p>
       </div>
-      <ModuleTabs tabs={contaTabs} color="blue" />
+      <ModuleTabs tabs={contaTabs} />
       <AccountsTable initialAccounts={accounts} companyId={companyId} />
     </main>
   );
