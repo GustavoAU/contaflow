@@ -3,6 +3,7 @@
 // Algoritmo: HMAC-SHA256 sobre header.payload en base64url, misma estructura JWT estándar.
 
 import { createHmac } from "crypto";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 días
 
@@ -13,7 +14,7 @@ const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 días
 function getSecret(): string {
   const s = process.env.EMPLOYEE_PORTAL_SECRET ?? "";
   if (!s && process.env.NODE_ENV === "production") {
-    throw new Error("EMPLOYEE_PORTAL_SECRET is required in production");
+    throw new MissingPortalSecretError("EMPLOYEE_PORTAL_SECRET");
   }
   return s;
 }

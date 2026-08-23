@@ -7,6 +7,7 @@ import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
+import { isMissingPortalSecret, PORTAL_SECRET_USER_MESSAGE } from "@/lib/portal-secret";
 
 export type GeneratePortalTokenResult =
   | { success: true; url: string }
@@ -26,9 +27,17 @@ export async function generatePortalTokenAction(
   });
   if (!employee) return { success: false, error: "Empleado no encontrado" };
 
-  const token = signEmployeeToken(employeeId, companyId);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const url = `${baseUrl}/employee/${token}`;
-
-  return { success: true, url };
+  // La firma lanza si falta el secreto en producción. Sin este catch el throw
+  // sube al error boundary de nómina y tumba la página entera (medido 2026-08-23).
+  try {
+    const token = signEmployeeToken(employeeId, companyId);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    return { success: true, url: `${baseUrl}/employee/${token}` };
+  } catch (err) {
+    if (isMissingPortalSecret(err)) {
+      console.error("[generatePortalTokenAction] Falta", err.envVar, "en el entorno");
+      return { success: false, error: PORTAL_SECRET_USER_MESSAGE };
+    }
+    throw err;
+  }
 }

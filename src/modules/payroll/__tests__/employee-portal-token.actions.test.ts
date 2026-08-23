@@ -20,6 +20,8 @@ vi.mock("@/lib/employee-portal-jwt", () => ({
 }));
 
 import { generatePortalTokenAction } from "../actions/employee-portal-token.actions";
+import { signEmployeeToken } from "@/lib/employee-portal-jwt";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 const mockMember = vi.mocked(prisma.companyMember.findFirst);
 const mockEmployee = vi.mocked(prisma.employee.findFirst);
@@ -104,5 +106,36 @@ describe("generatePortalTokenAction", () => {
     if (result.success) {
       expect(result.url).toContain("localhost:3000");
     }
+  });
+});
+
+// ── Resiliencia de configuración ────────────────────────────────────────────
+// Antes NO había try/catch: el throw del firmador subía al error boundary de
+// nómina y tumbaba la página entera (producción, 2026-08-23).
+describe("generatePortalTokenAction — secreto ausente", () => {
+  it("devuelve error de negocio en vez de propagar el throw", async () => {
+    mockMember.mockResolvedValue(makeMember("ADMIN"));
+    mockEmployee.mockResolvedValue(emp);
+    vi.mocked(signEmployeeToken).mockImplementationOnce(() => {
+      throw new MissingPortalSecretError("EMPLOYEE_PORTAL_SECRET");
+    });
+
+    const result = await generatePortalTokenAction("co-1", "emp-1");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/configuración del servidor/i);
+      // No filtra el nombre de la variable de entorno al cliente
+      expect(result.error).not.toContain("EMPLOYEE_PORTAL_SECRET");
+    }
+  });
+
+  it("sigue propagando cualquier otro error (no lo enmascara)", async () => {
+    mockMember.mockResolvedValue(makeMember("ADMIN"));
+    mockEmployee.mockResolvedValue(emp);
+    vi.mocked(signEmployeeToken).mockImplementationOnce(() => {
+      throw new Error("fallo inesperado de crypto");
+    });
+
+    await expect(generatePortalTokenAction("co-1", "emp-1")).rejects.toThrow(/crypto/);
   });
 });

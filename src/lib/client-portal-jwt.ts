@@ -9,6 +9,7 @@
 // La validación se hace en runtime, dentro de cada función que usa el secret.
 
 import { createHmac } from "crypto";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 días
 
@@ -16,7 +17,7 @@ const TTL_SECONDS = 30 * 24 * 60 * 60; // 30 días
 function getSecret(): string {
   const s = process.env.EMPLOYEE_PORTAL_SECRET ?? "";
   if (!s && process.env.NODE_ENV === "production") {
-    throw new Error("EMPLOYEE_PORTAL_SECRET is required in production (used for both employee and client portals)");
+    throw new MissingPortalSecretError("EMPLOYEE_PORTAL_SECRET");
   }
   return s;
 }

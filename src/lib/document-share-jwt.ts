@@ -4,6 +4,7 @@
 // Patrón idéntico a employee-portal-jwt.ts.
 
 import { createHmac } from "crypto";
+import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 const TTL_SECONDS = 7 * 24 * 60 * 60; // 7 días
 
@@ -19,9 +20,12 @@ export interface DocSharePayload {
 }
 
 function getSecret(): string {
-  const s = process.env.DOC_SHARE_SECRET ?? process.env.EMPLOYEE_PORTAL_SECRET ?? "";
+  // `||`, no `??`: una variable declarada VACÍA ("DOC_SHARE_SECRET=" en el panel)
+  // no es nullish, así que con `??` cortaba el fallback y rompía la firma aunque
+  // EMPLOYEE_PORTAL_SECRET sí estuviera configurado.
+  const s = process.env.DOC_SHARE_SECRET || process.env.EMPLOYEE_PORTAL_SECRET || "";
   if (!s && process.env.NODE_ENV === "production") {
-    throw new Error("DOC_SHARE_SECRET is required in production");
+    throw new MissingPortalSecretError("DOC_SHARE_SECRET");
   }
   return s;
 }
@@ -74,7 +78,8 @@ export function signDocShareToken(
 }
 
 export function verifyDocShareToken(token: string): DocSharePayload | null {
-  const secret = process.env.DOC_SHARE_SECRET ?? process.env.EMPLOYEE_PORTAL_SECRET ?? "";
+  // Mismo fallback que getSecret — ver nota allí sobre `||` vs `??`.
+  const secret = process.env.DOC_SHARE_SECRET || process.env.EMPLOYEE_PORTAL_SECRET || "";
   if (!secret) return null;
   try {
     const parts = token.split(".");
