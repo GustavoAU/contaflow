@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 import { LinkIcon, CopyIcon, CheckIcon, Loader2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { generatePortalTokenAction } from "../actions/employee-portal-token.actions";
 
 interface Props {
@@ -44,20 +45,22 @@ export function EmployeePortalTokenButton({ companyId, employeeId, employeeName 
   if (!url) {
     return (
       <div className="space-y-1">
-        <button
+        {/* Accion secundaria en cabecera de pagina: outline + h-9 (anexo A).
+            Era un <button> crudo con bg-indigo-600 escrito a mano. */}
+        <Button
           type="button"
+          variant="outline"
           onClick={handleGenerate}
           disabled={isPending}
           aria-busy={isPending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
         >
           {isPending ? (
-            <Loader2Icon className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            <Loader2Icon className="animate-spin" aria-hidden />
           ) : (
-            <LinkIcon className="h-3.5 w-3.5" aria-hidden />
+            <LinkIcon aria-hidden />
           )}
           {isPending ? "Generando…" : "Portal del empleado"}
-        </button>
+        </Button>
         {error && (
           <p className="text-xs text-red-600">{error}</p>
         )}
@@ -80,24 +83,26 @@ export function EmployeePortalTokenButton({ companyId, employeeId, employeeName 
           aria-label="Enlace del portal del empleado"
           onFocus={(e) => e.target.select()}
         />
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={handleCopy}
-          className="shrink-0 inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="shrink-0"
           aria-label={copied ? "Copiado" : "Copiar enlace"}
         >
           {copied ? (
             <>
-              <CheckIcon className="h-3.5 w-3.5 text-green-600" aria-hidden />
+              <CheckIcon className="text-emerald-600" aria-hidden />
               Copiado
             </>
           ) : (
             <>
-              <CopyIcon className="h-3.5 w-3.5" aria-hidden />
+              <CopyIcon aria-hidden />
               Copiar
             </>
           )}
-        </button>
+        </Button>
       </div>
       <button
         type="button"

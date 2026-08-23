@@ -23,17 +23,13 @@ import { VacationRequestList } from "@/modules/payroll/components/VacationReques
 import { EmployeeHistoricalImportDialog } from "@/modules/payroll/components/EmployeeHistoricalImportDialog";
 import { VacationRequestService } from "@/modules/payroll/services/VacationRequestService";
 import { fmtDate } from "@/lib/format";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 
 interface Props {
   params: Promise<{ companyId: string; employeeId: string }>;
   searchParams: Promise<{ tab?: string }>;
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Activo",
-  INACTIVE: "Inactivo",
-  TERMINATED: "Egresado",
-};
 
 const CONTRACT_LABELS: Record<string, string> = {
   INDEFINIDO: "Tiempo Indeterminado",
@@ -42,7 +38,7 @@ const CONTRACT_LABELS: Record<string, string> = {
 };
 
 const TABS = [
-  { id: "salario", label: "Historial Salarial" },
+  { id: "salario", label: "Historial salarial" },
   { id: "vacaciones", label: "Vacaciones" },
   { id: "prestamos", label: "Préstamos" },
   { id: "prestaciones", label: "Prestaciones" },
@@ -76,6 +72,18 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
     VacationRequestService.getBalance(companyId, employeeId),
     VacationRequestService.listByEmployee(companyId, employeeId),
   ]);
+
+  // Tasa BCV para los equivalentes en Bs. del tab Préstamos. Degradacion
+  // graceful: sin tasa cargada, MoneyBadge simplemente no muestra equivalente.
+  const usdRate = await ExchangeRateService.getLatestRate(companyId, "USD").catch(() => null);
+  const loanExchangeRate = usdRate
+    ? {
+        foreignCurrency: "USD",
+        rate: usdRate.rate,
+        date: usdRate.date,
+        source: usdRate.source,
+      }
+    : undefined;
 
   // Calcular años de servicio para vacaciones
   const today = new Date();
@@ -117,17 +125,18 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             {emp.department ? ` · ${emp.department}` : ""}
           </p>
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-medium ${
-            emp.status === "ACTIVE"
-              ? "bg-green-100 text-green-800"
-              : emp.status === "TERMINATED"
-              ? "bg-gray-100 text-gray-600"
-              : "bg-yellow-100 text-yellow-800"
-          }`}
-        >
-          {STATUS_LABELS[emp.status] ?? emp.status}
-        </span>
+        {/* Las acciones del EMPLEADO viven aquí, no dentro del tab Préstamos:
+            el portal es del empleado, no de sus préstamos. */}
+        <div className="flex items-center gap-2">
+          <StatusBadge status={emp.status} />
+          {canWrite && (
+            <EmployeePortalTokenButton
+              companyId={companyId}
+              employeeId={emp.id}
+              employeeName={emp.fullName}
+            />
+          )}
+        </div>
       </div>
 
       {/* Datos del empleado */}
@@ -213,33 +222,6 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         </div>
       </dl>
 
-      {/* Portal del empleado + saldos históricos */}
-      {canWrite && (
-        <div className="rounded-lg border bg-indigo-50 p-5 space-y-3">
-          <p className="text-sm font-medium text-indigo-800">
-            Enlace de autoservicio para el empleado
-          </p>
-          <p className="text-xs text-indigo-600">
-            Genera un enlace seguro con validez de 30 días. El empleado puede ver sus recibos de pago, vacaciones y préstamos sin necesitar cuenta en la plataforma.
-          </p>
-          {/* items-start: sin esto el boton hermano se estira a la altura del
-              bloque del portal cuando este crece a 3 lineas tras generar el enlace */}
-          <div className="flex flex-wrap items-start gap-2">
-            <EmployeePortalTokenButton
-              companyId={companyId}
-              employeeId={emp.id}
-              employeeName={emp.fullName}
-            />
-            <EmployeeHistoricalImportDialog
-              companyId={companyId}
-              employeeId={emp.id}
-              employeeName={emp.fullName}
-              currentVacationDays={vacationBalance.initialBalance}
-            />
-          </div>
-        </div>
-      )}
-
       {/* U-02: Tabs de vista consolidada */}
       <div>
         <nav className="flex border-b" aria-label="Secciones del empleado">
@@ -249,8 +231,8 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
               href={tabHref(t.id)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 activeTab === t.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300"
               }`}
             >
               {t.label}
@@ -309,12 +291,31 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
           )}
 
           {activeTab === "prestamos" && (
-            <LoanTable
-              companyId={companyId}
-              initialLoans={loans}
-              employees={employeeOptions}
-              isAdmin={canWrite}
-            />
+            <div className="space-y-3">
+              <LoanTable
+                companyId={companyId}
+                initialLoans={loans}
+                employees={employeeOptions}
+                isAdmin={canWrite}
+                scope="employee"
+                exchangeRate={loanExchangeRate}
+                headerSlot={canWrite ? (
+                  <EmployeeHistoricalImportDialog
+                    companyId={companyId}
+                    employeeId={emp.id}
+                    employeeName={emp.fullName}
+                    currentVacationDays={vacationBalance.initialBalance}
+                  />
+                ) : null}
+              />
+              {canWrite && (
+                <p className="text-xs text-zinc-500">
+                  El enlace de autoservicio permite al empleado consultar recibos,
+                  vacaciones y préstamos sin cuenta. Se genera desde el botón
+                  «Portal del empleado», arriba.
+                </p>
+              )}
+            </div>
           )}
 
           {activeTab === "prestaciones" && benefitBalance && (

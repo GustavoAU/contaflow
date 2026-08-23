@@ -21,6 +21,8 @@ type StatusKey =
   | "OPEN" | "CLOSED"
   // Préstamos de nómina
   | "LIQUIDATED" | "OVERDUE"
+  // Empleados
+  | "TERMINATED"
   // Genérico
   | "ACTIVE" | "INACTIVE" | "PENDING";
 
@@ -56,6 +58,8 @@ const BADGE: Record<StatusKey, BadgeConfig> = {
   // ── Entidades (vendedores, clientes…) ─────────────────────────────────────
   ACTIVE:           { label: "Activo",     dot: "bg-emerald-500",  text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
   INACTIVE:         { label: "Inactivo",   dot: "bg-zinc-400",     text: "text-zinc-500",   bg: "bg-zinc-100",   border: "border-zinc-200"  },
+  // Egresado: la relacion laboral termino, no la anulo nadie -> gris
+  TERMINATED:       { label: "Egresado",   dot: "bg-zinc-400",     text: "text-zinc-500",   bg: "bg-zinc-100",   border: "border-zinc-200"  },
   PENDING:          { label: "Pendiente",  dot: "bg-amber-400",    text: "text-amber-800",  bg: "bg-amber-50",   border: "border-amber-200" },
 };
 
