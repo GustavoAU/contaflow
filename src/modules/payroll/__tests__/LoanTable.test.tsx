@@ -135,3 +135,40 @@ describe("LoanTable — estructura", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 });
+
+describe("LoanTable — los KPIs y la tabla leen lo mismo", () => {
+  // Fila con la forma que escribe seed-demo-tesa.ts: currency USD pero el
+  // importe en las columnas VES y las USD en NULL. La tabla la resolvia y los
+  // KPIs no, asi que el mismo prestamo salia con monto en la fila y con "—"
+  // en el KPI de arriba.
+  const SEED_SHAPED: EmployeeLoanRow = {
+    ...BASE,
+    currency: "USD",
+    totalAmount: "3000.00",
+    installmentAmount: "250.00",
+    remainingBalance: "2500.00",
+    amountUsd: null,
+    installmentAmountUsd: null,
+    remainingBalanceUsd: null,
+  };
+
+  it("el KPI de saldo no queda en guion cuando la fila si tiene monto", () => {
+    renderTable([SEED_SHAPED], { scope: "employee" });
+
+    const saldoKpi = screen.getByText("Saldo total pendiente").parentElement!;
+    expect(saldoKpi.textContent).toMatch(/2\.500/);
+    expect(saldoKpi.textContent).not.toMatch(/^Saldo total pendiente—/);
+  });
+
+  it("el KPI de deduccion suma la cuota de los activos", () => {
+    renderTable([SEED_SHAPED], { scope: "employee" });
+    const kpi = screen.getByText("Deducción del período").parentElement!;
+    expect(kpi.textContent).toMatch(/250/);
+  });
+
+  it("los prestamos no activos no entran en los KPIs", () => {
+    renderTable([{ ...SEED_SHAPED, status: "CANCELLED" }], { scope: "employee" });
+    const kpi = screen.getByText("Saldo total pendiente").parentElement!;
+    expect(kpi.textContent).toMatch(/—/);
+  });
+});

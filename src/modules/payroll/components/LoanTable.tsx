@@ -412,19 +412,25 @@ function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeR
 
   // Se suman por moneda, nunca entre monedas: mezclar Bs. y USD en un total es
   // exactamente el error que el sistema evita en todo el resto de la app.
-  const sum = (rows: EmployeeLoanRow[], ves: keyof EmployeeLoanRow, usd: keyof EmployeeLoanRow) => {
-    let v = 0, u = 0;
+  //
+  // Suma sobre moneyParts, la MISMA funcion que pinta la tabla. Tener aqui una
+  // segunda lectura de los campos era un fallo: la fila mostraba el monto y el
+  // KPI mostraba "—" para el mismo prestamo, porque solo una de las dos tenia
+  // el fallback para filas con la moneda en la columna que no toca (asi las
+  // escribe seed-demo-tesa.ts).
+  const sum = (rows: EmployeeLoanRow[], field: MoneyField) => {
+    let ves = 0, usd = 0;
     for (const r of rows) {
-      const vv = r[ves] as string | null;
-      const uu = r[usd] as string | null;
-      if (r.currency !== "USD" && vv) v += Number(vv) || 0;
-      if (uu) u += Number(uu) || 0;
+      for (const part of moneyParts(r, field)) {
+        const n = Number(part.amount) || 0;
+        if (part.currency === "USD") usd += n; else ves += n;
+      }
     }
-    return { ves: v, usd: u };
+    return { ves, usd };
   };
 
-  const balance = sum(active, "remainingBalance", "remainingBalanceUsd");
-  const quota = sum(active, "installmentAmount", "installmentAmountUsd");
+  const balance = sum(active, "remaining");
+  const quota = sum(active, "installment");
 
   const nextDue = active.length > 0 ? active[0] : null;
 

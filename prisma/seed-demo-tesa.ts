@@ -628,12 +628,19 @@ async function main() {
       data: {
         companyId: cId,
         employeeId: empIds["Blanco"],
-        totalAmount:        "3000.0000",
-        currency:           "USD",
-        installments:       12,
-        installmentAmount:  "250.0000",
-        paidInstallments:   2,
-        remainingBalance:   "2500.0000",
+        // Invariante de EmployeeLoanService.create: con currency="USD" las
+        // columnas VES van en 0 y el importe real vive en las columnas USD.
+        // La semilla hacia lo contrario y dejaba los montos en NULL, asi que
+        // la fila salia sin importes en el tab Prestamos.
+        currency:              "USD",
+        totalAmount:           "0",
+        installmentAmount:     "0",
+        remainingBalance:      "0",
+        amountUsd:             "3000.0000",
+        installmentAmountUsd:  "250.0000",
+        remainingBalanceUsd:   "2500.0000",
+        installments:          12,
+        paidInstallments:      2,
         status:             "ACTIVE" as LoanStatus,
         description:        "Préstamo personal — adquisición de equipo médico familiar",
         createdByUserId:    USER_ID,
