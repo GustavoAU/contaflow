@@ -3,9 +3,9 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CalendarIcon, LockIcon, UnlockIcon, PlusIcon, Loader2Icon } from "lucide-react";
+import { CalendarIcon, LockIcon, PlusIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   Dialog,
   DialogContent,
@@ -189,17 +189,7 @@ export function PeriodManager({ companyId, userId, periods, activePeriod }: Prop
                     {MONTH_NAMES[period.month]} {period.year}
                   </td>
                   <td className="px-4 py-3">
-                    {period.status === "OPEN" ? (
-                      <Badge className="gap-1 bg-green-100 text-green-700 hover:bg-green-100">
-                        <UnlockIcon className="h-3 w-3" />
-                        Abierto
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="gap-1">
-                        <LockIcon className="h-3 w-3" />
-                        Cerrado
-                      </Badge>
-                    )}
+                    <StatusBadge status={period.status} />
                   </td>
                   <td className="px-4 py-3 font-mono">{period._count?.transactions ?? 0}</td>
                   <td className="px-4 py-3 text-xs text-zinc-600">

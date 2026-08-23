@@ -270,7 +270,7 @@ export function AccountsTable({
                 <TableCell className="text-center">
                   {BALANCE_TYPES.has(account.type) ? (
                     account.isCurrent ? (
-                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">Corriente</Badge>
+                      <Badge variant="secondary" className="text-xs">Corriente</Badge>
                     ) : (
                       <span className="text-muted-foreground text-xs">No corriente</span>
                     )

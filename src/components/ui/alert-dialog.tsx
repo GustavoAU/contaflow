@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
+import { type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -105,13 +106,19 @@ function AlertDialogDescription({
   )
 }
 
+// buttonVariants() sin argumentos = variant "default": TODA confirmacion salia
+// en el color de accion positiva, incluidas las de borrado y anulacion, salvo
+// que quien la usara recordara pasar la clase a mano. Ahora es un prop.
 function AlertDialogAction({
   className,
+  variant = "default",
+  size,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
+  VariantProps<typeof buttonVariants>) {
   return (
     <AlertDialogPrimitive.Action
-      className={cn(buttonVariants(), className)}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     />
   )
