@@ -2,7 +2,10 @@ import { z } from "zod";
 
 export const createLoanSchema = z.object({
   employeeId: z.string().min(1, { error: "Seleccione un empleado." }),
-  currency: z.enum(["VES", "USD", "MIXED"], { error: "Moneda inválida." }),
+  // Binario a proposito (regla de negocio 2026-08-23): el empleado elige VES o
+  // USD al pedirlo y esa moneda es inmutable. MIXED sigue existiendo en el enum
+  // de Prisma por las filas historicas, pero no se puede crear uno nuevo.
+  currency: z.enum(["VES", "USD"], { error: "Moneda inválida." }),
   totalAmount: z
     .string()
     .min(1, { error: "Ingrese el monto total." })

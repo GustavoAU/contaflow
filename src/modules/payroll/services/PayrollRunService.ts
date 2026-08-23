@@ -17,6 +17,7 @@ import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import * as Sentry from "@sentry/nextjs";
 import { sendEmail } from "@/lib/email";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
+import { planLoanInstallments, type SalaryCurrency } from "./EmployeeLoanService";
 import type {
   PayrollRunStatus,
   ConceptType,
@@ -321,18 +322,28 @@ export const PayrollRunService = {
     if (activeLoans.length > 0) {
       const loanConcept = systemConcepts.find((c) => c.code === "PRESTAMO_EMP");
       if (loanConcept) {
+        // La cuota sale de planLoanInstallments, no de leer las columnas a mano:
+        // la moneda del préstamo decide de qué par de columnas se cobra, y el
+        // mismo planificador corre otra vez al aprobar para bajar los saldos.
+        const salaryByEmployee = new Map(empInputs.map((e) => [e.employeeId, e.salaryCurrency]));
+        const loansByEmployee = new Map<string, typeof activeLoans>();
         for (const loan of activeLoans) {
-          const installment = Decimal.min(
-            new Decimal(loan.installmentAmount.toString()),
-            new Decimal(loan.remainingBalance.toString()),
-          );
-          if (installment.greaterThan(0)) {
+          const list = loansByEmployee.get(loan.employeeId) ?? [];
+          list.push(loan);
+          loansByEmployee.set(loan.employeeId, list);
+        }
+
+        for (const [empId, empLoans] of loansByEmployee.entries()) {
+          const salaryCurrency = salaryByEmployee.get(empId) ?? "VES";
+          const plans = planLoanInstallments(empLoans, salaryCurrency);
+          const total = plans.reduce((sum, p) => sum.plus(p.lineAmount), new Decimal(0));
+          if (total.greaterThan(0)) {
             manualInputs.push({
               conceptId: loanConcept.id,
               conceptCode: "PRESTAMO_EMP",
               conceptType: "DEDUCTION",
-              employeeId: loan.employeeId,
-              amount: installment,
+              employeeId: empId,
+              amount: total,
             });
           }
         }
@@ -713,45 +724,47 @@ export const PayrollRunService = {
       });
 
       // ── Actualizar saldos de préstamos (PRESTAMO_EMP) ─────────────────
-      // Fetch PRESTAMO_EMP lines grouped by employeeId, apply oldest-loan-first.
+      // Se recalcula el MISMO plan que produjo la línea del recibo, en vez de
+      // repartir el total a ojo entre los préstamos del empleado. Antes esta
+      // copia leía solo las columnas VES y sólo tocaba el lado USD si el
+      // préstamo era MIXED: con uno en USD daba isPaid=true y lo marcaba
+      // pagado sin haber cobrado nada.
       const loanLines = lines.filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION");
       if (loanLines.length > 0) {
-        // Sum deducted per employee
+        const currencyByEmployee = new Map<string, SalaryCurrency>();
         const deductedByEmployee = new Map<string, Decimal>();
         for (const l of loanLines) {
           const prev = deductedByEmployee.get(l.employeeId) ?? new Decimal(0);
           deductedByEmployee.set(l.employeeId, prev.plus(new Decimal(l.amount.toString())));
+          currencyByEmployee.set(l.employeeId, (l.salarySnapshotCurrency ?? "VES") as SalaryCurrency);
         }
+
         for (const [empId, deducted] of deductedByEmployee.entries()) {
-          // Fetch ACTIVE loans for this employee, oldest first
           const empLoans = await tx.employeeLoan.findMany({
             where: { companyId, employeeId: empId, status: "ACTIVE" },
             orderBy: { createdAt: "asc" },
           });
-          let remaining = deducted;
-          for (const loan of empLoans) {
-            if (remaining.isZero()) break;
-            const balance = new Decimal(loan.remainingBalance.toString());
-            const applied = Decimal.min(remaining, balance);
-            const newBalance = balance.minus(applied);
-            remaining = remaining.minus(applied);
 
-            // MIXED loans: also reduce the USD balance by the USD installment amount
-            let newBalanceUsd: string | undefined;
-            if (loan.currency === "MIXED" && loan.remainingBalanceUsd && loan.installmentAmountUsd) {
-              const usdBalance = new Decimal(loan.remainingBalanceUsd.toString());
-              const usdInstallment = new Decimal(loan.installmentAmountUsd.toString());
-              newBalanceUsd = Decimal.max(usdBalance.minus(usdInstallment), new Decimal(0)).toFixed(2);
-            }
+          const plans = planLoanInstallments(empLoans, currencyByEmployee.get(empId) ?? "VES");
+          const planned = plans.reduce((sum, p) => sum.plus(p.lineAmount), new Decimal(0));
 
-            const isPaid = newBalance.isZero() && (!newBalanceUsd || new Decimal(newBalanceUsd).isZero());
+          // Si los préstamos cambiaron entre el cálculo y la aprobación, el
+          // recibo y el plan discrepan. Se aplica el plan (es el que cuadra con
+          // los saldos reales) y queda constancia en el log.
+          if (!planned.equals(deducted)) {
+            console.warn(
+              `[PayrollRunService] Préstamos de ${empId}: el recibo dice ${deducted.toFixed(2)} y el plan ${planned.toFixed(2)}. Se aplica el plan.`,
+            );
+          }
+
+          for (const plan of plans) {
             await tx.employeeLoan.update({
-              where: { id: loan.id },
+              where: { id: plan.loanId },
               data: {
-                remainingBalance: newBalance.toFixed(2),
-                ...(newBalanceUsd !== undefined && { remainingBalanceUsd: newBalanceUsd }),
-                paidInstallments: loan.paidInstallments + 1,
-                status: isPaid ? "PAID" : "ACTIVE",
+                remainingBalance: plan.newBalanceVes.toFixed(2),
+                ...(plan.newBalanceUsd !== null && { remainingBalanceUsd: plan.newBalanceUsd.toFixed(2) }),
+                paidInstallments: { increment: 1 },
+                status: plan.isPaid ? "PAID" : "ACTIVE",
               },
             });
           }

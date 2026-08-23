@@ -34,7 +34,9 @@ const INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:
 export default function CreateLoanForm({ companyId, employees, onCreated, onCancel }: Props) {
   const [isPending, startTransition] = useTransition();
   const [employeeId, setEmployeeId] = useState("");
-  const [currency, setCurrency] = useState<"VES" | "USD" | "MIXED">("VES");
+  // Binario: VES o USD. El prestamo mixto ya no se ofrece (regla de negocio
+  // 2026-08-23) — la cuota tiene que poder cobrarse en UNA moneda del recibo.
+  const [currency, setCurrency] = useState<"VES" | "USD">("VES");
   const [totalAmount, setTotalAmount] = useState("");
   const [amountUsd, setAmountUsd] = useState("");
   const [installments, setInstallments] = useState("12");
@@ -47,14 +49,12 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
   const installmentsNum = parseInt(installments, 10);
   const annualRateDecimal = hasInterest ? parseFloat(interestRate || "0") / 100 : 0;
 
+  // El monto vive en un campo u otro segun la moneda elegida; la vista previa
+  // tiene que leer el que corresponde o no aparece nunca en prestamos USD.
+  const principalForPreview = currency === "USD" ? principalUsd : principal;
   const installmentPreview =
-    !isNaN(principal) && principal > 0 && !isNaN(installmentsNum) && installmentsNum > 0
-      ? calcFrenchInstallment(principal, installmentsNum, annualRateDecimal)
-      : null;
-
-  const installmentUsdPreview =
-    currency === "MIXED" && !isNaN(principalUsd) && principalUsd > 0 && !isNaN(installmentsNum) && installmentsNum > 0
-      ? calcFrenchInstallment(principalUsd, installmentsNum, annualRateDecimal)
+    !isNaN(principalForPreview) && principalForPreview > 0 && !isNaN(installmentsNum) && installmentsNum > 0
+      ? calcFrenchInstallment(principalForPreview, installmentsNum, annualRateDecimal)
       : null;
 
   function handleSubmit(e: React.FormEvent) {
@@ -64,7 +64,9 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
         employeeId,
         currency,
         totalAmount: currency === "USD" ? amountUsd : totalAmount,
-        amountUsd: currency === "MIXED" ? amountUsd : null,
+        // Con currency USD el importe viaja en totalAmount; el servicio lo
+        // coloca en las columnas *Usd. amountUsd era solo para MIXED.
+        amountUsd: null,
         installments: installmentsNum,
         interestRate: hasInterest && interestRate ? String(parseFloat(interestRate) / 100) : null,
         description: description.trim() || null,
@@ -93,7 +95,7 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de préstamo</label>
         <div className="flex gap-3">
-          {(["VES", "USD", "MIXED"] as const).map((c) => (
+          {(["VES", "USD"] as const).map((c) => (
             <label key={c} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
@@ -104,7 +106,7 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
                 className="accent-blue-600"
               />
               <span className="text-sm font-medium text-gray-700">
-                {c === "VES" ? "Solo Bs." : c === "USD" ? "Solo USD" : "Mixto (Bs. + USD)"}
+                {c === "VES" ? "Bolívares" : "Dólares"}
               </span>
             </label>
           ))}
@@ -113,10 +115,10 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
 
       {/* Montos */}
       <div className="flex gap-3">
-        {(currency === "VES" || currency === "MIXED") && (
+        {currency === "VES" && (
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {currency === "MIXED" ? "Monto en Bs." : "Monto Total (Bs.)"}
+              Monto total (Bs.)
             </label>
             <input type="number" min="0.01" step="0.01" value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
@@ -124,10 +126,10 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
               placeholder="0.00" className={INPUT} />
           </div>
         )}
-        {(currency === "USD" || currency === "MIXED") && (
+        {currency === "USD" && (
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {currency === "MIXED" ? "Monto en USD" : "Monto Total (USD)"}
+              Monto total (USD)
             </label>
             <input type="number" min="0.01" step="0.01" value={amountUsd}
               onChange={(e) => setAmountUsd(e.target.value)}
@@ -185,30 +187,19 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
       </div>
 
       {/* Preview cuota */}
-      {(installmentPreview !== null || installmentUsdPreview !== null) && (
+      {installmentPreview !== null && (
         <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm space-y-1">
           <p className="font-medium text-blue-800">Cuota estimada (método francés)</p>
-          {installmentPreview !== null && (currency === "VES" || currency === "MIXED") && (
-            <p className="text-blue-700">
-              Bs.: <span className="font-mono font-semibold">{installmentPreview.toFixed(2)}</span>
-              {hasInterest && annualRateDecimal > 0 && (
-                <span className="text-blue-500 ml-1">(incluye interés)</span>
-              )}
-            </p>
-          )}
-          {installmentUsdPreview !== null && (
-            <p className="text-blue-700">
-              USD: <span className="font-mono font-semibold">{installmentUsdPreview.toFixed(2)}</span>
-              {hasInterest && annualRateDecimal > 0 && (
-                <span className="text-blue-500 ml-1">(incluye interés)</span>
-              )}
-            </p>
-          )}
-          {currency === "USD" && installmentPreview !== null && (
-            <p className="text-blue-700">
-              USD: <span className="font-mono font-semibold">{calcFrenchInstallment(parseFloat(amountUsd) || 0, installmentsNum, annualRateDecimal).toFixed(2)}</span>
-            </p>
-          )}
+          <p className="text-blue-700">
+            {currency === "USD" ? "USD: " : "Bs.: "}
+            <span className="font-mono font-semibold">{installmentPreview.toFixed(2)}</span>
+            {hasInterest && annualRateDecimal > 0 && (
+              <span className="text-blue-500 ml-1">(incluye interés)</span>
+            )}
+          </p>
+          <p className="text-xs text-blue-500">
+            Se descontará en {currency === "USD" ? "dólares" : "bolívares"}, la misma moneda del préstamo.
+          </p>
           <p className="text-xs text-blue-500 mt-1">
             Primera cuota se descuenta en la siguiente nómina aprobada.
             Verificar que no exceda 1/3 del salario neto (LOTTT Art. 154).
