@@ -1,22 +1,31 @@
 "use client";
 // src/modules/payroll/components/LoanTable.tsx
 // Tabla de préstamos con flujo aprobación: PENDING → ADMIN aprueba/rechaza → ACTIVE.
+//
+// Punto 10 del handoff de UI. Dos scopes:
+//   "company"  → /payroll/loans, con columna EMPLEADO
+//   "employee" → tab Préstamos de un empleado, con KPIs y columna CONCEPTO
 
 import { useState, useTransition } from "react";
-import { Loader2Icon, PlusIcon, CheckCircle2Icon, XCircleIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cancelLoanAction, approveLoanAction, rejectLoanAction } from "../actions/employee-loan.actions";
 import CreateLoanForm from "./CreateLoanForm";
 import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
-import { formatAmount } from "@/lib/format";
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  PENDING:   { label: "Pendiente", className: "bg-amber-100 text-amber-800" },
-  ACTIVE:    { label: "Activo",    className: "bg-blue-100 text-blue-800" },
-  PAID:      { label: "Pagado",    className: "bg-green-100 text-green-800" },
-  CANCELLED: { label: "Cancelado", className: "bg-gray-100 text-gray-600" },
-  REJECTED:  { label: "Rechazado", className: "bg-red-100 text-red-700" },
-};
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { MoneyBadge, type ExchangeRateInfo } from "@/components/ui/MoneyBadge";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface EmployeeOption { id: string; name: string }
 
@@ -25,15 +34,92 @@ interface Props {
   initialLoans: EmployeeLoanRow[];
   employees: EmployeeOption[];
   isAdmin: boolean; // ADMIN_ONLY — puede aprobar/rechazar/cancelar
+  scope?: "company" | "employee";
+  /** Tasa BCV para el equivalente en la otra moneda. */
+  exchangeRate?: ExchangeRateInfo;
+  /** Acción extra en la cabecera de la tarjeta (p.ej. importar saldos). */
+  headerSlot?: React.ReactNode;
 }
 
-export default function LoanTable({ companyId, initialLoans, employees, isAdmin }: Props) {
+// ─── Montos ───────────────────────────────────────────────────────────────────
+// Un préstamo en USD guarda 0 en las columnas VES y el valor real en las USD
+// (EmployeeLoanService.create). Renderizar una sola de las dos ramas dejaba la
+// celda EN BLANCO cuando la que tocaba venía nula. Esto no puede devolver vacío:
+// en el peor caso MoneyBadge recibe un valor no numérico y pinta "—".
+type MoneyField = "total" | "installment" | "remaining";
+
+const FIELDS: Record<MoneyField, { ves: keyof EmployeeLoanRow; usd: keyof EmployeeLoanRow }> = {
+  total:       { ves: "totalAmount",       usd: "amountUsd" },
+  installment: { ves: "installmentAmount", usd: "installmentAmountUsd" },
+  remaining:   { ves: "remainingBalance",  usd: "remainingBalanceUsd" },
+};
+
+function moneyParts(loan: EmployeeLoanRow, field: MoneyField): Array<{ amount: string; currency: string }> {
+  const { ves, usd } = FIELDS[field];
+  const vesVal = loan[ves] as string | null;
+  const usdVal = loan[usd] as string | null;
+  const parts: Array<{ amount: string; currency: string }> = [];
+
+  const nonZero = (v: string | null) => v != null && v !== "" && Number(v) !== 0;
+
+  if (loan.currency !== "USD" && nonZero(vesVal)) parts.push({ amount: vesVal!, currency: "VES" });
+  if (nonZero(usdVal)) parts.push({ amount: usdVal!, currency: "USD" });
+
+  if (parts.length === 0) {
+    // Ninguna rama trae valor util — se muestra el que exista, aunque sea cero.
+    parts.push({
+      amount: (loan.currency === "USD" ? usdVal : vesVal) ?? vesVal ?? usdVal ?? "",
+      currency: loan.currency === "USD" ? "USD" : "VES",
+    });
+  }
+  return parts;
+}
+
+function Money({
+  loan, field, rate, showEquivalent = true, className,
+}: {
+  loan: EmployeeLoanRow; field: MoneyField; rate?: ExchangeRateInfo;
+  showEquivalent?: boolean; className?: string;
+}) {
+  return (
+    <div className={className}>
+      {moneyParts(loan, field).map((p, i) => (
+        <MoneyBadge
+          key={i}
+          amount={p.amount}
+          currency={p.currency}
+          exchangeRate={showEquivalent ? rate : undefined}
+          align="right"
+          className="justify-end text-xs"
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Concepto ─────────────────────────────────────────────────────────────────
+function currencyLabel(currency: string) {
+  return currency === "MIXED" ? "Mixto" : currency === "USD" ? "USD" : "Bs.";
+}
+
+function formatDate(value: string) {
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("es-VE");
+}
+
+export default function LoanTable({
+  companyId, initialLoans, employees, isAdmin,
+  scope = "company", exchangeRate, headerSlot,
+}: Props) {
   const [loans, setLoans] = useState(initialLoans);
   const [showForm, setShowForm] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [cancelling, setCancelling] = useState<EmployeeLoanRow | null>(null);
   const [, startTransition] = useTransition();
+
+  const isEmployeeScope = scope === "employee";
 
   function handleCreated(loan: EmployeeLoanRow) {
     setLoans((prev) => [loan, ...prev]);
@@ -71,170 +157,322 @@ export default function LoanTable({ companyId, initialLoans, employees, isAdmin 
     });
   }
 
-  function handleCancel(loanId: string) {
-    if (!confirm("¿Cancelar este préstamo? El saldo restante no se cobrará.")) return;
-    setActionId(loanId);
+  function handleCancelConfirm() {
+    const loan = cancelling;
+    if (!loan) return;
+    setActionId(loan.id);
     startTransition(async () => {
-      const result = await cancelLoanAction(companyId, loanId);
+      const result = await cancelLoanAction(companyId, loan.id);
       if (result.success) {
         toast.success("Préstamo cancelado.");
-        setLoans((prev) => prev.map((l) => l.id === loanId ? { ...l, status: "CANCELLED" as const } : l));
+        setLoans((prev) => prev.map((l) => l.id === loan.id ? { ...l, status: "CANCELLED" as const } : l));
       } else {
         toast.error(result.error);
       }
       setActionId(null);
+      setCancelling(null);
     });
   }
 
-  function currencySymbol(c: string) { return c === "USD" ? "USD" : "Bs."; }
+  const solicitar = (
+    <Button onClick={() => setShowForm((v) => !v)}>
+      <PlusIcon />
+      Solicitar préstamo
+    </Button>
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-          <PlusIcon className="h-4 w-4" />
-          Solicitar Préstamo
-        </button>
-      </div>
+      {isEmployeeScope && <LoanKpis loans={loans} exchangeRate={exchangeRate} />}
 
       {showForm && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-blue-800">Nuevo Préstamo</h3>
+        <Card className="p-4">
+          <h3 className="mb-3 text-sm font-semibold text-zinc-700">Nuevo préstamo</h3>
           <CreateLoanForm companyId={companyId} employees={employees}
             onCreated={handleCreated} onCancel={() => setShowForm(false)} />
-        </div>
+        </Card>
       )}
 
-      {/* Modal rechazo */}
+      {/* Motivo de rechazo — requiere texto, por eso no cabe en un AlertDialog */}
       {rejectingId && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+        <Card className="border-red-200 bg-red-50 p-4 gap-3">
           <p className="text-sm font-semibold text-red-800">Motivo de rechazo</p>
           <textarea
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
             maxLength={500}
             rows={3}
-            placeholder="Describa el motivo..."
+            placeholder="Describa el motivo…"
             className="w-full rounded-md border border-red-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
           />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => { setRejectingId(null); setRejectionReason(""); }}
-              className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
+            <Button variant="outline" size="sm"
+              onClick={() => { setRejectingId(null); setRejectionReason(""); }}>
               Cancelar
-            </button>
-            <button onClick={() => handleRejectSubmit(rejectingId)}
+            </Button>
+            <Button variant="destructive" size="sm"
+              onClick={() => handleRejectSubmit(rejectingId)}
               disabled={actionId === rejectingId}
-              aria-busy={actionId === rejectingId}
-              className="inline-flex items-center gap-1 rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50">
-              {actionId === rejectingId && <Loader2Icon className="h-3 w-3 animate-spin" />}
-              Confirmar Rechazo
-            </button>
+              aria-busy={actionId === rejectingId}>
+              {actionId === rejectingId && <Loader2Icon className="animate-spin" />}
+              Confirmar rechazo
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {loans.length === 0 ? (
-        <div className="rounded-lg border bg-white p-8 text-center text-sm text-gray-400">
-          No hay préstamos registrados.
-        </div>
+        <Card>
+          <EmptyState
+            illustration="list"
+            title="Sin préstamos registrados"
+            description="Los préstamos aprobados se descuentan automáticamente en cada proceso de nómina."
+            action={{ label: "Solicitar préstamo", onClick: () => setShowForm(true), Icon: PlusIcon }}
+          />
+        </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-left">Empleado</th>
-                <th scope="col" className="px-4 py-3 text-right">Monto</th>
-                <th scope="col" className="px-4 py-3 text-center">Cuotas</th>
-                <th scope="col" className="px-4 py-3 text-right">Cuota</th>
-                <th scope="col" className="px-4 py-3 text-right">Saldo</th>
-                <th scope="col" className="px-4 py-3 text-center">Estado</th>
-                {isAdmin && <th scope="col" className="px-4 py-3" />}
-              </tr>
-            </thead>
-            <tbody>
-              {loans.map((loan) => {
-                const statusInfo = STATUS_LABELS[loan.status] ?? { label: loan.status, className: "bg-gray-100 text-gray-600" };
-                const isMixed = loan.currency === "MIXED";
-                const isUsd = loan.currency === "USD";
-                return (
-                  <tr key={loan.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{loan.employeeName}</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        <span className="text-xs text-gray-400">{isMixed ? "Mixto" : isUsd ? "USD" : "Bs."}</span>
-                        {loan.interestRate && (
-                          <span className="text-xs bg-amber-100 text-amber-700 rounded px-1">
-                            {(parseFloat(loan.interestRate) * 100).toFixed(1)}% anual
-                          </span>
-                        )}
-                        {loan.description && <span className="text-xs text-gray-400 truncate max-w-32">{loan.description}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-mono text-xs">
-                      {!isUsd && <p>Bs. {formatAmount(loan.totalAmount, "VES")}</p>}
-                      {(isUsd || isMixed) && loan.amountUsd && <p>USD {formatAmount(loan.amountUsd, "USD")}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-center tabular-nums text-xs">
-                      {loan.paidInstallments}/{loan.installments}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-mono text-xs">
-                      {!isUsd && <p>Bs. {formatAmount(loan.installmentAmount, "VES")}</p>}
-                      {(isUsd || isMixed) && loan.installmentAmountUsd && <p>USD {formatAmount(loan.installmentAmountUsd, "USD")}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-mono text-xs font-semibold">
-                      {!isUsd && <p>Bs. {formatAmount(loan.remainingBalance, "VES")}</p>}
-                      {(isUsd || isMixed) && loan.remainingBalanceUsd && <p>USD {formatAmount(loan.remainingBalanceUsd, "USD")}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
-                        {statusInfo.label}
-                      </span>
-                      {loan.status === "REJECTED" && loan.rejectionReason && (
-                        <p className="text-xs text-red-500 mt-0.5 max-w-28 truncate">{loan.rejectionReason}</p>
-                      )}
-                    </td>
-                    {isAdmin && (
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          {loan.status === "PENDING" && (
-                            <>
-                              <button onClick={() => handleApprove(loan.id)}
-                                disabled={actionId === loan.id}
-                                aria-busy={actionId === loan.id}
-                                className="inline-flex items-center gap-1 rounded border border-green-300 px-2 py-1 text-xs text-green-700 hover:bg-green-50 disabled:opacity-50">
-                                {actionId === loan.id
-                                  ? <Loader2Icon className="h-3 w-3 animate-spin" />
-                                  : <CheckCircle2Icon className="h-3 w-3" />}
-                                Aprobar
-                              </button>
-                              <button onClick={() => setRejectingId(loan.id)}
-                                disabled={actionId === loan.id}
-                                className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
-                                <XCircleIcon className="h-3 w-3" />
-                                Rechazar
-                              </button>
-                            </>
-                          )}
-                          {loan.status === "ACTIVE" && (
-                            <button onClick={() => handleCancel(loan.id)}
-                              disabled={actionId === loan.id}
-                              aria-busy={actionId === loan.id}
-                              className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
-                              {actionId === loan.id && <Loader2Icon className="h-3 w-3 animate-spin" />}
-                              Cancelar
-                            </button>
-                          )}
-                        </div>
+        <Card flush>
+          {/* Cabecera de la tarjeta: las acciones viven aquí, no en una banda
+              vacía encima de la tabla. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-zinc-800">Préstamos</span>
+              <Badge variant="secondary">{loans.length}</Badge>
+            </div>
+            <div className="flex gap-2">
+              {headerSlot}
+              {solicitar}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-50 text-xs font-semibold text-zinc-500 uppercase">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left">
+                    {isEmployeeScope ? "Concepto" : "Empleado"}
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">Monto</th>
+                  <th scope="col" className="px-4 py-3 text-center">Cuotas</th>
+                  <th scope="col" className="px-4 py-3 text-right">Cuota</th>
+                  <th scope="col" className="px-4 py-3 text-right">Saldo</th>
+                  <th scope="col" className="px-4 py-3 text-left">Estado</th>
+                  {/* La columna de acciones necesita su th aunque el label vaya
+                      oculto: sin él el menú flota sin ancho reservado. */}
+                  <th scope="col" className="px-4 py-3 text-right">
+                    <span className="sr-only">Acciones</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loans.map((loan) => {
+                  const busy = actionId === loan.id;
+                  const progress = loan.installments > 0
+                    ? Math.min(100, Math.round((loan.paidInstallments / loan.installments) * 100))
+                    : 0;
+
+                  return (
+                    <tr key={loan.id} className="border-t hover:bg-zinc-50">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-zinc-900">
+                          {isEmployeeScope
+                            ? (loan.description || "Préstamo personal")
+                            : loan.employeeName}
+                        </p>
+                        <p className="mt-0.5 text-11 text-zinc-400">
+                          {[
+                            currencyLabel(loan.currency),
+                            `otorgado ${formatDate(loan.createdAt)}`,
+                            loan.interestRate
+                              ? `${(parseFloat(loan.interestRate) * 100).toFixed(1)}% anual`
+                              : "sin intereses",
+                          ].filter(Boolean).join(" · ")}
+                        </p>
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+
+                      <td className="px-4 py-2.5 text-right">
+                        <Money loan={loan} field="total" rate={exchangeRate} />
+                      </td>
+
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="tabular-nums text-xs text-zinc-600">
+                          {loan.paidInstallments} / {loan.installments}
+                        </span>
+                        <span
+                          className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-zinc-200"
+                          role="progressbar"
+                          aria-valuenow={progress}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${loan.paidInstallments} de ${loan.installments} cuotas pagadas`}
+                        >
+                          <span className="block h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-2.5 text-right">
+                        {/* Sin equivalente: la cuota ya se lee junto al saldo */}
+                        <Money loan={loan} field="installment" showEquivalent={false} />
+                      </td>
+
+                      <td className="px-4 py-2.5 text-right">
+                        <Money loan={loan} field="remaining" rate={exchangeRate} className="font-semibold" />
+                      </td>
+
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={loan.status} />
+                        {loan.status === "REJECTED" && loan.rejectionReason && (
+                          <p className="mt-0.5 max-w-28 truncate text-11 text-red-500">{loan.rejectionReason}</p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-2.5 text-right">
+                        {isAdmin && (
+                          <div className="flex items-center justify-end gap-1">
+                            {loan.status === "PENDING" && (
+                              <Button variant="ghost" size="sm"
+                                onClick={() => handleApprove(loan.id)}
+                                disabled={busy} aria-busy={busy}>
+                                {busy && <Loader2Icon className="animate-spin" />}
+                                Aprobar
+                              </Button>
+                            )}
+                            {(loan.status === "PENDING" || loan.status === "ACTIVE") && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
+                                    <MoreHorizontalIcon />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {loan.status === "PENDING" && (
+                                    <DropdownMenuItem onSelect={() => setRejectingId(loan.id)}>
+                                      Rechazar solicitud
+                                    </DropdownMenuItem>
+                                  )}
+                                  {loan.status === "ACTIVE" && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onSelect={() => setCancelling(loan)}
+                                      >
+                                        Cancelar préstamo
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
+
+      {/* Cancelar es destructivo: AlertDialog en vez de window.confirm */}
+      <AlertDialog open={!!cancelling} onOpenChange={(open) => !open && setCancelling(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar este préstamo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El saldo restante deja de cobrarse en nómina. La operación queda en la
+              auditoría y no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(e) => { e.preventDefault(); handleCancelConfirm(); }}
+              disabled={!!actionId}
+              aria-busy={!!actionId}
+            >
+              {actionId && <Loader2Icon className="animate-spin" />}
+              Cancelar préstamo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+// ─── KPIs (solo scope="employee") ─────────────────────────────────────────────
+// Responden la pregunta con la que el usuario abre el tab: cuánto debe, cuánto
+// se le descuenta este mes, y cuántos préstamos tiene vivos.
+function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeRate?: ExchangeRateInfo }) {
+  const active = loans.filter((l) => l.status === "ACTIVE");
+
+  // Se suman por moneda, nunca entre monedas: mezclar Bs. y USD en un total es
+  // exactamente el error que el sistema evita en todo el resto de la app.
+  const sum = (rows: EmployeeLoanRow[], ves: keyof EmployeeLoanRow, usd: keyof EmployeeLoanRow) => {
+    let v = 0, u = 0;
+    for (const r of rows) {
+      const vv = r[ves] as string | null;
+      const uu = r[usd] as string | null;
+      if (r.currency !== "USD" && vv) v += Number(vv) || 0;
+      if (uu) u += Number(uu) || 0;
+    }
+    return { ves: v, usd: u };
+  };
+
+  const balance = sum(active, "remainingBalance", "remainingBalanceUsd");
+  const quota = sum(active, "installmentAmount", "installmentAmountUsd");
+
+  const nextDue = active.length > 0 ? active[0] : null;
+
+  return (
+    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+      <Kpi
+        label="Saldo total pendiente"
+        value={
+          <MoneyStack ves={balance.ves} usd={balance.usd} exchangeRate={exchangeRate} />
+        }
+        note={active.length === 0 ? "Sin préstamos activos" : undefined}
+      />
+      <Kpi
+        label="Deducción del período"
+        value={<MoneyStack ves={quota.ves} usd={quota.usd} exchangeRate={exchangeRate} />}
+        note="Se descuenta en la próxima nómina aprobada"
+      />
+      <Kpi
+        label="Préstamos activos"
+        value={<span className="text-2xl font-semibold tracking-tight">{active.length}</span>}
+        note={
+          nextDue
+            ? `Cuota ${nextDue.paidInstallments + 1} de ${nextDue.installments}`
+            : undefined
+        }
+      />
+    </div>
+  );
+}
+
+function MoneyStack({ ves, usd, exchangeRate }: { ves: number; usd: number; exchangeRate?: ExchangeRateInfo }) {
+  if (ves === 0 && usd === 0) {
+    return <span className="text-2xl font-semibold tracking-tight text-zinc-300">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5 text-2xl font-semibold tracking-tight">
+      {usd > 0 && <MoneyBadge amount={usd} currency="USD" exchangeRate={exchangeRate} align="left" />}
+      {ves > 0 && <MoneyBadge amount={ves} currency="VES" exchangeRate={exchangeRate} align="left" />}
+    </div>
+  );
+}
+
+function Kpi({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
+  return (
+    <Card className="gap-1 px-4 py-3.5">
+      <p className="text-11 text-zinc-400">{label}</p>
+      {value}
+      {note && <p className="text-11 text-zinc-400">{note}</p>}
+    </Card>
   );
 }
