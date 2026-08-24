@@ -100,3 +100,11 @@ export const AddSalarySchema = z.object({
 });
 
 export type AddSalaryInput = z.infer<typeof AddSalarySchema>;
+
+// Suspender / reactivar. NO cubre TERMINATED: el egreso es otro flujo, con
+// fecha de egreso y liquidacion, y no se deshace con un boton.
+export const SetEmployeeActiveStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "INACTIVE"], { error: "Estado inválido" }),
+});
+
+export type SetEmployeeActiveStatusInput = z.infer<typeof SetEmployeeActiveStatusSchema>;

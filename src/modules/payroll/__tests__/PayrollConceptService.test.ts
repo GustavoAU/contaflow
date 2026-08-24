@@ -82,6 +82,31 @@ describe("PayrollConceptService.seedDefaults", () => {
     const firstCall = vi.mocked(prisma.payrollConcept.upsert).mock.calls[0][0];
     expect(firstCall.update).toHaveProperty("affectsSalaryIntegral");
   });
+
+  // El motor de nomina carga los conceptos con `where: { isSystem: true }`. Una
+  // fila de SYSTEM_CONCEPTS marcada como false es INVISIBLE para el: si le pasa
+  // a SAL_BASE, la nomina no genera linea de salario y el neto sale negativo.
+  // seedDefaults corre en CADA calculo, asi que si no lo repara aqui, no se
+  // repara nunca. Precedente medido: seed-demo-tesa.ts creo SAL_BASE con
+  // isSystem:false y la nomina de esa empresa no podia calcularse (2026-08-23).
+  it("REPARA isSystem en filas ya existentes, no solo al crearlas", async () => {
+    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+    await PayrollConceptService.seedDefaults(COMPANY_ID);
+
+    for (const call of vi.mocked(prisma.payrollConcept.upsert).mock.calls) {
+      expect(call[0].update).toMatchObject({ isSystem: true });
+      expect(call[0].create).toMatchObject({ isSystem: true });
+    }
+  });
+
+  it("cubre SAL_BASE — sin el, la nomina no tiene ingresos", async () => {
+    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+    await PayrollConceptService.seedDefaults(COMPANY_ID);
+
+    const codes = vi.mocked(prisma.payrollConcept.upsert).mock.calls
+      .map((c) => (c[0].where as { companyId_code: { code: string } }).companyId_code.code);
+    expect(codes).toContain("SAL_BASE");
+  });
 });
 
 describe("PayrollConceptService.create", () => {

@@ -116,6 +116,14 @@ export const PayrollConceptService = {
           },
           update: {
             affectsSalaryIntegral: concept.affectsSalaryIntegral,
+            // REPARA isSystem. El motor de nomina carga los conceptos con
+            // `where: { isSystem: true }`, asi que una fila de SYSTEM_CONCEPTS
+            // marcada como false es invisible para el: si le pasa a SAL_BASE,
+            // la nomina no genera NINGUNA linea de salario y el neto sale
+            // negativo. Sin esta linea, seedDefaults corria en cada calculo y
+            // dejaba el error intacto. Precedente: seed-demo-tesa.ts creaba
+            // SAL_BASE con isSystem:false (2026-08-23).
+            isSystem: true,
           },
         })
       )

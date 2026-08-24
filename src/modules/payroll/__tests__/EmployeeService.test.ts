@@ -214,6 +214,85 @@ describe("EmployeeService.create", () => {
   });
 });
 
+// ─── setActiveStatus ──────────────────────────────────────────────────────────
+// Suspender/reactivar no existia en la UI: el unico camino que cambiaba el
+// status era terminate() -> TERMINATED. Para sacar a alguien de una nomina
+// habia que ir a la base de datos (comprobado 2026-08-23).
+
+describe("EmployeeService.setActiveStatus", () => {
+  it("suspende y deja constancia con IP y user-agent (R-6)", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.employee.update).mockResolvedValue({
+      ...BASE_EMPLOYEE, status: "INACTIVE" as const, salaryHistory: [],
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await EmployeeService.setActiveStatus(
+      COMPANY_ID, USER_ID, EMP_ID, "INACTIVE", "10.0.0.1", "vitest",
+    );
+
+    expect(result.status).toBe("INACTIVE");
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "SUSPEND_EMPLOYEE",
+          ipAddress: "10.0.0.1",
+          userAgent: "vitest",
+        }),
+      })
+    );
+  });
+
+  it("reactiva con su propia accion de auditoria", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE, status: "INACTIVE" as const,
+    } as never);
+    vi.mocked(prisma.employee.update).mockResolvedValue({
+      ...BASE_EMPLOYEE, status: "ACTIVE" as const, salaryHistory: [],
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await EmployeeService.setActiveStatus(COMPANY_ID, USER_ID, EMP_ID, "ACTIVE");
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "REACTIVATE_EMPLOYEE" }),
+      })
+    );
+  });
+
+  it("NO revierte un egreso — eso exige re-contratacion", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE, status: "TERMINATED" as const,
+    } as never);
+
+    await expect(
+      EmployeeService.setActiveStatus(COMPANY_ID, USER_ID, EMP_ID, "ACTIVE")
+    ).rejects.toThrow(/egresado/i);
+  });
+
+  it("rechaza el cambio a un estado que ya tiene", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+
+    await expect(
+      EmployeeService.setActiveStatus(COMPANY_ID, USER_ID, EMP_ID, "ACTIVE")
+    ).rejects.toThrow(/ya está activo/i);
+  });
+
+  it("no toca empleados de otra empresa", async () => {
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      EmployeeService.setActiveStatus(COMPANY_ID, USER_ID, EMP_ID, "INACTIVE")
+    ).rejects.toThrow("Empleado no encontrado");
+  });
+});
+
 // ─── terminate ────────────────────────────────────────────────────────────────
 
 describe("EmployeeService.terminate", () => {

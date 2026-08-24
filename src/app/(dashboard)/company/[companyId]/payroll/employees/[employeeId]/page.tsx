@@ -17,6 +17,7 @@ import VacationPanel from "@/modules/payroll/components/VacationPanel";
 import LoanTable from "@/modules/payroll/components/LoanTable";
 import BenefitBalancePanel from "@/modules/payroll/components/BenefitBalancePanel";
 import { EmployeePortalTokenButton } from "@/modules/payroll/components/EmployeePortalTokenButton";
+import { EmployeeStatusToggle } from "@/modules/payroll/components/EmployeeStatusToggle";
 import { VacationBalanceWidget } from "@/modules/payroll/components/VacationBalanceWidget";
 import { VacationRequestForm } from "@/modules/payroll/components/VacationRequestForm";
 import { VacationRequestList } from "@/modules/payroll/components/VacationRequestList";
@@ -127,14 +128,23 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         </div>
         {/* Las acciones del EMPLEADO viven aquí, no dentro del tab Préstamos:
             el portal es del empleado, no de sus préstamos. */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <StatusBadge status={emp.status} />
           {canWrite && (
-            <EmployeePortalTokenButton
-              companyId={companyId}
-              employeeId={emp.id}
-              employeeName={emp.fullName}
-            />
+            <>
+              <EmployeeStatusToggle
+                companyId={companyId}
+                employeeId={emp.id}
+                employeeName={emp.fullName}
+                status={emp.status}
+                activeLoanCount={loans.filter((l) => l.status === "ACTIVE").length}
+              />
+              <EmployeePortalTokenButton
+                companyId={companyId}
+                employeeId={emp.id}
+                employeeName={emp.fullName}
+              />
+            </>
           )}
         </div>
       </div>

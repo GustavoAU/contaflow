@@ -8,7 +8,13 @@
 //     Referencia tasa activa BCV ~59% anual. Sin tope legal específico para préstamos patronales.
 //     LOTTT Art. 154: cuota ≤ 1/3 del salario neto mensual.
 //   - currency: "VES" | "USD" | "MIXED"
-//     MIXED: parte VES (campos base) + parte USD (campos *Usd)
+//     VES   -> importes en totalAmount / installmentAmount / remainingBalance
+//     USD   -> esas tres en 0; el importe vive en los campos *Usd
+//     MIXED -> LEGADO. Ya no se ofrece al crear (regla de negocio 2026-08-23:
+//              el prestamo es binario, VES o USD). Se sigue soportando para las
+//              filas que ya existan.
+//   - La moneda es INMUTABLE una vez otorgado el prestamo, y el descuento en
+//     nomina va SIEMPRE en la moneda en que se pidio.
 //   - Append-only: no se editan montos. Corrección vía cancel + nuevo préstamo.
 
 import prisma from "@/lib/prisma";
@@ -354,36 +360,120 @@ export const EmployeeLoanService = {
     });
   },
 
-  // ── applyInstallments — llamado por PayrollRunService.approve() ──────────────
-  // Descuenta cuota(s) de los préstamos ACTIVE. Para MIXED: descuenta VES y USD por separado.
-  async applyInstallments(
-    companyId: string,
-    deductions: Array<{ loanId: string; amountVes: Decimal; amountUsd?: Decimal }>,
-    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  ): Promise<void> {
-    for (const { loanId, amountVes, amountUsd } of deductions) {
-      const loan = await tx.employeeLoan.findUnique({ where: { id: loanId } });
-      if (!loan || loan.companyId !== companyId) continue;
-
-      const newRemVes = Decimal.max(
-        new Decimal(0),
-        new Decimal(loan.remainingBalance.toString()).minus(amountVes),
-      );
-      const newRemUsd = loan.remainingBalanceUsd && amountUsd
-        ? Decimal.max(new Decimal(0), new Decimal(loan.remainingBalanceUsd.toString()).minus(amountUsd))
-        : (loan.remainingBalanceUsd ? new Decimal(loan.remainingBalanceUsd.toString()) : null);
-
-      const isPaid = newRemVes.isZero() && (!newRemUsd || newRemUsd.isZero());
-
-      await tx.employeeLoan.update({
-        where: { id: loanId },
-        data: {
-          remainingBalance: newRemVes.toFixed(2),
-          remainingBalanceUsd: newRemUsd ? newRemUsd.toFixed(2) : undefined,
-          paidInstallments: loan.paidInstallments + 1,
-          status: isPaid ? "PAID" : "ACTIVE",
-        },
-      });
-    }
-  },
+  // ── (applyInstallments eliminado) ───────────────────────────────────────────
+  // Era codigo muerto: 0 llamadores, mientras PayrollRunService.approve() tenia
+  // su PROPIA copia en linea que ya habia divergido. Lo reemplaza
+  // planLoanInstallments (abajo), que usan los DOS puntos del ciclo de nomina.
 };
+
+// ─── Planificador de cuotas ───────────────────────────────────────────────────
+// FUENTE UNICA de "que se descuenta de que prestamo en esta nomina".
+//
+// Existe porque el ciclo lo necesita en DOS momentos —al calcular la nomina,
+// para inyectar la linea PRESTAMO_EMP, y al aprobarla, para bajar los saldos— y
+// tenerlo escrito dos veces produjo tres bugs medidos (2026-08-23):
+//
+//   1. Ambos leian SOLO las columnas VES e ignoraban `currency`, asi que un
+//      prestamo en USD daba min(0,0)=0 y no se descontaba NUNCA, en silencio.
+//   2. El de aprobacion trataba el lado USD solo si currency==="MIXED". Con un
+//      prestamo USD calculaba isPaid = 0.isZero() && !undefined = TRUE: quedaba
+//      marcado PAID, con una cuota mas contada, sin haber cobrado nada.
+//   3. EmployeeLoanService.applyInstallments era una tercera copia, muerta.
+//
+// Por eso aqui se decide TODO y los dos llamadores solo aplican el resultado.
+
+export type SalaryCurrency = "VES" | "USD" | "MIXED";
+
+/** Forma minima que necesita el planificador (compatible con la fila Prisma). */
+export interface LoanForPlanning {
+  id: string;
+  currency: string;
+  installmentAmount: Decimal | string;
+  remainingBalance: Decimal | string;
+  installmentAmountUsd: Decimal | string | null;
+  remainingBalanceUsd: Decimal | string | null;
+  paidInstallments: number;
+}
+
+export interface LoanInstallmentPlan {
+  loanId: string;
+  /** Moneda en la que se cobra esta cuota — la del prestamo, siempre. */
+  currency: "VES" | "USD";
+  /** Monto que va a la linea del recibo, en la moneda del sueldo del empleado. */
+  lineAmount: Decimal;
+  newBalanceVes: Decimal;
+  /** null cuando el prestamo no tiene lado USD. */
+  newBalanceUsd: Decimal | null;
+  isPaid: boolean;
+}
+
+const dec = (v: Decimal | string | null | undefined): Decimal =>
+  v == null ? new Decimal(0) : new Decimal(v.toString());
+
+/**
+ * Decide la cuota de cada prestamo ACTIVE de UN empleado.
+ *
+ * Un prestamo solo se descuenta si su moneda cabe en el recibo: la linea de
+ * nomina no lleva moneda propia, hereda la del sueldo. Si no cabe, se omite —
+ * omitir es correcto; cobrar en la moneda equivocada no.
+ *
+ * Un prestamo con cuota cero NUNCA entra al plan. Esa es la garantia que impide
+ * volver a marcar PAID un prestamo del que no se cobro nada.
+ */
+export function planLoanInstallments(
+  loans: LoanForPlanning[],
+  salaryCurrency: SalaryCurrency,
+): LoanInstallmentPlan[] {
+  const plans: LoanInstallmentPlan[] = [];
+
+  for (const loan of loans) {
+    const vesInstallment = dec(loan.installmentAmount);
+    const vesBalance = dec(loan.remainingBalance);
+    const usdInstallment = dec(loan.installmentAmountUsd);
+    const usdBalance = dec(loan.remainingBalanceUsd);
+
+    if (loan.currency === "USD") {
+      // El recibo tiene que poder expresar dolares.
+      if (salaryCurrency !== "USD" && salaryCurrency !== "MIXED") continue;
+
+      const applied = Decimal.min(usdInstallment, usdBalance);
+      if (applied.lte(0)) continue;
+
+      const newUsd = usdBalance.minus(applied);
+      plans.push({
+        loanId: loan.id,
+        currency: "USD",
+        lineAmount: applied,
+        newBalanceVes: vesBalance,
+        newBalanceUsd: newUsd,
+        isPaid: newUsd.isZero(),
+      });
+      continue;
+    }
+
+    // VES y MIXED cobran su cuota en bolivares.
+    if (salaryCurrency !== "VES" && salaryCurrency !== "MIXED") continue;
+
+    const applied = Decimal.min(vesInstallment, vesBalance);
+    if (applied.lte(0)) continue;
+
+    const newVes = vesBalance.minus(applied);
+
+    // MIXED (legado): ademas baja el lado USD por su propia cuota.
+    let newUsd: Decimal | null = null;
+    if (loan.currency === "MIXED" && loan.remainingBalanceUsd != null && loan.installmentAmountUsd != null) {
+      newUsd = Decimal.max(usdBalance.minus(usdInstallment), new Decimal(0));
+    }
+
+    plans.push({
+      loanId: loan.id,
+      currency: "VES",
+      lineAmount: applied,
+      newBalanceVes: newVes,
+      newBalanceUsd: newUsd,
+      isPaid: newVes.isZero() && (newUsd === null || newUsd.isZero()),
+    });
+  }
+
+  return plans;
+}

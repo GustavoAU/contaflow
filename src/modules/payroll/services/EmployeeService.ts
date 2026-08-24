@@ -405,6 +405,61 @@ export const EmployeeService = {
     });
   },
 
+  // ── setActiveStatus — suspender / reactivar ───────────────────────────────
+  // Distinto de terminate(): esto es reversible y no lleva fecha de egreso. Un
+  // empleado INACTIVE no entra en el calculo de nomina (PayrollRunService
+  // filtra por status ACTIVE), asi que sus cuotas de prestamo dejan de
+  // cobrarse mientras dure la suspension.
+  async setActiveStatus(
+    companyId: string,
+    userId: string,
+    employeeId: string,
+    status: "ACTIVE" | "INACTIVE",
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<EmployeeRow> {
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.employee.findFirst({
+        where: { id: employeeId, companyId },
+      });
+      if (!previous) throw new Error("Empleado no encontrado");
+
+      // El egreso no se revierte con un boton: exige re-contratacion.
+      if (previous.status === "TERMINATED") {
+        throw new Error(
+          "El empleado está egresado. Para reincorporarlo, regístralo como una nueva contratación."
+        );
+      }
+      if (previous.status === status) {
+        throw new Error(
+          status === "ACTIVE" ? "El empleado ya está activo." : "El empleado ya está inactivo."
+        );
+      }
+
+      const updated = await tx.employee.update({
+        where: { id: employeeId },
+        data: { status },
+        include: WITH_CURRENT_SALARY,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "Employee",
+          entityId: employeeId,
+          action: status === "ACTIVE" ? "REACTIVATE_EMPLOYEE" : "SUSPEND_EMPLOYEE",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: { status: previous.status },
+          newValue: { status },
+        },
+      });
+
+      return serializeEmployee(updated);
+    });
+  },
+
   // ── terminate — status TERMINATED + terminationDate ───────────────────────
   // NOM-B: nunca DELETE, solo status change con fecha de egreso
   async terminate(
