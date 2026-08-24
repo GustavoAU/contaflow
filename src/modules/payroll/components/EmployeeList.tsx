@@ -62,6 +62,9 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
   const [query, setQuery] = useState("");
   const [filterContract, setFilterContract] = useState<string>("");
   const [filterCurrency, setFilterCurrency] = useState<string>("");
+  // Por defecto solo activos: es lo que el usuario espera al abrir la lista, y
+  // ademas lo que el contador de la cabecera dice que esta viendo.
+  const [filterStatus, setFilterStatus] = useState<string>("ACTIVE");
 
   const filtered = employees.filter((e) => {
     if (query.trim()) {
@@ -74,6 +77,7 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
     }
     if (filterContract && e.contractType !== filterContract) return false;
     if (filterCurrency && e.currentSalaryCurrency !== filterCurrency) return false;
+    if (filterStatus && e.status !== filterStatus) return false;
     return true;
   });
 
@@ -154,7 +158,18 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
           <option value="VES">VES</option>
           <option value="USD">USD</option>
         </select>
-        {(query || filterContract || filterCurrency) && (
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          aria-label="Filtrar por estado"
+        >
+          <option value="ACTIVE">Solo activos</option>
+          <option value="INACTIVE">Solo inactivos</option>
+          <option value="TERMINATED">Solo egresados</option>
+          <option value="">Todos los estados</option>
+        </select>
+        {(query || filterContract || filterCurrency || filterStatus !== "ACTIVE") && (
           <span className="text-xs text-gray-500">
             {filtered.length} de {employees.length}
           </span>

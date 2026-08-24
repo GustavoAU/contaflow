@@ -17,6 +17,7 @@ import {
   UpdateEmployeeSchema,
   TerminateEmployeeSchema,
   AddSalarySchema,
+  SetEmployeeActiveStatusSchema,
 } from "../schemas/employee.schema";
 import { EmployeeService } from "../services/EmployeeService";
 import type { EmployeeRow, EmployeeListRow, SalaryHistoryRow } from "../services/EmployeeService";
@@ -116,6 +117,36 @@ export async function updateEmployeeAction(
 }
 
 // ── terminateEmployeeAction — ADMIN_ONLY ──────────────────────────────────────
+// ── setEmployeeActiveStatusAction — ADMIN_ONLY ────────────────────────────────
+// Suspender o reactivar. El egreso (TERMINATED) tiene su propia action.
+export async function setEmployeeActiveStatusAction(
+  companyId: string,
+  employeeId: string,
+  rawInput: unknown
+): Promise<ActionResult<EmployeeRow>> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+
+  const parsed = SetEmployeeActiveStatusSchema.safeParse(rawInput);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  try {
+    const emp = await EmployeeService.setActiveStatus(
+      companyId, ctx.userId, employeeId, parsed.data.status, ctx.ipAddress, ctx.userAgent,
+    );
+    revalidate(companyId);
+    revalidatePath(`/company/${companyId}/payroll/employees/${employeeId}`);
+    return { success: true, data: emp };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
 export async function terminateEmployeeAction(
   companyId: string,
   employeeId: string,
