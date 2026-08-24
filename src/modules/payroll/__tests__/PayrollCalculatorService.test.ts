@@ -3,25 +3,27 @@
 
 import { describe, it, expect } from "vitest";
 import Decimal from "decimal.js";
+import type { SalaryNature } from "@prisma/client";
 import {
   PayrollCalculatorService,
   type EmployeeCalculationInput,
   type PayrollCalculatorConfig,
   type ManualConceptCalculationInput,
+  type SystemConceptRef,
   MISSING_USD_RATE_MESSAGE,
   MIXED_SALARY_MESSAGE,
 } from "../services/PayrollCalculatorService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const SYSTEM_CONCEPTS = [
-  { code: "SAL_BASE", conceptId: "c-sal-base" },
-  { code: "HE_DIURNA", conceptId: "c-he-diurna" },
-  { code: "HE_NOCTURNA", conceptId: "c-he-noc" },
-  { code: "IVSS_OBR", conceptId: "c-ivss" },
-  { code: "INCES_OBR", conceptId: "c-inces" },
-  { code: "FAOV_OBR", conceptId: "c-faov" },
-  { code: "RPE_OBR", conceptId: "c-rpe" },
+const SYSTEM_CONCEPTS: SystemConceptRef[] = [
+  { code: "SAL_BASE", conceptId: "c-sal-base", salaryNature: "SALARIO_NORMAL" },
+  { code: "HE_DIURNA", conceptId: "c-he-diurna", salaryNature: "SALARIAL_ACCIDENTAL" },
+  { code: "HE_NOCTURNA", conceptId: "c-he-noc", salaryNature: "SALARIAL_ACCIDENTAL" },
+  { code: "IVSS_OBR", conceptId: "c-ivss", salaryNature: "NO_SALARIAL" },
+  { code: "INCES_OBR", conceptId: "c-inces", salaryNature: "NO_SALARIAL" },
+  { code: "FAOV_OBR", conceptId: "c-faov", salaryNature: "NO_SALARIAL" },
+  { code: "RPE_OBR", conceptId: "c-rpe", salaryNature: "NO_SALARIAL" },
 ];
 
 const BASE_CONFIG: PayrollCalculatorConfig = {
@@ -194,6 +196,7 @@ describe("PayrollCalculatorService — Guards", () => {
         conceptType: "DEDUCTION",
         employeeId: "emp-1",
         amount: new Decimal("999999"),
+        salaryNature: "NO_SALARIAL",
       },
     ];
     expect(() =>
@@ -223,6 +226,7 @@ describe("PayrollCalculatorService.calculate", () => {
         conceptType: "DEDUCTION",
         employeeId: "emp-1",
         amount: new Decimal("500"),
+        salaryNature: "NO_SALARIAL",
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
@@ -388,7 +392,7 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
       salaryMinimumVes: salaryMin,
-      systemConcepts: [...SYSTEM_CONCEPTS, { code: "INCES_PAT", conceptId: "c-inces-pat" }],
+      systemConcepts: [...SYSTEM_CONCEPTS, { code: "INCES_PAT", conceptId: "c-inces-pat", salaryNature: "NO_SALARIAL" as SalaryNature }],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("5000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
@@ -416,10 +420,10 @@ describe("PayrollCalculatorService — topes de cotización", () => {
 
 const SYSTEM_CONCEPTS_WITH_PAT = [
   ...SYSTEM_CONCEPTS,
-  { code: "IVSS_PAT", conceptId: "c-ivss-pat" },
-  { code: "INCES_PAT", conceptId: "c-inces-pat" },
-  { code: "FAOV_PAT", conceptId: "c-faov-pat" },
-  { code: "RPE_PAT", conceptId: "c-rpe-pat" },
+  { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" as SalaryNature },
+  { code: "INCES_PAT", conceptId: "c-inces-pat", salaryNature: "NO_SALARIAL" as SalaryNature },
+  { code: "FAOV_PAT", conceptId: "c-faov-pat", salaryNature: "NO_SALARIAL" as SalaryNature },
+  { code: "RPE_PAT", conceptId: "c-rpe-pat", salaryNature: "NO_SALARIAL" as SalaryNature },
 ];
 
 const CONFIG_WITH_PAT: PayrollCalculatorConfig = {
@@ -597,7 +601,7 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
       salaryMinimumVes: salaryMin,
       usdToVesRate: new Decimal("65"),
       // El fixture base sólo trae los conceptos del trabajador.
-      systemConcepts: [...SYSTEM_CONCEPTS, { code: "IVSS_PAT", conceptId: "c-ivss-pat" }],
+      systemConcepts: [...SYSTEM_CONCEPTS, { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" as SalaryNature }],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
@@ -674,5 +678,95 @@ describe("PayrollCalculatorService — sueldo híbrido bloqueado (C-01-bis)", ()
     const emp = makeEmp({ salaryCurrency: "MIXED" });
     expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
       .toThrow(MIXED_SALARY_MESSAGE);
+  });
+});
+
+// ─── ADR-045 D-4: la base de cotizaciones es el SALARIO NORMAL ────────────────
+//
+// Antes salia de `salary`, el monto crudo de SalaryHistory. Eso metia en la base
+// cosas que la ley deja fuera y no permitia representar el sueldo hibrido.
+
+describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () => {
+  const CONCEPTS: SystemConceptRef[] = [
+    ...SYSTEM_CONCEPTS,
+    { code: "CESTA_TICKET", conceptId: "c-cesta", salaryNature: "NO_SALARIAL" },
+  ];
+
+  it("un concepto sin incidencia salarial NO entra en la base", () => {
+    // LOTTT Art. 105 numeral 2. Da igual cuanto sea el cestaticket.
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, systemConcepts: CONCEPTS };
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const manual: ManualConceptCalculationInput[] = [{
+      conceptId: "c-cesta", conceptCode: "CESTA_TICKET", conceptType: "EARNING",
+      employeeId: emp.employeeId, amount: new Decimal("5000"),
+      salaryNature: "NO_SALARIAL",
+    }];
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("1000.00"); // no 6000
+  });
+
+  it("las horas extra son salario pero NO salario normal — quedan fuera", () => {
+    // Art. 104 tercer aparte: excluye "las percepciones de caracter accidental".
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, systemConcepts: CONCEPTS };
+    const emp = makeEmp({
+      salaryAmount: new Decimal("30000"),
+      overtimeHoursDay: new Decimal("10"),
+    });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    expect(lines.find((l) => l.conceptCode === "HE_DIURNA")!.amount.greaterThan(0)).toBe(true);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("30000.00"); // sin las HE
+  });
+
+  it("un concepto manual CON incidencia salarial SI entra — sueldo hibrido", () => {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      systemConcepts: [
+        ...SYSTEM_CONCEPTS,
+        { code: "BONO_PROD", conceptId: "c-bono", salaryNature: "SALARIO_NORMAL" },
+      ],
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const manual: ManualConceptCalculationInput[] = [{
+      conceptId: "c-bono", conceptCode: "BONO_PROD", conceptType: "EARNING",
+      employeeId: emp.employeeId, amount: new Decimal("500"),
+      salaryNature: "SALARIO_NORMAL",
+    }];
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("1500.00");
+    expect(ivss.amount.toFixed(2)).toBe("60.00");
+  });
+
+  it("las ausencias injustificadas reducen la base", () => {
+    // SAL_BASE viene prorrateado; antes se cotizaba sobre el sueldo completo
+    // aunque la persona no lo hubiera devengado.
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, systemConcepts: CONCEPTS };
+    const emp = makeEmp({ salaryAmount: new Decimal("3000"), absenceDays: new Decimal("3") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("2700.00"); // 3000 × 27/30
+  });
+
+  it("calculate() mete los manuales en la base, no despues del calculo", () => {
+    // Regresion: los conceptos manuales se anadian al array de salida DESPUES de
+    // calcular las cotizaciones, asi que uno con incidencia salarial nunca
+    // llegaba a la base.
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      systemConcepts: [
+        ...SYSTEM_CONCEPTS,
+        { code: "BONO_PROD", conceptId: "c-bono", salaryNature: "SALARIO_NORMAL" },
+      ],
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const result = PayrollCalculatorService.calculate(emp ? [emp] : [], [{
+      conceptId: "c-bono", conceptCode: "BONO_PROD", conceptType: "EARNING",
+      employeeId: emp.employeeId, amount: new Decimal("500"),
+      salaryNature: "SALARIO_NORMAL",
+    }], config);
+    const ivss = result.lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("1500.00");
   });
 });

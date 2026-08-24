@@ -1843,6 +1843,16 @@ enum ConceptType {
   EMPLOYER_COST // Aporte patronal — no afecta neto del empleado (IVSS/INCES/FAOV/RPE patronal)
 }
 
+// ADR-045 D-1: la naturaleza salarial de un concepto es ternaria.
+// Un booleano no puede representarla: las horas extraordinarias SON salario
+// (LOTTT Art. 104 las nombra) pero NO son salario normal (mismo articulo,
+// tercer aparte, excluye "las percepciones de caracter accidental").
+enum SalaryNature {
+  NO_SALARIAL // LOTTT Art. 105 (lista cerrada de 7) o decreto expreso
+  SALARIO_NORMAL // devengado "en forma regular y permanente" — base de cotizaciones
+  SALARIAL_ACCIDENTAL // es salario, pero fuera del salario normal
+}
+
 enum AbsenceCategory {
   JUSTIFIED // Justificada (pagada)
   UNJUSTIFIED // Injustificada (puede descontar)
@@ -1956,18 +1966,26 @@ model SalaryHistory {
 // no se pueden eliminar, solo desactivar.
 
 model PayrollConcept {
-  id                    String      @id @default(cuid())
+  id                    String       @id @default(cuid())
   companyId             String
   code                  String // corto, ej: "SAL_BASE", "IVSS_OBR"
   name                  String
   type                  ConceptType
-  isSystem              Boolean     @default(false)
-  isActive              Boolean     @default(true)
+  isSystem              Boolean      @default(false)
+  isActive              Boolean      @default(true)
   // LOTTT: indica si este concepto impacta el salario integral (base de prestaciones/vacaciones).
   // false → CESTA_TICKET, bonos no salariales. true → SAL_BASE, HE_DIURNA, HE_NOCTURNA, etc.
-  affectsSalaryIntegral Boolean     @default(true)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  //
+  // DEPRECADO por salaryNature (ADR-045 D-1), pero TODAVIA VIVO: es lo que lee
+  // BenefitAccrualService para prestaciones. No migrar esos consumidores hasta
+  // resolver el pendiente #2 del ADR (si los conceptos accidentales entran en el
+  // salario integral del Art. 122). salaryNature gobierna solo la base de
+  // cotizaciones; los dos conviven a proposito.
+  affectsSalaryIntegral Boolean      @default(true)
+  // Base de cotizaciones parafiscales (IVSS/FAOV/INCES/RPE) — ADR-045 D-1/D-4.
+  salaryNature          SalaryNature @default(SALARIO_NORMAL)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C

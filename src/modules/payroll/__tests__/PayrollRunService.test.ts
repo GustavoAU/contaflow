@@ -160,10 +160,10 @@ describe("PayrollRunService.create", () => {
       },
     ] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
-      { id: "c-inces", code: "INCES_OBR" },
-      { id: "c-faov", code: "FAOV_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-inces", code: "INCES_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
@@ -222,8 +222,8 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("1000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);
@@ -255,8 +255,8 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
@@ -351,9 +351,9 @@ describe("PayrollRunService.create", () => {
   it("F-03: almacena totalEmployerCosts calculado por PayrollCalculatorService", async () => {
     setupCreateMocks();
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
-      { id: "c-ivss-pat", code: "IVSS_PAT" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-ivss-pat", code: "IVSS_PAT", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue({
       ...BASE_RUN,
@@ -384,8 +384,8 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("3000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-rpe", code: "RPE_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-rpe", code: "RPE_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);

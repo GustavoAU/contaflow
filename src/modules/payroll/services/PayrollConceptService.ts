@@ -7,7 +7,7 @@
 
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import type { ConceptType } from "@prisma/client";
+import type { ConceptType, SalaryNature } from "@prisma/client";
 import type { CreateConceptInput, UpdateConceptInput } from "../schemas/payroll-concept.schema";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -32,33 +32,35 @@ const SYSTEM_CONCEPTS: Array<{
   name: string;
   type: ConceptType;
   affectsSalaryIntegral: boolean;
+  // ADR-045 D-1 — base de cotizaciones parafiscales.
+  salaryNature: SalaryNature;
 }> = [
   // Asignaciones — afectan salario integral (LOTTT Art. 104)
-  { code: "SAL_BASE",     name: "Salario Básico",                  type: "EARNING",   affectsSalaryIntegral: true  },
-  { code: "HE_DIURNA",   name: "Horas Extra Diurnas (50%)",        type: "EARNING",   affectsSalaryIntegral: true  },
-  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)",     type: "EARNING",   affectsSalaryIntegral: true  },
-  { code: "BONO_NOCHE",  name: "Bono Nocturno (30%)",              type: "EARNING",   affectsSalaryIntegral: true  },
+  { code: "SAL_BASE",     name: "Salario Básico",                  type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIO_NORMAL" },
+  { code: "HE_DIURNA",   name: "Horas Extra Diurnas (50%)",        type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIAL_ACCIDENTAL" },
+  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)",     type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIAL_ACCIDENTAL" },
+  { code: "BONO_NOCHE",  name: "Bono Nocturno (30%)",              type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIO_NORMAL" },
   // CESTA_TICKET: beneficio social — NO afecta salario integral (LOTTT Art. 105 / LCEA Art. 5)
-  { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false },
+  { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // BONO_ALIM_EFECT: alternativa en efectivo al cestaticket (LCEA Art. 5)
-  { code: "BONO_ALIM_EFECT", name: "Bono de Alimentación en efectivo",         type: "EARNING",   affectsSalaryIntegral: false },
+  { code: "BONO_ALIM_EFECT", name: "Bono de Alimentación en efectivo",         type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // DOM_FERIADO: trabajo en día de descanso/feriado → recargo 100% del salario normal (Art. 119 LOTTT)
-  { code: "DOM_FERIADO",     name: "Domingos y Feriados trabajados (100%)",    type: "EARNING",   affectsSalaryIntegral: false },
+  { code: "DOM_FERIADO",     name: "Domingos y Feriados trabajados (100%)",    type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "SALARIAL_ACCIDENTAL" },
   // DESCANSO_COMP: compensación cuando no se otorga el descanso compensatorio (Art. 120 LOTTT)
-  { code: "DESCANSO_COMP",   name: "Descanso compensatorio no otorgado (100%)", type: "EARNING",   affectsSalaryIntegral: false },
+  { code: "DESCANSO_COMP",   name: "Descanso compensatorio no otorgado (100%)", type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "SALARIAL_ACCIDENTAL" },
   // Deducciones — no afectan salario integral (son retenciones, no ingresos)
-  { code: "IVSS_OBR",   name: "IVSS Obrero (4%)",                  type: "DEDUCTION", affectsSalaryIntegral: false },
-  { code: "INCES_OBR",  name: "INCES Trabajador (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
-  { code: "FAOV_OBR",   name: "Banavih / FAOV Trabajador (1%)",    type: "DEDUCTION", affectsSalaryIntegral: false },
-  { code: "RPE_OBR",    name: "Paro Forzoso RPE (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false },
-  { code: "ISLR_RET",   name: "Retención ISLR Empleado",           type: "DEDUCTION", affectsSalaryIntegral: false },
+  { code: "IVSS_OBR",   name: "IVSS Obrero (4%)",                  type: "DEDUCTION", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "INCES_OBR",  name: "INCES Trabajador (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "FAOV_OBR",   name: "Banavih / FAOV Trabajador (1%)",    type: "DEDUCTION", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "RPE_OBR",    name: "Paro Forzoso RPE (0.5%)",           type: "DEDUCTION", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "ISLR_RET",   name: "Retención ISLR Empleado",           type: "DEDUCTION", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // Cuota de préstamo empresa — no afecta salario integral (es recuperación de deuda, no gasto salarial)
-  { code: "PRESTAMO_EMP", name: "Cuota Préstamo Empresa",          type: "DEDUCTION",     affectsSalaryIntegral: false },
+  { code: "PRESTAMO_EMP", name: "Cuota Préstamo Empresa",          type: "DEDUCTION",     affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // F-03: Aportes patronales — no afectan neto del empleado (EMPLOYER_COST)
-  { code: "IVSS_PAT",   name: "IVSS Patronal (9%)",                type: "EMPLOYER_COST", affectsSalaryIntegral: false },
-  { code: "INCES_PAT",  name: "INCES Patronal (2%)",               type: "EMPLOYER_COST", affectsSalaryIntegral: false },
-  { code: "FAOV_PAT",   name: "Banavih / FAOV Patronal (2%)",      type: "EMPLOYER_COST", affectsSalaryIntegral: false },
-  { code: "RPE_PAT",    name: "Paro Forzoso Patronal (2%)",        type: "EMPLOYER_COST", affectsSalaryIntegral: false },
+  { code: "IVSS_PAT",   name: "IVSS Patronal (9%)",                type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "INCES_PAT",  name: "INCES Patronal (2%)",               type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "FAOV_PAT",   name: "Banavih / FAOV Patronal (2%)",      type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  { code: "RPE_PAT",    name: "Paro Forzoso Patronal (2%)",        type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
 ];
 
 // ─── Serialización ────────────────────────────────────────────────────────────
@@ -111,11 +113,16 @@ export const PayrollConceptService = {
             name: concept.name,
             type: concept.type,
             affectsSalaryIntegral: concept.affectsSalaryIntegral,
+            salaryNature: concept.salaryNature,
             isSystem: true,
             isActive: true,
           },
           update: {
             affectsSalaryIntegral: concept.affectsSalaryIntegral,
+            // Se repara igual que affectsSalaryIntegral: la naturaleza de un
+            // concepto del sistema la fija la ley, no la empresa. Los conceptos
+            // personalizados (isSystem:false) no pasan por aqui.
+            salaryNature: concept.salaryNature,
             // REPARA isSystem. El motor de nomina carga los conceptos con
             // `where: { isSystem: true }`, asi que una fila de SYSTEM_CONCEPTS
             // marcada como false es invisible para el: si le pasa a SAL_BASE,

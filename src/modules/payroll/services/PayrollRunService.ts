@@ -225,7 +225,7 @@ export const PayrollRunService = {
     // NOM-C-07: siempre de la DB con companyId — nunca del input del cliente
     const systemConcepts = await prisma.payrollConcept.findMany({
       where: { companyId, isSystem: true, isActive: true },
-      select: { id: true, code: true },
+      select: { id: true, code: true, salaryNature: true },
     });
 
     // Topes y alícuotas legales: LegalThreshold vigente al inicio del período.
@@ -273,7 +273,9 @@ export const PayrollRunService = {
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
       usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
-      systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
+      systemConcepts: systemConcepts.map((c) => ({
+        code: c.code, conceptId: c.id, salaryNature: c.salaryNature,
+      })),
       ivssObrRate:  toRate(ivssObrPct),
       ivssPatRate:  toRate(ivssPatPct),
       incesObrRate: toRate(incesObrPct),
@@ -303,7 +305,7 @@ export const PayrollRunService = {
       const manualConceptIds = [...new Set(input.manualConcepts.map((m) => m.conceptId))];
       const validConcepts = await prisma.payrollConcept.findMany({
         where: { id: { in: manualConceptIds }, companyId },
-        select: { id: true, code: true, type: true },
+        select: { id: true, code: true, type: true, salaryNature: true },
       });
       if (validConcepts.length !== manualConceptIds.length) {
         throw new Error("Uno o más conceptos manuales no pertenecen a esta empresa");
@@ -317,6 +319,9 @@ export const PayrollRunService = {
           conceptType: concept.type,
           employeeId: m.employeeId,
           amount: new Decimal(m.amount),
+          // ADR-045 D-4: si el concepto tiene incidencia salarial, este monto
+          // entra en la base de cotizaciones.
+          salaryNature: concept.salaryNature,
         });
       }
     }
@@ -354,6 +359,7 @@ export const PayrollRunService = {
               conceptType: "DEDUCTION",
               employeeId: empId,
               amount: total,
+              salaryNature: loanConcept.salaryNature,
             });
           }
         }

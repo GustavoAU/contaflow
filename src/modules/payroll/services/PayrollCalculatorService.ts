@@ -11,7 +11,9 @@
 // NOM-C-14: totalEarnings/totalDeductions/totalNet se calculan aquí, nunca del input del cliente.
 
 import Decimal from "decimal.js";
-import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@prisma/client";
+import type {
+  ConceptType, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
+} from "@prisma/client";
 
 // ─── Tasas legales venezolanas — defaults (ADR-006 D-3) ──────────────────────
 // Usadas cuando no hay registro en LegalThreshold para la empresa/período.
@@ -56,6 +58,11 @@ const HOURS_DAY = new Decimal("8");
 export interface SystemConceptRef {
   code: string;
   conceptId: string;
+  // ADR-045 D-1. OBLIGATORIO a proposito: cuando era opcional, un llamador que
+  // la omitia obtenia salarioNormal = 0 y las cuatro cotizaciones en CERO, sin
+  // error y sin aviso. Un aporte parafiscal que desaparece en silencio es peor
+  // que un build roto — que lo atrape el compilador.
+  salaryNature: SalaryNature;
 }
 
 export interface EmployeeCalculationInput {
@@ -76,6 +83,11 @@ export interface ManualConceptCalculationInput {
   conceptType: ConceptType;
   employeeId: string;
   amount: Decimal; // monto fijo positivo ingresado por el contador
+  // ADR-045 D-1/D-2: un concepto manual con incidencia salarial SI entra en la
+  // base de cotizaciones. Es el caso del sueldo hibrido — la parte en divisas
+  // se registra como concepto y la empresa declara su naturaleza.
+  // Obligatorio por la misma razon que en SystemConceptRef.
+  salaryNature: SalaryNature;
 }
 
 export interface PayrollCalculatorConfig {
@@ -211,21 +223,12 @@ export const PayrollCalculatorService = {
     const allLines: CalculatorLineOutput[] = [];
 
     for (const emp of employees) {
-      const empLines = this.calculateEmployeeLines(emp, config);
-      // Conceptos manuales del empleado
-      const empManuals = manualConcepts
-        .filter((m) => m.employeeId === emp.employeeId)
-        .map((m): CalculatorLineOutput => ({
-          conceptCode: m.conceptCode,
-          conceptId: m.conceptId,
-          employeeId: m.employeeId,
-          conceptType: m.conceptType,
-          amount: m.amount,
-          salaryHistoryId: emp.salaryHistoryId,
-          salarySnapshotAmount: emp.salaryAmount,
-          salarySnapshotCurrency: emp.salaryCurrency,
-        }));
-      allLines.push(...empLines, ...empManuals);
+      // Los conceptos manuales se pasan al calculo del empleado en vez de
+      // anadirse despues: uno con incidencia salarial forma parte de la base de
+      // cotizaciones, y colgarlo al final lo dejaba fuera (ADR-045 D-4).
+      allLines.push(...this.calculateEmployeeLines(
+        emp, config, manualConcepts.filter((m) => m.employeeId === emp.employeeId),
+      ));
     }
 
     // Validación post-cálculo (NOM-C-10)
@@ -267,7 +270,8 @@ export const PayrollCalculatorService = {
    */
   calculateEmployeeLines(
     emp: EmployeeCalculationInput,
-    config: PayrollCalculatorConfig
+    config: PayrollCalculatorConfig,
+    manualConcepts: ManualConceptCalculationInput[] = []
   ): CalculatorLineOutput[] {
     const lines: CalculatorLineOutput[] = [];
     const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
@@ -354,10 +358,42 @@ export const PayrollCalculatorService = {
       });
     }
 
+    // ── Conceptos manuales del empleado ───────────────────────────────────────
+    for (const m of manualConcepts) {
+      lines.push({
+        conceptCode: m.conceptCode,
+        conceptId: m.conceptId,
+        employeeId: m.employeeId,
+        conceptType: m.conceptType,
+        amount: m.amount,
+        ...salaryBase,
+      });
+    }
+
+    // ── Base de cotizaciones: el SALARIO NORMAL (ADR-045 D-4) ─────────────────
+    // Hasta 2026-08 las cuatro cotizaciones salian de `salary`, el monto crudo de
+    // SalaryHistory. Eso ignoraba dos cosas: que un concepto puede no tener
+    // incidencia salarial (cestaticket, bono de guerra — LOTTT Art. 105 y
+    // Decreto 4.805 Art. 2), y que las horas extra son salario pero NO salario
+    // normal (Art. 104, tercer aparte, excluye lo accidental).
+    //
+    // Efecto colateral querido: las ausencias injustificadas ya reducen la base,
+    // porque SAL_BASE viene prorrateado. Antes se cotizaba sobre el sueldo
+    // completo aunque la persona no lo hubiera devengado.
+    const natureById = new Map<string, SalaryNature>();
+    for (const c of systemConcepts) natureById.set(c.conceptId, c.salaryNature);
+    for (const m of manualConcepts) natureById.set(m.conceptId, m.salaryNature);
+
+    const salarioNormal = lines
+      .filter((l) =>
+        l.conceptType === "EARNING" &&
+        natureById.get(l.conceptId) === "SALARIO_NORMAL")
+      .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
+
     // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
@@ -378,7 +414,7 @@ export const PayrollCalculatorService = {
     // mientras tanto para no dejar el aporte sin recaudar a mitad de ejercicio.
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_LEGACY_CAP_MULTIPLES);
+      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, INCES_LEGACY_CAP_MULTIPLES);
       const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
@@ -395,7 +431,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
@@ -413,7 +449,7 @@ export const PayrollCalculatorService = {
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
       const basis = clampedBasis(
-        salary, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+        salarioNormal, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
       );
       const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
@@ -432,7 +468,7 @@ export const PayrollCalculatorService = {
     // ── IVSS_PAT (default 9%, tope 5×salMin — LSS Art. 62) ──────────────────────
     const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
     if (ivssEnabled && ivssPatId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_PAT",
@@ -452,7 +488,7 @@ export const PayrollCalculatorService = {
     // aplica a entidades con cinco o más trabajadores.
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
     if (incesEnabled && incesPatId) {
-      const basis = salary;
+      const basis = salarioNormal;
       const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_PAT",
@@ -469,7 +505,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_PAT (default 2%, tope 10×salMin — LAH Art. 172) ────────────────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",
@@ -483,10 +519,12 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── RPE_PAT (default 2%, tope 5×salMin — LSSO Art. 7) ───────────────────────
+    // ── RPE_PAT (2% — misma base que el obrero: 1× a 10×, LRPE Art. 46) ───────
     const rpePatId = findConcept(systemConcepts, "RPE_PAT");
     if (rpeEnabled && rpePatId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, RPE_CAP_MULTIPLES);
+      const basis = clampedBasis(
+        salarioNormal, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+      );
       const amount = basis.times(rpePatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_PAT",
