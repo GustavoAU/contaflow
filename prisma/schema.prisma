@@ -1762,8 +1762,8 @@ model PayrollConfig {
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
   disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
   // Fase NOM-D: Configuración de beneficios legales
-  profitDays                    Int                    @default(15) // días de utilidades (15–120 LOTTT Art. 131)
-  vacationBonusDays             Int                    @default(7) // días bono vacacional año 1 (LOTTT Art. 223)
+  profitDays                    Int                    @default(30) // días de utilidades (30–120 LOTTT Art. 131 — el mínimo son 30, no 15)
+  vacationBonusDays             Int                    @default(15) // días bono vacacional año 1 (LOTTT Art. 192 — el 223 citado antes es de la LOT de 1997, derogada)
   // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
   workSchedule                  WorkSchedule           @default(LUNES_VIERNES)
   // Fase NOM-E: Valor de la Unidad Tributaria para cálculo de techo IVSS (LSS Art. 62)

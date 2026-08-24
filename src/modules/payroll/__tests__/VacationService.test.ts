@@ -233,10 +233,11 @@ describe("VacationService.computeFractionalDays", () => {
     const termination = new Date("2025-07-01"); // 6 months
     const { vacationDays, bonusDays } = VacationService.computeFractionalDays(hire, termination, 0);
 
-    // 15 days annual / 12 * 6 months = 7.5 days
+    // 15 días anuales / 12 × 6 meses = 7,5
     expect(vacationDays.toFixed(2)).toBe("7.50");
-    // 7 bonus days / 12 * 6 = 3.5
-    expect(bonusDays.toFixed(2)).toBe("3.50");
+    // Art. 192: el bono vacacional son QUINCE días, no siete. Los 7 eran el
+    // Art. 223 de la LOT de 1997, que esta ley derogó. 15 / 12 × 6 = 7,5.
+    expect(bonusDays.toFixed(2)).toBe("7.50");
   });
 
   it("computes fractional days for 3-year employee", () => {

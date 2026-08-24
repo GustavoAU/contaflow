@@ -84,6 +84,10 @@ function serializeProfitSharing(r: {
 
 // ─── ProfitSharingService ─────────────────────────────────────────────────────
 
+// LOTTT Art. 131 — límites por trabajador: mínimo 30 días, máximo 4 meses.
+const LEGAL_MIN_PROFIT_DAYS = new Decimal("30");
+const LEGAL_MAX_PROFIT_DAYS = new Decimal("120");
+
 export const ProfitSharingService = {
   // ── calculate — registrar utilidades fraccionadas ─────────────────────────
   // Todas las magnitudes calculadas server-side (ADR-014 Dec. 3).
@@ -155,20 +159,29 @@ export const ProfitSharingService = {
 
     // F-07: usar utilidad neta cuando se provee; fallback a config.profitDays (LOTTT Art. 131)
     // profitPool = netProfit × 15%; profitDays = profitPool × 365 / totalAnnualPayroll
-    // Rango legal: [15 días mínimo, 120 días máximo] (Art. 131 LOTTT)
+    // Art. 131: "tendrá, respecto de cada trabajador o trabajadora como límite
+    // mínimo, el equivalente al salario de TREINTA DÍAS y como límite máximo el
+    // equivalente al salario de cuatro meses". El mínimo eran 15 días en la LOT
+    // de 1997; la LOTTT lo elevó a 30 y el código se quedó con el viejo.
+    // Rango legal: [30 días mínimo, 120 días máximo]
     let profitDays: Decimal;
     if (input.netProfitVes && input.totalAnnualPayrollVes) {
       const netProfit = new Decimal(input.netProfitVes);
       const totalPayroll = new Decimal(input.totalAnnualPayrollVes);
       if (totalPayroll.lte(0)) throw new Error("La nómina anual debe ser mayor a cero");
       if (netProfit.lte(0)) {
-        profitDays = new Decimal("15"); // mínimo legal aunque no haya utilidades positivas
+        profitDays = LEGAL_MIN_PROFIT_DAYS; // mínimo legal aunque no haya utilidades
       } else {
         const dynamic = netProfit.mul("0.15").mul("365").div(totalPayroll).toDecimalPlaces(2);
-        profitDays = Decimal.max(new Decimal("15"), Decimal.min(new Decimal("120"), dynamic));
+        profitDays = Decimal.max(
+          LEGAL_MIN_PROFIT_DAYS, Decimal.min(LEGAL_MAX_PROFIT_DAYS, dynamic),
+        );
       }
     } else {
-      profitDays = new Decimal(config.profitDays);
+      // Se acota también lo configurado: una empresa con 15 días guardados de
+      // antes está por debajo del mínimo legal, y el número guardado no puede
+      // autorizar pagar de menos.
+      profitDays = Decimal.max(LEGAL_MIN_PROFIT_DAYS, new Decimal(config.profitDays));
     }
     const fractionalDays = profitDays
       .mul(monthsWorked)

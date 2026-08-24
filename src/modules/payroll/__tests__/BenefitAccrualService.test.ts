@@ -224,7 +224,7 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     ).rejects.toThrow("No hay empleados activos");
   });
 
-  it("calculates accrual correctly (5 días base + 0.5 adicionales por antigüedad × salario integral)", async () => {
+  it("calculates accrual correctly (15 días base Art. 142 + 0.5 adicionales por antigüedad × salario integral)", async () => {
     // BASE_EMPLOYEE.hireDate = 2025-01-01; Q1-2026 end = 2026-03-31 → ~1.24 years → 1 completed → +2/año → 0.5/trim
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
 
@@ -233,13 +233,16 @@ describe("BenefitAccrualService.accrueQuarter", () => {
 
     // dailyNormal = 3000/30 = 100
     // profitAliq  = 100 * 15 / 360 = 4.1667
-    // bonusAliq   = 100 * 7  / 360 = 1.9444
-    // integral    = 106.1111
-    // totalDays   = 5 (base) + 0.5 (1 año antigüedad) = 5.5
-    // accrual     = 106.1111 × 5.5 = 583.6111
+    // Minimos legales vigentes: 30 dias de utilidades (Art. 131) y 15 de bono
+    // vacacional (Art. 192); los 15 y 7 de la config son de la LOT de 1997.
+    // profitAliq  = 100 * 30 / 360 = 8.3333
+    // bonusAliq   = 100 * 15 / 360 = 4.1667
+    // integral    = 112.50
+    // totalDays   = 15 (base, Art. 142) + 0.5 (1 año antigüedad) = 15.5
+    // accrual     = 112.50 × 15.5 = 1743.75
     const accrued = new Decimal(result.totalAccrued);
-    expect(accrued.gte("583")).toBe(true);
-    expect(accrued.lte("584")).toBe(true);
+    expect(accrued.gte("1743")).toBe(true);
+    expect(accrued.lte("1744")).toBe(true);
   });
 
   it("calculates accrual with 0 additional days for employee under 1 year", async () => {
@@ -252,10 +255,10 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
     expect(result.employeesProcessed).toBe(1);
 
-    // 0 additional days → 5 days only → 106.1111 * 5 = 530.5556
+    // 0 dias adicionales -> solo los 15 de base -> 112.50 * 15 = 1687.50
     const accrued = new Decimal(result.totalAccrued);
-    expect(accrued.gte("530")).toBe(true);
-    expect(accrued.lte("531")).toBe(true);
+    expect(accrued.gte("1687")).toBe(true);
+    expect(accrued.lte("1688")).toBe(true);
   });
 
   it("double-accrual guard: skips P2002 and continues batch", async () => {
@@ -301,7 +304,7 @@ describe("BenefitAccrualService.accrueQuarter", () => {
   });
 
   it("incluye conceptos salariales (affectsSalaryIntegral=true) en el salario integral — regresión ítem 56", async () => {
-    // BASE_EMPLOYEE: salario 3000, hireDate 2025-01-01 → 1+ año → 5.5 días totales
+    // BASE_EMPLOYEE: salario 3000, hireDate 2025-01-01 → 1+ año → 15.5 días totales
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{ ...BASE_EMPLOYEE }] as never);
 
     // 3 corridas de nómina en el trimestre: bono salarial 300 cada una → total 900
@@ -316,14 +319,14 @@ describe("BenefitAccrualService.accrueQuarter", () => {
     expect(result.employeesProcessed).toBe(1);
 
     // dailyNormal = (3000 + 300) / 30 = 110
-    // profitAliq  = 110 * 15 / 360 = 4.5833
-    // bonusAliq   = 110 * 7  / 360 = 2.1389
-    // integral    = 116.7222
-    // totalDays   = 5.5
-    // accrual     = 116.7222 × 5.5 ≈ 641.97
+    // profitAliq  = 110 * 30 / 360 = 9.1667
+    // bonusAliq   = 110 * 15 / 360 = 4.5833
+    // integral    = 123.75
+    // totalDays   = 15.5
+    // accrual     = 123.75 × 15.5 ≈ 1918.13
     const accrued = new Decimal(result.totalAccrued);
-    expect(accrued.gte("641")).toBe(true);
-    expect(accrued.lte("643")).toBe(true);
+    expect(accrued.gte("1918")).toBe(true);
+    expect(accrued.lte("1919")).toBe(true);
 
     // Verificar que se consultó payrollRunLine con affectsSalaryIntegral=true
     expect(vi.mocked(prisma.payrollRunLine.findMany)).toHaveBeenCalledWith(
@@ -342,10 +345,10 @@ describe("BenefitAccrualService.accrueQuarter", () => {
 
     const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
 
-    // Igual que el test original: dailyNormal = 3000/30 = 100
+    // Igual que el test original: dailyNormal = 3000/30 = 100 -> integral 112.50
     const accrued = new Decimal(result.totalAccrued);
-    expect(accrued.gte("583")).toBe(true);
-    expect(accrued.lte("584")).toBe(true);
+    expect(accrued.gte("1743")).toBe(true);
+    expect(accrued.lte("1744")).toBe(true);
   });
 });
 

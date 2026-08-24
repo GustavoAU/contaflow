@@ -159,14 +159,16 @@ describe("ProfitSharingService.calculate", () => {
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          profitDays: "15.00", // from BASE_CONFIG.profitDays, not client
+          // Art. 131: el minimo son 30 dias. BASE_CONFIG trae 15 -- el valor de
+          // la LOT de 1997 -- y el servicio lo acota al minimo vigente.
+          profitDays: "30.00",
         }),
       })
     );
   });
 
   it("computes fractional days proportionally", async () => {
-    // 3 months worked, 15 profit days → 15/12*3 = 3.75 days
+    // 3 meses trabajados sobre el minimo legal de 30 dias → 30/12*3 = 7,5
     await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
       fiscalYear: 2026,
       isFractional: true,
@@ -177,7 +179,7 @@ describe("ProfitSharingService.calculate", () => {
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          fractionalDays: "3.75",
+          fractionalDays: "7.50",
         }),
       })
     );
@@ -251,7 +253,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     );
   });
 
-  it("applies 15-day minimum when netProfit <= 0", async () => {
+  it("aplica el minimo legal de 30 dias cuando netProfit <= 0", async () => {
     await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
       fiscalYear: 2026,
       netProfitVes: "0",
@@ -259,7 +261,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     });
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ profitDays: "15.00" }),
+        data: expect.objectContaining({ profitDays: "30.00" }),
       })
     );
   });
@@ -272,7 +274,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     });
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ profitDays: "15.00" }), // config.profitDays
+        data: expect.objectContaining({ profitDays: "30.00" }), // config.profitDays acotado al minimo legal
       })
     );
   });
