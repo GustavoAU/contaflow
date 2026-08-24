@@ -357,9 +357,44 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const rpe = lines.find((l) => l.conceptCode === "RPE_OBR");
-    // base cappada = min(1000, 5×130) = 650; 650 * 0.005 = 3.25
-    expect(rpe!.amount.toFixed(2)).toBe("3.25");
-    expect(rpe!.basis!.toFixed(2)).toBe("650.00");
+    // LRPE Art. 46: el techo son DIEZ salarios mínimos (10×130 = 1300), no cinco.
+    // 1000 no llega al techo → base = 1000; 1000 × 0,005 = 5,00.
+    expect(rpe!.basis!.toFixed(2)).toBe("1000.00");
+    expect(rpe!.amount.toFixed(2)).toBe("5.00");
+  });
+
+  it("RPE: el techo son 10×salMin — LRPE Art. 46", () => {
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
+    const emp = makeEmp({ salaryAmount: new Decimal("5000") }); // supera 10×130=1300
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("1300.00");
+    expect(rpe.amount.toFixed(2)).toBe("6.50");
+  });
+
+  it("RPE: quien gana menos del mínimo cotiza igual sobre un salario mínimo", () => {
+    // Art. 46 fija también un límite INFERIOR — es el único aporte que lo tiene.
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
+    const emp = makeEmp({ salaryAmount: new Decimal("50") }); // < 130
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("130.00");
+    expect(rpe.amount.toFixed(2)).toBe("0.65");
+  });
+
+  it("INCES patronal: sin tope — Ley INCES Art. 49", () => {
+    // El 2% va sobre el salario normal mensual completo. El tope de 5× que se
+    // aplicaba aquí no sale de la Ley.
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      systemConcepts: [...SYSTEM_CONCEPTS, { code: "INCES_PAT", conceptId: "c-inces-pat" }],
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("5000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const incesPat = lines.find((l) => l.conceptCode === "INCES_PAT")!;
+    expect(incesPat.basis!.toFixed(2)).toBe("5000.00"); // antes: 650,00
+    expect(incesPat.amount.toFixed(2)).toBe("100.00");  // antes: 13,00
   });
 
   it("sin tope cuando salario está por debajo del límite", () => {

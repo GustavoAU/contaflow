@@ -19,18 +19,29 @@ import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@pri
 const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
 const DEFAULT_IVSS_PAT_RATE    = new Decimal("0.09");
 const IVSS_CAP_MULTIPLES = new Decimal("5");
-// Ley INCES Art. 30: trabajador 0.5% | patronal 2% | tope: 5 × salario mínimo
+// Ley del INCES (Decreto 1.414, G.O. 6.155 Extraordinario del 19-11-2014):
+//   Art. 49 — patronal 2% del SALARIO NORMAL MENSUAL, SIN TOPE, pagadero por
+//     trimestre, y sólo para entidades con cinco o más trabajadores.
+//   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
+//     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
 const DEFAULT_INCES_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
-const INCES_CAP_MULTIPLES = new Decimal("5");
+// Tope que se venía aplicando al INCES. La Ley no lo establece en ninguno de los
+// dos aportes; queda sólo para INCES_OBR mientras esa deducción siga calculándose
+// mes a mes — ver el comentario de su bloque.
+const INCES_LEGACY_CAP_MULTIPLES = new Decimal("5");
 // LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 const FAOV_CAP_MULTIPLES = new Decimal("10");
-// LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | patronal 2% | tope: 5 × salario mínimo
+// Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
+//   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
+//   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
+//   urbano (límite inferior) y DIEZ (límite superior).
 const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
-const RPE_CAP_MULTIPLES = new Decimal("5");
+const RPE_CAP_MULTIPLES   = new Decimal("10");
+const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // LOTTT Art. 118: HE nocturna 75% recargo (multiplicador 1.75×)
@@ -131,6 +142,16 @@ function findConcept(systemConcepts: SystemConceptRef[], code: string): string |
 function cappedBasis(salary: Decimal, salaryMin: Decimal, multiples: Decimal): Decimal {
   if (salaryMin.lte(0)) return salary;
   return Decimal.min(salary, salaryMin.mul(multiples));
+}
+
+// El RPE es el único aporte con límite INFERIOR: quien gana menos del mínimo
+// cotiza igual sobre un salario mínimo (LRPE Art. 46).
+function clampedBasis(
+  salary: Decimal, salaryMin: Decimal, floorMultiples: Decimal, ceilingMultiples: Decimal,
+): Decimal {
+  if (salaryMin.lte(0)) return salary;
+  return salary
+    .clampedTo(salaryMin.mul(floorMultiples), salaryMin.mul(ceilingMultiples));
 }
 
 export const MISSING_USD_RATE_MESSAGE =
@@ -350,10 +371,14 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── INCES_OBR (default 0.5%, tope 5×salMin — solo si incesEnabled) ────────
+    // ── INCES_OBR ─────────────────────────────────────────────────────────────
+    // OJO: la Ley del INCES Art. 50 grava el 0,5% de las UTILIDADES ANUALES, no
+    // el sueldo mensual. Esta deducción mensual no tiene base legal y hay que
+    // moverla al pago de utilidades (ProfitSharingService). Se deja intacta
+    // mientras tanto para no dejar el aporte sin recaudar a mitad de ejercicio.
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_LEGACY_CAP_MULTIPLES);
       const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
@@ -384,10 +409,12 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── RPE_OBR (default 0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────
+    // ── RPE_OBR (0,5% — base entre 1× y 10× salMin, LRPE Art. 46) ─────────────
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, RPE_CAP_MULTIPLES);
+      const basis = clampedBasis(
+        salary, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+      );
       const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_OBR",
@@ -419,10 +446,13 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── INCES_PAT (default 2%, tope 5×salMin — Ley INCES Art. 30) ───────────────
+    // ── INCES_PAT (2% del salario normal, SIN TOPE — Ley INCES Art. 49) ────────
+    // Art. 49 fija la base sin límite superior; el tope de 5× que se aplicaba
+    // aquí no sale de la Ley. Falta además el supuesto de aplicación: sólo
+    // aplica a entidades con cinco o más trabajadores.
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
     if (incesEnabled && incesPatId) {
-      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_CAP_MULTIPLES);
+      const basis = salary;
       const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_PAT",
