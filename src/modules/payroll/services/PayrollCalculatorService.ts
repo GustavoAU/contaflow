@@ -78,6 +78,12 @@ export interface PayrollCalculatorConfig {
   //   FAOV: base ≤ 10 × salaryMinimumVes
   // Cuando 0 o null: sin tope (retro-compatible con empresas sin configurar).
   salaryMinimumVes: Decimal;
+  // Tasa BCV Bs./USD vigente al período (bolívares por dólar).
+  // Sólo se consulta cuando hay topes configurados y algún sueldo va en dólares:
+  // el tope es un monto en BOLÍVARES, y compararlo contra un sueldo en USD sin
+  // convertirlo retiene de más por el factor de la tasa. La obtiene
+  // PayrollRunService desde ExchangeRate — nunca del cliente (ADR-006 D-3).
+  usdToVesRate?: Decimal | null;
   systemConcepts: SystemConceptRef[];
   // Alícuotas parafiscales como fracción decimal (ej: 0.04 = 4%).
   // Si no se proveen, el calculador usa los defaults hardcodeados.
@@ -121,9 +127,38 @@ function findConcept(systemConcepts: SystemConceptRef[], code: string): string |
 }
 
 // Aplica el tope legal de cotización. Cuando salaryMin es 0 no hay tope.
+// salaryMin YA viene en la moneda del sueldo — ver salaryMinimumInCurrency.
 function cappedBasis(salary: Decimal, salaryMin: Decimal, multiples: Decimal): Decimal {
   if (salaryMin.lte(0)) return salary;
   return Decimal.min(salary, salaryMin.mul(multiples));
+}
+
+export const MISSING_USD_RATE_MESSAGE =
+  "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio " +
+  "antes de procesar esta nómina. Los topes legales (IVSS, FAOV, INCES, RPE) están " +
+  "fijados en bolívares y no pueden aplicarse a un sueldo en dólares sin la tasa.";
+
+export const MIXED_SALARY_MESSAGE =
+  "Sueldo híbrido (VES + USD) todavía no soportado en el cálculo de nómina. " +
+  "Registra el sueldo del empleado en una sola moneda.";
+
+// H-4: los topes de cotización son múltiplos del salario mínimo, que es un monto
+// en BOLÍVARES. Hasta 2026-08 se comparaban directo contra el sueldo, fuera cual
+// fuera su moneda: para un sueldo en dólares eso trataba "Bs. 650" como "USD 650"
+// y retenía de más exactamente por el factor de la tasa (USD 26 de IVSS donde la
+// ley pide el equivalente a Bs. 26). Se convierte el TOPE, no el sueldo: el sueldo
+// es el importe que se paga y no debe moverse.
+function salaryMinimumInCurrency(
+  salaryMinVes: Decimal,
+  currency: PayrollPaymentCurrency,
+  usdToVesRate: Decimal | null | undefined,
+): Decimal {
+  // Sin tope configurado no hay nada que convertir — ni tasa que exigir.
+  if (salaryMinVes.lte(0)) return salaryMinVes;
+  if (currency === "VES") return salaryMinVes;
+  if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
+  if (!usdToVesRate || usdToVesRate.lte(0)) throw new Error(MISSING_USD_RATE_MESSAGE);
+  return salaryMinVes.dividedBy(usdToVesRate);
 }
 
 // ─── PayrollCalculatorService ─────────────────────────────────────────────────
@@ -143,9 +178,14 @@ export const PayrollCalculatorService = {
     if (currencies.size > 1) {
       throw new Error(
         `Nómina con monedas mixtas (${[...currencies].join(" y ")}). ` +
-        "Procese por separado empleados con moneda VES y USD, o configure una tasa BCV para el período."
+        "Procese por separado los empleados con sueldo en VES y en USD."
       );
     }
+
+    // C-01-bis: un sueldo MIXED guarda un solo importe sin decir cuánto va en cada
+    // moneda. No se puede ni topar ni convertir al asiento (approve() lo trataría
+    // como bolívares). Se bloquea antes de producir números que parecen buenos.
+    if (currencies.has("MIXED")) throw new Error(MIXED_SALARY_MESSAGE);
 
     const allLines: CalculatorLineOutput[] = [];
 
@@ -221,6 +261,10 @@ export const PayrollCalculatorService = {
     const rpeWorkerRate   = config.rpeObrRate   ?? DEFAULT_RPE_WORKER_RATE;
     const rpePatRate      = config.rpePatRate   ?? DEFAULT_RPE_PAT_RATE;
     const salary = emp.salaryAmount;
+    // Tope legal llevado a la moneda del sueldo (H-4).
+    const salaryMinInCurrency = salaryMinimumInCurrency(
+      salaryMinimumVes, emp.salaryCurrency, config.usdToVesRate,
+    );
 
     const salaryBase = {
       salaryHistoryId: emp.salaryHistoryId,
@@ -292,7 +336,7 @@ export const PayrollCalculatorService = {
     // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
@@ -309,7 +353,7 @@ export const PayrollCalculatorService = {
     // ── INCES_OBR (default 0.5%, tope 5×salMin — solo si incesEnabled) ────────
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_CAP_MULTIPLES);
       const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
@@ -326,7 +370,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
@@ -343,7 +387,7 @@ export const PayrollCalculatorService = {
     // ── RPE_OBR (default 0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, RPE_CAP_MULTIPLES);
       const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_OBR",
@@ -361,7 +405,7 @@ export const PayrollCalculatorService = {
     // ── IVSS_PAT (default 9%, tope 5×salMin — LSS Art. 62) ──────────────────────
     const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
     if (ivssEnabled && ivssPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_PAT",
@@ -378,7 +422,7 @@ export const PayrollCalculatorService = {
     // ── INCES_PAT (default 2%, tope 5×salMin — Ley INCES Art. 30) ───────────────
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
     if (incesEnabled && incesPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_CAP_MULTIPLES);
       const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_PAT",
@@ -395,7 +439,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_PAT (default 2%, tope 10×salMin — LAH Art. 172) ────────────────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",
@@ -412,7 +456,7 @@ export const PayrollCalculatorService = {
     // ── RPE_PAT (default 2%, tope 5×salMin — LSSO Art. 7) ───────────────────────
     const rpePatId = findConcept(systemConcepts, "RPE_PAT");
     if (rpeEnabled && rpePatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, RPE_CAP_MULTIPLES);
       const amount = basis.times(rpePatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_PAT",

@@ -239,6 +239,93 @@ describe("PayrollRunService.create", () => {
     expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("26.00");
   });
 
+  // ── H-4: el tope está en bolívares; el sueldo puede no estarlo ──────────────
+
+  function setupUsdCapMocks() {
+    mockTx();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ivssEnabled: true, incesEnabled: false, banavihEnabled: false, rpeEnabled: false,
+      frequency: "MONTHLY",
+      salaryMinimumVes: new Decimal("130"), // tope IVSS = Bs. 650
+    } as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([{
+      id: "emp-1",
+      salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
+    }] as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE" },
+      { id: "c-ivss", code: "IVSS_OBR" },
+    ] as never);
+    vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
+    vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never);
+  }
+
+  it("H-4: convierte el tope legal a dólares con la tasa de ExchangeRate", async () => {
+    setupUsdCapMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("65") } as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
+    const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    // Tope Bs. 650 / 65 = USD 10 → 10 × 4% = USD 0,40.
+    // Antes del fix salía 26,00: los bolívares del tope cobrados como dólares.
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("0.40");
+  });
+
+  it("H-4: busca la tasa USD de la empresa hasta el fin del período", async () => {
+    setupUsdCapMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("65") } as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    // Misma ventana que usa approve() para el asiento — si divergen, el tope y el
+    // asiento saldrían de tasas distintas.
+    expect(vi.mocked(prisma.exchangeRate.findFirst)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: COMPANY_ID,
+          currency: "USD",
+          date: { lte: new Date(INPUT.periodEnd) },
+        }),
+      })
+    );
+  });
+
+  it("H-4: sin tasa registrada no crea la nómina — bloquea en vez de inventar el tope", async () => {
+    setupUsdCapMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT)
+    ).rejects.toThrow("Nómina en USD: registra la tasa BCV USD/VES");
+
+    expect(vi.mocked(prisma.payrollRun.create)).not.toHaveBeenCalled();
+  });
+
+  it("H-4: un sueldo en USD sin topes configurados no exige tasa", async () => {
+    setupUsdCapMocks();
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ivssEnabled: true, incesEnabled: false, banavihEnabled: false, rpeEnabled: false,
+      frequency: "MONTHLY",
+      salaryMinimumVes: null, // sin tope
+    } as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
+    const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("100.00"); // 2500 × 4%
+  });
+
   it("C-05: almacena tasa BCV cuando existe BcvBenefitRate para el período", async () => {
     setupCreateMocks();
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue({
