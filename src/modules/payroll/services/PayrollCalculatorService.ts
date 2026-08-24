@@ -19,18 +19,29 @@ import type { ConceptType, PayrollFrequency, PayrollPaymentCurrency } from "@pri
 const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
 const DEFAULT_IVSS_PAT_RATE    = new Decimal("0.09");
 const IVSS_CAP_MULTIPLES = new Decimal("5");
-// Ley INCES Art. 30: trabajador 0.5% | patronal 2% | tope: 5 × salario mínimo
+// Ley del INCES (Decreto 1.414, G.O. 6.155 Extraordinario del 19-11-2014):
+//   Art. 49 — patronal 2% del SALARIO NORMAL MENSUAL, SIN TOPE, pagadero por
+//     trimestre, y sólo para entidades con cinco o más trabajadores.
+//   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
+//     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
 const DEFAULT_INCES_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
-const INCES_CAP_MULTIPLES = new Decimal("5");
+// Tope que se venía aplicando al INCES. La Ley no lo establece en ninguno de los
+// dos aportes; queda sólo para INCES_OBR mientras esa deducción siga calculándose
+// mes a mes — ver el comentario de su bloque.
+const INCES_LEGACY_CAP_MULTIPLES = new Decimal("5");
 // LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 const FAOV_CAP_MULTIPLES = new Decimal("10");
-// LSSO Art. 7: RPE (Paro Forzoso) obrero 0.5% | patronal 2% | tope: 5 × salario mínimo
+// Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
+//   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
+//   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
+//   urbano (límite inferior) y DIEZ (límite superior).
 const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
-const RPE_CAP_MULTIPLES = new Decimal("5");
+const RPE_CAP_MULTIPLES   = new Decimal("10");
+const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // LOTTT Art. 118: HE nocturna 75% recargo (multiplicador 1.75×)
@@ -78,6 +89,12 @@ export interface PayrollCalculatorConfig {
   //   FAOV: base ≤ 10 × salaryMinimumVes
   // Cuando 0 o null: sin tope (retro-compatible con empresas sin configurar).
   salaryMinimumVes: Decimal;
+  // Tasa BCV Bs./USD vigente al período (bolívares por dólar).
+  // Sólo se consulta cuando hay topes configurados y algún sueldo va en dólares:
+  // el tope es un monto en BOLÍVARES, y compararlo contra un sueldo en USD sin
+  // convertirlo retiene de más por el factor de la tasa. La obtiene
+  // PayrollRunService desde ExchangeRate — nunca del cliente (ADR-006 D-3).
+  usdToVesRate?: Decimal | null;
   systemConcepts: SystemConceptRef[];
   // Alícuotas parafiscales como fracción decimal (ej: 0.04 = 4%).
   // Si no se proveen, el calculador usa los defaults hardcodeados.
@@ -121,9 +138,48 @@ function findConcept(systemConcepts: SystemConceptRef[], code: string): string |
 }
 
 // Aplica el tope legal de cotización. Cuando salaryMin es 0 no hay tope.
+// salaryMin YA viene en la moneda del sueldo — ver salaryMinimumInCurrency.
 function cappedBasis(salary: Decimal, salaryMin: Decimal, multiples: Decimal): Decimal {
   if (salaryMin.lte(0)) return salary;
   return Decimal.min(salary, salaryMin.mul(multiples));
+}
+
+// El RPE es el único aporte con límite INFERIOR: quien gana menos del mínimo
+// cotiza igual sobre un salario mínimo (LRPE Art. 46).
+function clampedBasis(
+  salary: Decimal, salaryMin: Decimal, floorMultiples: Decimal, ceilingMultiples: Decimal,
+): Decimal {
+  if (salaryMin.lte(0)) return salary;
+  return salary
+    .clampedTo(salaryMin.mul(floorMultiples), salaryMin.mul(ceilingMultiples));
+}
+
+export const MISSING_USD_RATE_MESSAGE =
+  "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio " +
+  "antes de procesar esta nómina. Los topes legales (IVSS, FAOV, INCES, RPE) están " +
+  "fijados en bolívares y no pueden aplicarse a un sueldo en dólares sin la tasa.";
+
+export const MIXED_SALARY_MESSAGE =
+  "Sueldo híbrido (VES + USD) todavía no soportado en el cálculo de nómina. " +
+  "Registra el sueldo del empleado en una sola moneda.";
+
+// H-4: los topes de cotización son múltiplos del salario mínimo, que es un monto
+// en BOLÍVARES. Hasta 2026-08 se comparaban directo contra el sueldo, fuera cual
+// fuera su moneda: para un sueldo en dólares eso trataba "Bs. 650" como "USD 650"
+// y retenía de más exactamente por el factor de la tasa (USD 26 de IVSS donde la
+// ley pide el equivalente a Bs. 26). Se convierte el TOPE, no el sueldo: el sueldo
+// es el importe que se paga y no debe moverse.
+function salaryMinimumInCurrency(
+  salaryMinVes: Decimal,
+  currency: PayrollPaymentCurrency,
+  usdToVesRate: Decimal | null | undefined,
+): Decimal {
+  // Sin tope configurado no hay nada que convertir — ni tasa que exigir.
+  if (salaryMinVes.lte(0)) return salaryMinVes;
+  if (currency === "VES") return salaryMinVes;
+  if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
+  if (!usdToVesRate || usdToVesRate.lte(0)) throw new Error(MISSING_USD_RATE_MESSAGE);
+  return salaryMinVes.dividedBy(usdToVesRate);
 }
 
 // ─── PayrollCalculatorService ─────────────────────────────────────────────────
@@ -143,9 +199,14 @@ export const PayrollCalculatorService = {
     if (currencies.size > 1) {
       throw new Error(
         `Nómina con monedas mixtas (${[...currencies].join(" y ")}). ` +
-        "Procese por separado empleados con moneda VES y USD, o configure una tasa BCV para el período."
+        "Procese por separado los empleados con sueldo en VES y en USD."
       );
     }
+
+    // C-01-bis: un sueldo MIXED guarda un solo importe sin decir cuánto va en cada
+    // moneda. No se puede ni topar ni convertir al asiento (approve() lo trataría
+    // como bolívares). Se bloquea antes de producir números que parecen buenos.
+    if (currencies.has("MIXED")) throw new Error(MIXED_SALARY_MESSAGE);
 
     const allLines: CalculatorLineOutput[] = [];
 
@@ -221,6 +282,10 @@ export const PayrollCalculatorService = {
     const rpeWorkerRate   = config.rpeObrRate   ?? DEFAULT_RPE_WORKER_RATE;
     const rpePatRate      = config.rpePatRate   ?? DEFAULT_RPE_PAT_RATE;
     const salary = emp.salaryAmount;
+    // Tope legal llevado a la moneda del sueldo (H-4).
+    const salaryMinInCurrency = salaryMinimumInCurrency(
+      salaryMinimumVes, emp.salaryCurrency, config.usdToVesRate,
+    );
 
     const salaryBase = {
       salaryHistoryId: emp.salaryHistoryId,
@@ -292,7 +357,7 @@ export const PayrollCalculatorService = {
     // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
@@ -306,10 +371,14 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── INCES_OBR (default 0.5%, tope 5×salMin — solo si incesEnabled) ────────
+    // ── INCES_OBR ─────────────────────────────────────────────────────────────
+    // OJO: la Ley del INCES Art. 50 grava el 0,5% de las UTILIDADES ANUALES, no
+    // el sueldo mensual. Esta deducción mensual no tiene base legal y hay que
+    // moverla al pago de utilidades (ProfitSharingService). Se deja intacta
+    // mientras tanto para no dejar el aporte sin recaudar a mitad de ejercicio.
     const incesObrId = findConcept(systemConcepts, "INCES_OBR");
     if (incesEnabled && incesObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, INCES_LEGACY_CAP_MULTIPLES);
       const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_OBR",
@@ -326,7 +395,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
@@ -340,10 +409,12 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── RPE_OBR (default 0.5%, tope 5×salMin — solo si rpeEnabled) ──────────────
+    // ── RPE_OBR (0,5% — base entre 1× y 10× salMin, LRPE Art. 46) ─────────────
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const basis = clampedBasis(
+        salary, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+      );
       const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_OBR",
@@ -361,7 +432,7 @@ export const PayrollCalculatorService = {
     // ── IVSS_PAT (default 9%, tope 5×salMin — LSS Art. 62) ──────────────────────
     const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
     if (ivssEnabled && ivssPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, IVSS_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
       const amount = basis.times(ivssPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_PAT",
@@ -375,10 +446,13 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── INCES_PAT (default 2%, tope 5×salMin — Ley INCES Art. 30) ───────────────
+    // ── INCES_PAT (2% del salario normal, SIN TOPE — Ley INCES Art. 49) ────────
+    // Art. 49 fija la base sin límite superior; el tope de 5× que se aplicaba
+    // aquí no sale de la Ley. Falta además el supuesto de aplicación: sólo
+    // aplica a entidades con cinco o más trabajadores.
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
     if (incesEnabled && incesPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, INCES_CAP_MULTIPLES);
+      const basis = salary;
       const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "INCES_PAT",
@@ -395,7 +469,7 @@ export const PayrollCalculatorService = {
     // ── FAOV_PAT (default 2%, tope 10×salMin — LAH Art. 172) ────────────────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, FAOV_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
       const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",
@@ -412,7 +486,7 @@ export const PayrollCalculatorService = {
     // ── RPE_PAT (default 2%, tope 5×salMin — LSSO Art. 7) ───────────────────────
     const rpePatId = findConcept(systemConcepts, "RPE_PAT");
     if (rpeEnabled && rpePatId) {
-      const basis = cappedBasis(salary, salaryMinimumVes, RPE_CAP_MULTIPLES);
+      const basis = cappedBasis(salary, salaryMinInCurrency, RPE_CAP_MULTIPLES);
       const amount = basis.times(rpePatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "RPE_PAT",

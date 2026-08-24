@@ -237,6 +237,7 @@ export const PayrollRunService = {
       incesObrPct, incesPatPct,
       faovObrPct, faovPatPct,
       rpeObrPct, rpePatPct,
+      usdFxRow,
     ] = await Promise.all([
       LegalThresholdService.getActive(companyId, "SALARY_MIN_VES",  periodDate),
       LegalThresholdService.getActive(companyId, "IVSS_OBR_RATE",  periodDate),
@@ -247,6 +248,14 @@ export const PayrollRunService = {
       LegalThresholdService.getActive(companyId, "FAOV_PAT_RATE",  periodDate),
       LegalThresholdService.getActive(companyId, "RPE_OBR_RATE",   periodDate),
       LegalThresholdService.getActive(companyId, "RPE_PAT_RATE",   periodDate),
+      // H-4: tasa Bs./USD para llevar los topes legales a la moneda del sueldo.
+      // Misma ventana que usa approve() para el asiento (lte periodEnd, la más
+      // reciente), para que el tope y el asiento no salgan de tasas distintas.
+      prisma.exchangeRate.findFirst({
+        where: { companyId, currency: "USD", date: { lte: periodEnd } },
+        orderBy: { date: "desc" },
+        select: { rate: true },
+      }),
     ]);
 
     const salaryMinimumVes =
@@ -263,6 +272,7 @@ export const PayrollRunService = {
       banavihEnabled: config.banavihEnabled,
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
+      usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
       systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
       ivssObrRate:  toRate(ivssObrPct),
       ivssPatRate:  toRate(ivssPatPct),

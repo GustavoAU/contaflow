@@ -8,6 +8,8 @@ import {
   type EmployeeCalculationInput,
   type PayrollCalculatorConfig,
   type ManualConceptCalculationInput,
+  MISSING_USD_RATE_MESSAGE,
+  MIXED_SALARY_MESSAGE,
 } from "../services/PayrollCalculatorService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -355,9 +357,44 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const rpe = lines.find((l) => l.conceptCode === "RPE_OBR");
-    // base cappada = min(1000, 5×130) = 650; 650 * 0.005 = 3.25
-    expect(rpe!.amount.toFixed(2)).toBe("3.25");
-    expect(rpe!.basis!.toFixed(2)).toBe("650.00");
+    // LRPE Art. 46: el techo son DIEZ salarios mínimos (10×130 = 1300), no cinco.
+    // 1000 no llega al techo → base = 1000; 1000 × 0,005 = 5,00.
+    expect(rpe!.basis!.toFixed(2)).toBe("1000.00");
+    expect(rpe!.amount.toFixed(2)).toBe("5.00");
+  });
+
+  it("RPE: el techo son 10×salMin — LRPE Art. 46", () => {
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
+    const emp = makeEmp({ salaryAmount: new Decimal("5000") }); // supera 10×130=1300
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("1300.00");
+    expect(rpe.amount.toFixed(2)).toBe("6.50");
+  });
+
+  it("RPE: quien gana menos del mínimo cotiza igual sobre un salario mínimo", () => {
+    // Art. 46 fija también un límite INFERIOR — es el único aporte que lo tiene.
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
+    const emp = makeEmp({ salaryAmount: new Decimal("50") }); // < 130
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("130.00");
+    expect(rpe.amount.toFixed(2)).toBe("0.65");
+  });
+
+  it("INCES patronal: sin tope — Ley INCES Art. 49", () => {
+    // El 2% va sobre el salario normal mensual completo. El tope de 5× que se
+    // aplicaba aquí no sale de la Ley.
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      systemConcepts: [...SYSTEM_CONCEPTS, { code: "INCES_PAT", conceptId: "c-inces-pat" }],
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("5000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const incesPat = lines.find((l) => l.conceptCode === "INCES_PAT")!;
+    expect(incesPat.basis!.toFixed(2)).toBe("5000.00"); // antes: 650,00
+    expect(incesPat.amount.toFixed(2)).toBe("100.00");  // antes: 13,00
   });
 
   it("sin tope cuando salario está por debajo del límite", () => {
@@ -495,5 +532,147 @@ describe("PayrollCalculatorService.calculate — monedas mixtas (C-01)", () => {
     expect(() =>
       PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)
     ).not.toThrow();
+  });
+});
+
+// ─── H-4: los topes legales están en bolívares ────────────────────────────────
+//
+// El salario mínimo venezolano es un monto en Bs., y los topes de cotización son
+// múltiplos suyos (5× para IVSS/INCES/RPE, 10× para FAOV). Hasta 2026-08 el
+// calculador comparaba ese tope contra el sueldo sin mirar su moneda: a un sueldo
+// en dólares le aplicaba "650" como si fueran dólares. La retención salía inflada
+// exactamente por el factor de la tasa de cambio.
+
+describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", () => {
+  const salaryMin = new Decimal("130"); // Bs. — 5× = 650, 10× = 1300
+
+  it("convierte el tope a dólares antes de comparar", () => {
+    // Tasa redonda a propósito: 650 / 65 = USD 10 clavados.
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      usdToVesRate: new Decimal("65"),
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("10.00");   // Bs. 650 / 65
+    expect(ivss.amount.toFixed(2)).toBe("0.40");    // 4%
+
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(faov.basis!.toFixed(2)).toBe("20.00");   // Bs. 1300 / 65
+    expect(faov.amount.toFixed(2)).toBe("0.20");    // 1%
+  });
+
+  it("regresión del recibo de agosto 2026: retenía USD 26 de IVSS", () => {
+    // Sueldo USD 2.500, tasa 780 Bs./USD. El recibo real mostró:
+    //   FAOV 13 · IVSS 26 · INCES 3,25 · RPE 3,25  — todos en USD.
+    // Esos son los importes EN BOLÍVARES de la ley, cobrados como si fueran dólares.
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      usdToVesRate: new Decimal("780"),
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.amount.toFixed(2)).not.toBe("26.00"); // el bug
+    expect(ivss.amount.toFixed(2)).toBe("0.03");      // Bs. 26 / 780
+
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(faov.amount.toFixed(2)).not.toBe("13.00");
+
+    // La deducción total del trabajador ya no puede acercarse a los USD 45,50.
+    const totalObrero = lines
+      .filter((l) => l.conceptType === "DEDUCTION")
+      .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
+    expect(totalObrero.lessThan(new Decimal("1"))).toBe(true);
+  });
+
+  it("el aporte PATRONAL se topa con la misma conversión", () => {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      usdToVesRate: new Decimal("65"),
+      // El fixture base sólo trae los conceptos del trabajador.
+      systemConcepts: [...SYSTEM_CONCEPTS, { code: "IVSS_PAT", conceptId: "c-ivss-pat" }],
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+
+    const ivssPat = lines.find((l) => l.conceptCode === "IVSS_PAT")!;
+    expect(ivssPat.basis!.toFixed(2)).toBe("10.00");
+    expect(ivssPat.amount.toFixed(2)).toBe("0.90"); // 9%
+  });
+
+  it("un sueldo en VES no se toca aunque haya tasa cargada", () => {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: salaryMin,
+      usdToVesRate: new Decimal("780"),
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("1000"), salaryCurrency: "VES" });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("650.00"); // 5×130, sin convertir
+    expect(ivss.amount.toFixed(2)).toBe("26.00");
+  });
+
+  it("sin tasa cargada NO calcula: bloquea en vez de inventar el tope", () => {
+    const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
+    const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
+      .toThrow(MISSING_USD_RATE_MESSAGE);
+  });
+
+  it("una tasa cero o negativa cuenta como ausente", () => {
+    for (const bad of ["0", "-780"]) {
+      const config: PayrollCalculatorConfig = {
+        ...BASE_CONFIG,
+        salaryMinimumVes: salaryMin,
+        usdToVesRate: new Decimal(bad),
+      };
+      const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+      expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
+        .toThrow(MISSING_USD_RATE_MESSAGE);
+    }
+  });
+
+  it("sin topes configurados no hace falta tasa — retro-compatible", () => {
+    // salaryMinimumVes = 0 → no hay tope que convertir, luego no hay nada que exigir.
+    const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivss.basis!.toFixed(2)).toBe("2500.00");
+    expect(ivss.amount.toFixed(2)).toBe("100.00");
+  });
+});
+
+describe("PayrollCalculatorService — sueldo híbrido bloqueado (C-01-bis)", () => {
+  it("calculate() rechaza un sueldo MIXED antes de producir líneas", () => {
+    const emp = makeEmp({ salaryCurrency: "MIXED" });
+    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG))
+      .toThrow(MIXED_SALARY_MESSAGE);
+  });
+
+  it("lo rechaza aunque no haya topes configurados", () => {
+    // Sin tope el importe no se puede topar mal, pero el asiento de approve()
+    // trataría el sueldo como bolívares. Se bloquea igual.
+    const emp = makeEmp({ salaryCurrency: "MIXED", salaryAmount: new Decimal("500") });
+    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG))
+      .toThrow(MIXED_SALARY_MESSAGE);
+  });
+
+  it("calculateEmployeeLines() también lo rechaza cuando hay topes", () => {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      salaryMinimumVes: new Decimal("130"),
+      usdToVesRate: new Decimal("65"),
+    };
+    const emp = makeEmp({ salaryCurrency: "MIXED" });
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
+      .toThrow(MIXED_SALARY_MESSAGE);
   });
 });
