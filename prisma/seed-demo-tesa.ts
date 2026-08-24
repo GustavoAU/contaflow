@@ -541,7 +541,10 @@ async function main() {
 
   // Conceptos de nómina
   const conceptDefs = [
-    { code: "SAL_BASE",      name: "Salario Base",                    type: "EARNING"   as ConceptType, isSystem: false, affectsSalaryIntegral: true  },
+    // isSystem: true — SAL_BASE esta en SYSTEM_CONCEPTS y el motor lo carga con
+    // `where: { isSystem: true }`. Con false quedaba invisible y la nomina no
+    // generaba linea de salario.
+    { code: "SAL_BASE",      name: "Salario Base",                    type: "EARNING"   as ConceptType, isSystem: true,  affectsSalaryIntegral: true  },
     { code: "BGE",           name: "Bono Guerra Económica",           type: "EARNING"   as ConceptType, isSystem: false, affectsSalaryIntegral: false },
     { code: "CESTA_TICKET",  name: "Cestaticket Socialista",          type: "EARNING"   as ConceptType, isSystem: true,  affectsSalaryIntegral: false },
     { code: "BONO_PROD",     name: "Bono de Productividad",           type: "EARNING"   as ConceptType, isSystem: false, affectsSalaryIntegral: false },
