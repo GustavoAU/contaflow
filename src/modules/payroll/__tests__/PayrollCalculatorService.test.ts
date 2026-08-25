@@ -143,17 +143,17 @@ describe("PayrollCalculatorService — IVSS_OBR", () => {
   });
 });
 
-describe("PayrollCalculatorService — INCES_OBR", () => {
-  it("calcula INCES 0.5% del salario (Ley INCES Art. 30 — trabajador)", () => {
+describe("PayrollCalculatorService — INCES_OBR ya no es mensual", () => {
+  // Ley INCES Art. 50: el 0,5% del trabajador grava "sus UTILIDADES ANUALES,
+  // aguinaldos o bonificaciones de fin de año". Se le venía cobrando doce veces
+  // al año sobre el sueldo, una base que el artículo no menciona.
+  it("no genera linea de INCES del trabajador en la nomina mensual", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), BASE_CONFIG);
-    const inces = lines.find((l) => l.conceptCode === "INCES_OBR");
-    // 30000 * 0.005 = 150 (el 2% es la tasa PATRONAL, no la del trabajador)
-    expect(inces!.amount.toFixed(2)).toBe("150.00");
-    expect(inces!.rate!.toFixed(3)).toBe("0.005");
+    expect(lines.find((l) => l.conceptCode === "INCES_OBR")).toBeUndefined();
   });
 
-  it("no genera INCES si incesEnabled = false", () => {
-    const config = { ...BASE_CONFIG, incesEnabled: false };
+  it("tampoco con incesEnabled — ese flag ya solo gobierna el aporte patronal", () => {
+    const config = { ...BASE_CONFIG, incesEnabled: true };
     const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), config);
     expect(lines.find((l) => l.conceptCode === "INCES_OBR")).toBeUndefined();
   });
@@ -227,8 +227,8 @@ describe("PayrollCalculatorService.calculate", () => {
     // totalDeductions = 1200 (IVSS) + 150 (INCES 0.5%) + 300 (FAOV) + 150 (RPE) = 1800
     // totalNet = 28200
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("1800.00");
-    expect(result.totalNet.toFixed(2)).toBe("28200.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("1650.00"); // sin el INCES obrero (Art. 50)
+    expect(result.totalNet.toFixed(2)).toBe("28350.00");
   });
 
   it("incluye conceptos manuales en el cálculo", () => {
@@ -243,8 +243,8 @@ describe("PayrollCalculatorService.calculate", () => {
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
-    expect(result.totalDeductions.toFixed(2)).toBe("2300.00"); // 1800 + 500
-    expect(result.totalNet.toFixed(2)).toBe("27700.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2150.00"); // 1650 + 500
+    expect(result.totalNet.toFixed(2)).toBe("27850.00");
   });
 
   it("calcula múltiples empleados sumando correctamente", () => {
@@ -258,8 +258,8 @@ describe("PayrollCalculatorService.calculate", () => {
     // emp1: 30000 → ded: 1200+150+300+150=1800, net=28200
     // emp2: 20000 → ded: 800+100+200+100=1200, net=18800
     expect(result.totalEarnings.toFixed(2)).toBe("50000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("3000.00");
-    expect(result.totalNet.toFixed(2)).toBe("47000.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2750.00");
+    expect(result.totalNet.toFixed(2)).toBe("47250.00");
   });
 
   it("preserva snapshot de salario en cada línea", () => {
@@ -351,7 +351,7 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     expect(faov!.basis!.toFixed(2)).toBe("1300.00");
   });
 
-  it("INCES: capped a 5×salaryMin cuando salario supera el tope", () => {
+  it("INCES: el del trabajador ya no se calcula mes a mes", () => {
     const salary = new Decimal("1000"); // supera 5×130=650
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
@@ -359,10 +359,12 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     };
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
-    const inces = lines.find((l) => l.conceptCode === "INCES_OBR");
-    // base cappada = min(1000, 5×130) = 650; 650 * 0.005 = 3.25
-    expect(inces!.amount.toFixed(2)).toBe("3.25");
-    expect(inces!.basis!.toFixed(2)).toBe("650.00");
+    // El INCES del trabajador ya no se calcula aqui (Art. 50 — va con
+    // utilidades). Se comprueba con el patronal, que si es mensual y NO tiene
+    // tope: Art. 49 fija la base en el salario normal, sin limite superior.
+    const incesPat = lines.find((l) => l.conceptCode === "INCES_PAT");
+    expect(incesPat).toBeUndefined(); // no esta en el fixture de conceptos
+    expect(lines.find((l) => l.conceptCode === "INCES_OBR")).toBeUndefined();
   });
 
   it("RPE: capped a 5×salaryMin cuando salario supera el tope", () => {
@@ -492,11 +494,11 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     // Aportes patronales no deben estar en totalEarnings ni totalDeductions
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
     // IVSS 4% + INCES 0.5% + FAOV 1% + RPE 0.5% = 6% = 1800
-    expect(result.totalDeductions.toFixed(2)).toBe("1800.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("1650.00"); // sin el INCES obrero (Art. 50)
     // totalEmployerCosts = IVSS 9% + INCES 2% + FAOV 2% + RPE 2% = 15% = 4500
     expect(result.totalEmployerCosts.toFixed(2)).toBe("4500.00");
     // totalNet no incluye aportes patronales
-    expect(result.totalNet.toFixed(2)).toBe("28200.00");
+    expect(result.totalNet.toFixed(2)).toBe("28350.00");
   });
 
   it("aplica tope salario mínimo a aportes patronales (igual que obreros)", () => {

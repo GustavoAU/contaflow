@@ -84,6 +84,12 @@ function serializeProfitSharing(r: {
 
 // ─── ProfitSharingService ─────────────────────────────────────────────────────
 
+// Ley del INCES Art. 50: el trabajador aporta "el cero coma cinco por ciento
+// (0,5%) de sus utilidades anuales, aguinaldos o bonificaciones de fin de año".
+// Solo obliga a entidades "que den ocupación a cinco o más trabajadores".
+const INCES_WORKER_RATE = new Decimal("0.005");
+const INCES_MIN_EMPLOYEES = 5;
+
 // LOTTT Art. 131 — límites por trabajador: mínimo 30 días, máximo 4 meses.
 const LEGAL_MIN_PROFIT_DAYS = new Decimal("30");
 const LEGAL_MAX_PROFIT_DAYS = new Decimal("120");
@@ -190,6 +196,20 @@ export const ProfitSharingService = {
 
     const profitAmount = fractionalDays.mul(avgSalary.div(30)).toDecimalPlaces(4);
 
+    // ── Retención INCES del trabajador (Ley INCES Art. 50) ───────────────────
+    // Aquí es donde vive este aporte. Hasta 2026-08 se descontaba 0,5% MENSUAL
+    // sobre el sueldo, que es la base equivocada: el artículo grava las
+    // utilidades anuales. La condición de los cinco trabajadores es del propio
+    // artículo y no se estaba comprobando en ninguno de los dos aportes.
+    const headcount = await prisma.employee.count({
+      where: { companyId, status: "ACTIVE" },
+    });
+    const incesApplies =
+      config.incesEnabled && headcount >= INCES_MIN_EMPLOYEES && !!config.incesPayableAccountId;
+    const incesRetention = incesApplies
+      ? profitAmount.mul(INCES_WORKER_RATE).toDecimalPlaces(4)
+      : new Decimal(0);
+
     const isFractional = input.isFractional ?? false;
 
     // Guard: período contable del mes actual — el asiento se causa hoy,
@@ -221,10 +241,18 @@ export const ProfitSharingService = {
           },
           {
             accountId: config.profitSharingPayableAccountId!,
-            amount: profitAmount.negated().toDecimalPlaces(4), // Crédito
+            // El trabajador cobra el neto: el pasivo con él baja por la retención.
+            amount: profitAmount.minus(incesRetention).negated().toDecimalPlaces(4), // Crédito
             description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
           },
         ];
+        if (incesRetention.greaterThan(0)) {
+          profitEntries.push({
+            accountId: config.incesPayableAccountId!,
+            amount: incesRetention.negated().toDecimalPlaces(4), // Crédito
+            description: `Retención INCES 0,5% s/utilidades (Art. 50) — ${input.fiscalYear} — ${employee.firstName} ${employee.lastName}`,
+          });
+        }
         assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
@@ -252,6 +280,7 @@ export const ProfitSharingService = {
             monthsWorked,
             baseSalarySnapshot: avgSalary.toFixed(4),
             profitAmount: profitAmount.toFixed(4),
+            incesRetention: incesRetention.toFixed(4),
             isFractional,
             transactionId: transaction.id,
             createdByUserId: userId,

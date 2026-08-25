@@ -1745,7 +1745,7 @@ model PayrollConfig {
   payableAccountId              String? // LIABILITY — Sueldos y Salarios por Pagar (neto empleados)
   ivssPayableAccountId          String? // LIABILITY — IVSS Obrero por Pagar
   faovPayableAccountId          String? // LIABILITY — FAOV / BANAVIH por Pagar
-  incesPayableAccountId         String? // LIABILITY — INCES por Pagar
+  incesPayableAccountId         String? // LIABILITY — INCES por Pagar (retencion al trabajador: 0,5% de utilidades, Ley INCES Art. 50)
   rpePayableAccountId           String? // LIABILITY — Paro Forzoso RPE por Pagar
   // Fase NOM-D: Cuentas contables para prestaciones sociales, vacaciones y utilidades
   // ADR-014 Decisión 7: causación periódica requiere cuentas separadas
@@ -1755,9 +1755,9 @@ model PayrollConfig {
   profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
   // F-02/F-03: Aportes patronales — cuentas GL para causación de contribuciones del patrono
   ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (LSS Art. 62: 9%)
-  incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 30: 2%)
+  incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 49: 2%, trimestral)
   faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LAH Art. 172: 2%)
-  rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LSSO Art. 7: 2%)
+  rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LRPE Art. 46: 2%)
   // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
   disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
@@ -2376,12 +2376,15 @@ model ProfitSharingRecord {
   companyId          String
   employeeId         String
   fiscalYear         Int // año fiscal de devengo
-  profitDays         Decimal  @db.Decimal(5, 2) // días configurados (15–120 — Zod)
+  profitDays         Decimal  @db.Decimal(5, 2) // días aplicados (mínimo legal 30 — LOTTT Art. 131)
   fractionalDays     Decimal  @db.Decimal(5, 2) // días proporcionales al tiempo trabajado
   monthsWorked       Int // meses completos en el año fiscal
   // Snapshot de salario base — calculado server-side (ADR-014 Dec. 3)
   baseSalarySnapshot Decimal  @db.Decimal(19, 4) // promedio salarial del período
   profitAmount       Decimal  @db.Decimal(19, 4) // fractionalDays × (baseSalary/30)
+  // Ley INCES Art. 50: 0,5% de las utilidades anuales, retenido al trabajador.
+  // Es aqui donde vive el aporte del trabajador — NO es una deduccion mensual.
+  incesRetention     Decimal  @default(0) @db.Decimal(19, 4)
   isFractional       Boolean  @default(false) // true si es fracción en liquidación
   // Asiento contable
   transactionId      String?  @unique

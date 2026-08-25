@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     employee: {
       findFirst: vi.fn(),
+      count: vi.fn(),
     },
     profitSharingRecord: {
       findMany: vi.fn(),
@@ -102,6 +103,8 @@ describe("ProfitSharingService.calculate", () => {
     vi.clearAllMocks();
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    // Art. 50 INCES: el aporte solo aplica con cinco o mas trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
@@ -215,6 +218,8 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     vi.clearAllMocks();
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    // Art. 50 INCES: el aporte solo aplica con cinco o mas trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);

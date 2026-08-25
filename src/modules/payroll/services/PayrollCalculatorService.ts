@@ -26,12 +26,7 @@ const IVSS_CAP_MULTIPLES = new Decimal("5");
 //     trimestre, y sólo para entidades con cinco o más trabajadores.
 //   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
 //     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
-const DEFAULT_INCES_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
-// Tope que se venía aplicando al INCES. La Ley no lo establece en ninguno de los
-// dos aportes; queda sólo para INCES_OBR mientras esa deducción siga calculándose
-// mes a mes — ver el comentario de su bloque.
-const INCES_LEGACY_CAP_MULTIPLES = new Decimal("5");
 // LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
@@ -296,7 +291,6 @@ export const PayrollCalculatorService = {
     // o los defaults legales hardcodeados como fallback.
     const ivssWorkerRate  = config.ivssObrRate  ?? DEFAULT_IVSS_WORKER_RATE;
     const ivssPatRate     = config.ivssPatRate  ?? DEFAULT_IVSS_PAT_RATE;
-    const incesWorkerRate = config.incesObrRate ?? DEFAULT_INCES_WORKER_RATE;
     const incesPatRate    = config.incesPatRate ?? DEFAULT_INCES_PAT_RATE;
     const faovWorkerRate  = config.faovObrRate  ?? DEFAULT_FAOV_WORKER_RATE;
     const faovPatRate     = config.faovPatRate  ?? DEFAULT_FAOV_PAT_RATE;
@@ -424,26 +418,14 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── INCES_OBR ─────────────────────────────────────────────────────────────
-    // OJO: la Ley del INCES Art. 50 grava el 0,5% de las UTILIDADES ANUALES, no
-    // el sueldo mensual. Esta deducción mensual no tiene base legal y hay que
-    // moverla al pago de utilidades (ProfitSharingService). Se deja intacta
-    // mientras tanto para no dejar el aporte sin recaudar a mitad de ejercicio.
-    const incesObrId = findConcept(systemConcepts, "INCES_OBR");
-    if (incesEnabled && incesObrId) {
-      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, INCES_LEGACY_CAP_MULTIPLES);
-      const amount = basis.times(incesWorkerRate).toDecimalPlaces(2);
-      lines.push({
-        conceptCode: "INCES_OBR",
-        conceptId: incesObrId,
-        employeeId: emp.employeeId,
-        conceptType: "DEDUCTION",
-        amount,
-        basis,
-        rate: incesWorkerRate,
-        ...salaryBase,
-      });
-    }
+    // ── INCES_OBR: NO se calcula aquí ─────────────────────────────────────────
+    // La Ley del INCES Art. 50 grava "el cero coma cinco por ciento (0,5%) de
+    // sus UTILIDADES ANUALES, aguinaldos o bonificaciones de fin de año". No es
+    // una deducción mensual sobre el sueldo, que es donde estaba: se le cobraba
+    // al trabajador doce veces al año sobre una base que la ley no menciona.
+    // Vive ahora en ProfitSharingService, al liquidar utilidades.
+    // El concepto INCES_OBR se conserva para no romper el histórico de nóminas
+    // ya aprobadas que lo tienen en sus líneas.
 
     // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
