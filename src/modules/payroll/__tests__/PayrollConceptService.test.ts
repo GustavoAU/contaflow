@@ -140,9 +140,13 @@ describe("PayrollConceptService.create", () => {
 describe("PayrollConceptService.update", () => {
   it("updates name and isActive with AuditLog", async () => {
     mockTx();
-    vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(BASE_CONCEPT as never);
+    // Concepto propio de la empresa: los del sistema no se pueden desactivar.
+    vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue({
+      ...BASE_CONCEPT, isSystem: false, code: "BONO_PROD",
+    } as never);
     vi.mocked(prisma.payrollConcept.update).mockResolvedValue({
       ...BASE_CONCEPT,
+      isSystem: false,
       name: "Salario Base Actualizado",
       isActive: false,
     } as never);
@@ -219,5 +223,37 @@ describe("PayrollConceptService.getSystemConcepts", () => {
         where: { companyId: COMPANY_ID, isSystem: true, isActive: true },
       })
     );
+  });
+});
+
+describe("PayrollConceptService.update — conceptos del sistema", () => {
+  it("no deja desactivar un concepto legal del sistema", async () => {
+    // El motor carga los conceptos con isActive:true. Desactivar SAL_BASE dejaba
+    // la nomina sin ninguna linea de salario — el mismo estado catastrofico que
+    // provocaba isSystem=false, por una puerta que no tenia guarda.
+    mockTx();
+    vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(BASE_CONCEPT as never);
+
+    await expect(
+      PayrollConceptService.update(COMPANY_ID, USER_ID, "concept-1", {
+        name: "Salario Básico", isActive: false,
+      })
+    ).rejects.toThrow("no se pueden desactivar");
+
+    expect(vi.mocked(prisma.payrollConcept.update)).not.toHaveBeenCalled();
+  });
+
+  it("si deja renombrarlo", async () => {
+    mockTx();
+    vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(BASE_CONCEPT as never);
+    vi.mocked(prisma.payrollConcept.update).mockResolvedValue({
+      ...BASE_CONCEPT, name: "Sueldo Base",
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const r = await PayrollConceptService.update(COMPANY_ID, USER_ID, "concept-1", {
+      name: "Sueldo Base", isActive: true,
+    });
+    expect(r.name).toBe("Sueldo Base");
   });
 });

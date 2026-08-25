@@ -100,13 +100,26 @@ describe("PayrollCalculatorService — HE_DIURNA", () => {
 });
 
 describe("PayrollCalculatorService — HE_NOCTURNA", () => {
-  it("calcula horas extra nocturnas (75% recargo LOTTT)", () => {
+  it("acumula el recargo nocturno y el de hora extra (Arts. 117 y 118)", () => {
+    // La hora es nocturna Y extraordinaria: 1,30 × 1,50 = 1,95 sobre la hora
+    // ordinaria diurna. El codigo traia 1,75, por debajo del piso legal.
     const emp = makeEmp({ overtimeHoursNight: new Decimal(4) });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
     const he = lines.find((l) => l.conceptCode === "HE_NOCTURNA");
-    // 125 * 1.75 * 4 = 875
-    expect(he!.amount.toFixed(2)).toBe("875.00");
-    expect(he!.rate!.toFixed(2)).toBe("1.75");
+    // 125 × 1,95 × 4 = 975
+    expect(he!.amount.toFixed(2)).toBe("975.00");
+    expect(he!.rate!.toFixed(2)).toBe("1.95");
+  });
+
+  it("la nocturna paga mas que la diurna, y por el 30% del Art. 117", () => {
+    const emp = makeEmp({
+      overtimeHoursDay: new Decimal(4), overtimeHoursNight: new Decimal(4),
+    });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    const dia = lines.find((l) => l.conceptCode === "HE_DIURNA")!.amount;
+    const noche = lines.find((l) => l.conceptCode === "HE_NOCTURNA")!.amount;
+    expect(noche.greaterThan(dia)).toBe(true);
+    expect(noche.dividedBy(dia).toFixed(2)).toBe("1.30");
   });
 });
 

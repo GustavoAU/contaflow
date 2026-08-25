@@ -46,8 +46,25 @@ const RPE_CAP_MULTIPLES   = new Decimal("10");
 const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 const HE_DAY_MULTIPLIER = new Decimal("1.5");
-// LOTTT Art. 118: HE nocturna 75% recargo (multiplicador 1.75×)
-const HE_NIGHT_MULTIPLIER = new Decimal("1.75");
+// Hora extra nocturna: la hora es nocturna Y extraordinaria, asi que acumula los
+// dos recargos sobre la hora ordinaria diurna.
+//   Art. 117 — "La jornada nocturna sera pagada con un treinta por ciento de
+//     recargo, por lo menos, sobre el salario convenido para la jornada diurna."
+//   Art. 118 — "Las horas extraordinarias seran pagadas con un cincuenta por
+//     ciento de recargo, por lo menos, sobre el salario convenido para la
+//     jornada ordinaria."
+// 1,30 × 1,50 = 1,95. El codigo traia 1,75 con el comentario "75% de recargo",
+// y el nombre del concepto decia "(100%)": tres numeros distintos para lo mismo,
+// y el que se aplicaba estaba por debajo del piso legal.
+//
+// Nota de modelo: el salario hora se divide entre HOURS_DAY (8). El Art. 113
+// manda dividir por las horas "de la jornada diurna, nocturna o mixta, segun sea
+// el caso", y la nocturna topa en siete (Art. 173.2). Aqui el divisor correcto
+// es 8 porque la base legal de ambos recargos es la jornada ORDINARIA del
+// trabajador, que asumimos diurna: ContaFlow no guarda el tipo de jornada por
+// empleado. Para quien tenga jornada nocturna ordinaria el divisor deberia ser
+// 7 — hace falta modelar la jornada antes de poder distinguirlo.
+const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
 // Días base de cálculo mensual (convención LOTTT)
 const DAYS_MONTH = new Decimal("30");
 // Horas de jornada diaria

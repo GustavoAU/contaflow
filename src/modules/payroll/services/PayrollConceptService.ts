@@ -38,7 +38,7 @@ const SYSTEM_CONCEPTS: Array<{
   // Asignaciones — afectan salario integral (LOTTT Art. 104)
   { code: "SAL_BASE",     name: "Salario Básico",                  type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIO_NORMAL" },
   { code: "HE_DIURNA",   name: "Horas Extra Diurnas (50%)",        type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIAL_ACCIDENTAL" },
-  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (100%)",     type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIAL_ACCIDENTAL" },
+  { code: "HE_NOCTURNA", name: "Horas Extra Nocturnas (95%)",      type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIAL_ACCIDENTAL" },
   { code: "BONO_NOCHE",  name: "Bono Nocturno (30%)",              type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIO_NORMAL" },
   // CESTA_TICKET: beneficio social — NO afecta salario integral (LOTTT Art. 105 / LCEA Art. 5)
   { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
@@ -184,6 +184,18 @@ export const PayrollConceptService = {
         where: { id: conceptId, companyId },
       });
       if (!concept) throw new Error("Concepto no encontrado");
+
+      // Un concepto del sistema NO se puede desactivar. El motor los carga con
+      // `where: { isSystem: true, isActive: true }`: desactivar SAL_BASE deja la
+      // nomina sin ninguna linea de salario y el neto sale negativo. Es el mismo
+      // estado catastrofico que provocaba isSystem=false (fix 4a5149e), por otra
+      // puerta que no tenia guarda.
+      if (concept.isSystem && input.isActive === false) {
+        throw new Error(
+          "Los conceptos legales del sistema no se pueden desactivar. " +
+          "Para dejar de aplicar un organismo, usa los interruptores de la configuracion de nomina."
+        );
+      }
 
       const updated = await tx.payrollConcept.update({
         where: { id: conceptId },

@@ -25,3 +25,12 @@ UPDATE "PayrollConcept" SET "salaryNature" = 'SALARIAL_ACCIDENTAL'
 -- affectsSalaryIntegral queda VIVO a proposito: lo sigue leyendo
 -- BenefitAccrualService para prestaciones. Se elimina en una migracion
 -- posterior, cuando se resuelva el pendiente #2 del ADR-045.
+
+-- Nombre de HE_NOCTURNA: decia "(100%)" mientras el calculador aplicaba 1,75 y
+-- la ley da 1,95 (Art. 117 30% + Art. 118 50%, acumulados). Se renombra SOLO en
+-- las filas que conservan el texto por defecto, para no pisar a quien lo haya
+-- renombrado a mano.
+UPDATE "PayrollConcept"
+   SET "name" = 'Horas Extra Nocturnas (95%)'
+ WHERE "code" = 'HE_NOCTURNA'
+   AND "name" = 'Horas Extra Nocturnas (100%)';
