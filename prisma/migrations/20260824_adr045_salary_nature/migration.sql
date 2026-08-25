@@ -7,12 +7,16 @@ CREATE TYPE "SalaryNature" AS ENUM ('NO_SALARIAL', 'SALARIO_NORMAL', 'SALARIAL_A
 ALTER TABLE "PayrollConcept"
   ADD COLUMN "salaryNature" "SalaryNature" NOT NULL DEFAULT 'SALARIO_NORMAL';
 
--- Backfill mecanico desde el booleano deprecado.
+-- Backfill mecanico desde el booleano deprecado, ACOTADO a los conceptos de
+-- ingreso: una deduccion o un aporte patronal no forman parte de la base de
+-- cotizaciones bajo ninguna lectura. No es teorico -- en produccion hay un
+-- ISLR_RET (DEDUCTION) con affectsSalaryIntegral = true, que el mapeo directo
+-- habria convertido en SALARIO_NORMAL.
 UPDATE "PayrollConcept" SET "salaryNature" = 'NO_SALARIAL'
-  WHERE "affectsSalaryIntegral" = false;
+  WHERE "type" <> 'EARNING' OR "affectsSalaryIntegral" = false;
 
 UPDATE "PayrollConcept" SET "salaryNature" = 'SALARIO_NORMAL'
-  WHERE "affectsSalaryIntegral" = true;
+  WHERE "type" = 'EARNING' AND "affectsSalaryIntegral" = true;
 
 -- El mapeo automatico NO puede inferir los accidentales, y se equivoca en los
 -- dos sentidos: las horas extra tienen affectsSalaryIntegral=true (quedarian
