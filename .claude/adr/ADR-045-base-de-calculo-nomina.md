@@ -127,6 +127,49 @@ Art. 46 lo repite para el RPE. Hoy se usa el mes en curso.
 Se aplica **después** de D-1 a D-4: sin la base correcta, cambiar el período de
 referencia sólo mueve un número equivocado.
 
+### D-6 - La naturaleza de las horas extra depende del empleado, no del concepto
+
+Criterio aportado por Gustavo (2026-08-24), respaldado en los Arts. 104, 118 y
+178 y en doctrina reiterada de la Sala de Casacion Social:
+
+- **Como se pagan.** Art. 118 segundo aparte: "para el calculo de lo que
+  corresponda al trabajador o trabajadora por causa de horas extras, se tomara
+  como base el **salario normal** devengado durante la jornada respectiva". La
+  hora extra se calcula sobre el salario NORMAL, nunca sobre el integral.
+- **Escenario A - eventuales.** Art. 178: las horas extraordinarias "son de
+  caracter eventual o accidental para atender imprevistos o trabajos de
+  emergencia". Trabajadas de forma aislada NO inciden en el salario integral:
+  son `SALARIAL_ACCIDENTAL` y quedan fuera de prestaciones.
+- **Escenario B - regulares y permanentes.** Si se laboran de forma fija por la
+  naturaleza del puesto (vigilancia, choferes, produccion continua), la
+  continuidad rompe la excepcionalidad: pasan a ser salario normal por
+  habitualidad (Art. 104), lo que eleva el salario integral y obliga a
+  **recalcular retroactivamente** las alicuotas de utilidades, bono vacacional y
+  la garantia de prestaciones.
+
+**Consecuencia de modelo, y es la parte incomoda:** `salaryNature` vive en
+`PayrollConcept`, o sea es global a la empresa. Pero el escenario A y el B son
+el mismo concepto con distinto patron de uso, y ese patron es **por empleado y
+por historia**. Ni un booleano ni un enum en el concepto pueden expresarlo.
+
+La salida NO es que el software decida. Igual que en D-2:
+
+1. `HE_DIURNA`/`HE_NOCTURNA` quedan `SALARIAL_ACCIDENTAL` por defecto: es el
+   supuesto que la propia Ley declara como regla (Art. 178).
+2. ContaFlow **detecta la habitualidad y avisa**: horas extra en N de los
+   ultimos M periodos del mismo empleado dispara una alerta en
+   `PendingTasksService`, con el aviso de que la reclasificacion obliga a
+   recalcular alicuotas hacia atras.
+3. La reclasificacion la hace el contador, por empleado, y queda en `AuditLog`.
+
+Esto exige un override por empleado que hoy no existe. Es trabajo de una fase
+posterior; lo que entra ahora es el default del punto 1.
+
+**Pendiente detectado con este criterio:** el calculador saca la hora extra de
+`SalaryHistory.amount` crudo, no del salario normal. Coinciden mientras
+`SAL_BASE` sea el unico concepto con incidencia; divergen en cuanto haya un
+`BONO_NOCHE` o un bono regular manual. El Art. 118 pide lo segundo.
+
 ---
 
 ## Consecuencias
@@ -180,17 +223,51 @@ paso intermedio, no como destino.
 
 ## Pendientes que bloquean partes de este ADR
 
-1. **Tope del FAOV.** Falta la Ley del Régimen Prestacional de Vivienda y
-   Hábitat. ContaFlow topa en 10× salario mínimo; tres fuentes secundarias dicen
-   que no hay tope. Quitarlo **sube** la deducción del trabajador, así que no se
-   toca sin el artículo. D-4 queda con la celda en "por confirmar".
-2. **Conceptos accidentales en el salario integral.** El Art. 122 manda calcular
-   prestaciones sobre "el último salario devengado"; si eso incluye las horas
-   extra efectivamente devengadas es criterio contable, no lectura literal.
-   Consultar antes de implementar `salario integral`.
-3. **IVSS.** Falta la Ley del Seguro Social y su Reglamento: el patronal varía
-   9/10/11% según riesgo y la cotización es semanal (4,33 semanas/mes), no
+1. ~~Conceptos accidentales en el salario integral~~ **RESUELTO** - ver D-6.
+2. **Tope del FAOV: casi cerrado, falta el articulado.** La norma vigente es la
+   **Ley de Reforma Parcial del Regimen Prestacional de Vivienda y Habitat,
+   G.O. 6.805 Extraordinario del 01-05-2024**: mantiene el aporte del **3% del
+   salario integral**, un tercio del trabajador (1%) y dos tercios del patrono
+   (2%), **sin tope**, y deroga parcialmente el Art. 59 de la Ley de
+   Regionalizacion "en lo relativo a la base imponible". Anade que el aporte
+   patronal "no formara parte de la remuneracion que sirva de base para el
+   calculo de las prestaciones e indemnizaciones sociales".
+   Esto sale de un resumen web, no del texto de Gaceta. Quitar el tope de 10x
+   **sube** la deduccion del trabajador, asi que la celda de D-4 sigue en "por
+   confirmar" hasta tener el articulado delante.
+3. **IVSS.** Falta la Ley del Seguro Social y su Reglamento: el patronal varia
+   9/10/11% segun riesgo y la cotizacion es semanal (4,33 semanas/mes), no
    mensual plana como la calcula hoy ContaFlow.
+4. **Topes de horas extra (Art. 178).** El calculador valida que las horas no
+   sean negativas y nada mas. La Ley topa en diez horas diarias de trabajo
+   efectivo, **diez horas extra semanales y cien anuales**. Ninguna se comprueba.
+   El Art. 182 anade que las horas extra laboradas sin autorizacion de la
+   Inspectoria se pagan con el **doble** del recargo, dato que ContaFlow no
+   captura; y el Art. 183 obliga a llevar un registro de horas extraordinarias
+   que tampoco existe.
+
+---
+
+## Hallazgo fuera del alcance de este ADR
+
+**Art. 142(d): el regimen de prestaciones es DUAL y ContaFlow calcula una sola
+mitad.** El literal (d) dice que el trabajador "recibira por concepto de
+prestaciones sociales el monto que resulte **mayor**" entre:
+
+- (a+b) la garantia depositada: quince dias por trimestre mas los dias
+  adicionales por antiguedad, acumulada con los salarios historicos; y
+- (c) el calculo al terminar la relacion: **treinta dias por cada ano de
+  servicio o fraccion superior a seis meses, calculada al ULTIMO salario**.
+
+`TerminationService` paga unicamente `benefitBalance.currentBalance`, o sea la
+rama (a+b). Nunca calcula (c) ni compara. Como (c) aplica el ultimo salario a
+todos los anos de antiguedad, en un pais con salarios que suben -y mas si estan
+indexados al dolar- (c) suele ser el mayor: **la liquidacion sale corta de forma
+sistematica**. Falta tambien el literal (e): menos de tres meses de relacion se
+liquidan a cinco dias de salario por mes trabajado.
+
+No es base de cotizaciones y no entra en ADR-045, pero es dinero que se le debe
+a personas reales y necesita su propio arreglo.
 
 ---
 
