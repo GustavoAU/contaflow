@@ -1694,8 +1694,8 @@ enum LegalThresholdType {
   IVSS_PAT_RATE // IVSS patronal — LSS Art. 62 — default 9%
   INCES_OBR_RATE // INCES obrero — Ley INCES Art. 30 — default 0.5%
   INCES_PAT_RATE // INCES patronal — Ley INCES Art. 30 — default 2%
-  FAOV_OBR_RATE // FAOV/Banavih obrero — LAH Art. 172 — default 1%
-  FAOV_PAT_RATE // FAOV/Banavih patronal — LAH Art. 172 — default 2%
+  FAOV_OBR_RATE // FAOV/Banavih obrero — LRPVH (G.O. 6.805, 01-05-2024) — 1% del salario integral, sin tope
+  FAOV_PAT_RATE // FAOV/Banavih patronal — LRPVH (G.O. 6.805, 01-05-2024) — 2% del salario integral, sin tope
   RPE_OBR_RATE // RPE/Paro Forzoso obrero — LSSO Art. 7 — default 0.5%
   RPE_PAT_RATE // RPE/Paro Forzoso patronal — LSSO Art. 7 — default 2%
 }
@@ -1756,7 +1756,7 @@ model PayrollConfig {
   // F-02/F-03: Aportes patronales — cuentas GL para causación de contribuciones del patrono
   ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (LSS Art. 62: 9%)
   incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 49: 2%, trimestral)
-  faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LAH Art. 172: 2%)
+  faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LRPVH reformada G.O. 6.805: 2%, sin tope)
   rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LRPE Art. 46: 2%)
   // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)

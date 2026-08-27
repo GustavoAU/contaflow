@@ -27,10 +27,19 @@ const IVSS_CAP_MULTIPLES = new Decimal("5");
 //   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
 //     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
 const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
-// LAH Art. 172: FAOV obrero 1% | patronal 2% | tope: 10 × salario mínimo
+// Ley del Régimen Prestacional de Vivienda y Hábitat, reformada por la Ley de
+// Reforma Parcial publicada en G.O. 6.805 Extraordinario del 01-05-2024:
+// aporte total del 3% del SALARIO INTEGRAL — un tercio del trabajador (1%) y
+// dos tercios del patrono (2%) — SIN TOPE, enterado dentro de los primeros diez
+// días hábiles de cada mes por el portal de BANAVIH.
+//
+// El tope de 10× que se aplicaba aquí venía citado como "LAH Art. 172", o sea la
+// Ley de Ahorro Habitacional: una norma que la LRPVH sustituyó. Es la misma
+// clase de error que el bono vacacional ("LOTTT Art. 223", que es de la LOT de
+// 1997) y el INCES ("Art. 30", de la ley de 2008 derogada en 2014): la constante
+// se tomó de la ley anterior y la cita se actualizó sola.
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
-const FAOV_CAP_MULTIPLES = new Decimal("10");
 // Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
 //   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
 //   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
@@ -427,10 +436,14 @@ export const PayrollCalculatorService = {
     // El concepto INCES_OBR se conserva para no romper el histórico de nóminas
     // ya aprobadas que lo tienen en sus líneas.
 
-    // ── FAOV_OBR (default 1%, tope 10×salMin — solo si banavihEnabled) ─────────
+    // ── FAOV_OBR (1% sin tope — LRPVH reformada, G.O. 6.805) ──────────────────
+    // PENDIENTE: la base legal es el salario INTEGRAL (normal + alícuota de
+    // utilidades + alícuota de bono vacacional, Art. 122 LOTTT), no el normal.
+    // Usar salarioNormal deja la base corta por las alícuotas; quitar el tope ya
+    // corrige el grueso del error. El integral llega con ADR-045 D-4.
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
+      const basis = salarioNormal;
       const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
@@ -501,10 +514,10 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── FAOV_PAT (default 2%, tope 10×salMin — LAH Art. 172) ────────────────────
+    // ── FAOV_PAT (2% sin tope — LRPVH reformada, G.O. 6.805) ──────────────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
-      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, FAOV_CAP_MULTIPLES);
+      const basis = salarioNormal;
       const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",

@@ -337,8 +337,8 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     expect(ivss!.basis!.toFixed(2)).toBe("650.00");
   });
 
-  it("FAOV: capped a 10×salaryMin cuando salario supera el tope", () => {
-    const salary = new Decimal("2000");  // supera 10×130=1300
+  it("FAOV: SIN tope - LRPVH reformada (G.O. 6.805)", () => {
+    const salary = new Decimal("2000");
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
       salaryMinimumVes: salaryMin,
@@ -346,9 +346,10 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR");
-    // base cappada = min(2000, 10×130) = 1300; 1300 * 0.01 = 13
-    expect(faov!.amount.toFixed(2)).toBe("13.00");
-    expect(faov!.basis!.toFixed(2)).toBe("1300.00");
+    // El tope de 10x venia citado como "LAH Art. 172", una ley que la LRPVH
+    // sustituyo. La norma vigente no fija tope: base = salario completo.
+    expect(faov!.basis!.toFixed(2)).toBe("2000.00");
+    expect(faov!.amount.toFixed(2)).toBe("20.00");
   });
 
   it("INCES: el del trabajador ya no se calcula mes a mes", () => {
@@ -579,9 +580,11 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     expect(ivss.basis!.toFixed(2)).toBe("10.00");   // Bs. 650 / 65
     expect(ivss.amount.toFixed(2)).toBe("0.40");    // 4%
 
+    // El FAOV no tiene tope, asi que no hay nada que convertir: la base es el
+    // sueldo completo y la conversion de H-4 no le aplica.
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
-    expect(faov.basis!.toFixed(2)).toBe("20.00");   // Bs. 1300 / 65
-    expect(faov.amount.toFixed(2)).toBe("0.20");    // 1%
+    expect(faov.basis!.toFixed(2)).toBe("2500.00");
+    expect(faov.amount.toFixed(2)).toBe("25.00");
   });
 
   it("regresión del recibo de agosto 2026: retenía USD 26 de IVSS", () => {
@@ -601,13 +604,18 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     expect(ivss.amount.toFixed(2)).toBe("0.03");      // Bs. 26 / 780
 
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
-    expect(faov.amount.toFixed(2)).not.toBe("13.00");
 
-    // La deducción total del trabajador ya no puede acercarse a los USD 45,50.
-    const totalObrero = lines
-      .filter((l) => l.conceptType === "DEDUCTION")
+    // Las cotizaciones CON tope caen a centavos: sus bases estan fijadas en
+    // bolivares y ya se comparan en la moneda correcta.
+    const conTope = lines
+      .filter((l) => ["IVSS_OBR", "RPE_OBR"].includes(l.conceptCode))
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
-    expect(totalObrero.lessThan(new Decimal("1"))).toBe(true);
+    expect(conTope.lessThan(new Decimal("1"))).toBe(true);
+
+    // El FAOV es el unico sin tope, asi que si escala con el sueldo: 1% de
+    // USD 2.500 = USD 25. No es una perdida para el trabajador: es ahorro
+    // habitacional acreditado a su nombre.
+    expect(faov.amount.toFixed(2)).toBe("25.00");
   });
 
   it("el aporte PATRONAL se topa con la misma conversión", () => {
