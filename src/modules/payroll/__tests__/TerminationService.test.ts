@@ -82,6 +82,8 @@ const BASE_EMPLOYEE = {
 
 const BASE_TERMINATION = {
   id: TERM_ID,
+  benefitsRetroactiveAmount: new Decimal("0"),
+  benefitsBasisApplied: "GARANTIA_ACUMULADA" as const,
   companyId: COMPANY,
   employeeId: EMP_ID,
   reason: "RESIGNATION" as const,
@@ -164,7 +166,7 @@ describe("TerminationService.create", () => {
     ).rejects.toThrow("ya tiene una liquidación final registrada");
   });
 
-  it("computes DISMISSAL_UNJUSTIFIED indemnification = benefits accumulated", async () => {
+  it("la indemnizacion del Art. 92 sale sobre la rama que gano, no sobre la acumulada", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue({
       ...BASE_EMPLOYEE,
       benefitBalance: {
@@ -181,11 +183,13 @@ describe("TerminationService.create", () => {
       reason: "DISMISSAL_UNJUSTIFIED",
     });
 
-    // indemnificationAmount should = benefitsAccumulated + interest = 5200
+    // Art. 92: indemnizacion "equivalente al monto que le corresponde por las
+    // prestaciones sociales". Aqui gana la rama retroactiva (6750), asi que la
+    // indemnizacion es 6750 + 200 de intereses = 6950, no 5200.
     expect(vi.mocked(prisma.termination.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          indemnificationAmount: "5200.0000",
+          indemnificationAmount: "6950.0000",
         }),
       })
     );
@@ -417,5 +421,104 @@ describe("TerminationService.getById", () => {
     expect(vi.mocked(prisma.termination.findFirst)).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY }) })
     );
+  });
+});
+
+// ─── Art. 142(d): el regimen de prestaciones es DUAL ─────────────────────────
+//
+// Empleado de los fixtures: ingreso 2024-01-01, sueldo 3.000, egreso
+// 2026-04-16 => 27 meses completos => 2 años computables (la fraccion de 3
+// meses no supera los seis del literal c).
+//   salario diario normal   = 3000 / 30                     = 100,00
+//   alicuota utilidades     = 100 x 30 / 360                =   8,3333
+//   alicuota bono vacacional= 100 x 15 / 360                =   4,1667
+//   salario diario INTEGRAL                                 = 112,50
+//   rama (c) = 112,50 x 30 dias x 2 años                    = 6.750,00
+
+describe("TerminationService - Art. 142(d), se paga el monto MAYOR", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.termination.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(
+      BASE_EMPLOYEE.salaryHistory as never
+    );
+    vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  async function createWithBalance(currentBalance: string) {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE,
+      benefitBalance: {
+        id: "bal-1",
+        currentBalance: new Decimal(currentBalance),
+        interestBalance: new Decimal("0"),
+      },
+    } as never);
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+    const arg = vi.mocked(prisma.termination.create).mock.calls[0]![0]!;
+    return arg.data as {
+      benefitsAccumulatedAmount: string;
+      benefitsRetroactiveAmount: string;
+      benefitsBasisApplied: string;
+      totalGrossAmount: string;
+    };
+  }
+
+  it("calcula la rama retroactiva al ULTIMO salario integral", async () => {
+    const d = await createWithBalance("5000");
+    expect(d.benefitsRetroactiveAmount).toBe("6750.0000");
+  });
+
+  it("cuando el retroactivo es mayor, gana el retroactivo", async () => {
+    // Es el caso normal en Venezuela: la garantia se deposito con los salarios
+    // historicos de cada trimestre y el literal (c) aplica el ultimo a toda la
+    // antiguedad. Antes se pagaban 5.000; la Ley manda 6.750.
+    const d = await createWithBalance("5000");
+    expect(d.benefitsBasisApplied).toBe("CALCULO_RETROACTIVO");
+  });
+
+  it("cuando la garantia acumulada es mayor, gana la garantia", async () => {
+    const d = await createWithBalance("9000");
+    expect(d.benefitsBasisApplied).toBe("GARANTIA_ACUMULADA");
+  });
+
+  it("el total bruto se mueve exactamente por la rama que gano", async () => {
+    // El bruto arrastra tambien vacaciones y utilidades fraccionadas, asi que
+    // se compara la DIFERENCIA entre los dos escenarios: 9.000 (garantia) menos
+    // 6.750 (retroactivo) = 2.250, y nada mas debe cambiar.
+    const conRetro = await createWithBalance("5000");
+    vi.mocked(prisma.termination.create).mockClear();
+    const conGarantia = await createWithBalance("9000");
+
+    const delta = new Decimal(conGarantia.totalGrossAmount)
+      .sub(new Decimal(conRetro.totalGrossAmount));
+    expect(delta.toFixed(4)).toBe("2250.0000");
+  });
+
+  it("la rama retroactiva se calcula aunque no gane", async () => {
+    // Se guarda siempre: el contador tiene que poder ver las dos y por que
+    // salio ese numero, no deducirlo.
+    const d = await createWithBalance("9000");
+    expect(d.benefitsRetroactiveAmount).toBe("6750.0000");
+  });
+
+  it("menos de tres meses: cinco dias por mes trabajado o fraccion (literal e)", async () => {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE,
+      hireDate: new Date("2026-03-01"),
+      benefitBalance: null,
+    } as never);
+
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+
+    const arg = vi.mocked(prisma.termination.create).mock.calls[0]![0]!;
+    const d = arg.data as { benefitsBasisApplied: string; benefitsRetroactiveAmount: string };
+    expect(d.benefitsBasisApplied).toBe("PRIMEROS_TRES_MESES");
+    // 2026-03-01 a 2026-04-16 = mes y medio => 2 meses o fraccion
+    // 112,50 x 5 dias x 2 = 1.125,00
+    expect(d.benefitsRetroactiveAmount).toBe("1125.0000");
   });
 });

@@ -1860,6 +1860,16 @@ enum ConceptType {
 // otra lista (construccion, minas, petroleras, altos hornos, transporte...); y
 // **Riesgo Medio son TODAS las demas**. Por eso el default es MEDIO: es la
 // clase residual que fija el propio Reglamento, no la mas barata.
+// LOTTT Art. 142: el regimen de prestaciones es DUAL. El literal (d) manda
+// pagar "el monto que resulte mayor" entre la garantia depositada (literales a
+// y b) y el calculo al terminar la relacion (literal c). El literal (e) sustituye
+// a ambos cuando la relacion dura menos de tres meses.
+enum PrestacionesBasis {
+  GARANTIA_ACUMULADA // Art. 142 (a)+(b) — 15 dias/trimestre + adicionales, salarios historicos
+  CALCULO_RETROACTIVO // Art. 142 (c) — 30 dias por año al ULTIMO salario integral
+  PRIMEROS_TRES_MESES // Art. 142 (e) — 5 dias por mes trabajado o fraccion
+}
+
 enum IvssRiskClass {
   MINIMO // 9% patronal  — Art. 192, lista cerrada
   MEDIO // 10% patronal  — residual: toda empresa no listada en otra clase
@@ -2449,7 +2459,14 @@ model Termination {
   benefitBalanceId              String?           @unique
   // ── Componentes snapshot de la liquidación ──
   // Prestaciones
+  // Rama (a)+(b) del Art. 142: la garantia efectivamente depositada.
   benefitsAccumulatedAmount     Decimal           @default(0) @db.Decimal(19, 4)
+  // Rama (c) del Art. 142: 30 dias por año de servicio (o fraccion superior a
+  // seis meses) al ULTIMO salario integral. Se calcula siempre, aunque no gane.
+  benefitsRetroactiveAmount     Decimal           @default(0) @db.Decimal(19, 4)
+  // Cual de las dos ramas se aplico, por el literal (d). Se guarda explicito
+  // para que el contador vea POR QUE salio ese numero y no tenga que deducirlo.
+  benefitsBasisApplied          PrestacionesBasis @default(GARANTIA_ACUMULADA)
   benefitsInterestAmount        Decimal           @default(0) @db.Decimal(19, 4)
   // Vacaciones fraccionadas
   vacationFractionalDays        Decimal           @default(0) @db.Decimal(5, 2)
