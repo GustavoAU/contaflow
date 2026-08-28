@@ -16,6 +16,12 @@ export const PayrollConfigSchema = z.object({
   incesEnabled: z.boolean(),
   banavihEnabled: z.boolean(),
   rpeEnabled: z.boolean(),
+  // Clase de riesgo declarada ante el IVSS. Determina la cotización patronal
+  // (LSS Art. 59): mínimo 9% / medio 10% / máximo 11%. No es una preferencia:
+  // la fija la actividad económica de la empresa según el Reglamento.
+  ivssRiskClass: z.enum(["MINIMO", "MEDIO", "MAXIMO"], {
+    error: "Selecciona la clase de riesgo declarada ante el IVSS",
+  }).default("MEDIO"),
   // Salario mínimo nacional vigente en Bs (para topes de cotización).
   // Cuando null/vacío: sin tope (empresa no lo ha configurado aún).
   salaryMinimumVes: z.string().optional().nullable(),

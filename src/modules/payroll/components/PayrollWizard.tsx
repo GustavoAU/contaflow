@@ -64,6 +64,12 @@ const CESTA_LABELS: Record<string, string> = {
   NONE: "No aplica",
 };
 
+const IVSS_RISK_LABELS: Record<string, string> = {
+  MINIMO: "Mínimo (9% patronal)",
+  MEDIO: "Medio (10% patronal)",
+  MAXIMO: "Máximo (11% patronal)",
+};
+
 export default function PayrollWizard({ companyId, initial, accounts = [], onSaved }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
@@ -83,6 +89,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     frequency: initial?.frequency ?? "BIWEEKLY",
     fideicomiso: initial?.fideicomiso ?? "INTERNAL",
     workSchedule: (initial?.workSchedule ?? "LUNES_VIERNES") as "LUNES_VIERNES" | "LUNES_SABADO" | "LUNES_SABADO_MEDIO",
+    ivssRiskClass: (initial?.ivssRiskClass ?? "MEDIO") as "MINIMO" | "MEDIO" | "MAXIMO",
     salaryMinimumVes: initial?.salaryMinimumVes ?? "",
     // Cuentas nómina principal (requeridas para aprobar proceso)
     expenseAccountId: initial?.expenseAccountId ?? "",
@@ -312,10 +319,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             </p>
             {(
               [
-                { key: "ivssEnabled", label: "IVSS (Seg. Social — 11% patronal + 4% obrero)" },
-                { key: "incesEnabled", label: "INCES (2% patronal + 0.5% trabajador)" },
-                { key: "banavihEnabled", label: "Banavih / FAOV (1% patronal + 1% trabajador)" },
-                { key: "rpeEnabled", label: "Paro Forzoso RPE (0.5% obrero — LSSO Art. 7)" },
+                { key: "ivssEnabled", label: "IVSS (Seg. Social — 9%/10%/11% patronal según riesgo + 4% obrero)" },
+                { key: "incesEnabled", label: "INCES (2% patronal sobre sueldos + 0,5% al trabajador sobre utilidades)" },
+                { key: "banavihEnabled", label: "Banavih / FAOV (2% patronal + 1% trabajador)" },
+                { key: "rpeEnabled", label: "Paro Forzoso RPE (2% patronal + 0,5% obrero — LRPE Art. 46)" },
               ] as const
             ).map(({ key, label }) => (
               <label key={key} className="flex cursor-pointer items-center gap-3 py-1">
@@ -329,12 +336,36 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               </label>
             ))}
 
+          <div className="mt-4">
+            <label htmlFor="ivssRiskClass" className="block text-sm font-medium text-gray-700 mb-1">
+              Clase de riesgo ante el IVSS
+            </label>
+            <p className="text-xs text-gray-500 mb-1">
+              Determina la cotización patronal (LSS Art. 59). La fija la actividad
+              económica de la empresa, no es una preferencia: use la clase que
+              tiene declarada ante el IVSS.
+            </p>
+            <select
+              id="ivssRiskClass"
+              value={form.ivssRiskClass}
+              onChange={(e) => set("ivssRiskClass", e.target.value as "MINIMO" | "MEDIO" | "MAXIMO")}
+              disabled={!form.ivssEnabled}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              <option value="MINIMO">Riesgo mínimo — 9% (oficinas, comercio, servicios)</option>
+              <option value="MEDIO">Riesgo medio — 10% (industria liviana, transporte)</option>
+              <option value="MAXIMO">Riesgo máximo — 11% (construcción, minería, químicos)</option>
+            </select>
+          </div>
+
           <div className="mt-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Salario mínimo nacional vigente (Bs/mes)
             </label>
             <p className="text-xs text-gray-500 mb-1">
-              Requerido para aplicar topes de cotización (IVSS: 5×, FAOV: 10×, INCES/RPE: 5×).
+              Requerido para aplicar los topes de cotización: IVSS hasta 5 salarios
+              mínimos (Reglamento LSS Art. 98) y RPE entre 1 y 10 (LRPE Art. 46).
+              El FAOV no tiene tope.
             </p>
             <input
               type="number"
@@ -577,6 +608,11 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 .filter(Boolean)
                 .join(" · ") || "Ninguno"}
             </p>
+            {form.ivssEnabled && (
+              <p>
+                Riesgo IVSS: {IVSS_RISK_LABELS[form.ivssRiskClass]}
+              </p>
+            )}
             {form.salaryMinimumVes && (
               <p>Salario mínimo: Bs {form.salaryMinimumVes} (topes activos)</p>
             )}

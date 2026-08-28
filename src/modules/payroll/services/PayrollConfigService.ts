@@ -21,6 +21,7 @@ import type {
   CestaTicketType,
   FideicomisoType,
   WorkSchedule,
+  IvssRiskClass,
 } from "@prisma/client";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ export interface PayrollConfigRow {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  ivssRiskClass: IvssRiskClass;
   salaryMinimumVes: string | null;
   // Cuentas nómina principal (asiento de causación — requeridas para approve)
   expenseAccountId: string | null;
@@ -73,6 +75,7 @@ export interface SavePayrollConfigInput {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  ivssRiskClass: IvssRiskClass;
   salaryMinimumVes?: string | null;
   // Cuentas nómina principal
   expenseAccountId?: string | null;
@@ -111,6 +114,7 @@ function serializeConfig(c: {
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
   fideicomiso: FideicomisoType;
+  ivssRiskClass: IvssRiskClass;
   salaryMinimumVes: { toString(): string } | null;
   expenseAccountId: string | null;
   payableAccountId: string | null;
@@ -144,6 +148,7 @@ function serializeConfig(c: {
     paymentCurrency: c.paymentCurrency,
     frequency: c.frequency,
     fideicomiso: c.fideicomiso,
+    ivssRiskClass: c.ivssRiskClass,
     salaryMinimumVes: c.salaryMinimumVes ? c.salaryMinimumVes.toString() : null,
     expenseAccountId: c.expenseAccountId,
     payableAccountId: c.payableAccountId,
@@ -234,6 +239,7 @@ export const PayrollConfigService = {
                 paymentCurrency: previous.paymentCurrency,
                 frequency: previous.frequency,
                 fideicomiso: previous.fideicomiso,
+                ivssRiskClass: previous.ivssRiskClass,
                 salaryMinimumVes: previous.salaryMinimumVes?.toString() ?? null,
               }
             : Prisma.JsonNull,
@@ -248,6 +254,7 @@ export const PayrollConfigService = {
             paymentCurrency: input.paymentCurrency,
             frequency: input.frequency,
             fideicomiso: input.fideicomiso,
+            ivssRiskClass: input.ivssRiskClass,
             salaryMinimumVes: input.salaryMinimumVes ?? null,
             workSchedule: input.workSchedule ?? "LUNES_VIERNES",
           },
