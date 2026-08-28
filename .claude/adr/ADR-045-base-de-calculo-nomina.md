@@ -112,7 +112,7 @@ retienen bolívares.
 | RPE 0,5% / 2,0% | salario normal | 1× | 10× | mensual | — |
 | INCES patronal 2% | salario normal | — | **sin tope** | **trimestral** | ≥ 5 trabajadores |
 | INCES trabajador 0,5% | **utilidades anuales** | — | sin tope | **anual** | ≥ 5 trabajadores |
-| FAOV 1% / 2% | salario integral | — | **por confirmar** | mensual | — |
+| FAOV 1% / 2% | salario integral | — | **sin tope** | mensual | — |
 
 `salario normal` = Σ componentes `SALARIO_NORMAL`.
 `salario integral` = salario normal + alícuota de bono vacacional + alícuota de
@@ -224,20 +224,37 @@ paso intermedio, no como destino.
 ## Pendientes que bloquean partes de este ADR
 
 1. ~~Conceptos accidentales en el salario integral~~ **RESUELTO** - ver D-6.
-2. **Tope del FAOV: casi cerrado, falta el articulado.** La norma vigente es la
-   **Ley de Reforma Parcial del Regimen Prestacional de Vivienda y Habitat,
-   G.O. 6.805 Extraordinario del 01-05-2024**: mantiene el aporte del **3% del
-   salario integral**, un tercio del trabajador (1%) y dos tercios del patrono
-   (2%), **sin tope**, y deroga parcialmente el Art. 59 de la Ley de
+2. **Tope del FAOV: DECIDIDO sin tope, sobre evidencia secundaria.** La norma
+   vigente es la **Ley de Reforma Parcial del Regimen Prestacional de Vivienda
+   y Habitat, G.O. 6.805 Extraordinario del 01-05-2024**: mantiene el aporte
+   del **3% del salario integral**, un tercio del trabajador (1%) y dos tercios
+   del patrono (2%), **sin tope**, y deroga parcialmente el Art. 59 de la Ley de
    Regionalizacion "en lo relativo a la base imponible". Anade que el aporte
    patronal "no formara parte de la remuneracion que sirva de base para el
    calculo de las prestaciones e indemnizaciones sociales".
-   Esto sale de un resumen web, no del texto de Gaceta. Quitar el tope de 10x
-   **sube** la deduccion del trabajador, asi que la celda de D-4 sigue en "por
-   confirmar" hasta tener el articulado delante.
-3. **IVSS.** Falta la Ley del Seguro Social y su Reglamento: el patronal varia
-   9/10/11% segun riesgo y la cotizacion es semanal (4,33 semanas/mes), no
-   mensual plana como la calcula hoy ContaFlow.
+
+   El tope de 10x se quito del calculador. **Esta decision se tomo sobre un
+   analisis juridico que enumera los 30 articulos de la reforma y en ninguno
+   aparece un tope, mas tres fuentes secundarias coincidentes — no sobre el
+   texto de Gaceta.** El criterio original de este ADR era no moverlo sin el
+   articulado, porque quitar el tope **sube** la deduccion del trabajador; se
+   deja constancia de que se movio igual, para que quien lo revise sepa sobre
+   que se apoya.
+
+   Lo unico que falta para cerrarlo del todo: **el texto literal del articulo
+   que fija el aporte al Fondo de Ahorro Obligatorio para la Vivienda tal como
+   quedo reimpreso en la G.O. 6.805 Extraordinario** — el que enuncia el 3%
+   (1% trabajador / 2% patrono) sobre el salario integral. Basta ese articulo:
+   confirma en palabras de la ley que no establece un maximo. Si apareciera un
+   tope, hay que reponerlo en `PayrollCalculatorService` y en D-4.
+3. **IVSS: la clase de riesgo YA quedo, falta la periodicidad.** El patronal
+   9/10/11% segun riesgo esta implementado (`ivssRiskClass`, declarable desde
+   el wizard) y el techo de 5 salarios minimos sale del Reglamento Art. 98.
+   Sigue abierto que la cotizacion es **semanal** (Reglamento Arts. 99/100/102 —
+   se cuentan los lunes del mes, no 4,33 semanas fijas), mientras ContaFlow la
+   calcula mensual plana. Antes de tocarlo hay que decidir si la base es la del
+   Art. 83 de la LSS (que incluye la hora extra regular) o el salario normal de
+   la LOTTT: no son la misma cifra.
 4. **Topes de horas extra (Art. 178).** El calculador valida que las horas no
    sean negativas y nada mas. La Ley topa en diez horas diarias de trabajo
    efectivo, **diez horas extra semanales y cien anuales**. Ninguna se comprueba.
