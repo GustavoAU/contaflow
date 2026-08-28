@@ -24,6 +24,9 @@ vi.mock("@/lib/prisma", () => ({
     salaryHistory: {
       findMany: vi.fn(),
     },
+    exchangeRate: {
+      findFirst: vi.fn(),
+    },
     accountingPeriod: {
       findFirst: vi.fn(),
     },
@@ -520,5 +523,144 @@ describe("TerminationService - Art. 142(d), se paga el monto MAYOR", () => {
     // 2026-03-01 a 2026-04-16 = mes y medio => 2 meses o fraccion
     // 112,50 x 5 dias x 2 = 1.125,00
     expect(d.benefitsRetroactiveAmount).toBe("1125.0000");
+  });
+});
+
+// ─── Fixes de la auditoria de seguridad ──────────────────────────────────────
+
+describe("TerminationService - hallazgos de la auditoria", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.termination.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(
+      BASE_EMPLOYEE.salaryHistory as never
+    );
+    vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  // B3 — el unico sitio del barrido que se quedo con los 15 dias de la LOT/97
+  it("B3: las utilidades fraccionadas usan el minimo legal de 30 dias, no los 15 de la config", async () => {
+    // BASE_CONFIG.profitDays = 15. LOTTT Art. 131 manda 30 como minimo, y el
+    // valor de BD en produccion tambien era 15: se pagaba la mitad.
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+    const d = vi.mocked(prisma.termination.create).mock.calls[0]![0]!.data as {
+      profitSharingFractionalDays: string;
+    };
+    // 4 meses completos del año fiscal 2026 (01-ene a 16-abr): 30 x 4 / 12 = 10
+    expect(d.profitSharingFractionalDays).toBe("10.00");
+  });
+
+  // B2 — H-4 reintroducido: comparar USD contra Bs.
+  it("B2: un sueldo en USD se convierte a bolivares antes de comparar las ramas", async () => {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE,
+      salaryHistory: [{
+        id: "sal-1", amount: new Decimal("100"), currency: "USD",
+        effectiveFrom: new Date("2024-01-01"),
+      }],
+      benefitBalance: null,
+    } as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+      { rate: new Decimal("300") } as never
+    );
+
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+
+    const d = vi.mocked(prisma.termination.create).mock.calls[0]![0]!.data as {
+      benefitsRetroactiveAmount: string;
+    };
+    // USD 100 x 300 = Bs. 30.000/mes -> diario 1.000 -> integral 1.125
+    // rama (c) = 1.125 x 30 dias x 2 años = 67.500
+    expect(d.benefitsRetroactiveAmount).toBe("67500.0000");
+  });
+
+  it("B2: sin tasa registrada NO liquida — bloquea en vez de mezclar monedas", async () => {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE,
+      salaryHistory: [{
+        id: "sal-1", amount: new Decimal("100"), currency: "USD",
+        effectiveFrom: new Date("2024-01-01"),
+      }],
+      benefitBalance: null,
+    } as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
+    ).rejects.toThrow("no hay tasa BCV registrada");
+  });
+
+  it("un sueldo en VES no consulta tasa de cambio", async () => {
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+    expect(vi.mocked(prisma.exchangeRate.findFirst)).not.toHaveBeenCalled();
+  });
+});
+
+describe("TerminationService.finalize - asiento del Art. 142(d)", () => {
+  const TERM_RETRO = {
+    ...BASE_TERMINATION,
+    benefitsAccumulatedAmount: new Decimal("1000"),
+    benefitsRetroactiveAmount: new Decimal("3000"),
+    benefitsBasisApplied: "CALCULO_RETROACTIVO" as const,
+    benefitsInterestAmount: new Decimal("0"),
+    vacationFractionalAmount: new Decimal("0"),
+    vacationBonusFractionalAmount: new Decimal("0"),
+    profitSharingFractionalAmount: new Decimal("0"),
+    indemnificationAmount: new Decimal("0"),
+    noticePeriodAmount: new Decimal("0"),
+    pendingConceptsAmount: new Decimal("0"),
+    deductionsAmount: new Decimal("0"),
+    totalGrossAmount: new Decimal("3000"),
+    totalNetAmount: new Decimal("3000"),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.termination.findFirst).mockResolvedValue(TERM_RETRO as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1", year: 2026, month: 4, status: "OPEN",
+    } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.termination.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.employee.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.termination.update).mockResolvedValue(
+      { ...TERM_RETRO, status: "FINALIZED" } as never
+    );
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  function entries() {
+    const arg = vi.mocked(prisma.transaction.create).mock.calls[0]![0]!;
+    return (arg.data as { entries: { create: Array<{ accountId: string; amount: Decimal }> } })
+      .entries.create;
+  }
+
+  it("B1: el pasivo solo se debita por lo que se provisiono", async () => {
+    // Solo se acredito la garantia (1.000). Debitar los 3.000 completos dejaria
+    // el pasivo en saldo DEUDOR por 2.000.
+    await TerminationService.finalize(COMPANY, USER, TERM_ID);
+    const alPasivo = entries()
+      .filter((e) => e.accountId === "acc-ben")
+      .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+    expect(alPasivo.toFixed(2)).toBe("1000.00");
+  });
+
+  it("B1: la diferencia no provisionada se reconoce como GASTO", async () => {
+    await TerminationService.finalize(COMPANY, USER, TERM_ID);
+    const alGasto = entries()
+      .filter((e) => e.accountId === "acc-exp" && e.amount.greaterThan(0))
+      .reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
+    expect(alGasto.toFixed(2)).toBe("2000.00");
+  });
+
+  it("el asiento sigue cuadrado", async () => {
+    await TerminationService.finalize(COMPANY, USER, TERM_ID);
+    const suma = entries().reduce((s, e) => s.plus(e.amount), new Decimal(0));
+    expect(suma.isZero()).toBe(true);
   });
 });

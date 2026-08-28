@@ -147,6 +147,7 @@ export const PayrollConceptService = {
           code: input.code,
           name: input.name,
           type: input.type,
+          salaryNature: input.salaryNature ?? "NO_SALARIAL",
           isSystem: false,
           isActive: true,
         },
@@ -199,7 +200,15 @@ export const PayrollConceptService = {
 
       const updated = await tx.payrollConcept.update({
         where: { id: conceptId },
-        data: { name: input.name, isActive: input.isActive },
+        data: {
+          name: input.name,
+          isActive: input.isActive,
+          // La naturaleza de un concepto del sistema la fija la ley: seedDefaults
+          // la repara en cada corrida, asi que aceptarla aqui seria mentir.
+          ...(concept.isSystem || input.salaryNature === undefined
+            ? {}
+            : { salaryNature: input.salaryNature }),
+        },
       });
       await tx.auditLog.create({
         data: {
@@ -210,8 +219,18 @@ export const PayrollConceptService = {
           userId,
           ipAddress,
           userAgent,
-          oldValue: { name: concept.name, isActive: concept.isActive },
-          newValue: { name: input.name, isActive: input.isActive },
+          oldValue: {
+            name: concept.name,
+            isActive: concept.isActive,
+            salaryNature: concept.salaryNature,
+          },
+          newValue: {
+            name: input.name,
+            isActive: input.isActive,
+            salaryNature: concept.isSystem
+              ? concept.salaryNature
+              : input.salaryNature ?? concept.salaryNature,
+          },
         },
       });
       return serialize(updated);

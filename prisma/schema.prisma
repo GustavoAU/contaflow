@@ -2012,7 +2012,15 @@ model PayrollConcept {
   // cotizaciones; los dos conviven a proposito.
   affectsSalaryIntegral Boolean      @default(true)
   // Base de cotizaciones parafiscales (IVSS/FAOV/INCES/RPE) — ADR-045 D-1/D-4.
-  salaryNature          SalaryNature @default(SALARIO_NORMAL)
+  //
+  // Default NO_SALARIAL a proposito. Un concepto personalizado que nace como
+  // SALARIO_NORMAL entra solo en la base y se le retiene de mas al trabajador,
+  // que por el Art. 103 del Reglamento del Seguro Social **no lo recupera**: si
+  // el patrono no descuenta en su oportunidad "no podra hacerlo despues", y a la
+  // inversa lo retenido de mas ya se enteró. Errar hacia no retener deja una
+  // deuda de la empresa con el instituto, que si es subsanable.
+  // Los conceptos del sistema traen su naturaleza explicita desde seedDefaults.
+  salaryNature          SalaryNature @default(NO_SALARIAL)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 

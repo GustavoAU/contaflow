@@ -31,7 +31,7 @@ const BASE_DAYS_PER_QUARTER = 15;
 // configurados: PayrollConfig traía 15 días de utilidades y 7 de bono vacacional
 // —los mínimos de la LOT de 1997, derogada— y ningún número guardado puede
 // autorizar provisionar por debajo de la ley vigente.
-const LEGAL_MIN_PROFIT_DAYS = 30;         // LOTTT Art. 131
+export const LEGAL_MIN_PROFIT_DAYS = 30;         // LOTTT Art. 131
 const LEGAL_MIN_VAC_BONUS_DAYS = 15;      // LOTTT Art. 192
 
 /**
