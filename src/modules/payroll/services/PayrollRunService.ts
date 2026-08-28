@@ -272,6 +272,7 @@ export const PayrollRunService = {
       banavihEnabled: config.banavihEnabled,
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
+      ivssRiskClass: config.ivssRiskClass,
       usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
       systemConcepts: systemConcepts.map((c) => ({
         code: c.code, conceptId: c.id, salaryNature: c.salaryNature,

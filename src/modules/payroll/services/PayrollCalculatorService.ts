@@ -12,14 +12,29 @@
 
 import Decimal from "decimal.js";
 import type {
-  ConceptType, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
+  ConceptType, IvssRiskClass, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
 } from "@prisma/client";
 
 // ─── Tasas legales venezolanas — defaults (ADR-006 D-3) ──────────────────────
 // Usadas cuando no hay registro en LegalThreshold para la empresa/período.
-// LSS Art. 62: IVSS obrero 4% | patronal 9% | tope: 5 × salario mínimo
+// Reglamento General de la Ley del Seguro Social (G.O. del 30-04-2012):
+//   Art. 98  — el límite para cotizar es el equivalente a CINCO salarios
+//              mínimos urbanos vigentes MENSUALES. El tope es mensual, no
+//              semanal: por eso la conversión de H-4 le aplica tal cual.
+//   Art. 109 — tarifas: el asegurado aporta 4% en las tres clases de riesgo;
+//              el patrono 9% (Mínimo), 10% (Medio) u 11% (Máximo).
+//   Art. 108 — las empresas se agrupan en esas tres categorías.
+//   Art. 192 — Riesgo Medio es la clase RESIDUAL: "todas las empresas que no
+//              estén expresamente incluidas en otra clase".
+// La cita anterior era "LSS Art. 62", que no es ninguno de estos: el tope está
+// en el Art. 59 de la Ley (desarrollado por el 98 del Reglamento) y las tarifas
+// en el Art. 66 de la Ley (desarrollado por el 109).
 const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
-const DEFAULT_IVSS_PAT_RATE    = new Decimal("0.09");
+const IVSS_PAT_RATE_BY_RISK: Record<IvssRiskClass, Decimal> = {
+  MINIMO: new Decimal("0.09"),
+  MEDIO:  new Decimal("0.10"),
+  MAXIMO: new Decimal("0.11"),
+};
 const IVSS_CAP_MULTIPLES = new Decimal("5");
 // Ley del INCES (Decreto 1.414, G.O. 6.155 Extraordinario del 19-11-2014):
 //   Art. 49 — patronal 2% del SALARIO NORMAL MENSUAL, SIN TOPE, pagadero por
@@ -122,6 +137,10 @@ export interface PayrollCalculatorConfig {
   //   FAOV: base ≤ 10 × salaryMinimumVes
   // Cuando 0 o null: sin tope (retro-compatible con empresas sin configurar).
   salaryMinimumVes: Decimal;
+  // Clase de riesgo declarada ante el IVSS. Fija la tarifa patronal
+  // (Reglamento Arts. 108/109/192). Si falta, se asume MEDIO: es la clase
+  // residual del Reglamento, no la más barata.
+  ivssRiskClass?: IvssRiskClass;
   // Tasa BCV Bs./USD vigente al período (bolívares por dólar).
   // Sólo se consulta cuando hay topes configurados y algún sueldo va en dólares:
   // el tope es un monto en BOLÍVARES, y compararlo contra un sueldo en USD sin
@@ -299,7 +318,8 @@ export const PayrollCalculatorService = {
     // Tasas efectivas: usa las configuradas por el admin (LegalThreshold) si existen,
     // o los defaults legales hardcodeados como fallback.
     const ivssWorkerRate  = config.ivssObrRate  ?? DEFAULT_IVSS_WORKER_RATE;
-    const ivssPatRate     = config.ivssPatRate  ?? DEFAULT_IVSS_PAT_RATE;
+    const ivssPatRate     =
+      config.ivssPatRate ?? IVSS_PAT_RATE_BY_RISK[config.ivssRiskClass ?? "MEDIO"];
     const incesPatRate    = config.incesPatRate ?? DEFAULT_INCES_PAT_RATE;
     const faovWorkerRate  = config.faovObrRate  ?? DEFAULT_FAOV_WORKER_RATE;
     const faovPatRate     = config.faovPatRate  ?? DEFAULT_FAOV_PAT_RATE;

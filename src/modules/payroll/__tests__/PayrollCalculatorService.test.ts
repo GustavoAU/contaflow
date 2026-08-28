@@ -448,15 +448,15 @@ const CONFIG_WITH_PAT: PayrollCalculatorConfig = {
 };
 
 describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
-  it("calcula IVSS patronal 9% (LSS Art. 62)", () => {
+  it("calcula IVSS patronal 10% - Riesgo Medio, la clase residual del Art. 192", () => {
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
     const line = lines.find((l) => l.conceptCode === "IVSS_PAT");
     expect(line).toBeDefined();
     expect(line!.conceptType).toBe("EMPLOYER_COST");
-    // 30000 × 0.09 = 2700
-    expect(line!.amount.toFixed(2)).toBe("2700.00");
-    expect(line!.rate!.toFixed(4)).toBe("0.0900");
+    // 30000 x 0,10 = 3000 (Reglamento LSS Art. 109, Riesgo Medio)
+    expect(line!.amount.toFixed(2)).toBe("3000.00");
+    expect(line!.rate!.toFixed(4)).toBe("0.1000");
   });
 
   it("calcula INCES patronal 2% (Ley INCES Art. 30)", () => {
@@ -497,7 +497,7 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     // IVSS 4% + INCES 0.5% + FAOV 1% + RPE 0.5% = 6% = 1800
     expect(result.totalDeductions.toFixed(2)).toBe("1650.00"); // sin el INCES obrero (Art. 50)
     // totalEmployerCosts = IVSS 9% + INCES 2% + FAOV 2% + RPE 2% = 15% = 4500
-    expect(result.totalEmployerCosts.toFixed(2)).toBe("4500.00");
+    expect(result.totalEmployerCosts.toFixed(2)).toBe("4800.00");
     // totalNet no incluye aportes patronales
     expect(result.totalNet.toFixed(2)).toBe("28350.00");
   });
@@ -512,7 +512,7 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     const ivssPatLine = lines.find((l) => l.conceptCode === "IVSS_PAT");
     expect(ivssPatLine).toBeDefined();
     // Con salaryMin=130 → tope 5×130=650 → 650×0.09=58.50
-    expect(ivssPatLine!.amount.toFixed(2)).toBe("58.50");
+    expect(ivssPatLine!.amount.toFixed(2)).toBe("65.00");
   });
 
   it("no genera EMPLOYER_COST cuando ivssEnabled=false", () => {
@@ -631,7 +631,7 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
 
     const ivssPat = lines.find((l) => l.conceptCode === "IVSS_PAT")!;
     expect(ivssPat.basis!.toFixed(2)).toBe("10.00");
-    expect(ivssPat.amount.toFixed(2)).toBe("0.90"); // 9%
+    expect(ivssPat.amount.toFixed(2)).toBe("1.00"); // 10% - Riesgo Medio
   });
 
   it("un sueldo en VES no se toca aunque haya tasa cargada", () => {
@@ -791,5 +791,52 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
     }], config);
     const ivss = result.lines.find((l) => l.conceptCode === "IVSS_OBR")!;
     expect(ivss.basis!.toFixed(2)).toBe("1500.00");
+  });
+});
+
+// --- Clase de riesgo ocupacional (Reglamento LSS Arts. 108, 109 y 192) -------
+
+describe("PayrollCalculatorService - clase de riesgo del IVSS", () => {
+  const CONCEPTS: SystemConceptRef[] = [
+    ...SYSTEM_CONCEPTS,
+    { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" },
+  ];
+
+  function patronal(riesgo: "MINIMO" | "MEDIO" | "MAXIMO" | undefined) {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG, systemConcepts: CONCEPTS, ivssRiskClass: riesgo,
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    return lines.find((l) => l.conceptCode === "IVSS_PAT")!;
+  }
+
+  it("Riesgo Minimo cotiza 9% (Art. 109)", () => {
+    expect(patronal("MINIMO").amount.toFixed(2)).toBe("90.00");
+  });
+
+  it("Riesgo Medio cotiza 10%", () => {
+    expect(patronal("MEDIO").amount.toFixed(2)).toBe("100.00");
+  });
+
+  it("Riesgo Maximo cotiza 11%", () => {
+    expect(patronal("MAXIMO").amount.toFixed(2)).toBe("110.00");
+  });
+
+  it("sin clase declarada asume MEDIO, no la mas barata", () => {
+    // Art. 192: "Riesgo Medio: todas las empresas que no esten expresamente
+    // incluidas en otra clase". El residual del Reglamento es el 10%, y el
+    // calculador tenia el 9% cableado como unica tarifa patronal.
+    expect(patronal(undefined).amount.toFixed(2)).toBe("100.00");
+  });
+
+  it("el aporte del ASEGURADO es 4% en las tres clases (Art. 109)", () => {
+    for (const r of ["MINIMO", "MEDIO", "MAXIMO"] as const) {
+      const config: PayrollCalculatorConfig = { ...BASE_CONFIG, ivssRiskClass: r };
+      const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+      const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+      expect(lines.find((l) => l.conceptCode === "IVSS_OBR")!.amount.toFixed(2))
+        .toBe("40.00");
+    }
   });
 });

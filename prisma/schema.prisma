@@ -1754,7 +1754,7 @@ model PayrollConfig {
   vacationPayableAccountId      String? // LIABILITY — Vacaciones por Pagar
   profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
   // F-02/F-03: Aportes patronales — cuentas GL para causación de contribuciones del patrono
-  ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (LSS Art. 62: 9%)
+  ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (Reglamento LSS Art. 109: 9/10/11% segun riesgo)
   incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 49: 2%, trimestral)
   faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LRPVH reformada G.O. 6.805: 2%, sin tope)
   rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LRPE Art. 46: 2%)
@@ -1770,9 +1770,13 @@ model PayrollConfig {
   // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
   // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
   utValue                       Decimal?               @db.Decimal(10, 2)
+  // Clase de riesgo ocupacional declarada ante el IVSS (Reglamento Arts. 108,
+  // 109 y 192). Determina la tarifa patronal: MINIMO 9%, MEDIO 10%, MAXIMO 11%.
+  ivssRiskClass                 IvssRiskClass          @default(MEDIO)
   // Tope de cotización: salario mínimo nacional vigente (Bs/mes).
-  // Cuando > 0: IVSS cap = 5 × salaryMinimumVes; FAOV cap = 10 × salaryMinimumVes.
-  // Cuando NULL/0: sin tope (uso previo al decreto — mantiene retro-compatibilidad).
+  // Cuando > 0: IVSS cap = 5× (Reglamento LSS Art. 98) y RPE entre 1× y 10×
+  // (LRPE Art. 46). El FAOV NO tiene tope e INCES tampoco.
+  // Cuando NULL/0: sin tope (uso previo al decreto — retro-compatibilidad).
   salaryMinimumVes              Decimal?               @db.Decimal(19, 4) // ADR-002 — monto Bs
   // Timestamps
   createdAt                     DateTime               @default(now())
@@ -1847,6 +1851,21 @@ enum ConceptType {
 // Un booleano no puede representarla: las horas extraordinarias SON salario
 // (LOTTT Art. 104 las nombra) pero NO son salario normal (mismo articulo,
 // tercer aparte, excluye "las percepciones de caracter accidental").
+// Reglamento General de la Ley del Seguro Social, Art. 108: las empresas se
+// agrupan en tres categorias de riesgo. El Art. 109 fija la tarifa patronal de
+// cada una (9 / 10 / 11%); el aporte del trabajador es 4% en las tres.
+// El Art. 192 lista las actividades: Riesgo Minimo es una lista corta y cerrada
+// (empresas sin fuerza motriz, docentes, fabricas de helados/medias/ropa
+// hecha/sobres/velas/sastrerias, beneficio de cafe y cacao); Riesgo Maximo es
+// otra lista (construccion, minas, petroleras, altos hornos, transporte...); y
+// **Riesgo Medio son TODAS las demas**. Por eso el default es MEDIO: es la
+// clase residual que fija el propio Reglamento, no la mas barata.
+enum IvssRiskClass {
+  MINIMO // 9% patronal  — Art. 192, lista cerrada
+  MEDIO // 10% patronal  — residual: toda empresa no listada en otra clase
+  MAXIMO // 11% patronal — Art. 192, lista de actividades peligrosas
+}
+
 enum SalaryNature {
   NO_SALARIAL // LOTTT Art. 105 (lista cerrada de 7) o decreto expreso
   SALARIO_NORMAL // devengado "en forma regular y permanente" — base de cotizaciones
