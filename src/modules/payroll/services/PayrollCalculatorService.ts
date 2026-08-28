@@ -55,6 +55,35 @@ export const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
 // se tomó de la ley anterior y la cita se actualizó sola.
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
+
+// Mínimos legales de las alícuotas del salario integral. Se acotan los valores
+// configurados: PayrollConfig traía 15 días de utilidades y 7 de bono vacacional
+// —los mínimos de la LOT de 1997, derogada— y ningún número guardado puede
+// autorizar cotizar o provisionar por debajo de la ley vigente.
+export const LEGAL_MIN_PROFIT_DAYS = 30;       // LOTTT Art. 131
+export const LEGAL_MIN_VAC_BONUS_DAYS = 15;    // LOTTT Art. 192
+
+/**
+ * Salario diario INTEGRAL — LOTTT Art. 122: "el último salario devengado,
+ * calculado de manera que integre todos los conceptos salariales percibidos",
+ * más "la alícuota de lo que le corresponde percibir por bono vacacional y por
+ * utilidades".
+ *
+ * Vive aquí y no en BenefitAccrualService porque tiene dos consumidores de
+ * naturaleza distinta: las prestaciones sociales y el FAOV, que cotiza sobre
+ * esta misma base (LRPVH Art. 33). Este módulo es puro; el otro importa prisma.
+ */
+export function integralDailyWageFrom(
+  dailyNormalWage: Decimal,
+  profitDays: number,
+  vacationBonusDays: number,
+): Decimal {
+  const profitAliquot = dailyNormalWage
+    .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, profitDays)).div(360);
+  const vacationBonusAliquot = dailyNormalWage
+    .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, vacationBonusDays)).div(360);
+  return dailyNormalWage.add(profitAliquot).add(vacationBonusAliquot);
+}
 // Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
 //   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
 //   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
@@ -141,6 +170,12 @@ export interface PayrollCalculatorConfig {
   // (Reglamento Arts. 108/109/192). Si falta, se asume MEDIO: es la clase
   // residual del Reglamento, no la más barata.
   ivssRiskClass?: IvssRiskClass;
+  // Días de utilidades y de bono vacacional que paga la empresa. Sólo se usan
+  // para la alícuota del salario integral, que es la base del FAOV (LRPVH
+  // Art. 33). Si faltan, `integralDailyWageFrom` aplica los mínimos legales
+  // (30 y 15 días): una configuración ausente nunca cotiza por debajo de la ley.
+  profitDays?: number;
+  vacationBonusDays?: number;
   // Tasa BCV Bs./USD vigente al período (bolívares por dólar).
   // Sólo se consulta cuando hay topes configurados y algún sueldo va en dólares:
   // el tope es un monto en BOLÍVARES, y compararlo contra un sueldo en USD sin
@@ -430,6 +465,21 @@ export const PayrollCalculatorService = {
         natureById.get(l.conceptId) === "SALARIO_NORMAL")
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 
+    // ── Salario INTEGRAL: la base del FAOV, y sólo del FAOV ───────────────────
+    // LRPVH Art. 33.1 (G.O. 6.805 Extr., 01-05-2024): el aporte es "el tres por
+    // ciento (3%) de su salario integral". Las otras tres cotizaciones dicen
+    // salario normal, cada una en su propia ley — por eso conviven las dos bases.
+    //
+    // Se deriva del normal aplicando las alícuotas mensuales de utilidades y
+    // bono vacacional (Art. 122 LOTTT). Se pasa por el salario diario para
+    // reutilizar exactamente la misma fórmula que provisiona prestaciones: si
+    // alguna vez difieren, la nómina y el pasivo laboral dejan de cuadrar.
+    const salarioIntegral = integralDailyWageFrom(
+      salarioNormal.div(30),
+      config.profitDays ?? LEGAL_MIN_PROFIT_DAYS,
+      config.vacationBonusDays ?? LEGAL_MIN_VAC_BONUS_DAYS,
+    ).mul(30);
+
     // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
@@ -456,14 +506,10 @@ export const PayrollCalculatorService = {
     // El concepto INCES_OBR se conserva para no romper el histórico de nóminas
     // ya aprobadas que lo tienen en sus líneas.
 
-    // ── FAOV_OBR (1% sin tope — LRPVH reformada, G.O. 6.805) ──────────────────
-    // PENDIENTE: la base legal es el salario INTEGRAL (normal + alícuota de
-    // utilidades + alícuota de bono vacacional, Art. 122 LOTTT), no el normal.
-    // Usar salarioNormal deja la base corta por las alícuotas; quitar el tope ya
-    // corrige el grueso del error. El integral llega con ADR-045 D-4.
+    // ── FAOV_OBR (1% del salario INTEGRAL, sin tope — LRPVH Art. 33.1) ────────
     const faovObrId = findConcept(systemConcepts, "FAOV_OBR");
     if (banavihEnabled && faovObrId) {
-      const basis = salarioNormal;
+      const basis = salarioIntegral;
       const amount = basis.times(faovWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_OBR",
@@ -534,10 +580,10 @@ export const PayrollCalculatorService = {
       });
     }
 
-    // ── FAOV_PAT (2% sin tope — LRPVH reformada, G.O. 6.805) ──────────────────
+    // ── FAOV_PAT (2% del salario INTEGRAL, sin tope — LRPVH Art. 33.1) ────────
     const faovPatId = findConcept(systemConcepts, "FAOV_PAT");
     if (banavihEnabled && faovPatId) {
-      const basis = salarioNormal;
+      const basis = salarioIntegral;
       const amount = basis.times(faovPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "FAOV_PAT",

@@ -163,8 +163,9 @@ describe("PayrollCalculatorService — FAOV_OBR", () => {
   it("calcula FAOV 1% del salario", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(makeEmp(), BASE_CONFIG);
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR");
-    // 30000 * 0.01 = 300
-    expect(faov!.amount.toFixed(2)).toBe("300.00");
+    // LRPVH Art. 33.1: la base es el salario INTEGRAL, no el normal.
+    // 30000 x (1 + 30/360 + 15/360) = 33750 -> 1% = 337,50
+    expect(faov!.amount.toFixed(2)).toBe("337.50");
     expect(faov!.rate!.toFixed(3)).toBe("0.010");
   });
 
@@ -224,11 +225,11 @@ describe("PayrollCalculatorService.calculate", () => {
   it("calcula correctamente para un empleado sin novedades", () => {
     const result = PayrollCalculatorService.calculate([makeEmp()], [], BASE_CONFIG);
     // totalEarnings = 30000 (SAL_BASE)
-    // totalDeductions = 1200 (IVSS) + 150 (INCES 0.5%) + 300 (FAOV) + 150 (RPE) = 1800
-    // totalNet = 28200
+    // totalDeductions = 1200 (IVSS 4%) + 337,50 (FAOV 1% del integral) + 150 (RPE) = 1687,50
+    // El INCES obrero ya no se retiene mes a mes (Art. 50).
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("1650.00"); // sin el INCES obrero (Art. 50)
-    expect(result.totalNet.toFixed(2)).toBe("28350.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("1687.50");
+    expect(result.totalNet.toFixed(2)).toBe("28312.50");
   });
 
   it("incluye conceptos manuales en el cálculo", () => {
@@ -243,8 +244,8 @@ describe("PayrollCalculatorService.calculate", () => {
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
-    expect(result.totalDeductions.toFixed(2)).toBe("2150.00"); // 1650 + 500
-    expect(result.totalNet.toFixed(2)).toBe("27850.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2187.50"); // 1687,50 + 500
+    expect(result.totalNet.toFixed(2)).toBe("27812.50");
   });
 
   it("calcula múltiples empleados sumando correctamente", () => {
@@ -255,11 +256,11 @@ describe("PayrollCalculatorService.calculate", () => {
       salaryAmount: new Decimal("20000"),
     });
     const result = PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG);
-    // emp1: 30000 → ded: 1200+150+300+150=1800, net=28200
-    // emp2: 20000 → ded: 800+100+200+100=1200, net=18800
+    // emp1: 30000 -> 1200 + 337,50 + 150 = 1687,50
+    // emp2: 20000 ->  800 + 225,00 + 100 = 1125,00
     expect(result.totalEarnings.toFixed(2)).toBe("50000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("2750.00");
-    expect(result.totalNet.toFixed(2)).toBe("47250.00");
+    expect(result.totalDeductions.toFixed(2)).toBe("2812.50");
+    expect(result.totalNet.toFixed(2)).toBe("47187.50");
   });
 
   it("preserva snapshot de salario en cada línea", () => {
@@ -347,9 +348,52 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR");
     // El tope de 10x venia citado como "LAH Art. 172", una ley que la LRPVH
-    // sustituyo. La norma vigente no fija tope: base = salario completo.
-    expect(faov!.basis!.toFixed(2)).toBe("2000.00");
-    expect(faov!.amount.toFixed(2)).toBe("20.00");
+    // sustituyo. El Art. 33 de la LRPVH (G.O. 6.805 Extr., 01-05-2024) no fija
+    // ningun maximo — su numeral 5 fija un PISO ("no podra ser menor al tres por
+    // ciento"). La base es el salario integral completo: 2000 x 1,125 = 2250.
+    expect(faov!.basis!.toFixed(2)).toBe("2250.00");
+    expect(faov!.amount.toFixed(2)).toBe("22.50");
+  });
+
+  it("FAOV: cotiza sobre el salario INTEGRAL; las otras tres, sobre el normal", () => {
+    // LRPVH Art. 33.1 dice "salario integral"; la LSS, la Ley INCES y la LRPE
+    // dicen salario normal, cada una en su propia ley. Que las cuatro bases
+    // coincidan seria el sintoma de que alguien las unifico por comodidad.
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
+
+    const basisOf = (code: string) => lines.find((l) => l.conceptCode === code)!.basis!;
+
+    // Integral = normal + alicuota de utilidades (30/360) + de bono vacacional
+    // (15/360) = 30000 x 1,125 (Art. 122 LOTTT).
+    expect(basisOf("FAOV_OBR").toFixed(2)).toBe("33750.00");
+    expect(basisOf("FAOV_PAT").toFixed(2)).toBe("33750.00");
+
+    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("30000.00");
+    expect(basisOf("RPE_OBR").toFixed(2)).toBe("30000.00");
+    expect(basisOf("INCES_PAT").toFixed(2)).toBe("30000.00");
+  });
+
+  it("FAOV: sin dias configurados aplica los minimos legales, nunca menos", () => {
+    // Una empresa que aun paga los 15 dias de utilidades de la LOT de 1997 no
+    // puede por eso cotizar FAOV sobre una base menor a la legal.
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+
+    const sinDias = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    const conDiasViejos = PayrollCalculatorService.calculateEmployeeLines(emp, {
+      ...BASE_CONFIG, profitDays: 15, vacationBonusDays: 7,
+    });
+    const conDiasGenerosos = PayrollCalculatorService.calculateEmployeeLines(emp, {
+      ...BASE_CONFIG, profitDays: 120, vacationBonusDays: 30,
+    });
+
+    const faovBasis = (ls: typeof sinDias) =>
+      ls.find((l) => l.conceptCode === "FAOV_OBR")!.basis!.toFixed(2);
+
+    expect(faovBasis(sinDias)).toBe("33750.00");
+    expect(faovBasis(conDiasViejos)).toBe("33750.00");
+    // Por encima del minimo si sube: 30000 x (1 + 120/360 + 30/360) = 42500
+    expect(faovBasis(conDiasGenerosos)).toBe("42500.00");
   });
 
   it("INCES: el del trabajador ya no se calcula mes a mes", () => {
@@ -469,14 +513,14 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     expect(line!.amount.toFixed(2)).toBe("600.00");
   });
 
-  it("calcula FAOV patronal 2% (LAH Art. 172)", () => {
+  it("calcula FAOV patronal 2% del salario integral (LRPVH Art. 33.1)", () => {
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, CONFIG_WITH_PAT);
     const line = lines.find((l) => l.conceptCode === "FAOV_PAT");
     expect(line).toBeDefined();
     expect(line!.conceptType).toBe("EMPLOYER_COST");
-    // 30000 × 0.02 = 600
-    expect(line!.amount.toFixed(2)).toBe("600.00");
+    // 33750 (integral) x 0.02 = 675
+    expect(line!.amount.toFixed(2)).toBe("675.00");
   });
 
   it("calcula RPE patronal 2% (LSSO Art. 7)", () => {
@@ -494,12 +538,13 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     const result = PayrollCalculatorService.calculate([emp], [], CONFIG_WITH_PAT);
     // Aportes patronales no deben estar en totalEarnings ni totalDeductions
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    // IVSS 4% + INCES 0.5% + FAOV 1% + RPE 0.5% = 6% = 1800
-    expect(result.totalDeductions.toFixed(2)).toBe("1650.00"); // sin el INCES obrero (Art. 50)
-    // totalEmployerCosts = IVSS 9% + INCES 2% + FAOV 2% + RPE 2% = 15% = 4500
-    expect(result.totalEmployerCosts.toFixed(2)).toBe("4800.00");
+    // IVSS 4% + RPE 0,5% sobre el normal, FAOV 1% sobre el integral
+    expect(result.totalDeductions.toFixed(2)).toBe("1687.50");
+    // totalEmployerCosts = IVSS 10% (3000) + INCES 2% (600) + RPE 2% (600) sobre
+    // el normal, mas FAOV 2% sobre el integral de 33750 (675) = 4875
+    expect(result.totalEmployerCosts.toFixed(2)).toBe("4875.00");
     // totalNet no incluye aportes patronales
-    expect(result.totalNet.toFixed(2)).toBe("28350.00");
+    expect(result.totalNet.toFixed(2)).toBe("28312.50");
   });
 
   it("aplica tope salario mínimo a aportes patronales (igual que obreros)", () => {
@@ -580,11 +625,13 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     expect(ivss.basis!.toFixed(2)).toBe("10.00");   // Bs. 650 / 65
     expect(ivss.amount.toFixed(2)).toBe("0.40");    // 4%
 
-    // El FAOV no tiene tope, asi que no hay nada que convertir: la base es el
-    // sueldo completo y la conversion de H-4 no le aplica.
+    // El FAOV no tiene tope, asi que no hay nada que convertir: la conversion de
+    // H-4 no le aplica. La base es el salario INTEGRAL en la moneda del sueldo:
+    // USD 2.500 x 1,125 = USD 2.812,50 (las alicuotas son una razon, no un monto
+    // en bolivares, asi que la moneda no interviene).
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
-    expect(faov.basis!.toFixed(2)).toBe("2500.00");
-    expect(faov.amount.toFixed(2)).toBe("25.00");
+    expect(faov.basis!.toFixed(2)).toBe("2812.50");
+    expect(faov.amount.toFixed(2)).toBe("28.13");
   });
 
   it("regresión del recibo de agosto 2026: retenía USD 26 de IVSS", () => {
@@ -612,10 +659,10 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
     expect(conTope.lessThan(new Decimal("1"))).toBe(true);
 
-    // El FAOV es el unico sin tope, asi que si escala con el sueldo: 1% de
-    // USD 2.500 = USD 25. No es una perdida para el trabajador: es ahorro
-    // habitacional acreditado a su nombre.
-    expect(faov.amount.toFixed(2)).toBe("25.00");
+    // El FAOV es el unico sin tope, asi que si escala con el sueldo: 1% del
+    // integral de USD 2.500 (= 2.812,50) = USD 28,13. No es una perdida para el
+    // trabajador: es ahorro habitacional acreditado a su nombre.
+    expect(faov.amount.toFixed(2)).toBe("28.13");
   });
 
   it("el aporte PATRONAL se topa con la misma conversión", () => {

@@ -31,30 +31,17 @@ const BASE_DAYS_PER_QUARTER = 15;
 // configurados: PayrollConfig traía 15 días de utilidades y 7 de bono vacacional
 // —los mínimos de la LOT de 1997, derogada— y ningún número guardado puede
 // autorizar provisionar por debajo de la ley vigente.
-export const LEGAL_MIN_PROFIT_DAYS = 30;         // LOTTT Art. 131
-const LEGAL_MIN_VAC_BONUS_DAYS = 15;      // LOTTT Art. 192
-
-/**
- * Salario diario INTEGRAL — LOTTT Art. 122: "el último salario devengado,
- * calculado de manera que integre todos los conceptos salariales percibidos",
- * mas "la alicuota de lo que le corresponde percibir por bono vacacional y por
- * utilidades".
- *
- * Los dias configurados se acotan a los minimos legales: PayrollConfig traia 15
- * dias de utilidades y 7 de bono vacacional, que son los minimos de la LOT de
- * 1997. Ningun numero guardado puede autorizar provisionar bajo la ley vigente.
- */
-export function integralDailyWageFrom(
-  dailyNormalWage: Decimal,
-  profitDays: number,
-  vacationBonusDays: number,
-): Decimal {
-  const profitAliquot = dailyNormalWage
-    .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, profitDays)).div(360);
-  const vacationBonusAliquot = dailyNormalWage
-    .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, vacationBonusDays)).div(360);
-  return dailyNormalWage.add(profitAliquot).add(vacationBonusAliquot);
-}
+// El salario integral y sus mínimos legales viven ahora en
+// PayrollCalculatorService: el FAOV cotiza sobre esa misma base (LRPVH Art. 33),
+// y ese módulo es puro — este importa prisma, así que la dependencia sólo puede
+// ir en esta dirección. Se re-exportan para no romper a quien ya los importaba
+// desde aquí.
+import {
+  LEGAL_MIN_PROFIT_DAYS,
+  LEGAL_MIN_VAC_BONUS_DAYS,
+  integralDailyWageFrom,
+} from "./PayrollCalculatorService";
+export { LEGAL_MIN_PROFIT_DAYS, integralDailyWageFrom };
 
 // Días adicionales por antigüedad Art. 142 LOTTT:
 // A partir del 2do año: +2 días/año de servicio (máx 30 adicionales/año).

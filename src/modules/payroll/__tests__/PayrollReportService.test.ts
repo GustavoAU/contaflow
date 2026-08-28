@@ -235,21 +235,27 @@ describe("PayrollReportService.getBanavihReport", () => {
   });
 
   it("FAOV: 1% obrero + 2% patronal (LRPVH, G.O. 6.805 Extr. 01-05-2024)", async () => {
+    // Salario normal 4000 → integral 4500 (LRPVH Art. 33.1 + Art. 122 LOTTT):
+    // obrero 1% = 45, patrono 2% = 90.
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: EMP_ID, conceptCode: "SAL_BASE", amount: new Decimal("4000") },
-      { employeeId: EMP_ID, conceptCode: "FAOV_OBR", amount: new Decimal("40") },
+      { employeeId: EMP_ID, conceptCode: "FAOV_OBR", amount: new Decimal("45") },
+      { employeeId: EMP_ID, conceptCode: "FAOV_PAT", amount: new Decimal("90") },
       { employeeId: EMP_ID_2, conceptCode: "SAL_BASE", amount: new Decimal("4000") },
-      { employeeId: EMP_ID_2, conceptCode: "FAOV_OBR", amount: new Decimal("40") },
+      { employeeId: EMP_ID_2, conceptCode: "FAOV_OBR", amount: new Decimal("45") },
+      { employeeId: EMP_ID_2, conceptCode: "FAOV_PAT", amount: new Decimal("90") },
     ] as never);
 
     const report = await PayrollReportService.getBanavihReport(COMPANY_ID, 2026, 4);
     const row = report.rows.find((r) => r.employeeId === EMP_ID)!;
-    // Patronal: 4000 × 2% = 80. Estaba calculado al 1% (el del trabajador), así
-    // que la declaración a BANAVIH salía por la mitad del aporte del patrono.
-    expect(row.faovWorkerAmount.toNumber()).toBe(40);
-    expect(row.faovEmployerAmount.toNumber()).toBe(80);
-    expect(row.faovTotalAmount.toNumber()).toBe(120);
-    expect(report.totalAmount.toNumber()).toBe(240); // 2 empleados × 120
+    // El patronal se lee de la línea FAOV_PAT devengada. Antes se recalculaba
+    // como SAL_BASE × 1%: mal la tasa (el 1% es el del trabajador) y mal la base
+    // (SAL_BASE es el salario normal, no el integral) — se declaraba 40 donde la
+    // ley pide 90, menos de la mitad.
+    expect(row.faovWorkerAmount.toNumber()).toBe(45);
+    expect(row.faovEmployerAmount.toNumber()).toBe(90);
+    expect(row.faovTotalAmount.toNumber()).toBe(135);
+    expect(report.totalAmount.toNumber()).toBe(270); // 2 empleados × 135
   });
 
   it("empleado sin runs → incluido con montos 0 (NOM-E-01)", async () => {

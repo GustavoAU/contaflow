@@ -273,6 +273,9 @@ export const PayrollRunService = {
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
       ivssRiskClass: config.ivssRiskClass,
+      // Alícuotas del salario integral — base del FAOV (LRPVH Art. 33.1).
+      profitDays: config.profitDays,
+      vacationBonusDays: config.vacationBonusDays,
       usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
       systemConcepts: systemConcepts.map((c) => ({
         code: c.code, conceptId: c.id, salaryNature: c.salaryNature,

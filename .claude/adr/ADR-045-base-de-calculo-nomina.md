@@ -224,29 +224,33 @@ paso intermedio, no como destino.
 ## Pendientes que bloquean partes de este ADR
 
 1. ~~Conceptos accidentales en el salario integral~~ **RESUELTO** - ver D-6.
-2. **Tope del FAOV: DECIDIDO sin tope, sobre evidencia secundaria.** La norma
-   vigente es la **Ley de Reforma Parcial del Regimen Prestacional de Vivienda
-   y Habitat, G.O. 6.805 Extraordinario del 01-05-2024**: mantiene el aporte
-   del **3% del salario integral**, un tercio del trabajador (1%) y dos tercios
-   del patrono (2%), **sin tope**, y deroga parcialmente el Art. 59 de la Ley de
-   Regionalizacion "en lo relativo a la base imponible". Anade que el aporte
-   patronal "no formara parte de la remuneracion que sirva de base para el
-   calculo de las prestaciones e indemnizaciones sociales".
+2. ~~Tope del FAOV~~ **RESUELTO con el articulado (2026-08-28).** Texto del
+   **Art. 33 de la Ley del Regimen Prestacional de Vivienda y Habitat**, tal
+   como quedo en la **G.O. 6.805 Extraordinario del 01-05-2024**, numeral 1:
 
-   El tope de 10x se quito del calculador. **Esta decision se tomo sobre un
-   analisis juridico que enumera los 30 articulos de la reforma y en ninguno
-   aparece un tope, mas tres fuentes secundarias coincidentes — no sobre el
-   texto de Gaceta.** El criterio original de este ADR era no moverlo sin el
-   articulado, porque quitar el tope **sube** la deduccion del trabajador; se
-   deja constancia de que se movio igual, para que quien lo revise sepa sobre
-   que se apoya.
+   > "El aporte mensual en la cuenta de cada trabajadora o trabajador equivalente
+   > al tres por ciento (3%) de su salario integral, indicando por separado; los
+   > ahorros obligatorios del trabajador equivalentes a un tercio (1/3) del
+   > aporte mensual y los aportes obligatorios de los patronos a la cuenta de
+   > cada trabajador, equivalente a dos tercios (2/3) del aporte mensual."
 
-   Lo unico que falta para cerrarlo del todo: **el texto literal del articulo
-   que fija el aporte al Fondo de Ahorro Obligatorio para la Vivienda tal como
-   quedo reimpreso en la G.O. 6.805 Extraordinario** — el que enuncia el 3%
-   (1% trabajador / 2% patrono) sobre el salario integral. Basta ese articulo:
-   confirma en palabras de la ley que no establece un maximo. Si apareciera un
-   tope, hay que reponerlo en `PayrollCalculatorService` y en D-4.
+   El articulo **no fija ningun maximo**. Lo unico que acota es un PISO, en su
+   numeral 5: el Ministerio puede modificar el aporte y la participacion de cada
+   parte, pero "en todo caso, el aporte no podra ser menor al tres por ciento
+   (3%) establecido en este articulo". Queda confirmado que quitar el tope de
+   10x fue correcto, y la celda de D-4 pasa de "por confirmar" a "sin tope".
+
+   El mismo articulo cierra el otro pendiente del FAOV: dice **"salario
+   integral"**, no salario normal. El calculador cotizaba sobre el normal, o sea
+   por debajo de la base legal en la alicuota de utilidades y de bono vacacional.
+   Corregido: la base del FAOV es ahora `integralDailyWageFrom(normal/30, ...)`
+   por 30 — la misma funcion que provisiona prestaciones. Si las dos formulas
+   divergieran, la nomina y el pasivo laboral dejarian de cuadrar.
+
+   Nota de proceso: el tope se habia quitado ANTES de tener este texto, apoyado
+   solo en analisis secundario y en contra del criterio que este mismo ADR se
+   habia fijado. Salio bien, pero la decision se tomo sin la evidencia exigida.
+
 3. **IVSS: la clase de riesgo YA quedo, falta la periodicidad.** El patronal
    9/10/11% segun riesgo esta implementado (`ivssRiskClass`, declarable desde
    el wizard) y el techo de 5 salarios minimos sale del Reglamento Art. 98.

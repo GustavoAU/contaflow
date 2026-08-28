@@ -13,25 +13,23 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 
-// ─── Tasas patronales legales venezolanas (inmutables — ADR-006 D-3) ──────────
-// LSS Art. 62: IVSS patronal 9% sobre salario (techo 10 UT)
-// Las tasas y topes legales viven en PayrollCalculatorService: lo que se declara
-// al instituto tiene que ser exactamente lo que se calculo en la nomina. Este
-// archivo solo los re-exporta para los consumidores del reporte.
-// Las cuatro constantes que estaban aqui citaban leyes derogadas (LSS Art. 62,
-// LAH Art. 172, Ley INCES 2008 Art. 30) y ninguna coincidia con la ley vigente:
-// el techo IVSS no son 10 UT sino 5 salarios minimos (Reglamento Art. 98), la
-// patronal IVSS depende de la clase de riesgo, el FAOV patronal es 2% (no 1%) y
-// el 0,5% sobre utilidades es retencion AL TRABAJADOR (Art. 50), no aporte patronal.
-export {
-  IVSS_PAT_RATE_BY_RISK,
-  IVSS_CAP_MULTIPLES,
-  DEFAULT_FAOV_PAT_RATE as FAOV_EMPLOYER_RATE,
-} from "./PayrollCalculatorService";
+// ─── Tasas y topes legales ────────────────────────────────────────────────────
+// Viven en PayrollCalculatorService: lo que se declara al instituto tiene que ser
+// exactamente lo que se calculó en la nómina, así que este archivo los importa
+// en vez de tener los suyos.
+//
+// Aquí había cuatro constantes propias, todas citadas a leyes derogadas (LSS
+// Art. 62, LAH Art. 172, Ley INCES 2008 Art. 30) y ninguna coincidía con la ley
+// vigente: el techo del IVSS no son 10 UT sino 5 salarios mínimos (Reglamento
+// Art. 98), la patronal del IVSS depende de la clase de riesgo, el FAOV patronal
+// es 2% y no 1%, y el 0,5% sobre utilidades es retención AL TRABAJADOR (Ley
+// INCES Art. 50), no aporte patronal.
+//
+// Las cotizaciones patronales de FAOV e INCES ya no se recalculan aquí: se leen
+// de las líneas FAOV_PAT / INCES_PAT devengadas.
 import {
   IVSS_PAT_RATE_BY_RISK,
   IVSS_CAP_MULTIPLES,
-  DEFAULT_FAOV_PAT_RATE,
 } from "./PayrollCalculatorService";
 
 // ─── ISLR Decreto 1808 — Tarifa 1 (personas naturales residentes) ─────────────
@@ -370,20 +368,21 @@ export const PayrollReportService = {
       ? await prisma.payrollRunLine.findMany({
           where: {
             payrollRunId: { in: runIds },
-            conceptCode: { in: ["FAOV_OBR", "SAL_BASE"] },
+            conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
           },
           select: { employeeId: true, conceptCode: true, amount: true },
         })
       : [];
 
-    type EmpAgg = { faovOBR: Decimal; salBase: Decimal };
+    type EmpAgg = { faovOBR: Decimal; faovPAT: Decimal; salBase: Decimal };
     const agg = new Map<string, EmpAgg>();
     for (const line of lines) {
       if (!agg.has(line.employeeId)) {
-        agg.set(line.employeeId, { faovOBR: new Decimal(0), salBase: new Decimal(0) });
+        agg.set(line.employeeId, { faovOBR: new Decimal(0), faovPAT: new Decimal(0), salBase: new Decimal(0) });
       }
       const e = agg.get(line.employeeId)!;
       if (line.conceptCode === "FAOV_OBR") e.faovOBR = e.faovOBR.plus(line.amount.toString());
+      else if (line.conceptCode === "FAOV_PAT") e.faovPAT = e.faovPAT.plus(line.amount.toString());
       else if (line.conceptCode === "SAL_BASE") e.salBase = e.salBase.plus(line.amount.toString());
     }
 
@@ -394,7 +393,11 @@ export const PayrollReportService = {
       const e = agg.get(emp.id);
       const salaryBase = (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2);
       const faovWorkerAmount = (e?.faovOBR ?? new Decimal(0)).toDecimalPlaces(2);
-      const faovEmployerAmount = salaryBase.times(DEFAULT_FAOV_PAT_RATE).toDecimalPlaces(2);
+      // Se lee de la linea FAOV_PAT realmente devengada en vez de recalcular
+      // sobre SAL_BASE: la base legal es el salario INTEGRAL (LRPVH Art. 33.1),
+      // no el normal que suma SAL_BASE, y recalcular aqui volveria a separar lo
+      // que se declara de lo que se calculo.
+      const faovEmployerAmount = (e?.faovPAT ?? new Decimal(0)).toDecimalPlaces(2);
       totalWorker = totalWorker.plus(faovWorkerAmount);
       totalEmployer = totalEmployer.plus(faovEmployerAmount);
       return {

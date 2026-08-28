@@ -10,7 +10,6 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
-import { DEFAULT_FAOV_PAT_RATE } from "./PayrollCalculatorService";
 
 export interface BankPaymentRow {
   cedula: string;
@@ -158,32 +157,38 @@ export const PayrollBankTxtService = {
     // Salario base y aportes FAOV del período
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
-          where: { payrollRunId: { in: runIds }, conceptCode: { in: ["FAOV_OBR", "SAL_BASE"] } },
+          where: { payrollRunId: { in: runIds }, conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] } },
           select: { employeeId: true, conceptCode: true, amount: true },
         })
       : [];
 
-    type Agg = { faovOBR: Decimal; salBase: Decimal };
+    type Agg = { faovOBR: Decimal; faovPAT: Decimal; salBase: Decimal };
     const agg = new Map<string, Agg>();
     for (const l of lines) {
-      if (!agg.has(l.employeeId)) agg.set(l.employeeId, { faovOBR: new Decimal(0), salBase: new Decimal(0) });
+      if (!agg.has(l.employeeId)) {
+        agg.set(l.employeeId, { faovOBR: new Decimal(0), faovPAT: new Decimal(0), salBase: new Decimal(0) });
+      }
       const e = agg.get(l.employeeId)!;
+      // Cada codigo se asigna explicitamente: el `else` que habia aqui mandaba a
+      // salBase cualquier concepto nuevo que entrara en la consulta.
       if (l.conceptCode === "FAOV_OBR") e.faovOBR = e.faovOBR.plus(l.amount.toString());
-      else e.salBase = e.salBase.plus(l.amount.toString());
+      else if (l.conceptCode === "FAOV_PAT") e.faovPAT = e.faovPAT.plus(l.amount.toString());
+      else if (l.conceptCode === "SAL_BASE") e.salBase = e.salBase.plus(l.amount.toString());
     }
 
-    // LRPVH (G.O. 6.805 Extr., 01-05-2024): el aporte patronal al FAOV es 2%
-    // — el 1% es el del trabajador. Esta constante local decía 0.01, así que el
-    // archivo que se sube a BANAVIH declaraba la mitad del aporte del patrono.
-    // Se toma de PayrollCalculatorService para que declaración y cálculo no
-    // puedan volver a divergir.
+    // LRPVH Art. 33.1 (G.O. 6.805 Extr., 01-05-2024): el aporte es el 3% del
+    // salario INTEGRAL, dos tercios a cargo del patrono. Aqui habia una constante
+    // local de 0.01 aplicada a SAL_BASE: mal la tasa (el 1% es el del trabajador)
+    // y mal la base (SAL_BASE es el salario normal). El archivo que se sube a
+    // BANAVIH declaraba menos de la mitad del aporte patronal. Ahora se lee la
+    // linea FAOV_PAT devengada, para que lo declarado sea lo calculado.
     let totalAporte = new Decimal(0);
 
     const rows = employees.map((emp) => {
       const e = agg.get(emp.id);
       const salBase = (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2);
       const aporteObrero = (e?.faovOBR ?? new Decimal(0)).toDecimalPlaces(2);
-      const aportePatronal = salBase.times(DEFAULT_FAOV_PAT_RATE).toDecimalPlaces(2);
+      const aportePatronal = (e?.faovPAT ?? new Decimal(0)).toDecimalPlaces(2);
       const aporteTotal = aporteObrero.plus(aportePatronal);
       totalAporte = totalAporte.plus(aporteTotal);
 
