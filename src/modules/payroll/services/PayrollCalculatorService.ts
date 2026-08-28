@@ -30,18 +30,18 @@ import type {
 // en el Art. 59 de la Ley (desarrollado por el 98 del Reglamento) y las tarifas
 // en el Art. 66 de la Ley (desarrollado por el 109).
 const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
-const IVSS_PAT_RATE_BY_RISK: Record<IvssRiskClass, Decimal> = {
+export const IVSS_PAT_RATE_BY_RISK: Record<IvssRiskClass, Decimal> = {
   MINIMO: new Decimal("0.09"),
   MEDIO:  new Decimal("0.10"),
   MAXIMO: new Decimal("0.11"),
 };
-const IVSS_CAP_MULTIPLES = new Decimal("5");
+export const IVSS_CAP_MULTIPLES = new Decimal("5");
 // Ley del INCES (Decreto 1.414, G.O. 6.155 Extraordinario del 19-11-2014):
 //   Art. 49 — patronal 2% del SALARIO NORMAL MENSUAL, SIN TOPE, pagadero por
 //     trimestre, y sólo para entidades con cinco o más trabajadores.
 //   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
 //     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
-const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
 // Ley del Régimen Prestacional de Vivienda y Hábitat, reformada por la Ley de
 // Reforma Parcial publicada en G.O. 6.805 Extraordinario del 01-05-2024:
 // aporte total del 3% del SALARIO INTEGRAL — un tercio del trabajador (1%) y
@@ -54,7 +54,7 @@ const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
 // 1997) y el INCES ("Art. 30", de la ley de 2008 derogada en 2014): la constante
 // se tomó de la ley anterior y la cita se actualizó sola.
 const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
-const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 // Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
 //   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
 //   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo

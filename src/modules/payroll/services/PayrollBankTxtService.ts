@@ -10,6 +10,7 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
+import { DEFAULT_FAOV_PAT_RATE } from "./PayrollCalculatorService";
 
 export interface BankPaymentRow {
   cedula: string;
@@ -171,14 +172,18 @@ export const PayrollBankTxtService = {
       else e.salBase = e.salBase.plus(l.amount.toString());
     }
 
-    const FAOV_EMPLOYER_RATE = new Decimal("0.01");
+    // LRPVH (G.O. 6.805 Extr., 01-05-2024): el aporte patronal al FAOV es 2%
+    // — el 1% es el del trabajador. Esta constante local decía 0.01, así que el
+    // archivo que se sube a BANAVIH declaraba la mitad del aporte del patrono.
+    // Se toma de PayrollCalculatorService para que declaración y cálculo no
+    // puedan volver a divergir.
     let totalAporte = new Decimal(0);
 
     const rows = employees.map((emp) => {
       const e = agg.get(emp.id);
       const salBase = (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2);
       const aporteObrero = (e?.faovOBR ?? new Decimal(0)).toDecimalPlaces(2);
-      const aportePatronal = salBase.times(FAOV_EMPLOYER_RATE).toDecimalPlaces(2);
+      const aportePatronal = salBase.times(DEFAULT_FAOV_PAT_RATE).toDecimalPlaces(2);
       const aporteTotal = aporteObrero.plus(aportePatronal);
       totalAporte = totalAporte.plus(aporteTotal);
 

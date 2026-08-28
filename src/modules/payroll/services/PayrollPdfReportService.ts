@@ -104,9 +104,9 @@ function buildIvssPdf(data: IvssReportData) {
       e(Text, { style: S.title }, "Planilla IVSS — Forma 14-02 (Referencia Contable)"),
       e(Text, { style: S.subtitle }, `${data.companyName} | ${MONTH_NAMES[data.month]} ${data.year}`),
       e(Text, { style: S.notice }, "Este documento es para referencia del contador. La declaración oficial se realiza en el sistema TIUNA del IVSS."),
-      !data.utCapApplied
+      !data.salaryCapApplied
         ? e(View, { style: S.warningBox },
-            e(Text, null, "Valor de la UT no configurado. El techo salarial IVSS (LSS Art. 62: 10 UT) no fue aplicado. Configure el valor en Configuración de Nómina.")
+            e(Text, null, "Salario mínimo no configurado. El techo de cotización IVSS (Reglamento General de la LSS Art. 98: 5 salarios mínimos) no fue aplicado. Configure el salario mínimo vigente en Configuración de Nómina.")
           )
         : null,
       e(View, { style: S.metaRow },
@@ -195,8 +195,9 @@ function buildIncesPdf(data: IncesReportData) {
       e(Text, { style: S.c1 }, `${row.lastName}, ${row.firstName}`),
       e(Text, { style: S.c2 }, `${row.cedulaType}-${row.cedulaNumber}`),
       e(Text, { style: S.c3 }, fmt(row.salaryBase)),
-      e(Text, { style: S.c3 }, fmt(row.incesWorkerAmount)),
       e(Text, { style: S.c3 }, fmt(row.profitAmount)),
+      e(Text, { style: S.c3 }, fmt(row.incesWorkerAmount)),
+      e(Text, { style: S.c3 }, fmt(row.incesEmployerAmount)),
     )
   );
 
@@ -210,21 +211,24 @@ function buildIncesPdf(data: IncesReportData) {
           e(Text, { style: S.c1 }, "Apellidos y Nombres"),
           e(Text, { style: S.c2 }, "Cédula"),
           e(Text, { style: S.c3 }, "Salario Trim."),
-          e(Text, { style: S.c3 }, "INCES Obrero (2%)"),
-          e(Text, { style: S.c3 }, "Utilidades año"),
+          e(Text, { style: S.c3 }, "Utilidades del trim."),
+          e(Text, { style: S.c3 }, "Retención 0,5% (Art. 50)"),
+          e(Text, { style: S.c3 }, "Patronal 2% (Art. 49)"),
         ),
         ...rows,
         e(View, { style: S.totRow },
           e(Text, { style: S.t1 }, "TOTALES"),
           e(Text, { style: S.t2 }, ""),
           e(Text, { style: S.t3 }, ""),
-          e(Text, { style: S.t3 }, fmt(data.totalWorkerAmount)),
           e(Text, { style: S.t3 }, ""),
+          e(Text, { style: S.t3 }, fmt(data.totalWorkerAmount)),
+          e(Text, { style: S.t3 }, fmt(data.totalEmployerAmount)),
         ),
       ),
       e(View, { style: S.infoBox },
-        e(Text, null, `Aporte patronal INCES sobre utilidades (0.5%): Bs. ${fmt(data.totalEmployerProfitContrib)}`),
-        e(Text, { style: { marginTop: 2 } }, `Total período (obreros + patrono utilidades): Bs. ${fmt(data.totalAmount)}`),
+        e(Text, null, `Aporte patronal — 2% del salario normal (Ley INCES Art. 49): Bs. ${fmt(data.totalEmployerAmount)}`),
+        e(Text, { style: { marginTop: 2 } }, `Retenido a los trabajadores — 0,5% de las utilidades (Art. 50): Bs. ${fmt(data.totalWorkerAmount)}`),
+        e(Text, { style: { marginTop: 2 } }, `Total del período (patrono + trabajadores): Bs. ${fmt(data.totalAmount)}`),
       ),
     ),
   );

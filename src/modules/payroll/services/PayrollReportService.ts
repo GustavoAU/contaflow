@@ -15,13 +15,24 @@ import prisma from "@/lib/prisma";
 
 // ─── Tasas patronales legales venezolanas (inmutables — ADR-006 D-3) ──────────
 // LSS Art. 62: IVSS patronal 9% sobre salario (techo 10 UT)
-export const IVSS_EMPLOYER_RATE = new Decimal("0.09");
-// LSS Art. 62: Techo IVSS = 10 UT × utValue
-export const IVSS_SALARY_CAP_UT = new Decimal("10");
-// LAH Art. 172: FAOV patronal 1%
-export const FAOV_EMPLOYER_RATE = new Decimal("0.01");
-// Ley INCES Art. 30: patrono 0.5% sobre utilidades pagadas en el año
-export const INCES_EMPLOYER_PROFIT_RATE = new Decimal("0.005");
+// Las tasas y topes legales viven en PayrollCalculatorService: lo que se declara
+// al instituto tiene que ser exactamente lo que se calculo en la nomina. Este
+// archivo solo los re-exporta para los consumidores del reporte.
+// Las cuatro constantes que estaban aqui citaban leyes derogadas (LSS Art. 62,
+// LAH Art. 172, Ley INCES 2008 Art. 30) y ninguna coincidia con la ley vigente:
+// el techo IVSS no son 10 UT sino 5 salarios minimos (Reglamento Art. 98), la
+// patronal IVSS depende de la clase de riesgo, el FAOV patronal es 2% (no 1%) y
+// el 0,5% sobre utilidades es retencion AL TRABAJADOR (Art. 50), no aporte patronal.
+export {
+  IVSS_PAT_RATE_BY_RISK,
+  IVSS_CAP_MULTIPLES,
+  DEFAULT_FAOV_PAT_RATE as FAOV_EMPLOYER_RATE,
+} from "./PayrollCalculatorService";
+import {
+  IVSS_PAT_RATE_BY_RISK,
+  IVSS_CAP_MULTIPLES,
+  DEFAULT_FAOV_PAT_RATE,
+} from "./PayrollCalculatorService";
 
 // ─── ISLR Decreto 1808 — Tarifa 1 (personas naturales residentes) ─────────────
 // Expresada en Unidades Tributarias (UT). Escalonada — se aplica tramo a tramo.
@@ -59,7 +70,7 @@ export interface IvssEmployeeRow extends ReportEmployeeSnap {
   weeksWorked: number;         // semanas cotizadas en el mes (días / 7, techo al entero)
   salaryBase: Decimal;         // suma SAL_BASE del mes
   ivssWorkerAmount: Decimal;   // suma IVSS_OBR de PayrollRunLine
-  ivssEmployerAmount: Decimal; // calculado: min(salaryBase, 10UT×utValue) × 9%
+  ivssEmployerAmount: Decimal; // min(salaryBase, 5 salarios mínimos) por tasa de riesgo
   ivssTotalAmount: Decimal;
 }
 
@@ -69,7 +80,9 @@ export interface IvssReportData {
   year: number;
   month: number;             // 1-12
   utValue: Decimal | null;   // null = no configurado
-  utCapApplied: boolean;     // true si el techo se pudo aplicar (utValue != null)
+  // true si el techo de 5 salarios mínimos se pudo aplicar (Reglamento Art. 98).
+  // Depende del salario mínimo configurado, no de la UT.
+  salaryCapApplied: boolean;
   rows: IvssEmployeeRow[];
   totalWorkerAmount: Decimal;
   totalEmployerAmount: Decimal;
@@ -96,7 +109,10 @@ export interface BanavihReportData {
 
 export interface IncesEmployeeRow extends ReportEmployeeSnap {
   salaryBase: Decimal;          // suma SAL_BASE del trimestre
-  incesWorkerAmount: Decimal;   // suma INCES_OBR de PayrollRunLine
+  // Ley INCES Art. 50 - 0,5% de las UTILIDADES, retenido al trabajador.
+  incesWorkerAmount: Decimal;
+  // Ley INCES Art. 49 - 2% del salario normal, a cargo del patrono (INCES_PAT).
+  incesEmployerAmount: Decimal;
   profitAmount: Decimal;        // utilidades del año (ProfitSharingRecord)
 }
 
@@ -106,8 +122,8 @@ export interface IncesReportData {
   year: number;
   quarter: number;              // 1-4
   rows: IncesEmployeeRow[];
-  totalWorkerAmount: Decimal;
-  totalEmployerProfitContrib: Decimal; // 0.5% sobre utilidades del año
+  totalWorkerAmount: Decimal;   // Art. 50 - retenido a los trabajadores
+  totalEmployerAmount: Decimal; // Art. 49 - a cargo del patrono
   totalAmount: Decimal;
 }
 
@@ -177,7 +193,7 @@ export const PayrollReportService = {
 
     const config = await prisma.payrollConfig.findUnique({
       where: { companyId },
-      select: { utValue: true },
+      select: { utValue: true, salaryMinimumVes: true, ivssRiskClass: true },
     });
     const utValue = config?.utValue ? new Decimal(config.utValue.toString()) : null;
 
@@ -258,10 +274,19 @@ export const PayrollReportService = {
       }
     }
 
-    // Calcular el techo IVSS (10 UT × utValue)
-    const salaryCap = utValue
-      ? IVSS_SALARY_CAP_UT.times(utValue)
+    // Reglamento General de la LSS Art. 98: el techo de cotización son CINCO
+    // salarios mínimos mensuales. Antes se calculaba como 10 UT — base
+    // equivocada (la UT no gobierna este techo) y además congelada hace años.
+    const salaryMinVes = config?.salaryMinimumVes
+      ? new Decimal(config.salaryMinimumVes.toString())
       : null;
+    const salaryCap = salaryMinVes && salaryMinVes.gt(0)
+      ? salaryMinVes.times(IVSS_CAP_MULTIPLES)
+      : null;
+
+    // LSS Art. 59: la cotización patronal depende de la clase de riesgo que
+    // declara la empresa (mínimo 9% / medio 10% / máximo 11%). Estaba fija en 9%.
+    const ivssEmployerRate = IVSS_PAT_RATE_BY_RISK[config?.ivssRiskClass ?? "MEDIO"];
 
     let totalWorkerAmount = new Decimal(0);
     let totalEmployerAmount = new Decimal(0);
@@ -275,7 +300,7 @@ export const PayrollReportService = {
       const basePatronal = salaryCap
         ? Decimal.min(salaryBase, salaryCap)
         : salaryBase;
-      const ivssEmployerAmount = basePatronal.times(IVSS_EMPLOYER_RATE).toDecimalPlaces(2);
+      const ivssEmployerAmount = basePatronal.times(ivssEmployerRate).toDecimalPlaces(2);
 
       // Semanas cotizadas: días / 7, redondeado al entero (IVSS cuenta semanas completas)
       const weeksWorked = agg?.daysWorked
@@ -305,7 +330,7 @@ export const PayrollReportService = {
       year,
       month,
       utValue,
-      utCapApplied: utValue !== null,
+      salaryCapApplied: salaryCap !== null,
       rows,
       totalWorkerAmount: totalWorkerAmount.toDecimalPlaces(2),
       totalEmployerAmount: totalEmployerAmount.toDecimalPlaces(2),
@@ -369,7 +394,7 @@ export const PayrollReportService = {
       const e = agg.get(emp.id);
       const salaryBase = (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2);
       const faovWorkerAmount = (e?.faovOBR ?? new Decimal(0)).toDecimalPlaces(2);
-      const faovEmployerAmount = salaryBase.times(FAOV_EMPLOYER_RATE).toDecimalPlaces(2);
+      const faovEmployerAmount = salaryBase.times(DEFAULT_FAOV_PAT_RATE).toDecimalPlaces(2);
       totalWorker = totalWorker.plus(faovWorkerAmount);
       totalEmployer = totalEmployer.plus(faovEmployerAmount);
       return {
@@ -422,55 +447,83 @@ export const PayrollReportService = {
       ? await prisma.payrollRunLine.findMany({
           where: {
             payrollRunId: { in: runIds },
-            conceptCode: { in: ["INCES_OBR", "SAL_BASE"] },
+            conceptCode: { in: ["INCES_OBR", "INCES_PAT", "SAL_BASE"] },
           },
           select: { employeeId: true, conceptCode: true, amount: true },
         })
       : [];
 
-    // Utilidades del año fiscal (para el aporte patronal INCES 0.5%)
+    // Ley INCES Art. 50: el aporte del TRABAJADOR es el 0,5% de las utilidades
+    // y se entera en el trimestre en que las utilidades se pagaron — no es una
+    // deducción mensual sobre el sueldo. Vive en ProfitSharingRecord.incesRetention.
+    //
+    // Se filtra por la fecha de pago (createdAt) y NO por isFractional: la
+    // fracción de utilidades de una liquidación también causa la retención, y
+    // filtrarla dejaba fuera del trimestre a todo el que se liquidó en él.
+    const quarterEndExclusive = new Date(Date.UTC(year, months[2], 1));
     const profitRecords = await prisma.profitSharingRecord.findMany({
-      where: { companyId, fiscalYear: year, isFractional: false },
-      select: { employeeId: true, profitAmount: true },
+      where: {
+        companyId,
+        createdAt: { gte: periodStart, lt: quarterEndExclusive },
+      },
+      select: { employeeId: true, profitAmount: true, incesRetention: true },
     });
-    const profitByEmp = new Map<string, Decimal>();
+    const profitByEmp = new Map<string, { profit: Decimal; retention: Decimal }>();
     for (const pr of profitRecords) {
-      profitByEmp.set(pr.employeeId, new Decimal(pr.profitAmount.toString()));
+      const prev = profitByEmp.get(pr.employeeId);
+      profitByEmp.set(pr.employeeId, {
+        profit: (prev?.profit ?? new Decimal(0)).plus(pr.profitAmount.toString()),
+        retention: (prev?.retention ?? new Decimal(0)).plus(pr.incesRetention.toString()),
+      });
     }
 
-    type EmpAgg = { incesOBR: Decimal; salBase: Decimal };
+    type EmpAgg = { incesOBR: Decimal; incesPAT: Decimal; salBase: Decimal };
     const agg = new Map<string, EmpAgg>();
     for (const line of lines) {
-      if (!agg.has(line.employeeId)) agg.set(line.employeeId, { incesOBR: new Decimal(0), salBase: new Decimal(0) });
+      if (!agg.has(line.employeeId)) {
+        agg.set(line.employeeId, { incesOBR: new Decimal(0), incesPAT: new Decimal(0), salBase: new Decimal(0) });
+      }
       const e = agg.get(line.employeeId)!;
       if (line.conceptCode === "INCES_OBR") e.incesOBR = e.incesOBR.plus(line.amount.toString());
+      else if (line.conceptCode === "INCES_PAT") e.incesPAT = e.incesPAT.plus(line.amount.toString());
       else if (line.conceptCode === "SAL_BASE") e.salBase = e.salBase.plus(line.amount.toString());
     }
 
     let totalWorker = new Decimal(0);
-    let totalEmployerProfit = new Decimal(0);
+    let totalEmployer = new Decimal(0);
 
     const rows: IncesEmployeeRow[] = employees.map((emp) => {
       const e = agg.get(emp.id);
-      const incesWorkerAmount = (e?.incesOBR ?? new Decimal(0)).toDecimalPlaces(2);
-      const profitAmount = (profitByEmp.get(emp.id) ?? new Decimal(0)).toDecimalPlaces(2);
+      const p = profitByEmp.get(emp.id);
+
+      // INCES_OBR sólo existe en nóminas anteriores a ADR-045, cuando el 0,5% se
+      // retenía mensualmente sobre el sueldo. Se sigue sumando para que los
+      // trimestres ya declarados no pasen a mostrar cero al abrir el reporte.
+      const incesWorkerAmount = (e?.incesOBR ?? new Decimal(0))
+        .plus(p?.retention ?? new Decimal(0))
+        .toDecimalPlaces(2);
+
+      // Art. 49: 2% del salario normal, a cargo del patrono. Se lee de la línea
+      // realmente devengada (INCES_PAT), no se recalcula, para que el reporte no
+      // pueda diferir de la nómina que lo originó.
+      const incesEmployerAmount = (e?.incesPAT ?? new Decimal(0)).toDecimalPlaces(2);
+
+      const profitAmount = (p?.profit ?? new Decimal(0)).toDecimalPlaces(2);
       totalWorker = totalWorker.plus(incesWorkerAmount);
-      totalEmployerProfit = totalEmployerProfit.plus(
-        profitAmount.times(INCES_EMPLOYER_PROFIT_RATE).toDecimalPlaces(2)
-      );
+      totalEmployer = totalEmployer.plus(incesEmployerAmount);
       return {
         employeeId: emp.id, firstName: emp.firstName, lastName: emp.lastName,
         cedulaType: emp.cedulaType, cedulaNumber: emp.cedulaNumber,
         salaryBase: (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2),
-        incesWorkerAmount, profitAmount,
+        incesWorkerAmount, incesEmployerAmount, profitAmount,
       };
     });
 
     return {
       companyId, companyName: company.name, year, quarter, rows,
       totalWorkerAmount: totalWorker.toDecimalPlaces(2),
-      totalEmployerProfitContrib: totalEmployerProfit.toDecimalPlaces(2),
-      totalAmount: totalWorker.plus(totalEmployerProfit).toDecimalPlaces(2),
+      totalEmployerAmount: totalEmployer.toDecimalPlaces(2),
+      totalAmount: totalWorker.plus(totalEmployer).toDecimalPlaces(2),
     };
   },
 
