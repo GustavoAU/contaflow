@@ -63,6 +63,46 @@ export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 export const LEGAL_MIN_PROFIT_DAYS = 30;       // LOTTT Art. 131
 export const LEGAL_MIN_VAC_BONUS_DAYS = 15;    // LOTTT Art. 192
 
+// ── Cotización semanal del IVSS (Reglamento General de la LSS) ───────────────
+// Art. 99: "las cotizaciones se causarán por semanas". El salario semanal es
+// (salario mensual x 12) / 52 — no el mensual entre cuatro.
+const WEEKS_PER_YEAR = new Decimal("52");
+const MONTHS_PER_YEAR = new Decimal("12");
+
+export function weeklyWageFrom(monthlyWage: Decimal): Decimal {
+  return monthlyWage.mul(MONTHS_PER_YEAR).div(WEEKS_PER_YEAR);
+}
+
+/**
+ * Semanas cotizables que cubre un período de nómina.
+ *
+ * Art. 100: el IVSS puede establecer que el pago se efectúe "por períodos de
+ * cuatro (4) o cinco (5) semanas" — o sea, el mes no vale siempre lo mismo.
+ * Art. 102: por cada semana de trabajo no se debe más de una cotización.
+ *
+ * Se cuentan los LUNES del período. Esto último es práctica del sistema TIUNA,
+ * no texto del Reglamento: se implementa así porque es contra la factura de
+ * TIUNA que la empresa concilia, y porque produce exactamente los 4 ó 5 que el
+ * Art. 100 contempla. Queda anotado por si el criterio del instituto cambia.
+ */
+export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
+  if (periodEnd < periodStart) return 0;
+  let weeks = 0;
+  const cursor = new Date(Date.UTC(
+    periodStart.getUTCFullYear(), periodStart.getUTCMonth(), periodStart.getUTCDate(),
+  ));
+  const last = Date.UTC(
+    periodEnd.getUTCFullYear(), periodEnd.getUTCMonth(), periodEnd.getUTCDate(),
+  );
+  // Avanzar hasta el primer lunes del período (getUTCDay: 1 = lunes).
+  cursor.setUTCDate(cursor.getUTCDate() + ((8 - cursor.getUTCDay()) % 7));
+  while (cursor.getTime() <= last) {
+    weeks += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+  return weeks;
+}
+
 /**
  * Salario diario INTEGRAL — LOTTT Art. 122: "el último salario devengado,
  * calculado de manera que integre todos los conceptos salariales percibidos",
@@ -170,6 +210,15 @@ export interface PayrollCalculatorConfig {
   // (Reglamento Arts. 108/109/192). Si falta, se asume MEDIO: es la clase
   // residual del Reglamento, no la más barata.
   ivssRiskClass?: IvssRiskClass;
+  // Período que cubre la nómina. Sólo lo usa el IVSS, que se cotiza por SEMANA
+  // (Reglamento Art. 99) y no por mes: hay que saber cuántas semanas cubre el
+  // período para saber cuántas cotizaciones se causaron.
+  //
+  // OBLIGATORIO a propósito, igual que `salaryNature`: si fuera opcional, un
+  // llamador que lo omitiera obtendría cero semanas y por tanto CERO de IVSS,
+  // sin error y sin aviso. Que lo atrape el compilador.
+  periodStart: Date;
+  periodEnd: Date;
   // Días de utilidades y de bono vacacional que paga la empresa. Sólo se usan
   // para la alícuota del salario integral, que es la base del FAOV (LRPVH
   // Art. 33). Si faltan, `integralDailyWageFrom` aplica los mínimos legales
@@ -352,6 +401,8 @@ export const PayrollCalculatorService = {
     const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
     // Tasas efectivas: usa las configuradas por el admin (LegalThreshold) si existen,
     // o los defaults legales hardcodeados como fallback.
+    // Reglamento LSS Arts. 99/100/102: el IVSS se cotiza por semana, no por mes.
+    const ivssWeeks = contributableWeeks(config.periodStart, config.periodEnd);
     const ivssWorkerRate  = config.ivssObrRate  ?? DEFAULT_IVSS_WORKER_RATE;
     const ivssPatRate     =
       config.ivssPatRate ?? IVSS_PAT_RATE_BY_RISK[config.ivssRiskClass ?? "MEDIO"];
@@ -480,10 +531,13 @@ export const PayrollCalculatorService = {
       config.vacationBonusDays ?? LEGAL_MIN_VAC_BONUS_DAYS,
     ).mul(30);
 
-    // ── IVSS_OBR (default 4%, tope 5×salMin — solo si ivssEnabled) ─────────────
+    // ── IVSS_OBR (4%, semanal, tope mensual 5xsalMin) ─────────────────────────
+    // El tope del Art. 98 son cinco salarios minimos MENSUALES, asi que se acota
+    // el sueldo del mes y despues se lleva a semanas — no al reves.
     const ivssObrId = findConcept(systemConcepts, "IVSS_OBR");
     if (ivssEnabled && ivssObrId) {
-      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const monthlyBasis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const basis = weeklyWageFrom(monthlyBasis).mul(ivssWeeks);
       const amount = basis.times(ivssWorkerRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_OBR",
@@ -543,10 +597,11 @@ export const PayrollCalculatorService = {
     }
 
     // ── F-03: Aportes patronales — EMPLOYER_COST (no afectan neto del empleado) ─
-    // ── IVSS_PAT (default 9%, tope 5×salMin — LSS Art. 62) ──────────────────────
+    // ── IVSS_PAT (9/10/11% segun riesgo, semanal, tope mensual 5xsalMin) ──────
     const ivssPatId = findConcept(systemConcepts, "IVSS_PAT");
     if (ivssEnabled && ivssPatId) {
-      const basis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const monthlyBasis = cappedBasis(salarioNormal, salaryMinInCurrency, IVSS_CAP_MULTIPLES);
+      const basis = weeklyWageFrom(monthlyBasis).mul(ivssWeeks);
       const amount = basis.times(ivssPatRate).toDecimalPlaces(2);
       lines.push({
         conceptCode: "IVSS_PAT",

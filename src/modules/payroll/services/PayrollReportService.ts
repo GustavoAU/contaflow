@@ -13,24 +13,18 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 
-// ─── Tasas y topes legales ────────────────────────────────────────────────────
-// Viven en PayrollCalculatorService: lo que se declara al instituto tiene que ser
-// exactamente lo que se calculó en la nómina, así que este archivo los importa
-// en vez de tener los suyos.
+// ─── Tasas y topes legales: aquí ya no vive ninguna ───────────────────────────
+// Este servicio DECLARA lo devengado; no recalcula. Los aportes patronales de
+// IVSS, FAOV e INCES se leen de las líneas IVSS_PAT / FAOV_PAT / INCES_PAT que
+// dejó el calculador, para que lo que se declara al instituto sea exactamente lo
+// que la nómina retuvo y la contabilidad registró.
 //
-// Aquí había cuatro constantes propias, todas citadas a leyes derogadas (LSS
-// Art. 62, LAH Art. 172, Ley INCES 2008 Art. 30) y ninguna coincidía con la ley
-// vigente: el techo del IVSS no son 10 UT sino 5 salarios mínimos (Reglamento
-// Art. 98), la patronal del IVSS depende de la clase de riesgo, el FAOV patronal
-// es 2% y no 1%, y el 0,5% sobre utilidades es retención AL TRABAJADOR (Ley
-// INCES Art. 50), no aporte patronal.
-//
-// Las cotizaciones patronales de FAOV e INCES ya no se recalculan aquí: se leen
-// de las líneas FAOV_PAT / INCES_PAT devengadas.
-import {
-  IVSS_PAT_RATE_BY_RISK,
-  IVSS_CAP_MULTIPLES,
-} from "./PayrollCalculatorService";
+// Había cuatro constantes propias, todas citadas a leyes derogadas (LSS Art. 62,
+// LAH Art. 172, Ley INCES 2008 Art. 30) y ninguna coincidía con la ley vigente:
+// el techo del IVSS no son 10 UT sino 5 salarios mínimos (Reglamento Art. 98) y
+// además se cotiza por semana (Art. 99), la patronal del IVSS depende de la clase
+// de riesgo, el FAOV patronal es 2% sobre el salario INTEGRAL, y el 0,5% sobre
+// utilidades es retención AL TRABAJADOR (Ley INCES Art. 50), no aporte patronal.
 
 // ─── ISLR Decreto 1808 — Tarifa 1 (personas naturales residentes) ─────────────
 // Expresada en Unidades Tributarias (UT). Escalonada — se aplica tramo a tramo.
@@ -68,7 +62,7 @@ export interface IvssEmployeeRow extends ReportEmployeeSnap {
   weeksWorked: number;         // semanas cotizadas en el mes (días / 7, techo al entero)
   salaryBase: Decimal;         // suma SAL_BASE del mes
   ivssWorkerAmount: Decimal;   // suma IVSS_OBR de PayrollRunLine
-  ivssEmployerAmount: Decimal; // min(salaryBase, 5 salarios mínimos) por tasa de riesgo
+  ivssEmployerAmount: Decimal; // suma IVSS_PAT de PayrollRunLine
   ivssTotalAmount: Decimal;
 }
 
@@ -90,7 +84,7 @@ export interface IvssReportData {
 export interface BanavihEmployeeRow extends ReportEmployeeSnap {
   salaryBase: Decimal;
   faovWorkerAmount: Decimal;   // suma FAOV_OBR de PayrollRunLine
-  faovEmployerAmount: Decimal; // calculado: salaryBase × 1%
+  faovEmployerAmount: Decimal; // suma FAOV_PAT de PayrollRunLine
   faovTotalAmount: Decimal;
 }
 
@@ -226,7 +220,7 @@ export const PayrollReportService = {
       ? await prisma.payrollRunLine.findMany({
           where: {
             payrollRunId: { in: runIds },
-            conceptCode: { in: ["IVSS_OBR", "SAL_BASE"] },
+            conceptCode: { in: ["IVSS_OBR", "IVSS_PAT", "SAL_BASE"] },
           },
           select: {
             employeeId: true, payrollRunId: true,
@@ -238,6 +232,7 @@ export const PayrollReportService = {
     // Agrupar líneas y días por empleado
     type EmpAgg = {
       ivssOBR: Decimal;
+      ivssPAT: Decimal;
       salBase: Decimal;
       daysWorked: number;
     };
@@ -247,6 +242,7 @@ export const PayrollReportService = {
       if (!aggByEmp.has(line.employeeId)) {
         aggByEmp.set(line.employeeId, {
           ivssOBR: new Decimal(0),
+          ivssPAT: new Decimal(0),
           salBase: new Decimal(0),
           daysWorked: 0,
         });
@@ -254,6 +250,8 @@ export const PayrollReportService = {
       const agg = aggByEmp.get(line.employeeId)!;
       if (line.conceptCode === "IVSS_OBR") {
         agg.ivssOBR = agg.ivssOBR.plus(new Decimal(line.amount.toString()));
+      } else if (line.conceptCode === "IVSS_PAT") {
+        agg.ivssPAT = agg.ivssPAT.plus(new Decimal(line.amount.toString()));
       } else if (line.conceptCode === "SAL_BASE") {
         agg.salBase = agg.salBase.plus(new Decimal(line.amount.toString()));
       }
@@ -272,19 +270,15 @@ export const PayrollReportService = {
       }
     }
 
-    // Reglamento General de la LSS Art. 98: el techo de cotización son CINCO
-    // salarios mínimos mensuales. Antes se calculaba como 10 UT — base
-    // equivocada (la UT no gobierna este techo) y además congelada hace años.
+    // El techo (Reglamento Art. 98: cinco salarios mínimos MENSUALES) y la tasa
+    // por clase de riesgo (Art. 109) los aplica el calculador al procesar la
+    // nómina; aquí sólo se declara lo que quedó devengado. Este flag existe para
+    // avisar en la UI de que los runs se calcularon SIN techo porque la empresa
+    // no tiene el salario mínimo configurado.
     const salaryMinVes = config?.salaryMinimumVes
       ? new Decimal(config.salaryMinimumVes.toString())
       : null;
-    const salaryCap = salaryMinVes && salaryMinVes.gt(0)
-      ? salaryMinVes.times(IVSS_CAP_MULTIPLES)
-      : null;
-
-    // LSS Art. 59: la cotización patronal depende de la clase de riesgo que
-    // declara la empresa (mínimo 9% / medio 10% / máximo 11%). Estaba fija en 9%.
-    const ivssEmployerRate = IVSS_PAT_RATE_BY_RISK[config?.ivssRiskClass ?? "MEDIO"];
+    const salaryCapApplied = salaryMinVes !== null && salaryMinVes.gt(0);
 
     let totalWorkerAmount = new Decimal(0);
     let totalEmployerAmount = new Decimal(0);
@@ -294,11 +288,11 @@ export const PayrollReportService = {
       const salaryBase = agg?.salBase ?? new Decimal(0);
       const ivssWorkerAmount = (agg?.ivssOBR ?? new Decimal(0)).toDecimalPlaces(2);
 
-      // Base patronal: min(salaryBase, cap) — si cap es null usa salaryBase completo
-      const basePatronal = salaryCap
-        ? Decimal.min(salaryBase, salaryCap)
-        : salaryBase;
-      const ivssEmployerAmount = basePatronal.times(ivssEmployerRate).toDecimalPlaces(2);
+      // Se lee de la linea IVSS_PAT devengada en vez de recalcular sobre
+      // SAL_BASE. El IVSS se cotiza por SEMANA (Reglamento Art. 99) y SAL_BASE es
+      // el sueldo del mes: recalcular aqui declararia una cifra distinta de la
+      // que la nomina retuvo y de la que se contabilizo.
+      const ivssEmployerAmount = (agg?.ivssPAT ?? new Decimal(0)).toDecimalPlaces(2);
 
       // Semanas cotizadas: días / 7, redondeado al entero (IVSS cuenta semanas completas)
       const weeksWorked = agg?.daysWorked
@@ -328,7 +322,7 @@ export const PayrollReportService = {
       year,
       month,
       utValue,
-      salaryCapApplied: salaryCap !== null,
+      salaryCapApplied,
       rows,
       totalWorkerAmount: totalWorkerAmount.toDecimalPlaces(2),
       totalEmployerAmount: totalEmployerAmount.toDecimalPlaces(2),

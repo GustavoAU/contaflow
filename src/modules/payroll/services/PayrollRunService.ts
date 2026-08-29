@@ -273,6 +273,10 @@ export const PayrollRunService = {
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
       ivssRiskClass: config.ivssRiskClass,
+      // El IVSS se cotiza por semana (Reglamento LSS Art. 99): el período define
+      // cuántas cotizaciones se causaron.
+      periodStart,
+      periodEnd,
       // Alícuotas del salario integral — base del FAOV (LRPVH Art. 33.1).
       profitDays: config.profitDays,
       vacationBonusDays: config.vacationBonusDays,

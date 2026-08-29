@@ -6,6 +6,8 @@ import Decimal from "decimal.js";
 import type { SalaryNature } from "@prisma/client";
 import {
   PayrollCalculatorService,
+  contributableWeeks,
+  weeklyWageFrom,
   type EmployeeCalculationInput,
   type PayrollCalculatorConfig,
   type ManualConceptCalculationInput,
@@ -33,6 +35,10 @@ const BASE_CONFIG: PayrollCalculatorConfig = {
   banavihEnabled: true,
   rpeEnabled: true,
   salaryMinimumVes: new Decimal(0), // sin tope — retro-compatible
+  // Marzo de 2026 tiene CINCO lunes (2, 9, 16, 23 y 30): el IVSS se cotiza por
+  // semana (Reglamento Art. 99), asi que el mes no vale siempre lo mismo.
+  periodStart: new Date("2026-03-01T00:00:00Z"),
+  periodEnd: new Date("2026-03-31T00:00:00Z"),
   systemConcepts: SYSTEM_CONCEPTS,
 };
 
@@ -131,8 +137,9 @@ describe("PayrollCalculatorService — IVSS_OBR", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
     expect(ivss!.conceptType).toBe("DEDUCTION");
-    // 30000 * 0.04 = 1200
-    expect(ivss!.amount.toFixed(2)).toBe("1200.00");
+    // 30000 x 12/52 x 5 semanas = 34.615,38 -> 4% = 1.384,62
+    expect(ivss!.basis!.toFixed(2)).toBe("34615.38");
+    expect(ivss!.amount.toFixed(2)).toBe("1384.62");
     expect(ivss!.rate!.toFixed(2)).toBe("0.04");
   });
 
@@ -225,11 +232,12 @@ describe("PayrollCalculatorService.calculate", () => {
   it("calcula correctamente para un empleado sin novedades", () => {
     const result = PayrollCalculatorService.calculate([makeEmp()], [], BASE_CONFIG);
     // totalEarnings = 30000 (SAL_BASE)
-    // totalDeductions = 1200 (IVSS 4%) + 337,50 (FAOV 1% del integral) + 150 (RPE) = 1687,50
+    // totalDeductions = 1.384,62 (IVSS 4% semanal) + 337,50 (FAOV 1% del integral)
+    //                 + 150 (RPE 0,5% mensual) = 1.872,12
     // El INCES obrero ya no se retiene mes a mes (Art. 50).
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("1687.50");
-    expect(result.totalNet.toFixed(2)).toBe("28312.50");
+    expect(result.totalDeductions.toFixed(2)).toBe("1872.12");
+    expect(result.totalNet.toFixed(2)).toBe("28127.88");
   });
 
   it("incluye conceptos manuales en el cálculo", () => {
@@ -244,8 +252,8 @@ describe("PayrollCalculatorService.calculate", () => {
       },
     ];
     const result = PayrollCalculatorService.calculate([makeEmp()], manuals, BASE_CONFIG);
-    expect(result.totalDeductions.toFixed(2)).toBe("2187.50"); // 1687,50 + 500
-    expect(result.totalNet.toFixed(2)).toBe("27812.50");
+    expect(result.totalDeductions.toFixed(2)).toBe("2372.12"); // 1.872,12 + 500
+    expect(result.totalNet.toFixed(2)).toBe("27627.88");
   });
 
   it("calcula múltiples empleados sumando correctamente", () => {
@@ -256,11 +264,11 @@ describe("PayrollCalculatorService.calculate", () => {
       salaryAmount: new Decimal("20000"),
     });
     const result = PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG);
-    // emp1: 30000 -> 1200 + 337,50 + 150 = 1687,50
-    // emp2: 20000 ->  800 + 225,00 + 100 = 1125,00
+    // emp1: 30000 -> IVSS 1.384,62 + FAOV 337,50 + RPE 150 = 1.872,12
+    // emp2: 20000 -> IVSS   923,08 + FAOV 225,00 + RPE 100 = 1.248,08
     expect(result.totalEarnings.toFixed(2)).toBe("50000.00");
-    expect(result.totalDeductions.toFixed(2)).toBe("2812.50");
-    expect(result.totalNet.toFixed(2)).toBe("47187.50");
+    expect(result.totalDeductions.toFixed(2)).toBe("3120.20");
+    expect(result.totalNet.toFixed(2)).toBe("46879.80");
   });
 
   it("preserva snapshot de salario en cada línea", () => {
@@ -320,8 +328,8 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
-    // Sin tope: 1000 * 0.04 = 40
-    expect(ivss!.amount.toFixed(2)).toBe("40.00");
+    // Sin tope: 1000 x 12/52 x 5 semanas = 1.153,85 -> 4% = 46,15
+    expect(ivss!.amount.toFixed(2)).toBe("46.15");
   });
 
   it("IVSS: capped a 5×salaryMin cuando salario supera el tope", () => {
@@ -333,9 +341,10 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
-    // base cappada = min(1000, 5×130) = 650; 650 * 0.04 = 26
-    expect(ivss!.amount.toFixed(2)).toBe("26.00");
-    expect(ivss!.basis!.toFixed(2)).toBe("650.00");
+    // El tope del Art. 98 es MENSUAL, asi que se acota el mes y DESPUES se lleva
+    // a semanas: min(1000, 5x130) = 650 -> 650 x 12/52 x 5 = 750 -> 4% = 30
+    expect(ivss!.basis!.toFixed(2)).toBe("750.00");
+    expect(ivss!.amount.toFixed(2)).toBe("30.00");
   });
 
   it("FAOV: SIN tope - LRPVH reformada (G.O. 6.805)", () => {
@@ -369,9 +378,12 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     expect(basisOf("FAOV_OBR").toFixed(2)).toBe("33750.00");
     expect(basisOf("FAOV_PAT").toFixed(2)).toBe("33750.00");
 
-    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("30000.00");
+    // El RPE y el INCES patronal cotizan sobre el salario normal MENSUAL.
     expect(basisOf("RPE_OBR").toFixed(2)).toBe("30000.00");
     expect(basisOf("INCES_PAT").toFixed(2)).toBe("30000.00");
+    // El IVSS parte del mismo salario normal pero lo lleva a semanas (Art. 99):
+    // 30000 x 12/52 x 5 = 34.615,38. Tres bases distintas, tres leyes distintas.
+    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("34615.38");
   });
 
   it("FAOV: sin dias configurados aplica los minimos legales, nunca menos", () => {
@@ -470,9 +482,9 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const emp = makeEmp({ salaryAmount: salary });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR");
-    // Sin recorte: 500 * 0.04 = 20 (500 < 650)
-    expect(ivss!.amount.toFixed(2)).toBe("20.00");
-    expect(ivss!.basis!.toFixed(2)).toBe("500.00");
+    // Sin recorte (500 < 650): 500 x 12/52 x 5 = 576,92 -> 4% = 23,08
+    expect(ivss!.amount.toFixed(2)).toBe("23.08");
+    expect(ivss!.basis!.toFixed(2)).toBe("576.92");
   });
 });
 
@@ -498,8 +510,9 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     const line = lines.find((l) => l.conceptCode === "IVSS_PAT");
     expect(line).toBeDefined();
     expect(line!.conceptType).toBe("EMPLOYER_COST");
-    // 30000 x 0,10 = 3000 (Reglamento LSS Art. 109, Riesgo Medio)
-    expect(line!.amount.toFixed(2)).toBe("3000.00");
+    // 30000 x 12/52 x 5 = 34.615,38 -> 10% = 3.461,54
+    // (Reglamento LSS Art. 109 la tarifa, Art. 99 la periodicidad)
+    expect(line!.amount.toFixed(2)).toBe("3461.54");
     expect(line!.rate!.toFixed(4)).toBe("0.1000");
   });
 
@@ -538,13 +551,14 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     const result = PayrollCalculatorService.calculate([emp], [], CONFIG_WITH_PAT);
     // Aportes patronales no deben estar en totalEarnings ni totalDeductions
     expect(result.totalEarnings.toFixed(2)).toBe("30000.00");
-    // IVSS 4% + RPE 0,5% sobre el normal, FAOV 1% sobre el integral
-    expect(result.totalDeductions.toFixed(2)).toBe("1687.50");
-    // totalEmployerCosts = IVSS 10% (3000) + INCES 2% (600) + RPE 2% (600) sobre
-    // el normal, mas FAOV 2% sobre el integral de 33750 (675) = 4875
-    expect(result.totalEmployerCosts.toFixed(2)).toBe("4875.00");
+    // IVSS 4% semanal (1.384,62) + RPE 0,5% mensual (150) + FAOV 1% del
+    // integral (337,50) = 1.872,12
+    expect(result.totalDeductions.toFixed(2)).toBe("1872.12");
+    // totalEmployerCosts = IVSS 10% semanal (3.461,54) + INCES 2% mensual (600)
+    // + RPE 2% mensual (600) + FAOV 2% del integral 33.750 (675) = 5.336,54
+    expect(result.totalEmployerCosts.toFixed(2)).toBe("5336.54");
     // totalNet no incluye aportes patronales
-    expect(result.totalNet.toFixed(2)).toBe("28312.50");
+    expect(result.totalNet.toFixed(2)).toBe("28127.88");
   });
 
   it("aplica tope salario mínimo a aportes patronales (igual que obreros)", () => {
@@ -556,8 +570,9 @@ describe("PayrollCalculatorService — Aportes patronales (F-03)", () => {
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, configWithMin);
     const ivssPatLine = lines.find((l) => l.conceptCode === "IVSS_PAT");
     expect(ivssPatLine).toBeDefined();
-    // Con salaryMin=130 → tope 5×130=650 → 650×0.09=58.50
-    expect(ivssPatLine!.amount.toFixed(2)).toBe("65.00");
+    // Tope MENSUAL 5x130 = 650, llevado a las 5 semanas de marzo = 750.
+    // 750 x 10% (Riesgo Medio) = 75.
+    expect(ivssPatLine!.amount.toFixed(2)).toBe("75.00");
   });
 
   it("no genera EMPLOYER_COST cuando ivssEnabled=false", () => {
@@ -622,8 +637,10 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
 
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("10.00");   // Bs. 650 / 65
-    expect(ivss.amount.toFixed(2)).toBe("0.40");    // 4%
+    // Tope mensual USD 10 (Bs. 650 / 65), llevado a las 5 semanas de marzo:
+    // 10 x 12/52 x 5 = 11,54 -> 4% = 0,46
+    expect(ivss.basis!.toFixed(2)).toBe("11.54");
+    expect(ivss.amount.toFixed(2)).toBe("0.46");
 
     // El FAOV no tiene tope, asi que no hay nada que convertir: la conversion de
     // H-4 no le aplica. La base es el salario INTEGRAL en la moneda del sueldo:
@@ -648,7 +665,7 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
 
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
     expect(ivss.amount.toFixed(2)).not.toBe("26.00"); // el bug
-    expect(ivss.amount.toFixed(2)).toBe("0.03");      // Bs. 26 / 780
+    expect(ivss.amount.toFixed(2)).toBe("0.04");      // centavos, no USD 26
 
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
 
@@ -677,8 +694,8 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
 
     const ivssPat = lines.find((l) => l.conceptCode === "IVSS_PAT")!;
-    expect(ivssPat.basis!.toFixed(2)).toBe("10.00");
-    expect(ivssPat.amount.toFixed(2)).toBe("1.00"); // 10% - Riesgo Medio
+    expect(ivssPat.basis!.toFixed(2)).toBe("11.54"); // mismo tope, mismas semanas
+    expect(ivssPat.amount.toFixed(2)).toBe("1.15");  // 10% - Riesgo Medio
   });
 
   it("un sueldo en VES no se toca aunque haya tasa cargada", () => {
@@ -690,8 +707,10 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     const emp = makeEmp({ salaryAmount: new Decimal("1000"), salaryCurrency: "VES" });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("650.00"); // 5×130, sin convertir
-    expect(ivss.amount.toFixed(2)).toBe("26.00");
+    // Tope 5x130 = 650 sin convertir (el sueldo ya esta en Bs.), llevado a las
+    // 5 semanas de marzo: 650 x 12/52 x 5 = 750 -> 4% = 30
+    expect(ivss.basis!.toFixed(2)).toBe("750.00");
+    expect(ivss.amount.toFixed(2)).toBe("30.00");
   });
 
   it("sin tasa cargada NO calcula: bloquea en vez de inventar el tope", () => {
@@ -719,8 +738,9 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
     const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("2500.00");
-    expect(ivss.amount.toFixed(2)).toBe("100.00");
+    // Sin tope, el sueldo entero llevado a semanas: 2500 x 12/52 x 5 = 2.884,62
+    expect(ivss.basis!.toFixed(2)).toBe("2884.62");
+    expect(ivss.amount.toFixed(2)).toBe("115.38");
   });
 });
 
@@ -756,6 +776,10 @@ describe("PayrollCalculatorService — sueldo híbrido bloqueado (C-01-bis)", ()
 // Antes salia de `salary`, el monto crudo de SalaryHistory. Eso metia en la base
 // cosas que la ley deja fuera y no permitia representar el sueldo hibrido.
 
+// La sonda de estos tests es el RPE, no el IVSS: los dos cotizan sobre el salario
+// normal, pero el RPE lo hace por MES (LRPE Art. 46) mientras el IVSS lo lleva a
+// semanas (Reglamento LSS Art. 99). Con el IVSS habria que reexpresar cada cifra
+// esperada y el test dejaria de leerse como lo que comprueba: que entra y que no.
 describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () => {
   const CONCEPTS: SystemConceptRef[] = [
     ...SYSTEM_CONCEPTS,
@@ -772,8 +796,8 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
       salaryNature: "NO_SALARIAL",
     }];
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
-    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("1000.00"); // no 6000
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("1000.00"); // no 6000
   });
 
   it("las horas extra son salario pero NO salario normal — quedan fuera", () => {
@@ -785,8 +809,8 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
     });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     expect(lines.find((l) => l.conceptCode === "HE_DIURNA")!.amount.greaterThan(0)).toBe(true);
-    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("30000.00"); // sin las HE
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("30000.00"); // sin las HE
   });
 
   it("un concepto manual CON incidencia salarial SI entra — sueldo hibrido", () => {
@@ -804,9 +828,9 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
       salaryNature: "SALARIO_NORMAL",
     }];
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
-    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("1500.00");
-    expect(ivss.amount.toFixed(2)).toBe("60.00");
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("1500.00");
+    expect(rpe.amount.toFixed(2)).toBe("7.50"); // 0,5%
   });
 
   it("las ausencias injustificadas reducen la base", () => {
@@ -815,8 +839,8 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
     const config: PayrollCalculatorConfig = { ...BASE_CONFIG, systemConcepts: CONCEPTS };
     const emp = makeEmp({ salaryAmount: new Decimal("3000"), absenceDays: new Decimal("3") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
-    const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("2700.00"); // 3000 × 27/30
+    const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("2700.00"); // 3000 × 27/30
   });
 
   it("calculate() mete los manuales en la base, no despues del calculo", () => {
@@ -836,8 +860,8 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
       employeeId: emp.employeeId, amount: new Decimal("500"),
       salaryNature: "SALARIO_NORMAL",
     }], config);
-    const ivss = result.lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(ivss.basis!.toFixed(2)).toBe("1500.00");
+    const rpe = result.lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpe.basis!.toFixed(2)).toBe("1500.00");
   });
 });
 
@@ -858,23 +882,24 @@ describe("PayrollCalculatorService - clase de riesgo del IVSS", () => {
     return lines.find((l) => l.conceptCode === "IVSS_PAT")!;
   }
 
+  // Base: 1000 x 12/52 x 5 semanas = 1.153,85 (Art. 99, cotizacion semanal).
   it("Riesgo Minimo cotiza 9% (Art. 109)", () => {
-    expect(patronal("MINIMO").amount.toFixed(2)).toBe("90.00");
+    expect(patronal("MINIMO").amount.toFixed(2)).toBe("103.85");
   });
 
   it("Riesgo Medio cotiza 10%", () => {
-    expect(patronal("MEDIO").amount.toFixed(2)).toBe("100.00");
+    expect(patronal("MEDIO").amount.toFixed(2)).toBe("115.38");
   });
 
   it("Riesgo Maximo cotiza 11%", () => {
-    expect(patronal("MAXIMO").amount.toFixed(2)).toBe("110.00");
+    expect(patronal("MAXIMO").amount.toFixed(2)).toBe("126.92");
   });
 
   it("sin clase declarada asume MEDIO, no la mas barata", () => {
     // Art. 192: "Riesgo Medio: todas las empresas que no esten expresamente
     // incluidas en otra clase". El residual del Reglamento es el 10%, y el
     // calculador tenia el 9% cableado como unica tarifa patronal.
-    expect(patronal(undefined).amount.toFixed(2)).toBe("100.00");
+    expect(patronal(undefined).amount.toFixed(2)).toBe("115.38");
   });
 
   it("el aporte del ASEGURADO es 4% en las tres clases (Art. 109)", () => {
@@ -883,7 +908,101 @@ describe("PayrollCalculatorService - clase de riesgo del IVSS", () => {
       const emp = makeEmp({ salaryAmount: new Decimal("1000") });
       const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
       expect(lines.find((l) => l.conceptCode === "IVSS_OBR")!.amount.toFixed(2))
-        .toBe("40.00");
+        .toBe("46.15");
+    }
+  });
+});
+
+// --- Cotizacion SEMANAL del IVSS (Reglamento LSS Arts. 99, 100 y 102) -------
+// Hasta 2026-08 el calculador multiplicaba el salario mensual por la tasa y ya.
+// El Art. 99 dice que las cotizaciones "se causaran por semanas" y el Art. 100
+// que el pago se efectua por periodos de cuatro o cinco semanas: un mes de cinco
+// lunes cotiza mas que uno de cuatro, y ContaFlow cobraba lo mismo en los dos.
+
+describe("contributableWeeks", () => {
+  const d = (iso: string) => new Date(iso + "T00:00:00Z");
+
+  it("cuenta cinco semanas en un mes de cinco lunes", () => {
+    // Marzo 2026: lunes 2, 9, 16, 23 y 30.
+    expect(contributableWeeks(d("2026-03-01"), d("2026-03-31"))).toBe(5);
+  });
+
+  it("cuenta cuatro en un mes de cuatro lunes", () => {
+    // Febrero 2026: lunes 2, 9, 16 y 23.
+    expect(contributableWeeks(d("2026-02-01"), d("2026-02-28"))).toBe(4);
+  });
+
+  it("siempre cae en el 4 o 5 que contempla el Art. 100", () => {
+    for (let m = 0; m < 12; m++) {
+      const start = new Date(Date.UTC(2026, m, 1));
+      const end = new Date(Date.UTC(2026, m + 1, 0));
+      const weeks = contributableWeeks(start, end);
+      expect(weeks === 4 || weeks === 5).toBe(true);
+    }
+  });
+
+  it("una quincena cotiza sus propias semanas, no medio mes", () => {
+    // Art. 102: una cotizacion por semana de trabajo. La primera quincena de
+    // marzo de 2026 tiene dos lunes (2 y 9); la segunda, tres (16, 23 y 30).
+    expect(contributableWeeks(d("2026-03-01"), d("2026-03-15"))).toBe(2);
+    expect(contributableWeeks(d("2026-03-16"), d("2026-03-31"))).toBe(3);
+  });
+
+  it("periodo invertido no inventa semanas", () => {
+    expect(contributableWeeks(d("2026-03-31"), d("2026-03-01"))).toBe(0);
+  });
+});
+
+describe("weeklyWageFrom", () => {
+  it("divide el ano en 52 semanas, no el mes en 4", () => {
+    // Art. 99: salario semanal = (mensual x 12) / 52. Dividir entre 4 daria
+    // 7.500 y sobreestimaria cada cotizacion en un 8%.
+    expect(weeklyWageFrom(new Decimal("30000")).toFixed(4)).toBe("6923.0769");
+  });
+});
+
+describe("PayrollCalculatorService - el IVSS cotiza por semana", () => {
+  const febrero: PayrollCalculatorConfig = {
+    ...BASE_CONFIG,
+    periodStart: new Date("2026-02-01T00:00:00Z"),
+    periodEnd: new Date("2026-02-28T00:00:00Z"),
+  };
+
+  function ivssDe(config: PayrollCalculatorConfig) {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    return PayrollCalculatorService.calculateEmployeeLines(emp, config)
+      .find((l) => l.conceptCode === "IVSS_OBR")!;
+  }
+
+  it("un mes de cinco lunes cotiza mas que uno de cuatro", () => {
+    const marzo = ivssDe(BASE_CONFIG);      // 5 semanas
+    const feb = ivssDe(febrero);            // 4 semanas
+    expect(marzo.amount.greaterThan(feb.amount)).toBe(true);
+    expect(marzo.amount.dividedBy(feb.amount).toFixed(2)).toBe("1.25");
+  });
+
+  it("cuatro semanas cotizan menos que el mes plano; cinco, mas", () => {
+    // Es la desviacion que descuadraba contra la factura de TIUNA:
+    // 12/52 x 4 = 0,923 y 12/52 x 5 = 1,154 del mes plano.
+    const plano = new Decimal("30000").times("0.04");
+    expect(ivssDe(febrero).amount.lessThan(plano)).toBe(true);
+    expect(ivssDe(BASE_CONFIG).amount.greaterThan(plano)).toBe(true);
+  });
+
+  it("las otras tres cotizaciones NO se llevan a semanas", () => {
+    // Solo el Seguro Social cotiza por semana. La LRPE Art. 46 habla del salario
+    // "del MES inmediatamente anterior", la Ley INCES Art. 49 del salario normal
+    // mensual y la LRPVH Art. 33 del aporte "mensual".
+    const marzo = PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }), BASE_CONFIG,
+    );
+    const feb = PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }), febrero,
+    );
+    for (const code of ["RPE_OBR", "FAOV_OBR"]) {
+      const a = marzo.find((l) => l.conceptCode === code)!.amount;
+      const b = feb.find((l) => l.conceptCode === code)!.amount;
+      expect(a.toFixed(2)).toBe(b.toFixed(2));
     }
   });
 });

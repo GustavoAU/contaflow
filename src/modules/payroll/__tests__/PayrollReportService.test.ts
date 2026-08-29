@@ -98,13 +98,14 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLOYEES as never);
   });
 
-  it("salario ≤ techo → patronal = salario × tasa de riesgo", async () => {
+  it("declara el patronal devengado, no lo recalcula", async () => {
     // Salario 3000 Bs, techo = 5 × 800 = 4000 Bs → salario ≤ techo
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("3000") },
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("120") },
+      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("300") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("2000") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("80") },
     ] as never);
@@ -112,19 +113,23 @@ describe("PayrollReportService.getIvssReport", () => {
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
 
     const row1 = report.rows.find((r) => r.employeeId === EMP_ID)!;
-    // Patronal: min(3000, 4000) × 10% (riesgo MEDIO) = 300
+    // El patronal sale de la línea IVSS_PAT que dejó la nómina, donde ya se
+    // aplicaron el techo (Art. 98), la tasa por clase de riesgo (Art. 109) y la
+    // base semanal (Art. 99). Recalcularlo aquí sobre SAL_BASE —el sueldo del
+    // MES— declararía una cifra distinta de la que se retuvo y se contabilizó.
     expect(row1.ivssEmployerAmount.toNumber()).toBe(300);
     expect(row1.ivssWorkerAmount.toNumber()).toBe(120);
     expect(row1.ivssTotalAmount.toNumber()).toBe(420);
   });
 
-  it("salario > techo → patronal sobre 5 salarios mínimos (Reglamento Art. 98)", async () => {
+  it("con salario mínimo configurado marca salaryCapApplied", async () => {
     // Salario 5000 Bs, techo = 5 × 800 = 4000 Bs → patronal sobre 4000
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("5000") },
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("200") },
+      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("400") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("5000") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("200") },
     ] as never);
@@ -132,23 +137,25 @@ describe("PayrollReportService.getIvssReport", () => {
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
 
     const row1 = report.rows.find((r) => r.employeeId === EMP_ID)!;
-    // Patronal: min(5000, 4000) × 10% = 400
+    // La linea IVSS_PAT ya viene topada por el calculador.
     expect(row1.ivssEmployerAmount.toNumber()).toBe(400);
     expect(report.salaryCapApplied).toBe(true);
   });
 
-  it("clase de riesgo MÁXIMO → patronal 11% (LSS Art. 59)", async () => {
+  it("no vuelve a aplicar la tasa de riesgo sobre lo ya devengado", async () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(
       { ...CONFIG_FULL, ivssRiskClass: "MAXIMO" } as never,
     );
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("2000") },
+      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("220") },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
     const row1 = report.rows.find((r) => r.employeeId === EMP_ID)!;
-    // 2000 × 11% = 220 — antes daba 180 con el 9% fijo para toda empresa.
+    // La clase de riesgo la aplica el calculador; el reporte declara su resultado
+    // en vez de volver a multiplicar por una tasa que podria no ser la misma.
     expect(row1.ivssEmployerAmount.toNumber()).toBe(220);
   });
 
@@ -158,6 +165,7 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("6000") },
       { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("240") },
+      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("600") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("6000") },
       { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("240") },
     ] as never);
@@ -165,7 +173,7 @@ describe("PayrollReportService.getIvssReport", () => {
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
     expect(report.salaryCapApplied).toBe(false);
     expect(report.utValue).toBeNull();
-    // Patronal sin techo: 6000 × 10% = 600
+    // salaryCapApplied avisa en la UI de que los runs se calcularon SIN techo.
     const row1 = report.rows.find((r) => r.employeeId === EMP_ID)!;
     expect(row1.ivssEmployerAmount.toNumber()).toBe(600);
   });

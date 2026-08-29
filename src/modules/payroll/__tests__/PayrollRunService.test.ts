@@ -235,8 +235,11 @@ describe("PayrollRunService.create", () => {
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR");
     expect(ivssLine).toBeDefined();
-    // Sin tope: 1000×0.04=40. Con salaryMin=130 → tope=5×130=650 → 650×0.04=26
-    expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("26.00");
+    // Tope MENSUAL 5×130 = 650 (Reglamento Art. 98), llevado a las semanas que
+    // cotiza esta quincena: el 1–15 de abril de 2026 tiene dos lunes (6 y 13).
+    // 650 × 12/52 × 2 = 300 → 4% = 12. Antes cobraba el mes entero en cada
+    // quincena, o sea dos veces la cotización del mes.
+    expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("12.00");
   });
 
   // ── H-4: el tope está en bolívares; el sueldo puede no estarlo ──────────────
@@ -274,9 +277,11 @@ describe("PayrollRunService.create", () => {
     const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    // Tope Bs. 650 / 65 = USD 10 → 10 × 4% = USD 0,40.
-    // Antes del fix salía 26,00: los bolívares del tope cobrados como dólares.
-    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("0.40");
+    // Tope Bs. 650 / 65 = USD 10, por las dos semanas de la quincena:
+    // 10 × 12/52 × 2 = 4,62 → 4% = USD 0,18.
+    // Antes del fix de H-4 salía 26,00: los bolívares del tope cobrados como
+    // dólares. Lo que se comprueba aquí sigue siendo la conversión del tope.
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("0.18");
   });
 
   it("H-4: busca la tasa USD de la empresa hasta el fin del período", async () => {
@@ -323,7 +328,8 @@ describe("PayrollRunService.create", () => {
     const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("100.00"); // 2500 × 4%
+    // Sin tope, el sueldo entero por las dos semanas: 2500 × 12/52 × 2 = 1.153,85
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("46.15");
   });
 
   it("C-05: almacena tasa BCV cuando existe BcvBenefitRate para el período", async () => {
