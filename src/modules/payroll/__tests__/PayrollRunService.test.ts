@@ -62,6 +62,7 @@ vi.mock("@/lib/prisma", () => ({
 import { PayrollRunService } from "../services/PayrollRunService";
 import { PayrollConceptService } from "../services/PayrollConceptService";
 import Decimal from "decimal.js";
+import { MISSING_USD_RATE_MESSAGE } from "../services/PayrollCalculatorService";
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
@@ -254,7 +255,7 @@ describe("PayrollRunService.create", () => {
   it("D-5: cotiza sobre el salario normal del mes anterior, no el del período", async () => {
     setupCreateMocks();
     // Marzo cerrado con 10.000 de salario normal; en abril gana 30.000.
-    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar" }] as never);
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-31") }] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("10000") },
       // Una HE del mes pasado NO forma parte del salario normal (Art. 104).
@@ -299,7 +300,7 @@ describe("PayrollRunService.create", () => {
   // por la puerta del historico.
 
   function prevMonthLines(currency: "VES" | "USD", amount: string) {
-    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar" }] as never);
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-31") }] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       {
         employeeId: "emp-1", conceptCode: "SAL_BASE",
@@ -350,6 +351,91 @@ describe("PayrollRunService.create", () => {
     await expect(
       PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
     ).rejects.toThrow("cambió de moneda");
+  });
+
+  // ── M1: la naturaleza salarial va CONGELADA en la linea ────────────────────
+
+  it("usa el snapshot de la linea, no el catalogo vivo", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue(
+      [{ id: "run-mar", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-31") }] as never,
+    );
+    // La linea de marzo se calculo como SALARIO_NORMAL...
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      {
+        employeeId: "emp-1", conceptCode: "BONO_PROD", amount: new Decimal("10000"),
+        salarySnapshotCurrency: "VES", salaryNature: "SALARIO_NORMAL",
+      },
+    ] as never);
+    // ...y despues alguien reclasifico el concepto a NO_SALARIAL.
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-bono", code: "BONO_PROD", salaryNature: "NO_SALARIAL" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    // Marzo ya estaba aprobado y declarado: su base no se reescribe.
+    expect(faovBasis().toFixed(2)).toBe("11250.00"); // 10.000 x 1,125
+  });
+
+  it("cae al catalogo solo si la linea es anterior al snapshot (NULL)", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue(
+      [{ id: "run-mar", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-31") }] as never,
+    );
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      {
+        employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("10000"),
+        salarySnapshotCurrency: "VES", salaryNature: null,
+      },
+    ] as never);
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    expect(faovBasis().toFixed(2)).toBe("11250.00");
+  });
+
+  // ── M2: mes anterior INCOMPLETO no da media base ───────────────────────────
+
+  it("mes anterior a medias: cae al mes en curso y lo deja en el AuditLog", async () => {
+    setupCreateMocks();
+    // Solo la primera quincena de marzo aprobada: 15 dias de 31.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue(
+      [{ id: "run-mar-q1", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-15") }] as never,
+    );
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      {
+        employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("5000"),
+        salarySnapshotCurrency: "VES", salaryNature: "SALARIO_NORMAL",
+      },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    // Ni 5.000 (media base, el bug) ni nada raro: el mes en curso, 30.000.
+    expect(faovBasis().toFixed(2)).toBe("33750.00");
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          newValue: expect.objectContaining({
+            contributionBasis: "MES_EN_CURSO_POR_MES_ANTERIOR_INCOMPLETO",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("mes anterior completo lo dice en el AuditLog", async () => {
+    setupCreateMocks();
+    prevMonthLines("VES", "10000");
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          newValue: expect.objectContaining({ contributionBasis: "MES_ANTERIOR" }),
+        }),
+      }),
+    );
   });
 
   // ── H-4: el tope está en bolívares; el sueldo puede no estarlo ──────────────
@@ -425,7 +511,7 @@ describe("PayrollRunService.create", () => {
 
     await expect(
       PayrollRunService.create(COMPANY_ID, USER_ID, INPUT)
-    ).rejects.toThrow("Nómina en USD: registra la tasa BCV USD/VES");
+    ).rejects.toThrow(MISSING_USD_RATE_MESSAGE);
 
     expect(vi.mocked(prisma.payrollRun.create)).not.toHaveBeenCalled();
   });
@@ -515,7 +601,8 @@ describe("PayrollRunService.create", () => {
 
     await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
 
-    expect(vi.mocked(PayrollConceptService.seedDefaults)).toHaveBeenCalledWith(COMPANY_ID);
+    expect(vi.mocked(PayrollConceptService.seedDefaults))
+      .toHaveBeenCalledWith(COMPANY_ID, USER_ID, null, null);
     const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const rpeLine = lines.find((l) => l.conceptCode === "RPE_OBR");
@@ -713,7 +800,7 @@ describe("PayrollRunService.approve", () => {
 
     await expect(
       PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)
-    ).rejects.toThrow("Nómina en USD: registra la tasa BCV USD/VES");
+    ).rejects.toThrow("antes de aprobar esta nómina");
   });
 });
 

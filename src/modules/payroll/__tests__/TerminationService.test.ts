@@ -599,7 +599,7 @@ describe("TerminationService - hallazgos de la auditoria", () => {
 
     await expect(
       TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("no hay tasa BCV registrada");
+    ).rejects.toThrow("tasa BCV");
   });
 
   it("un sueldo en VES no consulta tasa de cambio", async () => {

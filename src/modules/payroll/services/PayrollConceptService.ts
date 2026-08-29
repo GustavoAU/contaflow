@@ -102,7 +102,12 @@ export const PayrollConceptService = {
   // ── seedDefaults — crea los conceptos del sistema si no existen ───────────
   // Idempotente: usa upsert por (companyId, code). Llamado al abrir la nómina
   // por primera vez o cuando el admin accede a la lista de conceptos.
-  async seedDefaults(companyId: string, userId?: string): Promise<void> {
+  async seedDefaults(
+    companyId: string,
+    userId?: string,
+    ipAddress: string | null = null,
+    userAgent: string | null = null,
+  ): Promise<void> {
     // D3: antes esto reescribia en CADA llamada —y se llama desde rutas de
     // lectura— tres campos con incidencia fiscal (salaryNature,
     // affectsSalaryIntegral, isSystem) sin dejar rastro de nada. Se lee primero
@@ -130,6 +135,15 @@ export const PayrollConceptService = {
     });
 
     if (missing.length === 0 && repairs.length === 0) return;
+
+    // Concurrencia: dos peticiones simultaneas que vean el mismo drift ejecutan
+    // ambas la reparacion. Los `update` son idempotentes —escriben el mismo
+    // valor canonico— asi que lo unico que se duplica es la entrada del
+    // AuditLog. Se acepta a proposito: es autolimitado (tras la primera
+    // reparacion ya no hay drift) y el drift no se puede reintroducir desde la
+    // UI, porque `update` bloquea salaryNature e isActive en conceptos del
+    // sistema. Un advisory lock por companyId en una ruta que corre en cada
+    // render costaria mas de lo que evita.
 
     await prisma.$transaction(async (tx) => {
       for (const concept of missing) {
@@ -173,12 +187,13 @@ export const PayrollConceptService = {
             entityName: "PayrollConcept",
             entityId: repairs[0].row.id,
             action: "REPAIR_SYSTEM_CONCEPTS",
-            // seedDefaults corre tambien desde rutas de lectura, donde no hay
-            // un usuario que haya pedido el cambio: la reparacion la decide el
-            // sistema, y el AuditLog lo dice en vez de atribuirsela a alguien.
+            // "system" SOLO cuando de verdad no hay usuario (una ruta de
+            // render). Si la reparacion la disparo una peticion autenticada, el
+            // AuditLog dice quien y desde donde: R-6 pide IP/UA en toda mutacion
+            // fiscal, y estos tres campos lo son.
             userId: userId ?? "system",
-            ipAddress: null,
-            userAgent: null,
+            ipAddress,
+            userAgent,
             oldValue: repairs.map(({ concept, row }) => ({
               code: concept.code,
               isSystem: row.isSystem,

@@ -17,13 +17,20 @@ import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
 import type { PayrollPaymentCurrency } from "@prisma/client";
 
+// Fuente única de los mensajes de moneda de todo el módulo. Había dos parejas
+// —una aquí y otra en PayrollCalculatorService— con textos distintos para la
+// misma condición: el usuario veía un mensaje u otro según si llegaba por la
+// nómina ordinaria o por liquidación, vacaciones o utilidades. El calculador las
+// re-exporta (mismo patrón que ADR-041 con ActionResult).
 export const MISSING_BCV_RATE_MESSAGE =
-  "El empleado tiene el sueldo en USD y no hay tasa BCV registrada a esa fecha. " +
-  "Regístrala en Contabilidad → Tasas de Cambio antes de continuar.";
+  "Sueldo en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio " +
+  "antes de continuar. Los topes legales (IVSS, FAOV, INCES, RPE) están fijados " +
+  "en bolívares y no pueden aplicarse a un sueldo en dólares sin la tasa, y el " +
+  "asiento contable se registra en bolívares.";
 
 export const MIXED_SALARY_MESSAGE =
   "El empleado tiene el sueldo en modalidad MIXTA: es un solo monto que no dice " +
-  "cuánto va en bolívares y cuánto en divisas, así que no se puede convertir sin " +
+  "cuánto va en bolívares y cuánto en divisas, así que no se puede repartir sin " +
   "inventar la proporción. Divide el sueldo en dos registros de salario, uno por " +
   "moneda, antes de continuar.";
 

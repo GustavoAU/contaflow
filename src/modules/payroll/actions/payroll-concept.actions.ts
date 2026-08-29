@@ -25,11 +25,19 @@ function revalidate(companyId: string) {
 export async function listConceptsAction(
   companyId: string
 ): Promise<ActionResult<PayrollConceptRow[]>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    // seedDefaults puede REPARAR campos con incidencia fiscal (salaryNature,
+    // affectsSalaryIntegral, isSystem). Es una mutación, aunque llegue por una
+    // ruta de lectura: su AuditLog necesita IP y user-agent (R-6).
+    captureNet: true,
+  });
   if (!ctx.ok) return ctx.error;
 
   // Seed defaults si no existen aún (idempotente)
-  await PayrollConceptService.seedDefaults(companyId);
+  await PayrollConceptService.seedDefaults(
+    companyId, ctx.userId, ctx.ipAddress, ctx.userAgent,
+  );
   const concepts = await PayrollConceptService.list(companyId);
   return { success: true, data: concepts };
 }

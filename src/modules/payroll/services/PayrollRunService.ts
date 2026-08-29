@@ -222,7 +222,7 @@ export const PayrollRunService = {
     // ── Garantizar que los conceptos del sistema existen (idempotente) ───────
     // Necesario para empresas que nunca visitaron la página de conceptos
     // y para sincronizar nuevos conceptos del sistema (ej: RPE_OBR — ítem 54)
-    await PayrollConceptService.seedDefaults(companyId);
+    await PayrollConceptService.seedDefaults(companyId, userId, ipAddress, userAgent);
 
     // ── Obtener conceptos del sistema de la empresa ────────────────────────
     // NOM-C-07: siempre de la DB con companyId — nunca del input del cliente
@@ -320,15 +320,31 @@ export const PayrollRunService = {
     ));
 
     const previousNormalWageByEmp = new Map<string, Decimal>();
-    const prevRunIds = (await prisma.payrollRun.findMany({
+    const prevRuns = await prisma.payrollRun.findMany({
       where: {
         companyId,
         status: "APPROVED",
         periodStart: { gte: prevMonthStart },
         periodEnd: { lte: prevMonthEnd },
       },
-      select: { id: true },
-    })).map((r) => r.id);
+      select: { id: true, periodStart: true, periodEnd: true },
+    });
+
+    // ¿Cubren TODO el mes anterior? En nómina quincenal son dos runs; si la
+    // segunda sigue en DRAFT, sumar sólo la primera da media base legal — y un
+    // Decimal a la mitad es un valor válido, así que pasaba sin error ni aviso.
+    // Se distingue "no hay mes anterior" de "lo hay incompleto": en el segundo
+    // caso también se cae al mes en curso, pero dejando constancia del motivo.
+    const DAY_MS = 1000 * 60 * 60 * 24;
+    const prevMonthDays = Math.round((prevMonthEnd.getTime() - prevMonthStart.getTime()) / DAY_MS) + 1;
+    const coveredDays = prevRuns.reduce(
+      (n, r) => n + Math.round((r.periodEnd.getTime() - r.periodStart.getTime()) / DAY_MS) + 1,
+      0,
+    );
+    const prevMonthComplete = prevRuns.length > 0 && coveredDays >= prevMonthDays;
+    const prevMonthPartial = prevRuns.length > 0 && !prevMonthComplete;
+
+    const prevRunIds = prevMonthComplete ? prevRuns.map((r) => r.id) : [];
 
     // ── Horas extra acumuladas en el año (LOTTT Art. 178) ──────────────────
     // El tope anual son cien horas; sin el acumulado sólo se puede comprobar el
@@ -380,6 +396,10 @@ export const PayrollRunService = {
         where: { companyId, payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
         select: {
           employeeId: true, conceptCode: true, amount: true,
+          // Naturaleza CONGELADA al calcular aquel mes. Resolverla contra el
+          // catálogo vivo hacía que reclasificar un concepto reescribiera la
+          // base de un mes ya aprobado, contabilizado y declarado.
+          salaryNature: true,
           // La moneda del mes anterior NO tiene por qué ser la de hoy. Sumar
           // `amount` a secas mezclaba unidades: un empleado que pasó de USD 300
           // a Bs. 30.000 cotizaba sobre "300 bolívares". Es el mismo mecanismo
@@ -399,7 +419,10 @@ export const PayrollRunService = {
       const usdRate = usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null;
 
       for (const l of prevLines) {
-        if (natureByCode.get(l.conceptCode) !== "SALARIO_NORMAL") continue;
+        // El catálogo sólo se consulta cuando la línea es anterior a la
+        // migración del snapshot: ahí no hay nada congelado que respetar.
+        const nature = l.salaryNature ?? natureByCode.get(l.conceptCode);
+        if (nature !== "SALARIO_NORMAL") continue;
         const to = currentCurrencyByEmp.get(l.employeeId);
         const from = l.salarySnapshotCurrency;
         if (!to) continue;
@@ -567,6 +590,9 @@ export const PayrollRunService = {
             salaryHistoryId: l.salaryHistoryId,
             salarySnapshotAmount: l.salarySnapshotAmount,
             salarySnapshotCurrency: l.salarySnapshotCurrency,
+            // Snapshot igual que conceptCode/conceptType: la base del mes
+            // anterior se lee de estas líneas, y el catálogo puede cambiar.
+            salaryNature: l.salaryNature,
           })),
         });
       }
@@ -594,6 +620,14 @@ export const PayrollRunService = {
               employeeId: m.employeeId,
               amount: m.amount,
             })),
+            // ADR-045 D-5: de dónde salió la base de las cotizaciones. Sin esto
+            // no hay forma de saber, mirando el run, si se cotizó sobre el mes
+            // anterior o sobre el mes en curso, ni por qué.
+            contributionBasis: prevMonthComplete
+              ? "MES_ANTERIOR"
+              : prevMonthPartial
+                ? "MES_EN_CURSO_POR_MES_ANTERIOR_INCOMPLETO"
+                : "MES_EN_CURSO_SIN_MES_ANTERIOR",
             // LOTTT Art. 178: excesos sobre los topes de horas extraordinarias.
             // Quedan en el AuditLog aunque la nómina se procese igual, para que
             // exista rastro de cuándo se superó y de quién autorizó el proceso.

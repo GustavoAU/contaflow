@@ -2142,6 +2142,11 @@ model PayrollRunLine {
   salaryHistoryId        String? // FK al SalaryHistory usado (trazabilidad)
   salarySnapshotAmount   Decimal?                @db.Decimal(19, 4) // monto vigente al calcular (inmutable) — ADR-002
   salarySnapshotCurrency PayrollPaymentCurrency?
+  // Snapshot de la naturaleza salarial del concepto al calcular. Sin él, la base
+  // del mes anterior (ADR-045 D-5) se resolvía contra el catálogo VIVO y
+  // reclasificar un concepto reescribía un mes ya aprobado. NULL = fila anterior
+  // a esta migración cuyo concepto ya no existe: se cae al catálogo.
+  salaryNature           SalaryNature?
   createdAt              DateTime                @default(now())
 
   payrollRun PayrollRun     @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
@@ -2151,6 +2156,8 @@ model PayrollRunLine {
   @@index([payrollRunId])
   @@index([companyId, employeeId])
   @@index([companyId, payrollRunId, employeeId])
+  // Sirve la consulta de horas extra del año (companyId + conceptCode)
+  @@index([companyId, conceptCode, employeeId])
   // N10: FK conceptId/employeeId sin índice propio (el compuesto líder companyId no
   // sirve para el Restrict-check, que filtra por la columna sola)
   @@index([conceptId])
