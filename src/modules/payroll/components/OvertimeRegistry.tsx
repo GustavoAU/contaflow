@@ -217,16 +217,28 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
 
           <div>
             <label htmlFor="ot-ref" className="mb-1 block text-sm font-medium text-gray-700">
-              N° de permiso o de notificación <span className="text-gray-400">(opcional)</span>
+              N° de permiso o de notificación{" "}
+              {form.authorized
+                ? <span className="text-red-600">(obligatorio)</span>
+                : <span className="text-gray-400">(opcional)</span>}
             </label>
             <input
               id="ot-ref"
               type="text"
               maxLength={120}
+              // Obligatorio en cuanto se declara el permiso: afirmarlo baja el
+              // pago un 33%, así que la afirmación tiene que traer su respaldo.
+              required={form.authorized}
               value={form.authorizationRef}
               onChange={(e) => set("authorizationRef", e.target.value)}
               className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:ring-blue-500"
             />
+            {form.authorized && (
+              <p className="mt-1 text-xs text-gray-500">
+                El del permiso de la Inspectoría, o el de la notificación si fue
+                un caso imprevisto y urgente (Art. 182).
+              </p>
+            )}
           </div>
         </div>
 
@@ -270,9 +282,18 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
                     <td className="px-3 py-2 text-gray-600">{r.workPerformed}</td>
                     <td className="px-3 py-2">
                       {r.authorized ? (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                          Autorizadas
-                        </span>
+                        <>
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                            Autorizadas
+                          </span>
+                          {/* El N° es la prueba de lo que la fila afirma: sin él
+                              el badge es una declaración sin respaldo. */}
+                          {r.authorizationRef && (
+                            <span className="mt-0.5 block font-mono text-xs text-gray-500">
+                              {r.authorizationRef}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
                           Sin permiso — recargo doble
