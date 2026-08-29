@@ -27,6 +27,10 @@ import {
   type EmployeeCalculationInput,
   type ManualConceptCalculationInput,
   type PayrollCalculatorConfig,
+  HE_DAY_MULTIPLIER,
+  HE_NIGHT_MULTIPLIER,
+  HE_DAY_MULTIPLIER_UNAUTHORIZED,
+  HE_NIGHT_MULTIPLIER_UNAUTHORIZED,
 } from "./PayrollCalculatorService";
 import { PayrollConceptService } from "./PayrollConceptService";
 import { LegalThresholdService } from "./LegalThresholdService";
@@ -189,6 +193,31 @@ export const PayrollRunService = {
     if (!openPeriod) {
       throw new Error(
         "No existe un período contable abierto que cubra las fechas de nómina"
+      );
+    }
+
+    // ── Guard de períodos SOLAPADOS ───────────────────────────────────────
+    // El @@unique([companyId, periodStart, periodEnd]) bloquea el período
+    // IDÉNTICO, no el solapado: 01–15 de agosto y 01–31 de agosto son dos pares
+    // de fechas distintos y ambos pasaban. Con horas extra de por medio eso es
+    // doble pago —las mismas horas entran en las líneas de los dos runs— y con
+    // el salario base, dos nóminas por el mismo tiempo trabajado.
+    const overlapping = await prisma.payrollRun.findFirst({
+      where: {
+        companyId,
+        status: { in: ["DRAFT", "APPROVED"] },
+        periodStart: { lte: periodEnd },
+        periodEnd: { gte: periodStart },
+      },
+      select: { periodStart: true, periodEnd: true, status: true },
+    });
+    if (overlapping) {
+      const desde = overlapping.periodStart.toISOString().split("T")[0];
+      const hasta = overlapping.periodEnd.toISOString().split("T")[0];
+      throw new Error(
+        `Ya existe un proceso de nómina ${overlapping.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
+        `que cubre del ${desde} al ${hasta}, y se solapa con el período que intentas procesar. ` +
+        "Cancélalo o ajusta las fechas."
       );
     }
 
@@ -457,6 +486,56 @@ export const PayrollRunService = {
       }
     }
 
+    // ── Horas extra del período (LOTTT Art. 183) ───────────────────────────
+    // Vienen del registro, que es donde la Ley manda anotarlas. Hasta 2026-08-29
+    // esto era `new Decimal(0)` en duro: las líneas HE_DIURNA/HE_NOCTURNA no se
+    // generaban nunca y los recargos de los Arts. 117/118 y los topes del 178
+    // eran código inalcanzable.
+    //
+    // Sólo las que aún no se han pagado (`payrollRunId: null`): si un período se
+    // reprocesa, las horas ya liquidadas en otra nómina no se vuelven a pagar.
+    const overtimeEntries = await prisma.overtimeEntry.findMany({
+      where: {
+        companyId,
+        payrollRunId: null,
+        workedOn: { gte: periodStart, lte: periodEnd },
+      },
+      select: { id: true, employeeId: true, hours: true, kind: true, authorized: true },
+    });
+    // Ids de los registros que ESTE run va a liquidar. Se reservan al crear el
+    // borrador (mas abajo, dentro del $transaction) y no al aprobar: mientras
+    // estuvieran libres, un segundo run con periodo SOLAPADO —que el
+    // @@unique([companyId, periodStart, periodEnd]) no impide, porque el par de
+    // fechas es distinto— se llevaba las mismas horas y el trabajador cobraba dos
+    // veces. Reservarlas aqui hace que el filtro `payrollRunId: null` de arriba
+    // sea el guard: el segundo run simplemente no las ve.
+    const claimedOvertimeIds = overtimeEntries.map((e) => e.id);
+
+    type OvertimeBuckets = {
+      dayAuth: Decimal; nightAuth: Decimal;
+      dayUnauth: Decimal; nightUnauth: Decimal;
+    };
+    const overtimeByEmp = new Map<string, OvertimeBuckets>();
+    for (const e of overtimeEntries) {
+      if (!overtimeByEmp.has(e.employeeId)) {
+        overtimeByEmp.set(e.employeeId, {
+          dayAuth: new Decimal(0), nightAuth: new Decimal(0),
+          dayUnauth: new Decimal(0), nightUnauth: new Decimal(0),
+        });
+      }
+      const b = overtimeByEmp.get(e.employeeId)!;
+      const h = new Decimal(e.hours.toString());
+      // Art. 182: el permiso de la Inspectoría cambia la TARIFA, no la
+      // naturaleza de la hora. Por eso se separan en cuatro cubos y no en dos.
+      if (e.kind === "DIURNA") {
+        if (e.authorized) b.dayAuth = b.dayAuth.plus(h);
+        else b.dayUnauth = b.dayUnauth.plus(h);
+      } else {
+        if (e.authorized) b.nightAuth = b.nightAuth.plus(h);
+        else b.nightUnauth = b.nightUnauth.plus(h);
+      }
+    }
+
     // ── Construir inputs del calculador ────────────────────────────────────
     const empInputs: EmployeeCalculationInput[] = employees
       .filter((e) => e.salaryHistory.length > 0)
@@ -465,8 +544,12 @@ export const PayrollRunService = {
         salaryHistoryId: e.salaryHistory[0].id,
         salaryAmount: e.salaryHistory[0].amount,
         salaryCurrency: e.salaryHistory[0].currency,
-        overtimeHoursDay: new Decimal(0),
-        overtimeHoursNight: new Decimal(0),
+        // LOTTT Art. 173: la jornada decide el divisor del salario hora.
+        workShift: e.workShift,
+        overtimeHoursDay: overtimeByEmp.get(e.id)?.dayAuth ?? new Decimal(0),
+        overtimeHoursNight: overtimeByEmp.get(e.id)?.nightAuth ?? new Decimal(0),
+        overtimeHoursDayUnauthorized: overtimeByEmp.get(e.id)?.dayUnauth,
+        overtimeHoursNightUnauthorized: overtimeByEmp.get(e.id)?.nightUnauth,
         absenceDays: new Decimal(0),
         // undefined para quien no tenga mes anterior: el calculador cotiza
         // entonces sobre el mes en curso (ver D-5).
@@ -595,6 +678,21 @@ export const PayrollRunService = {
             salaryNature: l.salaryNature,
           })),
         });
+      }
+
+      if (claimedOvertimeIds.length > 0) {
+        // `payrollRunId: null` en el where: si otro run se los llevo entre la
+        // lectura y aqui, esta actualizacion no los toca y el conteo lo delata.
+        const claimed = await tx.overtimeEntry.updateMany({
+          where: { id: { in: claimedOvertimeIds }, companyId, payrollRunId: null },
+          data: { payrollRunId: run.id },
+        });
+        if (claimed.count !== claimedOvertimeIds.length) {
+          throw new Error(
+            "Otro proceso de nómina tomó estas horas extraordinarias mientras se " +
+            "calculaba este. Vuelve a intentarlo."
+          );
+        }
       }
 
       await tx.auditLog.create({
@@ -986,6 +1084,63 @@ export const PayrollRunService = {
         }
       }
 
+      // ── Cerrar el registro del Art. 183 ────────────────────────────────
+      // "la REMUNERACION ESPECIAL que haya pagado a cada trabajador". Los
+      // registros ya estan RESERVADOS por este run desde que se creo el
+      // borrador, asi que aqui solo se les pone el importe: no hay que adivinar
+      // cuales por ventana de fechas.
+      //
+      // Adivinarlo era un error con dinero detrás: marcaba como pagadas las
+      // horas de empleados fuera del run (create acepta `employeeIds`), las de
+      // quien no tiene salario registrado, y las cargadas entre create y
+      // approve — que quedaban con `paidAmount` y sin haberse pagado nunca, sin
+      // salida por UI y sin que ningun run futuro las recogiera.
+      const claimed = await tx.overtimeEntry.findMany({
+        where: { companyId, payrollRunId: runId },
+        select: { id: true, employeeId: true, kind: true, hours: true, authorized: true },
+      });
+
+      if (claimed.length > 0) {
+        const heLines = await tx.payrollRunLine.findMany({
+          where: {
+            companyId,
+            payrollRunId: runId,
+            conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
+          },
+          select: { employeeId: true, conceptCode: true, amount: true, hours: true, rate: true },
+        });
+
+        // La clave incluye la TARIFA: el calculador emite dos lineas del mismo
+        // conceptCode por empleado —autorizadas y sin permiso, a distinto
+        // recargo (Art. 182)— y una clave `empleado:tipo` hacia que la segunda
+        // pisara a la primera, con lo que el importe anotado en el registro
+        // legal no era ninguno de los dos.
+        const paidPerHour = new Map<string, Decimal>();
+        for (const l of heLines) {
+          const h = l.hours ? new Decimal(l.hours.toString()) : null;
+          if (!h || h.lte(0) || !l.rate) continue;
+          const kind = l.conceptCode === "HE_DIURNA" ? "DIURNA" : "NOCTURNA";
+          paidPerHour.set(
+            `${l.employeeId}:${kind}:${new Decimal(l.rate.toString()).toFixed(2)}`,
+            new Decimal(l.amount.toString()).div(h),
+          );
+        }
+
+        for (const e of claimed) {
+          const rate = e.kind === "DIURNA"
+            ? (e.authorized ? HE_DAY_MULTIPLIER : HE_DAY_MULTIPLIER_UNAUTHORIZED)
+            : (e.authorized ? HE_NIGHT_MULTIPLIER : HE_NIGHT_MULTIPLIER_UNAUTHORIZED);
+          const perHour = paidPerHour.get(`${e.employeeId}:${e.kind}:${rate.toFixed(2)}`);
+          // Sin linea que le corresponda no se inventa un importe: se deja en
+          // null y el registro sigue mostrandose como pendiente de pago.
+          if (!perHour) continue;
+          await tx.overtimeEntry.update({
+            where: { id: e.id },
+            data: { paidAmount: perHour.mul(e.hours.toString()).toDecimalPlaces(4).toFixed(4) },
+          });
+        }
+      }
+
       // ── AuditLog (NOM-C-11) ────────────────────────────────────────────
       await tx.auditLog.create({
         data: {
@@ -1093,6 +1248,14 @@ export const PayrollRunService = {
       if (run.status === "CANCELLED") {
         throw new Error("Este proceso ya está cancelado");
       }
+
+      // Liberar las horas extra reservadas: si el borrador se cancela, esas
+      // horas vuelven a estar disponibles para la nomina que si se emita. Sin
+      // esto quedarian atadas a un run muerto y no las cobraria nadie.
+      await tx.overtimeEntry.updateMany({
+        where: { companyId, payrollRunId: runId },
+        data: { payrollRunId: null },
+      });
 
       const cancelled = await tx.payrollRun.update({
         where: { id: runId },

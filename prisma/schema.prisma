@@ -273,6 +273,7 @@ model Company {
   // ADR-034: Fase Despacho — RIFs gestionados por este Despacho
   managedClients             ManagedClient[]             @relation("DespachoManagedClients")
   managedClientLinks         ManagedClient[]             @relation("ManagedClientLinkedCompany")
+  overtimeEntries            OvertimeEntry[]
 }
 
 model CompanyMember {
@@ -1876,6 +1877,16 @@ enum IvssRiskClass {
   MAXIMO // 11% patronal — Art. 192, lista de actividades peligrosas
 }
 
+// LOTTT Art. 173: la jornada fija el maximo de horas diarias, y el Art. 113
+// divide el salario hora entre las horas "de la jornada diurna, nocturna o mixta,
+// segun sea el caso". Con una sola constante de 8 horas, a un trabajador nocturno
+// se le pagaba la hora extra por debajo de lo que manda la Ley.
+enum WorkShiftType {
+  DIURNA // 5:00 a.m. - 7:00 p.m. — max 8 h/dia, 40 semanales
+  NOCTURNA // 7:00 p.m. - 5:00 a.m. — max 7 h/dia, 35 semanales
+  MIXTA // max 7,5 h/dia, 37,5 semanales
+}
+
 enum SalaryNature {
   NO_SALARIAL // LOTTT Art. 105 (lista cerrada de 7) o decreto expreso
   SALARIO_NORMAL // devengado "en forma regular y permanente" — base de cotizaciones
@@ -1921,6 +1932,10 @@ model Employee {
   hireDate            DateTime          @db.Date
   terminationDate     DateTime?         @db.Date
   status              EmployeeStatus    @default(ACTIVE)
+  // LOTTT Art. 173: la jornada decide el maximo de horas diarias (8 / 7 / 7,5) y
+  // con el, por el Art. 113, el divisor del salario hora. Default DIURNA: es la
+  // jornada ordinaria y lo que el codigo asumia para todos.
+  workShift           WorkShiftType     @default(DIURNA)
   // Cargo
   position            String
   department          String?
@@ -1962,6 +1977,8 @@ model Employee {
   terminations         Termination[]
   loans                EmployeeLoan[]
   cajaCajas            CajaCaja[]            @relation("CajaCajaCustodian")
+
+  overtimeEntries OvertimeEntry[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -2114,6 +2131,8 @@ model PayrollRun {
   lines       PayrollRunLine[]
 
   // GUARD doble-proceso: un solo run activo por empresa y período (ADR-013 Decisión 1)
+  overtimeEntries OvertimeEntry[]
+
   @@unique([companyId, idempotencyKey])
   @@unique([companyId, periodStart, periodEnd])
   @@index([companyId, status])
@@ -2124,6 +2143,58 @@ model PayrollRun {
 // Una línea = un concepto para un empleado en un run.
 // Almacena snapshot de salario + FK de auditoría (ADR-013 Decisión 2).
 // onDelete: Restrict — nunca eliminar líneas contabilizadas (ADR-003).
+
+// LOTTT Art. 183: "Todo patrono llevara un REGISTRO donde anotara las horas
+// extraordinarias utilizadas en la entidad de trabajo; los TRABAJOS EFECTUADOS en
+// esas horas; los TRABAJADORES que las realizaron; y la REMUNERACION ESPECIAL que
+// haya pagado a cada trabajador."
+//
+// Los cuatro campos los enumera el propio articulo. No es un requisito formal: si
+// el registro no existe o no se lleva conforme a la Ley, "se presumen ciertos,
+// hasta prueba en contrario, los alegatos de los trabajadores sobre la prestacion
+// de sus servicios en horas extraordinarias, asi como sobre la remuneracion y
+// beneficios sociales percibidos" — se INVIERTE la carga de la prueba.
+//
+// Es ademas la unica via de entrada de horas extra a la nomina: hasta 2026-08-29
+// PayrollRunService las fijaba en cero en duro y no habia pantalla para cargarlas,
+// asi que los recargos de los Arts. 117/118 y los topes del 178 nunca actuaban.
+model OvertimeEntry {
+  id               String       @id @default(cuid())
+  companyId        String
+  employeeId       String
+  workedOn         DateTime     @db.Date // fecha en que se laboraron
+  hours            Decimal      @db.Decimal(6, 2)
+  kind             OvertimeKind
+  // Art. 183: "los trabajos efectuados en esas horas"
+  workPerformed    String       @db.VarChar(500)
+  // Art. 182: se requiere permiso PREVIO de la Inspectoria del Trabajo. Sin el,
+  // las horas "deberan pagarse con el DOBLE del recargo previsto en la Ley".
+  // El caso imprevisto y urgente se puede trabajar sin permiso previo a condicion
+  // de notificarlo al dia habil siguiente: por eso el motivo va aparte.
+  authorized       Boolean      @default(false)
+  authorizationRef String?      @db.VarChar(120) // n° de permiso o de la notificacion
+  // Se llena cuando la nomina que las pago queda APPROVED (Art. 183: la
+  // "remuneracion especial que haya pagado a cada trabajador").
+  payrollRunId     String?
+  paidAmount       Decimal?     @db.Decimal(19, 4)
+  createdByUserId  String
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  payrollRun PayrollRun? @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId, workedOn])
+  @@index([companyId, workedOn])
+  @@index([payrollRunId])
+  @@index([employeeId])
+}
+
+enum OvertimeKind {
+  DIURNA // recargo 50% — Art. 118
+  NOCTURNA // recargo nocturno 30% (Art. 117) sobre el de HE
+}
 
 model PayrollRunLine {
   id                     String                  @id @default(cuid())

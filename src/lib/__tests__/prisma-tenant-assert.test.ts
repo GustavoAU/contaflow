@@ -1254,8 +1254,10 @@ describe("catálogos de operaciones", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("SCOPE_MAP (DMMF real)", () => {
-  it("cubre 88 modelos: las mismas 88 tablas que tienen RLS (verify-rls.mjs)", () => {
-    expect(SCOPE_MAP.size).toBe(88);
+  it("cubre 89 modelos: las mismas 89 tablas que tienen RLS (verify-rls.mjs)", () => {
+    // +1 el 2026-08-29: OvertimeEntry (registro de horas extraordinarias,
+    // LOTTT Art. 183). El conteo se mueve a la vez que verify-rls.mjs.
+    expect(SCOPE_MAP.size).toBe(89);
   });
 
   it("User NO está: es global por diseño", () => {

@@ -51,6 +51,8 @@ function makeEmp(overrides: Partial<EmployeeCalculationInput> = {}): EmployeeCal
     salaryHistoryId: "sal-1",
     salaryAmount: new Decimal("30000"),
     salaryCurrency: "VES",
+    // LOTTT Art. 173: jornada ordinaria, 8 h/dia.
+    workShift: "DIURNA",
     overtimeHoursDay: new Decimal(0),
     overtimeHoursNight: new Decimal(0),
     absenceDays: new Decimal(0),
@@ -1226,5 +1228,85 @@ describe("contributableWeeks - techo del Art. 100", () => {
       .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), BASE_CONFIG)
       .find((l) => l.conceptCode === "IVSS_OBR")!;
     expect(ivssLargo.amount.toFixed(2)).toBe(ivssNormal.amount.toFixed(2));
+  });
+});
+
+// --- Jornada (Art. 173) y horas sin permiso (Art. 182) ----------------------
+
+describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () => {
+  // Sueldo 30.000 -> diario 1.000. La hora depende de la jornada (Art. 113):
+  //   DIURNA   1000/8   = 125
+  //   NOCTURNA 1000/7   = 142,857...
+  //   MIXTA    1000/7,5 = 133,333...
+  function he(overrides: Partial<EmployeeCalculationInput>, code = "HE_DIURNA") {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000"), ...overrides });
+    return PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)
+      .find((l) => l.conceptCode === code);
+  }
+
+  it("la jornada NOCTURNA divide entre 7, no entre 8 (Arts. 113 y 173)", () => {
+    const diurna = he({ workShift: "DIURNA", overtimeHoursDay: new Decimal("10") })!;
+    const nocturna = he({ workShift: "NOCTURNA", overtimeHoursDay: new Decimal("10") })!;
+    // 125 x 1,5 x 10 = 1.875 frente a (1000/7) x 1,5 x 10 = 2.142,857 -> 2.142,86
+    expect(diurna.amount.toFixed(2)).toBe("1875.00");
+    expect(nocturna.amount.toFixed(2)).toBe("2142.86");
+    expect(nocturna.amount.greaterThan(diurna.amount)).toBe(true);
+  });
+
+  it("la jornada MIXTA divide entre 7,5", () => {
+    const mixta = he({ workShift: "MIXTA", overtimeHoursDay: new Decimal("10") })!;
+    // 133,33 x 1,5 x 10 = 2.000
+    expect(mixta.amount.toFixed(2)).toBe("2000.00");
+  });
+
+  it("sin permiso de la Inspectoria el recargo se DUPLICA (Art. 182)", () => {
+    const conPermiso = he({ overtimeHoursDay: new Decimal("10") })!;
+    const sinPermiso = he({
+      overtimeHoursDay: new Decimal(0),
+      overtimeHoursDayUnauthorized: new Decimal("10"),
+    })!;
+    // Se duplica el RECARGO (50% -> 100%), no la hora: 1,5 -> 2,0.
+    expect(conPermiso.rate!.toFixed(2)).toBe("1.50");
+    expect(sinPermiso.rate!.toFixed(2)).toBe("2.00");
+    expect(sinPermiso.amount.toFixed(2)).toBe("2500.00"); // 125 x 2 x 10
+  });
+
+  it("la nocturna sin permiso duplica SOLO el recargo de hora extra", () => {
+    // El 30% nocturno del Art. 117 es otro recargo y no se duplica:
+    // 1,30 x 2,00 = 2,60, no 1,95 x 2 = 3,90.
+    const sinPermiso = he({
+      overtimeHoursNight: new Decimal(0),
+      overtimeHoursNightUnauthorized: new Decimal("4"),
+    }, "HE_NOCTURNA")!;
+    expect(sinPermiso.rate!.toFixed(2)).toBe("2.60");
+  });
+
+  it("autorizadas y sin autorizar conviven en lineas separadas", () => {
+    // Mismo concepto, distinta tarifa: el recibo tiene que poder explicar por
+    // que una hora vale mas que otra.
+    const emp = makeEmp({
+      salaryAmount: new Decimal("30000"),
+      overtimeHoursDay: new Decimal("4"),
+      overtimeHoursDayUnauthorized: new Decimal("2"),
+    });
+    const lines = PayrollCalculatorService
+      .calculateEmployeeLines(emp, BASE_CONFIG)
+      .filter((l) => l.conceptCode === "HE_DIURNA");
+    expect(lines).toHaveLength(2);
+    expect(lines.map((l) => l.rate!.toFixed(2)).sort()).toEqual(["1.50", "2.00"]);
+  });
+
+  it("los topes del Art. 178 cuentan las horas TENGA o no permiso la empresa", () => {
+    // El permiso cambia la tarifa (Art. 182), no el limite (Art. 178).
+    const r = PayrollCalculatorService.calculate(
+      [makeEmp({
+        salaryAmount: new Decimal("30000"),
+        overtimeHoursDay: new Decimal("30"),
+        overtimeHoursDayUnauthorized: new Decimal("30"),
+        overtimeHoursYearToDate: new Decimal(0),
+      })], [], BASE_CONFIG,
+    );
+    // 60 horas en un periodo de 5 semanas: el tope son 50.
+    expect(r.overtimeWarnings.some((w) => w.kind === "SEMANAL")).toBe(true);
   });
 });

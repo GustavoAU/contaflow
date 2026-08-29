@@ -13,6 +13,7 @@
 import Decimal from "decimal.js";
 import type {
   ConceptType, IvssRiskClass, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
+  WorkShiftType,
 } from "@prisma/client";
 // Los mensajes de moneda viven en payroll-currency: había dos parejas con textos
 // distintos para la misma condición, así que el usuario veía un mensaje u otro
@@ -142,7 +143,12 @@ export function overtimeLimitWarnings(
   const weeklyAllowance = OVERTIME_WEEKLY_LIMIT.mul(weeks);
 
   for (const emp of employees) {
-    const periodHours = emp.overtimeHoursDay.plus(emp.overtimeHoursNight);
+    // Los topes del Art. 178 cuentan las horas trabajadas, tenga permiso la
+    // empresa o no: el permiso cambia la tarifa (Art. 182), no el limite.
+    const periodHours = emp.overtimeHoursDay
+      .plus(emp.overtimeHoursNight)
+      .plus(emp.overtimeHoursDayUnauthorized ?? 0)
+      .plus(emp.overtimeHoursNightUnauthorized ?? 0);
     if (periodHours.greaterThan(weeklyAllowance)) {
       warnings.push({
         employeeId: emp.employeeId,
@@ -207,7 +213,7 @@ const OVERTIME_ANNUAL_LIMIT = new Decimal("100");
 const RPE_CAP_MULTIPLES   = new Decimal("10");
 const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
-const HE_DAY_MULTIPLIER = new Decimal("1.5");
+export const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // Hora extra nocturna: la hora es nocturna Y extraordinaria, asi que acumula los
 // dos recargos sobre la hora ordinaria diurna.
 //   Art. 117 — "La jornada nocturna sera pagada con un treinta por ciento de
@@ -219,18 +225,28 @@ const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // y el nombre del concepto decia "(100%)": tres numeros distintos para lo mismo,
 // y el que se aplicaba estaba por debajo del piso legal.
 //
-// Nota de modelo: el salario hora se divide entre HOURS_DAY (8). El Art. 113
-// manda dividir por las horas "de la jornada diurna, nocturna o mixta, segun sea
-// el caso", y la nocturna topa en siete (Art. 173.2). Aqui el divisor correcto
-// es 8 porque la base legal de ambos recargos es la jornada ORDINARIA del
-// trabajador, que asumimos diurna: ContaFlow no guarda el tipo de jornada por
-// empleado. Para quien tenga jornada nocturna ordinaria el divisor deberia ser
-// 7 — hace falta modelar la jornada antes de poder distinguirlo.
-const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
+export const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
+// LOTTT Art. 182: "En caso de laborarse las horas extraordinarias SIN LA
+// AUTORIZACION del Inspector del Trabajo, estas deberan pagarse con el DOBLE DEL
+// RECARGO previsto en la presente Ley".
+//
+// Se duplica el RECARGO, no la hora: el de hora extra es 50% (Art. 118), asi que
+// pasa a 100% -> multiplicador 2,00. El 30% nocturno del Art. 117 es OTRO recargo
+// y no se duplica: 1,30 x 2,00 = 2,60.
+export const HE_DAY_MULTIPLIER_UNAUTHORIZED   = new Decimal("2");
+export const HE_NIGHT_MULTIPLIER_UNAUTHORIZED = new Decimal("2.6");
 // Días base de cálculo mensual (convención LOTTT)
 const DAYS_MONTH = new Decimal("30");
 // Horas de jornada diaria
-const HOURS_DAY = new Decimal("8");
+// LOTTT Art. 173: maximo de horas por jornada. El Art. 113 divide el salario
+// hora entre las horas "de la jornada diurna, nocturna o mixta, SEGUN SEA EL
+// CASO", asi que una sola constante de 8 pagaba de menos la hora extra de quien
+// tiene jornada nocturna (7 h) o mixta (7,5 h).
+const HOURS_BY_SHIFT: Record<WorkShiftType, Decimal> = {
+  DIURNA:   new Decimal("8"),
+  NOCTURNA: new Decimal("7"),
+  MIXTA:    new Decimal("7.5"),
+};
 
 // ─── Interfaces públicas ──────────────────────────────────────────────────────
 
@@ -251,8 +267,15 @@ export interface EmployeeCalculationInput {
   salaryAmount: Decimal;
   salaryCurrency: PayrollPaymentCurrency;
   // Novedades del período
-  overtimeHoursDay: Decimal;   // HE diurnas (validadas >= 0)
-  overtimeHoursNight: Decimal; // HE nocturnas (validadas >= 0)
+  // Jornada del empleado (LOTTT Art. 173): fija el divisor del salario hora.
+  workShift: WorkShiftType;
+  // HE CON permiso de la Inspectoria (validadas >= 0)
+  overtimeHoursDay: Decimal;
+  overtimeHoursNight: Decimal;
+  // HE SIN permiso: mismo trabajo, recargo doble (Art. 182). Van aparte porque
+  // se pagan a otra tarifa, no porque sean otra cosa.
+  overtimeHoursDayUnauthorized?: Decimal;
+  overtimeHoursNightUnauthorized?: Decimal;
   absenceDays: Decimal;        // Días de ausencia injustificada (descuento proporcional)
   // Salario normal devengado en el MES INMEDIATAMENTE ANTERIOR (ADR-045 D-5).
   // LOTTT Art. 107: "toda contribución, tasa o impuesto se calculará
@@ -546,7 +569,11 @@ export const PayrollCalculatorService = {
     };
 
     // Validación de horas (NOM-C-05)
-    if (emp.overtimeHoursDay.lessThan(0) || emp.overtimeHoursNight.lessThan(0)) {
+    if (
+      emp.overtimeHoursDay.lessThan(0) || emp.overtimeHoursNight.lessThan(0) ||
+      (emp.overtimeHoursDayUnauthorized?.lessThan(0) ?? false) ||
+      (emp.overtimeHoursNightUnauthorized?.lessThan(0) ?? false)
+    ) {
       throw new Error("Las horas extra no pueden ser negativas");
     }
     if (emp.absenceDays.lessThan(0)) {
@@ -572,39 +599,46 @@ export const PayrollCalculatorService = {
 
     // ── HE_DIURNA ────────────────────────────────────────────────────────────
     const heDiurnaId = findConcept(systemConcepts, "HE_DIURNA");
-    if (heDiurnaId && emp.overtimeHoursDay.greaterThan(0)) {
-      const salarioHora = salary.dividedBy(DAYS_MONTH).dividedBy(HOURS_DAY);
-      const amount = salarioHora.times(HE_DAY_MULTIPLIER).times(emp.overtimeHoursDay).toDecimalPlaces(2);
+    // LOTTT Art. 113: el salario hora se divide entre las horas de la jornada
+    // que corresponda (Art. 173: 8 diurna, 7 nocturna, 7,5 mixta).
+    const salarioHora = salary.dividedBy(DAYS_MONTH).dividedBy(HOURS_BY_SHIFT[emp.workShift]);
+
+    // Las horas SIN permiso de la Inspectoria se pagan con el doble del recargo
+    // (Art. 182), asi que van en su propia linea: mismo concepto, otra tarifa, y
+    // el recibo tiene que poder mostrar por que una hora vale mas que otra.
+    function pushOvertime(
+      conceptId: string | undefined,
+      conceptCode: string,
+      hours: Decimal | undefined,
+      multiplier: Decimal,
+    ) {
+      if (!conceptId || !hours || hours.lte(0)) return;
       lines.push({
-        conceptCode: "HE_DIURNA",
-        conceptId: heDiurnaId,
+        conceptCode,
+        conceptId,
         employeeId: emp.employeeId,
         conceptType: "EARNING",
-        amount,
+        amount: salarioHora.times(multiplier).times(hours).toDecimalPlaces(2),
         basis: salarioHora,
-        hours: emp.overtimeHoursDay,
-        rate: HE_DAY_MULTIPLIER,
+        hours,
+        rate: multiplier,
         ...salaryBase,
       });
     }
 
+    pushOvertime(heDiurnaId, "HE_DIURNA", emp.overtimeHoursDay, HE_DAY_MULTIPLIER);
+    pushOvertime(
+      heDiurnaId, "HE_DIURNA", emp.overtimeHoursDayUnauthorized,
+      HE_DAY_MULTIPLIER_UNAUTHORIZED,
+    );
+
     // ── HE_NOCTURNA ──────────────────────────────────────────────────────────
     const heNocturnaId = findConcept(systemConcepts, "HE_NOCTURNA");
-    if (heNocturnaId && emp.overtimeHoursNight.greaterThan(0)) {
-      const salarioHora = salary.dividedBy(DAYS_MONTH).dividedBy(HOURS_DAY);
-      const amount = salarioHora.times(HE_NIGHT_MULTIPLIER).times(emp.overtimeHoursNight).toDecimalPlaces(2);
-      lines.push({
-        conceptCode: "HE_NOCTURNA",
-        conceptId: heNocturnaId,
-        employeeId: emp.employeeId,
-        conceptType: "EARNING",
-        amount,
-        basis: salarioHora,
-        hours: emp.overtimeHoursNight,
-        rate: HE_NIGHT_MULTIPLIER,
-        ...salaryBase,
-      });
-    }
+    pushOvertime(heNocturnaId, "HE_NOCTURNA", emp.overtimeHoursNight, HE_NIGHT_MULTIPLIER);
+    pushOvertime(
+      heNocturnaId, "HE_NOCTURNA", emp.overtimeHoursNightUnauthorized,
+      HE_NIGHT_MULTIPLIER_UNAUTHORIZED,
+    );
 
     // ── Conceptos manuales del empleado ───────────────────────────────────────
     for (const m of manualConcepts) {
