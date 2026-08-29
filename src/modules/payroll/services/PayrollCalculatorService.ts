@@ -12,8 +12,8 @@
 
 import Decimal from "decimal.js";
 import type {
-  ConceptType, IvssRiskClass, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
-  WorkShiftType,
+  ConceptType, IvssRiskClass, JornadaType, PayrollFrequency, PayrollPaymentCurrency,
+  SalaryNature,
 } from "@prisma/client";
 // Los mensajes de moneda viven en payroll-currency: había dos parejas con textos
 // distintos para la misma condición, así que el usuario veía un mensaje u otro
@@ -242,7 +242,7 @@ const DAYS_MONTH = new Decimal("30");
 // hora entre las horas "de la jornada diurna, nocturna o mixta, SEGUN SEA EL
 // CASO", asi que una sola constante de 8 pagaba de menos la hora extra de quien
 // tiene jornada nocturna (7 h) o mixta (7,5 h).
-const HOURS_BY_SHIFT: Record<WorkShiftType, Decimal> = {
+const HOURS_BY_SHIFT: Record<JornadaType, Decimal> = {
   DIURNA:   new Decimal("8"),
   NOCTURNA: new Decimal("7"),
   MIXTA:    new Decimal("7.5"),
@@ -268,7 +268,13 @@ export interface EmployeeCalculationInput {
   salaryCurrency: PayrollPaymentCurrency;
   // Novedades del período
   // Jornada del empleado (LOTTT Art. 173): fija el divisor del salario hora.
-  workShift: WorkShiftType;
+  // Es `Employee.workSchedule`, que ya existía en el modelo con el comentario
+  // "Jornada laboral LOTTT Arts. 173-177" y su selector en la ficha. Llegué a
+  // añadir un `workShift` duplicado antes de mirar; se quitó.
+  //
+  // `null` = jornada no declarada -> DIURNA, que es la ordinaria y lo que el
+  // cálculo asumía para todos antes de que esto existiera.
+  workShift: JornadaType | null;
   // HE CON permiso de la Inspectoria (validadas >= 0)
   overtimeHoursDay: Decimal;
   overtimeHoursNight: Decimal;
@@ -601,7 +607,9 @@ export const PayrollCalculatorService = {
     const heDiurnaId = findConcept(systemConcepts, "HE_DIURNA");
     // LOTTT Art. 113: el salario hora se divide entre las horas de la jornada
     // que corresponda (Art. 173: 8 diurna, 7 nocturna, 7,5 mixta).
-    const salarioHora = salary.dividedBy(DAYS_MONTH).dividedBy(HOURS_BY_SHIFT[emp.workShift]);
+    const salarioHora = salary
+      .dividedBy(DAYS_MONTH)
+      .dividedBy(HOURS_BY_SHIFT[emp.workShift ?? "DIURNA"]);
 
     // Las horas SIN permiso de la Inspectoria se pagan con el doble del recargo
     // (Art. 182), asi que van en su propia linea: mismo concepto, otra tarifa, y

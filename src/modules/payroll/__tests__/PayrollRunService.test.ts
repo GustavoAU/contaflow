@@ -163,7 +163,7 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.employee.findMany).mockResolvedValue([
       {
         id: "emp-1",
-        workShift: "DIURNA",
+        workSchedule: "DIURNA",
         salaryHistory: [{ id: "sal-1", amount: new Decimal("30000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
       },
     ] as never);
@@ -239,7 +239,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
-      workShift: "DIURNA",
+      workSchedule: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("1000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
@@ -528,7 +528,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
-      workShift: "DIURNA",
+      workSchedule: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
@@ -668,7 +668,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
-      workShift: "DIURNA",
+      workSchedule: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("3000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([

@@ -20,7 +20,8 @@ import { todayLocalISO } from "@/lib/today";
 interface EmployeeOption {
   id: string;
   name: string;
-  workShift: "DIURNA" | "NOCTURNA" | "MIXTA";
+  // `null` = jornada sin declarar en la ficha -> se calcula como DIURNA.
+  workShift: "DIURNA" | "NOCTURNA" | "MIXTA" | null;
 }
 
 interface Props {
@@ -118,7 +119,7 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>
-            {selected && selected.workShift !== "DIURNA" && (
+            {selected && selected.workShift && selected.workShift !== "DIURNA" && (
               // Art. 113 + Art. 173: el divisor del salario hora cambia con la
               // jornada, así que la hora extra de esta persona vale más.
               <p className="mt-1 text-xs text-gray-500">
