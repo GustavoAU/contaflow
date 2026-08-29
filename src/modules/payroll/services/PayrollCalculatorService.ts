@@ -42,6 +42,10 @@ export const IVSS_CAP_MULTIPLES = new Decimal("5");
 //   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
 //     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
 export const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
+// Art. 49: el aporte patronal lo deben "las personas naturales y juridicas ...
+// que den ocupacion a CINCO (5) O MAS trabajadores". Por debajo de ese numero no
+// hay obligacion, y cobrarlo igual le carga a la empresa un 2% que no debe.
+export const INCES_MIN_EMPLOYEES = 5;
 // Ley del Régimen Prestacional de Vivienda y Hábitat, reformada por la Ley de
 // Reforma Parcial publicada en G.O. 6.805 Extraordinario del 01-05-2024:
 // aporte total del 3% del SALARIO INTEGRAL — un tercio del trabajador (1%) y
@@ -284,6 +288,14 @@ export interface PayrollCalculatorConfig {
   // sin error y sin aviso. Que lo atrape el compilador.
   periodStart: Date;
   periodEnd: Date;
+  // Trabajadores ACTIVOS de la empresa — no los de este proceso, que puede ser
+  // de un subconjunto. Decide si aplica el aporte patronal al INCES (Art. 49:
+  // cinco o mas trabajadores).
+  //
+  // OBLIGATORIO: si fuera opcional habria que elegir un default, y los dos son
+  // malos — asumir que si aplica cobra de mas a la empresa pequena, asumir que
+  // no lo hace desaparecer en silencio. Que lo decida quien tiene el dato.
+  activeEmployeeCount: number;
   // Días de utilidades y de bono vacacional que paga la empresa. Sólo se usan
   // para la alícuota del salario integral, que es la base del FAOV (LRPVH
   // Art. 33). Si faltan, `integralDailyWageFrom` aplica los mínimos legales
@@ -715,10 +727,12 @@ export const PayrollCalculatorService = {
 
     // ── INCES_PAT (2% del salario normal, SIN TOPE — Ley INCES Art. 49) ────────
     // Art. 49 fija la base sin límite superior; el tope de 5× que se aplicaba
-    // aquí no sale de la Ley. Falta además el supuesto de aplicación: sólo
-    // aplica a entidades con cinco o más trabajadores.
+    // aquí no sale de la Ley. Y sólo lo deben las entidades que "den ocupación a
+    // cinco (5) o más trabajadores": por debajo de ese número se cobraba un 2%
+    // patronal que la empresa no debe.
     const incesPatId = findConcept(systemConcepts, "INCES_PAT");
-    if (incesEnabled && incesPatId) {
+    const incesPatApplies = config.activeEmployeeCount >= INCES_MIN_EMPLOYEES;
+    if (incesEnabled && incesPatApplies && incesPatId) {
       const basis = salarioNormal;
       const amount = basis.times(incesPatRate).toDecimalPlaces(2);
       lines.push({

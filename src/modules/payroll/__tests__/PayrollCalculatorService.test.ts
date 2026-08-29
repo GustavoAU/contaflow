@@ -39,6 +39,9 @@ const BASE_CONFIG: PayrollCalculatorConfig = {
   // semana (Reglamento Art. 99), asi que el mes no vale siempre lo mismo.
   periodStart: new Date("2026-03-01T00:00:00Z"),
   periodEnd: new Date("2026-03-31T00:00:00Z"),
+  // Ley INCES Art. 49: por encima del umbral de cinco, asi que el aporte
+  // patronal al INCES aplica salvo que un test diga lo contrario.
+  activeEmployeeCount: 10,
   systemConcepts: SYSTEM_CONCEPTS,
 };
 
@@ -1133,5 +1136,53 @@ describe("PayrollCalculatorService - topes de horas extra (Art. 178)", () => {
     const he = r.lines.find((l) => l.conceptCode === "HE_DIURNA")!;
     expect(he.amount.greaterThan(0)).toBe(true);
     expect(r.totalNet.greaterThan(0)).toBe(true);
+  });
+});
+
+// --- Umbral de cinco trabajadores del INCES (Ley INCES Art. 49) --------------
+// "Las personas naturales y juridicas ... que den ocupacion a CINCO (5) O MAS
+// trabajadores". Por debajo no hay obligacion, y se cobraba igual.
+
+describe("PayrollCalculatorService - umbral del INCES patronal", () => {
+  const CONCEPTS: SystemConceptRef[] = [
+    ...SYSTEM_CONCEPTS,
+    { code: "INCES_PAT", conceptId: "c-inces-pat", salaryNature: "NO_SALARIAL" },
+  ];
+
+  function incesPat(activeEmployeeCount: number) {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG, systemConcepts: CONCEPTS, activeEmployeeCount,
+    };
+    return PayrollCalculatorService
+      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), config)
+      .find((l) => l.conceptCode === "INCES_PAT");
+  }
+
+  it("con cinco trabajadores aplica", () => {
+    expect(incesPat(5)!.amount.toFixed(2)).toBe("600.00"); // 2% de 30.000
+  });
+
+  it("con mas de cinco aplica", () => {
+    expect(incesPat(40)).toBeDefined();
+  });
+
+  it("con cuatro NO aplica: no se genera la linea", () => {
+    // Antes se le cobraba a la empresa un 2% patronal que la ley no le impone.
+    expect(incesPat(4)).toBeUndefined();
+  });
+
+  it("una empresa de un solo trabajador tampoco cotiza", () => {
+    expect(incesPat(1)).toBeUndefined();
+  });
+
+  it("el umbral no toca a los otros tres organismos", () => {
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG, systemConcepts: CONCEPTS, activeEmployeeCount: 2,
+    };
+    const lines = PayrollCalculatorService
+      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), config);
+    for (const code of ["IVSS_OBR", "FAOV_OBR", "RPE_OBR"]) {
+      expect(lines.find((l) => l.conceptCode === code)).toBeDefined();
+    }
   });
 });

@@ -35,6 +35,9 @@ export interface ProfitSharingRecordRow {
   monthsWorked: number;
   baseSalarySnapshot: string;
   profitAmount: string;
+  // Ley INCES Art. 50: 0,5% retenido al trabajador sobre estas utilidades.
+  // Sale en el recibo: se le descuenta del neto, tiene que poder verlo.
+  incesRetention: string;
   isFractional: boolean;
   transactionId: string | null;
   createdAt: string;
@@ -63,6 +66,7 @@ function serializeProfitSharing(r: {
   monthsWorked: number;
   baseSalarySnapshot: Decimal;
   profitAmount: Decimal;
+  incesRetention: Decimal;
   isFractional: boolean;
   transactionId: string | null;
   createdAt: Date;
@@ -77,6 +81,7 @@ function serializeProfitSharing(r: {
     monthsWorked: r.monthsWorked,
     baseSalarySnapshot: r.baseSalarySnapshot.toString(),
     profitAmount: r.profitAmount.toString(),
+    incesRetention: r.incesRetention.toString(),
     isFractional: r.isFractional,
     transactionId: r.transactionId,
     createdAt: r.createdAt.toISOString(),
@@ -220,8 +225,21 @@ export const ProfitSharingService = {
     const headcount = await prisma.employee.count({
       where: { companyId, status: "ACTIVE" },
     });
-    const incesApplies =
-      config.incesEnabled && headcount >= INCES_MIN_EMPLOYEES && !!config.incesPayableAccountId;
+    // La obligación la fija la ley: organismo activo y cinco o más trabajadores.
+    const incesApplies = config.incesEnabled && headcount >= INCES_MIN_EMPLOYEES;
+
+    // Que falte la cuenta contable NO es una excepción legal. Antes formaba parte
+    // de la condición, así que una empresa sin la cuenta configurada dejaba de
+    // retener el 0,5% en silencio: el trabajador cobraba de más, la empresa
+    // quedaba debiéndolo al INCES y nada lo decía. Se bloquea y se explica.
+    if (incesApplies && !config.incesPayableAccountId) {
+      throw new Error(
+        "Falta la cuenta contable de INCES por Pagar. La Ley INCES Art. 50 obliga " +
+        "a retener el 0,5% de las utilidades, y sin esa cuenta el asiento no se " +
+        "puede cuadrar. Configúrala en Configuración de Nómina antes de liquidar."
+      );
+    }
+
     const incesRetention = incesApplies
       ? profitAmount.mul(INCES_WORKER_RATE).toDecimalPlaces(4)
       : new Decimal(0);

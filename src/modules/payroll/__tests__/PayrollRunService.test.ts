@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     employee: {
       findMany: vi.fn(),
+      count: vi.fn(),
     },
     accountingPeriod: {
       findFirst: vi.fn(),
@@ -166,6 +167,8 @@ describe("PayrollRunService.create", () => {
       { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
+    // Ley INCES Art. 49: por encima del umbral de cinco trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
     // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
     // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);

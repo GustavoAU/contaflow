@@ -94,6 +94,7 @@ const BASE_RECORD = {
   fractionalDays: new Decimal("4"),
   monthsWorked: 3,
   baseSalarySnapshot: new Decimal("3000"),
+  incesRetention: new Decimal("0"),
   profitAmount: new Decimal("600"),
   isFractional: true,
   transactionId: "tx-1",
@@ -387,3 +388,47 @@ describe("ProfitSharingService — moneda del historial", () => {
 function baseOf(data: { baseSalarySnapshot: string }): string {
   return data.baseSalarySnapshot.toString();
 }
+
+// --- La retencion del INCES no puede omitirse en silencio (Art. 50) ----------
+
+describe("ProfitSharingService - cuenta contable del INCES", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  function setup(incesPayableAccountId: string | null, headcount: number) {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.employee.count).mockResolvedValue(headcount as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      profitDays: 30,
+      incesEnabled: true,
+      incesPayableAccountId,
+      profitSharingPayableAccountId: "acc-pay",
+      benefitsExpenseAccountId: "acc-exp",
+    } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
+    );
+  }
+
+  it("sin la cuenta configurada BLOQUEA en vez de dejar de retener", async () => {
+    // Antes la cuenta formaba parte de la condicion de aplicacion: si faltaba,
+    // no se retenia el 0,5% y nada lo decia. El trabajador cobraba de mas y la
+    // empresa quedaba debiendolo al INCES.
+    setup(null, 10);
+    await expect(
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+    ).rejects.toThrow("INCES por Pagar");
+  });
+
+  it("sin la cuenta pero con menos de cinco trabajadores NO bloquea", async () => {
+    // Ahi no hay obligacion que incumplir: la cuenta no hace falta.
+    setup(null, 3);
+    await expect(
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+    ).resolves.toBeDefined();
+  });
+});

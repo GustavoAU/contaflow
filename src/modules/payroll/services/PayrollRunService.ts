@@ -268,6 +268,10 @@ export const PayrollRunService = {
     // LegalThreshold almacena alícuotas como porcentaje (ej: 4.00 = 4%) → dividir /100
     const toRate = (pct: Decimal | null) => pct ? pct.dividedBy(100) : undefined;
 
+    const activeEmployeeCount = await prisma.employee.count({
+      where: { companyId, status: "ACTIVE" },
+    });
+
     const calcConfig: PayrollCalculatorConfig = {
       frequency: config.frequency,
       ivssEnabled: config.ivssEnabled,
@@ -280,6 +284,10 @@ export const PayrollRunService = {
       // cuántas cotizaciones se causaron.
       periodStart,
       periodEnd,
+      // Ley INCES Art. 49: el aporte patronal sólo lo deben las entidades con
+      // cinco o más trabajadores. Se cuentan los ACTIVOS de la empresa, no los
+      // de este proceso, que puede correrse sobre un subconjunto.
+      activeEmployeeCount,
       // Alícuotas del salario integral — base del FAOV (LRPVH Art. 33.1).
       profitDays: config.profitDays,
       vacationBonusDays: config.vacationBonusDays,
