@@ -66,6 +66,9 @@ export interface PayrollRunRow {
   approvedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  // LOTTT Art. 178: excesos de horas extra detectados al calcular. Sólo lo llena
+  // create(); las lecturas posteriores no recalculan, van al AuditLog del run.
+  overtimeWarnings?: string[];
 }
 
 export interface PayrollRunDetailRow extends PayrollRunRow {
@@ -319,6 +322,38 @@ export const PayrollRunService = {
       select: { id: true },
     })).map((r) => r.id);
 
+    // ── Horas extra acumuladas en el año (LOTTT Art. 178) ──────────────────
+    // El tope anual son cien horas; sin el acumulado sólo se puede comprobar el
+    // semanal. Se cuentan los runs APPROVED del año calendario en curso.
+    const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
+    const overtimeYtdByEmp = new Map<string, Decimal>();
+    const yearRunIds = (await prisma.payrollRun.findMany({
+      where: {
+        companyId,
+        status: "APPROVED",
+        periodStart: { gte: yearStart },
+        periodEnd: { lt: periodStart },
+      },
+      select: { id: true },
+    })).map((r) => r.id);
+
+    if (yearRunIds.length > 0) {
+      const heLines = await prisma.payrollRunLine.findMany({
+        where: {
+          payrollRunId: { in: yearRunIds },
+          conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
+        },
+        select: { employeeId: true, hours: true },
+      });
+      for (const l of heLines) {
+        if (!l.hours) continue;
+        overtimeYtdByEmp.set(
+          l.employeeId,
+          (overtimeYtdByEmp.get(l.employeeId) ?? new Decimal(0)).plus(l.hours.toString()),
+        );
+      }
+    }
+
     if (prevRunIds.length > 0) {
       // La naturaleza salarial vive en PayrollConcept, no en la línea: se
       // resuelve por código sobre todos los conceptos de la empresa, no sólo los
@@ -357,6 +392,7 @@ export const PayrollRunService = {
         // undefined para quien no tenga mes anterior: el calculador cotiza
         // entonces sobre el mes en curso (ver D-5).
         previousMonthNormalWage: previousNormalWageByEmp.get(e.id),
+        overtimeHoursYearToDate: overtimeYtdByEmp.get(e.id) ?? new Decimal(0),
       }));
 
     // ── Conceptos manuales (NOM-C-07: validar ownership) ──────────────────
@@ -502,11 +538,24 @@ export const PayrollRunService = {
               employeeId: m.employeeId,
               amount: m.amount,
             })),
+            // LOTTT Art. 178: excesos sobre los topes de horas extraordinarias.
+            // Quedan en el AuditLog aunque la nómina se procese igual, para que
+            // exista rastro de cuándo se superó y de quién autorizó el proceso.
+            // No es el registro formal del Art. 183 — ese sigue pendiente.
+            overtimeWarnings: result.overtimeWarnings.map((w) => ({
+              employeeId: w.employeeId,
+              kind: w.kind,
+              hours: w.hours.toString(),
+              limit: w.limit.toString(),
+            })),
           },
         },
       });
 
-      return serializeRun(run);
+      return {
+        ...serializeRun(run),
+        overtimeWarnings: result.overtimeWarnings.map((w) => w.message),
+      };
     });
   },
 

@@ -104,6 +104,52 @@ export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
 }
 
 /**
+ * Excesos sobre los limites de horas extraordinarias (LOTTT Art. 178).
+ *
+ * El semanal se comprueba contra las semanas que cubre el periodo, no contra una
+ * semana suelta: la nomina liquida un periodo completo y lo unico que se conoce
+ * es su total de horas. Un mes de cuatro semanas admite 40 antes de excederse.
+ */
+export function overtimeLimitWarnings(
+  employees: EmployeeCalculationInput[],
+  config: PayrollCalculatorConfig,
+): OvertimeLimitWarning[] {
+  const warnings: OvertimeLimitWarning[] = [];
+  const weeks = Math.max(1, contributableWeeks(config.periodStart, config.periodEnd));
+  const weeklyAllowance = OVERTIME_WEEKLY_LIMIT.mul(weeks);
+
+  for (const emp of employees) {
+    const periodHours = emp.overtimeHoursDay.plus(emp.overtimeHoursNight);
+    if (periodHours.greaterThan(weeklyAllowance)) {
+      warnings.push({
+        employeeId: emp.employeeId,
+        kind: "SEMANAL",
+        hours: periodHours,
+        limit: weeklyAllowance,
+        message:
+          `${periodHours.toFixed(0)} horas extra en un periodo de ${weeks} semana(s): ` +
+          `el tope de la LOTTT Art. 178 son 10 semanales (${weeklyAllowance.toFixed(0)} en este periodo).`,
+      });
+    }
+
+    if (emp.overtimeHoursYearToDate === undefined) continue;
+    const yearHours = emp.overtimeHoursYearToDate.plus(periodHours);
+    if (yearHours.greaterThan(OVERTIME_ANNUAL_LIMIT)) {
+      warnings.push({
+        employeeId: emp.employeeId,
+        kind: "ANUAL",
+        hours: yearHours,
+        limit: OVERTIME_ANNUAL_LIMIT,
+        message:
+          `${yearHours.toFixed(0)} horas extra acumuladas en el ano: ` +
+          "el tope de la LOTTT Art. 178 son 100 anuales.",
+      });
+    }
+  }
+  return warnings;
+}
+
+/**
  * Salario diario INTEGRAL — LOTTT Art. 122: "el último salario devengado,
  * calculado de manera que integre todos los conceptos salariales percibidos",
  * más "la alícuota de lo que le corresponde percibir por bono vacacional y por
@@ -130,6 +176,11 @@ export function integralDailyWageFrom(
 //   urbano (límite inferior) y DIEZ (límite superior).
 const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
 const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
+// LOTTT Art. 178: las horas extraordinarias "no podran exceder de diez horas
+// semanales, ni de cien horas por ano". El calculador solo validaba que no
+// fueran negativas.
+const OVERTIME_WEEKLY_LIMIT = new Decimal("10");
+const OVERTIME_ANNUAL_LIMIT = new Decimal("100");
 const RPE_CAP_MULTIPLES   = new Decimal("10");
 const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
@@ -190,6 +241,10 @@ export interface EmployeeCalculationInput {
   // sea cero: ahí se cotiza sobre el mes en curso, que es lo único que existe.
   // Lo aporta PayrollRunService desde el run APPROVED anterior.
   previousMonthNormalWage?: Decimal;
+  // Horas extraordinarias ya devengadas en lo que va del ano calendario, en runs
+  // APPROVED anteriores. Sirve para el tope anual del Art. 178; sin este dato
+  // solo se puede comprobar el semanal. Lo aporta PayrollRunService.
+  overtimeHoursYearToDate?: Decimal;
 }
 
 export interface ManualConceptCalculationInput {
@@ -275,6 +330,24 @@ export interface PayrollCalculatorResult {
   totalDeductions: Decimal;
   totalNet: Decimal;
   totalEmployerCosts: Decimal; // F-03: aportes patronales — no afectan neto del empleado
+  overtimeWarnings: OvertimeLimitWarning[];
+}
+
+/**
+ * Exceso sobre los límites de horas extraordinarias de la LOTTT Art. 178.
+ *
+ * Avisa, NO bloquea, y la decisión es deliberada: las horas ya se trabajaron y
+ * el Art. 118 obliga a pagarlas con su recargo. Negarse a liquidar la nómina
+ * dejaría al trabajador sin cobrar lo devengado para "corregir" una infracción
+ * que cometió el patrono — sería un daño mayor que el que evita. Lo que
+ * corresponde es que la empresa lo vea y lo sepa.
+ */
+export interface OvertimeLimitWarning {
+  employeeId: string;
+  kind: "SEMANAL" | "ANUAL";
+  hours: Decimal;   // horas contabilizadas (del período, o del año acumulado)
+  limit: Decimal;   // tope legal aplicable
+  message: string;
 }
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
@@ -395,7 +468,12 @@ export const PayrollCalculatorService = {
       );
     }
 
-    return { lines: allLines, totalEarnings, totalDeductions, totalNet, totalEmployerCosts };
+    const overtimeWarnings = overtimeLimitWarnings(employees, config);
+
+    return {
+      lines: allLines, totalEarnings, totalDeductions, totalNet,
+      totalEmployerCosts, overtimeWarnings,
+    };
   },
 
   /**

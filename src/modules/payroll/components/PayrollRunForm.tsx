@@ -89,7 +89,17 @@ export function PayrollRunForm({
       });
 
       if (result.success) {
-        toast.success("Proceso de nómina creado exitosamente");
+        // LOTTT Art. 178. La nómina se procesa igual —las horas se trabajaron y
+        // hay que pagarlas— pero la empresa tiene que enterarse de que excedió.
+        const avisos = result.data.overtimeWarnings ?? [];
+        if (avisos.length > 0) {
+          toast.warning(
+            `Nómina creada con ${avisos.length} exceso(s) de horas extraordinarias`,
+            { description: avisos[0], duration: 10000 },
+          );
+        } else {
+          toast.success("Proceso de nómina creado exitosamente");
+        }
         router.push(`/company/${companyId}/payroll/runs/${result.data.id}`);
       } else {
         setError(result.error);

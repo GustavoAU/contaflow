@@ -1072,3 +1072,66 @@ describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () =>
       .toBe("0.00");
   });
 });
+
+// --- Topes de horas extraordinarias (LOTTT Art. 178) ------------------------
+// "No podran exceder de diez horas semanales, ni de cien horas por ano". El
+// calculador solo validaba que las horas no fueran negativas.
+//
+// AVISA, no bloquea: las horas ya se trabajaron y el Art. 118 obliga a pagarlas.
+// Negarse a liquidar dejaria al trabajador sin cobrar lo devengado para corregir
+// una infraccion del patrono.
+
+describe("PayrollCalculatorService - topes de horas extra (Art. 178)", () => {
+  // Marzo de 2026: cinco semanas -> 50 horas admitidas en el periodo.
+  function run(overrides: Partial<EmployeeCalculationInput>) {
+    return PayrollCalculatorService.calculate(
+      [makeEmp({ salaryAmount: new Decimal("30000"), ...overrides })], [], BASE_CONFIG,
+    );
+  }
+
+  it("dentro del tope no genera aviso", () => {
+    const r = run({ overtimeHoursDay: new Decimal("40"), overtimeHoursYearToDate: new Decimal("0") });
+    expect(r.overtimeWarnings).toHaveLength(0);
+  });
+
+  it("avisa al pasar de diez horas por semana del periodo", () => {
+    const r = run({ overtimeHoursDay: new Decimal("60"), overtimeHoursYearToDate: new Decimal("0") });
+    const semanal = r.overtimeWarnings.filter((w) => w.kind === "SEMANAL");
+    expect(semanal).toHaveLength(1);
+    expect(semanal[0].limit.toFixed(0)).toBe("50"); // 10 x 5 semanas
+    expect(semanal[0].message).toContain("Art. 178");
+  });
+
+  it("suma diurnas y nocturnas: el tope es de horas extra, no de cada tipo", () => {
+    const r = run({
+      overtimeHoursDay: new Decimal("30"),
+      overtimeHoursNight: new Decimal("30"),
+      overtimeHoursYearToDate: new Decimal("0"),
+    });
+    expect(r.overtimeWarnings.some((w) => w.kind === "SEMANAL")).toBe(true);
+  });
+
+  it("avisa al pasar de cien horas en el ano, contando lo ya devengado", () => {
+    const r = run({
+      overtimeHoursDay: new Decimal("20"),
+      overtimeHoursYearToDate: new Decimal("95"),
+    });
+    const anual = r.overtimeWarnings.filter((w) => w.kind === "ANUAL");
+    expect(anual).toHaveLength(1);
+    expect(anual[0].hours.toFixed(0)).toBe("115");
+    expect(anual[0].limit.toFixed(0)).toBe("100");
+  });
+
+  it("sin acumulado del ano solo se comprueba el semanal", () => {
+    const r = run({ overtimeHoursDay: new Decimal("20") }); // ytd undefined
+    expect(r.overtimeWarnings.filter((w) => w.kind === "ANUAL")).toHaveLength(0);
+  });
+
+  it("excederse NO impide pagar: las lineas y el neto salen igual", () => {
+    const r = run({ overtimeHoursDay: new Decimal("60"), overtimeHoursYearToDate: new Decimal("200") });
+    expect(r.overtimeWarnings.length).toBeGreaterThan(0);
+    const he = r.lines.find((l) => l.conceptCode === "HE_DIURNA")!;
+    expect(he.amount.greaterThan(0)).toBe(true);
+    expect(r.totalNet.greaterThan(0)).toBe(true);
+  });
+});
