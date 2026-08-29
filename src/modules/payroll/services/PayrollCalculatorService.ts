@@ -180,6 +180,16 @@ export interface EmployeeCalculationInput {
   overtimeHoursDay: Decimal;   // HE diurnas (validadas >= 0)
   overtimeHoursNight: Decimal; // HE nocturnas (validadas >= 0)
   absenceDays: Decimal;        // Días de ausencia injustificada (descuento proporcional)
+  // Salario normal devengado en el MES INMEDIATAMENTE ANTERIOR (ADR-045 D-5).
+  // LOTTT Art. 107: "toda contribución, tasa o impuesto se calculará
+  // considerando el salario normal correspondiente al mes inmediatamente
+  // anterior a aquél en que se causó". La LRPE Art. 46 lo repite para el RPE.
+  //
+  // `undefined` significa que no hay mes anterior —el primer proceso de la
+  // empresa, o el primer mes de un empleado recién ingresado—, no que la base
+  // sea cero: ahí se cotiza sobre el mes en curso, que es lo único que existe.
+  // Lo aporta PayrollRunService desde el run APPROVED anterior.
+  previousMonthNormalWage?: Decimal;
 }
 
 export interface ManualConceptCalculationInput {
@@ -510,11 +520,21 @@ export const PayrollCalculatorService = {
     for (const c of systemConcepts) natureById.set(c.conceptId, c.salaryNature);
     for (const m of manualConcepts) natureById.set(m.conceptId, m.salaryNature);
 
-    const salarioNormal = lines
+    const salarioNormalDelMes = lines
       .filter((l) =>
         l.conceptType === "EARNING" &&
         natureById.get(l.conceptId) === "SALARIO_NORMAL")
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
+
+    // ── D-5: las contribuciones van sobre el MES ANTERIOR ─────────────────────
+    // LOTTT Art. 107 y LRPE Art. 46. Se usaba el mes en curso, lo que da otra
+    // cifra en cuanto hay un aumento, una ausencia o un bono de por medio.
+    //
+    // Sin mes anterior (primer proceso, o empleado recién ingresado) se cotiza
+    // sobre el mes en curso: la obligación existe igual y es la única base que
+    // hay. Nunca cero — un aporte que desaparece porque falta el histórico es
+    // exactamente el tipo de silencio que este ADR viene a quitar.
+    const salarioNormal = emp.previousMonthNormalWage ?? salarioNormalDelMes;
 
     // ── Salario INTEGRAL: la base del FAOV, y sólo del FAOV ───────────────────
     // LRPVH Art. 33.1 (G.O. 6.805 Extr., 01-05-2024): el aporte es "el tres por

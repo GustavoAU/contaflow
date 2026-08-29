@@ -294,6 +294,55 @@ export const PayrollRunService = {
       rpePatRate:   toRate(rpePatPct),
     };
 
+    // ── Salario normal del MES ANTERIOR (ADR-045 D-5) ──────────────────────
+    // LOTTT Art. 107: toda contribución se calcula "considerando el salario
+    // normal correspondiente al mes inmediatamente anterior a aquél en que se
+    // causó". LRPE Art. 46 lo repite para el RPE.
+    //
+    // Se suman TODOS los runs aprobados de ese mes: en nómina quincenal son dos,
+    // y lo que pide el artículo es el salario del mes, no el de una quincena.
+    const prevMonthStart = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1,
+    ));
+    const prevMonthEnd = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0,
+    ));
+
+    const previousNormalWageByEmp = new Map<string, Decimal>();
+    const prevRunIds = (await prisma.payrollRun.findMany({
+      where: {
+        companyId,
+        status: "APPROVED",
+        periodStart: { gte: prevMonthStart },
+        periodEnd: { lte: prevMonthEnd },
+      },
+      select: { id: true },
+    })).map((r) => r.id);
+
+    if (prevRunIds.length > 0) {
+      // La naturaleza salarial vive en PayrollConcept, no en la línea: se
+      // resuelve por código sobre todos los conceptos de la empresa, no sólo los
+      // del sistema, porque un bono propio con incidencia también forma base.
+      const allConcepts = await prisma.payrollConcept.findMany({
+        where: { companyId },
+        select: { code: true, salaryNature: true },
+      });
+      const natureByCode = new Map(allConcepts.map((c) => [c.code, c.salaryNature]));
+
+      const prevLines = await prisma.payrollRunLine.findMany({
+        where: { payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
+        select: { employeeId: true, conceptCode: true, amount: true },
+      });
+      for (const l of prevLines) {
+        if (natureByCode.get(l.conceptCode) !== "SALARIO_NORMAL") continue;
+        previousNormalWageByEmp.set(
+          l.employeeId,
+          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0))
+            .plus(l.amount.toString()),
+        );
+      }
+    }
+
     // ── Construir inputs del calculador ────────────────────────────────────
     const empInputs: EmployeeCalculationInput[] = employees
       .filter((e) => e.salaryHistory.length > 0)
@@ -305,6 +354,9 @@ export const PayrollRunService = {
         overtimeHoursDay: new Decimal(0),
         overtimeHoursNight: new Decimal(0),
         absenceDays: new Decimal(0),
+        // undefined para quien no tenga mes anterior: el calculador cotiza
+        // entonces sobre el mes en curso (ver D-5).
+        previousMonthNormalWage: previousNormalWageByEmp.get(e.id),
       }));
 
     // ── Conceptos manuales (NOM-C-07: validar ownership) ──────────────────

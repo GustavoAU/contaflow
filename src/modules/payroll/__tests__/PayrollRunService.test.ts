@@ -166,6 +166,10 @@ describe("PayrollRunService.create", () => {
       { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
+    // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
+    // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 4 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -240,6 +244,49 @@ describe("PayrollRunService.create", () => {
     // 650 × 12/52 × 2 = 300 → 4% = 12. Antes cobraba el mes entero en cada
     // quincena, o sea dos veces la cotización del mes.
     expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("12.00");
+  });
+
+  // ── D-5: la base sale del mes anterior (LOTTT Art. 107) ────────────────────
+
+  it("D-5: cotiza sobre el salario normal del mes anterior, no el del período", async () => {
+    setupCreateMocks();
+    // Marzo cerrado con 10.000 de salario normal; en abril gana 30.000.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar" }] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("10000") },
+      // Una HE del mes pasado NO forma parte del salario normal (Art. 104).
+      { employeeId: "emp-1", conceptCode: "HE_DIURNA", amount: new Decimal("5000") },
+    ] as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-he", code: "HE_DIURNA", salaryNature: "SALARIAL_ACCIDENTAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-rpe", code: "RPE_OBR", salaryNature: "NO_SALARIAL" },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    // Se paga el sueldo de abril…
+    const sal = lines.find((l) => l.conceptCode === "SAL_BASE")!;
+    expect(new Decimal((sal as unknown as { amount: Decimal }).amount.toString()).toFixed(2))
+      .toBe("30000.00");
+    // …pero se cotiza sobre los 10.000 de marzo, sin la hora extra.
+    // El FAOV va sobre el integral de esa base: 10.000 x 1,125 = 11.250.
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("11250.00");
+  });
+
+  it("D-5: sin nómina aprobada el mes anterior usa el mes en curso", async () => {
+    setupCreateMocks(); // payrollRun.findMany → []
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("33750.00"); // 30.000 x 1,125
   });
 
   // ── H-4: el tope está en bolívares; el sueldo puede no estarlo ──────────────

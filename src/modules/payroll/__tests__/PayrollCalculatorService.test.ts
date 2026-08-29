@@ -1006,3 +1006,69 @@ describe("PayrollCalculatorService - el IVSS cotiza por semana", () => {
     }
   });
 });
+
+// --- D-5: la base de las contribuciones es la del MES ANTERIOR ---------------
+// LOTTT Art. 107: toda contribucion se calcula "considerando el salario normal
+// correspondiente al mes inmediatamente anterior a aquel en que se causo".
+// LRPE Art. 46 lo repite para el RPE. ContaFlow usaba el mes en curso.
+
+describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () => {
+  it("cotiza sobre el mes anterior, no sobre el sueldo del mes en curso", () => {
+    // Le subieron el sueldo de 1.000 a 3.000 este mes: las contribuciones de
+    // este mes todavia van sobre los 1.000 que devengo el mes pasado.
+    const emp = makeEmp({
+      salaryAmount: new Decimal("3000"),
+      previousMonthNormalWage: new Decimal("1000"),
+    });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    expect(lines.find((l) => l.conceptCode === "SAL_BASE")!.amount.toFixed(2))
+      .toBe("3000.00"); // lo que se le paga no cambia
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2))
+      .toBe("1000.00"); // lo que se cotiza, si
+  });
+
+  it("alcanza a las cuatro contribuciones, cada una con su base", () => {
+    const emp = makeEmp({
+      salaryAmount: new Decimal("3000"),
+      previousMonthNormalWage: new Decimal("1000"),
+    });
+    const config: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      systemConcepts: [
+        ...SYSTEM_CONCEPTS,
+        { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" },
+        { code: "INCES_PAT", conceptId: "c-inces-pat", salaryNature: "NO_SALARIAL" },
+        { code: "FAOV_PAT", conceptId: "c-faov-pat", salaryNature: "NO_SALARIAL" },
+      ],
+    };
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
+    const basisOf = (c: string) => lines.find((l) => l.conceptCode === c)!.basis!;
+
+    expect(basisOf("RPE_OBR").toFixed(2)).toBe("1000.00");   // mensual
+    expect(basisOf("INCES_PAT").toFixed(2)).toBe("1000.00"); // mensual
+    expect(basisOf("FAOV_OBR").toFixed(2)).toBe("1125.00");  // integral del anterior
+    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("1153.85");  // semanal del anterior
+  });
+
+  it("sin mes anterior cotiza sobre el mes en curso, nunca sobre cero", () => {
+    // Primer proceso de la empresa, o empleado recien ingresado. La obligacion
+    // existe igual: un aporte que desaparece por falta de historico seria peor
+    // que uno calculado sobre la unica base que hay.
+    const emp = makeEmp({ salaryAmount: new Decimal("3000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2))
+      .toBe("3000.00");
+  });
+
+  it("un mes anterior en cero SI cotiza cero — no es lo mismo que no tenerlo", () => {
+    // Mes completo de permiso no remunerado: no devengo salario normal, no hay
+    // base. Distinto de `undefined`, que significa que no hay mes anterior.
+    const emp = makeEmp({
+      salaryAmount: new Decimal("3000"),
+      previousMonthNormalWage: new Decimal(0),
+    });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.amount.toFixed(2))
+      .toBe("0.00");
+  });
+});
