@@ -186,6 +186,54 @@ Rate limiting pasa a modo permisivo automáticamente (por diseño en `@/lib/rate
 
 ---
 
+## 3-bis. Reversión manual de una nómina APROBADA
+
+`PayrollRunService.cancel` **rechaza** los procesos `APPROVED` a propósito: una
+nómina aprobada ya generó su asiento contable y pagó. No hay camino en la
+aplicación para revertirla, así que si hace falta se hace a mano — y hay un paso
+que no es obvio.
+
+**Lo que casi nadie recuerda: liberar las horas extraordinarias.**
+
+Desde 2026-08-29 los registros de `OvertimeEntry` se **reservan** al crear el
+proceso (`payrollRunId`) y reciben su importe al aprobarlo (`paidAmount`). Si se
+revierte la nómina sin tocarlos:
+
+- las horas quedan atadas a un proceso que ya no representa un pago,
+- **ninguna nómina futura las recoge** (el filtro exige `payrollRunId: null`),
+- no se pueden borrar desde la UI (`OvertimeService.delete` las rechaza),
+- y el registro del Art. 183 sigue afirmando una remuneración que se revirtió.
+
+O sea: horas trabajadas que desaparecen, y un registro legal que miente. Ese
+registro es justamente el que evita que se presuman ciertos los alegatos del
+trabajador (LOTTT Art. 183).
+
+**En la MISMA transacción que reversa el asiento y el estado del run:**
+
+```sql
+BEGIN;
+
+-- 1. Liberar las horas extraordinarias para que la próxima nómina las recoja.
+UPDATE "OvertimeEntry"
+   SET "payrollRunId" = NULL, "paidAmount" = NULL
+ WHERE "companyId" = '<companyId>'
+   AND "payrollRunId" = '<runId>';
+
+-- 2. Reversar el asiento contable (VOID, nunca DELETE — regla contable).
+-- 3. Devolver el run a CANCELLED y anular sus líneas.
+-- 4. Revertir las cuotas de préstamo descontadas (EmployeeLoan.paidInstallments).
+
+COMMIT;
+```
+
+Dejar constancia en `AuditLog` con `action = 'REVERSE_PAYROLL_RUN'`, el `runId` y
+quién lo autorizó (R-6). La FK `OvertimeEntry.payrollRunId` es `onDelete:
+Restrict`, así que el run **no se puede borrar** mientras haya registros
+apuntándolo: el paso 1 es obligatorio, no opcional.
+
+> Si esta reversión deja de ser excepcional, deja de ser un procedimiento manual:
+> abrir feature con su propia auditoría.
+
 ## 4. Checklist de Prueba Mensual de Restauración
 
 Ejecutar el **primer lunes de cada mes**:

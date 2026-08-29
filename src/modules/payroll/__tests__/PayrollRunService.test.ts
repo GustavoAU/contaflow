@@ -311,6 +311,22 @@ describe("PayrollRunService.create", () => {
     ).rejects.toThrow("se solapa");
   });
 
+  it("ARRASTRA horas viejas sin pagar de periodos anteriores", async () => {
+    // Antes el filtro era la ventana del periodo, asi que unas horas registradas
+    // despues de aprobar la nomina de su mes no las recogia NADIE: el run
+    // siguiente no las veia y el de su periodo no se puede rehacer (@@unique).
+    setupCreateMocks();
+    vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const where = vi.mocked(prisma.overtimeEntry.findMany).mock.calls[0]![0]!
+      .where as { workedOn?: { lte?: Date; gte?: Date } };
+    // Todo lo pendiente hasta el fin del periodo, sin cota inferior.
+    expect(where.workedOn?.lte).toBeInstanceOf(Date);
+    expect(where.workedOn?.gte).toBeUndefined();
+  });
+
   // ── D-5: la base sale del mes anterior (LOTTT Art. 107) ────────────────────
 
   it("D-5: cotiza sobre el salario normal del mes anterior, no el del período", async () => {
