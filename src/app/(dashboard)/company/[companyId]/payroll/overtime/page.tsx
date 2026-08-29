@@ -42,7 +42,7 @@ export default async function OvertimePage({ params }: Props) {
   ]);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-8 py-8 px-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Horas Extraordinarias</h1>
