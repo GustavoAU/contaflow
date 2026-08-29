@@ -12,6 +12,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -84,9 +85,24 @@ describe("CreateOvertimeEntrySchema", () => {
     expect(CreateOvertimeEntrySchema.safeParse({ ...BASE_INPUT, hours: -2 }).success).toBe(false);
   });
 
-  it("rechaza una fecha futura", () => {
-    const manana = new Date(Date.now() + 86400000).toISOString().split("T")[0];
-    expect(CreateOvertimeEntrySchema.safeParse({ ...BASE_INPUT, workedOn: manana }).success).toBe(false);
+  it("exige el N° de permiso si se declara autorizada (Art. 182)", () => {
+    // Declararlo baja el pago un 33%: que la afirmacion tenga un dato detras.
+    const r = CreateOvertimeEntrySchema.safeParse({
+      ...BASE_INPUT, authorized: true, authorizationRef: "",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("sin permiso no exige referencia", () => {
+    const r = CreateOvertimeEntrySchema.safeParse({
+      ...BASE_INPUT, authorized: false, authorizationRef: null,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rechaza horas que redondean a cero en la columna", () => {
+    // DECIMAL(6,2) guardaba 0,004 como 0,00: una fila del registro con cero horas.
+    expect(CreateOvertimeEntrySchema.safeParse({ ...BASE_INPUT, hours: 0.004 }).success).toBe(false);
   });
 
   it("por defecto las horas van SIN autorizacion", () => {
@@ -150,11 +166,17 @@ describe("OvertimeService.create", () => {
 describe("OvertimeService.delete", () => {
   it("borra un registro no pagado y lo deja en el AuditLog", async () => {
     vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue(CREATED as never);
-    vi.mocked(prisma.overtimeEntry.delete).mockResolvedValue({} as never);
+    vi.mocked(prisma.overtimeEntry.deleteMany).mockResolvedValue({ count: 1 } as never);
 
     await OvertimeService.delete(COMPANY, USER, "ot-1");
 
-    expect(vi.mocked(prisma.overtimeEntry.delete)).toHaveBeenCalled();
+    // deleteMany con la condicion repetida en el `where`: un solo statement
+    // decide, en vez de confiar en que nada cambio tras la lectura.
+    expect(vi.mocked(prisma.overtimeEntry.deleteMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: COMPANY, payrollRunId: null }),
+      }),
+    );
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "DELETE_OVERTIME_ENTRY" }),
@@ -168,8 +190,20 @@ describe("OvertimeService.delete", () => {
     );
     await expect(
       OvertimeService.delete(COMPANY, USER, "ot-1"),
-    ).rejects.toThrow("ya se pagaron");
-    expect(vi.mocked(prisma.overtimeEntry.delete)).not.toHaveBeenCalled();
+    ).rejects.toThrow("ya están incluidas en un proceso de nómina");
+    expect(vi.mocked(prisma.overtimeEntry.deleteMany)).not.toHaveBeenCalled();
+  });
+
+  it("tampoco si el run sigue en BORRADOR", async () => {
+    // `payrollRunId` se reserva al CREAR el proceso, no al aprobarlo: borrar aqui
+    // dejaria pagada una hora sin el soporte que exige el Art. 183.
+    vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue(
+      { ...CREATED, payrollRunId: "run-draft", paidAmount: null } as never,
+    );
+    await expect(
+      OvertimeService.delete(COMPANY, USER, "ot-1"),
+    ).rejects.toThrow("cancélalo primero");
+    expect(vi.mocked(prisma.overtimeEntry.deleteMany)).not.toHaveBeenCalled();
   });
 
   it("IDOR: un registro de otra empresa no existe", async () => {

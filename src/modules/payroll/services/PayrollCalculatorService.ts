@@ -213,7 +213,7 @@ const OVERTIME_ANNUAL_LIMIT = new Decimal("100");
 const RPE_CAP_MULTIPLES   = new Decimal("10");
 const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
-const HE_DAY_MULTIPLIER = new Decimal("1.5");
+export const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // Hora extra nocturna: la hora es nocturna Y extraordinaria, asi que acumula los
 // dos recargos sobre la hora ordinaria diurna.
 //   Art. 117 — "La jornada nocturna sera pagada con un treinta por ciento de
@@ -225,7 +225,7 @@ const HE_DAY_MULTIPLIER = new Decimal("1.5");
 // y el nombre del concepto decia "(100%)": tres numeros distintos para lo mismo,
 // y el que se aplicaba estaba por debajo del piso legal.
 //
-const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
+export const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
 // LOTTT Art. 182: "En caso de laborarse las horas extraordinarias SIN LA
 // AUTORIZACION del Inspector del Trabajo, estas deberan pagarse con el DOBLE DEL
 // RECARGO previsto en la presente Ley".
@@ -233,8 +233,8 @@ const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
 // Se duplica el RECARGO, no la hora: el de hora extra es 50% (Art. 118), asi que
 // pasa a 100% -> multiplicador 2,00. El 30% nocturno del Art. 117 es OTRO recargo
 // y no se duplica: 1,30 x 2,00 = 2,60.
-const HE_DAY_MULTIPLIER_UNAUTHORIZED   = new Decimal("2");
-const HE_NIGHT_MULTIPLIER_UNAUTHORIZED = new Decimal("2.6");
+export const HE_DAY_MULTIPLIER_UNAUTHORIZED   = new Decimal("2");
+export const HE_NIGHT_MULTIPLIER_UNAUTHORIZED = new Decimal("2.6");
 // Días base de cálculo mensual (convención LOTTT)
 const DAYS_MONTH = new Decimal("30");
 // Horas de jornada diaria

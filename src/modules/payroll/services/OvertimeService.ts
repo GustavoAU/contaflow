@@ -22,6 +22,8 @@ import { Decimal } from "decimal.js";
 import { Prisma } from "@prisma/client";
 import type { OvertimeKind } from "@prisma/client";
 import type { CreateOvertimeEntryInput } from "../schemas/overtime.schema";
+import { todayInTimeZone } from "@/lib/today";
+import { getFiscalConfig } from "@/lib/tax-config";
 
 export interface OvertimeEntryRow {
   id: string;
@@ -116,6 +118,15 @@ export const OvertimeService = {
 
     const workedOn = new Date(`${input.workedOn}T00:00:00.000Z`);
 
+    // La cota de "no futuro" se comprueba aquí y no en el schema: comparar
+    // `new Date(v) <= new Date()` mide medianoche UTC del día declarado contra
+    // el instante actual, y entre las 20:00 y las 24:00 en Venezuela (UTC-4) el
+    // "ahora" en UTC ya es del día siguiente — o sea que MAÑANA pasaba. El
+    // schema no puede resolverlo solo porque no conoce el huso del país.
+    if (input.workedOn > todayInTimeZone(getFiscalConfig("VEN").timezone)) {
+      throw new Error("No se pueden registrar horas extra de una fecha futura");
+    }
+
     // R-3: si el período contable del día trabajado está cerrado, la nómina que
     // pagaría estas horas no se puede emitir ahí. Se bloquea al registrar, que es
     // cuando el usuario todavía puede corregir la fecha.
@@ -186,21 +197,36 @@ export const OvertimeService = {
     ipAddress: string | null = null,
     userAgent: string | null = null,
   ): Promise<void> {
-    const entry = await prisma.overtimeEntry.findFirst({
-      where: { id: entryId, companyId },
-      include: WITH_EMPLOYEE,
-    });
-    if (!entry) throw new Error("Registro de horas extra no encontrado");
-    if (entry.payrollRunId) {
-      throw new Error(
-        "Estas horas ya se pagaron en una nómina: el registro del Art. 183 debe " +
-        "conservar la remuneración especial pagada. Si el dato es incorrecto, " +
-        "corrígelo con un concepto manual en la nómina siguiente."
-      );
-    }
-
     await prisma.$transaction(async (tx) => {
-      await tx.overtimeEntry.delete({ where: { id: entryId } });
+      // La lectura va DENTRO de la transacción: fuera, entre comprobar que no
+      // está pagada y borrarla cabía que otra petición aprobara la nómina, y se
+      // pagaba una hora cuyo registro ya no existía.
+      const entry = await tx.overtimeEntry.findFirst({
+        where: { id: entryId, companyId },
+        include: WITH_EMPLOYEE,
+      });
+      if (!entry) throw new Error("Registro de horas extra no encontrado");
+      if (entry.payrollRunId) {
+        // `payrollRunId` se llena al CREAR el proceso de nómina, no al
+        // aprobarlo, así que esto cubre también el borrador: borrar aquí dejaría
+        // pagada una hora extra sin el soporte que el Art. 183 exige — que es el
+        // supuesto exacto en que el artículo invierte la carga de la prueba.
+        throw new Error(
+          "Estas horas ya están incluidas en un proceso de nómina. Si el proceso " +
+          "sigue en borrador, cancélalo primero; si ya se aprobó, el registro debe " +
+          "conservar la remuneración especial pagada (LOTTT Art. 183) y la " +
+          "corrección va por un concepto manual en la nómina siguiente."
+        );
+      }
+
+      // El `where` repite la condición: un solo statement decide, en vez de
+      // confiar en que nada cambió entre la lectura y el borrado.
+      const deleted = await tx.overtimeEntry.deleteMany({
+        where: { id: entryId, companyId, payrollRunId: null },
+      });
+      if (deleted.count !== 1) {
+        throw new Error("El registro cambió de estado mientras se eliminaba. Vuelve a intentarlo.");
+      }
       await tx.auditLog.create({
         data: {
           companyId,

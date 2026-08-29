@@ -36,6 +36,7 @@ vi.mock("@/lib/prisma", () => ({
     overtimeEntry: {
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     accountingPeriod: {
       findFirst: vi.fn(),
@@ -178,6 +179,9 @@ describe("PayrollRunService.create", () => {
     // LOTTT Art. 183: sin registro de horas extra en el periodo.
     vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.overtimeEntry.update).mockResolvedValue({} as never);
+    // Sin run solapado. Linea base propia: clearAllMocks() no borra las
+    // implementaciones, asi que sin esto un mock de otro test se filtra aqui.
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(null as never);
     // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
     // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
@@ -257,6 +261,54 @@ describe("PayrollRunService.create", () => {
     // 650 × 12/52 × 2 = 300 → 4% = 12. Antes cobraba el mes entero en cada
     // quincena, o sea dos veces la cotización del mes.
     expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("12.00");
+  });
+
+  // ── Horas extra: reserva y periodos solapados ──────────────────────────────
+
+  it("RESERVA las horas extra del periodo al crear el borrador", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([
+      { id: "ot-1", employeeId: "emp-1", hours: new Decimal("4"), kind: "DIURNA", authorized: true },
+    ] as never);
+    vi.mocked(prisma.overtimeEntry.updateMany).mockResolvedValue({ count: 1 } as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    // Reservarlas al CREAR —y no al aprobar— es lo que impide que un segundo
+    // run se lleve las mismas horas: el filtro `payrollRunId: null` las excluye.
+    expect(vi.mocked(prisma.overtimeEntry.updateMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: COMPANY_ID, payrollRunId: null }),
+        data: { payrollRunId: RUN_ID },
+      }),
+    );
+  });
+
+  it("si otro run se llevo las horas entre la lectura y la reserva, aborta", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([
+      { id: "ot-1", employeeId: "emp-1", hours: new Decimal("4"), kind: "DIURNA", authorized: true },
+    ] as never);
+    vi.mocked(prisma.overtimeEntry.updateMany).mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
+    ).rejects.toThrow("tomó estas horas extraordinarias");
+  });
+
+  it("RECHAZA un periodo que se solapa con otro run", async () => {
+    // El @@unique bloquea el periodo identico, no el solapado: 01-15 y 01-31 de
+    // agosto son pares distintos y ambos pasaban, cobrando dos veces lo mismo.
+    setupCreateMocks();
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue({
+      periodStart: new Date("2026-04-01"),
+      periodEnd: new Date("2026-04-30"),
+      status: "APPROVED",
+    } as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
+    ).rejects.toThrow("se solapa");
   });
 
   // ── D-5: la base sale del mes anterior (LOTTT Art. 107) ────────────────────

@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
+import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { CreateOvertimeEntrySchema } from "../schemas/overtime.schema";
 import { OvertimeService } from "../services/OvertimeService";
 import type { OvertimeEntryRow } from "../services/OvertimeService";
@@ -30,6 +31,11 @@ export async function listOvertimeAction(
 ): Promise<ActionResult<OvertimeEntryRow[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;
+  // Consistencia con el resto del modulo (createPayrollRunAction, approve,
+  // cancel). Hoy es no-op —los baseRoles de `payroll` coinciden con ACCOUNTING—
+  // pero el dia que se estrechen, estas tres actions no quedan abiertas solas.
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
 
   try {
     const rows = await OvertimeService.list(companyId, {
@@ -55,6 +61,11 @@ export async function createOvertimeAction(
     captureNet: true,
   });
   if (!ctx.ok) return ctx.error;
+  // Consistencia con el resto del modulo (createPayrollRunAction, approve,
+  // cancel). Hoy es no-op —los baseRoles de `payroll` coinciden con ACCOUNTING—
+  // pero el dia que se estrechen, estas tres actions no quedan abiertas solas.
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = CreateOvertimeEntrySchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -83,6 +94,11 @@ export async function deleteOvertimeAction(
     captureNet: true,
   });
   if (!ctx.ok) return ctx.error;
+  // Consistencia con el resto del modulo (createPayrollRunAction, approve,
+  // cancel). Hoy es no-op —los baseRoles de `payroll` coinciden con ACCOUNTING—
+  // pero el dia que se estrechen, estas tres actions no quedan abiertas solas.
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
 
   try {
     await OvertimeService.delete(companyId, ctx.userId, entryId, ctx.ipAddress, ctx.userAgent);
