@@ -102,8 +102,9 @@ export function IncesReportView({ companyId }: Props) {
                       <th scope="col" className="px-4 py-2 text-left">Empleado</th>
                       <th scope="col" className="px-4 py-2 text-left">Cédula</th>
                       <th scope="col" className="px-4 py-2 text-right">Salario Trim.</th>
-                      <th scope="col" className="px-4 py-2 text-right">INCES Obrero (2%)</th>
-                      <th scope="col" className="px-4 py-2 text-right">Utilidades año</th>
+                      <th scope="col" className="px-4 py-2 text-right">Utilidades del trim.</th>
+                      <th scope="col" className="px-4 py-2 text-right">Retención 0,5% (Art. 50)</th>
+                      <th scope="col" className="px-4 py-2 text-right">Patronal 2% (Art. 49)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
@@ -112,16 +113,17 @@ export function IncesReportView({ companyId }: Props) {
                         <td className="px-4 py-2 font-medium">{row.lastName}, {row.firstName}</td>
                         <td className="px-4 py-2 text-zinc-600">{row.cedulaType}-{row.cedulaNumber}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{fmt(row.salaryBase)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.incesWorkerAmount)}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{fmt(row.profitAmount)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.incesWorkerAmount)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.incesEmployerAmount)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-zinc-100 font-semibold">
                     <tr>
-                      <td className="px-4 py-2" colSpan={3}>TOTALES</td>
+                      <td className="px-4 py-2" colSpan={4}>TOTALES</td>
                       <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalWorkerAmount)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums"></td>
+                      <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalEmployerAmount)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -131,10 +133,14 @@ export function IncesReportView({ companyId }: Props) {
 
           {/* Resumen patronal */}
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm">
-            <p className="font-medium text-blue-800 mb-1">Aporte Patronal INCES</p>
+            <p className="font-medium text-blue-800 mb-1">Desglose del trimestre</p>
             <div className="flex justify-between text-blue-700">
-              <span>0.5% sobre utilidades del año</span>
-              <span className="font-mono font-semibold">Bs. {fmt(data.totalEmployerProfitContrib)}</span>
+              <span>Aporte patronal &mdash; 2% del salario normal (Ley INCES Art. 49)</span>
+              <span className="font-mono font-semibold">Bs. {fmt(data.totalEmployerAmount)}</span>
+            </div>
+            <div className="flex justify-between text-blue-700 mt-1">
+              <span>Retenido a los trabajadores &mdash; 0,5% de las utilidades (Art. 50)</span>
+              <span className="font-mono font-semibold">Bs. {fmt(data.totalWorkerAmount)}</span>
             </div>
             <div className="flex justify-between font-bold text-blue-900 border-t border-blue-200 mt-2 pt-2">
               <span>Total del período (obreros + patrono)</span>

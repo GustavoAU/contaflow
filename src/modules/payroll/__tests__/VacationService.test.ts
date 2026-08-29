@@ -27,6 +27,9 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    exchangeRate: {
+      findFirst: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -63,7 +66,7 @@ const BASE_EMPLOYEE = {
       id: "sal-1",
       effectiveFrom: new Date("2024-01-01"),
       amount: new Decimal("3000"),
-      currency: "VES",
+      currency: "VES" as const,
     },
   ],
 };
@@ -233,10 +236,11 @@ describe("VacationService.computeFractionalDays", () => {
     const termination = new Date("2025-07-01"); // 6 months
     const { vacationDays, bonusDays } = VacationService.computeFractionalDays(hire, termination, 0);
 
-    // 15 days annual / 12 * 6 months = 7.5 days
+    // 15 días anuales / 12 × 6 meses = 7,5
     expect(vacationDays.toFixed(2)).toBe("7.50");
-    // 7 bonus days / 12 * 6 = 3.5
-    expect(bonusDays.toFixed(2)).toBe("3.50");
+    // Art. 192: el bono vacacional son QUINCE días, no siete. Los 7 eran el
+    // Art. 223 de la LOT de 1997, que esta ley derogó. 15 / 12 × 6 = 7,5.
+    expect(bonusDays.toFixed(2)).toBe("7.50");
   });
 
   it("computes fractional days for 3-year employee", () => {
@@ -362,5 +366,67 @@ describe("VacationService.getEmployeesOnVacation (F-06)", () => {
 
     const result = await VacationService.getEmployeesOnVacation(COMPANY);
     expect(result).toHaveLength(0);
+  });
+
+});
+
+// ── Moneda del sueldo (auditoría 2026-08-28) ────────────────────────────────
+describe("VacationService — moneda del sueldo", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe("VacationService.create — sueldo en divisas", () => {
+    function setupUsdSalary(rate: string | null) {
+      vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+        id: EMP_ID, firstName: "Ana", lastName: "García",
+        salaryHistory: [{
+          id: "sal-1", amount: new Decimal("2500"), currency: "USD",
+          effectiveFrom: new Date("2024-01-01"),
+        }],
+      } as never);
+      vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "per-1" } as never);
+      vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+        vacationPayableAccountId: "acc-vac", benefitsExpenseAccountId: "acc-exp",
+      } as never);
+      vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+        rate ? ({ rate: new Decimal(rate) } as never) : null,
+      );
+      vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+      vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+      mockTx();
+    }
+
+    const INPUT = {
+      periodYear: 2026, vacationDays: 15, bonusDays: 15,
+      startDate: "2026-03-01", endDate: "2026-03-15",
+    };
+
+    it("convierte el sueldo en USD a bolívares antes de prorratearlo", async () => {
+      // Antes se leía `amount` sin mirar `currency`: un sueldo de USD 2.500
+      // generaba un pasivo de "2.500" en el Libro Diario, dividido por la tasa.
+      setupUsdSalary("780");
+      vi.mocked(prisma.vacationRecord.create).mockResolvedValue({
+        id: "vac-1", companyId: COMPANY, employeeId: EMP_ID, periodYear: 2026,
+        vacationDays: new Decimal(15), bonusDays: new Decimal(15),
+        dailyNormalWage: new Decimal(0), vacationAmount: new Decimal(0),
+        bonusAmount: new Decimal(0), startDate: new Date("2026-03-01"),
+        endDate: new Date("2026-03-15"), isFractional: false,
+        transactionId: "tx-1", createdAt: new Date(),
+      } as never);
+
+      await VacationService.create(COMPANY, USER, EMP_ID, INPUT);
+
+      // 2500 USD × 780 = 1.950.000 Bs. → diario 65.000 → 30 días = 1.950.000
+      const entries = vi.mocked(prisma.transaction.create).mock.calls.at(-1)![0]
+        .data.entries!.create as { amount: Decimal }[];
+      expect(entries[0].amount.toFixed(2)).toBe("1950000.00");
+      expect(entries[1].amount.toFixed(2)).toBe("-1950000.00");
+    });
+
+    it("sin tasa BCV registrada no calcula — bloquea en vez de inventar el monto", async () => {
+      setupUsdSalary(null);
+      await expect(
+        VacationService.create(COMPANY, USER, EMP_ID, INPUT),
+      ).rejects.toThrow("tasa BCV");
+    });
   });
 });

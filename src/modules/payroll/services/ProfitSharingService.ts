@@ -21,6 +21,7 @@ import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import { countCompleteMonths } from "./VacationService";
+import { bcvRateAt, salaryAmountToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -34,6 +35,9 @@ export interface ProfitSharingRecordRow {
   monthsWorked: number;
   baseSalarySnapshot: string;
   profitAmount: string;
+  // Ley INCES Art. 50: 0,5% retenido al trabajador sobre estas utilidades.
+  // Sale en el recibo: se le descuenta del neto, tiene que poder verlo.
+  incesRetention: string;
   isFractional: boolean;
   transactionId: string | null;
   createdAt: string;
@@ -62,6 +66,7 @@ function serializeProfitSharing(r: {
   monthsWorked: number;
   baseSalarySnapshot: Decimal;
   profitAmount: Decimal;
+  incesRetention: Decimal;
   isFractional: boolean;
   transactionId: string | null;
   createdAt: Date;
@@ -76,6 +81,7 @@ function serializeProfitSharing(r: {
     monthsWorked: r.monthsWorked,
     baseSalarySnapshot: r.baseSalarySnapshot.toString(),
     profitAmount: r.profitAmount.toString(),
+    incesRetention: r.incesRetention.toString(),
     isFractional: r.isFractional,
     transactionId: r.transactionId,
     createdAt: r.createdAt.toISOString(),
@@ -83,6 +89,16 @@ function serializeProfitSharing(r: {
 }
 
 // ─── ProfitSharingService ─────────────────────────────────────────────────────
+
+// Ley del INCES Art. 50: el trabajador aporta "el cero coma cinco por ciento
+// (0,5%) de sus utilidades anuales, aguinaldos o bonificaciones de fin de año".
+// Solo obliga a entidades "que den ocupación a cinco o más trabajadores".
+const INCES_WORKER_RATE = new Decimal("0.005");
+const INCES_MIN_EMPLOYEES = 5;
+
+// LOTTT Art. 131 — límites por trabajador: mínimo 30 días, máximo 4 meses.
+const LEGAL_MIN_PROFIT_DAYS = new Decimal("30");
+const LEGAL_MAX_PROFIT_DAYS = new Decimal("120");
 
 export const ProfitSharingService = {
   // ── calculate — registrar utilidades fraccionadas ─────────────────────────
@@ -149,26 +165,50 @@ export const ProfitSharingService = {
     const salariesInPeriod = salaryRows.filter(
       (r) => r.effectiveFrom <= periodEnd
     );
+
+    // Cada fila se lleva a bolívares ANTES de promediar. Antes se sumaba
+    // `amount` sin mirar `currency`: un historial con un tramo en USD y otro en
+    // Bs. se promediaba como si fueran la misma unidad, y el resultado no era
+    // ninguna de las dos monedas. Con historial 100% en USD el promedio salía
+    // dividido por la tasa, y con él la utilidad y su asiento.
+    // Una sola tasa —la vigente al cierre del período— para todas las filas:
+    // convertir cada tramo con la suya exige el historial completo de tasas y es
+    // trabajo aparte (misma simplificación que TerminationService).
+    const bcvRate = salariesInPeriod.some((r) => r.currency === "USD")
+      ? await bcvRateAt(companyId, periodEnd)
+      : null;
     const avgSalary = salariesInPeriod
-      .reduce((sum, r) => sum.add(new Decimal(r.amount.toString())), new Decimal(0))
+      .reduce(
+        (sum, r) => sum.add(salaryAmountToVes(new Decimal(r.amount.toString()), r.currency, bcvRate)),
+        new Decimal(0),
+      )
       .div(salariesInPeriod.length);
 
     // F-07: usar utilidad neta cuando se provee; fallback a config.profitDays (LOTTT Art. 131)
     // profitPool = netProfit × 15%; profitDays = profitPool × 365 / totalAnnualPayroll
-    // Rango legal: [15 días mínimo, 120 días máximo] (Art. 131 LOTTT)
+    // Art. 131: "tendrá, respecto de cada trabajador o trabajadora como límite
+    // mínimo, el equivalente al salario de TREINTA DÍAS y como límite máximo el
+    // equivalente al salario de cuatro meses". El mínimo eran 15 días en la LOT
+    // de 1997; la LOTTT lo elevó a 30 y el código se quedó con el viejo.
+    // Rango legal: [30 días mínimo, 120 días máximo]
     let profitDays: Decimal;
     if (input.netProfitVes && input.totalAnnualPayrollVes) {
       const netProfit = new Decimal(input.netProfitVes);
       const totalPayroll = new Decimal(input.totalAnnualPayrollVes);
       if (totalPayroll.lte(0)) throw new Error("La nómina anual debe ser mayor a cero");
       if (netProfit.lte(0)) {
-        profitDays = new Decimal("15"); // mínimo legal aunque no haya utilidades positivas
+        profitDays = LEGAL_MIN_PROFIT_DAYS; // mínimo legal aunque no haya utilidades
       } else {
         const dynamic = netProfit.mul("0.15").mul("365").div(totalPayroll).toDecimalPlaces(2);
-        profitDays = Decimal.max(new Decimal("15"), Decimal.min(new Decimal("120"), dynamic));
+        profitDays = Decimal.max(
+          LEGAL_MIN_PROFIT_DAYS, Decimal.min(LEGAL_MAX_PROFIT_DAYS, dynamic),
+        );
       }
     } else {
-      profitDays = new Decimal(config.profitDays);
+      // Se acota también lo configurado: una empresa con 15 días guardados de
+      // antes está por debajo del mínimo legal, y el número guardado no puede
+      // autorizar pagar de menos.
+      profitDays = Decimal.max(LEGAL_MIN_PROFIT_DAYS, new Decimal(config.profitDays));
     }
     const fractionalDays = profitDays
       .mul(monthsWorked)
@@ -176,6 +216,33 @@ export const ProfitSharingService = {
       .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     const profitAmount = fractionalDays.mul(avgSalary.div(30)).toDecimalPlaces(4);
+
+    // ── Retención INCES del trabajador (Ley INCES Art. 50) ───────────────────
+    // Aquí es donde vive este aporte. Hasta 2026-08 se descontaba 0,5% MENSUAL
+    // sobre el sueldo, que es la base equivocada: el artículo grava las
+    // utilidades anuales. La condición de los cinco trabajadores es del propio
+    // artículo y no se estaba comprobando en ninguno de los dos aportes.
+    const headcount = await prisma.employee.count({
+      where: { companyId, status: "ACTIVE" },
+    });
+    // La obligación la fija la ley: organismo activo y cinco o más trabajadores.
+    const incesApplies = config.incesEnabled && headcount >= INCES_MIN_EMPLOYEES;
+
+    // Que falte la cuenta contable NO es una excepción legal. Antes formaba parte
+    // de la condición, así que una empresa sin la cuenta configurada dejaba de
+    // retener el 0,5% en silencio: el trabajador cobraba de más, la empresa
+    // quedaba debiéndolo al INCES y nada lo decía. Se bloquea y se explica.
+    if (incesApplies && !config.incesPayableAccountId) {
+      throw new Error(
+        "Falta la cuenta contable de INCES por Pagar. La Ley INCES Art. 50 obliga " +
+        "a retener el 0,5% de las utilidades, y sin esa cuenta el asiento no se " +
+        "puede cuadrar. Configúrala en Configuración de Nómina antes de liquidar."
+      );
+    }
+
+    const incesRetention = incesApplies
+      ? profitAmount.mul(INCES_WORKER_RATE).toDecimalPlaces(4)
+      : new Decimal(0);
 
     const isFractional = input.isFractional ?? false;
 
@@ -208,10 +275,18 @@ export const ProfitSharingService = {
           },
           {
             accountId: config.profitSharingPayableAccountId!,
-            amount: profitAmount.negated().toDecimalPlaces(4), // Crédito
+            // El trabajador cobra el neto: el pasivo con él baja por la retención.
+            amount: profitAmount.minus(incesRetention).negated().toDecimalPlaces(4), // Crédito
             description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
           },
         ];
+        if (incesRetention.greaterThan(0)) {
+          profitEntries.push({
+            accountId: config.incesPayableAccountId!,
+            amount: incesRetention.negated().toDecimalPlaces(4), // Crédito
+            description: `Retención INCES 0,5% s/utilidades (Art. 50) — ${input.fiscalYear} — ${employee.firstName} ${employee.lastName}`,
+          });
+        }
         assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
@@ -239,6 +314,7 @@ export const ProfitSharingService = {
             monthsWorked,
             baseSalarySnapshot: avgSalary.toFixed(4),
             profitAmount: profitAmount.toFixed(4),
+            incesRetention: incesRetention.toFixed(4),
             isFractional,
             transactionId: transaction.id,
             createdByUserId: userId,

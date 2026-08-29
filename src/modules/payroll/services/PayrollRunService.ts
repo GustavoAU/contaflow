@@ -66,6 +66,9 @@ export interface PayrollRunRow {
   approvedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  // LOTTT Art. 178: excesos de horas extra detectados al calcular. Sólo lo llena
+  // create(); las lecturas posteriores no recalculan, van al AuditLog del run.
+  overtimeWarnings?: string[];
 }
 
 export interface PayrollRunDetailRow extends PayrollRunRow {
@@ -225,7 +228,7 @@ export const PayrollRunService = {
     // NOM-C-07: siempre de la DB con companyId — nunca del input del cliente
     const systemConcepts = await prisma.payrollConcept.findMany({
       where: { companyId, isSystem: true, isActive: true },
-      select: { id: true, code: true },
+      select: { id: true, code: true, salaryNature: true },
     });
 
     // Topes y alícuotas legales: LegalThreshold vigente al inicio del período.
@@ -265,6 +268,10 @@ export const PayrollRunService = {
     // LegalThreshold almacena alícuotas como porcentaje (ej: 4.00 = 4%) → dividir /100
     const toRate = (pct: Decimal | null) => pct ? pct.dividedBy(100) : undefined;
 
+    const activeEmployeeCount = await prisma.employee.count({
+      where: { companyId, status: "ACTIVE" },
+    });
+
     const calcConfig: PayrollCalculatorConfig = {
       frequency: config.frequency,
       ivssEnabled: config.ivssEnabled,
@@ -272,8 +279,22 @@ export const PayrollRunService = {
       banavihEnabled: config.banavihEnabled,
       rpeEnabled: config.rpeEnabled,
       salaryMinimumVes,
+      ivssRiskClass: config.ivssRiskClass,
+      // El IVSS se cotiza por semana (Reglamento LSS Art. 99): el período define
+      // cuántas cotizaciones se causaron.
+      periodStart,
+      periodEnd,
+      // Ley INCES Art. 49: el aporte patronal sólo lo deben las entidades con
+      // cinco o más trabajadores. Se cuentan los ACTIVOS de la empresa, no los
+      // de este proceso, que puede correrse sobre un subconjunto.
+      activeEmployeeCount,
+      // Alícuotas del salario integral — base del FAOV (LRPVH Art. 33.1).
+      profitDays: config.profitDays,
+      vacationBonusDays: config.vacationBonusDays,
       usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
-      systemConcepts: systemConcepts.map((c) => ({ code: c.code, conceptId: c.id })),
+      systemConcepts: systemConcepts.map((c) => ({
+        code: c.code, conceptId: c.id, salaryNature: c.salaryNature,
+      })),
       ivssObrRate:  toRate(ivssObrPct),
       ivssPatRate:  toRate(ivssPatPct),
       incesObrRate: toRate(incesObrPct),
@@ -283,6 +304,135 @@ export const PayrollRunService = {
       rpeObrRate:   toRate(rpeObrPct),
       rpePatRate:   toRate(rpePatPct),
     };
+
+    // ── Salario normal del MES ANTERIOR (ADR-045 D-5) ──────────────────────
+    // LOTTT Art. 107: toda contribución se calcula "considerando el salario
+    // normal correspondiente al mes inmediatamente anterior a aquél en que se
+    // causó". LRPE Art. 46 lo repite para el RPE.
+    //
+    // Se suman TODOS los runs aprobados de ese mes: en nómina quincenal son dos,
+    // y lo que pide el artículo es el salario del mes, no el de una quincena.
+    const prevMonthStart = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1,
+    ));
+    const prevMonthEnd = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0,
+    ));
+
+    const previousNormalWageByEmp = new Map<string, Decimal>();
+    const prevRunIds = (await prisma.payrollRun.findMany({
+      where: {
+        companyId,
+        status: "APPROVED",
+        periodStart: { gte: prevMonthStart },
+        periodEnd: { lte: prevMonthEnd },
+      },
+      select: { id: true },
+    })).map((r) => r.id);
+
+    // ── Horas extra acumuladas en el año (LOTTT Art. 178) ──────────────────
+    // El tope anual son cien horas; sin el acumulado sólo se puede comprobar el
+    // semanal. Se cuentan los runs APPROVED del año calendario en curso.
+    const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
+    const overtimeYtdByEmp = new Map<string, Decimal>();
+    const yearRunIds = (await prisma.payrollRun.findMany({
+      where: {
+        companyId,
+        status: "APPROVED",
+        periodStart: { gte: yearStart },
+        periodEnd: { lt: periodStart },
+      },
+      select: { id: true },
+    })).map((r) => r.id);
+
+    if (yearRunIds.length > 0) {
+      const heLines = await prisma.payrollRunLine.findMany({
+        where: {
+          // companyId explícito aunque runIds ya venga acotado: PayrollRunLine
+          // tiene columna propia y la aserción de tenant (ADR-044 D-3) no acepta
+          // el acotamiento indirecto. Ademas habilita el indice compuesto.
+          companyId,
+          payrollRunId: { in: yearRunIds },
+          conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
+        },
+        select: { employeeId: true, hours: true },
+      });
+      for (const l of heLines) {
+        if (!l.hours) continue;
+        overtimeYtdByEmp.set(
+          l.employeeId,
+          (overtimeYtdByEmp.get(l.employeeId) ?? new Decimal(0)).plus(l.hours.toString()),
+        );
+      }
+    }
+
+    if (prevRunIds.length > 0) {
+      // La naturaleza salarial vive en PayrollConcept, no en la línea: se
+      // resuelve por código sobre todos los conceptos de la empresa, no sólo los
+      // del sistema, porque un bono propio con incidencia también forma base.
+      const allConcepts = await prisma.payrollConcept.findMany({
+        where: { companyId },
+        select: { code: true, salaryNature: true },
+      });
+      const natureByCode = new Map(allConcepts.map((c) => [c.code, c.salaryNature]));
+
+      const prevLines = await prisma.payrollRunLine.findMany({
+        where: { companyId, payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
+        select: {
+          employeeId: true, conceptCode: true, amount: true,
+          // La moneda del mes anterior NO tiene por qué ser la de hoy. Sumar
+          // `amount` a secas mezclaba unidades: un empleado que pasó de USD 300
+          // a Bs. 30.000 cotizaba sobre "300 bolívares". Es el mismo mecanismo
+          // de H-4, por la puerta del histórico.
+          salarySnapshotCurrency: true,
+        },
+      });
+
+      // Moneda del sueldo VIGENTE de cada empleado: es la unidad en la que el
+      // calculador compara la base contra el tope, así que es a la que hay que
+      // llevar el mes anterior.
+      const currentCurrencyByEmp = new Map(
+        employees
+          .filter((e) => e.salaryHistory.length > 0)
+          .map((e) => [e.id, e.salaryHistory[0].currency]),
+      );
+      const usdRate = usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null;
+
+      for (const l of prevLines) {
+        if (natureByCode.get(l.conceptCode) !== "SALARIO_NORMAL") continue;
+        const to = currentCurrencyByEmp.get(l.employeeId);
+        const from = l.salarySnapshotCurrency;
+        if (!to) continue;
+
+        let amount = new Decimal(l.amount.toString());
+        if (from && from !== to) {
+          // Bloquea en vez de inventar, igual que hace el calculador con los
+          // topes: una base en la moneda equivocada se desvía por el factor
+          // exacto de la tasa y no se nota en ninguna cifra del recibo.
+          if (from === "MIXED" || to === "MIXED") {
+            throw new Error(
+              "El empleado tiene sueldo en modalidad MIXTA en alguno de los dos " +
+              "meses: no se puede saber qué parte va en cada moneda para calcular " +
+              "la base del mes anterior. Divide el sueldo en dos registros."
+            );
+          }
+          if (!usdRate || usdRate.lte(0)) {
+            throw new Error(
+              "El empleado cambió de moneda de sueldo respecto al mes anterior y " +
+              "no hay tasa BCV registrada para el período. Regístrala en " +
+              "Contabilidad → Tasas de Cambio: sin ella, la base de cotización " +
+              "del mes anterior quedaría en una moneda distinta a la del tope."
+            );
+          }
+          amount = from === "USD" ? amount.mul(usdRate) : amount.div(usdRate);
+        }
+
+        previousNormalWageByEmp.set(
+          l.employeeId,
+          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
+        );
+      }
+    }
 
     // ── Construir inputs del calculador ────────────────────────────────────
     const empInputs: EmployeeCalculationInput[] = employees
@@ -295,6 +445,10 @@ export const PayrollRunService = {
         overtimeHoursDay: new Decimal(0),
         overtimeHoursNight: new Decimal(0),
         absenceDays: new Decimal(0),
+        // undefined para quien no tenga mes anterior: el calculador cotiza
+        // entonces sobre el mes en curso (ver D-5).
+        previousMonthNormalWage: previousNormalWageByEmp.get(e.id),
+        overtimeHoursYearToDate: overtimeYtdByEmp.get(e.id) ?? new Decimal(0),
       }));
 
     // ── Conceptos manuales (NOM-C-07: validar ownership) ──────────────────
@@ -303,7 +457,7 @@ export const PayrollRunService = {
       const manualConceptIds = [...new Set(input.manualConcepts.map((m) => m.conceptId))];
       const validConcepts = await prisma.payrollConcept.findMany({
         where: { id: { in: manualConceptIds }, companyId },
-        select: { id: true, code: true, type: true },
+        select: { id: true, code: true, type: true, salaryNature: true },
       });
       if (validConcepts.length !== manualConceptIds.length) {
         throw new Error("Uno o más conceptos manuales no pertenecen a esta empresa");
@@ -317,6 +471,9 @@ export const PayrollRunService = {
           conceptType: concept.type,
           employeeId: m.employeeId,
           amount: new Decimal(m.amount),
+          // ADR-045 D-4: si el concepto tiene incidencia salarial, este monto
+          // entra en la base de cotizaciones.
+          salaryNature: concept.salaryNature,
         });
       }
     }
@@ -354,6 +511,7 @@ export const PayrollRunService = {
               conceptType: "DEDUCTION",
               employeeId: empId,
               amount: total,
+              salaryNature: loanConcept.salaryNature,
             });
           }
         }
@@ -436,11 +594,24 @@ export const PayrollRunService = {
               employeeId: m.employeeId,
               amount: m.amount,
             })),
+            // LOTTT Art. 178: excesos sobre los topes de horas extraordinarias.
+            // Quedan en el AuditLog aunque la nómina se procese igual, para que
+            // exista rastro de cuándo se superó y de quién autorizó el proceso.
+            // No es el registro formal del Art. 183 — ese sigue pendiente.
+            overtimeWarnings: result.overtimeWarnings.map((w) => ({
+              employeeId: w.employeeId,
+              kind: w.kind,
+              hours: w.hours.toString(),
+              limit: w.limit.toString(),
+            })),
           },
         },
       });
 
-      return serializeRun(run);
+      return {
+        ...serializeRun(run),
+        overtimeWarnings: result.overtimeWarnings.map((w) => w.message),
+      };
     });
   },
 

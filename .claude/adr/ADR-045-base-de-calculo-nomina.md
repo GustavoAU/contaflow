@@ -112,7 +112,7 @@ retienen bolívares.
 | RPE 0,5% / 2,0% | salario normal | 1× | 10× | mensual | — |
 | INCES patronal 2% | salario normal | — | **sin tope** | **trimestral** | ≥ 5 trabajadores |
 | INCES trabajador 0,5% | **utilidades anuales** | — | sin tope | **anual** | ≥ 5 trabajadores |
-| FAOV 1% / 2% | salario integral | — | **por confirmar** | mensual | — |
+| FAOV 1% / 2% | salario integral | — | **sin tope** | mensual | — |
 
 `salario normal` = Σ componentes `SALARIO_NORMAL`.
 `salario integral` = salario normal + alícuota de bono vacacional + alícuota de
@@ -126,6 +126,49 @@ Art. 46 lo repite para el RPE. Hoy se usa el mes en curso.
 
 Se aplica **después** de D-1 a D-4: sin la base correcta, cambiar el período de
 referencia sólo mueve un número equivocado.
+
+### D-6 - La naturaleza de las horas extra depende del empleado, no del concepto
+
+Criterio aportado por Gustavo (2026-08-24), respaldado en los Arts. 104, 118 y
+178 y en doctrina reiterada de la Sala de Casacion Social:
+
+- **Como se pagan.** Art. 118 segundo aparte: "para el calculo de lo que
+  corresponda al trabajador o trabajadora por causa de horas extras, se tomara
+  como base el **salario normal** devengado durante la jornada respectiva". La
+  hora extra se calcula sobre el salario NORMAL, nunca sobre el integral.
+- **Escenario A - eventuales.** Art. 178: las horas extraordinarias "son de
+  caracter eventual o accidental para atender imprevistos o trabajos de
+  emergencia". Trabajadas de forma aislada NO inciden en el salario integral:
+  son `SALARIAL_ACCIDENTAL` y quedan fuera de prestaciones.
+- **Escenario B - regulares y permanentes.** Si se laboran de forma fija por la
+  naturaleza del puesto (vigilancia, choferes, produccion continua), la
+  continuidad rompe la excepcionalidad: pasan a ser salario normal por
+  habitualidad (Art. 104), lo que eleva el salario integral y obliga a
+  **recalcular retroactivamente** las alicuotas de utilidades, bono vacacional y
+  la garantia de prestaciones.
+
+**Consecuencia de modelo, y es la parte incomoda:** `salaryNature` vive en
+`PayrollConcept`, o sea es global a la empresa. Pero el escenario A y el B son
+el mismo concepto con distinto patron de uso, y ese patron es **por empleado y
+por historia**. Ni un booleano ni un enum en el concepto pueden expresarlo.
+
+La salida NO es que el software decida. Igual que en D-2:
+
+1. `HE_DIURNA`/`HE_NOCTURNA` quedan `SALARIAL_ACCIDENTAL` por defecto: es el
+   supuesto que la propia Ley declara como regla (Art. 178).
+2. ContaFlow **detecta la habitualidad y avisa**: horas extra en N de los
+   ultimos M periodos del mismo empleado dispara una alerta en
+   `PendingTasksService`, con el aviso de que la reclasificacion obliga a
+   recalcular alicuotas hacia atras.
+3. La reclasificacion la hace el contador, por empleado, y queda en `AuditLog`.
+
+Esto exige un override por empleado que hoy no existe. Es trabajo de una fase
+posterior; lo que entra ahora es el default del punto 1.
+
+**Pendiente detectado con este criterio:** el calculador saca la hora extra de
+`SalaryHistory.amount` crudo, no del salario normal. Coinciden mientras
+`SAL_BASE` sea el unico concepto con incidencia; divergen en cuanto haya un
+`BONO_NOCHE` o un bono regular manual. El Art. 118 pide lo segundo.
 
 ---
 
@@ -180,17 +223,86 @@ paso intermedio, no como destino.
 
 ## Pendientes que bloquean partes de este ADR
 
-1. **Tope del FAOV.** Falta la Ley del Régimen Prestacional de Vivienda y
-   Hábitat. ContaFlow topa en 10× salario mínimo; tres fuentes secundarias dicen
-   que no hay tope. Quitarlo **sube** la deducción del trabajador, así que no se
-   toca sin el artículo. D-4 queda con la celda en "por confirmar".
-2. **Conceptos accidentales en el salario integral.** El Art. 122 manda calcular
-   prestaciones sobre "el último salario devengado"; si eso incluye las horas
-   extra efectivamente devengadas es criterio contable, no lectura literal.
-   Consultar antes de implementar `salario integral`.
-3. **IVSS.** Falta la Ley del Seguro Social y su Reglamento: el patronal varía
-   9/10/11% según riesgo y la cotización es semanal (4,33 semanas/mes), no
-   mensual plana como la calcula hoy ContaFlow.
+1. ~~Conceptos accidentales en el salario integral~~ **RESUELTO** - ver D-6.
+2. ~~Tope del FAOV~~ **RESUELTO con el articulado (2026-08-28).** Texto del
+   **Art. 33 de la Ley del Regimen Prestacional de Vivienda y Habitat**, tal
+   como quedo en la **G.O. 6.805 Extraordinario del 01-05-2024**, numeral 1:
+
+   > "El aporte mensual en la cuenta de cada trabajadora o trabajador equivalente
+   > al tres por ciento (3%) de su salario integral, indicando por separado; los
+   > ahorros obligatorios del trabajador equivalentes a un tercio (1/3) del
+   > aporte mensual y los aportes obligatorios de los patronos a la cuenta de
+   > cada trabajador, equivalente a dos tercios (2/3) del aporte mensual."
+
+   El articulo **no fija ningun maximo**. Lo unico que acota es un PISO, en su
+   numeral 5: el Ministerio puede modificar el aporte y la participacion de cada
+   parte, pero "en todo caso, el aporte no podra ser menor al tres por ciento
+   (3%) establecido en este articulo". Queda confirmado que quitar el tope de
+   10x fue correcto, y la celda de D-4 pasa de "por confirmar" a "sin tope".
+
+   El mismo articulo cierra el otro pendiente del FAOV: dice **"salario
+   integral"**, no salario normal. El calculador cotizaba sobre el normal, o sea
+   por debajo de la base legal en la alicuota de utilidades y de bono vacacional.
+   Corregido: la base del FAOV es ahora `integralDailyWageFrom(normal/30, ...)`
+   por 30 — la misma funcion que provisiona prestaciones. Si las dos formulas
+   divergieran, la nomina y el pasivo laboral dejarian de cuadrar.
+
+   Nota de proceso: el tope se habia quitado ANTES de tener este texto, apoyado
+   solo en analisis secundario y en contra del criterio que este mismo ADR se
+   habia fijado. Salio bien, pero la decision se tomo sin la evidencia exigida.
+
+3. ~~IVSS~~ **RESUELTO (2026-08-28).** La clase de riesgo se declara desde el
+   wizard (`ivssRiskClass`), el techo son cinco salarios minimos MENSUALES
+   (Reglamento Art. 98) y la cotizacion pasa a ser **semanal** (Arts. 99/100/102:
+   salario semanal = mensual x 12 / 52, por las semanas que cubre el periodo).
+   Se acota el mes y DESPUES se lleva a semanas, porque el techo es mensual.
+
+   La duda de la base se resolvio sin cambiar nada: el Art. 83 del Reglamento
+   incluye la hora extra **"cuando ocurra con alguna fijeza o regularidad"** y
+   excluye la eventual — que es exactamente la distincion de D-1 entre
+   `SALARIO_NORMAL` y `SALARIAL_ACCIDENTAL`. Hoy toda hora extra es accidental,
+   asi que la base coincide; cuando exista el override por empleado del D-6, la
+   hora extra habitual entrara sola en la base del IVSS, como manda el Art. 83.
+
+   Contar los LUNES del periodo es practica del sistema TIUNA, no texto del
+   Reglamento. Se implementa asi porque es contra esa factura que la empresa
+   concilia y porque produce los 4 o 5 que el Art. 100 contempla; queda anotado
+   en el codigo por si el criterio del instituto cambia.
+4. **Topes de horas extra (Art. 178): los dos limites SI se comprueban; el
+   Art. 182 y el 183 siguen abiertos.** El calculador avisa al superar diez horas
+   por semana del periodo o cien en el ano (acumulando los runs APPROVED). Avisa
+   y NO bloquea, a proposito: las horas ya se trabajaron y el Art. 118 obliga a
+   pagarlas — negarse a liquidar dejaria al trabajador sin cobrar lo devengado
+   para corregir una infraccion del patrono.
+
+   Queda pendiente el **Art. 182** (recargo DOBLE si se laboraron sin
+   autorizacion de la Inspectoria): exige capturar si esa autorizacion existe,
+   que es una decision de modelo de datos, no un calculo. Y el **Art. 183**, el
+   registro formal de horas extraordinarias: hoy los excesos quedan en el
+   AuditLog del proceso, que da rastro pero no es el libro que pide la Ley.
+
+---
+
+## Hallazgo fuera del alcance de este ADR
+
+**Art. 142(d): el regimen de prestaciones es DUAL y ContaFlow calcula una sola
+mitad.** El literal (d) dice que el trabajador "recibira por concepto de
+prestaciones sociales el monto que resulte **mayor**" entre:
+
+- (a+b) la garantia depositada: quince dias por trimestre mas los dias
+  adicionales por antiguedad, acumulada con los salarios historicos; y
+- (c) el calculo al terminar la relacion: **treinta dias por cada ano de
+  servicio o fraccion superior a seis meses, calculada al ULTIMO salario**.
+
+`TerminationService` paga unicamente `benefitBalance.currentBalance`, o sea la
+rama (a+b). Nunca calcula (c) ni compara. Como (c) aplica el ultimo salario a
+todos los anos de antiguedad, en un pais con salarios que suben -y mas si estan
+indexados al dolar- (c) suele ser el mayor: **la liquidacion sale corta de forma
+sistematica**. Falta tambien el literal (e): menos de tres meses de relacion se
+liquidan a cinco dias de salario por mes trabajado.
+
+No es base de cotizaciones y no entra en ADR-045, pero es dinero que se le debe
+a personas reales y necesita su propio arreglo.
 
 ---
 

@@ -290,19 +290,25 @@ export async function exportIncesExcelAction(
       { header: "Apellidos y Nombres", key: "name", width: 32 },
       { header: "Cédula", key: "ci", width: 14 },
       { header: "Salario Trim.", key: "salBase", width: 18 },
-      { header: "INCES Obrero (2%)", key: "worker", width: 20 },
-      { header: "Utilidades Año", key: "profit", width: 18 },
+      { header: "Utilidades del trim.", key: "profit", width: 20 },
+      { header: "Retención trabajador 0,5% (Art. 50)", key: "worker", width: 32 },
+      { header: "Aporte patronal 2% (Art. 49)", key: "employer", width: 28 },
     ];
     for (const r of data.rows) {
       ws.addRow({
         name: `${r.lastName}, ${r.firstName}`,
         ci: `${r.cedulaType}-${r.cedulaNumber}`,
         salBase: parseFloat(r.salaryBase.toString()),
-        worker: parseFloat(r.incesWorkerAmount.toString()),
         profit: parseFloat(r.profitAmount.toString()),
+        worker: parseFloat(r.incesWorkerAmount.toString()),
+        employer: parseFloat(r.incesEmployerAmount.toString()),
       });
     }
-    ws.addRow({ name: "TOTALES — Aporte patronal utilidades (0.5%)", worker: parseFloat(data.totalWorkerAmount.toString()), profit: parseFloat(data.totalEmployerProfitContrib.toString()) });
+    ws.addRow({
+      name: "TOTALES",
+      worker: parseFloat(data.totalWorkerAmount.toString()),
+      employer: parseFloat(data.totalEmployerAmount.toString()),
+    });
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {

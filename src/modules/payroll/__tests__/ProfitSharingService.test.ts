@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     employee: {
       findFirst: vi.fn(),
+      count: vi.fn(),
     },
     profitSharingRecord: {
       findMany: vi.fn(),
@@ -28,6 +29,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     auditLog: {
       create: vi.fn(),
+    },
+    exchangeRate: {
+      findFirst: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -70,7 +74,7 @@ const BASE_SALARY_ROWS = [
     companyId: COMPANY,
     effectiveFrom: new Date("2026-01-01"),
     amount: new Decimal("3000"),
-    currency: "VES",
+    currency: "VES" as const,
   },
 ];
 
@@ -90,6 +94,7 @@ const BASE_RECORD = {
   fractionalDays: new Decimal("4"),
   monthsWorked: 3,
   baseSalarySnapshot: new Decimal("3000"),
+  incesRetention: new Decimal("0"),
   profitAmount: new Decimal("600"),
   isFractional: true,
   transactionId: "tx-1",
@@ -102,6 +107,8 @@ describe("ProfitSharingService.calculate", () => {
     vi.clearAllMocks();
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    // Art. 50 INCES: el aporte solo aplica con cinco o mas trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
@@ -159,14 +166,16 @@ describe("ProfitSharingService.calculate", () => {
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          profitDays: "15.00", // from BASE_CONFIG.profitDays, not client
+          // Art. 131: el minimo son 30 dias. BASE_CONFIG trae 15 -- el valor de
+          // la LOT de 1997 -- y el servicio lo acota al minimo vigente.
+          profitDays: "30.00",
         }),
       })
     );
   });
 
   it("computes fractional days proportionally", async () => {
-    // 3 months worked, 15 profit days → 15/12*3 = 3.75 days
+    // 3 meses trabajados sobre el minimo legal de 30 dias → 30/12*3 = 7,5
     await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
       fiscalYear: 2026,
       isFractional: true,
@@ -177,7 +186,7 @@ describe("ProfitSharingService.calculate", () => {
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          fractionalDays: "3.75",
+          fractionalDays: "7.50",
         }),
       })
     );
@@ -213,6 +222,8 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     vi.clearAllMocks();
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    // Art. 50 INCES: el aporte solo aplica con cinco o mas trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
@@ -251,7 +262,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     );
   });
 
-  it("applies 15-day minimum when netProfit <= 0", async () => {
+  it("aplica el minimo legal de 30 dias cuando netProfit <= 0", async () => {
     await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
       fiscalYear: 2026,
       netProfitVes: "0",
@@ -259,7 +270,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     });
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ profitDays: "15.00" }),
+        data: expect.objectContaining({ profitDays: "30.00" }),
       })
     );
   });
@@ -272,7 +283,7 @@ describe("ProfitSharingService.calculate — F-07 dynamic profitDays", () => {
     });
     expect(vi.mocked(prisma.profitSharingRecord.create)).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ profitDays: "15.00" }), // config.profitDays
+        data: expect.objectContaining({ profitDays: "30.00" }), // config.profitDays acotado al minimo legal
       })
     );
   });
@@ -303,5 +314,121 @@ describe("ProfitSharingService.listByEmployee", () => {
     expect(vi.mocked(prisma.profitSharingRecord.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY }) })
     );
+  });
+
+});
+
+// ── Moneda del historial salarial (auditoría 2026-08-28) ────────────────────
+describe("ProfitSharingService — moneda del historial", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe("ProfitSharingService.calculate — sueldos en divisas", () => {
+    function setup(rows: unknown[], rate: string | null) {
+      vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+      vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+      vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(rows as never);
+      vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+      vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+        profitDays: 30,
+        profitSharingPayableAccountId: "acc-pay",
+        benefitsExpenseAccountId: "acc-exp",
+        incesPayableAccountId: "acc-inces",
+      } as never);
+      vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+        rate ? ({ rate: new Decimal(rate) } as never) : null,
+      );
+      vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+      vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+      vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+      vi.mocked(prisma.$transaction).mockImplementation(
+        ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
+      );
+    }
+
+    const usdRow = {
+      id: "sal-1", employeeId: EMP_ID, companyId: COMPANY,
+      effectiveFrom: new Date("2026-01-01"),
+      amount: new Decimal("1000"), currency: "USD" as const,
+    };
+    const vesRow = {
+      id: "sal-2", employeeId: EMP_ID, companyId: COMPANY,
+      effectiveFrom: new Date("2026-06-01"),
+      amount: new Decimal("100000"), currency: "VES" as const,
+    };
+
+    it("no promedia USD y Bs. como si fueran la misma unidad", async () => {
+      // El bug: sumaba `amount` sin mirar `currency`. Con este historial daba
+      // (1000 + 100000) / 2 = 50.500, un numero que no es ninguna de las dos
+      // monedas. Lo correcto: (1000x100 + 100000) / 2 = 100.000 Bs.
+      setup([usdRow, vesRow], "100");
+
+      await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 });
+
+      const data = vi.mocked(prisma.profitSharingRecord.create).mock.calls.at(-1)![0].data as {
+        baseSalarySnapshot: string;
+      };
+      expect(new Decimal(baseOf(data)).toFixed(2)).toBe("100000.00");
+    });
+
+    it("sin tasa BCV no calcula — bloquea en vez de mezclar monedas", async () => {
+      setup([usdRow], null);
+      await expect(
+        ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+      ).rejects.toThrow("tasa BCV");
+    });
+
+    it("historial 100% en Bs. no consulta tasa de cambio", async () => {
+      setup([vesRow], null);
+      await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 });
+      expect(prisma.exchangeRate.findFirst).not.toHaveBeenCalled();
+    });
+  });
+});
+
+function baseOf(data: { baseSalarySnapshot: string }): string {
+  return data.baseSalarySnapshot.toString();
+}
+
+// --- La retencion del INCES no puede omitirse en silencio (Art. 50) ----------
+
+describe("ProfitSharingService - cuenta contable del INCES", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  function setup(incesPayableAccountId: string | null, headcount: number) {
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.employee.count).mockResolvedValue(headcount as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(BASE_SALARY_ROWS as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      profitDays: 30,
+      incesEnabled: true,
+      incesPayableAccountId,
+      profitSharingPayableAccountId: "acc-pay",
+      benefitsExpenseAccountId: "acc-exp",
+    } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.$transaction).mockImplementation(
+      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
+    );
+  }
+
+  it("sin la cuenta configurada BLOQUEA en vez de dejar de retener", async () => {
+    // Antes la cuenta formaba parte de la condicion de aplicacion: si faltaba,
+    // no se retenia el 0,5% y nada lo decia. El trabajador cobraba de mas y la
+    // empresa quedaba debiendolo al INCES.
+    setup(null, 10);
+    await expect(
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+    ).rejects.toThrow("INCES por Pagar");
+  });
+
+  it("sin la cuenta pero con menos de cinco trabajadores NO bloquea", async () => {
+    // Ahi no hay obligacion que incumplir: la cuenta no hace falta.
+    setup(null, 3);
+    await expect(
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+    ).resolves.toBeDefined();
   });
 });

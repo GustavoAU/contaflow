@@ -33,6 +33,7 @@ const BASE_INPUT = {
   paymentCurrency: "VES" as const,
   frequency: "BIWEEKLY" as const,
   fideicomiso: "INTERNAL" as const,
+  ivssRiskClass: "MEDIO" as const,
   salaryMinimumVes: null,
 };
 
@@ -165,5 +166,32 @@ describe("PayrollConfigService.saveConfig", () => {
     expect(result.id).toBe("cfg-1");
     expect(result.companyId).toBe(COMPANY_ID);
     expect(result.sizeRange).toBe("SMALL");
+  });
+
+  it("la clase de riesgo IVSS se persiste y queda en el AuditLog", async () => {
+    // Sin camino de escritura, toda empresa quedaba en el default MEDIO (10%) y
+    // sólo se podía cambiar por SQL. La clase la fija el IVSS, no el default.
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.payrollConfig.upsert).mockResolvedValue(makeConfigDb() as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await PayrollConfigService.saveConfig(COMPANY_ID, USER_ID, {
+      ...BASE_INPUT,
+      ivssRiskClass: "MAXIMO",
+    });
+
+    expect(prisma.payrollConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
+        update: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
+      }),
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          newValue: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
+        }),
+      }),
+    );
   });
 });

@@ -17,6 +17,7 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
+import { monthlyWageToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -112,7 +113,13 @@ export const VacationService = {
     if (!salaryRow) {
       throw new Error("El empleado no tiene salario registrado vigente a la fecha de inicio de vacaciones");
     }
-    const monthlyWage = new Decimal(salaryRow.amount.toString());
+    // El asiento de vacaciones se registra en bolívares, así que el sueldo se
+    // convierte antes de prorratearlo. Leer `amount` sin mirar `currency` metía
+    // "2.500" en el Libro Diario por un sueldo de USD 2.500 — el pasivo quedaba
+    // dividido por la tasa. Misma clase de error que H-4 en el calculador.
+    const monthlyWage = await monthlyWageToVes(
+      companyId, salaryRow, new Date(input.startDate),
+    );
     const dailyNormalWage = monthlyWage.div(30);
 
     const vacationDays = new Decimal(input.vacationDays);
@@ -390,10 +397,16 @@ export const VacationService = {
     terminationDate: Date,
     yearsOfService: number
   ): { vacationDays: Decimal; bonusDays: Decimal } {
-    // Días de vacaciones anuales = 15 + (años antigüedad - 1), mínimo 15 (Art. 190 LOTTT)
-    const annualVacDays = Math.max(15, 14 + yearsOfService);
-    // Bono vacacional = 7 + (años - 1), mínimo 7 (Art. 192 LOTTT)
-    const annualBonusDays = Math.max(7, 6 + yearsOfService);
+    // Art. 190: quince días hábiles el primer año, "además un día adicional
+    // remunerado por cada año de servicio, HASTA UN MÁXIMO DE QUINCE DÍAS
+    // HÁBILES" — o sea, treinta en total. Faltaba el tope: con veinte años de
+    // antigüedad salían 34 días.
+    const annualVacDays = Math.min(30, Math.max(15, 14 + yearsOfService));
+    // Art. 192: "un mínimo de QUINCE días de salario normal más un día por cada
+    // año de servicios hasta un total de treinta". El código usaba siete, que es
+    // el valor del Art. 223 de la LOT de 1997, derogada por esta ley: la LOTTT
+    // subió el bono vacacional de 7 a 15 días.
+    const annualBonusDays = Math.min(30, Math.max(15, 14 + yearsOfService));
 
     // Meses completos en el año de servicio actual (ADR-014 Dec. 8)
     const yearStart = new Date(Date.UTC(terminationDate.getUTCFullYear(), 0, 1));

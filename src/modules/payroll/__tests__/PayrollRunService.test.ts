@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     employee: {
       findMany: vi.fn(),
+      count: vi.fn(),
     },
     accountingPeriod: {
       findFirst: vi.fn(),
@@ -160,12 +161,18 @@ describe("PayrollRunService.create", () => {
       },
     ] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
-      { id: "c-inces", code: "INCES_OBR" },
-      { id: "c-faov", code: "FAOV_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-inces", code: "INCES_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
+    // Ley INCES Art. 49: por encima del umbral de cinco trabajadores.
+    vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+    // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
+    // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 4 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -222,8 +229,8 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("1000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);
@@ -235,8 +242,114 @@ describe("PayrollRunService.create", () => {
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR");
     expect(ivssLine).toBeDefined();
-    // Sin tope: 1000×0.04=40. Con salaryMin=130 → tope=5×130=650 → 650×0.04=26
-    expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("26.00");
+    // Tope MENSUAL 5×130 = 650 (Reglamento Art. 98), llevado a las semanas que
+    // cotiza esta quincena: el 1–15 de abril de 2026 tiene dos lunes (6 y 13).
+    // 650 × 12/52 × 2 = 300 → 4% = 12. Antes cobraba el mes entero en cada
+    // quincena, o sea dos veces la cotización del mes.
+    expect(new Decimal(ivssLine!.amount.toString()).toFixed(2)).toBe("12.00");
+  });
+
+  // ── D-5: la base sale del mes anterior (LOTTT Art. 107) ────────────────────
+
+  it("D-5: cotiza sobre el salario normal del mes anterior, no el del período", async () => {
+    setupCreateMocks();
+    // Marzo cerrado con 10.000 de salario normal; en abril gana 30.000.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar" }] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("10000") },
+      // Una HE del mes pasado NO forma parte del salario normal (Art. 104).
+      { employeeId: "emp-1", conceptCode: "HE_DIURNA", amount: new Decimal("5000") },
+    ] as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-he", code: "HE_DIURNA", salaryNature: "SALARIAL_ACCIDENTAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-rpe", code: "RPE_OBR", salaryNature: "NO_SALARIAL" },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    // Se paga el sueldo de abril…
+    const sal = lines.find((l) => l.conceptCode === "SAL_BASE")!;
+    expect(new Decimal((sal as unknown as { amount: Decimal }).amount.toString()).toFixed(2))
+      .toBe("30000.00");
+    // …pero se cotiza sobre los 10.000 de marzo, sin la hora extra.
+    // El FAOV va sobre el integral de esa base: 10.000 x 1,125 = 11.250.
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("11250.00");
+  });
+
+  it("D-5: sin nómina aprobada el mes anterior usa el mes en curso", async () => {
+    setupCreateMocks(); // payrollRun.findMany → []
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("33750.00"); // 30.000 x 1,125
+  });
+
+  // ── D-5 + moneda: el mes anterior puede estar en otra moneda ───────────────
+  // Hallazgo HIGH de la auditoria pre-merge: `prevLines` sumaba `amount` sin
+  // mirar `salarySnapshotCurrency`, asi que un empleado que cambio de moneda
+  // cotizaba sobre un numero en la unidad equivocada. Mismo mecanismo que H-4,
+  // por la puerta del historico.
+
+  function prevMonthLines(currency: "VES" | "USD", amount: string) {
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar" }] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      {
+        employeeId: "emp-1", conceptCode: "SAL_BASE",
+        amount: new Decimal(amount), salarySnapshotCurrency: currency,
+      },
+    ] as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
+    ] as never);
+  }
+
+  function faovBasis() {
+    const arg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = arg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    return new Decimal(lines.find((l) => l.conceptCode === "FAOV_OBR")!.basis!.toString());
+  }
+
+  it("convierte el mes anterior a la moneda del sueldo actual", async () => {
+    setupCreateMocks();
+    // Mes pasado en USD 100; este mes cobra en bolivares. Tasa 65.
+    prevMonthLines("USD", "100");
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+      { rate: new Decimal("65") } as never,
+    );
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    // 100 USD x 65 = 6.500 Bs. -> integral 6.500 x 1,125 = 7.312,50
+    // Antes se cotizaba sobre "100 bolivares": 65 veces menos.
+    expect(faovBasis().toFixed(2)).toBe("7312.50");
+  });
+
+  it("misma moneda en los dos meses: no convierte nada", async () => {
+    setupCreateMocks();
+    prevMonthLines("VES", "10000");
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    // 10.000 Bs. x 1,125 = 11.250. Si se hubiera convertido, no daria esto.
+    expect(faovBasis().toFixed(2)).toBe("11250.00");
+  });
+
+  it("cambio de moneda sin tasa registrada BLOQUEA, no mezcla unidades", async () => {
+    setupCreateMocks();
+    prevMonthLines("USD", "100");
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
+    ).rejects.toThrow("cambió de moneda");
   });
 
   // ── H-4: el tope está en bolívares; el sueldo puede no estarlo ──────────────
@@ -255,10 +368,16 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+    // Linea base propia del mes anterior: `vi.clearAllMocks()` borra las llamadas
+    // pero NO las implementaciones, asi que sin esto un mockResolvedValue de otro
+    // test se filtra aqui y cambia la base de cotizacion sin que se note.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -274,9 +393,11 @@ describe("PayrollRunService.create", () => {
     const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    // Tope Bs. 650 / 65 = USD 10 → 10 × 4% = USD 0,40.
-    // Antes del fix salía 26,00: los bolívares del tope cobrados como dólares.
-    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("0.40");
+    // Tope Bs. 650 / 65 = USD 10, por las dos semanas de la quincena:
+    // 10 × 12/52 × 2 = 4,62 → 4% = USD 0,18.
+    // Antes del fix de H-4 salía 26,00: los bolívares del tope cobrados como
+    // dólares. Lo que se comprueba aquí sigue siendo la conversión del tope.
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("0.18");
   });
 
   it("H-4: busca la tasa USD de la empresa hasta el fin del período", async () => {
@@ -323,7 +444,8 @@ describe("PayrollRunService.create", () => {
     const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
     const lines = createManyArg.data as Array<{ conceptCode: string; amount: Decimal }>;
     const ivssLine = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
-    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("100.00"); // 2500 × 4%
+    // Sin tope, el sueldo entero por las dos semanas: 2500 × 12/52 × 2 = 1.153,85
+    expect(new Decimal(ivssLine.amount.toString()).toFixed(2)).toBe("46.15");
   });
 
   it("C-05: almacena tasa BCV cuando existe BcvBenefitRate para el período", async () => {
@@ -351,9 +473,9 @@ describe("PayrollRunService.create", () => {
   it("F-03: almacena totalEmployerCosts calculado por PayrollCalculatorService", async () => {
     setupCreateMocks();
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-ivss", code: "IVSS_OBR" },
-      { id: "c-ivss-pat", code: "IVSS_PAT" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-ivss-pat", code: "IVSS_PAT", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue({
       ...BASE_RUN,
@@ -384,8 +506,8 @@ describe("PayrollRunService.create", () => {
       salaryHistory: [{ id: "sal-1", amount: new Decimal("3000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
-      { id: "c-sal", code: "SAL_BASE" },
-      { id: "c-rpe", code: "RPE_OBR" },
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-rpe", code: "RPE_OBR", salaryNature: "NO_SALARIAL" },
     ] as never);
     vi.mocked(prisma.payrollRun.create).mockResolvedValue(BASE_RUN as never);
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 2 } as never);

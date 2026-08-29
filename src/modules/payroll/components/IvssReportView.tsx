@@ -105,12 +105,14 @@ export function IvssReportView({ companyId }: Props) {
 
       {data && (
         <div className="space-y-4">
-          {!data.utCapApplied && (
+          {!data.salaryCapApplied && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                <strong>Valor de la UT no configurado.</strong> El techo salarial IVSS (LSS Art. 62: 10 UT) no fue aplicado.
-                Configure el valor en <strong>Configuración de Nómina → Valor de la UT</strong>.
+                <strong>Salario mínimo no configurado.</strong> El techo de cotización del IVSS
+                (Reglamento General de la LSS Art. 98: 5 salarios mínimos mensuales) no fue aplicado,
+                así que la cotización patronal se calculó sobre el salario completo.
+                Configúrelo en <strong>Configuración de Nómina → Salario mínimo</strong>.
               </span>
             </div>
           )}

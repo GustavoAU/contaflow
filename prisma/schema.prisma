@@ -1694,8 +1694,8 @@ enum LegalThresholdType {
   IVSS_PAT_RATE // IVSS patronal — LSS Art. 62 — default 9%
   INCES_OBR_RATE // INCES obrero — Ley INCES Art. 30 — default 0.5%
   INCES_PAT_RATE // INCES patronal — Ley INCES Art. 30 — default 2%
-  FAOV_OBR_RATE // FAOV/Banavih obrero — LAH Art. 172 — default 1%
-  FAOV_PAT_RATE // FAOV/Banavih patronal — LAH Art. 172 — default 2%
+  FAOV_OBR_RATE // FAOV/Banavih obrero — LRPVH (G.O. 6.805, 01-05-2024) — 1% del salario integral, sin tope
+  FAOV_PAT_RATE // FAOV/Banavih patronal — LRPVH (G.O. 6.805, 01-05-2024) — 2% del salario integral, sin tope
   RPE_OBR_RATE // RPE/Paro Forzoso obrero — LSSO Art. 7 — default 0.5%
   RPE_PAT_RATE // RPE/Paro Forzoso patronal — LSSO Art. 7 — default 2%
 }
@@ -1745,7 +1745,7 @@ model PayrollConfig {
   payableAccountId              String? // LIABILITY — Sueldos y Salarios por Pagar (neto empleados)
   ivssPayableAccountId          String? // LIABILITY — IVSS Obrero por Pagar
   faovPayableAccountId          String? // LIABILITY — FAOV / BANAVIH por Pagar
-  incesPayableAccountId         String? // LIABILITY — INCES por Pagar
+  incesPayableAccountId         String? // LIABILITY — INCES por Pagar (retencion al trabajador: 0,5% de utilidades, Ley INCES Art. 50)
   rpePayableAccountId           String? // LIABILITY — Paro Forzoso RPE por Pagar
   // Fase NOM-D: Cuentas contables para prestaciones sociales, vacaciones y utilidades
   // ADR-014 Decisión 7: causación periódica requiere cuentas separadas
@@ -1754,25 +1754,29 @@ model PayrollConfig {
   vacationPayableAccountId      String? // LIABILITY — Vacaciones por Pagar
   profitSharingPayableAccountId String? // LIABILITY — Utilidades por Pagar
   // F-02/F-03: Aportes patronales — cuentas GL para causación de contribuciones del patrono
-  ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (LSS Art. 62: 9%)
-  incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 30: 2%)
-  faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LAH Art. 172: 2%)
-  rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LSSO Art. 7: 2%)
+  ivssPatronalAccountId         String? // LIABILITY — IVSS Patronal por Pagar (Reglamento LSS Art. 109: 9/10/11% segun riesgo)
+  incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 49: 2%, trimestral)
+  faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LRPVH reformada G.O. 6.805: 2%, sin tope)
+  rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LRPE Art. 46: 2%)
   // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
   disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
   // Fase NOM-D: Configuración de beneficios legales
-  profitDays                    Int                    @default(15) // días de utilidades (15–120 LOTTT Art. 131)
-  vacationBonusDays             Int                    @default(7) // días bono vacacional año 1 (LOTTT Art. 223)
+  profitDays                    Int                    @default(30) // días de utilidades (30–120 LOTTT Art. 131 — el mínimo son 30, no 15)
+  vacationBonusDays             Int                    @default(15) // días bono vacacional año 1 (LOTTT Art. 192 — el 223 citado antes es de la LOT de 1997, derogada)
   // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
   workSchedule                  WorkSchedule           @default(LUNES_VIERNES)
   // Fase NOM-E: Valor de la Unidad Tributaria para cálculo de techo IVSS (LSS Art. 62)
   // El contador lo actualiza anualmente cuando el SENIAT publica el nuevo valor.
   // NULL = no configurado → reportes IVSS omiten el techo y lo informan al usuario.
   utValue                       Decimal?               @db.Decimal(10, 2)
+  // Clase de riesgo ocupacional declarada ante el IVSS (Reglamento Arts. 108,
+  // 109 y 192). Determina la tarifa patronal: MINIMO 9%, MEDIO 10%, MAXIMO 11%.
+  ivssRiskClass                 IvssRiskClass          @default(MEDIO)
   // Tope de cotización: salario mínimo nacional vigente (Bs/mes).
-  // Cuando > 0: IVSS cap = 5 × salaryMinimumVes; FAOV cap = 10 × salaryMinimumVes.
-  // Cuando NULL/0: sin tope (uso previo al decreto — mantiene retro-compatibilidad).
+  // Cuando > 0: IVSS cap = 5× (Reglamento LSS Art. 98) y RPE entre 1× y 10×
+  // (LRPE Art. 46). El FAOV NO tiene tope e INCES tampoco.
+  // Cuando NULL/0: sin tope (uso previo al decreto — retro-compatibilidad).
   salaryMinimumVes              Decimal?               @db.Decimal(19, 4) // ADR-002 — monto Bs
   // Timestamps
   createdAt                     DateTime               @default(now())
@@ -1841,6 +1845,41 @@ enum ConceptType {
   EARNING // Ingreso / asignación
   DEDUCTION // Deducción / descuento del trabajador
   EMPLOYER_COST // Aporte patronal — no afecta neto del empleado (IVSS/INCES/FAOV/RPE patronal)
+}
+
+// ADR-045 D-1: la naturaleza salarial de un concepto es ternaria.
+// Un booleano no puede representarla: las horas extraordinarias SON salario
+// (LOTTT Art. 104 las nombra) pero NO son salario normal (mismo articulo,
+// tercer aparte, excluye "las percepciones de caracter accidental").
+// Reglamento General de la Ley del Seguro Social, Art. 108: las empresas se
+// agrupan en tres categorias de riesgo. El Art. 109 fija la tarifa patronal de
+// cada una (9 / 10 / 11%); el aporte del trabajador es 4% en las tres.
+// El Art. 192 lista las actividades: Riesgo Minimo es una lista corta y cerrada
+// (empresas sin fuerza motriz, docentes, fabricas de helados/medias/ropa
+// hecha/sobres/velas/sastrerias, beneficio de cafe y cacao); Riesgo Maximo es
+// otra lista (construccion, minas, petroleras, altos hornos, transporte...); y
+// **Riesgo Medio son TODAS las demas**. Por eso el default es MEDIO: es la
+// clase residual que fija el propio Reglamento, no la mas barata.
+// LOTTT Art. 142: el regimen de prestaciones es DUAL. El literal (d) manda
+// pagar "el monto que resulte mayor" entre la garantia depositada (literales a
+// y b) y el calculo al terminar la relacion (literal c). El literal (e) sustituye
+// a ambos cuando la relacion dura menos de tres meses.
+enum PrestacionesBasis {
+  GARANTIA_ACUMULADA // Art. 142 (a)+(b) — 15 dias/trimestre + adicionales, salarios historicos
+  CALCULO_RETROACTIVO // Art. 142 (c) — 30 dias por año al ULTIMO salario integral
+  PRIMEROS_TRES_MESES // Art. 142 (e) — 5 dias por mes trabajado o fraccion
+}
+
+enum IvssRiskClass {
+  MINIMO // 9% patronal  — Art. 192, lista cerrada
+  MEDIO // 10% patronal  — residual: toda empresa no listada en otra clase
+  MAXIMO // 11% patronal — Art. 192, lista de actividades peligrosas
+}
+
+enum SalaryNature {
+  NO_SALARIAL // LOTTT Art. 105 (lista cerrada de 7) o decreto expreso
+  SALARIO_NORMAL // devengado "en forma regular y permanente" — base de cotizaciones
+  SALARIAL_ACCIDENTAL // es salario, pero fuera del salario normal
 }
 
 enum AbsenceCategory {
@@ -1956,18 +1995,34 @@ model SalaryHistory {
 // no se pueden eliminar, solo desactivar.
 
 model PayrollConcept {
-  id                    String      @id @default(cuid())
+  id                    String       @id @default(cuid())
   companyId             String
   code                  String // corto, ej: "SAL_BASE", "IVSS_OBR"
   name                  String
   type                  ConceptType
-  isSystem              Boolean     @default(false)
-  isActive              Boolean     @default(true)
+  isSystem              Boolean      @default(false)
+  isActive              Boolean      @default(true)
   // LOTTT: indica si este concepto impacta el salario integral (base de prestaciones/vacaciones).
   // false → CESTA_TICKET, bonos no salariales. true → SAL_BASE, HE_DIURNA, HE_NOCTURNA, etc.
-  affectsSalaryIntegral Boolean     @default(true)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  //
+  // DEPRECADO por salaryNature (ADR-045 D-1), pero TODAVIA VIVO: es lo que lee
+  // BenefitAccrualService para prestaciones. No migrar esos consumidores hasta
+  // resolver el pendiente #2 del ADR (si los conceptos accidentales entran en el
+  // salario integral del Art. 122). salaryNature gobierna solo la base de
+  // cotizaciones; los dos conviven a proposito.
+  affectsSalaryIntegral Boolean      @default(true)
+  // Base de cotizaciones parafiscales (IVSS/FAOV/INCES/RPE) — ADR-045 D-1/D-4.
+  //
+  // Default NO_SALARIAL a proposito. Un concepto personalizado que nace como
+  // SALARIO_NORMAL entra solo en la base y se le retiene de mas al trabajador,
+  // que por el Art. 103 del Reglamento del Seguro Social **no lo recupera**: si
+  // el patrono no descuenta en su oportunidad "no podra hacerlo despues", y a la
+  // inversa lo retenido de mas ya se enteró. Errar hacia no retener deja una
+  // deuda de la empresa con el instituto, que si es subsanable.
+  // Los conceptos del sistema traen su naturaleza explicita desde seedDefaults.
+  salaryNature          SalaryNature @default(NO_SALARIAL)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C
@@ -2358,12 +2413,15 @@ model ProfitSharingRecord {
   companyId          String
   employeeId         String
   fiscalYear         Int // año fiscal de devengo
-  profitDays         Decimal  @db.Decimal(5, 2) // días configurados (15–120 — Zod)
+  profitDays         Decimal  @db.Decimal(5, 2) // días aplicados (mínimo legal 30 — LOTTT Art. 131)
   fractionalDays     Decimal  @db.Decimal(5, 2) // días proporcionales al tiempo trabajado
   monthsWorked       Int // meses completos en el año fiscal
   // Snapshot de salario base — calculado server-side (ADR-014 Dec. 3)
   baseSalarySnapshot Decimal  @db.Decimal(19, 4) // promedio salarial del período
   profitAmount       Decimal  @db.Decimal(19, 4) // fractionalDays × (baseSalary/30)
+  // Ley INCES Art. 50: 0,5% de las utilidades anuales, retenido al trabajador.
+  // Es aqui donde vive el aporte del trabajador — NO es una deduccion mensual.
+  incesRetention     Decimal  @default(0) @db.Decimal(19, 4)
   isFractional       Boolean  @default(false) // true si es fracción en liquidación
   // Asiento contable
   transactionId      String?  @unique
@@ -2409,7 +2467,14 @@ model Termination {
   benefitBalanceId              String?           @unique
   // ── Componentes snapshot de la liquidación ──
   // Prestaciones
+  // Rama (a)+(b) del Art. 142: la garantia efectivamente depositada.
   benefitsAccumulatedAmount     Decimal           @default(0) @db.Decimal(19, 4)
+  // Rama (c) del Art. 142: 30 dias por año de servicio (o fraccion superior a
+  // seis meses) al ULTIMO salario integral. Se calcula siempre, aunque no gane.
+  benefitsRetroactiveAmount     Decimal           @default(0) @db.Decimal(19, 4)
+  // Cual de las dos ramas se aplico, por el literal (d). Se guarda explicito
+  // para que el contador vea POR QUE salio ese numero y no tenga que deducirlo.
+  benefitsBasisApplied          PrestacionesBasis @default(GARANTIA_ACUMULADA)
   benefitsInterestAmount        Decimal           @default(0) @db.Decimal(19, 4)
   // Vacaciones fraccionadas
   vacationFractionalDays        Decimal           @default(0) @db.Decimal(5, 2)

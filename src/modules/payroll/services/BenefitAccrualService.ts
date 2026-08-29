@@ -19,8 +19,29 @@ import { Decimal } from "decimal.js";
 import { Prisma, Currency } from "@prisma/client";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 
-// Días base por LOTTT Art. 142: 5 días/trimestre (15/año)
-const BASE_DAYS_PER_QUARTER = 5;
+// LOTTT Art. 142 literal (a): "el patrono o patrona depositará a cada trabajador
+// o trabajadora por concepto de garantía de las prestaciones sociales el
+// equivalente a QUINCE DÍAS CADA TRIMESTRE, calculado con base al último salario
+// devengado". Son 60 días al año, no 15: el código acumulaba 5 por trimestre y
+// dejaba la provisión de prestaciones —el mayor pasivo laboral de la empresa— en
+// un tercio de lo que manda la ley.
+const BASE_DAYS_PER_QUARTER = 15;
+
+// Mínimos legales de las alícuotas del salario integral. Se acotan los valores
+// configurados: PayrollConfig traía 15 días de utilidades y 7 de bono vacacional
+// —los mínimos de la LOT de 1997, derogada— y ningún número guardado puede
+// autorizar provisionar por debajo de la ley vigente.
+// El salario integral y sus mínimos legales viven ahora en
+// PayrollCalculatorService: el FAOV cotiza sobre esa misma base (LRPVH Art. 33),
+// y ese módulo es puro — este importa prisma, así que la dependencia sólo puede
+// ir en esta dirección. Se re-exportan para no romper a quien ya los importaba
+// desde aquí.
+import {
+  LEGAL_MIN_PROFIT_DAYS,
+  LEGAL_MIN_VAC_BONUS_DAYS,
+  integralDailyWageFrom,
+} from "./PayrollCalculatorService";
+export { LEGAL_MIN_PROFIT_DAYS, integralDailyWageFrom };
 
 // Días adicionales por antigüedad Art. 142 LOTTT:
 // A partir del 2do año: +2 días/año de servicio (máx 30 adicionales/año).
@@ -279,9 +300,13 @@ export const BenefitAccrualService = {
       const dailyNormalWage = monthlyWageVes.plus(avgMonthlyIntegralConcepts).div(30);
 
       // Salario integral = dailyNormal + alícuota utilidades + alícuota bono vacacional (ADR-014 Dec. 3)
-      const profitDaysAliquot = dailyNormalWage.mul(config.profitDays).div(360);
-      const vacationBonusDaysAliquot = dailyNormalWage.mul(config.vacationBonusDays).div(360);
-      const integralDailyWage = dailyNormalWage.add(profitDaysAliquot).add(vacationBonusDaysAliquot);
+      const profitDaysAliquot = dailyNormalWage
+        .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays)).div(360);
+      const vacationBonusDaysAliquot = dailyNormalWage
+        .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays)).div(360);
+      const integralDailyWage = integralDailyWageFrom(
+        dailyNormalWage, config.profitDays, config.vacationBonusDays,
+      );
 
       // Días adicionales por antigüedad Art. 142 LOTTT (prorrateados trimestre)
       const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
@@ -764,9 +789,13 @@ export const BenefitAccrualService = {
             .div(3);
 
           const dailyNormalWage = monthlyWage.plus(avgMonthlyIntegral).div(30);
-          const profitDaysAliquot = dailyNormalWage.mul(config.profitDays).div(360);
-          const vacationBonusDaysAliquot = dailyNormalWage.mul(config.vacationBonusDays).div(360);
-          const integralDailyWage = dailyNormalWage.add(profitDaysAliquot).add(vacationBonusDaysAliquot);
+          const profitDaysAliquot = dailyNormalWage
+            .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays)).div(360);
+          const vacationBonusDaysAliquot = dailyNormalWage
+            .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays)).div(360);
+          const integralDailyWage = integralDailyWageFrom(
+            dailyNormalWage, config.profitDays, config.vacationBonusDays,
+          );
 
           const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
           const totalDays = new Decimal(BASE_DAYS_PER_QUARTER).add(additionalDays);

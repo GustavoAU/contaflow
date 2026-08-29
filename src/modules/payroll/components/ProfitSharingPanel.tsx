@@ -111,6 +111,10 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Meses</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Salario prom.</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">
+                  Ret. INCES 0,5%
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Neto</th>
                 <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
               </tr>
             </thead>
@@ -123,6 +127,15 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
                   <td className="px-3 py-2 text-right">{r.monthsWorked}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-600">{fmt(r.baseSalarySnapshot)}</td>
                   <td className="px-3 py-2 text-right font-mono text-green-700">{fmt(r.profitAmount)}</td>
+                  {/* Ley INCES Art. 50: se le descuenta del neto, tiene que verlo. */}
+                  <td className="px-3 py-2 text-right font-mono text-gray-600">
+                    {new Decimal(r.incesRetention).gt(0) ? `-${fmt(r.incesRetention)}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono font-semibold text-green-800">
+                    {/* R-5: la resta va en Decimal aunque solo sea para mostrar.
+                        Es la cifra que el trabajador lee como su neto. */}
+                    {fmt(new Decimal(r.profitAmount).minus(r.incesRetention).toFixed(4))}
+                  </td>
                   <td className="px-3 py-2">
                     {r.isFractional ? (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Fraccionada</span>
