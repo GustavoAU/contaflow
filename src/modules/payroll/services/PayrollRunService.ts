@@ -348,6 +348,10 @@ export const PayrollRunService = {
     if (yearRunIds.length > 0) {
       const heLines = await prisma.payrollRunLine.findMany({
         where: {
+          // companyId explícito aunque runIds ya venga acotado: PayrollRunLine
+          // tiene columna propia y la aserción de tenant (ADR-044 D-3) no acepta
+          // el acotamiento indirecto. Ademas habilita el indice compuesto.
+          companyId,
           payrollRunId: { in: yearRunIds },
           conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
         },
@@ -373,15 +377,59 @@ export const PayrollRunService = {
       const natureByCode = new Map(allConcepts.map((c) => [c.code, c.salaryNature]));
 
       const prevLines = await prisma.payrollRunLine.findMany({
-        where: { payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
-        select: { employeeId: true, conceptCode: true, amount: true },
+        where: { companyId, payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
+        select: {
+          employeeId: true, conceptCode: true, amount: true,
+          // La moneda del mes anterior NO tiene por qué ser la de hoy. Sumar
+          // `amount` a secas mezclaba unidades: un empleado que pasó de USD 300
+          // a Bs. 30.000 cotizaba sobre "300 bolívares". Es el mismo mecanismo
+          // de H-4, por la puerta del histórico.
+          salarySnapshotCurrency: true,
+        },
       });
+
+      // Moneda del sueldo VIGENTE de cada empleado: es la unidad en la que el
+      // calculador compara la base contra el tope, así que es a la que hay que
+      // llevar el mes anterior.
+      const currentCurrencyByEmp = new Map(
+        employees
+          .filter((e) => e.salaryHistory.length > 0)
+          .map((e) => [e.id, e.salaryHistory[0].currency]),
+      );
+      const usdRate = usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null;
+
       for (const l of prevLines) {
         if (natureByCode.get(l.conceptCode) !== "SALARIO_NORMAL") continue;
+        const to = currentCurrencyByEmp.get(l.employeeId);
+        const from = l.salarySnapshotCurrency;
+        if (!to) continue;
+
+        let amount = new Decimal(l.amount.toString());
+        if (from && from !== to) {
+          // Bloquea en vez de inventar, igual que hace el calculador con los
+          // topes: una base en la moneda equivocada se desvía por el factor
+          // exacto de la tasa y no se nota en ninguna cifra del recibo.
+          if (from === "MIXED" || to === "MIXED") {
+            throw new Error(
+              "El empleado tiene sueldo en modalidad MIXTA en alguno de los dos " +
+              "meses: no se puede saber qué parte va en cada moneda para calcular " +
+              "la base del mes anterior. Divide el sueldo en dos registros."
+            );
+          }
+          if (!usdRate || usdRate.lte(0)) {
+            throw new Error(
+              "El empleado cambió de moneda de sueldo respecto al mes anterior y " +
+              "no hay tasa BCV registrada para el período. Regístrala en " +
+              "Contabilidad → Tasas de Cambio: sin ella, la base de cotización " +
+              "del mes anterior quedaría en una moneda distinta a la del tope."
+            );
+          }
+          amount = from === "USD" ? amount.mul(usdRate) : amount.div(usdRate);
+        }
+
         previousNormalWageByEmp.set(
           l.employeeId,
-          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0))
-            .plus(l.amount.toString()),
+          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
         );
       }
     }

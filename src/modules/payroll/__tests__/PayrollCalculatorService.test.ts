@@ -1186,3 +1186,45 @@ describe("PayrollCalculatorService - umbral del INCES patronal", () => {
     }
   });
 });
+
+// --- El periodo es un input del cliente y el IVSS es lineal en el ------------
+// Hallazgo HIGH de la auditoria pre-merge (2026-08-29). Desde que el IVSS se
+// cotiza por semana, estirar la fecha de fin multiplica la deduccion del
+// trabajador y lo que se declara al instituto. El schema acota la duracion del
+// periodo; esto es el techo propio del motor, que no debe depender de que la
+// validacion de entrada siga en su sitio.
+
+describe("contributableWeeks - techo del Art. 100", () => {
+  const d = (iso: string) => new Date(iso + "T00:00:00Z");
+
+  it("un periodo de dos meses y medio no cotiza once semanas", () => {
+    // Sin techo daba 11: el schema lo aceptaba porque periodEnd cae dentro de
+    // los 45 dias futuros que ya validaba.
+    expect(contributableWeeks(d("2026-08-01"), d("2026-10-13"))).toBe(5);
+  });
+
+  it("un periodo de tres anos tampoco", () => {
+    expect(contributableWeeks(d("2023-01-01"), d("2026-03-31"))).toBe(5);
+  });
+
+  it("los periodos normales no se tocan", () => {
+    expect(contributableWeeks(d("2026-03-01"), d("2026-03-31"))).toBe(5); // 5 lunes
+    expect(contributableWeeks(d("2026-02-01"), d("2026-02-28"))).toBe(4); // 4 lunes
+    expect(contributableWeeks(d("2026-03-01"), d("2026-03-15"))).toBe(2); // quincena
+  });
+
+  it("el IVSS deja de escalar con el periodo estirado", () => {
+    const largo: PayrollCalculatorConfig = {
+      ...BASE_CONFIG,
+      periodStart: new Date("2026-08-01T00:00:00Z"),
+      periodEnd: new Date("2026-10-13T00:00:00Z"),
+    };
+    const ivssLargo = PayrollCalculatorService
+      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), largo)
+      .find((l) => l.conceptCode === "IVSS_OBR")!;
+    const ivssNormal = PayrollCalculatorService
+      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), BASE_CONFIG)
+      .find((l) => l.conceptCode === "IVSS_OBR")!;
+    expect(ivssLargo.amount.toFixed(2)).toBe(ivssNormal.amount.toFixed(2));
+  });
+});

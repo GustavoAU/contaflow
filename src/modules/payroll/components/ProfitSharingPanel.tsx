@@ -129,10 +129,12 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
                   <td className="px-3 py-2 text-right font-mono text-green-700">{fmt(r.profitAmount)}</td>
                   {/* Ley INCES Art. 50: se le descuenta del neto, tiene que verlo. */}
                   <td className="px-3 py-2 text-right font-mono text-gray-600">
-                    {Number(r.incesRetention) > 0 ? `-${fmt(r.incesRetention)}` : "—"}
+                    {new Decimal(r.incesRetention).gt(0) ? `-${fmt(r.incesRetention)}` : "—"}
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-semibold text-green-800">
-                    {fmt(String(Number(r.profitAmount) - Number(r.incesRetention)))}
+                    {/* R-5: la resta va en Decimal aunque solo sea para mostrar.
+                        Es la cifra que el trabajador lee como su neto. */}
+                    {fmt(new Decimal(r.profitAmount).minus(r.incesRetention).toFixed(4))}
                   </td>
                   <td className="px-3 py-2">
                     {r.isFractional ? (

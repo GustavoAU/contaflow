@@ -1,5 +1,5 @@
 // src/modules/payroll/schemas/payroll-run.schema.ts
-import { zMoneyPositive } from "@/lib/zod-helpers";
+import { zMoneyPositive, zBusinessDateString } from "@/lib/zod-helpers";
 // Fase NOM-C: validación Zod para procesos de nómina
 //
 // Reglas de seguridad (ADR-013):
@@ -20,6 +20,24 @@ function maxFutureDate(days: number): Date {
   return d;
 }
 
+// Duración máxima de un período de nómina, en días.
+//
+// Desde que el IVSS se cotiza por SEMANA (Reglamento Art. 99), el importe del
+// aporte es LINEAL en la cantidad de lunes que abarca el período: estirar la
+// fecha de fin multiplica la deducción del trabajador y lo que se declara al
+// instituto. Antes de ese cambio el período no influía en el monto y por eso no
+// hacía falta acotarlo.
+//
+// 35 días cubre el mes más largo con holgura y sirve para las tres frecuencias
+// (SEMANAL, BIWEEKLY, MONTHLY). El Art. 100 del propio Reglamento habla de
+// períodos "de cuatro (4) o cinco (5) semanas", así que nada legítimo lo pasa.
+const MAX_PERIOD_DAYS = 35;
+
+function daysBetweenInclusive(from: string, to: string): number {
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+}
+
 // ─── ManualConceptSchema — concepto adicional ingresado por el contador ────────
 // Monto positivo fijo; el tipo (EARNING/DEDUCTION) viene del concepto en DB.
 // ISLR_RET se ingresa así en NOM-C (cálculo automático es alcance NOM-D).
@@ -37,11 +55,9 @@ export type ManualConceptInput = z.infer<typeof ManualConceptSchema>;
 
 export const CreatePayrollRunSchema = z
   .object({
-    periodStart: z
-      .string()
+    periodStart: zBusinessDateString
       .regex(dateRegex, { message: "Fecha de inicio inválida" }),
-    periodEnd: z
-      .string()
+    periodEnd: zBusinessDateString
       .regex(dateRegex, { message: "Fecha de fin inválida" })
       .refine(
         (v) => new Date(v) <= maxFutureDate(45),
@@ -59,6 +75,16 @@ export const CreatePayrollRunSchema = z
   .refine(
     (d) => new Date(d.periodEnd) >= new Date(d.periodStart),
     { message: "La fecha de fin debe ser igual o posterior a la de inicio", path: ["periodEnd"] }
+  )
+  .refine(
+    (d) => daysBetweenInclusive(d.periodStart, d.periodEnd) <= MAX_PERIOD_DAYS,
+    {
+      message:
+        `Un período de nómina no puede abarcar más de ${MAX_PERIOD_DAYS} días. ` +
+        "El IVSS se cotiza por semana, así que un período más largo multiplica " +
+        "las cotizaciones del trabajador.",
+      path: ["periodEnd"],
+    }
   );
 
 export type CreatePayrollRunInput = z.infer<typeof CreatePayrollRunSchema>;

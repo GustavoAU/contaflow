@@ -219,6 +219,10 @@ export const PayrollReportService = {
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
           where: {
+            // companyId explicito: PayrollRunLine tiene columna propia, asi que
+            // acotar solo por payrollRunId no satisface la asercion de tenant
+            // (ADR-044 D-3) y ademas pierde el indice compuesto.
+            companyId,
             payrollRunId: { in: runIds },
             conceptCode: { in: ["IVSS_OBR", "IVSS_PAT", "SAL_BASE"] },
           },
@@ -361,6 +365,10 @@ export const PayrollReportService = {
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
           where: {
+            // companyId explicito: PayrollRunLine tiene columna propia, asi que
+            // acotar solo por payrollRunId no satisface la asercion de tenant
+            // (ADR-044 D-3) y ademas pierde el indice compuesto.
+            companyId,
             payrollRunId: { in: runIds },
             conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
           },
@@ -443,6 +451,10 @@ export const PayrollReportService = {
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
           where: {
+            // companyId explicito: PayrollRunLine tiene columna propia, asi que
+            // acotar solo por payrollRunId no satisface la asercion de tenant
+            // (ADR-044 D-3) y ademas pierde el indice compuesto.
+            companyId,
             payrollRunId: { in: runIds },
             conceptCode: { in: ["INCES_OBR", "INCES_PAT", "SAL_BASE"] },
           },
@@ -559,6 +571,10 @@ export const PayrollReportService = {
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
           where: {
+            // companyId explicito: PayrollRunLine tiene columna propia, asi que
+            // acotar solo por payrollRunId no satisface la asercion de tenant
+            // (ADR-044 D-3) y ademas pierde el indice compuesto.
+            companyId,
             payrollRunId: { in: runIds },
             employeeId,
             conceptCode: { in: [...earningCodes, "ISLR_EMP"] },

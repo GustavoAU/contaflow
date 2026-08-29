@@ -89,6 +89,8 @@ export function weeklyWageFrom(monthlyWage: Decimal): Decimal {
  * TIUNA que la empresa concilia, y porque produce exactamente los 4 ó 5 que el
  * Art. 100 contempla. Queda anotado por si el criterio del instituto cambia.
  */
+export const MAX_CONTRIBUTABLE_WEEKS = 5;
+
 export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
   if (periodEnd < periodStart) return 0;
   let weeks = 0;
@@ -104,7 +106,14 @@ export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
     weeks += 1;
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
-  return weeks;
+  // Tope propio, además del que impone el schema a la duración del período.
+  // El Art. 100 habla de períodos "de cuatro (4) o cinco (5) semanas": no hay
+  // periodicidad legal que cause más de cinco cotizaciones. Sin este techo, el
+  // importe del IVSS es LINEAL en las fechas que manda el cliente, y esas
+  // fechas son un input — estirar el período multiplicaba la deducción del
+  // trabajador y lo declarado al instituto. El motor no debe depender sólo de
+  // que la validación de entrada siga en su sitio.
+  return Math.min(weeks, MAX_CONTRIBUTABLE_WEEKS);
 }
 
 /**

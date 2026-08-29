@@ -157,7 +157,14 @@ export const PayrollBankTxtService = {
     // Salario base y aportes FAOV del período
     const lines = runIds.length > 0
       ? await prisma.payrollRunLine.findMany({
-          where: { payrollRunId: { in: runIds }, conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] } },
+          // companyId explicito: PayrollRunLine tiene columna propia, asi que
+          // acotar solo por payrollRunId no satisface la asercion de tenant
+          // (ADR-044 D-3) y ademas pierde el indice compuesto.
+          where: {
+            companyId,
+            payrollRunId: { in: runIds },
+            conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
+          },
           select: { employeeId: true, conceptCode: true, amount: true },
         })
       : [];
