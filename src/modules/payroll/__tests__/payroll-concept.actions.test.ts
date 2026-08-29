@@ -68,7 +68,15 @@ describe("listConceptsAction", () => {
     vi.mocked(PayrollConceptService.list).mockResolvedValue([BASE_CONCEPT]);
     const result = await listConceptsAction(COMPANY_ID);
     expect(result.success).toBe(true);
-    expect(PayrollConceptService.seedDefaults).toHaveBeenCalledWith(COMPANY_ID);
+    // R-6: seedDefaults puede REPARAR campos fiscales, asi que su AuditLog
+    // necesita saber quien lo disparo y desde donde.
+    // R-6: seedDefaults puede REPARAR campos fiscales, asi que su AuditLog
+    // necesita saber quien lo disparo. Se comprueban los dos primeros
+    // argumentos: IP y user-agent dependen de las cabeceras del mock.
+    const call = vi.mocked(PayrollConceptService.seedDefaults).mock.calls[0]!;
+    expect(call[0]).toBe(COMPANY_ID);
+    expect(typeof call[1]).toBe("string");
+    expect(call).toHaveLength(4);
     if (result.success) expect(result.data).toHaveLength(1);
   });
 

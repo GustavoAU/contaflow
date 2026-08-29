@@ -14,6 +14,14 @@ import Decimal from "decimal.js";
 import type {
   ConceptType, IvssRiskClass, PayrollFrequency, PayrollPaymentCurrency, SalaryNature,
 } from "@prisma/client";
+// Los mensajes de moneda viven en payroll-currency: había dos parejas con textos
+// distintos para la misma condición, así que el usuario veía un mensaje u otro
+// según si llegaba por la nómina ordinaria o por liquidación/vacaciones. Mismo
+// patrón que ADR-041 con ActionResult: una fuente y re-exports.
+import {
+  MISSING_BCV_RATE_MESSAGE,
+  MIXED_SALARY_MESSAGE as MIXED_SALARY_MESSAGE_SHARED,
+} from "./payroll-currency";
 
 // ─── Tasas legales venezolanas — defaults (ADR-006 D-3) ──────────────────────
 // Usadas cuando no hay registro en LegalThreshold para la empresa/período.
@@ -67,6 +75,10 @@ export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 export const LEGAL_MIN_PROFIT_DAYS = 30;       // LOTTT Art. 131
 export const LEGAL_MIN_VAC_BONUS_DAYS = 15;    // LOTTT Art. 192
 
+// Ningún período de nómina causa más de cinco cotizaciones semanales: el
+// Art. 100 habla de períodos "de cuatro (4) o cinco (5) semanas".
+export const MAX_CONTRIBUTABLE_WEEKS = 5;
+
 // ── Cotización semanal del IVSS (Reglamento General de la LSS) ───────────────
 // Art. 99: "las cotizaciones se causarán por semanas". El salario semanal es
 // (salario mensual x 12) / 52 — no el mensual entre cuatro.
@@ -89,8 +101,6 @@ export function weeklyWageFrom(monthlyWage: Decimal): Decimal {
  * TIUNA que la empresa concilia, y porque produce exactamente los 4 ó 5 que el
  * Art. 100 contempla. Queda anotado por si el criterio del instituto cambia.
  */
-export const MAX_CONTRIBUTABLE_WEEKS = 5;
-
 export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
   if (periodEnd < periodStart) return 0;
   let weeks = 0;
@@ -343,6 +353,11 @@ export interface CalculatorLineOutput {
   salaryHistoryId: string;
   salarySnapshotAmount: Decimal;
   salarySnapshotCurrency: PayrollPaymentCurrency;
+  // Naturaleza salarial del concepto AL CALCULAR. Se persiste en
+  // PayrollRunLine junto con conceptCode y conceptType, por lo mismo que ellos:
+  // reclasificar un concepto no puede reescribir un mes ya aprobado (ADR-045
+  // D-5 lee la base del mes anterior desde estas líneas).
+  salaryNature: SalaryNature;
 }
 
 export interface PayrollCalculatorResult {
@@ -394,14 +409,10 @@ function clampedBasis(
     .clampedTo(salaryMin.mul(floorMultiples), salaryMin.mul(ceilingMultiples));
 }
 
-export const MISSING_USD_RATE_MESSAGE =
-  "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio " +
-  "antes de procesar esta nómina. Los topes legales (IVSS, FAOV, INCES, RPE) están " +
-  "fijados en bolívares y no pueden aplicarse a un sueldo en dólares sin la tasa.";
-
-export const MIXED_SALARY_MESSAGE =
-  "Sueldo híbrido (VES + USD) todavía no soportado en el cálculo de nómina. " +
-  "Registra el sueldo del empleado en una sola moneda.";
+// Re-exports del módulo que centraliza la conversión de moneda. El nombre local
+// se conserva porque lo usan los tests y otros llamadores.
+export const MISSING_USD_RATE_MESSAGE = MISSING_BCV_RATE_MESSAGE;
+export const MIXED_SALARY_MESSAGE = MIXED_SALARY_MESSAGE_SHARED;
 
 // H-4: los topes de cotización son múltiplos del salario mínimo, que es un monto
 // en BOLÍVARES. Hasta 2026-08 se comparaban directo contra el sueldo, fuera cual
@@ -506,7 +517,9 @@ export const PayrollCalculatorService = {
     config: PayrollCalculatorConfig,
     manualConcepts: ManualConceptCalculationInput[] = []
   ): CalculatorLineOutput[] {
-    const lines: CalculatorLineOutput[] = [];
+    // Sin `salaryNature`: se adjunta de una vez al salir, para no tener que
+    // recordarla en los quince `push` de esta función.
+    const lines: Omit<CalculatorLineOutput, "salaryNature">[] = [];
     const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
     // Tasas efectivas: usa las configuradas por el admin (LegalThreshold) si existen,
     // o los defaults legales hardcodeados como fallback.
@@ -792,6 +805,13 @@ export const PayrollCalculatorService = {
       });
     }
 
-    return lines;
+    // La naturaleza se adjunta aquí y no en cada `push`: son quince sitios y
+    // basta que uno se olvide para que una línea quede sin snapshot. `natureById`
+    // ya cubre los conceptos del sistema y los manuales; lo que no esté ahí no
+    // forma base, así que NO_SALARIAL es el valor correcto y no un relleno.
+    return lines.map((l) => ({
+      ...l,
+      salaryNature: natureById.get(l.conceptId) ?? "NO_SALARIAL",
+    }));
   },
 };
