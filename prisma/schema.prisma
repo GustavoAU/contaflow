@@ -1877,16 +1877,6 @@ enum IvssRiskClass {
   MAXIMO // 11% patronal — Art. 192, lista de actividades peligrosas
 }
 
-// LOTTT Art. 173: la jornada fija el maximo de horas diarias, y el Art. 113
-// divide el salario hora entre las horas "de la jornada diurna, nocturna o mixta,
-// segun sea el caso". Con una sola constante de 8 horas, a un trabajador nocturno
-// se le pagaba la hora extra por debajo de lo que manda la Ley.
-enum WorkShiftType {
-  DIURNA // 5:00 a.m. - 7:00 p.m. — max 8 h/dia, 40 semanales
-  NOCTURNA // 7:00 p.m. - 5:00 a.m. — max 7 h/dia, 35 semanales
-  MIXTA // max 7,5 h/dia, 37,5 semanales
-}
-
 enum SalaryNature {
   NO_SALARIAL // LOTTT Art. 105 (lista cerrada de 7) o decreto expreso
   SALARIO_NORMAL // devengado "en forma regular y permanente" — base de cotizaciones
@@ -1932,10 +1922,6 @@ model Employee {
   hireDate            DateTime          @db.Date
   terminationDate     DateTime?         @db.Date
   status              EmployeeStatus    @default(ACTIVE)
-  // LOTTT Art. 173: la jornada decide el maximo de horas diarias (8 / 7 / 7,5) y
-  // con el, por el Art. 113, el divisor del salario hora. Default DIURNA: es la
-  // jornada ordinaria y lo que el codigo asumia para todos.
-  workShift           WorkShiftType     @default(DIURNA)
   // Cargo
   position            String
   department          String?
@@ -1951,7 +1937,11 @@ model Employee {
   banavihNumber       String? // Número afiliación Banavih/FAOV (FAOVWeb)
   dependents          Int? // Cargas familiares para ISLR (D. 1808)
   birthDate           DateTime?         @db.Date
-  workSchedule        JornadaType? // Jornada laboral LOTTT Arts. 173-177
+  // Jornada laboral LOTTT Arts. 173-177. Ademas del maximo diario (8 diurna /
+  // 7 nocturna / 7,5 mixta) decide el divisor del salario hora del Art. 113, o
+  // sea cuanto vale la hora extra de esta persona. `null` = no declarada ->
+  // se calcula como DIURNA, que es la jornada ordinaria.
+  workSchedule        JornadaType?
   // Clasificación LOTTT y estado civil (auditoria 2026-06-02)
   maritalStatus       MaritalStatus? // Estado civil — ISLR D. 1808
   payrollWorkerType   PayrollWorkerType @default(EMPLEADO) // Tipo trabajador LOTTT Art. 1

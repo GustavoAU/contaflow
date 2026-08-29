@@ -553,7 +553,7 @@ export const PayrollRunService = {
         salaryAmount: e.salaryHistory[0].amount,
         salaryCurrency: e.salaryHistory[0].currency,
         // LOTTT Art. 173: la jornada decide el divisor del salario hora.
-        workShift: e.workShift,
+        workShift: e.workSchedule,
         overtimeHoursDay: overtimeByEmp.get(e.id)?.dayAuth ?? new Decimal(0),
         overtimeHoursNight: overtimeByEmp.get(e.id)?.nightAuth ?? new Decimal(0),
         overtimeHoursDayUnauthorized: overtimeByEmp.get(e.id)?.dayUnauth,

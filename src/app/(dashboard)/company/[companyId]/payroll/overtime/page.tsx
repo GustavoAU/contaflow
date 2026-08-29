@@ -36,13 +36,13 @@ export default async function OvertimePage({ params }: Props) {
     OvertimeService.list(companyId),
     prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
-      select: { id: true, firstName: true, lastName: true, workShift: true },
+      select: { id: true, firstName: true, lastName: true, workSchedule: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
   ]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 py-8 px-4">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Horas Extraordinarias</h1>
@@ -64,7 +64,7 @@ export default async function OvertimePage({ params }: Props) {
         employees={employees.map((e) => ({
           id: e.id,
           name: `${e.lastName}, ${e.firstName}`,
-          workShift: e.workShift,
+          workShift: e.workSchedule,
         }))}
       />
     </div>
