@@ -251,21 +251,35 @@ paso intermedio, no como destino.
    solo en analisis secundario y en contra del criterio que este mismo ADR se
    habia fijado. Salio bien, pero la decision se tomo sin la evidencia exigida.
 
-3. **IVSS: la clase de riesgo YA quedo, falta la periodicidad.** El patronal
-   9/10/11% segun riesgo esta implementado (`ivssRiskClass`, declarable desde
-   el wizard) y el techo de 5 salarios minimos sale del Reglamento Art. 98.
-   Sigue abierto que la cotizacion es **semanal** (Reglamento Arts. 99/100/102 —
-   se cuentan los lunes del mes, no 4,33 semanas fijas), mientras ContaFlow la
-   calcula mensual plana. Antes de tocarlo hay que decidir si la base es la del
-   Art. 83 de la LSS (que incluye la hora extra regular) o el salario normal de
-   la LOTTT: no son la misma cifra.
-4. **Topes de horas extra (Art. 178).** El calculador valida que las horas no
-   sean negativas y nada mas. La Ley topa en diez horas diarias de trabajo
-   efectivo, **diez horas extra semanales y cien anuales**. Ninguna se comprueba.
-   El Art. 182 anade que las horas extra laboradas sin autorizacion de la
-   Inspectoria se pagan con el **doble** del recargo, dato que ContaFlow no
-   captura; y el Art. 183 obliga a llevar un registro de horas extraordinarias
-   que tampoco existe.
+3. ~~IVSS~~ **RESUELTO (2026-08-28).** La clase de riesgo se declara desde el
+   wizard (`ivssRiskClass`), el techo son cinco salarios minimos MENSUALES
+   (Reglamento Art. 98) y la cotizacion pasa a ser **semanal** (Arts. 99/100/102:
+   salario semanal = mensual x 12 / 52, por las semanas que cubre el periodo).
+   Se acota el mes y DESPUES se lleva a semanas, porque el techo es mensual.
+
+   La duda de la base se resolvio sin cambiar nada: el Art. 83 del Reglamento
+   incluye la hora extra **"cuando ocurra con alguna fijeza o regularidad"** y
+   excluye la eventual — que es exactamente la distincion de D-1 entre
+   `SALARIO_NORMAL` y `SALARIAL_ACCIDENTAL`. Hoy toda hora extra es accidental,
+   asi que la base coincide; cuando exista el override por empleado del D-6, la
+   hora extra habitual entrara sola en la base del IVSS, como manda el Art. 83.
+
+   Contar los LUNES del periodo es practica del sistema TIUNA, no texto del
+   Reglamento. Se implementa asi porque es contra esa factura que la empresa
+   concilia y porque produce los 4 o 5 que el Art. 100 contempla; queda anotado
+   en el codigo por si el criterio del instituto cambia.
+4. **Topes de horas extra (Art. 178): los dos limites SI se comprueban; el
+   Art. 182 y el 183 siguen abiertos.** El calculador avisa al superar diez horas
+   por semana del periodo o cien en el ano (acumulando los runs APPROVED). Avisa
+   y NO bloquea, a proposito: las horas ya se trabajaron y el Art. 118 obliga a
+   pagarlas — negarse a liquidar dejaria al trabajador sin cobrar lo devengado
+   para corregir una infraccion del patrono.
+
+   Queda pendiente el **Art. 182** (recargo DOBLE si se laboraron sin
+   autorizacion de la Inspectoria): exige capturar si esa autorizacion existe,
+   que es una decision de modelo de datos, no un calculo. Y el **Art. 183**, el
+   registro formal de horas extraordinarias: hoy los excesos quedan en el
+   AuditLog del proceso, que da rastro pero no es el libro que pide la Ley.
 
 ---
 
