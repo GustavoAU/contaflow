@@ -498,7 +498,15 @@ export const PayrollRunService = {
       where: {
         companyId,
         payrollRunId: null,
-        workedOn: { gte: periodStart, lte: periodEnd },
+        // `lte: periodEnd` y no un rango: las horas de un período cuya nómina ya
+        // se aprobó quedaban sin recoger POR NADIE — el run siguiente sólo
+        // miraba su propia ventana y el de su período ya no se puede rehacer
+        // (@@unique). Se veían para siempre como "por pagar".
+        //
+        // Arrastrarlas es lo que hace cualquier nómina real: se pagan tarde,
+        // pero se pagan. Siguen sin cobrarse hasta que alguien las liquide, así
+        // que barrer lo pendiente es lo correcto, no una licencia.
+        workedOn: { lte: periodEnd },
       },
       select: { id: true, employeeId: true, hours: true, kind: true, authorized: true },
     });
