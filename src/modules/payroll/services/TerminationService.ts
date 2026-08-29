@@ -403,7 +403,11 @@ export const TerminationService = {
     const totalNetAmount = totalGrossAmount.sub(deductionsAmount);
 
     try {
-      const termination = await prisma.termination.create({
+      // D1: la liquidación y su AuditLog van en el MISMO $transaction. Estaban
+      // como dos escrituras sueltas: si la segunda fallaba quedaba una
+      // liquidación sin rastro de quién la creó ni desde dónde (R-6).
+      return await prisma.$transaction(async (tx) => {
+      const termination = await tx.termination.create({
         data: {
           companyId,
           employeeId,
@@ -434,7 +438,7 @@ export const TerminationService = {
         },
       });
 
-      await prisma.auditLog.create({
+      await tx.auditLog.create({
         data: {
           companyId,
           entityName: "Termination",
@@ -449,11 +453,18 @@ export const TerminationService = {
             reason: input.reason,
             terminationDate: input.terminationDate,
             totalGrossAmount: totalGrossAmount.toFixed(4),
+            // D2: sin esto el AuditLog no dejaba constancia de POR QUE se pago
+            // ese monto. El Art. 142(d) tiene dos ramas y se paga la mayor;
+            // saber cual gano es la mitad de la trazabilidad.
+            benefitsBasisApplied,
+            benefitsAccumulatedAmount: benefitsAccumulatedAmount.toFixed(4),
+            benefitsRetroactiveAmount: benefitsRetroactiveAmount.toFixed(4),
           },
         },
       });
 
       return serializeTermination(termination);
+      });
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&

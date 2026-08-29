@@ -136,6 +136,9 @@ describe("TerminationService.create", () => {
     );
     vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // D1: create() escribe la liquidacion y su AuditLog en el MISMO
+    // $transaction, como manda el CLAUDE.md. Antes eran dos escrituras sueltas.
+    mockTx();
   });
 
   it("IDOR: throws if employee not found in company", async () => {
@@ -449,6 +452,9 @@ describe("TerminationService - Art. 142(d), se paga el monto MAYOR", () => {
     );
     vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // D1: create() escribe la liquidacion y su AuditLog en el MISMO
+    // $transaction, como manda el CLAUDE.md. Antes eran dos escrituras sueltas.
+    mockTx();
   });
 
   async function createWithBalance(currentBalance: string) {
@@ -539,6 +545,9 @@ describe("TerminationService - hallazgos de la auditoria", () => {
     );
     vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    // D1: create() escribe la liquidacion y su AuditLog en el MISMO
+    // $transaction, como manda el CLAUDE.md. Antes eran dos escrituras sueltas.
+    mockTx();
   });
 
   // B3 — el unico sitio del barrido que se quedo con los 15 dias de la LOT/97

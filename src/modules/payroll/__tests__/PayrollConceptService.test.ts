@@ -22,7 +22,19 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { PayrollConceptService } from "../services/PayrollConceptService";
+import { PayrollConceptService, SYSTEM_CONCEPTS } from "../services/PayrollConceptService";
+
+// Las filas tal como quedarian en la BD tras un seed correcto. Se derivan de la
+// misma constante que usa el servicio: lo que se comprueba aqui es la logica de
+// deteccion de diferencias, no los valores legales (esos los fijan los tests del
+// calculador y las Gacetas citadas en el propio servicio).
+const SYSTEM_CONCEPTS_ROWS = SYSTEM_CONCEPTS.map((c, i) => ({
+  id: `sys-${i}`,
+  code: c.code,
+  isSystem: true,
+  affectsSalaryIntegral: c.affectsSalaryIntegral,
+  salaryNature: c.salaryNature,
+}));
 
 const COMPANY_ID = "company-test";
 const USER_ID = "user-1";
@@ -69,43 +81,70 @@ describe("PayrollConceptService.list", () => {
 });
 
 describe("PayrollConceptService.seedDefaults", () => {
-  it("upserts all 18 system concepts (incl. DOM_FERIADO + DESCANSO_COMP + BONO_ALIM_EFECT + aportes patronales F-03)", async () => {
-    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+  // D3: antes reescribia los 18 conceptos con upsert en CADA llamada —y se
+  // llama desde rutas de lectura—, tocando tres campos con incidencia fiscal
+  // sin dejar rastro. Ahora lee primero y solo escribe lo que de verdad esta mal.
+
+  function existentes(rows: unknown[]) {
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue(rows as never);
+    vi.mocked(prisma.payrollConcept.create).mockResolvedValue(BASE_CONCEPT as never);
+    vi.mocked(prisma.payrollConcept.update).mockResolvedValue(BASE_CONCEPT as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    mockTx();
+  }
+
+  it("crea los 18 conceptos del sistema cuando no existe ninguno", async () => {
+    existentes([]);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-    // 11 originales + 4 aportes patronales (F-03) + 3 nuevos auditoria 2026-06-02
-    expect(vi.mocked(prisma.payrollConcept.upsert)).toHaveBeenCalledTimes(18);
+    // 11 originales + 4 aportes patronales (F-03) + 3 de la auditoria 2026-06-02
+    expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(18);
+    const codes = vi.mocked(prisma.payrollConcept.create).mock.calls
+      .map((c) => (c[0].data as { code: string }).code);
+    // Sin SAL_BASE la nomina no tiene ingresos.
+    expect(codes).toContain("SAL_BASE");
   });
 
-  it("is idempotent — upsert propagates affectsSalaryIntegral on update", async () => {
-    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+  it("con todo en orden NO escribe nada", async () => {
+    // El caso normal: seedDefaults corre en cada calculo de nomina y al abrir la
+    // lista de conceptos. Reescribir 18 filas cada vez era trabajo y riesgo de
+    // balde.
+    existentes(SYSTEM_CONCEPTS_ROWS);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-    const firstCall = vi.mocked(prisma.payrollConcept.upsert).mock.calls[0][0];
-    expect(firstCall.update).toHaveProperty("affectsSalaryIntegral");
+    expect(vi.mocked(prisma.payrollConcept.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.payrollConcept.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
   });
 
   // El motor de nomina carga los conceptos con `where: { isSystem: true }`. Una
   // fila de SYSTEM_CONCEPTS marcada como false es INVISIBLE para el: si le pasa
   // a SAL_BASE, la nomina no genera linea de salario y el neto sale negativo.
-  // seedDefaults corre en CADA calculo, asi que si no lo repara aqui, no se
-  // repara nunca. Precedente medido: seed-demo-tesa.ts creo SAL_BASE con
-  // isSystem:false y la nomina de esa empresa no podia calcularse (2026-08-23).
-  it("REPARA isSystem en filas ya existentes, no solo al crearlas", async () => {
-    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+  // Precedente medido: seed-demo-tesa.ts creo SAL_BASE con isSystem:false y la
+  // nomina de esa empresa no podia calcularse (2026-08-23).
+  it("REPARA isSystem en filas ya existentes y lo deja en el AuditLog", async () => {
+    const rotas = SYSTEM_CONCEPTS_ROWS.map((r) =>
+      r.code === "SAL_BASE" ? { ...r, isSystem: false } : r,
+    );
+    existentes(rotas);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
 
-    for (const call of vi.mocked(prisma.payrollConcept.upsert).mock.calls) {
-      expect(call[0].update).toMatchObject({ isSystem: true });
-      expect(call[0].create).toMatchObject({ isSystem: true });
-    }
+    expect(vi.mocked(prisma.payrollConcept.update)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data)
+      .toMatchObject({ isSystem: true });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "REPAIR_SYSTEM_CONCEPTS" }),
+      }),
+    );
   });
 
-  it("cubre SAL_BASE — sin el, la nomina no tiene ingresos", async () => {
-    vi.mocked(prisma.payrollConcept.upsert).mockResolvedValue(BASE_CONCEPT as never);
+  it("REPARA una salaryNature alterada — decide una cotizacion", async () => {
+    const rotas = SYSTEM_CONCEPTS_ROWS.map((r) =>
+      r.code === "SAL_BASE" ? { ...r, salaryNature: "NO_SALARIAL" } : r,
+    );
+    existentes(rotas);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-
-    const codes = vi.mocked(prisma.payrollConcept.upsert).mock.calls
-      .map((c) => (c[0].where as { companyId_code: { code: string } }).companyId_code.code);
-    expect(codes).toContain("SAL_BASE");
+    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data)
+      .toMatchObject({ salaryNature: "SALARIO_NORMAL" });
   });
 });
 
