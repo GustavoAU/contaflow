@@ -51,6 +51,26 @@ export { LEGAL_MIN_PROFIT_DAYS, integralDailyWageFrom };
 function calcAdditionalDays(hireDate: Date, quarterEndDate: Date): Decimal {
   const ms = 365.25 * 24 * 60 * 60 * 1000;
   const yearsOfService = Math.floor((quarterEndDate.getTime() - hireDate.getTime()) / ms);
+  // LOTTT Art. 142(b), literal: "Adicionalmente y DESPUÉS DEL PRIMER AÑO de
+  // servicio, el patrono o patrona depositará a cada trabajador o trabajadora
+  // dos días de salario, por cada año, acumulativos hasta treinta días de
+  // salario."
+  //
+  // El "después del primer año" SÍ lo resuelve el literal, y es lo que hace el
+  // guard de arriba: durante el primer año no se deposita nada, y el primer
+  // depósito cae en el segundo año.
+  //
+  // Lo que el literal NO resuelve es qué acumula. Caben dos lecturas y divergen
+  // fuerte a partir del tercer año:
+  //   (A) el DEPÓSITO ANUAL crece — año 2: 2 días, año 3: 4, año 4: 6, tope 30.
+  //       Acumulado tras 6 años: 30 días.
+  //   (B) el TOTAL acumulado crece de dos en dos — 2 días cada año, tope 30.
+  //       Acumulado tras 6 años: 10 días.
+  //
+  // ContaFlow implementa (A), que es la práctica dominante en Venezuela y lo que
+  // ya hacía este código. No se cambia sobre una lectura propia: mover esto es
+  // mover el mayor pasivo laboral de la empresa por un factor de tres. Queda
+  // anotado como pendiente de criterio contable, no de implementación.
   if (yearsOfService < 1) return new Decimal(0);
   const additionalAnnual = Math.min(yearsOfService * 2, 30);
   return new Decimal(additionalAnnual).div(4);
