@@ -33,6 +33,10 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    overtimeEntry: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     accountingPeriod: {
       findFirst: vi.fn(),
     },
@@ -158,6 +162,7 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.employee.findMany).mockResolvedValue([
       {
         id: "emp-1",
+        workShift: "DIURNA",
         salaryHistory: [{ id: "sal-1", amount: new Decimal("30000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
       },
     ] as never);
@@ -170,6 +175,9 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null); // sin tasa BCV configurada
     // Ley INCES Art. 49: por encima del umbral de cinco trabajadores.
     vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+    // LOTTT Art. 183: sin registro de horas extra en el periodo.
+    vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.overtimeEntry.update).mockResolvedValue({} as never);
     // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
     // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
@@ -227,6 +235,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
+      workShift: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("1000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
@@ -451,6 +460,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
+      workShift: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
@@ -459,6 +469,7 @@ describe("PayrollRunService.create", () => {
     ] as never);
     vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+    vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([] as never);
     // Linea base propia del mes anterior: `vi.clearAllMocks()` borra las llamadas
     // pero NO las implementaciones, asi que sin esto un mockResolvedValue de otro
     // test se filtra aqui y cambia la base de cotizacion sin que se note.
@@ -589,6 +600,7 @@ describe("PayrollRunService.create", () => {
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([{
       id: "emp-1",
+      workShift: "DIURNA",
       salaryHistory: [{ id: "sal-1", amount: new Decimal("3000"), currency: "VES", effectiveFrom: new Date("2026-01-01") }],
     }] as never);
     vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([

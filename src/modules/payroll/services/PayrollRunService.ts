@@ -457,6 +457,48 @@ export const PayrollRunService = {
       }
     }
 
+    // ── Horas extra del período (LOTTT Art. 183) ───────────────────────────
+    // Vienen del registro, que es donde la Ley manda anotarlas. Hasta 2026-08-29
+    // esto era `new Decimal(0)` en duro: las líneas HE_DIURNA/HE_NOCTURNA no se
+    // generaban nunca y los recargos de los Arts. 117/118 y los topes del 178
+    // eran código inalcanzable.
+    //
+    // Sólo las que aún no se han pagado (`payrollRunId: null`): si un período se
+    // reprocesa, las horas ya liquidadas en otra nómina no se vuelven a pagar.
+    const overtimeEntries = await prisma.overtimeEntry.findMany({
+      where: {
+        companyId,
+        payrollRunId: null,
+        workedOn: { gte: periodStart, lte: periodEnd },
+      },
+      select: { id: true, employeeId: true, hours: true, kind: true, authorized: true },
+    });
+
+    type OvertimeBuckets = {
+      dayAuth: Decimal; nightAuth: Decimal;
+      dayUnauth: Decimal; nightUnauth: Decimal;
+    };
+    const overtimeByEmp = new Map<string, OvertimeBuckets>();
+    for (const e of overtimeEntries) {
+      if (!overtimeByEmp.has(e.employeeId)) {
+        overtimeByEmp.set(e.employeeId, {
+          dayAuth: new Decimal(0), nightAuth: new Decimal(0),
+          dayUnauth: new Decimal(0), nightUnauth: new Decimal(0),
+        });
+      }
+      const b = overtimeByEmp.get(e.employeeId)!;
+      const h = new Decimal(e.hours.toString());
+      // Art. 182: el permiso de la Inspectoría cambia la TARIFA, no la
+      // naturaleza de la hora. Por eso se separan en cuatro cubos y no en dos.
+      if (e.kind === "DIURNA") {
+        if (e.authorized) b.dayAuth = b.dayAuth.plus(h);
+        else b.dayUnauth = b.dayUnauth.plus(h);
+      } else {
+        if (e.authorized) b.nightAuth = b.nightAuth.plus(h);
+        else b.nightUnauth = b.nightUnauth.plus(h);
+      }
+    }
+
     // ── Construir inputs del calculador ────────────────────────────────────
     const empInputs: EmployeeCalculationInput[] = employees
       .filter((e) => e.salaryHistory.length > 0)
@@ -465,8 +507,12 @@ export const PayrollRunService = {
         salaryHistoryId: e.salaryHistory[0].id,
         salaryAmount: e.salaryHistory[0].amount,
         salaryCurrency: e.salaryHistory[0].currency,
-        overtimeHoursDay: new Decimal(0),
-        overtimeHoursNight: new Decimal(0),
+        // LOTTT Art. 173: la jornada decide el divisor del salario hora.
+        workShift: e.workShift,
+        overtimeHoursDay: overtimeByEmp.get(e.id)?.dayAuth ?? new Decimal(0),
+        overtimeHoursNight: overtimeByEmp.get(e.id)?.nightAuth ?? new Decimal(0),
+        overtimeHoursDayUnauthorized: overtimeByEmp.get(e.id)?.dayUnauth,
+        overtimeHoursNightUnauthorized: overtimeByEmp.get(e.id)?.nightUnauth,
         absenceDays: new Decimal(0),
         // undefined para quien no tenga mes anterior: el calculador cotiza
         // entonces sobre el mes en curso (ver D-5).
@@ -983,6 +1029,56 @@ export const PayrollRunService = {
               },
             });
           }
+        }
+      }
+
+      // ── Cerrar el registro del Art. 183 ────────────────────────────────
+      // "la REMUNERACION ESPECIAL que haya pagado a cada trabajador": hasta que
+      // la nomina se aprueba, las horas estan registradas pero sin pagar. Se
+      // marcan con el run que las liquido para que (a) no se vuelvan a pagar si
+      // el periodo se reprocesa y (b) el registro quede completo.
+      const paidOvertime = await tx.payrollRunLine.findMany({
+        where: {
+          companyId,
+          payrollRunId: runId,
+          conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
+        },
+        select: { employeeId: true, conceptCode: true, amount: true, hours: true },
+      });
+      if (paidOvertime.length > 0) {
+        // El importe se reparte por hora entre los registros del empleado: el
+        // calculador agrega por tipo, asi que no hay correspondencia 1:1 entre
+        // linea y registro. Prorratear es la unica forma honesta de responder
+        // "cuanto se le pago por ESTAS horas".
+        const paidPerHour = new Map<string, Decimal>();
+        for (const l of paidOvertime) {
+          if (!l.hours || new Decimal(l.hours.toString()).lte(0)) continue;
+          const kind = l.conceptCode === "HE_DIURNA" ? "DIURNA" : "NOCTURNA";
+          paidPerHour.set(
+            `${l.employeeId}:${kind}`,
+            new Decimal(l.amount.toString()).div(l.hours.toString()),
+          );
+        }
+
+        const pending = await tx.overtimeEntry.findMany({
+          where: {
+            companyId,
+            payrollRunId: null,
+            workedOn: { gte: run.periodStart, lte: run.periodEnd },
+          },
+          select: { id: true, employeeId: true, kind: true, hours: true },
+        });
+        for (const e of pending) {
+          const rate = paidPerHour.get(`${e.employeeId}:${e.kind}`);
+          await tx.overtimeEntry.update({
+            where: { id: e.id },
+            data: {
+              payrollRunId: runId,
+              paidAmount: rate
+                ? rate.mul(e.hours.toString()).toDecimalPlaces(4).toFixed(4)
+                : null,
+            },
+          });
         }
       }
 
