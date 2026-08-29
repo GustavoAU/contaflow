@@ -21,6 +21,7 @@ import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import { countCompleteMonths } from "./VacationService";
+import { bcvRateAt, salaryAmountToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -159,8 +160,23 @@ export const ProfitSharingService = {
     const salariesInPeriod = salaryRows.filter(
       (r) => r.effectiveFrom <= periodEnd
     );
+
+    // Cada fila se lleva a bolívares ANTES de promediar. Antes se sumaba
+    // `amount` sin mirar `currency`: un historial con un tramo en USD y otro en
+    // Bs. se promediaba como si fueran la misma unidad, y el resultado no era
+    // ninguna de las dos monedas. Con historial 100% en USD el promedio salía
+    // dividido por la tasa, y con él la utilidad y su asiento.
+    // Una sola tasa —la vigente al cierre del período— para todas las filas:
+    // convertir cada tramo con la suya exige el historial completo de tasas y es
+    // trabajo aparte (misma simplificación que TerminationService).
+    const bcvRate = salariesInPeriod.some((r) => r.currency === "USD")
+      ? await bcvRateAt(companyId, periodEnd)
+      : null;
     const avgSalary = salariesInPeriod
-      .reduce((sum, r) => sum.add(new Decimal(r.amount.toString())), new Decimal(0))
+      .reduce(
+        (sum, r) => sum.add(salaryAmountToVes(new Decimal(r.amount.toString()), r.currency, bcvRate)),
+        new Decimal(0),
+      )
       .div(salariesInPeriod.length);
 
     // F-07: usar utilidad neta cuando se provee; fallback a config.profitDays (LOTTT Art. 131)

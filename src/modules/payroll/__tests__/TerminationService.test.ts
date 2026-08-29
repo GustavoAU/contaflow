@@ -78,7 +78,7 @@ const BASE_EMPLOYEE = {
   status: "ACTIVE" as const,
   hireDate: new Date("2024-01-01"),
   salaryHistory: [
-    { id: "sal-1", amount: new Decimal("3000"), effectiveFrom: new Date("2024-01-01") },
+    { id: "sal-1", amount: new Decimal("3000"), currency: "VES" as const, effectiveFrom: new Date("2024-01-01") },
   ],
   benefitBalance: null,
 };

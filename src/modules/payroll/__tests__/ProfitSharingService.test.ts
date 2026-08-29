@@ -30,6 +30,9 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    exchangeRate: {
+      findFirst: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -71,7 +74,7 @@ const BASE_SALARY_ROWS = [
     companyId: COMPANY,
     effectiveFrom: new Date("2026-01-01"),
     amount: new Decimal("3000"),
-    currency: "VES",
+    currency: "VES" as const,
   },
 ];
 
@@ -311,4 +314,76 @@ describe("ProfitSharingService.listByEmployee", () => {
       expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY }) })
     );
   });
+
 });
+
+// ── Moneda del historial salarial (auditoría 2026-08-28) ────────────────────
+describe("ProfitSharingService — moneda del historial", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe("ProfitSharingService.calculate — sueldos en divisas", () => {
+    function setup(rows: unknown[], rate: string | null) {
+      vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+      vi.mocked(prisma.employee.count).mockResolvedValue(10 as never);
+      vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(rows as never);
+      vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+      vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+        profitDays: 30,
+        profitSharingPayableAccountId: "acc-pay",
+        benefitsExpenseAccountId: "acc-exp",
+        incesPayableAccountId: "acc-inces",
+      } as never);
+      vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+        rate ? ({ rate: new Decimal(rate) } as never) : null,
+      );
+      vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+      vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+      vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+      vi.mocked(prisma.$transaction).mockImplementation(
+        ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
+      );
+    }
+
+    const usdRow = {
+      id: "sal-1", employeeId: EMP_ID, companyId: COMPANY,
+      effectiveFrom: new Date("2026-01-01"),
+      amount: new Decimal("1000"), currency: "USD" as const,
+    };
+    const vesRow = {
+      id: "sal-2", employeeId: EMP_ID, companyId: COMPANY,
+      effectiveFrom: new Date("2026-06-01"),
+      amount: new Decimal("100000"), currency: "VES" as const,
+    };
+
+    it("no promedia USD y Bs. como si fueran la misma unidad", async () => {
+      // El bug: sumaba `amount` sin mirar `currency`. Con este historial daba
+      // (1000 + 100000) / 2 = 50.500, un numero que no es ninguna de las dos
+      // monedas. Lo correcto: (1000x100 + 100000) / 2 = 100.000 Bs.
+      setup([usdRow, vesRow], "100");
+
+      await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 });
+
+      const data = vi.mocked(prisma.profitSharingRecord.create).mock.calls.at(-1)![0].data as {
+        baseSalarySnapshot: string;
+      };
+      expect(new Decimal(baseOf(data)).toFixed(2)).toBe("100000.00");
+    });
+
+    it("sin tasa BCV no calcula — bloquea en vez de mezclar monedas", async () => {
+      setup([usdRow], null);
+      await expect(
+        ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+      ).rejects.toThrow("tasa BCV");
+    });
+
+    it("historial 100% en Bs. no consulta tasa de cambio", async () => {
+      setup([vesRow], null);
+      await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 });
+      expect(prisma.exchangeRate.findFirst).not.toHaveBeenCalled();
+    });
+  });
+});
+
+function baseOf(data: { baseSalarySnapshot: string }): string {
+  return data.baseSalarySnapshot.toString();
+}

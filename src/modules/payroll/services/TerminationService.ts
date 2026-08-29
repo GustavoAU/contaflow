@@ -26,6 +26,7 @@ import { countCompleteMonths, VacationService } from "./VacationService";
 import {
   integralDailyWageFrom, LEGAL_MIN_PROFIT_DAYS,
 } from "./BenefitAccrualService";
+import { monthlyWageToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -253,25 +254,9 @@ export const TerminationService = {
     // acumuló con las tasas históricas de cada trimestre; convertir cada tramo
     // a su tasa exigiría el historial completo y es trabajo aparte.
     const salaryRow = employee.salaryHistory[0];
-    let monthlyWageVes = salaryRow
-      ? new Decimal(salaryRow.amount.toString())
+    const monthlyWageVes = salaryRow
+      ? await monthlyWageToVes(companyId, salaryRow, terminationDate)
       : new Decimal(0);
-
-    if (salaryRow && salaryRow.currency === "USD") {
-      const fxRow = await prisma.exchangeRate.findFirst({
-        where: { companyId, currency: "USD", date: { lte: terminationDate } },
-        orderBy: { date: "desc" },
-        select: { rate: true },
-      });
-      if (!fxRow) {
-        throw new Error(
-          "El empleado tiene el sueldo en USD y no hay tasa BCV registrada a la " +
-          "fecha de egreso. Regístrala en Contabilidad → Tasas de Cambio antes " +
-          "de generar la liquidación."
-        );
-      }
-      monthlyWageVes = monthlyWageVes.mul(new Decimal(fxRow.rate.toString()));
-    }
 
     const dailyNormalWage = monthlyWageVes.div(30);
 

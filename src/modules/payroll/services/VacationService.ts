@@ -17,6 +17,7 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
+import { monthlyWageToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -112,7 +113,13 @@ export const VacationService = {
     if (!salaryRow) {
       throw new Error("El empleado no tiene salario registrado vigente a la fecha de inicio de vacaciones");
     }
-    const monthlyWage = new Decimal(salaryRow.amount.toString());
+    // El asiento de vacaciones se registra en bolívares, así que el sueldo se
+    // convierte antes de prorratearlo. Leer `amount` sin mirar `currency` metía
+    // "2.500" en el Libro Diario por un sueldo de USD 2.500 — el pasivo quedaba
+    // dividido por la tasa. Misma clase de error que H-4 en el calculador.
+    const monthlyWage = await monthlyWageToVes(
+      companyId, salaryRow, new Date(input.startDate),
+    );
     const dailyNormalWage = monthlyWage.div(30);
 
     const vacationDays = new Decimal(input.vacationDays);
