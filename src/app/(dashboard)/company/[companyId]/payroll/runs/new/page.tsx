@@ -38,7 +38,7 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
 
-  const [activeEmployeeCount, salMinThreshold, bcvRateForMonth] = await Promise.all([
+  const [activeEmployeeCount, salMinThreshold, bcvRateForMonth, employees] = await Promise.all([
     EmployeeService.countActive(companyId),
     prisma.legalThreshold.findFirst({
       where: { companyId, type: "SALARY_MIN_VES" },
@@ -48,6 +48,21 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
     prisma.bcvBenefitRate.findFirst({
       where: { companyId, year: currentYear, month: currentMonth },
       select: { id: true },
+    }),
+    // Con su moneda vigente: el calculador BLOQUEA las nóminas de monedas
+    // mixtas (C-01) porque los totales no serían de ninguna de las dos, así que
+    // el formulario tiene que dejar separar por moneda.
+    prisma.employee.findMany({
+      where: { companyId, status: "ACTIVE" },
+      select: {
+        id: true, firstName: true, lastName: true,
+        salaryHistory: {
+          orderBy: { effectiveFrom: "desc" },
+          take: 1,
+          select: { currency: true },
+        },
+      },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
   ]);
 
@@ -60,7 +75,7 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
   }
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="p-6 max-w-3xl">
       <PayrollRunForm
         companyId={companyId}
         activeEmployeeCount={activeEmployeeCount}
@@ -69,6 +84,11 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
         salMinLastUpdate={salMinThreshold?.effectiveFrom.toISOString() ?? null}
         salMinValue={salMinThreshold?.value.toString() ?? null}
         hasBcvRateForMonth={!!bcvRateForMonth}
+        employees={employees.map((e) => ({
+          id: e.id,
+          name: `${e.lastName}, ${e.firstName}`,
+          currency: e.salaryHistory[0]?.currency ?? null,
+        }))}
       />
     </div>
   );
