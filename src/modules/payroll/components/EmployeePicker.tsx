@@ -12,14 +12,15 @@
 // ya rozaba el límite del compilador: con este bloque inline, `next build`
 // abortaba con "Zone Allocation failed" incluso con 8 GB de heap.
 
-import type { RunEmployeeOption } from "./PayrollRunForm";
+import type { PickerEmployee } from "./PayrollRunForm";
 
 interface Props {
-  employees: RunEmployeeOption[];
+  /** Todos los activos, con la moneda ya resuelta a la fecha del período. */
+  employees: PickerEmployee[];
   selected: Set<string>;
   onToggle: (id: string) => void;
   onSelectCurrency: (currency: string) => void;
-  currencies: (RunEmployeeOption["currency"])[];
+  currencies: (PickerEmployee["currency"])[];
   mixed: boolean;
   /** Monedas mezcladas en la selección actual, ya formateadas. `null` si es válida. */
   invalidMix: string | null;
@@ -30,13 +31,16 @@ export function EmployeePicker({
 }: Props) {
   if (employees.length === 0) return null;
 
+  const elegibles = employees.filter((e) => e.currency !== null).length;
+
   return (
     <div className="rounded-lg border bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-gray-800">Trabajadores a incluir</p>
           <p className="text-xs text-gray-500">
-            {selected.size} de {employees.length} seleccionados
+            {selected.size} de {elegibles} seleccionados · moneda vigente al
+            inicio del período
           </p>
         </div>
         {mixed && (
@@ -64,18 +68,30 @@ export function EmployeePicker({
       )}
 
       <div className="max-h-56 space-y-1 overflow-y-auto">
-        {employees.map((e) => (
-          <label key={e.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-sm">
-            <input
-              type="checkbox"
-              checked={selected.has(e.id)}
-              onChange={() => onToggle(e.id)}
-              className="h-4 w-4 accent-blue-600"
-            />
-            <span className="flex-1">{e.name}</span>
-            <span className="font-mono text-xs text-gray-400">{e.currency}</span>
-          </label>
-        ))}
+        {employees.map((e) => {
+          // Sin vigencia al inicio del período el calculador lo descarta sin
+          // avisar: marcarlo daba a entender que iba a cobrar y no cobraba.
+          const sinSueldo = e.currency === null;
+          return (
+            <label
+              key={e.id}
+              className={`flex items-center gap-2 py-0.5 text-sm ${sinSueldo ? "opacity-60" : "cursor-pointer"}`}
+              title={sinSueldo ? "No tiene sueldo con vigencia al inicio del período" : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(e.id)}
+                disabled={sinSueldo}
+                onChange={() => onToggle(e.id)}
+                className="h-4 w-4 accent-blue-600"
+              />
+              <span className="flex-1">{e.name}</span>
+              <span className="font-mono text-xs text-gray-400">
+                {sinSueldo ? "sin sueldo vigente" : e.currency}
+              </span>
+            </label>
+          );
+        })}
       </div>
 
       {invalidMix && (

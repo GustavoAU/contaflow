@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
 import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, currencySymbol } from "@/lib/format";
 
 interface Props {
   companyId: string;
@@ -61,9 +61,12 @@ function conceptLabel(code: string): string {
 // Fila con LINEA GUIA: en pantalla ancha el concepto quedaba en un extremo y su
 // importe en el otro, y seguir cual monto pertenece a cual linea era un ejercicio
 // de vista. El punteado los une y el hover marca la fila entera.
-function ConceptRow({ label, detail, amount, tone }: {
+function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
   label: string;
   detail?: React.ReactNode;
+  /** "+", "-" o "" — se separa del importe para que el signo no se pegue al símbolo. */
+  sign: "+" | "-" | "";
+  symbol: string;
   amount: string;
   tone: "earning" | "deduction" | "employer";
 }) {
@@ -88,6 +91,8 @@ function ConceptRow({ label, detail, amount, tone }: {
         </span>
       </td>
       <td className={`w-32 py-0.5 pr-1 text-right font-mono tabular-nums ${color}`}>
+        {sign}
+        <span className="opacity-60">{symbol}</span>
         {amount}
       </td>
     </tr>
@@ -95,6 +100,10 @@ function ConceptRow({ label, detail, amount, tone }: {
 }
 
 export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate }: Props) {
+  // Un importe suelto ("-12,38") no se lee como dinero. El símbolo va en cada
+  // línea, atenuado, en vez del código completo: repetir "USD" sesenta veces
+  // pesaba más que la ambigüedad que resolvía.
+  const sym = currencySymbol(currency);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRecalculating, startRecalculate] = useTransition();
@@ -525,7 +534,9 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                               ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
                             </span>
                           ) : undefined}
-                          amount={`+${formatAmount(Number(l.amount))}`}
+                          sign="+"
+                          symbol={sym}
+                          amount={formatAmount(Number(l.amount))}
                         />
                       ))}
                     </tbody>
@@ -551,7 +562,9 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                               ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
                             </span>
                           ) : undefined}
-                          amount={`-${formatAmount(Number(l.amount))}`}
+                          sign="-"
+                          symbol={sym}
+                          amount={formatAmount(Number(l.amount))}
                         />
                       ))}
                     </tbody>
@@ -574,6 +587,8 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                                 ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
                               </span>
                             ) : undefined}
+                            sign=""
+                            symbol={sym}
                             amount={formatAmount(Number(l.amount))}
                           />
                         ))}

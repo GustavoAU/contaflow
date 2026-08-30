@@ -49,17 +49,18 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
       where: { companyId, year: currentYear, month: currentMonth },
       select: { id: true },
     }),
-    // Con su moneda vigente: el calculador BLOQUEA las nóminas de monedas
-    // mixtas (C-01) porque los totales no serían de ninguna de las dos, así que
-    // el formulario tiene que dejar separar por moneda.
+    // Con TODAS las vigencias del sueldo: el calculador BLOQUEA las nóminas de
+    // monedas mixtas (C-01) porque los totales no serían de ninguna de las dos,
+    // así que el formulario tiene que dejar separar por moneda — y para eso
+    // necesita la moneda que regirá el período que se elija ahí, no la última
+    // registrada. Sin `take: 1`: son una fila por cambio de sueldo.
     prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
       select: {
         id: true, firstName: true, lastName: true,
         salaryHistory: {
           orderBy: { effectiveFrom: "desc" },
-          take: 1,
-          select: { currency: true },
+          select: { effectiveFrom: true, currency: true },
         },
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -87,7 +88,12 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
         employees={employees.map((e) => ({
           id: e.id,
           name: `${e.lastName}, ${e.firstName}`,
-          currency: e.salaryHistory[0]?.currency ?? null,
+          // `effectiveFrom` es @db.Date (medianoche UTC): se serializa con
+          // getters UTC, que un Date local corre el día hacia atrás en Venezuela.
+          salaries: e.salaryHistory.map((s) => ({
+            from: s.effectiveFrom.toISOString().slice(0, 10),
+            currency: s.currency,
+          })),
         }))}
       />
     </div>

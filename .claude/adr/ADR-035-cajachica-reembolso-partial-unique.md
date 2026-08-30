@@ -154,3 +154,52 @@ Al quitar `@@unique` del schema y mantener el índice solo en BD, `prisma migrat
 - `20260512_fase35d_cajachica` — migración original que creó el índice incondicional.
 - CC-01 — auditoría Caja Chica 2026-06 (reembolso sin UI / movimientos sin llegar al Libro Mayor).
 - `CLAUDE.md` — "¿Cuándo usar Serializable?" (correlativos sí; este caso no) + manejo de P2002.
+
+---
+
+## Aplicaciones posteriores del mismo patrón
+
+### PayrollRun — período de nómina (2026-08-30)
+
+Tercera aparición del **mismo defecto**, ahora en Nómina. `PayrollRun` declaraba
+`@@unique([companyId, periodStart, periodEnd])` incondicional, y `cancel()` conserva
+la fila con `status = CANCELLED` (estado terminal, nunca se borra). Consecuencia:
+cancelar una nómina inutilizaba su período **para siempre**, lo que dejaba el botón
+**"Recalcular" estructuralmente inservible** — su única función es cancelar el
+borrador y recrearlo con las MISMAS fechas.
+
+Migración `20260830_payrollrun_period_partial_unique`, idéntica en forma a la de
+caja chica:
+
+```sql
+ALTER TABLE "PayrollRun" DROP CONSTRAINT IF EXISTS "PayrollRun_companyId_periodStart_periodEnd_key";
+DROP INDEX IF EXISTS "PayrollRun_companyId_periodStart_periodEnd_key";  -- ver nota abajo
+CREATE UNIQUE INDEX "PayrollRun_companyId_period_active_key"
+  ON "PayrollRun" ("companyId","periodStart","periodEnd")
+  WHERE status <> 'CANCELLED';
+```
+
+Aquí el objeto era un CONSTRAINT (verificado en `pg_constraint`, `contype='u'`), pero
+la migración incluye **ambos** DROP: sobre un índice suelto, `DROP CONSTRAINT IF EXISTS`
+es un NO-OP silencioso y dejaría el único viejo en pie sin que nada lo detecte.
+
+Diferencia con caja chica: el solapamiento de períodos **no idénticos** (01-15 vs
+01-31) no lo cubre ningún índice —son pares de fechas distintos— sino el guard
+aplicativo de `PayrollRunService.create`. El índice parcial es el respaldo de la BD
+contra la carrera entre dos peticiones simultáneas, no la regla completa.
+
+### Barrido de la clase de bug (2026-08-30)
+
+Auditados los 15 `@@unique` de modelos con estado anulable. **14 son correctos
+incondicionales y NO deben tocarse:**
+
+- `(companyId, idempotencyKey)` en 7 modelos — una clave de idempotencia no puede
+  reutilizarse jamás, anulado o no. Ése es su propósito.
+- `number` / `voucherNumber` / `referenceNumber` / `reimbursementNumber` —
+  **correlativos fiscales**: un documento anulado conserva su número para siempre
+  (Z-1). Liberarlo sería la infracción, no el arreglo.
+- `InventorySerial(companyId, itemId, serialNumber)` — identifica una pieza física.
+
+El patrón que sí exige índice parcial es más estrecho: un único sobre una **ranura
+reutilizable** (un mes, un período), donde el negocio permite rehacer lo anulado.
+De ésos sólo existían dos: caja chica (este ADR) y `PayrollRun`. **Ambos cerrados.**
