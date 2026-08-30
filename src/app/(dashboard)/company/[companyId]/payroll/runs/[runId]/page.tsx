@@ -56,6 +56,23 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   const currency = config?.paymentCurrency ?? "VES";
   const usdRate = usdRateRow?.rate?.toString() ?? null;
 
+  // Conceptos que el contador puede agregar a mano sobre el borrador. Se excluyen
+  // los que calcula la propia nómina: agregarlos duplicaría lo ya computado.
+  const CALCULADOS = new Set([
+    "SAL_BASE", "IVSS_OBR", "IVSS_PAT", "INCES_OBR", "INCES_PAT",
+    "FAOV_OBR", "FAOV_PAT", "RPE_OBR", "RPE_PAT",
+    "HE_DIURNA", "HE_NOCTURNA", "PRESTAMO_EMP",
+  ]);
+  const manualConcepts = canAdmin && run.status === "DRAFT"
+    ? (await prisma.payrollConcept.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, code: true, name: true, type: true, salaryNature: true },
+        orderBy: { name: "asc" },
+      }))
+        .filter((c) => !CALCULADOS.has(c.code))
+        .map(({ id, name, type, salaryNature }) => ({ id, name, type, salaryNature }))
+    : [];
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-3">
@@ -67,7 +84,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} usdRate={usdRate} />
+      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} usdRate={usdRate} manualConcepts={manualConcepts} />
     </div>
   );
 }

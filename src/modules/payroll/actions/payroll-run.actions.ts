@@ -23,6 +23,7 @@ import {
   CreatePayrollRunSchema,
   ApprovePayrollRunSchema,
   CancelPayrollRunSchema,
+  AddManualLineSchema,
 } from "../schemas/payroll-run.schema";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -190,6 +191,38 @@ export async function cancelPayrollRunAction(
     );
     revalidate(companyId);
     return { success: true, data: run };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
+
+// ─── addManualPayrollLineAction — ADMIN_ONLY ─────────────────────────────────
+// Concepto puntual sobre un borrador: retención de ISLR, un bono de una vez, un
+// descuento acordado. ADMIN_ONLY igual que crear/aprobar/cancelar: mueve el neto
+// a pagar de un trabajador.
+export async function addManualPayrollLineAction(
+  companyId: string,
+  rawInput: unknown,
+): Promise<ActionResult<{ id: string; conceptCode: string; amount: string }>> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+    return { success: false, error: moduleAccessError("payroll") };
+
+  const parsed = AddManualLineSchema.safeParse(rawInput);
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  try {
+    const line = await PayrollRunService.addManualLine(
+      companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent,
+    );
+    revalidate(companyId);
+    return { success: true, data: line };
   } catch (err) {
     return toActionError(err);
   }

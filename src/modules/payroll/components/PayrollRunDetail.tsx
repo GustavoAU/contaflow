@@ -10,6 +10,8 @@ import { Loader2Icon } from "lucide-react";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
 import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
 import { formatAmount, currencySymbol } from "@/lib/format";
+import { ManualLineForm } from "./ManualLineForm";
+import type { ManualLineConcept } from "./ManualLineForm";
 
 interface Props {
   companyId: string;
@@ -20,6 +22,9 @@ interface Props {
   salaryMinCap?: string | null;
   // Tasa de cambio USD/VES para mostrar equivalente en divisas
   usdRate?: string | null;
+  // Catálogo para agregar conceptos puntuales al borrador (ISLR, bonos de una
+  // vez). Vacío o ausente = no se ofrece.
+  manualConcepts?: ManualLineConcept[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -99,7 +104,7 @@ function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
   );
 }
 
-export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate }: Props) {
+export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate, manualConcepts }: Props) {
   // Un importe suelto ("-12,38") no se lee como dinero. El símbolo va en cada
   // línea, atenuado, en vez del código completo: repetir "USD" sesenta veces
   // pesaba más que la ambigüedad que resolvía.
@@ -126,6 +131,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
     acc[line.employeeId].push(line);
     return acc;
   }, {});
+
+  // Los trabajadores que ESTE proceso paga. Un concepto puntual sólo puede ir a
+  // alguien que ya tiene líneas aquí: el servicio lo exige, y ofrecer a los
+  // demás en el desplegable sólo produciría un error al enviar.
+  const empleadosDelRun = Object.entries(byEmployee).map(([id, lines]) => ({
+    id,
+    name: lines[0]?.employeeName ?? id,
+  }));
 
   async function handleExportExcel() {
     const { default: ExcelJS } = await import("exceljs");
@@ -356,6 +369,18 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             <p className="text-xs text-gray-400">
               Aprobar generará el asiento contable y no podrá revertirse directamente.
             </p>
+          </div>
+        )}
+
+        {run.status === "DRAFT" && canAdmin && manualConcepts && manualConcepts.length > 0 && (
+          <div className="mt-4">
+            <ManualLineForm
+              companyId={companyId}
+              runId={run.id}
+              currency={currency}
+              employees={empleadosDelRun}
+              concepts={manualConcepts}
+            />
           </div>
         )}
 

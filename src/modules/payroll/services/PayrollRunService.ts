@@ -36,7 +36,7 @@ import type { PayrollPaymentCurrency } from "@prisma/client";
 import { MISSING_BCV_RATE_MESSAGE, MIXED_SALARY_MESSAGE } from "./payroll-currency";
 import { PayrollConceptService } from "./PayrollConceptService";
 import { LegalThresholdService } from "./LegalThresholdService";
-import type { CreatePayrollRunInput } from "../schemas/payroll-run.schema";
+import type { CreatePayrollRunInput, AddManualLineInput } from "../schemas/payroll-run.schema";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -874,6 +874,141 @@ export const PayrollRunService = {
   // NOM-C-11: AuditLog dentro del $transaction
   // ADR-013 Decisión 5: Read Committed suficiente (single-row state transition)
   // ADR-013 Decisión 4: asiento consolidado por run (no por empleado)
+  /**
+   * Añade un concepto puntual a un proceso en BORRADOR (retención de ISLR, un
+   * bono de una vez, un descuento acordado).
+   *
+   * Existía la entrada `manualConcepts` en `create`, pero sólo al crear —cuando
+   * el contador todavía no conoce el importe— y ninguna pantalla la enviaba
+   * jamás. La retención de ISLR, cuya vía documentada era ésa, no podía
+   * introducirse en la aplicación.
+   */
+  async addManualLine(
+    companyId: string,
+    userId: string,
+    input: AddManualLineInput,
+    ipAddress: string | null,
+    userAgent: string | null,
+  ) {
+    const run = await prisma.payrollRun.findFirst({
+      where: { id: input.runId, companyId },
+      select: { id: true, status: true, periodStart: true },
+    });
+    if (!run) throw new Error("El proceso de nómina no existe o no pertenece a esta empresa");
+    if (run.status !== "DRAFT") {
+      throw new Error(
+        run.status === "APPROVED"
+          ? "El proceso ya está aprobado y generó su asiento contable. Para corregirlo hay que anularlo."
+          : "El proceso está cancelado."
+      );
+    }
+
+    // R-3: un período cerrado no admite mutaciones.
+    const openPeriod = await prisma.accountingPeriod.findFirst({
+      where: {
+        companyId,
+        year: run.periodStart.getUTCFullYear(),
+        month: run.periodStart.getUTCMonth() + 1,
+        status: "OPEN",
+      },
+      select: { id: true },
+    });
+    if (!openPeriod) {
+      throw new Error("El período contable de esta nómina está cerrado");
+    }
+
+    // El trabajador tiene que estar EN el proceso, no sólo pertenecer a la
+    // empresa: una línea para alguien a quien esta nómina no le paga nada sale
+    // en los totales y en el asiento sin recibo que la sostenga.
+    const enRun = await prisma.payrollRunLine.findFirst({
+      where: { companyId, payrollRunId: run.id, employeeId: input.employeeId },
+      select: { id: true },
+    });
+    if (!enRun) {
+      throw new Error("Ese trabajador no forma parte de este proceso de nómina");
+    }
+
+    const concept = await prisma.payrollConcept.findFirst({
+      where: { id: input.conceptId, companyId },
+      select: { id: true, code: true, name: true, type: true, salaryNature: true, isActive: true },
+    });
+    if (!concept) throw new Error("El concepto no pertenece a esta empresa");
+    if (!concept.isActive) throw new Error("El concepto está desactivado");
+
+    // Repetir el mismo concepto para el mismo trabajador casi siempre es un doble
+    // envío. Se bloquea con mensaje en vez de sumar dos veces en silencio.
+    const yaExiste = await prisma.payrollRunLine.findFirst({
+      where: {
+        companyId, payrollRunId: run.id,
+        employeeId: input.employeeId, conceptId: input.conceptId,
+      },
+      select: { id: true },
+    });
+    if (yaExiste) {
+      throw new Error(
+        `Este trabajador ya tiene una línea de "${concept.name}" en este proceso. ` +
+        "Recalcula el proceso si necesitas cambiar el importe."
+      );
+    }
+
+    const amount = new Decimal(input.amount);
+
+    return prisma.$transaction(async (tx) => {
+      const line = await tx.payrollRunLine.create({
+        data: {
+          companyId,
+          payrollRunId: run.id,
+          employeeId: input.employeeId,
+          conceptId: concept.id,
+          // Snapshot igual que en create: el catálogo puede cambiar y la base del
+          // mes siguiente se lee de estas líneas.
+          conceptCode: concept.code,
+          conceptType: concept.type,
+          salaryNature: concept.salaryNature,
+          amount,
+        },
+        select: { id: true },
+      });
+
+      // Los totales se ajustan con el delta, no se recalculan: recomputar el
+      // proceso entero desde aquí sería rehacer `create`, y las bases de
+      // cotización de este período ya están fijadas (LOTTT Art. 107: salen del
+      // mes anterior). Añadir una línea ahora no las mueve.
+      const delta =
+        concept.type === "EARNING"
+          ? { totalEarnings: { increment: amount }, totalNet: { increment: amount } }
+        : concept.type === "DEDUCTION"
+          ? { totalDeductions: { increment: amount }, totalNet: { decrement: amount } }
+          : { totalEmployerCosts: { increment: amount } };
+
+      await tx.payrollRun.update({ where: { id: run.id }, data: delta });
+
+      // R-6: mutación con efecto en un pago. IP y user-agent al AuditLog.
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "PayrollRunLine",
+          entityId: line.id,
+          action: "ADD_MANUAL_PAYROLL_LINE",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: Prisma.JsonNull,
+          newValue: {
+            payrollRunId: run.id,
+            employeeId: input.employeeId,
+            conceptCode: concept.code,
+            conceptType: concept.type,
+            salaryNature: concept.salaryNature,
+            amount: amount.toString(),
+          },
+        },
+      });
+
+      return { id: line.id, conceptCode: concept.code, amount: amount.toString() };
+    });
+  },
+
   async approve(
     companyId: string,
     userId: string,
