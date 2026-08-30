@@ -9,6 +9,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createPayrollRunAction } from "../actions/payroll-run.actions";
 import { salaryCurrencyAt, type SalaryVigencia } from "../utils/salary-vigencia";
+import { periodoPorDefecto, finDesdeInicio } from "../utils/payroll-period";
+import type { PayrollFrequency } from "@prisma/client";
+import { todayLocalISO } from "@/lib/today";
 import { EmployeePicker } from "./EmployeePicker";
 
 export interface RunEmployeeOption {
@@ -54,41 +57,18 @@ interface Props {
   salMinValue?: string | null;
   // C-02: indica si existe tasa BCV para el mes actual
   hasBcvRateForMonth?: boolean;
+  // Frecuencia configurada de la empresa. Decide los cortes que se proponen:
+  // hasta ahora el formulario proponia SIEMPRE quincenas y el campo no se
+  // miraba, asi que la configuracion y la practica podian discrepar.
+  frequency?: PayrollFrequency;
+  // Hoy en la zona del pais, calculado en el servidor. Derivarlo aqui con
+  // `new Date()` da UTC en el render del servidor: despues de las 20:00 en
+  // Venezuela ya es manana, y el periodo nacia corrido un dia.
+  todayISO?: string;
 }
 
 function generateIdempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function getDefaultPeriod(): { start: string; end: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const mm = String(month).padStart(2, "0");
-  const lastDay = new Date(year, month, 0).getDate();
-  const day = now.getDate();
-
-  if (day <= 15) {
-    return {
-      start: `${year}-${mm}-01`,
-      end: `${year}-${mm}-15`,
-    };
-  } else {
-    return {
-      start: `${year}-${mm}-16`,
-      end: `${year}-${mm}-${lastDay}`,
-    };
-  }
-}
-
-function computeEndFromStart(startISO: string): string {
-  const [year, month, day] = startISO.split("-").map(Number);
-  const lastDay = new Date(year, month, 0).getDate();
-  const mm = String(month).padStart(2, "0");
-  if (day <= 15) {
-    return `${year}-${mm}-15`;
-  }
-  return `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
 }
 
 export function PayrollRunForm({
@@ -100,10 +80,15 @@ export function PayrollRunForm({
   salMinLastUpdate,
   salMinValue,
   hasBcvRateForMonth = true,
+  frequency = "BIWEEKLY",
+  todayISO,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const defaults = getDefaultPeriod();
+  // `todayISO` viene del servidor en la zona del país. El respaldo usa
+  // todayLocalISO() —la del navegador—, nunca toISOString(): en husos
+  // negativos eso da MAÑANA a partir de las 20:00.
+  const defaults = periodoPorDefecto(todayISO ?? todayLocalISO(), frequency);
   const [periodStart, setPeriodStart] = useState(initialStart ?? defaults.start);
   const [periodEnd, setPeriodEnd] = useState(initialEnd ?? defaults.end);
 
@@ -168,7 +153,7 @@ export function PayrollRunForm({
 
   function handleStartChange(value: string) {
     setPeriodStart(value);
-    if (value) setPeriodEnd(computeEndFromStart(value));
+    if (value) setPeriodEnd(finDesdeInicio(value, frequency));
   }
 
   function handleSubmit(e: React.FormEvent) {
