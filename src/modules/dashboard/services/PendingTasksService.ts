@@ -24,6 +24,7 @@ export type PendingTaskType =
   | "NOM_PRESTACIONES_POR_ACUMULAR" // Trimestre actual sin acumular prestaciones (Art. 142 LOTTT)
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
+  | "NOM_VIGENCIA_DENTRO_DEL_PERIODO" // Sueldo o asignación que entra en vigor A MITAD del período en curso
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
   | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
@@ -56,6 +57,10 @@ export const PendingTasksService = {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1; // 1-indexed
     const currentQuarter = Math.ceil(currentMonth / 3);
+    // Ventana para detectar vigencias mal alineadas. @db.Date guarda medianoche
+    // UTC, así que la ventana se construye en UTC: en local se corre un día.
+    const mesInicioUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const mesFinUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
     const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
     // Empleados contratados entre (hoy - 180 días) y (hoy - 150 días) tienen prueba que vence en ≤30 días
@@ -82,6 +87,9 @@ export const PendingTasksService = {
       nomLastSalMin,
       nomBcvRatePrevMonth,
       nomBcvInterestPrevMonthCount,
+      nomFrequency,
+      nomVigenciasSalario,
+      nomVigenciasAsignacion,
       // Hallazgo #5
       igtfSinCuentaCount,
       glConfigIgtf,
@@ -263,6 +271,41 @@ export const PendingTasksService = {
       // 18. Parte VII: Líneas de intereses BCV del mes anterior (Art. 143 LOTTT)
       prisma.benefitAccrualLine.count({
         where: { companyId, type: "BCV_INTEREST", year: prevYear, month: prevMonth },
+      }),
+
+      // 18-bis. Frecuencia de nómina: decide qué días son inicio de período.
+      prisma.payrollConfig.findUnique({
+        where: { companyId },
+        select: { frequency: true },
+      }),
+
+      // 18-ter. Vigencias de sueldo dentro del mes en curso. Se filtran en código
+      // contra el período real: aquí sólo se acota la ventana.
+      prisma.salaryHistory.findMany({
+        where: {
+          companyId,
+          effectiveFrom: { gte: mesInicioUTC, lte: mesFinUTC },
+          employee: { status: "ACTIVE" },
+        },
+        select: {
+          effectiveFrom: true, currency: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      }),
+
+      // 18-quater. Lo mismo para las asignaciones fijas: comparten la regla de
+      // vigencia con el sueldo, así que comparten el defecto.
+      prisma.employeeRecurringConcept.findMany({
+        where: {
+          companyId,
+          effectiveFrom: { gte: mesInicioUTC, lte: mesFinUTC },
+          employee: { status: "ACTIVE" },
+        },
+        select: {
+          effectiveFrom: true,
+          employee: { select: { firstName: true, lastName: true } },
+          concept: { select: { name: true } },
+        },
       }),
 
       // 19. Hallazgo #5: facturas con IGTF calculado (igtfAmount > 0) — para comparar con cuenta GL
@@ -583,6 +626,62 @@ export const PendingTasksService = {
         count: 1,
         href: "/payroll/settings",
       });
+    }
+
+    // NOM_VIGENCIA_DENTRO_DEL_PERIODO — nace del atasco del 2026-08-30.
+    //
+    // Un sueldo que cambia A MITAD del período no se puede prorratear: el proceso
+    // toma la vigencia del INICIO, así que el cambio no se cobra hasta el período
+    // siguiente. Y si además cambia de moneda, la nómina se rechaza entera por
+    // "monedas mixtas" señalando a todos y a nadie — que es exactamente lo que
+    // pasó con un aumento VES→USD con vigencia el día 20 en la quincena 16→31.
+    //
+    // Detectarlo ANTES de procesar convierte media hora de diagnóstico en un
+    // aviso de una línea. Ninguna app del mercado lo hace.
+    if (nomActiveEmployeesCount > 0) {
+      // Días que SÍ son inicio de período según la frecuencia configurada. En
+      // semanal cualquier lunes lo es, así que no se marca nada: el ruido sería
+      // peor que el aviso.
+      const freq = nomFrequency?.frequency ?? "BIWEEKLY";
+      const diasAlineados =
+        freq === "MONTHLY" ? [1]
+        : freq === "BIWEEKLY" ? [1, 16]
+        : null;
+
+      if (diasAlineados) {
+        const desalineadas = [
+          ...nomVigenciasSalario.map((v) => ({
+            dia: v.effectiveFrom.getUTCDate(),
+            quien: `${v.employee.lastName}, ${v.employee.firstName}`,
+            que: `sueldo (${v.currency})`,
+          })),
+          ...nomVigenciasAsignacion.map((v) => ({
+            dia: v.effectiveFrom.getUTCDate(),
+            quien: `${v.employee.lastName}, ${v.employee.firstName}`,
+            que: v.concept.name,
+          })),
+        ].filter((v) => !diasAlineados.includes(v.dia));
+
+        if (desalineadas.length > 0) {
+          const pl = desalineadas.length !== 1;
+          const ejemplo = desalineadas[0];
+          const corte = diasAlineados.join(" o el ");
+          tasks.push({
+            type: "NOM_VIGENCIA_DENTRO_DEL_PERIODO",
+            severity: "warning",
+            title: `${desalineadas.length} vigencia${pl ? "s" : ""} a mitad de período`,
+            description:
+              `${ejemplo.quien} tiene ${ejemplo.que} con vigencia el día ${ejemplo.dia}, ` +
+              `que cae dentro de un período ya empezado` +
+              (pl ? ` (y ${desalineadas.length - 1} caso${desalineadas.length > 2 ? "s" : ""} más)` : "") +
+              `. La nómina toma la vigencia del INICIO del período, así que el cambio ` +
+              `no se cobrará hasta el siguiente; y si cambia de moneda, el proceso se ` +
+              `rechazará por monedas mixtas. Alinea la vigencia al día ${corte}.`,
+            count: desalineadas.length,
+            href: "/payroll/employees",
+          });
+        }
+      }
     }
 
     // NOM_PRESTACIONES_POR_ACUMULAR: trimestre actual sin acumular (Art. 142 LOTTT)
