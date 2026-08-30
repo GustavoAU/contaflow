@@ -88,6 +88,7 @@ export const PendingTasksService = {
       nomBcvRatePrevMonth,
       nomBcvInterestPrevMonthCount,
       nomFrequency,
+      nomInicios,
       nomVigenciasSalario,
       nomVigenciasAsignacion,
       // Hallazgo #5
@@ -277,6 +278,15 @@ export const PendingTasksService = {
       prisma.payrollConfig.findUnique({
         where: { companyId },
         select: { frequency: true },
+      }),
+
+      // 18-bis-2. Días de inicio que la empresa ha usado de verdad. `frequency`
+      // no basta: el formulario lo ignora (ver la alerta más abajo).
+      prisma.payrollRun.findMany({
+        where: { companyId, status: { in: ["DRAFT", "APPROVED"] } },
+        select: { periodStart: true },
+        orderBy: { periodStart: "desc" },
+        take: 12,
       }),
 
       // 18-ter. Vigencias de sueldo dentro del mes en curso. Se filtran en código
@@ -639,13 +649,24 @@ export const PendingTasksService = {
     // Detectarlo ANTES de procesar convierte media hora de diagnóstico en un
     // aviso de una línea. Ninguna app del mercado lo hace.
     if (nomActiveEmployeesCount > 0) {
-      // Días que SÍ son inicio de período según la frecuencia configurada. En
-      // semanal cualquier lunes lo es, así que no se marca nada: el ruido sería
-      // peor que el aviso.
+      // Días que SÍ son inicio de período.
+      //
+      // NO se derivan sólo de `PayrollConfig.frequency`: ese campo es decorativo
+      // en la práctica —`getDefaultPeriod()` del formulario propone siempre
+      // quincenas sin mirarlo—, así que una empresa configurada MONTHLY puede
+      // llevar meses procesando 16→31. Fiarse de él marcaba el día 16 como
+      // "mitad de período" contra su propia práctica: un falso positivo.
+      //
+      // Se toman los días que la empresa REALMENTE ha usado como inicio de
+      // período, y la frecuencia queda de respaldo para cuando no hay historial.
+      const diasHistoricos = [...new Set(nomInicios.map((r) => r.periodStart.getUTCDate()))];
       const freq = nomFrequency?.frequency ?? "BIWEEKLY";
       const diasAlineados =
-        freq === "MONTHLY" ? [1]
+        diasHistoricos.length > 0 ? diasHistoricos
+        : freq === "MONTHLY" ? [1]
         : freq === "BIWEEKLY" ? [1, 16]
+        // En semanal cualquier lunes es inicio de período: no se marca nada,
+        // el ruido sería peor que el aviso.
         : null;
 
       if (diasAlineados) {
