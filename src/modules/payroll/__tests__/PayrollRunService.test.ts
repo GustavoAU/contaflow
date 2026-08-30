@@ -51,6 +51,9 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    employeeRecurringConcept: {
+      findMany: vi.fn(),
+    },
     exchangeRate: {
       findFirst: vi.fn(),
     },
@@ -190,6 +193,9 @@ describe("PayrollRunService.create", () => {
     vi.mocked(prisma.payrollRunLine.createMany).mockResolvedValue({ count: 4 } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never); // sin préstamos activos
+    // Sin asignaciones fijas. Linea base propia: clearAllMocks() no borra las
+    // implementaciones, asi que sin esto un mock de otro test se filtra aqui.
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
   }
 
   it("creates run with AuditLog in $transaction", async () => {
@@ -348,6 +354,108 @@ describe("PayrollRunService.create", () => {
 
     const where = vi.mocked(prisma.overtimeEntry.findMany).mock.calls[0][0]?.where;
     expect(where?.employeeId).toEqual({ in: ["emp-usd"] });
+  });
+
+  // ── Asignaciones fijas (EmployeeRecurringConcept) ─────────────────────────
+  // El caso real: salario en bolivares (base de cotizaciones) + bono en dolares
+  // NO salarial, que es como paga la mayoria de las empresas venezolanas.
+
+  function recurringBono(over: Record<string, unknown> = {}) {
+    return {
+      employeeId: "emp-1",
+      amount: new Decimal("200"),
+      currency: "USD",
+      concept: {
+        id: "c-bono", code: "BONO_DIVISAS", type: "EARNING",
+        salaryNature: "NO_SALARIAL", isActive: true,
+      },
+      ...over,
+    };
+  }
+
+  it("un bono en USD sobre nomina en VES se convierte a la tasa del periodo", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("100") } as never);
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([recurringBono()] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const lines = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0][0]!.data as Array<Record<string, unknown>>;
+    const bono = lines.find((l) => l.conceptCode === "BONO_DIVISAS");
+    expect(bono).toBeDefined();
+    // USD 200 x 100 Bs/USD
+    expect(new Decimal(bono!.amount as never).toString()).toBe("20000");
+    // ADR-045 D-3: la conversion queda reconstruible
+    expect(new Decimal(bono!.originalAmount as never).toString()).toBe("200");
+    expect(bono!.originalCurrency).toBe("USD");
+    expect(new Decimal(bono!.exchangeRateApplied as never).toString()).toBe("100");
+  });
+
+  it("un bono NO_SALARIAL no engorda la base de cotizaciones", async () => {
+    // Lo que hace que todo esto sirva: si el bono entrara en la base, pagar en
+    // divisas dispararia IVSS/FAOV/INCES y el modelo no representaria nada.
+    //
+    // Se corre dos veces y se comparan las bases. Comprobar la base contra una
+    // cifra fija no probaria nada: ya vale 30.000 solo por el salario, asi que
+    // pasaria igual aunque el bono se estuviera sumando.
+    setupCreateMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("100") } as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([recurringBono()] as never);
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const calls = vi.mocked(prisma.payrollRunLine.createMany).mock.calls;
+    const sinBono = calls[0][0]!.data as Array<Record<string, unknown>>;
+    const conBono = calls[1][0]!.data as Array<Record<string, unknown>>;
+
+    // El bono entro de verdad en la segunda: si no, la comparacion seria vacia.
+    expect(conBono.find((l) => l.conceptCode === "BONO_DIVISAS")).toBeDefined();
+
+    for (const code of ["FAOV_OBR", "IVSS_OBR", "INCES_PAT"]) {
+      const a = sinBono.find((l) => l.conceptCode === code);
+      const b = conBono.find((l) => l.conceptCode === code);
+      if (!a || !b) continue;
+      expect(`${code}:${new Decimal(b.basis as never).toString()}`)
+        .toBe(`${code}:${new Decimal(a.basis as never).toString()}`);
+    }
+  });
+
+  it("sin tasa BCV, un bono en otra moneda BLOQUEA en vez de colar un numero", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([recurringBono()] as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
+    ).rejects.toThrow("BONO_DIVISAS");
+  });
+
+  it("un concepto desactivado no se aplica, pero la asignacion sobrevive", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([
+      recurringBono({ concept: { id: "c-bono", code: "BONO_DIVISAS", type: "EARNING", salaryNature: "NO_SALARIAL", isActive: false } }),
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const lines = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0][0]!.data as Array<Record<string, unknown>>;
+    expect(lines.find((l) => l.conceptCode === "BONO_DIVISAS")).toBeUndefined();
+  });
+
+  it("solo toma las asignaciones vigentes al INICIO del periodo", async () => {
+    // Misma regla que el sueldo: un bono que arranca a mitad de quincena no se
+    // cobra en esa quincena. Se comprueba el WHERE, que es donde vive la regla.
+    setupCreateMocks();
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const where = vi.mocked(prisma.employeeRecurringConcept.findMany).mock.calls[0][0]?.where;
+    expect(where?.effectiveFrom).toEqual({ lte: new Date(INPUT.periodStart) });
+    expect(where?.OR).toEqual([
+      { effectiveTo: null },
+      { effectiveTo: { gte: new Date(INPUT.periodStart) } },
+    ]);
   });
 
   it("PERMITE recrear el periodo de un run CANCELADO", async () => {
@@ -773,6 +881,9 @@ describe("PayrollRunService.approve", () => {
     vi.mocked(prisma.payrollRun.update).mockResolvedValue({ ...BASE_RUN, status: "APPROVED", transactionId: "tx-1" } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never); // sin préstamos activos
+    // Sin asignaciones fijas. Linea base propia: clearAllMocks() no borra las
+    // implementaciones, asi que sin esto un mock de otro test se filtra aqui.
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
   }
 
   it("approves run with updateMany mutex and creates AuditLog (NOM-C-03, NOM-C-11)", async () => {
