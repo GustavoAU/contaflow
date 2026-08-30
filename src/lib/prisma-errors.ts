@@ -67,6 +67,30 @@ export function isPrismaError(error: unknown, code: string): error is Prisma.Pri
  * esto, PayrollRun mapeaba cualquier P2002 al mensaje del período aunque el choque
  * fuese de `idempotencyKey` (doble submit), mintiendo al usuario.
  */
+/**
+ * Violación de una restricción de EXCLUSIÓN de Postgres (SQLSTATE 23P01).
+ *
+ * Prisma no la tiene en su mapa de errores conocidos —sólo cubre unique (P2002),
+ * FK (P2003) y compañía—, así que no llega como `PrismaClientKnownRequestError`
+ * con un código estable: llega con el texto de Postgres. Por eso se busca el
+ * NOMBRE de la restricción en el mensaje, que es lo único fiable.
+ *
+ * Sin esto, una carrera contra `PayrollRun_no_overlap_active` le devolvería al
+ * usuario el error crudo del motor.
+ */
+export function isExclusionViolation(error: unknown, constraintName: string): boolean {
+  if (!error || typeof error !== "object") return false;
+  const partes = [
+    (error as { message?: unknown }).message,
+    (error as { meta?: { message?: unknown } }).meta?.message,
+    (error as { code?: unknown }).code,
+  ];
+  const texto = partes.filter((v) => typeof v === "string").join(" ");
+  // Se exige el nombre de la restricción, no sólo el SQLSTATE: otra restricción
+  // de exclusión futura no debe heredar este mensaje.
+  return texto.includes(constraintName);
+}
+
 export function p2002TargetIncludes(error: unknown, column: string): boolean {
   if (!isPrismaError(error, "P2002")) return false;
   const target = (error.meta as { target?: unknown } | undefined)?.target;

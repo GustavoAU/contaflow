@@ -327,7 +327,9 @@ describe("PayrollRunService.create", () => {
     // abril son pares distintos y ambos pasaban, cobrando dos veces lo mismo.
     setupCreateMocks();
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
-      { id: "run-viejo", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "APPROVED" },
+      // Otra MONEDA: el choque tiene que salir por trabajador compartido, no por
+      // la ranura, que es lo que este test fija.
+      { id: "run-viejo", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "APPROVED", currencySegment: "USD" },
     ] as never);
     vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue({
       employeeId: "emp-1", payrollRunId: "run-viejo",
@@ -345,7 +347,7 @@ describe("PayrollRunService.create", () => {
     // Se podia pagar a UN grupo y el otro se quedaba sin cobrar ese periodo.
     setupCreateMocks();
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
-      { id: "run-usd", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "DRAFT" },
+      { id: "run-usd", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "DRAFT", currencySegment: "USD" },
     ] as never);
     vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue(null as never);
 
@@ -395,6 +397,23 @@ describe("PayrollRunService.create", () => {
       },
     );
     expect(leyoBaseMesAnterior).toBe(false);
+  });
+
+  it("RECHAZA con mensaje honesto si la ranura periodo+moneda ya esta ocupada", async () => {
+    // El caso "misma moneda, otro grupo de gente": el guard por trabajador lo
+    // dejaba pasar y reventaba despues contra la BD, con un mensaje que culpaba
+    // a la moneda —que es justo lo que NO sobra—. Ahora se dice la verdad y se
+    // apunta a la salida real: el retroactivo del proceso siguiente.
+    setupCreateMocks(); // empleados en VES
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
+      { id: "run-ves", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-15"), status: "APPROVED", currencySegment: "VES" },
+    ] as never);
+    // Ningun trabajador compartido: sin este chequeo, pasaria el guard.
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue(null as never);
+
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
+    ).rejects.toThrow("RETROACTIVO");
   });
 
   it("graba el segmento de moneda del proceso", async () => {

@@ -16,7 +16,7 @@ import { ROLES } from "@/lib/auth-helpers";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { p2002TargetIncludes } from "@/lib/prisma-errors";
+import { p2002TargetIncludes, isExclusionViolation } from "@/lib/prisma-errors";
 import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
 import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
 import {
@@ -108,6 +108,17 @@ export async function createPayrollRunAction(
     // el mensaje genérico. Es el precedente de CLAUDE.md: la columna es la del
     // CONSTRAINT, no la del documento. Se conservan ambas formas porque
     // `meta.target` no tiene forma estable.
+    // Carrera contra la restricción de exclusión: dos peticiones simultáneas que
+    // el guard aplicativo dejó pasar porque ambas leyeron "no hay solape" antes
+    // de que ninguna hubiera escrito. La BD para la segunda; aquí se traduce.
+    if (isExclusionViolation(err, "PayrollRun_no_overlap_active")) {
+      return {
+        success: false,
+        error:
+          "Otro proceso de nómina que cubre estas fechas se creó mientras enviabas " +
+          "este. Revisa los procesos existentes antes de reintentar.",
+      };
+    }
     if (
       p2002TargetIncludes(err, "periodStart") ||
       p2002TargetIncludes(err, "PayrollRun_companyId_period_segment_active_key")

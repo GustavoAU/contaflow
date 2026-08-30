@@ -2135,12 +2135,23 @@ model EmployeeRecurringConcept {
 
 // ─── PayrollRun ───────────────────────────────────────────────────────────────
 // Cabecera de un proceso de nómina para un período específico.
-// Unicidad de periodo: indice UNICO PARCIAL en la BD (migracion
-// 20260830_payrollrun_period_partial_unique), no declarable aqui porque Prisma
-// DSL no soporta WHERE en @@unique. Solo aplica a los procesos VIGENTES:
-// WHERE status <> 'CANCELLED'. Incondicional inutilizaba el periodo para
-// siempre al cancelar, que es justo lo que hace Recalcular (ver ADR-035, misma
-// clase de defecto en caja chica).
+// Unicidad de periodo: RESTRICCION DE EXCLUSION en la BD
+// (`PayrollRun_no_overlap_active`, migracion 20260830_payrollrun_exclusion_solape),
+// no declarable aqui porque Prisma DSL no la soporta:
+//
+//   EXCLUDE USING gist (companyId =, currencySegment =,
+//                       daterange(periodStart, periodEnd, '[]') &&)
+//   WHERE status <> 'CANCELLED'
+//
+// Impide procesos vigentes SOLAPADOS de la misma empresa y moneda —incluido el
+// caso 01-15 vs 01-31, que ningun indice unico puede ver— y permite el mismo
+// periodo en monedas distintas, que es como se paga una plantilla bimonetaria.
+// Excluye los CANCELLED: un periodo anulado debe poder rehacerse, que es lo que
+// hace Recalcular (ver ADR-035, misma clase de defecto en caja chica).
+//
+// Se eligio sobre un advisory lock porque un candado impide una CARRERA y esto
+// impide ESTAR EQUIVOCADO: el candado solo protege si todo el que escribe se
+// acuerda de tomarlo.
 // onDelete: Restrict — nunca eliminar runs con líneas contabilizadas (ADR-003).
 // totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
 
@@ -2182,7 +2193,7 @@ model PayrollRun {
   transaction Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   lines       PayrollRunLine[]
 
-  // GUARD doble-proceso: un solo run activo por empresa y período (ADR-013 Decisión 1)
+  // GUARD doble-proceso: un solo run vigente por empresa, período Y MONEDA — ver el bloque de arriba
   overtimeEntries OvertimeEntry[]
 
   @@unique([companyId, idempotencyKey])
