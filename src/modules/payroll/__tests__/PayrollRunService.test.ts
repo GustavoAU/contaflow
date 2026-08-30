@@ -185,9 +185,11 @@ describe("PayrollRunService.create", () => {
     // LOTTT Art. 183: sin registro de horas extra en el periodo.
     vi.mocked(prisma.overtimeEntry.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.overtimeEntry.update).mockResolvedValue({} as never);
-    // Sin run solapado. Linea base propia: clearAllMocks() no borra las
-    // implementaciones, asi que sin esto un mock de otro test se filtra aqui.
+    // Sin run solapado ni choque de trabajador. Linea base propia:
+    // clearAllMocks() no borra las implementaciones, asi que sin esto un mock de
+    // otro test se filtra aqui.
     vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue(null as never);
     // D-5: sin runs aprobados el mes anterior → el calculador cotiza sobre el
     // mes en curso. Los tests que fijan D-5 sobrescriben estos dos.
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
@@ -320,19 +322,86 @@ describe("PayrollRunService.create", () => {
     ).rejects.toThrow("tomó estas horas extraordinarias");
   });
 
-  it("RECHAZA un periodo que se solapa con otro run", async () => {
-    // El @@unique bloquea el periodo identico, no el solapado: 01-15 y 01-31 de
-    // agosto son pares distintos y ambos pasaban, cobrando dos veces lo mismo.
+  it("RECHAZA un periodo solapado CUANDO comparte trabajador", async () => {
+    // El unico bloquea el periodo identico, no el solapado: 01-15 y 01-31 de
+    // abril son pares distintos y ambos pasaban, cobrando dos veces lo mismo.
     setupCreateMocks();
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue({
-      periodStart: new Date("2026-04-01"),
-      periodEnd: new Date("2026-04-30"),
-      status: "APPROVED",
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
+      { id: "run-viejo", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "APPROVED" },
+    ] as never);
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue({
+      employeeId: "emp-1", payrollRunId: "run-viejo",
     } as never);
 
     await expect(
       PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
-    ).rejects.toThrow("se solapa");
+    ).rejects.toThrow("Cobraría dos veces");
+  });
+
+  it("PERMITE el mismo periodo en otra moneda: no comparten trabajador", async () => {
+    // El caso que el selector de empleados vino a resolver y que el guard viejo
+    // —que solo miraba fechas— dejaba imposible: una empresa con sueldos en dos
+    // monedas DEBE procesar por separado, y esos dos procesos comparten periodo.
+    // Se podia pagar a UN grupo y el otro se quedaba sin cobrar ese periodo.
+    setupCreateMocks();
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
+      { id: "run-usd", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30"), status: "DRAFT" },
+    ] as never);
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue(null as never);
+
+    const result = await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    expect(result.id).toBe(RUN_ID);
+  });
+
+  it("dos runs del MISMO rango no cuentan el mes anterior dos veces (Art. 107)", async () => {
+    // Consecuencia directa de permitir dos procesos por periodo: sumar las
+    // duraciones daba 15+15=30 en un mes de 30 dias con MEDIO mes cubierto.
+    // La base de cotizacion salia a la mitad, sin error, y el AuditLog
+    // certificaba MES_ANTERIOR. Se cuentan dias UNICOS.
+    setupCreateMocks();
+    // MAYO a proposito: el mes anterior es ABRIL, de 30 dias. Con marzo (31) la
+    // suma vieja daba 15+15=30 < 31 y el test pasaria tambien con el codigo
+    // roto: no probaria nada. Es en los meses de 30 dias —y en febrero— donde
+    // la duplicacion cruza el umbral.
+    const INPUT_MAYO = { periodStart: "2026-05-01", periodEnd: "2026-05-15", idempotencyKey: "key-mayo" };
+    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: {
+      where?: { status?: unknown; periodStart?: unknown };
+    }) => {
+      // La consulta de solape pide status DRAFT|APPROVED con rango de fechas.
+      const w = args?.where as Record<string, unknown> | undefined;
+      const st = w?.status as { in?: string[] } | undefined;
+      if (st?.in?.includes("DRAFT")) return [];
+      // La del mes anterior: dos runs del MISMO rango (USD y VES).
+      return [
+        { id: "prev-usd", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-15") },
+        { id: "prev-ves", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-15") },
+      ];
+    }) as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT_MAYO);
+
+    // Con 15 dias unicos sobre 30, el mes anterior esta INCOMPLETO: no se usa
+    // como base y no se leen sus lineas de EARNING.
+    //
+    // Se filtra por `conceptType: "EARNING"` a proposito: los mismos runs los
+    // consulta tambien el acumulado anual de horas extra, y sin acotar la
+    // asercion pasaba por esa otra llamada en vez de por la del Art. 107.
+    const leyoBaseMesAnterior = vi.mocked(prisma.payrollRunLine.findMany).mock.calls.some(
+      (c) => {
+        const w = c[0]?.where as Record<string, unknown> | undefined;
+        if (w?.conceptType !== "EARNING") return false;
+        const ids = (w?.payrollRunId as { in?: string[] } | undefined)?.in;
+        return Array.isArray(ids) && ids.includes("prev-usd");
+      },
+    );
+    expect(leyoBaseMesAnterior).toBe(false);
+  });
+
+  it("graba el segmento de moneda del proceso", async () => {
+    setupCreateMocks();
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    const data = vi.mocked(prisma.payrollRun.create).mock.calls[0][0].data as Record<string, unknown>;
+    expect(data.currencySegment).toBe("VES");
   });
 
   it("NO reserva horas extra de trabajadores fuera del run", async () => {
@@ -546,14 +615,16 @@ describe("PayrollRunService.create", () => {
     // el único incondicional que había antes, cancelar inutilizaba ese período
     // para siempre y el botón no podía funcionar nunca.
     setupCreateMocks();
-    // findFirst con el filtro de estados vigentes no devuelve el cancelado.
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(null as never);
+    // La consulta de solape filtra por estados vigentes: no ve el cancelado.
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
 
     const result = await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
 
     expect(result.id).toBe(RUN_ID);
-    const where = vi.mocked(prisma.payrollRun.findFirst).mock.calls[0][0]?.where;
-    expect(where?.status).toEqual({ in: ["DRAFT", "APPROVED"] });
+    const solape = vi.mocked(prisma.payrollRun.findMany).mock.calls.find(
+      (c) => (c[0]?.where as Record<string, unknown> | undefined)?.periodStart !== undefined,
+    );
+    expect((solape?.[0]?.where as Record<string, unknown>)?.status).toEqual({ in: ["DRAFT", "APPROVED"] });
   });
 
   it("ARRASTRA horas viejas sin pagar de periodos anteriores", async () => {

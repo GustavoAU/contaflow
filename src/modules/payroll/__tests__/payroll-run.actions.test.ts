@@ -365,7 +365,7 @@ describe("createPayrollRunAction — P2002 acotado por meta.target", () => {
   };
 
   const MSG_PERIODO =
-    "Ya existe un proceso de nómina para este período. Revisa los borradores existentes.";
+    "Ya existe un proceso de nómina vigente para este período y esta moneda. Revisa los borradores existentes.";
   const MSG_DOBLE_SUBMIT =
     "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar.";
   const MSG_SIN_TARGET =
@@ -388,6 +388,18 @@ describe("createPayrollRunAction — P2002 acotado por meta.target", () => {
 
   it("rama 1 — target del período → mensaje del período", async () => {
     const error = await createFailingWith(p2002(["companyId", "periodStart", "periodEnd"]));
+    expect(error).toBe(MSG_PERIODO);
+  });
+
+  it("rama 1-bis — target con el NOMBRE DEL ÍNDICE parcial → mensaje del período", async () => {
+    // El `@@unique` del período se reemplazó por un índice PARCIAL (migración
+    // 20260830). Para un índice que Prisma no declara, `meta.target` trae su
+    // NOMBRE, no las columnas — y `p2002TargetIncludes` compara EXACTO, así que
+    // buscar "periodStart" dejaba la rama muerta y el usuario caía en el mensaje
+    // genérico. Precedente de CLAUDE.md: la columna es la del CONSTRAINT.
+    const error = await createFailingWith(
+      p2002("PayrollRun_companyId_period_segment_active_key"),
+    );
     expect(error).toBe(MSG_PERIODO);
   });
 
