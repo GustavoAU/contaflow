@@ -44,6 +44,14 @@ export const SYSTEM_CONCEPTS: Array<{
   { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // BONO_ALIM_EFECT: alternativa en efectivo al cestaticket (LCEA Art. 5)
   { code: "BONO_ALIM_EFECT", name: "Bono de Alimentación en efectivo",         type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  // RETROACTIVO: la salida cuando algo se quedo fuera de un periodo ya cerrado.
+  // Solo puede haber UN proceso vigente por periodo y moneda —dos asientos por el
+  // mismo periodo dejarian el Libro Diario ilegible—, asi que al trabajador que
+  // se olvido no se le hace un segundo proceso de ese mes: se le paga en el
+  // siguiente. Es SALARIO_NORMAL, no un bono: es salario devengado que se paga
+  // tarde, y clasificarlo como no salarial lo sacaria de la base de cotizaciones
+  // a la que tiene derecho.
+  { code: "RETROACTIVO",      name: "Retroactivo de salario",                   type: "EARNING",   affectsSalaryIntegral: true  , salaryNature: "SALARIO_NORMAL" },
   // BONO_DIVISAS: la practica extendida en Venezuela es pagar el salario en
   // bolivares —base de cotizaciones y lo que se declara— y el resto en dolares
   // como bonificacion no salarial. Se siembra como concepto para que el contador

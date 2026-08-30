@@ -250,8 +250,38 @@ export const PayrollRunService = {
         periodStart: { lte: periodEnd },
         periodEnd: { gte: periodStart },
       },
-      select: { id: true, periodStart: true, periodEnd: true, status: true },
+      select: { id: true, periodStart: true, periodEnd: true, status: true, currencySegment: true },
     });
+
+    // Moneda que tendría este proceso. Si la selección mezcla, el calculador lo
+    // bloquea más adelante con su propio mensaje; aquí no se adivina.
+    const monedasCandidatas = new Set(
+      employees
+        .filter((e) => e.salaryHistory.length > 0)
+        .map((e) => e.salaryHistory[0].currency),
+    );
+    const segmentoCandidato = monedasCandidatas.size === 1
+      ? [...monedasCandidatas][0]
+      : null;
+
+    // Un proceso vigente del mismo período Y la misma moneda: la ranura está
+    // ocupada. Se dice ASÍ en vez de dejar que reviente contra la restricción de
+    // exclusión, cuyo mensaje culparía a la moneda —que es justo lo que NO
+    // sobra— o saldría en crudo.
+    const mismaRanura = segmentoCandidato
+      ? solapados.find((r) => r.currencySegment === segmentoCandidato)
+      : undefined;
+    if (mismaRanura) {
+      const desde = mismaRanura.periodStart.toISOString().split("T")[0];
+      const hasta = mismaRanura.periodEnd.toISOString().split("T")[0];
+      throw new Error(
+        `Ya existe un proceso de nómina ${mismaRanura.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
+        `en ${segmentoCandidato} que cubre del ${desde} al ${hasta}. Sólo puede haber UNO vigente por ` +
+        "período y moneda: dos asientos por el mismo período dejarían el Libro Diario ilegible. " +
+        "Si olvidaste a alguien, págale un RETROACTIVO en el proceso siguiente, que es como se " +
+        "resuelve en nómina; si el proceso está en borrador, cancélalo o usa Recalcular."
+      );
+    }
 
     if (solapados.length > 0 && candidatos.length > 0) {
       const choque = await prisma.payrollRunLine.findFirst({
