@@ -13,6 +13,8 @@ import {
 } from "../actions/payroll-run.actions";
 import { formatAmount } from "@/lib/format";
 
+import { AUTO_DRAFT_ACTOR } from "../utils/auto-draft";
+
 interface Props {
   companyId: string;
   runs: PayrollRunRow[];
@@ -195,6 +197,18 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
                       {STATUS_LABELS[run.status] ?? run.status}
                     </span>
+                    {/* El cron destruye la señal que hoy avisa: mientras no había
+                        borrador, su ausencia ERA el recordatorio de que quedaba
+                        trabajo. Al crearlo solo, la nómina parece hecha. Que se
+                        vea de dónde salió es lo mínimo que reemplaza eso. */}
+                    {run.createdByUserId === AUTO_DRAFT_ACTOR && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800"
+                        title="Lo calculó el sistema en el corte del período. Nadie lo ha revisado todavía."
+                      >
+                        Automático
+                      </span>
+                    )}
                     {/* Alerta si deducciones < 2% de asignaciones — indica salario mínimo desactualizado */}
                     {Number(run.totalEarnings) > 0 &&
                       Number(run.totalDeductions) / Number(run.totalEarnings) < 0.02 && (

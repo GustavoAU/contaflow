@@ -74,3 +74,63 @@ export async function getPayrollConfigStatusAction(
   const configured = await PayrollConfigService.isConfigured(companyId);
   return { success: true, data: { configured } };
 }
+
+// ── setAutoDraftAction — ADMIN_ONLY ──────────────────────────────────────────
+// Activa o desactiva el borrador automático de nómina.
+//
+// ADMIN_ONLY y con AuditLog porque no es una preferencia cosmética: decide si el
+// sistema escribe procesos de nómina solo. Un borrador creado por el cron
+// reserva las horas extra del período y ocupa su ranura, así que quién lo activó
+// y cuándo tiene que quedar registrado.
+export async function setAutoDraftAction(
+  companyId: string,
+  enabled: boolean,
+): Promise<ActionResult<{ enabled: boolean }>> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+
+  if (typeof enabled !== "boolean") {
+    return { success: false, error: "Valor inválido" };
+  }
+
+  try {
+    const { default: prisma } = await import("@/lib/prisma");
+    const { Prisma } = await import("@prisma/client");
+
+    await prisma.$transaction(async (tx) => {
+      // companyId en el where del update, no una lectura previa: entre comprobar
+      // y escribir cabe otra petición.
+      const actualizado = await tx.payrollConfig.updateMany({
+        where: { companyId },
+        data: { autoDraftEnabled: enabled },
+      });
+      if (actualizado.count === 0) {
+        throw new Error("Configure la nómina antes de activar el borrador automático");
+      }
+
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "PayrollConfig",
+          entityId: companyId,
+          action: enabled ? "ENABLE_PAYROLL_AUTO_DRAFT" : "DISABLE_PAYROLL_AUTO_DRAFT",
+          userId: ctx.userId,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          oldValue: Prisma.JsonNull,
+          newValue: { autoDraftEnabled: enabled },
+        },
+      });
+    });
+
+    revalidatePath(`/company/${companyId}/payroll`);
+    revalidatePath(`/company/${companyId}/payroll/runs`);
+    return { success: true, data: { enabled } };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
