@@ -26,6 +26,10 @@ import { VacationRequestService } from "@/modules/payroll/services/VacationReque
 import { fmtDate } from "@/lib/format";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
+import { EmployeeRecurringConceptService } from "@/modules/payroll/services/EmployeeRecurringConceptService";
+import { RecurringConceptPanel } from "@/modules/payroll/components/RecurringConceptPanel";
+import { todayInTimeZone } from "@/lib/today";
+import { getFiscalConfig } from "@/lib/tax-config";
 
 interface Props {
   params: Promise<{ companyId: string; employeeId: string }>;
@@ -43,6 +47,10 @@ const TABS = [
   { id: "vacaciones", label: "Vacaciones" },
   { id: "prestamos", label: "Préstamos" },
   { id: "prestaciones", label: "Prestaciones" },
+  // Lo fijo que se repite cada nómina. Sin esto, el bono en divisas —que es como
+  // paga la mayoría de las empresas venezolanas— había que recapturarlo cada
+  // quincena, y ninguna pantalla enviaba los `manualConcepts` que lo permitían.
+  { id: "asignaciones", label: "Asignaciones fijas" },
 ];
 
 export default async function EmployeeDetailPage({ params, searchParams }: Props) {
@@ -76,6 +84,28 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
 
   // Tasa BCV para los equivalentes en Bs. del tab Préstamos. Degradacion
   // graceful: sin tasa cargada, MoneyBadge simplemente no muestra equivalente.
+  // Asignaciones fijas del trabajador y catálogo de conceptos asignables.
+  // Se excluyen los conceptos del sistema que calcula la propia nómina (IVSS,
+  // FAOV, horas extra…): asignarlos a mano duplicaría lo que ya se computa.
+  const CALCULADOS = new Set([
+    "SAL_BASE", "IVSS_OBR", "IVSS_PAT", "INCES_OBR", "INCES_PAT",
+    "FAOV_OBR", "FAOV_PAT", "RPE_OBR", "RPE_PAT",
+    "HE_DIURNA", "HE_NOCTURNA", "PRESTAMO_EMP",
+  ]);
+  const [recurringRows, conceptCatalog] = await Promise.all([
+    EmployeeRecurringConceptService.list(companyId, { employeeId }),
+    prisma.payrollConcept.findMany({
+      where: { companyId, isActive: true },
+      select: { id: true, code: true, name: true, salaryNature: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const recurringConceptOptions = conceptCatalog.filter((c) => !CALCULADOS.has(c.code));
+
+  // "Hoy" en la zona del país: derivarlo en UTC da mañana después de las 20:00
+  // en Venezuela, y con ello una vigencia que arranca un día tarde.
+  const todayISO = todayInTimeZone(getFiscalConfig("VEN").timezone);
+
   const usdRate = await ExchangeRateService.getLatestRate(companyId, "USD").catch(() => null);
   const loanExchangeRate = usdRate
     ? {
@@ -326,6 +356,17 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
                 </p>
               )}
             </div>
+          )}
+
+          {activeTab === "asignaciones" && (
+            <RecurringConceptPanel
+              companyId={companyId}
+              employeeId={emp.id}
+              rows={recurringRows}
+              concepts={recurringConceptOptions}
+              canWrite={canWrite}
+              todayISO={todayISO}
+            />
           )}
 
           {activeTab === "prestaciones" && benefitBalance && (

@@ -44,6 +44,14 @@ export const SYSTEM_CONCEPTS: Array<{
   { code: "CESTA_TICKET",    name: "Cesta Ticket / Alimentación",              type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // BONO_ALIM_EFECT: alternativa en efectivo al cestaticket (LCEA Art. 5)
   { code: "BONO_ALIM_EFECT", name: "Bono de Alimentación en efectivo",         type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  // BONO_DIVISAS: la practica extendida en Venezuela es pagar el salario en
+  // bolivares —base de cotizaciones y lo que se declara— y el resto en dolares
+  // como bonificacion no salarial. Se siembra como concepto para que el contador
+  // pueda expresarlo, NO porque el sistema afirme que es correcto: LOTTT Art. 105
+  // es una lista CERRADA, y el Art. 104 considera salario toda remuneracion
+  // regular y permanente. Clasificarlo aqui es decision del contador, y por eso
+  // queda en el catalogo de la empresa donde puede reclasificarse.
+  { code: "BONO_DIVISAS",     name: "Bono en divisas (no salarial)",            type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   // DOM_FERIADO: trabajo en día de descanso/feriado → recargo 100% del salario normal (Art. 119 LOTTT)
   { code: "DOM_FERIADO",     name: "Domingos y Feriados trabajados (100%)",    type: "EARNING",   affectsSalaryIntegral: false , salaryNature: "SALARIAL_ACCIDENTAL" },
   // DESCANSO_COMP: compensación cuando no se otorga el descanso compensatorio (Art. 120 LOTTT)

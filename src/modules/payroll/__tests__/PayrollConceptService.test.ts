@@ -81,7 +81,7 @@ describe("PayrollConceptService.list", () => {
 });
 
 describe("PayrollConceptService.seedDefaults", () => {
-  // D3: antes reescribia los 18 conceptos con upsert en CADA llamada —y se
+  // D3: antes reescribia los conceptos con upsert en CADA llamada —y se
   // llama desde rutas de lectura—, tocando tres campos con incidencia fiscal
   // sin dejar rastro. Ahora lee primero y solo escribe lo que de verdad esta mal.
 
@@ -93,11 +93,12 @@ describe("PayrollConceptService.seedDefaults", () => {
     mockTx();
   }
 
-  it("crea los 18 conceptos del sistema cuando no existe ninguno", async () => {
+  it("crea los 19 conceptos del sistema cuando no existe ninguno", async () => {
     existentes([]);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
     // 11 originales + 4 aportes patronales (F-03) + 3 de la auditoria 2026-06-02
-    expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(18);
+    // +1 el 2026-08-30: BONO_DIVISAS (bono en divisas no salarial).
+    expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(19);
     const codes = vi.mocked(prisma.payrollConcept.create).mock.calls
       .map((c) => (c[0].data as { code: string }).code);
     // Sin SAL_BASE la nomina no tiene ingresos.
@@ -106,7 +107,7 @@ describe("PayrollConceptService.seedDefaults", () => {
 
   it("con todo en orden NO escribe nada", async () => {
     // El caso normal: seedDefaults corre en cada calculo de nomina y al abrir la
-    // lista de conceptos. Reescribir 18 filas cada vez era trabajo y riesgo de
+    // lista de conceptos. Reescribir todas las filas cada vez era trabajo y riesgo de
     // balde.
     existentes(SYSTEM_CONCEPTS_ROWS);
     await PayrollConceptService.seedDefaults(COMPANY_ID);

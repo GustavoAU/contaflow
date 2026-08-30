@@ -32,6 +32,8 @@ import {
   HE_DAY_MULTIPLIER_UNAUTHORIZED,
   HE_NIGHT_MULTIPLIER_UNAUTHORIZED,
 } from "./PayrollCalculatorService";
+import type { PayrollPaymentCurrency } from "@prisma/client";
+import { MISSING_BCV_RATE_MESSAGE, MIXED_SALARY_MESSAGE } from "./payroll-currency";
 import { PayrollConceptService } from "./PayrollConceptService";
 import { LegalThresholdService } from "./LegalThresholdService";
 import type { CreatePayrollRunInput } from "../schemas/payroll-run.schema";
@@ -621,6 +623,81 @@ export const PayrollRunService = {
       }
     }
 
+    // ── Asignaciones fijas del trabajador (EmployeeRecurringConcept) ──────
+    // El caso que las motiva: en Venezuela lo corriente es pagar el salario en
+    // bolívares —base de las cotizaciones y lo que se declara— y el resto en
+    // dólares como bono NO salarial. Eso antes sólo podía expresarse con
+    // `manualConcepts`, que hay que reescribir empleado por empleado en cada
+    // quincena y que además ninguna pantalla envía.
+    //
+    // Se inyectan por la MISMA vía que los manuales a propósito: el calculador ya
+    // sabe que un concepto con incidencia salarial entra en la base de
+    // cotizaciones y uno NO_SALARIAL no (ADR-045 D-4). Duplicar esa lógica para
+    // las recurrentes garantizaba que las dos se separaran con el tiempo.
+    //
+    // Vigencia al INICIO del período, la misma regla que el sueldo: un bono que
+    // arranca el día 20 no se cobra en la quincena que empezó el 16. Ver
+    // utils/salary-vigencia.ts.
+    const runCurrency = empInputs[0].salaryCurrency;
+    const recurring = await prisma.employeeRecurringConcept.findMany({
+      where: {
+        companyId,
+        employeeId: { in: payableEmployeeIds },
+        effectiveFrom: { lte: periodStart },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: periodStart } }],
+      },
+      select: {
+        employeeId: true, amount: true, currency: true,
+        concept: { select: { id: true, code: true, type: true, salaryNature: true, isActive: true } },
+      },
+    });
+
+    // Conversión aplicada por línea, para persistirla y poder reconstruirla en una
+    // fiscalización (ADR-045 D-3). Clave: empleado + concepto.
+    const recurringFx = new Map<
+      string,
+      { originalAmount: Decimal; originalCurrency: PayrollPaymentCurrency; rate: Decimal }
+    >();
+
+    for (const r of recurring) {
+      // Un concepto desactivado deja de aplicarse, pero la asignación se conserva:
+      // reactivar el concepto la revive sin tener que volver a capturarla.
+      if (!r.concept.isActive) continue;
+
+      const original = new Decimal(r.amount.toString());
+      let amount = original;
+
+      if (r.currency === "MIXED" || runCurrency === "MIXED") {
+        throw new Error(MIXED_SALARY_MESSAGE);
+      }
+
+      if (r.currency !== runCurrency) {
+        // La tasa es la misma que usan los topes legales y el asiento, para que
+        // las tres cifras del proceso no salgan de tasas distintas.
+        const rate = usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null;
+        if (!rate || rate.lte(0)) {
+          throw new Error(
+            `La asignación fija "${r.concept.code}" está pactada en ${r.currency} y esta ` +
+            `nómina se liquida en ${runCurrency}. ${MISSING_BCV_RATE_MESSAGE}`
+          );
+        }
+        // Bs. por 1 USD: de USD a VES se multiplica, al revés se divide.
+        amount = r.currency === "USD" ? original.mul(rate) : original.div(rate);
+        recurringFx.set(`${r.employeeId}:${r.concept.id}`, {
+          originalAmount: original, originalCurrency: r.currency, rate,
+        });
+      }
+
+      manualInputs.push({
+        conceptId: r.concept.id,
+        conceptCode: r.concept.code,
+        conceptType: r.concept.type,
+        employeeId: r.employeeId,
+        amount,
+        salaryNature: r.concept.salaryNature,
+      });
+    }
+
     // ── Cuotas de préstamos activos (PRESTAMO_EMP) ────────────────────────
     // Inyectadas como deducciones automáticas antes del cálculo.
     // La cuota = min(installmentAmount, remainingBalance) por préstamo.
@@ -696,7 +773,9 @@ export const PayrollRunService = {
 
       if (result.lines.length > 0) {
         await tx.payrollRunLine.createMany({
-          data: result.lines.map((l) => ({
+          data: result.lines.map((l) => {
+          const fx = recurringFx.get(`${l.employeeId}:${l.conceptId}`);
+          return {
             companyId,
             payrollRunId: run.id,
             employeeId: l.employeeId,
@@ -713,7 +792,13 @@ export const PayrollRunService = {
             // Snapshot igual que conceptCode/conceptType: la base del mes
             // anterior se lee de estas líneas, y el catálogo puede cambiar.
             salaryNature: l.salaryNature,
-          })),
+            // ADR-045 D-3: sólo cuando hubo conversión. El importe en Bs por sí
+            // solo no dice de dónde salió, y la tasa de aquel día ya no está.
+            originalAmount: fx?.originalAmount ?? null,
+            originalCurrency: fx?.originalCurrency ?? null,
+            exchangeRateApplied: fx?.rate ?? null,
+          };
+          }),
         });
       }
 

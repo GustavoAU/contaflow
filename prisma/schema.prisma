@@ -274,6 +274,7 @@ model Company {
   managedClients             ManagedClient[]             @relation("DespachoManagedClients")
   managedClientLinks         ManagedClient[]             @relation("ManagedClientLinkedCompany")
   overtimeEntries            OvertimeEntry[]
+  employeeRecurringConcepts  EmployeeRecurringConcept[]
 }
 
 model CompanyMember {
@@ -1968,7 +1969,8 @@ model Employee {
   loans                EmployeeLoan[]
   cajaCajas            CajaCaja[]            @relation("CajaCajaCustodian")
 
-  overtimeEntries OvertimeEntry[]
+  overtimeEntries   OvertimeEntry[]
+  recurringConcepts EmployeeRecurringConcept[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -2031,9 +2033,10 @@ model PayrollConcept {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company              Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C
-  payrollRunLines PayrollRunLine[]
+  payrollRunLines      PayrollRunLine[]
+  recurringAssignments EmployeeRecurringConcept[]
 
   @@unique([companyId, code])
   @@index([companyId, type, isActive])
@@ -2081,6 +2084,53 @@ enum PayrollRunStatus {
   DRAFT // Calculado — editable, no contabilizado
   APPROVED // Aprobado — asiento contable generado, inmutable
   CANCELLED // Anulado — estado terminal, solo desde DRAFT
+}
+
+// ─── EmployeeRecurringConcept ─────────────────────────────────────────────────
+// Asignacion o deduccion FIJA de un trabajador, que se repite en cada proceso de
+// nomina mientras este vigente.
+//
+// Nace del caso mas comun de la nomina venezolana real: el pago en divisas. La
+// practica extendida es pagar el salario en bolivares —que es la base de las
+// cotizaciones y lo que se declara— y entregar el resto en dolares como BONO NO
+// SALARIAL. Sin este modelo eso solo podia expresarse con `manualConcepts`, que
+// hay que reescribir empleado por empleado en cada quincena, y que ademas no
+// tiene pantalla que lo envie.
+//
+// Vigencia igual que SalaryHistory: `effectiveFrom` marca desde cuando aplica y
+// `effectiveTo` hasta cuando (null = indefinida). El proceso toma las vigentes al
+// INICIO del periodo, la misma regla que el sueldo — ver utils/salary-vigencia.ts
+// y el defecto que corrigio, donde pantalla y calculo discrepaban al cambiar algo
+// dentro del propio periodo.
+//
+// La NATURALEZA (salarial / no salarial) NO vive aqui: la gobierna el
+// PayrollConcept referenciado, que es la fuente unica (ADR-045 D-1). Asi un mismo
+// bono no puede ser salarial para un trabajador y no salarial para otro.
+model EmployeeRecurringConcept {
+  id            String                 @id @default(cuid())
+  companyId     String
+  employeeId    String
+  conceptId     String
+  amount        Decimal                @db.Decimal(19, 4)
+  // Moneda en que esta pactado. Puede diferir de la del proceso: el bono se pacta
+  // en dolares y la nomina se liquida en bolivares, asi que se convierte a la tasa
+  // del periodo y se guarda el original en la linea (ADR-045 D-3).
+  currency      PayrollPaymentCurrency
+  effectiveFrom DateTime               @db.Date
+  effectiveTo   DateTime?              @db.Date
+  notes         String?                @db.VarChar(300)
+
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  concept  PayrollConcept @relation(fields: [conceptId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId, effectiveFrom(sort: Desc)])
+  @@index([companyId, conceptId])
+  @@index([employeeId])
 }
 
 // ─── PayrollRun ───────────────────────────────────────────────────────────────
@@ -2212,6 +2262,13 @@ model PayrollRunLine {
   // reclasificar un concepto reescribía un mes ya aprobado. NULL = fila anterior
   // a esta migración cuyo concepto ya no existe: se cae al catálogo.
   salaryNature           SalaryNature?
+  // ADR-045 D-3: si el importe se pacto en otra moneda (un bono en divisas sobre
+  // una nomina en bolivares), se guarda el original y la tasa aplicada. Sin esto
+  // una fiscalizacion no puede reconstruir el calculo: la tasa de aquel dia ya no
+  // esta, y el importe en Bs por si solo no dice de donde salio.
+  originalAmount         Decimal?                @db.Decimal(19, 4)
+  originalCurrency       PayrollPaymentCurrency?
+  exchangeRateApplied    Decimal?                @db.Decimal(19, 8)
   createdAt              DateTime                @default(now())
 
   payrollRun PayrollRun     @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
