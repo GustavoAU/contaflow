@@ -1740,6 +1740,12 @@ model PayrollConfig {
   // Pagos
   paymentCurrency               PayrollPaymentCurrency
   frequency                     PayrollFrequency
+  // Borrador automático de nómina en cada corte. OPT-IN a propósito: crear un
+  // borrador NO es inocuo — reserva las horas extra del período (ningún otro
+  // proceso las ve mientras estén tomadas), ocupa la única ranura vigente de ese
+  // período y moneda, y puede escribir conceptos del sistema. Activarlo para
+  // todos sin pedirlo les cambiaría el comportamiento con esos tres efectos.
+  autoDraftEnabled              Boolean                @default(false)
   fideicomiso                   FideicomisoType
   // Fase NOM-C: Cuentas contables para asiento de causación (nullable hasta configurar)
   // ADR-013 Decisión 3: configurables por empresa (no hardcoded)

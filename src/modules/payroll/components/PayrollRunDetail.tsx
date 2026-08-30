@@ -10,6 +10,7 @@ import { Loader2Icon } from "lucide-react";
 import type { PayrollRunDetailRow } from "../services/PayrollRunService";
 import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
 import { formatAmount, currencySymbol } from "@/lib/format";
+import { AUTO_DRAFT_ACTOR } from "../utils/auto-draft";
 import { ManualLineForm } from "./ManualLineForm";
 import type { ManualLineConcept } from "./ManualLineForm";
 
@@ -109,6 +110,11 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
   // línea, atenuado, en vez del código completo: repetir "USD" sesenta veces
   // pesaba más que la ambigüedad que resolvía.
   const sym = currencySymbol(currency);
+
+  // Lo calculó el cron del corte, no una persona. Importa AQUÍ y no sólo en el
+  // listado: al detalle se puede llegar desde un enlace directo, y es donde
+  // está el botón que genera el asiento contable de forma irreversible.
+  const esAutomatico = run.createdByUserId === AUTO_DRAFT_ACTOR;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRecalculating, startRecalculate] = useTransition();
@@ -304,6 +310,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
               {STATUS_LABELS[run.status] ?? run.status}
             </span>
+            {esAutomatico && (
+              <span
+                className="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800"
+                title="Lo calculó el sistema en el corte del período. Nadie lo ha revisado todavía."
+              >
+                Automático
+              </span>
+            )}
           </div>
         </div>
 
@@ -414,6 +428,13 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             <p className="mt-1 text-sm text-gray-500">
               Esta acción generará el asiento contable y no podrá revertirse directamente.
             </p>
+            {esAutomatico && (
+              <p className="mt-3 rounded border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+                <strong>Este proceso lo calculó el sistema</strong> en el corte del
+                período. Revisa los montos antes de aprobar: nadie los ha
+                verificado todavía.
+              </p>
+            )}
 
             {/* Checklist de prerrequisitos — U-03 */}
             <div className="mt-4 space-y-2">
