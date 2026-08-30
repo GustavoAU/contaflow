@@ -19,6 +19,9 @@ vi.mock("@/lib/prisma", () => ({
     employee: { count: vi.fn() },
     legalThreshold: { findFirst: vi.fn() },
     benefitAccrualLine: { count: vi.fn() },
+    payrollConfig: { findUnique: vi.fn() },
+    salaryHistory: { findMany: vi.fn() },
+    employeeRecurringConcept: { findMany: vi.fn() },
     bcvBenefitRate: { findFirst: vi.fn() },
     // Fase 4 Caja Chica
     cajaCajaMovement: { count: vi.fn() },        // CAJA_CHICA_GASTOS_POR_APROBAR
@@ -48,6 +51,10 @@ function mockAllZero() {
   vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null as never);
   vi.mocked(prisma.benefitAccrualLine.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null as never);
+  // Sin frecuencia ni vigencias: la alerta de vigencias a mitad de periodo no salta.
+  vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(null as never);
+  vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
   // Fase 4 Caja Chica — sin pendientes por defecto → no dispara alertas de caja chica
   vi.mocked(prisma.cajaCajaMovement.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.cajaCajaReimbursement.count).mockResolvedValue(0 as never);
@@ -299,6 +306,89 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO")).toBeUndefined();
+  });
+
+  // ── NOM_VIGENCIA_DENTRO_DEL_PERIODO ────────────────────────────────────────
+  // Nace del atasco del 2026-08-30: un aumento VES→USD con vigencia el dia 20,
+  // en la quincena 16→31, rechazaba la nomina entera por "monedas mixtas" sin
+  // señalar a nadie. Media hora de diagnostico que un aviso resuelve.
+
+  /** Un dia del mes en curso que no es ni 1 ni 16 (desalineado en quincenal). */
+  function diaDesalineadoDelMes(dia: number): Date {
+    const n = new Date();
+    return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), dia));
+  }
+
+  it("detecta un sueldo con vigencia a mitad de periodo (NOM_VIGENCIA_DENTRO_DEL_PERIODO)", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      {
+        effectiveFrom: diaDesalineadoDelMes(20),
+        currency: "USD",
+        employee: { firstName: "José", lastName: "Rodríguez" },
+      },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO");
+    expect(task).toBeDefined();
+    expect(task!.severity).toBe("warning");
+    expect(task!.count).toBe(1);
+    expect(task!.description).toContain("Rodríguez");
+    expect(task!.description).toContain("día 20");
+  });
+
+  it("NO marca las vigencias alineadas al corte (dia 1 y 16 en quincenal)", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { effectiveFrom: diaDesalineadoDelMes(1), currency: "USD", employee: { firstName: "A", lastName: "Uno" } },
+      { effectiveFrom: diaDesalineadoDelMes(16), currency: "VES", employee: { firstName: "B", lastName: "Dos" } },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO")).toBeUndefined();
+  });
+
+  it("en nomina MENSUAL el dia 16 SI esta a mitad de periodo", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "MONTHLY" } as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { effectiveFrom: diaDesalineadoDelMes(16), currency: "USD", employee: { firstName: "C", lastName: "Tres" } },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO")).toBeDefined();
+  });
+
+  it("en nomina SEMANAL no marca nada: cualquier lunes es inicio de periodo", async () => {
+    // El ruido seria peor que el aviso.
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "SEMANAL" } as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { effectiveFrom: diaDesalineadoDelMes(20), currency: "USD", employee: { firstName: "D", lastName: "Cuatro" } },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO")).toBeUndefined();
+  });
+
+  it("tambien mira las asignaciones fijas, no solo el sueldo", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([
+      {
+        effectiveFrom: diaDesalineadoDelMes(22),
+        employee: { firstName: "Ana", lastName: "Pérez" },
+        concept: { name: "Bono en divisas (no salarial)" },
+      },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO");
+    expect(task).toBeDefined();
+    expect(task!.description).toContain("Bono en divisas");
   });
 
   it("detecta trimestre actual sin prestaciones acumuladas (NOM_PRESTACIONES_POR_ACUMULAR) — severity warning", async () => {
