@@ -51,6 +51,21 @@ export const ManualConceptSchema = z.object({
 
 export type ManualConceptInput = z.infer<typeof ManualConceptSchema>;
 
+// ─── AddManualLineSchema — concepto puntual sobre un borrador ─────────────────
+// Los `manualConcepts` de CreatePayrollRunSchema sólo podían fijarse AL CREAR, y
+// ninguna pantalla los enviaba nunca: la retención de ISLR —cuya vía de entrada
+// documentada era ésa— no podía introducirse en la aplicación. Esto los admite
+// sobre un proceso en borrador, que es cuando el contador conoce el importe.
+
+export const AddManualLineSchema = z.object({
+  runId: z.string().min(1, { error: "Proceso requerido" }),
+  employeeId: z.string().min(1, { error: "Trabajador requerido" }),
+  conceptId: z.string().min(1, { error: "Concepto requerido" }),
+  amount: zMoneyPositive,
+});
+
+export type AddManualLineInput = z.infer<typeof AddManualLineSchema>;
+
 // ─── CreatePayrollRunSchema ───────────────────────────────────────────────────
 
 export const CreatePayrollRunSchema = z

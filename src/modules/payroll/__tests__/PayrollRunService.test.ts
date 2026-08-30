@@ -20,10 +20,13 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: vi.fn(),
     },
     payrollRunLine: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
+      create: vi.fn(),
       createMany: vi.fn(),
     },
     payrollConcept: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
     },
     payrollConfig: {
@@ -456,6 +459,84 @@ describe("PayrollRunService.create", () => {
       { effectiveTo: null },
       { effectiveTo: { gte: new Date(INPUT.periodStart) } },
     ]);
+  });
+
+  // ── addManualLine — el concepto puntual (ISLR, bono de una vez) ───────────
+  // Lo que desbloquea: `manualConcepts` solo se podia fijar AL CREAR y ninguna
+  // pantalla lo enviaba, asi que la retencion de ISLR no tenia via de entrada.
+
+  function setupManualLineMocks(over: Record<string, unknown> = {}) {
+    mockTx();
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue({
+      id: RUN_ID, status: "DRAFT", periodStart: new Date("2026-04-01"),
+      ...over,
+    } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "p1" } as never);
+    // El trabajador YA tiene lineas en el run; y no hay duplicado del concepto.
+    vi.mocked(prisma.payrollRunLine.findFirst)
+      .mockResolvedValueOnce({ id: "line-existente" } as never)
+      .mockResolvedValueOnce(null as never);
+    vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue({
+      id: "c-islr", code: "ISLR_RET", name: "Retención ISLR",
+      type: "DEDUCTION", salaryNature: "NO_SALARIAL", isActive: true,
+    } as never);
+    vi.mocked(prisma.payrollRunLine.create).mockResolvedValue({ id: "line-nueva" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  }
+
+  const MANUAL_INPUT = {
+    runId: RUN_ID, employeeId: "emp-1", conceptId: "c-islr", amount: "150.00",
+  };
+
+  it("agrega un concepto puntual y mueve los totales por el delta", async () => {
+    setupManualLineMocks();
+
+    await PayrollRunService.addManualLine(COMPANY_ID, USER_ID, MANUAL_INPUT, "1.2.3.4", "ua");
+
+    // Una DEDUCTION sube deducciones y BAJA el neto.
+    const update = vi.mocked(prisma.payrollRun.update).mock.calls[0][0];
+    expect(update.data).toHaveProperty("totalDeductions");
+    expect(update.data).toHaveProperty("totalNet");
+    // R-6: IP y user-agent en el AuditLog, en el mismo $transaction.
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0][0].data as Record<string, unknown>;
+    expect(audit.ipAddress).toBe("1.2.3.4");
+    expect(audit.action).toBe("ADD_MANUAL_PAYROLL_LINE");
+  });
+
+  it("RECHAZA sobre un run aprobado", async () => {
+    setupManualLineMocks({ status: "APPROVED" });
+    await expect(
+      PayrollRunService.addManualLine(COMPANY_ID, USER_ID, MANUAL_INPUT, null, null),
+    ).rejects.toThrow("asiento contable");
+    expect(vi.mocked(prisma.payrollRunLine.create)).not.toHaveBeenCalled();
+  });
+
+  it("RECHAZA si el periodo contable esta cerrado (R-3)", async () => {
+    setupManualLineMocks();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
+    await expect(
+      PayrollRunService.addManualLine(COMPANY_ID, USER_ID, MANUAL_INPUT, null, null),
+    ).rejects.toThrow("cerrado");
+  });
+
+  it("RECHAZA si el trabajador no esta en el run", async () => {
+    setupManualLineMocks();
+    // La PRIMERA consulta de lineas es la que comprueba pertenencia al run.
+    vi.mocked(prisma.payrollRunLine.findFirst).mockReset();
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue(null as never);
+    await expect(
+      PayrollRunService.addManualLine(COMPANY_ID, USER_ID, MANUAL_INPUT, null, null),
+    ).rejects.toThrow("no forma parte");
+  });
+
+  it("RECHAZA el mismo concepto dos veces para el mismo trabajador", async () => {
+    setupManualLineMocks();
+    vi.mocked(prisma.payrollRunLine.findFirst).mockReset();
+    vi.mocked(prisma.payrollRunLine.findFirst).mockResolvedValue({ id: "x" } as never);
+    await expect(
+      PayrollRunService.addManualLine(COMPANY_ID, USER_ID, MANUAL_INPUT, null, null),
+    ).rejects.toThrow("ya tiene una línea");
   });
 
   it("PERMITE recrear el periodo de un run CANCELADO", async () => {
