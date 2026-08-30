@@ -58,6 +58,42 @@ function conceptLabel(code: string): string {
   return CONCEPT_LABELS[code] ?? code;
 }
 
+// Fila con LINEA GUIA: en pantalla ancha el concepto quedaba en un extremo y su
+// importe en el otro, y seguir cual monto pertenece a cual linea era un ejercicio
+// de vista. El punteado los une y el hover marca la fila entera.
+function ConceptRow({ label, detail, amount, tone }: {
+  label: string;
+  detail?: React.ReactNode;
+  amount: string;
+  tone: "earning" | "deduction" | "employer";
+}) {
+  const color =
+    tone === "earning" ? "text-green-700"
+    : tone === "deduction" ? "text-red-600"
+    : "text-orange-700";
+  const labelColor =
+    tone === "earning" ? "text-gray-600"
+    : tone === "deduction" ? "text-gray-500"
+    : "text-orange-700";
+
+  return (
+    <tr className="group">
+      <td className="py-0.5 pr-3">
+        <span className="flex items-baseline gap-2">
+          <span className={`shrink-0 ${labelColor}`}>
+            {label}
+            {detail}
+          </span>
+          <span className="min-w-6 flex-1 translate-y-[-2px] border-b border-dotted border-gray-300 group-hover:border-gray-400" />
+        </span>
+      </td>
+      <td className={`w-32 py-0.5 pr-1 text-right font-mono tabular-nums ${color}`}>
+        {amount}
+      </td>
+    </tr>
+  );
+}
+
 export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -477,20 +513,17 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                   <table className="w-full text-xs mb-1">
                     <tbody>
                       {earnings.map((l) => (
-                        <tr key={l.id}>
-                          <td className="py-0.5 pr-4 text-gray-600">
-                            {conceptLabel(l.conceptCode)}
-                            {/* U-02: base imponible visible */}
-                            {l.basis && l.rate && (
-                              <span className="ml-1.5 text-gray-400 font-normal">
-                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-0.5 text-right font-mono text-green-700">
-                            +{formatAmount(Number(l.amount))}
-                          </td>
-                        </tr>
+                        <ConceptRow
+                          key={l.id}
+                          tone="earning"
+                          label={conceptLabel(l.conceptCode)}
+                          detail={l.basis && l.rate ? (
+                            <span className="ml-1.5 font-normal text-gray-400">
+                              ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                            </span>
+                          ) : undefined}
+                          amount={`+${formatAmount(Number(l.amount))}`}
+                        />
                       ))}
                     </tbody>
                   </table>
@@ -506,20 +539,17 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                   <table className="w-full text-xs">
                     <tbody>
                       {deductions.map((l) => (
-                        <tr key={l.id}>
-                          <td className="py-0.5 pr-4 text-gray-500">
-                            {conceptLabel(l.conceptCode)}
-                            {/* U-02: base imponible visible */}
-                            {l.basis && l.rate && (
-                              <span className="ml-1.5 text-gray-400 font-normal">
-                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-0.5 text-right font-mono text-red-600">
-                            -{formatAmount(Number(l.amount))}
-                          </td>
-                        </tr>
+                        <ConceptRow
+                          key={l.id}
+                          tone="deduction"
+                          label={conceptLabel(l.conceptCode)}
+                          detail={l.basis && l.rate ? (
+                            <span className="ml-1.5 font-normal text-gray-400">
+                              ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                            </span>
+                          ) : undefined}
+                          amount={`-${formatAmount(Number(l.amount))}`}
+                        />
                       ))}
                     </tbody>
                   </table>
@@ -532,20 +562,17 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                     <table className="w-full text-xs">
                       <tbody>
                         {employerCosts.map((l) => (
-                          <tr key={l.id} className="opacity-80">
-                            <td className="py-0.5 pr-4 text-orange-700">
-                              {conceptLabel(l.conceptCode)}
-                              {/* U-02: base imponible visible en aportes patronales */}
-                              {l.basis && l.rate && (
-                                <span className="ml-1.5 text-orange-400 font-normal">
-                                  ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-0.5 text-right font-mono text-orange-700">
-                              {formatAmount(Number(l.amount))}
-                            </td>
-                          </tr>
+                          <ConceptRow
+                            key={l.id}
+                            tone="employer"
+                            label={conceptLabel(l.conceptCode)}
+                            detail={l.basis && l.rate ? (
+                              <span className="ml-1.5 font-normal text-orange-400">
+                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
+                              </span>
+                            ) : undefined}
+                            amount={formatAmount(Number(l.amount))}
+                          />
                         ))}
                       </tbody>
                     </table>
