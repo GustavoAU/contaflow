@@ -20,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     legalThreshold: { findFirst: vi.fn() },
     benefitAccrualLine: { count: vi.fn() },
     payrollConfig: { findUnique: vi.fn() },
+    payrollRun: { findMany: vi.fn() },
     salaryHistory: { findMany: vi.fn() },
     employeeRecurringConcept: { findMany: vi.fn() },
     bcvBenefitRate: { findFirst: vi.fn() },
@@ -53,6 +54,7 @@ function mockAllZero() {
   vi.mocked(prisma.bcvBenefitRate.findFirst).mockResolvedValue(null as never);
   // Sin frecuencia ni vigencias: la alerta de vigencias a mitad de periodo no salta.
   vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(null as never);
+  vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
   // Fase 4 Caja Chica — sin pendientes por defecto → no dispara alertas de caja chica
@@ -360,6 +362,25 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO")).toBeDefined();
+  });
+
+  it("el HISTORIAL manda sobre frequency: MONTHLY configurado pero procesa quincenas", async () => {
+    // Falso positivo real: PayrollConfig.frequency es decorativo —el formulario
+    // propone quincenas sin mirarlo—, asi que una empresa MONTHLY puede llevar
+    // meses procesando 16→31. Fiarse del campo marcaba el dia 16 contra su
+    // propia practica.
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "MONTHLY" } as never);
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
+      { periodStart: new Date(Date.UTC(2026, 7, 16)) },
+      { periodStart: new Date(Date.UTC(2026, 7, 1)) },
+    ] as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { effectiveFrom: diaDesalineadoDelMes(16), currency: "USD", employee: { firstName: "E", lastName: "Cinco" } },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_VIGENCIA_DENTRO_DEL_PERIODO")).toBeUndefined();
   });
 
   it("en nomina SEMANAL no marca nada: cualquier lunes es inicio de periodo", async () => {
