@@ -8,6 +8,8 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunForm } from "@/modules/payroll/components/PayrollRunForm";
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import { PrerequisiteGuide } from "@/components/guides/PrerequisiteGuide";
+import { todayInTimeZone } from "@/lib/today";
+import { getFiscalConfig } from "@/lib/tax-config";
 
 interface Props {
   params: Promise<{ companyId: string }>;
@@ -38,12 +40,16 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
 
-  const [activeEmployeeCount, salMinThreshold, bcvRateForMonth, employees] = await Promise.all([
+  const [activeEmployeeCount, salMinThreshold, payrollConfig, bcvRateForMonth, employees] = await Promise.all([
     EmployeeService.countActive(companyId),
     prisma.legalThreshold.findFirst({
       where: { companyId, type: "SALARY_MIN_VES" },
       orderBy: { effectiveFrom: "desc" },
       select: { value: true, effectiveFrom: true },
+    }),
+    prisma.payrollConfig.findUnique({
+      where: { companyId },
+      select: { frequency: true },
     }),
     prisma.bcvBenefitRate.findFirst({
       where: { companyId, year: currentYear, month: currentMonth },
@@ -85,6 +91,10 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
         salMinLastUpdate={salMinThreshold?.effectiveFrom.toISOString() ?? null}
         salMinValue={salMinThreshold?.value.toString() ?? null}
         hasBcvRateForMonth={!!bcvRateForMonth}
+        // La frecuencia manda sobre los cortes propuestos; "hoy" se calcula
+        // aqui, en la zona del pais, no en el cliente.
+        frequency={payrollConfig?.frequency ?? "BIWEEKLY"}
+        todayISO={todayInTimeZone(getFiscalConfig("VEN").timezone)}
         employees={employees.map((e) => ({
           id: e.id,
           name: `${e.lastName}, ${e.firstName}`,
