@@ -8,9 +8,19 @@ import { Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createPayrollRunAction } from "../actions/payroll-run.actions";
+import { EmployeePicker } from "./EmployeePicker";
+
+export interface RunEmployeeOption {
+  id: string;
+  name: string;
+  // Moneda del sueldo vigente. `null` = sin salario registrado: el calculador
+  // lo descarta, así que no se puede incluir.
+  currency: "VES" | "USD" | "MIXED" | null;
+}
 
 interface Props {
   companyId: string;
+  employees?: RunEmployeeOption[];
   activeEmployeeCount?: number;
   initialStart?: string;
   initialEnd?: string;
@@ -58,6 +68,7 @@ function computeEndFromStart(startISO: string): string {
 
 export function PayrollRunForm({
   companyId,
+  employees,
   activeEmployeeCount,
   initialStart,
   initialEnd,
@@ -70,6 +81,47 @@ export function PayrollRunForm({
   const defaults = getDefaultPeriod();
   const [periodStart, setPeriodStart] = useState(initialStart ?? defaults.start);
   const [periodEnd, setPeriodEnd] = useState(initialEnd ?? defaults.end);
+
+  // ── Quiénes entran en esta nómina ─────────────────────────────────────────
+  // El calculador BLOQUEA las monedas mixtas (C-01): sumar bolívares y dólares
+  // da un total que no es de ninguna de las dos. Una empresa con sueldos en las
+  // dos monedas no podía procesar NADA desde aquí, porque el formulario no
+  // dejaba elegir a quién incluir aunque la action sí lo aceptaba.
+  const elegibles = (employees ?? []).filter((e) => e.currency !== null);
+  const monedas = [...new Set(elegibles.map((e) => e.currency))];
+  const hayMonedasMixtas = monedas.length > 1;
+
+  // Con una sola moneda no hay nada que elegir: van todos, como siempre.
+  // Con varias arranca preseleccionada la más numerosa, que es lo que la empresa
+  // procesa de ordinario.
+  const monedaMayoritaria = monedas.sort(
+    (a, b) => elegibles.filter((e) => e.currency === b).length
+            - elegibles.filter((e) => e.currency === a).length,
+  )[0];
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(
+      hayMonedasMixtas
+        ? elegibles.filter((e) => e.currency === monedaMayoritaria).map((e) => e.id)
+        : elegibles.map((e) => e.id),
+    ),
+  );
+
+  const monedasSeleccionadas = [...new Set(
+    elegibles.filter((e) => selected.has(e.id)).map((e) => e.currency),
+  )];
+  const seleccionInvalida = monedasSeleccionadas.length > 1;
+
+  function toggleEmployee(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectCurrency(cur: string) {
+    setSelected(new Set(elegibles.filter((e) => e.currency === cur).map((e) => e.id)));
+  }
   const [error, setError] = useState<string | null>(null);
 
   function handleStartChange(value: string) {
@@ -86,6 +138,10 @@ export function PayrollRunForm({
         periodStart,
         periodEnd,
         idempotencyKey: generateIdempotencyKey(),
+        // Vacío = todos los activos, que es el comportamiento de siempre.
+        ...(selected.size > 0 && selected.size < elegibles.length
+          ? { employeeIds: [...selected] }
+          : {}),
       });
 
       if (result.success) {
@@ -242,13 +298,23 @@ export function PayrollRunForm({
           <li>Tasa BCV de interés del período (snapshot del registro mensual)</li>
           <li>Asiento de causación GL generado automáticamente al aprobar</li>
         </ul>
-        <p className="mt-1 text-xs text-blue-600">Horas extra e ISLR se agregan como conceptos manuales en el detalle del proceso.</p>
+        <p className="mt-1 text-xs text-blue-600">Las horas extra se toman del registro del período (LOTTT Art. 183). El ISLR se agrega como concepto manual en el detalle.</p>
       </div>
+
+      <EmployeePicker
+        employees={elegibles}
+        selected={selected}
+        onToggle={toggleEmployee}
+        onSelectCurrency={selectCurrency}
+        currencies={monedas}
+        mixed={hayMonedasMixtas}
+        invalidMix={seleccionInvalida ? monedasSeleccionadas.join(" y ") : null}
+      />
 
       <div className="flex gap-3">
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || seleccionInvalida || (elegibles.length > 0 && selected.size === 0)}
           aria-busy={isPending}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
         >

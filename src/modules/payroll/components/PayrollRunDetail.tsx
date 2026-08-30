@@ -184,7 +184,10 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
   function handleRecalculate() {
     setError(null);
     startRecalculate(async () => {
-      const result = await cancelPayrollRunAction(companyId, { runId: run.id });
+      const result = await cancelPayrollRunAction(companyId, {
+        runId: run.id,
+        reason: "Recálculo: se cancela para recrear el proceso con las mismas fechas",
+      });
       if (result.success) {
         toast.success("Nómina cancelada — puedes crear una nueva con las mismas fechas");
         router.push(
