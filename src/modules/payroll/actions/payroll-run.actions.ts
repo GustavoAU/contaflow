@@ -101,10 +101,20 @@ export async function createPayrollRunAction(
     // compuestos —el del período y el de `idempotencyKey`— así que un
     // doble-submit salía con el mensaje del período, que es FALSO y manda al
     // usuario a buscar un borrador que no existe.
-    if (p2002TargetIncludes(err, "periodStart")) {
+    // El nombre del ÍNDICE, no la columna: el `@@unique` del período se
+    // reemplazó por un único PARCIAL (migración 20260830), y para un índice que
+    // Prisma no declara `meta.target` trae su nombre. La comparación es EXACTA,
+    // así que buscar "periodStart" dejaba esta rama muerta y el usuario caía en
+    // el mensaje genérico. Es el precedente de CLAUDE.md: la columna es la del
+    // CONSTRAINT, no la del documento. Se conservan ambas formas porque
+    // `meta.target` no tiene forma estable.
+    if (
+      p2002TargetIncludes(err, "periodStart") ||
+      p2002TargetIncludes(err, "PayrollRun_companyId_period_segment_active_key")
+    ) {
       return {
         success: false,
-        error: "Ya existe un proceso de nómina para este período. Revisa los borradores existentes.",
+        error: "Ya existe un proceso de nómina vigente para este período y esta moneda. Revisa los borradores existentes.",
       };
     }
     if (p2002TargetIncludes(err, "idempotencyKey")) {

@@ -198,30 +198,8 @@ export const PayrollRunService = {
       );
     }
 
-    // ── Guard de períodos SOLAPADOS ───────────────────────────────────────
-    // El @@unique([companyId, periodStart, periodEnd]) bloquea el período
-    // IDÉNTICO, no el solapado: 01–15 de agosto y 01–31 de agosto son dos pares
-    // de fechas distintos y ambos pasaban. Con horas extra de por medio eso es
-    // doble pago —las mismas horas entran en las líneas de los dos runs— y con
-    // el salario base, dos nóminas por el mismo tiempo trabajado.
-    const overlapping = await prisma.payrollRun.findFirst({
-      where: {
-        companyId,
-        status: { in: ["DRAFT", "APPROVED"] },
-        periodStart: { lte: periodEnd },
-        periodEnd: { gte: periodStart },
-      },
-      select: { periodStart: true, periodEnd: true, status: true },
-    });
-    if (overlapping) {
-      const desde = overlapping.periodStart.toISOString().split("T")[0];
-      const hasta = overlapping.periodEnd.toISOString().split("T")[0];
-      throw new Error(
-        `Ya existe un proceso de nómina ${overlapping.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
-        `que cubre del ${desde} al ${hasta}, y se solapa con el período que intentas procesar. ` +
-        "Cancélalo o ajusta las fechas."
-      );
-    }
+    // (El guard de períodos solapados vive más abajo: necesita saber QUÉ
+    //  trabajadores entran, y para eso hay que haberlos cargado.)
 
     // ── Obtener config (con flags de organismos) ───────────────────────────
     const config = await prisma.payrollConfig.findUnique({
@@ -248,6 +226,58 @@ export const PayrollRunService = {
 
     if (employees.length === 0) {
       throw new Error("No hay empleados activos para procesar");
+    }
+
+    // ── Guard de períodos SOLAPADOS — por TRABAJADOR, no por fechas ────────
+    // El invariante real es que un trabajador no cobre dos veces por el mismo
+    // tiempo; no que exista un solo proceso por período. Confundirlos rompía el
+    // caso que el selector de empleados vino a resolver: una empresa con sueldos
+    // en dos monedas DEBE procesar por separado —el calculador bloquea las
+    // mixtas—, y esos dos procesos comparten período. El guard anterior sólo
+    // miraba fechas, así que veía el proceso en USD y rechazaba el de VES; se
+    // podía pagar a un grupo y el otro se quedaba sin cobrar ese período.
+    //
+    // Sigue cubriendo lo que motivó el guard: 01–15 y 01–31 son pares de fechas
+    // distintos que el único no ve, y con la MISMA gente son doble pago.
+    const candidatos = employees
+      .filter((e) => e.salaryHistory.length > 0)
+      .map((e) => e.id);
+
+    const solapados = await prisma.payrollRun.findMany({
+      where: {
+        companyId,
+        status: { in: ["DRAFT", "APPROVED"] },
+        periodStart: { lte: periodEnd },
+        periodEnd: { gte: periodStart },
+      },
+      select: { id: true, periodStart: true, periodEnd: true, status: true },
+    });
+
+    if (solapados.length > 0 && candidatos.length > 0) {
+      const choque = await prisma.payrollRunLine.findFirst({
+        where: {
+          // companyId explícito: PayrollRunLine tiene columna propia y la
+          // aserción de tenant no acepta el acotamiento indirecto (ADR-044 D-3).
+          companyId,
+          payrollRunId: { in: solapados.map((r) => r.id) },
+          employeeId: { in: candidatos },
+        },
+        select: { employeeId: true, payrollRunId: true },
+      });
+
+      if (choque) {
+        const run = solapados.find((r) => r.id === choque.payrollRunId)!;
+        const empleado = employees.find((e) => e.id === choque.employeeId);
+        const quien = empleado ? `${empleado.lastName}, ${empleado.firstName}` : "Un trabajador";
+        const desde = run.periodStart.toISOString().split("T")[0];
+        const hasta = run.periodEnd.toISOString().split("T")[0];
+        throw new Error(
+          `${quien} ya está en un proceso de nómina ${run.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
+          `del ${desde} al ${hasta}, que se solapa con el período que intentas procesar. ` +
+          "Cobraría dos veces por el mismo tiempo. Cancela ese proceso, ajusta las fechas " +
+          "o quita a esa persona de esta selección."
+        );
+      }
     }
 
     // ── Garantizar que los conceptos del sistema existen (idempotente) ───────
@@ -368,10 +398,22 @@ export const PayrollRunService = {
     // caso también se cae al mes en curso, pero dejando constancia del motivo.
     const DAY_MS = 1000 * 60 * 60 * 24;
     const prevMonthDays = Math.round((prevMonthEnd.getTime() - prevMonthStart.getTime()) / DAY_MS) + 1;
-    const coveredDays = prevRuns.reduce(
-      (n, r) => n + Math.round((r.periodEnd.getTime() - r.periodStart.getTime()) / DAY_MS) + 1,
-      0,
-    );
+    // UNIÓN de días, no suma de duraciones. Sumarlas asumía un solo proceso por
+    // período —invariante que la BD imponía hasta que la ranura pasó a ser
+    // (período + moneda)—. Una empresa bimonetaria que procesó sólo la primera
+    // quincena en sus dos monedas daba 15+15=30: "mes completo" en un mes de 30
+    // días con MEDIO mes cubierto. La base del Art. 107 salía a la mitad, sin
+    // error y con un Decimal válido, y el AuditLog certificaba MES_ANTERIOR.
+    // Misma clase de fallo silencioso que H-4.
+    const diasCubiertos = new Set<string>();
+    for (const r of prevRuns) {
+      const cursor = new Date(r.periodStart.getTime());
+      while (cursor.getTime() <= r.periodEnd.getTime()) {
+        diasCubiertos.add(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+    const coveredDays = diasCubiertos.size;
     const prevMonthComplete = prevRuns.length > 0 && coveredDays >= prevMonthDays;
     const prevMonthPartial = prevRuns.length > 0 && !prevMonthComplete;
 
@@ -760,6 +802,9 @@ export const PayrollRunService = {
           periodStart,
           periodEnd,
           status: "DRAFT",
+          // La ranura del período es (período + moneda): dos procesos del mismo
+          // período en monedas distintas son legítimos, dos en la misma no.
+          currencySegment: runCurrency,
           totalEarnings: result.totalEarnings,
           totalDeductions: result.totalDeductions,
           totalNet: result.totalNet,

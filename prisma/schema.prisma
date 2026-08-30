@@ -2145,21 +2145,28 @@ model EmployeeRecurringConcept {
 // totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
 
 model PayrollRun {
-  id                 String           @id @default(cuid())
+  id                 String                 @id @default(cuid())
   companyId          String
-  periodStart        DateTime         @db.Date
-  periodEnd          DateTime         @db.Date
-  status             PayrollRunStatus @default(DRAFT)
+  periodStart        DateTime               @db.Date
+  periodEnd          DateTime               @db.Date
+  status             PayrollRunStatus       @default(DRAFT)
+  // Segmento de la nómina. Una empresa con sueldos en dos monedas está OBLIGADA a
+  // procesar por separado (el calculador bloquea las mixtas: un total que suma
+  // bolívares y dólares no es de ninguna de las dos), y esos dos procesos
+  // comparten período. Sin este discriminante la ranura del período era única y
+  // el segundo grupo NO PODÍA PAGARSE NUNCA — el selector de empleados dejaba
+  // elegir la moneda y el guard de solape rechazaba el segundo proceso.
+  currencySegment    PayrollPaymentCurrency @default(VES)
   // Totales calculados server-side al momento del cálculo (inmutables post-APPROVED)
-  totalEarnings      Decimal          @db.Decimal(19, 4) // ADR-002
-  totalDeductions    Decimal          @db.Decimal(19, 4) // ADR-002
-  totalNet           Decimal          @db.Decimal(19, 4) // ADR-002
-  totalEmployerCosts Decimal          @default(0) @db.Decimal(19, 4) // F-03: aportes patronales — ADR-002
+  totalEarnings      Decimal                @db.Decimal(19, 4) // ADR-002
+  totalDeductions    Decimal                @db.Decimal(19, 4) // ADR-002
+  totalNet           Decimal                @db.Decimal(19, 4) // ADR-002
+  totalEmployerCosts Decimal                @default(0) @db.Decimal(19, 4) // F-03: aportes patronales — ADR-002
   employeeCount      Int
   // C-05: tasa BCV activa del período — snapshot para auditoría histórica
-  bcvRateAtRun       Decimal?         @db.Decimal(16, 4)
+  bcvRateAtRun       Decimal?               @db.Decimal(16, 4)
   // Vínculo al asiento contable (nullable hasta APPROVED — ADR-013 Decisión 4)
-  transactionId      String?          @unique
+  transactionId      String?                @unique
   // Auditoría
   createdByUserId    String
   approvedByUserId   String?
@@ -2168,8 +2175,8 @@ model PayrollRun {
   cancelledAt        DateTime?
   // Previene doble submit desde UI (idempotencyKey único por request)
   idempotencyKey     String
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   transaction Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
