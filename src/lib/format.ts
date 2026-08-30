@@ -14,6 +14,20 @@ export function formatAmount(value: string | number, currency?: "VES" | "USD" | 
   return currency === "USD" ? USD_FORMAT.format(num) : VE_FORMAT.format(num);
 }
 
+// Símbolo de moneda para prefijar importes. Fuente única: el mapa vivía privado
+// dentro de MoneyBadge, y la nómina necesitaba el mismo. Duplicarlo garantizaba
+// que añadir una moneda se hiciera en un solo sitio de los dos.
+const CURRENCY_SYMBOL: Record<string, string> = {
+  VES: "Bs.",
+  USD: "$",
+  EUR: "€",
+};
+
+/** Símbolo de la moneda, o el propio código si no se conoce (nunca vacío). */
+export function currencySymbol(currency: string): string {
+  return CURRENCY_SYMBOL[currency.toUpperCase()] ?? currency;
+}
+
 // FAC-4: siempre muestra la fecha UTC (sin ajuste de zona horaria) porque las fechas
 // de facturas se almacenan como medianoche UTC desde el date-picker del usuario.
 // Usar toLocaleDateString con timeZone: "UTC" es más explícito y robusto que extraer

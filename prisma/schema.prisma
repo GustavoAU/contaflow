@@ -2085,7 +2085,12 @@ enum PayrollRunStatus {
 
 // ─── PayrollRun ───────────────────────────────────────────────────────────────
 // Cabecera de un proceso de nómina para un período específico.
-// @@unique([companyId, periodStart, periodEnd]) previene doble-proceso a nivel DB.
+// Unicidad de periodo: indice UNICO PARCIAL en la BD (migracion
+// 20260830_payrollrun_period_partial_unique), no declarable aqui porque Prisma
+// DSL no soporta WHERE en @@unique. Solo aplica a los procesos VIGENTES:
+// WHERE status <> 'CANCELLED'. Incondicional inutilizaba el periodo para
+// siempre al cancelar, que es justo lo que hace Recalcular (ver ADR-035, misma
+// clase de defecto en caja chica).
 // onDelete: Restrict — nunca eliminar runs con líneas contabilizadas (ADR-003).
 // totales calculados server-side — NUNCA del cliente (ADR-006 D-2).
 
@@ -2124,7 +2129,6 @@ model PayrollRun {
   overtimeEntries OvertimeEntry[]
 
   @@unique([companyId, idempotencyKey])
-  @@unique([companyId, periodStart, periodEnd])
   @@index([companyId, status])
   @@index([companyId, periodStart])
 }

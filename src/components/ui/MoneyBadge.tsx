@@ -1,5 +1,6 @@
 ﻿import { cn } from "@/lib/utils";
 import { MoneyRateTooltip } from "@/components/ui/MoneyRateTooltip";
+import { currencySymbol } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,18 +27,14 @@ const CURRENCY_BAR: Record<string, string> = {
   VES: "bg-emerald-500",
 };
 
-const CURRENCY_SYMBOL: Record<string, string> = {
-  VES: "Bs. ",
-  USD: "$ ",
-  EUR: "€ ",
-};
-
 function barColor(currency: string): string {
   return CURRENCY_BAR[currency.toUpperCase()] ?? "bg-zinc-400";
 }
 
+// El mapa de símbolos vive en @/lib/format (lo comparten badge y nómina). Aquí
+// sólo se le añade el espacio de separación que este diseño necesita.
 function symbol(currency: string): string {
-  return CURRENCY_SYMBOL[currency.toUpperCase()] ?? `${currency} `;
+  return `${currencySymbol(currency)} `;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

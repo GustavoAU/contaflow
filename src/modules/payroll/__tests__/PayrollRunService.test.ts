@@ -229,6 +229,21 @@ describe("PayrollRunService.create", () => {
     ).rejects.toThrow("No hay empleados activos");
   });
 
+  it("throws si nadie tiene sueldo con vigencia al inicio del período", async () => {
+    // `salaryHistory` viene ya filtrado por Prisma (effectiveFrom <= periodStart):
+    // vacío significa que el sueldo se registró con vigencia POSTERIOR. Antes
+    // pasaba el chequeo de empleados activos, `calculate` no encontraba nada que
+    // objetar y el proceso nacía en DRAFT sin una sola línea.
+    setupCreateMocks();
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      { id: "emp-1", workSchedule: "DIURNA", salaryHistory: [] },
+    ] as never);
+    await expect(
+      PayrollRunService.create(COMPANY_ID, USER_ID, INPUT)
+    ).rejects.toThrow("vigencia al inicio del período");
+    expect(vi.mocked(prisma.payrollRunLine.createMany)).not.toHaveBeenCalled();
+  });
+
   it("aplica tope salario mínimo en IVSS cuando salaryMinimumVes > 0 — regresión ítem 55", async () => {
     mockTx();
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
@@ -309,6 +324,47 @@ describe("PayrollRunService.create", () => {
     await expect(
       PayrollRunService.create(COMPANY_ID, USER_ID, INPUT),
     ).rejects.toThrow("se solapa");
+  });
+
+  it("NO reserva horas extra de trabajadores fuera del run", async () => {
+    // Una empresa con sueldos en dos monedas DEBE procesar por separado, así que
+    // correr sobre un subconjunto es lo normal, no un caso raro. Sin filtrar por
+    // empleado, el run en USD se llevaba también las horas del que cobra en VES:
+    // quedaban con payrollRunId de un run que no las paga y ningún run futuro
+    // volvía a verlas (el filtro es `payrollRunId: null`).
+    setupCreateMocks();
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      {
+        id: "emp-usd",
+        workSchedule: "DIURNA",
+        salaryHistory: [{ id: "sal-1", amount: new Decimal("2500"), currency: "USD", effectiveFrom: new Date("2026-01-01") }],
+      },
+      // Sin sueldo vigente al inicio: tampoco produce líneas, así que sus horas
+      // tampoco pueden reservarse.
+      { id: "emp-sin-sueldo", workSchedule: "DIURNA", salaryHistory: [] },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const where = vi.mocked(prisma.overtimeEntry.findMany).mock.calls[0][0]?.where;
+    expect(where?.employeeId).toEqual({ in: ["emp-usd"] });
+  });
+
+  it("PERMITE recrear el periodo de un run CANCELADO", async () => {
+    // Lo que hace "Recalcular": cancelar el borrador y rehacerlo con las MISMAS
+    // fechas. El guard de solape sólo mira DRAFT/APPROVED, y desde la migración
+    // 20260830 el único de la BD es parcial (WHERE status <> 'CANCELLED'). Con
+    // el único incondicional que había antes, cancelar inutilizaba ese período
+    // para siempre y el botón no podía funcionar nunca.
+    setupCreateMocks();
+    // findFirst con el filtro de estados vigentes no devuelve el cancelado.
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(null as never);
+
+    const result = await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    expect(result.id).toBe(RUN_ID);
+    const where = vi.mocked(prisma.payrollRun.findFirst).mock.calls[0][0]?.where;
+    expect(where?.status).toEqual({ in: ["DRAFT", "APPROVED"] });
   });
 
   it("ARRASTRA horas viejas sin pagar de periodos anteriores", async () => {

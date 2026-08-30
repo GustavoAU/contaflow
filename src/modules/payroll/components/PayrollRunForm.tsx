@@ -3,19 +3,44 @@
 // src/modules/payroll/components/PayrollRunForm.tsx
 // Fase NOM-C: formulario para crear un nuevo proceso de nómina
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createPayrollRunAction } from "../actions/payroll-run.actions";
+import { salaryCurrencyAt, type SalaryVigencia } from "../utils/salary-vigencia";
 import { EmployeePicker } from "./EmployeePicker";
 
 export interface RunEmployeeOption {
   id: string;
   name: string;
-  // Moneda del sueldo vigente. `null` = sin salario registrado: el calculador
-  // lo descarta, así que no se puede incluir.
-  currency: "VES" | "USD" | "MIXED" | null;
+  // Vigencias del sueldo, de la más reciente a la más antigua. Se mandan todas
+  // en vez de la moneda ya resuelta porque cuál rige depende de la fecha de
+  // inicio, y esa se elige aquí: resolverla en el servidor la dejaba clavada a
+  // la fecha con la que se cargó la página.
+  salaries: SalaryVigencia[];
+}
+
+/** Un trabajador con su moneda ya resuelta a la fecha del período. */
+export interface PickerEmployee {
+  id: string;
+  name: string;
+  // `null` = sin sueldo vigente al inicio del período: el calculador lo
+  // descarta, así que no se puede incluir.
+  currency: SalaryVigencia["currency"] | null;
+}
+
+// Con una sola moneda no hay nada que elegir: van todos, como siempre. Con
+// varias arranca preseleccionada la más numerosa, que es la que la empresa
+// procesa de ordinario.
+function seleccionPorDefecto(elegibles: PickerEmployee[]): Set<string> {
+  const monedas = [...new Set(elegibles.map((e) => e.currency))];
+  if (monedas.length <= 1) return new Set(elegibles.map((e) => e.id));
+  const mayoritaria = monedas.sort(
+    (a, b) => elegibles.filter((e) => e.currency === b).length
+            - elegibles.filter((e) => e.currency === a).length,
+  )[0];
+  return new Set(elegibles.filter((e) => e.currency === mayoritaria).map((e) => e.id));
 }
 
 interface Props {
@@ -87,24 +112,41 @@ export function PayrollRunForm({
   // da un total que no es de ninguna de las dos. Una empresa con sueldos en las
   // dos monedas no podía procesar NADA desde aquí, porque el formulario no
   // dejaba elegir a quién incluir aunque la action sí lo aceptaba.
-  const elegibles = (employees ?? []).filter((e) => e.currency !== null);
-  const monedas = [...new Set(elegibles.map((e) => e.currency))];
+  //
+  // La moneda se resuelve a la fecha de inicio con la MISMA regla que aplica el
+  // servicio al calcular (ver salary-vigencia.ts): mostrarla sin mirar la fecha
+  // hacía que la pantalla y el cálculo discreparan justo cuando un sueldo cambia
+  // dentro del período.
+  const conMoneda: PickerEmployee[] = useMemo(
+    () => (employees ?? []).map((e) => ({
+      id: e.id,
+      name: e.name,
+      currency: salaryCurrencyAt(e.salaries, periodStart),
+    })),
+    [employees, periodStart],
+  );
+
+  const elegibles = useMemo(
+    () => conMoneda.filter((e) => e.currency !== null),
+    [conMoneda],
+  );
+  const monedas = useMemo(
+    () => [...new Set(elegibles.map((e) => e.currency))],
+    [elegibles],
+  );
   const hayMonedasMixtas = monedas.length > 1;
 
-  // Con una sola moneda no hay nada que elegir: van todos, como siempre.
-  // Con varias arranca preseleccionada la más numerosa, que es lo que la empresa
-  // procesa de ordinario.
-  const monedaMayoritaria = monedas.sort(
-    (a, b) => elegibles.filter((e) => e.currency === b).length
-            - elegibles.filter((e) => e.currency === a).length,
-  )[0];
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(
-      hayMonedasMixtas
-        ? elegibles.filter((e) => e.currency === monedaMayoritaria).map((e) => e.id)
-        : elegibles.map((e) => e.id),
-    ),
-  );
+  const [selected, setSelected] = useState<Set<string>>(() => seleccionPorDefecto(elegibles));
+
+  // Mover la fecha de inicio cambia quién es elegible y en qué moneda, así que
+  // las marcas anteriores se hicieron sobre datos que ya no son ciertos: se
+  // rehace la selección por defecto. Es el patrón de React para estado derivado
+  // de un valor que cambia (ajustar durante el render, no en un efecto).
+  const [startAplicado, setStartAplicado] = useState(periodStart);
+  if (startAplicado !== periodStart) {
+    setStartAplicado(periodStart);
+    setSelected(seleccionPorDefecto(elegibles));
+  }
 
   const monedasSeleccionadas = [...new Set(
     elegibles.filter((e) => selected.has(e.id)).map((e) => e.currency),
@@ -182,6 +224,18 @@ export function PayrollRunForm({
     ? new Date(salMinLastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
     : null;
 
+  // El badge decía "se procesarán N activos" mientras abajo había menos
+  // marcados: la pantalla se contradecía a sí misma. Se arma aquí y no dentro
+  // del JSX a propósito — un ternario anidado más ahí dentro tumba el build de
+  // este archivo con "Zone Allocation failed", que no es falta de heap y por
+  // eso no se arregla subiendo --max-old-space-size.
+  const plural = activeEmployeeCount !== 1 ? "s" : "";
+  const resumenPlantilla = activeEmployeeCount === 0
+    ? "Sin empleados activos registrados"
+    : employees === undefined
+      ? `Se procesarán ${activeEmployeeCount} empleado${plural} activo${plural}`
+      : `Se procesarán ${selected.size} de ${activeEmployeeCount} empleado${plural} activo${plural}`;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
       <div>
@@ -195,9 +249,7 @@ export function PayrollRunForm({
               ? "bg-amber-50 text-amber-700"
               : "bg-blue-50 text-blue-700"
           }`}>
-            {activeEmployeeCount === 0
-              ? "Sin empleados activos registrados"
-              : `Se procesarán ${activeEmployeeCount} empleado${activeEmployeeCount !== 1 ? "s" : ""} activo${activeEmployeeCount !== 1 ? "s" : ""}`}
+            {resumenPlantilla}
           </p>
         )}
       </div>

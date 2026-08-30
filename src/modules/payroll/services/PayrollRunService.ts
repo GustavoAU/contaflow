@@ -494,10 +494,25 @@ export const PayrollRunService = {
     //
     // Sólo las que aún no se han pagado (`payrollRunId: null`): si un período se
     // reprocesa, las horas ya liquidadas en otra nómina no se vuelven a pagar.
+    //
+    // Y sólo las de quien este proceso REALMENTE liquida. Sin el filtro por
+    // empleado se reservaban todas las horas libres de la empresa, incluidas las
+    // de trabajadores fuera del run —`create` acepta `employeeIds`, y una empresa
+    // con sueldos en dos monedas está OBLIGADA a procesar por separado— y las de
+    // quien no tiene sueldo vigente, que no produce líneas. Esas horas quedaban
+    // con `payrollRunId` de un run que no las paga, sin `paidAmount`, invisibles
+    // para todo run futuro (el filtro es `payrollRunId: null`) y sin salida por
+    // UI: trabajadas, marcadas como tomadas y nunca cobradas. Es el mismo defecto
+    // que ya se corrigió en `approve` (ver allí), un paso antes.
+    const payableEmployeeIds = employees
+      .filter((e) => e.salaryHistory.length > 0)
+      .map((e) => e.id);
+
     const overtimeEntries = await prisma.overtimeEntry.findMany({
       where: {
         companyId,
         payrollRunId: null,
+        employeeId: { in: payableEmployeeIds },
         // `lte: periodEnd` y no un rango: las horas de un período cuya nómina ya
         // se aprobó quedaban sin recoger POR NADIE — el run siguiente sólo
         // miraba su propia ventana y el de su período ya no se puede rehacer
@@ -564,6 +579,20 @@ export const PayrollRunService = {
         previousMonthNormalWage: previousNormalWageByEmp.get(e.id),
         overtimeHoursYearToDate: overtimeYtdByEmp.get(e.id) ?? new Decimal(0),
       }));
+
+    // Quien no tenga sueldo con vigencia al inicio del período queda fuera del
+    // filtro de arriba. Si eso deja la lista vacía, `calculate` no se queja —no
+    // hay monedas que mezclar ni importes negativos— y el proceso nacía en
+    // DRAFT sin una sola línea: una nómina que parecía creada y no pagaba a
+    // nadie. El chequeo de `employees.length` de más arriba no lo ve, porque
+    // esos trabajadores SÍ existen y están activos.
+    if (empInputs.length === 0) {
+      throw new Error(
+        "Ninguno de los trabajadores seleccionados tiene un sueldo con vigencia " +
+        "al inicio del período. Registra el sueldo con una fecha de vigencia " +
+        "igual o anterior al inicio, o ajusta las fechas del proceso."
+      );
+    }
 
     // ── Conceptos manuales (NOM-C-07: validar ownership) ──────────────────
     const manualInputs: ManualConceptCalculationInput[] = [];
