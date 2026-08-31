@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useTransition } from "react";
-import { PlusIcon, PencilIcon, Loader2Icon } from "lucide-react";
+import { PlusIcon, PencilIcon, Loader2Icon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -46,6 +46,7 @@ import {
   createAccountAction,
   updateAccountAction,
   getNextAccountCodeAction,
+  deleteAccountAction,
 } from "@/modules/accounting/actions/account.actions";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export function AccountsTable({
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<AccountFormValues>({
@@ -139,6 +141,30 @@ export function AccountsTable({
     await new Promise((resolve) => setTimeout(resolve, 50));
     const result = await getNextAccountCodeAction("ASSET", companyId);
     if (result.success) form.setValue("code", result.data.code);
+  }
+
+  function handleDelete(account: Account) {
+    // Confirmación explícita: quitar una cuenta cambia lo que se ve en todos los
+    // desplegables de la aplicación.
+    if (!window.confirm(
+      `¿Eliminar la cuenta ${account.code} — ${account.name}?
+
+` +
+      "Si tiene asientos contables el sistema lo impedirá."
+    )) return;
+
+    setDeletingId(account.id);
+    startTransition(async () => {
+      const result = await deleteAccountAction(account.id);
+      setDeletingId(null);
+      if (result.success) {
+        toast.success(`Cuenta ${account.code} eliminada`);
+        // Mismo patrón que crear/editar: la tabla lleva su propio estado.
+        setAccounts((prev) => prev.filter((a) => a.id !== account.id));
+      } else {
+        toast.error(result.error);
+      }
+    });
   }
 
   function openEdit(account: Account) {
@@ -287,6 +313,21 @@ export function AccountsTable({
                   >
                     <PencilIcon className="h-3 w-3" />
                     Editar
+                  </Button>
+                  {/* Sin esto, una cuenta creada por error se quedaba en el plan
+                      para siempre, ensuciando todos los desplegables. El servidor
+                      la rechaza si tiene asientos: eso no es un error que limpiar,
+                      es historia contable. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(account)}
+                    disabled={deletingId === account.id}
+                    aria-busy={deletingId === account.id}
+                    className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2Icon className="h-3 w-3" />
+                    {deletingId === account.id ? "Eliminando…" : "Eliminar"}
                   </Button>
                 </TableCell>
               </TableRow>
