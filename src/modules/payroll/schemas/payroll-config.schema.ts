@@ -32,7 +32,9 @@ export const PayrollConfigSchema = z.object({
   paymentCurrency: z.enum(["VES", "USD", "MIXED"], {
     error: "Selecciona la moneda de pago",
   }),
-  frequency: z.enum(["BIWEEKLY", "MONTHLY"], {
+  // SEMANAL faltaba, y el asistente SÍ la ofrece: elegirla hacía que el guardado
+  // entero se rechazara por "Datos inválidos", sin decir cuál era el campo.
+  frequency: z.enum(["BIWEEKLY", "MONTHLY", "SEMANAL"], {
     error: "Selecciona la frecuencia de pago",
   }),
   fideicomiso: z.enum(["EXTERNAL_BANK", "INTERNAL"], {
@@ -40,12 +42,42 @@ export const PayrollConfigSchema = z.object({
   }),
   // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
   workSchedule: z.enum(["LUNES_VIERNES", "LUNES_SABADO", "LUNES_SABADO_MEDIO"]).default("LUNES_VIERNES"),
-  // Paso 3 — Cuentas contables NOM-D (opcionales; requeridas para prestaciones/vacaciones/utilidades)
+  // ── Paso 3 — Cuentas contables ─────────────────────────────────────────────
+  //
+  // ESTAS DIECISÉIS TIENEN QUE ESTAR TODAS. Zod descarta en silencio las claves
+  // que no declara, así que un campo ausente aquí NO da error: el asistente lo
+  // envía, `.parse()` lo tira, y el usuario ve "Guardado" mientras su cambio
+  // desaparece. Faltaban once —incluidos los cuatro aportes patronales y el
+  // FAOV obrero— y por eso eran IMPOSIBLES de configurar desde la aplicación,
+  // aunque el servicio y la base de datos sí los soportan.
+  //
+  // Si se añade una cuenta nueva a `PayrollConfig`, hay que añadirla también
+  // aquí. El test payroll-config.schema.test.ts compara ambas listas para que
+  // la próxima omisión no vuelva a ser silenciosa.
+
+  // Nómina (sueldos)
+  expenseAccountId: z.string().optional().nullable(),
+  payableAccountId: z.string().optional().nullable(),
+  ivssPayableAccountId: z.string().optional().nullable(),
+  incesPayableAccountId: z.string().optional().nullable(),
+  faovPayableAccountId: z.string().optional().nullable(),
+  rpePayableAccountId: z.string().optional().nullable(),
+
+  // Aportes patronales
+  ivssPatronalAccountId: z.string().optional().nullable(),
+  incesPatronalAccountId: z.string().optional().nullable(),
+  faovPatronalAccountId: z.string().optional().nullable(),
+  rpePatronalAccountId: z.string().optional().nullable(),
+
+  // Beneficios legales (NOM-D)
   benefitsExpenseAccountId: z.string().optional().nullable(),
   benefitsPayableAccountId: z.string().optional().nullable(),
   vacationPayableAccountId: z.string().optional().nullable(),
   profitSharingPayableAccountId: z.string().optional().nullable(),
-  rpePayableAccountId: z.string().optional().nullable(),
+
+  // Préstamos a empleados
+  loanReceivableAccountId: z.string().optional().nullable(),
+  disbursementBankAccountId: z.string().optional().nullable(),
 });
 
 export type PayrollConfigInput = z.infer<typeof PayrollConfigSchema>;
