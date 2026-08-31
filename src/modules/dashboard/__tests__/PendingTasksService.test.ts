@@ -284,20 +284,67 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   // ── Parte VII: Alertas de nómina ─────────────────────────────────────────────
 
-  it("detecta salario mínimo sin actualizar > 30 días (NOM_SALARIO_MINIMO_VENCIDO) — severity warning", async () => {
-    // 2 empleados activos, último tope hace 45 días
+  it("pide revisar el salario mínimo si nadie lo ha confirmado en 30 días", async () => {
+    // 2 empleados activos, tope registrado hace 45 dias y nunca confirmado.
+    // Severidad `info`, no `warning`: el valor puede estar perfectamente vigente
+    // —el minimo venezolano lleva años en Bs. 130— y lo que falta es la
+    // comprobacion, no una correccion. Llamarlo "desactualizado" cuando no lo
+    // esta es lo que entrenaba a ignorar la alerta.
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+      verifiedAt: null,
     } as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
     expect(task).toBeDefined();
-    expect(task?.severity).toBe("warning");
+    expect(task?.severity).toBe("info");
     expect(task?.count).toBe(1);
-    expect(task?.href).toBe("/payroll/settings");
+    // Lleva a la pantalla donde esta el boton de confirmar, no a ajustes.
+    expect(task?.href).toBe("/payroll/legal-thresholds");
     expect(task?.description).toContain("IVSS");
+  });
+
+  it("una CONFIRMACION reciente calla la alerta aunque el decreto sea viejo", async () => {
+    // El defecto que corrige: medir la antiguedad de `effectiveFrom` —la fecha
+    // del DECRETO—. El salario minimo venezolano lleva en Bs. 130 desde marzo de
+    // 2022 porque los aumentos posteriores han sido bonos NO salariales, asi que
+    // la alerta saltaba TODOS los dias por un dato correcto. Una señal siempre
+    // encendida entrena a ignorarla.
+    vi.mocked(prisma.employee.count).mockResolvedValue(3 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date("2022-03-01"),          // decreto de hace años
+      verifiedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // confirmado hace 5 dias
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO")).toBeUndefined();
+  });
+
+  it("una confirmacion VIEJA vuelve a pedir revision, sin llamarlo desactualizado", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(3 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date("2022-03-01"),
+      verifiedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
+    expect(task).toBeDefined();
+    // Informativa: el valor puede estar perfecto, lo que falta es comprobarlo.
+    expect(task!.severity).toBe("info");
+    expect(task!.title).toContain("Confirma");
+  });
+
+  it("SIN registro sigue siendo warning: se cotiza sobre Bs. 0", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(3 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue(null as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
+    expect(task!.severity).toBe("warning");
+    expect(task!.description).toContain("Bs. 0");
   });
 
   it("NO emite NOM_SALARIO_MINIMO_VENCIDO cuando el tope fue actualizado recientemente", async () => {

@@ -260,7 +260,7 @@ export const PendingTasksService = {
       prisma.legalThreshold.findFirst({
         where: { companyId, type: "SALARY_MIN_VES" },
         orderBy: { effectiveFrom: "desc" },
-        select: { effectiveFrom: true },
+        select: { effectiveFrom: true, verifiedAt: true },
       }),
 
       // 17. Parte VII: Tasa BCV del mes anterior (para detectar intereses no calculados)
@@ -620,21 +620,39 @@ export const PendingTasksService = {
 
     // ── Parte VII: Alertas de automatización de nómina ─────────────────────────
 
-    // NOM_SALARIO_MINIMO_VENCIDO: SALARY_MIN_VES no actualizado en > 30 días
-    // Solo si la empresa tiene empleados activos (proxy de módulo nómina activo)
-    if (nomActiveEmployeesCount > 0 && (
-      !nomLastSalMin ||
-      new Date(nomLastSalMin.effectiveFrom).getTime() < thirtyDaysAgo.getTime()
-    )) {
+    // NOM_SALARIO_MINIMO_VENCIDO — pide CONFIRMAR, no actualizar.
+    //
+    // Antes medía la antigüedad de `effectiveFrom`, que es la fecha del DECRETO.
+    // El salario mínimo venezolano lleva en Bs. 130 desde marzo de 2022 (Decreto
+    // 4.653, G.O. 42.339) porque los aumentos posteriores han sido bonos NO
+    // salariales, que no mueven los topes. Con esa lógica la alerta se disparaba
+    // todos los días por un dato correcto, y una señal permanentemente encendida
+    // entrena a ignorarla: peor que no tenerla.
+    //
+    // El sistema no puede saber si salió un decreto nuevo. Lo que sí puede es
+    // pedir que se compruebe cada mes, y para eso cuenta desde la última
+    // CONFIRMACIÓN — o desde el decreto, si nadie ha confirmado nunca.
+    const salMinRevisadoEl = nomLastSalMin
+      ? new Date(nomLastSalMin.verifiedAt ?? nomLastSalMin.effectiveFrom).getTime()
+      : 0;
+
+    if (nomActiveEmployeesCount > 0 && (!nomLastSalMin || salMinRevisadoEl < thirtyDaysAgo.getTime())) {
       tasks.push({
         type: "NOM_SALARIO_MINIMO_VENCIDO",
-        severity: "warning",
-        title: "Salario mínimo sin actualizar",
+        // Sin registro es un error real: se cotiza sobre Bs. 0. Con registro sin
+        // confirmar es sólo una revisión pendiente.
+        severity: nomLastSalMin ? "info" : "warning",
+        title: nomLastSalMin
+          ? "Confirma el salario mínimo vigente"
+          : "Salario mínimo sin registrar",
         description: nomLastSalMin
-          ? "El tope SALARY_MIN_VES lleva más de 30 días sin actualización. Verifique los decretos del INTT para mantener el cálculo correcto de IVSS/INCES."
-          : "No hay tope de salario mínimo registrado. El sistema usa Bs. 0, lo que puede producir cuotas IVSS/INCES incorrectas.",
+          ? "Los topes de IVSS, FAOV, INCES y RPE son múltiplos del salario mínimo " +
+            "decretado. Comprueba en MINPPTRASS si hubo un decreto nuevo; si sigue " +
+            "igual, confírmalo y esta tarea desaparece por 30 días."
+          : "No hay salario mínimo registrado, así que los topes se calculan sobre " +
+            "Bs. 0 y las cotizaciones salen mal. Regístralo antes de procesar nómina.",
         count: 1,
-        href: "/payroll/settings",
+        href: "/payroll/legal-thresholds",
       });
     }
 

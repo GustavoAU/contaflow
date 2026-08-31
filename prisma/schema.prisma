@@ -1716,6 +1716,17 @@ model LegalThreshold {
   // ADR-002: columna polimórfica (montos Bs + porcentajes) — (19,4) cubre ambos
   value         Decimal            @db.Decimal(19, 4)
   notes         String?
+  // Última vez que alguien CONFIRMÓ que este tope sigue vigente.
+  //
+  // Es distinto de `effectiveFrom`, que es cuándo entró en vigor el decreto. La
+  // alerta del dashboard medía la antigüedad del decreto, así que un salario
+  // mínimo que lleva años sin cambiar —el venezolano lleva en Bs. 130 desde
+  // marzo de 2022— la disparaba TODOS los días por un dato correcto. Una señal
+  // permanentemente encendida no es una señal: entrena a ignorarla.
+  //
+  // El sistema no puede saber si hubo un decreto nuevo; lo que sí puede es pedir
+  // que se compruebe cada cierto tiempo. Eso es lo que registra este campo.
+  verifiedAt    DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 

@@ -42,7 +42,7 @@ const SAMPLE = {
   effectiveFrom: "2026-01-01",
   value: "130.00",
   notes: null,
-  createdAt: new Date().toISOString(),
+  createdAt: new Date().toISOString(), verifiedAt: null,
 };
 
 function setupOk(role = "ADMIN") {
