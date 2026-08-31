@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
@@ -47,6 +48,8 @@ const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
 //   4xxx → Ingreso
 //   5xxx → Gasto
 // Los códigos fuera de rango son válidos (el sistema crea la cuenta con advertencia).
+import { nextAccountCode } from "../utils/next-account-code";
+
 const RANGES: Record<string, { start: number; end: number }> = {
   ASSET: { start: 1000, end: 1999 },
   CONTRA_ASSET: { start: 1000, end: 1999 },
@@ -264,25 +267,102 @@ export async function getNextAccountCodeAction(
       select: { code: true },
     });
 
-    const codesInRange = accounts
-      .map((a) => Number(a.code))
-      .filter((code) => !isNaN(code) && code >= range.start && code <= range.end)
-      .sort((a, b) => a - b);
+    // La regla vive en utils/next-account-code.ts, pura y testeada. Antes se
+    // arrancaba en el inicio del rango y se paraba en el primer salto, lo que en
+    // un plan real —pasivos que empiezan en 2105— proponía `2000`: libre, pero
+    // ninguna empresa pone ahí una cuenta de movimiento.
+    const code = nextAccountCode({
+      existing: accounts.map((a) => a.code),
+      rangeStart: range.start,
+      rangeEnd: range.end,
+    });
 
-    let nextCode = range.start;
-    for (const code of codesInRange) {
-      if (code === nextCode) {
-        nextCode++;
-      } else {
-        break;
-      }
-    }
-
-    if (nextCode > range.end) {
+    if (!code) {
       return { success: false, error: "Rango de codigos agotado para este tipo de cuenta" };
     }
 
-    return { success: true, data: { code: String(nextCode) } };
+    return { success: true, data: { code } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ─── Eliminar cuenta ──────────────────────────────────────────────────────────
+// No existía ninguna vía para quitar una cuenta del plan: sólo se podían crear y
+// editar. Una cuenta creada por error —un nombre de persona en el plan, un
+// código mal tecleado— se quedaba ahí para siempre, ensuciando todos los
+// desplegables de cuentas de la aplicación.
+//
+// Borrado LÓGICO y sólo si la cuenta NO tiene movimiento. Un asiento apunta a su
+// cuenta: borrarla de verdad rompería el Libro Mayor y la trazabilidad que el
+// SENIAT exige. Y una cuenta con asientos no es un error que limpiar, es
+// historia contable — para ésas la salida es dejar de usarlas, no borrarlas.
+
+export async function deleteAccountAction(
+  accountId: string
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+      select: { id: true, code: true, name: true, type: true, companyId: true, deletedAt: true },
+    });
+    if (!account || account.deletedAt) {
+      return { success: false, error: "Cuenta no encontrada" };
+    }
+
+    // El companyId sale de la cuenta, no del cliente: el guard lo verifica
+    // contra la membresía real (ADR-004/ADR-041).
+    const ctx = await requireCompanyAction(account.companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
+    if (!ctx.ok) return ctx.error;
+    const { userId, ipAddress, userAgent } = ctx;
+
+    // `JournalEntry` no tiene columna `companyId` propia, así que el tenant se
+    // acota por la relación. `accountId` ya bastaría —una cuenta pertenece a una
+    // sola empresa—, pero se deja explícito: la RLS no cubre nada (ADR-044) y un
+    // filtro implícito obliga a razonar para ver que es seguro.
+    const enUso = await prisma.journalEntry.count({
+      where: { accountId, account: { companyId: account.companyId } },
+    });
+    if (enUso > 0) {
+      return {
+        success: false,
+        error:
+          `La cuenta ${account.code} tiene ${enUso} ${enUso === 1 ? "asiento" : "asientos"} ` +
+          "y no puede eliminarse: borrarla rompería el Libro Mayor. Si ya no la usas, " +
+          "renómbrala o deja de asignarla en las configuraciones.",
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // El `deletedAt: null` en el where cierra la ventana entre el conteo y el
+      // borrado: si otra petición la borró antes, ésta no la toca dos veces.
+      const borrada = await tx.account.updateMany({
+        where: { id: accountId, companyId: account.companyId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (borrada.count === 0) throw new Error("Cuenta no encontrada");
+
+      await tx.auditLog.create({
+        data: {
+          companyId: account.companyId,
+          entityId: accountId,
+          entityName: "Account",
+          action: "DELETE",
+          userId,
+          ipAddress,
+          userAgent,
+          oldValue: { code: account.code, name: account.name, type: account.type },
+          newValue: Prisma.JsonNull,
+        },
+      });
+    });
+
+    revalidatePath(`/company/${account.companyId}/accounting/accounts`);
+    return { success: true, data: { id: accountId } };
   } catch (error) {
     return toActionError(error);
   }
