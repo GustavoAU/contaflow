@@ -4,6 +4,7 @@
 // NOM-A-03: confirmación de desactivar organismos obligatorios (IVSS/INCES/Banavih)
 // Solo visible para ADMIN_ONLY — el server guard rechaza a otros roles en la action
 
+import { detectAccountConflict } from "../utils/payroll-gl-accounts";
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
@@ -33,6 +34,19 @@ const SIZE_LABELS: Record<string, string> = {
 const LOTT_LABELS: Record<string, string> = {
   POST_2012: "Solo régimen post-LOTTT 2012",
   MIXED: "Mixto (empleados pre-1997 y post-2012)",
+};
+
+// La elección cambia por completo el cálculo de prestaciones, y sin explicarla
+// se contesta al azar. La regla práctica cabe en una línea, así que se pone.
+const LOTT_HINTS: Record<string, string> = {
+  POST_2012:
+    "Todos tus trabajadores ingresaron después de 1997. Las prestaciones se " +
+    "calculan sólo por el Art. 142 de la LOTTT. Es el caso de la gran mayoría " +
+    "de las empresas.",
+  MIXED:
+    "Tienes trabajadores empleados de forma CONTINUA desde antes del 19 de " +
+    "junio de 1997. Ésos arrastran el régimen anterior: prestaciones " +
+    "retroactivas y bono de transferencia, además del Art. 142.",
 };
 
 const CURRENCY_LABELS: Record<string, string> = {
@@ -116,35 +130,9 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // Detecta en tiempo real si dos conceptos comparten la misma cuenta GL
-  const accountConflict = useMemo((): string | null => {
-    const fields = [
-      { key: "expenseAccountId",              label: "Gasto Sueldos y Salarios" },
-      { key: "payableAccountId",              label: "Sueldos por Pagar" },
-      { key: "ivssPayableAccountId",          label: "IVSS Obrero por Pagar" },
-      { key: "faovPayableAccountId",          label: "FAOV Obrero por Pagar" },
-      { key: "incesPayableAccountId",         label: "INCES Obrero por Pagar" },
-      { key: "ivssPatronalAccountId",         label: "IVSS Patronal por Pagar" },
-      { key: "incesPatronalAccountId",        label: "INCES Patronal por Pagar" },
-      { key: "faovPatronalAccountId",         label: "FAOV Patronal por Pagar" },
-      { key: "rpePatronalAccountId",          label: "RPE Patronal por Pagar" },
-      { key: "benefitsExpenseAccountId",      label: "Gasto Prestaciones" },
-      { key: "benefitsPayableAccountId",      label: "Prestaciones por Pagar" },
-      { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar" },
-      { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
-      { key: "rpePayableAccountId",           label: "RPE Obrero por Pagar" },
-      { key: "loanReceivableAccountId",       label: "Préstamos a Empleados" },
-      { key: "disbursementBankAccountId",     label: "Banco de Desembolso" },
-    ] as const;
-    const seen = new Map<string, string>();
-    for (const { key, label } of fields) {
-      const id = form[key];
-      if (!id) continue;
-      if (seen.has(id)) return `"${seen.get(id)}" y "${label}" usan la misma cuenta GL`;
-      seen.set(id, label);
-    }
-    return null;
-  }, [form]);
+  // La regla vive en utils/payroll-gl-accounts.ts: es pura, se testea sin montar
+  // el asistente, y así el submit y el aviso en tiempo real no pueden divergir.
+  const accountConflict = useMemo(() => detectAccountConflict(form), [form]);
 
   // NOM-A-03: advertencia si el usuario intenta desactivar un organismo obligatorio
   function toggleOrganism(key: "ivssEnabled" | "incesEnabled" | "banavihEnabled" | "rpeEnabled") {
@@ -261,17 +249,24 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Régimen LOTTT aplicable
             </label>
+            <p className="mb-2 text-xs text-gray-500">
+              Decide cómo se calculan las prestaciones sociales. Depende de la
+              fecha de ingreso más antigua de tu plantilla.
+            </p>
             {Object.entries(LOTT_LABELS).map(([val, label]) => (
-              <label key={val} className="flex cursor-pointer items-center gap-2 py-1">
+              <label key={val} className="flex cursor-pointer items-start gap-2 py-1.5">
                 <input
                   type="radio"
                   name="lottRegime"
                   value={val}
                   checked={form.lottRegime === val}
                   onChange={() => set("lottRegime", val as typeof form.lottRegime)}
-                  className="accent-blue-600"
+                  className="mt-0.5 accent-blue-600"
                 />
-                <span className="text-sm">{label}</span>
+                <span>
+                  <span className="block text-sm">{label}</span>
+                  <span className="block text-xs text-gray-500">{LOTT_HINTS[val]}</span>
+                </span>
               </label>
             ))}
           </div>
@@ -486,10 +481,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 </div>
                 {(
                   [
-                    { key: "expenseAccountId",      label: "Gasto Sueldos y Salarios (5105)",     req: true  },
+                    { key: "expenseAccountId",      label: "Gasto Sueldos y Salarios",     req: true  },
                     { key: "payableAccountId",      label: "Sueldos y Salarios por Pagar (neto)", req: true  },
-                    { key: "ivssPayableAccountId",  label: "IVSS Obrero por Pagar (2215)",        req: false },
-                    { key: "incesPayableAccountId", label: "INCES Obrero por Pagar (2220)",       req: false },
+                    { key: "ivssPayableAccountId",  label: "IVSS Obrero por Pagar",        req: false },
+                    { key: "incesPayableAccountId", label: "INCES Obrero por Pagar",       req: false },
                     { key: "faovPayableAccountId",  label: "FAOV / Banavih Obrero por Pagar",     req: false },
                   ] as const
                 ).map(({ key, label, req }) => (
@@ -522,10 +517,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 </div>
                 {(
                   [
-                    { key: "ivssPatronalAccountId",  label: "IVSS Patronal por Pagar (2215)" },
-                    { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar (2220)" },
-                    { key: "faovPatronalAccountId",  label: "FAOV Patronal por Pagar (2235)" },
-                    { key: "rpePatronalAccountId",   label: "RPE Patronal por Pagar (2210)" },
+                    { key: "ivssPatronalAccountId",  label: "IVSS Patronal por Pagar" },
+                    { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar" },
+                    { key: "faovPatronalAccountId",  label: "FAOV Patronal por Pagar" },
+                    { key: "rpePatronalAccountId",   label: "RPE Patronal por Pagar" },
                   ] as const
                 ).map(({ key, label }) => (
                   <div key={key}>
@@ -554,10 +549,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 </div>
                 {(
                   [
-                    { key: "benefitsExpenseAccountId",      label: "Gasto Prestaciones Sociales (5107)" },
-                    { key: "benefitsPayableAccountId",      label: "Prestaciones Sociales por Pagar (2230)" },
-                    { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar (2225)" },
-                    { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar (2240)" },
+                    { key: "benefitsExpenseAccountId",      label: "Gasto Prestaciones Sociales" },
+                    { key: "benefitsPayableAccountId",      label: "Prestaciones Sociales por Pagar" },
+                    { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar" },
+                    { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
                     { key: "rpePayableAccountId",           label: "RPE Obrero por Pagar" },
                     { key: "loanReceivableAccountId",       label: "Préstamos a Empleados (Activo 1315)" },
                     { key: "disbursementBankAccountId",     label: "Banco de Desembolso (para préstamos)" },
