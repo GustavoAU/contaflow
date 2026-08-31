@@ -16,6 +16,9 @@ export interface LegalThresholdRow {
   value: string;         // Decimal serializado
   notes: string | null;
   createdAt: string;
+  /** Última confirmación de que el tope sigue vigente. Distinto de
+   *  `effectiveFrom`, que es la fecha del decreto. */
+  verifiedAt: string | null;
 }
 
 export interface CreateLegalThresholdInput {
@@ -35,6 +38,7 @@ function serialize(t: {
   value: { toString(): string };
   notes: string | null;
   createdAt: Date;
+  verifiedAt?: Date | null;
 }): LegalThresholdRow {
   return {
     id: t.id,
@@ -43,6 +47,7 @@ function serialize(t: {
     value: new Decimal(t.value.toString()).toFixed(2),
     notes: t.notes,
     createdAt: t.createdAt.toISOString(),
+    verifiedAt: t.verifiedAt ? t.verifiedAt.toISOString() : null,
   };
 }
 

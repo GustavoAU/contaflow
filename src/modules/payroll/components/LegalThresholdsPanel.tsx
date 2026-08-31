@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import {
   createLegalThresholdAction,
   deleteLegalThresholdAction,
+  confirmThresholdStillValidAction,
 } from "../actions/legal-threshold.actions";
 import type { LegalThresholdRow } from "../services/LegalThresholdService";
 
@@ -102,6 +103,19 @@ export default function LegalThresholdsPanel({
     });
   }
 
+  function handleConfirm(id: string) {
+    // No cambia el valor: registra que alguien COMPROBÓ que sigue vigente. El
+    // sistema no puede saber si salió un decreto nuevo; sí puede pedir que se
+    // revise cada mes y contar desde esa revisión.
+    startTransition(async () => {
+      const res = await confirmThresholdStillValidAction(companyId, id);
+      if (!res.success) { setError(res.error); return; }
+      setThresholds((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, verifiedAt: res.data.verifiedAt } : t)),
+      );
+    });
+  }
+
   const byType = Object.fromEntries(
     [...MONETARY_TYPES, ...PARAFISCAL_RATE_TYPES].map((t) => [
       t,
@@ -176,7 +190,30 @@ export default function LegalThresholdsPanel({
                     <td className="px-4 py-2 text-right font-mono">
                       {Number(t.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">{t.notes ?? "—"}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {t.notes ?? "—"}
+                      {/* Un tope puede llevar años sin cambiar y seguir vigente:
+                          el salario mínimo venezolano está en Bs. 130 desde
+                          marzo de 2022. Lo que envejece no es el valor, es la
+                          comprobación. */}
+                      {t.verifiedAt && (
+                        <span className="mt-0.5 block text-xs text-emerald-700">
+                          Vigencia confirmada el{" "}
+                          {new Date(t.verifiedAt).toLocaleDateString("es-VE", { timeZone: "UTC" })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleConfirm(t.id)}
+                        disabled={isPending}
+                        title="Registra que comprobaste que este tope sigue vigente. No cambia el valor."
+                        className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                      >
+                        Sigue vigente
+                      </button>
+                    </td>
                     {isAdmin && (
                       <td className="px-4 py-2 text-right">
                         <button onClick={() => handleDelete(t.id)} disabled={isPending}

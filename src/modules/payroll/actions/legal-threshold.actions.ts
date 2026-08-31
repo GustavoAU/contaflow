@@ -106,3 +106,67 @@ export async function deleteLegalThresholdAction(
     return toActionError(e);
   }
 }
+
+// ── confirmThresholdStillValidAction — ACCOUNTING ────────────────────────────
+// Registra que alguien COMPROBÓ que este tope sigue vigente.
+//
+// No cambia el valor: existe porque el sistema no puede saber si salió un
+// decreto nuevo. La alerta del dashboard medía la antigüedad de `effectiveFrom`
+// —la fecha del decreto— y el salario mínimo venezolano lleva en Bs. 130 desde
+// marzo de 2022, así que saltaba todos los días por un dato correcto. Una señal
+// permanentemente encendida entrena a ignorarla.
+//
+// ACCOUNTING y no ADMIN_ONLY: confirmar no altera ninguna cifra, y quien lleva
+// la nómina día a día es quien consulta la Gaceta.
+export async function confirmThresholdStillValidAction(
+  companyId: string,
+  thresholdId: string,
+): Promise<ActionResult<{ verifiedAt: string }>> {
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
+  if (!ctx.ok) return ctx.error;
+
+  try {
+    const { default: prisma } = await import("@/lib/prisma");
+    const { Prisma } = await import("@prisma/client");
+    const verifiedAt = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      // companyId en el where, no en una lectura previa: el id viene del cliente
+      // y entre comprobar y escribir cabe otra petición (ADR-004/ADR-044).
+      const actualizado = await tx.legalThreshold.updateMany({
+        where: { id: thresholdId, companyId },
+        data: { verifiedAt },
+      });
+      if (actualizado.count === 0) {
+        throw new Error("El tope no existe o no pertenece a esta empresa");
+      }
+
+      // R-6: queda constancia de QUIÉN dio por vigente el valor con el que se
+      // calculan las cotizaciones, que es exactamente lo que una fiscalización
+      // querría saber si el tope resultara equivocado.
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityName: "LegalThreshold",
+          entityId: thresholdId,
+          action: "CONFIRM_LEGAL_THRESHOLD",
+          userId: ctx.userId,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          oldValue: Prisma.JsonNull,
+          newValue: { verifiedAt: verifiedAt.toISOString() },
+        },
+      });
+    });
+
+    revalidatePath(`/company/${companyId}/payroll/legal-thresholds`);
+    revalidatePath(`/company/${companyId}`);
+    return { success: true, data: { verifiedAt: verifiedAt.toISOString() } };
+  } catch (err) {
+    return toActionError(err);
+  }
+}
