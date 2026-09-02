@@ -1,5 +1,5 @@
 // src/modules/dashboard/__tests__/PendingTasksService.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PendingTasksService } from "../services/PendingTasksService";
 
 vi.mock("@/lib/prisma", () => ({
@@ -16,11 +16,12 @@ vi.mock("@/lib/prisma", () => ({
     paymentBatch: { count: vi.fn() },         // Hallazgo #12: lotes A/P sin GL
     $queryRaw: vi.fn(),
     // Parte VII: nómina
-    employee: { count: vi.fn() },
+    employee: { count: vi.fn(), findMany: vi.fn() },
     legalThreshold: { findFirst: vi.fn() },
     benefitAccrualLine: { count: vi.fn() },
     payrollConfig: { findUnique: vi.fn() },
     payrollRun: { findMany: vi.fn() },
+    payrollRunLine: { findMany: vi.fn() },
     salaryHistory: { findMany: vi.fn() },
     employeeRecurringConcept: { findMany: vi.fn() },
     bcvBenefitRate: { findFirst: vi.fn() },
@@ -55,6 +56,9 @@ function mockAllZero() {
   // Sin frecuencia ni vigencias: la alerta de vigencias a mitad de periodo no salta.
   vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(null as never);
   vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([] as never);
+  // NOM_PERIODO_SIN_PROCESAR: sin nadie a quien pagar no hay nada que reclamar.
+  vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
   // Fase 4 Caja Chica — sin pendientes por defecto → no dispara alertas de caja chica
@@ -737,5 +741,82 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(result.tasks.find((t) => t.type === "CAJA_CHICA_GASTOS_POR_APROBAR")).toBeUndefined();
     expect(result.tasks.find((t) => t.type === "CAJA_CHICA_REEMBOLSO_BORRADOR")).toBeUndefined();
     expect(result.tasks.find((t) => t.type === "CAJA_CHICA_SIN_CUSTODIO")).toBeUndefined();
+  });
+
+  // ── NOM_PERIODO_SIN_PROCESAR ───────────────────────────────────────────────
+  // Reemplaza la señal que el borrador automatico destruye: mientras no habia
+  // proceso, su AUSENCIA era el recordatorio. La pregunta es "quien no cobro",
+  // no "hay proceso": con la ranura (periodo + moneda), una empresa que paga en
+  // dos monedas necesita DOS procesos y el segundo se olvida.
+
+  const EMPLEADOS = [
+    { id: "emp-ramon", firstName: "Ramon", lastName: "Flores" },
+    { id: "emp-jose", firstName: "Jose", lastName: "Rodriguez" },
+  ];
+
+  function enFecha(iso: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("avisa de quien no cobro el periodo cerrado (NOM_PERIODO_SIN_PROCESAR)", async () => {
+    enFecha("2026-09-02T12:00:00Z"); // en Caracas, 08:00 del 2 de septiembre
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR");
+    expect(task).toBeDefined();
+    expect(task!.count).toBe(2);
+    // El periodo cerrado el 2 de septiembre es la segunda quincena de AGOSTO.
+    expect(task!.title).toContain("2026-08-16");
+    expect(task!.title).toContain("2026-08-31");
+    // Dos dias despues del cierre todavia es normal: avisa, no alarma.
+    expect(task!.severity).toBe("warning");
+  });
+
+  it("escala a error cuando el periodo lleva mas de 5 dias cerrado", async () => {
+    enFecha("2026-09-08T12:00:00Z");
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR");
+    expect(task!.severity).toBe("error");
+  });
+
+  // El caso que motiva la alerta: la nomina del periodo SI existe, pero se
+  // proceso solo el segmento de una moneda y el trabajador en la otra se queda
+  // sin cobrar. Contar procesos daria esto por bueno.
+  it("detecta al trabajador que quedo fuera aunque el periodo tenga proceso", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([{ employeeId: "emp-jose" }] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR");
+    expect(task).toBeDefined();
+    expect(task!.count).toBe(1);
+    expect(task!.title).toContain("1 trabajador");
+    expect(task!.description).toContain("Flores, Ramon");
+    expect(task!.description).toContain("POR MONEDA");
+  });
+
+  it("NO avisa cuando todos los trabajadores estan en un proceso del periodo", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: "emp-ramon" }, { employeeId: "emp-jose" },
+    ] as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR")).toBeUndefined();
   });
 });

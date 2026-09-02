@@ -35,9 +35,12 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
 
   // NOM-C-01: getById ya incluye companyId en el where (IDOR guard)
-  const [run, config] = await Promise.all([
+  // La guardia de obsolescencia se resuelve en el servidor: es una lectura y
+  // debe estar YA en pantalla cuando aparece el boton de aprobar.
+  const [run, config, staleness] = await Promise.all([
     PayrollRunService.getById(companyId, runId),
     PayrollConfigService.getConfig(companyId),
+    PayrollRunService.getStaleSignals(companyId, runId),
   ]);
   if (!run) notFound();
 
@@ -84,7 +87,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} usdRate={usdRate} manualConcepts={manualConcepts} />
+      <PayrollRunDetail companyId={companyId} run={run} canAdmin={canAdmin} currency={currency} salaryMinCap={salaryMinCap} usdRate={usdRate} manualConcepts={manualConcepts} staleness={staleness} />
     </div>
   );
 }

@@ -77,6 +77,19 @@ export interface PayrollRunRow {
   overtimeWarnings?: string[];
 }
 
+/** Una razón por la que el borrador ya no refleja los datos actuales. */
+export interface PayrollRunStaleSignal {
+  count: number;
+  label: string;
+}
+
+export interface PayrollRunStaleness {
+  stale: boolean;
+  /** ISO del momento en que se congelaron las líneas. */
+  calculatedAt: string;
+  signals: PayrollRunStaleSignal[];
+}
+
 export interface PayrollRunDetailRow extends PayrollRunRow {
   lines: PayrollRunLineRow[];
 }
@@ -1614,5 +1627,85 @@ export const PayrollRunService = {
 
       return serializeRun(cancelled);
     });
+  },
+
+  // ── getStaleSignals — ¿el borrador envejeció? ─────────────────────────────
+  //
+  // `create` CONGELA las líneas: los importes son los del momento del cálculo.
+  // Un borrador que espera —y el automático espera por definición, porque nace
+  // sin que nadie lo pida— se vuelve mentira en cuanto entra un aumento, una
+  // hora extra del período, un préstamo aprobado o un tope legal nuevo.
+  //
+  // Esta comprobación se hizo A MANO con una consulta antes de aprobar la
+  // nómina del 2026-09-02. Que dependa de acordarse de hacerla es justo lo que
+  // no puede ser: sale sola, encima del botón de aprobar.
+  //
+  // Sólo mira DRAFT: en un proceso aprobado el asiento ya existe y el aviso
+  // sería ruido sin acción posible.
+  async getStaleSignals(companyId: string, runId: string): Promise<PayrollRunStaleness | null> {
+    const run = await prisma.payrollRun.findFirst({
+      where: { id: runId, companyId }, // ADR-004: IDOR guard, la RLS no cubre esto
+      select: {
+        status: true,
+        createdAt: true,
+        periodStart: true,
+        periodEnd: true,
+        lines: { select: { employeeId: true } },
+      },
+    });
+    if (!run || run.status !== "DRAFT") return null;
+
+    const employeeIds = [...new Set(run.lines.map((l) => l.employeeId))];
+    if (employeeIds.length === 0) return null;
+
+    const desde = run.createdAt;
+    const [sueldos, horas, prestamos, asignaciones, topes] = await Promise.all([
+      prisma.salaryHistory.count({
+        where: { companyId, employeeId: { in: employeeIds }, createdAt: { gt: desde } },
+      }),
+      // Sólo las del PROPIO período y aún sin pagar: una hora extra de otro mes
+      // no cambia estos importes, y avisar de ella sería una falsa alarma.
+      prisma.overtimeEntry.count({
+        where: {
+          companyId,
+          employeeId: { in: employeeIds },
+          payrollRunId: null,
+          workedOn: { gte: run.periodStart, lte: run.periodEnd },
+          createdAt: { gt: desde },
+        },
+      }),
+      // PENDING no se descuenta en nómina; REJECTED/CANCELLED tampoco.
+      prisma.employeeLoan.count({
+        where: {
+          companyId,
+          employeeId: { in: employeeIds },
+          status: "ACTIVE",
+          createdAt: { gt: desde },
+        },
+      }),
+      prisma.employeeRecurringConcept.count({
+        where: { companyId, employeeId: { in: employeeIds }, createdAt: { gt: desde } },
+      }),
+      // Un tope nuevo (salario mínimo) cambia IVSS/FAOV/INCES/RPE de TODOS.
+      prisma.legalThreshold.count({
+        where: { companyId, createdAt: { gt: desde } },
+      }),
+    ]);
+
+    const signals: PayrollRunStaleSignal[] = [];
+    const add = (count: number, one: string, many: string) => {
+      if (count > 0) signals.push({ count, label: count === 1 ? one : many.replace("{n}", String(count)) });
+    };
+    add(sueldos, "1 cambio de sueldo registrado después", "{n} cambios de sueldo registrados después");
+    add(horas, "1 hora extra del período registrada después", "{n} registros de horas extra del período añadidos después");
+    add(prestamos, "1 préstamo activo creado después", "{n} préstamos activos creados después");
+    add(asignaciones, "1 asignación fija creada después", "{n} asignaciones fijas creadas después");
+    add(topes, "1 tope legal actualizado después", "{n} topes legales actualizados después");
+
+    return {
+      stale: signals.length > 0,
+      calculatedAt: run.createdAt.toISOString(),
+      signals,
+    };
   },
 };

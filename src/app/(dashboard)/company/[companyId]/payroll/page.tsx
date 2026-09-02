@@ -13,6 +13,7 @@ import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigSe
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import PayrollWizard from "@/modules/payroll/components/PayrollWizard";
 import PayrollConfigSummary from "@/modules/payroll/components/PayrollConfigSummary";
+import { AutoDraftToggle } from "@/modules/payroll/components/AutoDraftToggle";
 import { NavigationCard } from "@/components/ui/NavigationCard";
 import PayrollCompliancePanel from "@/modules/payroll/components/PayrollCompliancePanel";
 
@@ -217,6 +218,13 @@ export default async function PayrollPage({ params }: Props) {
         {/* Admin con config: muestra resumen + enlace para editar */}
         {isAdmin && config && (
           <div className="space-y-3">
+            {/* El cron de borrador automatico no tenia interruptor: activarlo
+                exigia SQL, que se salta el AuditLog de setAutoDraftAction. */}
+            <AutoDraftToggle
+              companyId={companyId}
+              enabled={config.autoDraftEnabled}
+              frequency={config.frequency}
+            />
             <PayrollConfigSummary cfg={config} />
             <Link
               href={`/company/${companyId}/payroll/config/edit`}
