@@ -6,8 +6,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2Icon } from "lucide-react";
-import type { PayrollRunDetailRow } from "../services/PayrollRunService";
+import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
+import type { PayrollRunDetailRow, PayrollRunStaleness } from "../services/PayrollRunService";
 import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
 import { formatAmount, currencySymbol } from "@/lib/format";
 import { AUTO_DRAFT_ACTOR } from "../utils/auto-draft";
@@ -26,6 +26,9 @@ interface Props {
   // Catálogo para agregar conceptos puntuales al borrador (ISLR, bonos de una
   // vez). Vacío o ausente = no se ofrece.
   manualConcepts?: ManualLineConcept[];
+  // Cambios posteriores al calculo que las lineas congeladas NO recogen.
+  // null = no aplica (no es borrador) o no se pudo comprobar.
+  staleness?: PayrollRunStaleness | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -105,7 +108,7 @@ function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
   );
 }
 
-export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate, manualConcepts }: Props) {
+export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate, manualConcepts, staleness }: Props) {
   // Un importe suelto ("-12,38") no se lee como dinero. El símbolo va en cada
   // línea, atenuado, en vez del código completo: repetir "USD" sesenta veces
   // pesaba más que la ambigüedad que resolvía.
@@ -359,6 +362,33 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             </div>
           )}
         </div>
+
+        {/* Guardia de obsolescencia: `create` congela las lineas, asi que un
+            borrador que espera deja de reflejar la realidad en cuanto entra un
+            aumento o una hora extra. Va ENCIMA del boton de aprobar a
+            proposito: despues de aprobar ya hay asiento. */}
+        {run.status === "DRAFT" && staleness?.stale && (
+          <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-medium text-amber-900">
+              <TriangleAlertIcon className="size-4 shrink-0" aria-hidden="true" />
+              Este borrador ya no refleja los datos actuales
+            </p>
+            <p className="mt-1 text-xs text-amber-800">
+              Se calculo el{" "}
+              {new Date(staleness.calculatedAt).toLocaleString("es-VE", { dateStyle: "medium", timeStyle: "short" })}
+              {" "}y los importes quedaron congelados en ese momento. Desde entonces:
+            </p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs text-amber-800">
+              {staleness.signals.map((sig) => (
+                <li key={sig.label}>{sig.label}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-800">
+              Nada de eso esta en estos importes. Usa <strong>Recalcular</strong> antes de
+              aprobar, o comprueba que el cambio no debia entrar en este periodo.
+            </p>
+          </div>
+        )}
 
         {/* Acciones */}
         {canAdmin && run.status === "DRAFT" && (

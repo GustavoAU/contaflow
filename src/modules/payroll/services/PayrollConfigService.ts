@@ -61,6 +61,9 @@ export interface PayrollConfigRow {
   loanReceivableAccountId: string | null;
   disbursementBankAccountId: string | null;
   workSchedule: WorkSchedule;
+  /** Borrador automatico de nomina (cron del 1 y el 16). Se activa desde la
+   *  pantalla de Nomina con setAutoDraftAction: ADMIN_ONLY y con AuditLog. */
+  autoDraftEnabled: boolean;
   updatedAt: string;
 }
 
@@ -133,6 +136,7 @@ function serializeConfig(c: {
   loanReceivableAccountId: string | null;
   disbursementBankAccountId: string | null;
   workSchedule: WorkSchedule;
+  autoDraftEnabled: boolean;
   updatedAt: Date;
 }): PayrollConfigRow {
   return {
@@ -167,6 +171,7 @@ function serializeConfig(c: {
     loanReceivableAccountId: c.loanReceivableAccountId,
     disbursementBankAccountId: c.disbursementBankAccountId,
     workSchedule: c.workSchedule,
+    autoDraftEnabled: c.autoDraftEnabled,
     updatedAt: c.updatedAt.toISOString(),
   };
 }

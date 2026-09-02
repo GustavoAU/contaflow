@@ -6,6 +6,14 @@
 
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
+import { todayInTimeZone } from "@/lib/today";
+import { getFiscalConfig, isSupportedCountry } from "@/lib/tax-config";
+import { ultimoPeriodoCerrado, diasDesdeCierre } from "@/modules/payroll/utils/payroll-periods";
+
+/** `YYYY-MM-DD` de una fecha `@db.Date` (medianoche UTC). */
+function isoDia(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 export type PendingTaskType =
   | "INVOICES_SIN_CAUSAR"
@@ -25,6 +33,7 @@ export type PendingTaskType =
   | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
   | "NOM_VIGENCIA_DENTRO_DEL_PERIODO" // Sueldo o asignación que entra en vigor A MITAD del período en curso
+  | "NOM_PERIODO_SIN_PROCESAR"       // Trabajadores activos que no cobraron el último período cerrado
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
   | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
@@ -200,10 +209,13 @@ export const PendingTasksService = {
         },
       }),
 
-      // 10. isSpecialContributor — para condicionar la alerta IGTF
+      // 10. isSpecialContributor — para condicionar la alerta IGTF.
+      // `country` resuelve "hoy" en la zona de la empresa: a partir de las 20:00
+      // en Venezuela el servidor ya está en el día siguiente en UTC, y con eso
+      // un período que aún no ha cerrado parecería cerrado.
       prisma.company.findFirst({
         where: { id: companyId },
-        select: { isSpecialContributor: true },
+        select: { isSpecialContributor: true, country: true },
       }),
 
       // 11. ADR-030 audit: pagos en divisa con igtfAmount = 0 en los últimos 90 días
@@ -415,6 +427,13 @@ export const PendingTasksService = {
         where: { companyId, status: "ACTIVE", custodianId: null },
       }),
     ]);
+
+    // "Hoy" en la zona de la empresa, a medianoche UTC para poder compararlo
+    // con las columnas `@db.Date`. Derivarlo del reloj del servidor adelantaba
+    // el día a partir de las 20:00 en Venezuela.
+    const paisEmpresa = companyInfo?.country ?? "VEN";
+    const zona = getFiscalConfig(isSupportedCountry(paisEmpresa) ? paisEmpresa : "VEN").timezone;
+    const hoyEmpresa = new Date(`${todayInTimeZone(zona)}T00:00:00.000Z`);
 
     const tasks: PendingTask[] = [];
 
@@ -719,6 +738,86 @@ export const PendingTasksService = {
             count: desalineadas.length,
             href: "/payroll/employees",
           });
+        }
+      }
+
+      // NOM_PERIODO_SIN_PROCESAR — reemplaza la señal que el borrador
+      // automático destruye.
+      //
+      // Mientras no había proceso, su AUSENCIA era el recordatorio de que
+      // quedaba trabajo. En cuanto el cron deja un borrador, la nómina PARECE
+      // hecha. Por eso la alerta se deriva de la ausencia y no de una tabla de
+      // intentos del cron: así cubre además el fallo más silencioso de todos,
+      // que es que el cron NO llegara a correr.
+      //
+      // Y la pregunta no es "¿hay un proceso de este período?" sino "¿quién no
+      // cobró?". Desde que la ranura es (período + moneda), una empresa que
+      // paga en dos monedas necesita DOS procesos y el segundo se olvida:
+      // contar procesos daría por buena una quincena con medio personal sin
+      // pagar. Con trabajadores, no.
+      if (diasAlineados) {
+        const periodo = ultimoPeriodoCerrado(diasAlineados, hoyEmpresa);
+        if (periodo) {
+          const [cubiertos, deben] = await Promise.all([
+            prisma.payrollRunLine.findMany({
+              // ADR-044: la RLS es fail-OPEN, el filtro de empresa va explícito
+              // en la línea Y en el proceso.
+              where: {
+                companyId,
+                payrollRun: {
+                  companyId,
+                  status: { in: ["DRAFT", "APPROVED"] },
+                  periodStart: { lte: periodo.fin },
+                  periodEnd: { gte: periodo.inicio },
+                },
+              },
+              select: { employeeId: true },
+              distinct: ["employeeId"],
+            }),
+            // Mismo criterio que `PayrollRunService.create` usa para elegir a
+            // quién paga: activo, contratado antes del cierre y con sueldo
+            // vigente AL INICIO del período. Con otro criterio se avisaría de
+            // alguien a quien la nómina tampoco habría incluido.
+            prisma.employee.findMany({
+              where: {
+                companyId,
+                status: "ACTIVE",
+                hireDate: { lte: periodo.fin },
+                salaryHistory: { some: { effectiveFrom: { lte: periodo.inicio } } },
+              },
+              select: { id: true, firstName: true, lastName: true },
+              orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+              take: 200,
+            }),
+          ]);
+
+          const yaCobraron = new Set(cubiertos.map((l) => l.employeeId));
+          const faltan = deben.filter((e) => !yaCobraron.has(e.id));
+
+          if (faltan.length > 0) {
+            const dias = diasDesdeCierre(periodo, hoyEmpresa);
+            const rango = `${isoDia(periodo.inicio)} → ${isoDia(periodo.fin)}`;
+            const pl = faltan.length !== 1;
+            const quien = `${faltan[0].lastName}, ${faltan[0].firstName}`;
+            const parcial = yaCobraron.size > 0;
+            tasks.push({
+              type: "NOM_PERIODO_SIN_PROCESAR",
+              // El día después del cierre es normal que aún no esté procesada.
+              // Una semana después, no: la fecha de pago ya pasó.
+              severity: dias > 5 ? "error" : "warning",
+              title: parcial
+                ? `${faltan.length} trabajador${pl ? "es" : ""} sin cobrar el período ${rango}`
+                : `Nómina del período ${rango} sin procesar`,
+              description: parcial
+                ? `Ya hay un proceso de ese período, pero ${quien}${pl ? ` y ${faltan.length - 1} más` : ""} no está${pl ? "n" : ""} en él. ` +
+                  `Un período admite un proceso POR MONEDA: si pagas en bolívares y en divisas, revisa si falta el segmento de la otra moneda. ` +
+                  `Cerró hace ${dias} día${dias !== 1 ? "s" : ""}.`
+                : `${faltan.length} trabajador${pl ? "es" : ""} con sueldo vigente y ningún proceso que ${pl ? "los incluya" : "lo incluya"}. ` +
+                  `Cerró hace ${dias} día${dias !== 1 ? "s" : ""}. Si tienes activo el borrador automático, esto significa además que no llegó a crearse.`,
+              count: faltan.length,
+              href: "/payroll/runs",
+            });
+          }
         }
       }
     }
