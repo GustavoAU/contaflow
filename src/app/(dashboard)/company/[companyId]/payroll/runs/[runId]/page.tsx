@@ -8,7 +8,6 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { PayrollRunService } from "@/modules/payroll/services/PayrollRunService";
 import { PayrollRunDetail } from "@/modules/payroll/components/PayrollRunDetail";
-import { PayrollConfigService } from "@/modules/payroll/services/PayrollConfigService";
 import { LegalThresholdService } from "@/modules/payroll/services/LegalThresholdService";
 
 interface Props {
@@ -37,9 +36,8 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   // NOM-C-01: getById ya incluye companyId en el where (IDOR guard)
   // La guardia de obsolescencia se resuelve en el servidor: es una lectura y
   // debe estar YA en pantalla cuando aparece el boton de aprobar.
-  const [run, config, staleness] = await Promise.all([
+  const [run, staleness] = await Promise.all([
     PayrollRunService.getById(companyId, runId),
-    PayrollConfigService.getConfig(companyId),
     PayrollRunService.getStaleSignals(companyId, runId),
   ]);
   if (!run) notFound();
@@ -56,7 +54,13 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   const salaryMinCap = salaryMinDecimal?.toString() ?? null;
 
   const canAdmin = canAccess(member.role, ROLES.ADMIN_ONLY);
-  const currency = config?.paymentCurrency ?? "VES";
+  // La moneda del proceso es la del PROCESO, no la de `PayrollConfig`: desde
+  // H-A la ranura es (período + moneda) y una empresa puede tener procesos en
+  // VES y en USD del mismo período. `PayrollConfig.paymentCurrency` es un
+  // valor de la empresa que no cambia por proceso — usarlo aquí mostraba "$"
+  // en un proceso en bolívares con asiento ya aprobado, sólo porque la
+  // configuración de la empresa dice USD.
+  const currency = run.currencySegment;
   const usdRate = usdRateRow?.rate?.toString() ?? null;
 
   // Conceptos que el contador puede agregar a mano sobre el borrador. Se excluyen

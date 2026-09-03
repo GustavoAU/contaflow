@@ -60,6 +60,12 @@ export interface PayrollRunRow {
   periodStart: string;
   periodEnd: string;
   status: PayrollRunStatus;
+  // Desde H-A: la ranura única es (companyId, periodStart, periodEnd,
+  // currencySegment), no sólo el período. Dos runs del mismo período con
+  // segmentos distintos son legítimos y hasta ahora eran indistinguibles en
+  // la lista — dos filas idénticas "16→31 agosto" sin forma de saber cuál era
+  // cuál.
+  currencySegment: PayrollPaymentCurrency;
   totalEarnings: string;
   totalDeductions: string;
   totalNet: string;
@@ -102,6 +108,7 @@ function serializeRun(r: {
   periodStart: Date;
   periodEnd: Date;
   status: PayrollRunStatus;
+  currencySegment: PayrollPaymentCurrency;
   totalEarnings: Decimal;
   totalDeductions: Decimal;
   totalNet: Decimal;
@@ -121,6 +128,7 @@ function serializeRun(r: {
     periodStart: r.periodStart.toISOString().split("T")[0],
     periodEnd: r.periodEnd.toISOString().split("T")[0],
     status: r.status,
+    currencySegment: r.currencySegment,
     totalEarnings: r.totalEarnings.toString(),
     totalDeductions: r.totalDeductions.toString(),
     totalNet: r.totalNet.toString(),
@@ -918,6 +926,11 @@ export const PayrollRunService = {
           newValue: {
             periodStart: input.periodStart,
             periodEnd: input.periodEnd,
+            // H-A: la ranura única es (período + moneda). Sin esto, el AuditLog
+            // de dos procesos del mismo período eran indistinguibles salvo por
+            // el entityId — una fiscalización no podía saber, mirando el
+            // registro, cuál de los dos procesos era éste.
+            currencySegment: runCurrency,
             employeeCount: empInputs.length,
             totalEarnings: result.totalEarnings.toString(),
             totalDeductions: result.totalDeductions.toString(),

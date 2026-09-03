@@ -91,6 +91,7 @@ const BASE_RUN = {
   periodStart: new Date("2026-04-01"),
   periodEnd: new Date("2026-04-15"),
   status: "DRAFT" as const,
+  currencySegment: "VES" as const,
   totalEarnings: new Decimal("30000"),
   totalDeductions: new Decimal("2100"),
   totalNet: new Decimal("27900"),
@@ -121,6 +122,8 @@ describe("PayrollRunService.list", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(RUN_ID);
     expect(result[0].totalNet).toBe("27900");
+    // Sin esto, dos procesos del mismo periodo eran indistinguibles en pantalla.
+    expect(result[0].currencySegment).toBe("VES");
     expect(vi.mocked(prisma.payrollRun.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({ where: { companyId: COMPANY_ID } })
     );
@@ -421,6 +424,13 @@ describe("PayrollRunService.create", () => {
     await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
     const data = vi.mocked(prisma.payrollRun.create).mock.calls[0][0].data as Record<string, unknown>;
     expect(data.currencySegment).toBe("VES");
+  });
+
+  it("registra el segmento de moneda en el AuditLog — sin esto dos procesos del mismo periodo son indistinguibles en el rastro", async () => {
+    setupCreateMocks();
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0][0].data as { newValue: Record<string, unknown> };
+    expect(audit.newValue.currencySegment).toBe("VES");
   });
 
   it("NO reserva horas extra de trabajadores fuera del run", async () => {
