@@ -15,6 +15,38 @@
 
 **Diferencia con ADR-001:** `getNextControlNumber` hace SELECT → cálculo → UPDATE sobre un valor que DEBE ser consistente. `createPayrollRun` hace INSERT puro; el constraint DB es el mutex.
 
+> **Enmienda 2026-08-30 (H-A) — el unique original bloqueaba a media plantilla.**
+> El calculador RECHAZA una nómina con sueldos en dos monedas (un total que suma
+> bolívares y dólares no es de ninguna de las dos), así que una empresa
+> bimonetaria está OBLIGADA a procesar dos veces el mismo período — y el unique
+> de esta Decisión, sobre `(companyId, periodStart, periodEnd)` a secas, sólo
+> dejaba UNA fila vigente por período. El segundo grupo de empleados no podía
+> pagarse NUNCA en ese período, aunque el guard de la app permitiera elegirlo.
+>
+> Se añadió `PayrollRun.currencySegment` (`PayrollPaymentCurrency`, migración
+> `20260830_payrollrun_currency_segment`) y la ranura pasó a ser
+> `(companyId, periodStart, periodEnd, currencySegment)`. Un unique exacto no
+> basta para excluir solapes NO idénticos (01–15 vs 01–31 del mismo mes, misma
+> moneda) — se reemplazó por una restricción de EXCLUSIÓN GiST
+> (`PayrollRun_no_overlap_active`, migración `20260830_payrollrun_exclusion_solape`):
+> `EXCLUDE USING gist (companyId =, currencySegment =, daterange(periodStart, periodEnd, '[]') &&) WHERE status <> 'CANCELLED'`.
+> Excluye los `CANCELLED` a propósito: un período anulado debe poder rehacerse
+> (Recalcular). Se prefirió sobre un advisory lock porque un candado impide una
+> CARRERA y esto impide ESTAR EQUIVOCADO — el candado sólo protege si todo el
+> que escribe se acuerda de tomarlo.
+>
+> El catch de P2002 (`createPayrollRunAction`) usaba `meta.target.includes("periodStart")`
+> contra el `@@unique` que este cambio eliminó — el nuevo índice se llama
+> `PayrollRun_companyId_period_active_key` y no contiene esa subcadena, así que
+> la rama quedó MUERTA (mismo patrón que la nota de correlativos en `CLAUDE.md`:
+> la columna del catch es la del CONSTRAINT, no la del documento). Corregido
+> para aceptar también el nombre del índice, con test de regresión.
+>
+> `currencySegment` se expone ahora en `PayrollRunRow` (lista, badge por
+> moneda), en el diálogo de aprobación y en el `newValue` de `CREATE_PAYROLL_RUN`
+> — antes dos procesos del mismo período eran indistinguibles en pantalla y en
+> el AuditLog salvo por el `entityId`.
+
 ---
 
 ## Decisión 2 — Snapshot de salario: FK + snapshot (opción C)

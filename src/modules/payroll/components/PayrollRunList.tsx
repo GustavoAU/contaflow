@@ -11,9 +11,17 @@ import {
   cancelPayrollRunAction,
   approvePayrollRunAction,
 } from "../actions/payroll-run.actions";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, currencySymbol } from "@/lib/format";
 
 import { AUTO_DRAFT_ACTOR } from "../utils/auto-draft";
+
+// Desde H-A la ranura única es (período + moneda): dos procesos del mismo
+// período, uno en VES y otro en USD, son legítimos. Sin este badge son dos
+// filas idénticas "16→31 agosto" sin forma de saber cuál es cuál.
+const SEGMENT_COLORS: Record<string, string> = {
+  VES: "bg-sky-100 text-sky-800",
+  USD: "bg-emerald-100 text-emerald-800",
+};
 
 interface Props {
   companyId: string;
@@ -53,6 +61,10 @@ function ApproveDialog({ run, onConfirm, onCancel, isPending }: ApproveDialogPro
           <div className="flex justify-between px-4 py-2">
             <dt className="text-gray-500">Período</dt>
             <dd className="font-mono font-medium">{run.periodStart} — {run.periodEnd}</dd>
+          </div>
+          <div className="flex justify-between px-4 py-2">
+            <dt className="text-gray-500">Moneda de este proceso</dt>
+            <dd className="font-mono font-medium">{currencySymbol(run.currencySegment)} {run.currencySegment}</dd>
           </div>
           <div className="flex justify-between px-4 py-2">
             <dt className="text-gray-500">Empleados</dt>
@@ -190,7 +202,15 @@ export function PayrollRunList({ companyId, runs, canAdmin }: Props) {
             {runs.map((run) => (
               <tr key={run.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                  {run.periodStart} — {run.periodEnd}
+                  <span className="flex items-center gap-2">
+                    {run.periodStart} — {run.periodEnd}
+                    <span
+                      className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-xs font-mono font-medium ${SEGMENT_COLORS[run.currencySegment] ?? "bg-gray-100 text-gray-700"}`}
+                      title="Moneda de este proceso — un período puede tener un proceso por moneda"
+                    >
+                      {currencySymbol(run.currencySegment)} {run.currencySegment}
+                    </span>
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1">
