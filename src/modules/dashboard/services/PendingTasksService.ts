@@ -9,6 +9,7 @@ import Decimal from "decimal.js";
 import { todayInTimeZone } from "@/lib/today";
 import { getFiscalConfig, isSupportedCountry } from "@/lib/tax-config";
 import { ultimoPeriodoCerrado, diasDesdeCierre } from "@/modules/payroll/utils/payroll-periods";
+import { AUTO_DRAFT_ACTOR } from "@/modules/payroll/utils/auto-draft";
 
 /** `YYYY-MM-DD` de una fecha `@db.Date` (medianoche UTC). */
 function isoDia(d: Date): string {
@@ -34,6 +35,7 @@ export type PendingTaskType =
   | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
   | "NOM_VIGENCIA_DENTRO_DEL_PERIODO" // Sueldo o asignación que entra en vigor A MITAD del período en curso
   | "NOM_PERIODO_SIN_PROCESAR"       // Trabajadores activos que no cobraron el último período cerrado
+  | "NOM_BORRADOR_AUTO_SIN_REVISAR"  // El cron dejó un borrador y todavía nadie lo aprobó ni lo miró
   | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
   | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
   | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
@@ -100,6 +102,7 @@ export const PendingTasksService = {
       nomInicios,
       nomVigenciasSalario,
       nomVigenciasAsignacion,
+      nomBorradoresAuto,
       // Hallazgo #5
       igtfSinCuentaCount,
       glConfigIgtf,
@@ -328,6 +331,17 @@ export const PendingTasksService = {
           employee: { select: { firstName: true, lastName: true } },
           concept: { select: { name: true } },
         },
+      }),
+
+      // 18-quinquies. Borradores que dejó el cron y nadie ha tocado todavía.
+      // NOM_PERIODO_SIN_PROCESAR no los ve: si el cron cubrió a todo el mundo,
+      // "quién no cobró" da cero y esa alerta no dispara — pero que esté PAGADO
+      // no significa que esté REVISADO. Sin esto, un borrador automático que
+      // cubre a todos podía aprobarse a ciegas sin que nadie recibiera un aviso.
+      prisma.payrollRun.findMany({
+        where: { companyId, status: "DRAFT", createdByUserId: AUTO_DRAFT_ACTOR },
+        select: { id: true, periodStart: true, periodEnd: true, currencySegment: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
       }),
 
       // 19. Hallazgo #5: facturas con IGTF calculado (igtfAmount > 0) — para comparar con cuenta GL
@@ -820,6 +834,43 @@ export const PendingTasksService = {
           }
         }
       }
+    }
+
+    // NOM_BORRADOR_AUTO_SIN_REVISAR — el aviso que le falta a la ausencia.
+    //
+    // NOM_PERIODO_SIN_PROCESAR responde "¿quién no cobró?": si el cron cubrió a
+    // todo el mundo, la respuesta es "nadie" y esa alerta no dispara. Pero
+    // PAGADO no es lo mismo que REVISADO — un borrador que nadie miró se puede
+    // aprobar a ciegas igual, y sin este aviso la única señal era un badge
+    // pasivo en la lista de procesos, visible sólo para quien entrara a
+    // mirarla. Severidad "warning" desde el día en que se creó (no "info"): el
+    // digest diario (`NotificationEmailService.sendDailyDigests`, que ya lee
+    // TODAS las tareas de esta clase) sólo manda correo para warning/error, y
+    // el aviso proactivo — que llegue sin que nadie tenga que abrir el
+    // dashboard — es el punto de esta alerta.
+    if (nomBorradoresAuto.length > 0) {
+      const masViejo = nomBorradoresAuto[0];
+      const diasDesdeCreacion = Math.floor((Date.now() - masViejo.createdAt.getTime()) / 86_400_000);
+      const pl = nomBorradoresAuto.length !== 1;
+      const rango = `${isoDia(masViejo.periodStart)} → ${isoDia(masViejo.periodEnd)}`;
+      tasks.push({
+        type: "NOM_BORRADOR_AUTO_SIN_REVISAR",
+        // Mismo umbral que NOM_PERIODO_SIN_PROCESAR: pasada una semana sin que
+        // nadie lo toque, ya no es "acabo de crearlo", es que se está pasando
+        // la fecha de pago con un borrador esperando.
+        severity: diasDesdeCreacion > 5 ? "error" : "warning",
+        title: pl
+          ? `${nomBorradoresAuto.length} borradores automáticos sin revisar`
+          : "Borrador automático esperando revisión",
+        description:
+          `El sistema calculó solo el proceso del período ${rango} (${masViejo.currencySegment}) ` +
+          `hace ${diasDesdeCreacion} día${diasDesdeCreacion !== 1 ? "s" : ""}` +
+          (pl ? ` (y ${nomBorradoresAuto.length - 1} borrador${nomBorradoresAuto.length > 2 ? "es" : ""} más)` : "") +
+          `. Nadie lo aprueba en tu lugar: revisa que no haya cambios posteriores al cálculo ` +
+          `(la ficha del proceso te lo señala) y apruébalo tú.`,
+        count: nomBorradoresAuto.length,
+        href: "/payroll/runs",
+      });
     }
 
     // NOM_PRESTACIONES_POR_ACUMULAR: trimestre actual sin acumular (Art. 142 LOTTT)
