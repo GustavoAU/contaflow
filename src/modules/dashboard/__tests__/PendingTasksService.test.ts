@@ -422,10 +422,16 @@ describe("PendingTasksService.getPendingTasks", () => {
     // propia practica.
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "MONTHLY" } as never);
-    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([
-      { periodStart: new Date(Date.UTC(2026, 7, 16)) },
-      { periodStart: new Date(Date.UTC(2026, 7, 1)) },
-    ] as never);
+    // `payrollRun.findMany` sirve DOS consultas distintas en el servicio (los
+    // dias de corte historicos y los borradores del cron) — el mock debe
+    // distinguirlas por `where`, igual que Postgres lo haria de verdad.
+    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: { where?: { createdByUserId?: string } }) =>
+      args?.where?.createdByUserId
+        ? []
+        : [
+            { periodStart: new Date(Date.UTC(2026, 7, 16)) },
+            { periodStart: new Date(Date.UTC(2026, 7, 1)) },
+          ]) as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
       { effectiveFrom: diaDesalineadoDelMes(16), currency: "USD", employee: { firstName: "E", lastName: "Cinco" } },
     ] as never);
@@ -818,5 +824,87 @@ describe("PendingTasksService.getPendingTasks", () => {
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR")).toBeUndefined();
+  });
+
+  // ── NOM_BORRADOR_AUTO_SIN_REVISAR ──────────────────────────────────────────
+  // El aviso que le falta a NOM_PERIODO_SIN_PROCESAR: si el cron cubrio a todo
+  // el mundo, esa alerta no dispara (nadie "falta por cobrar"), pero PAGADO no
+  // es lo mismo que REVISADO. Severity "warning" desde el dia 0 a proposito:
+  // es lo que hace que el digest diario lo mande por correo de inmediato.
+
+  function borradorAuto(overrides: Partial<{
+    id: string; periodStart: Date; periodEnd: Date; currencySegment: string; createdAt: Date;
+  }> = {}) {
+    return {
+      id: "run-auto-1",
+      periodStart: new Date(Date.UTC(2026, 7, 16)),
+      periodEnd: new Date(Date.UTC(2026, 7, 31)),
+      currencySegment: "USD",
+      createdAt: new Date("2026-09-02T12:00:00Z"),
+      ...overrides,
+    };
+  }
+
+  function mockBorradoresAuto(rows: ReturnType<typeof borradorAuto>[]) {
+    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: { where?: { createdByUserId?: string } }) =>
+      args?.where?.createdByUserId ? rows : []) as never);
+  }
+
+  it("un borrador automatico recien creado avisa el mismo dia (severity warning)", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    mockBorradoresAuto([borradorAuto()]);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_BORRADOR_AUTO_SIN_REVISAR");
+    expect(task).toBeDefined();
+    expect(task!.severity).toBe("warning");
+    expect(task!.count).toBe(1);
+    expect(task!.title).toBe("Borrador automático esperando revisión");
+    expect(task!.description).toContain("2026-08-16");
+    expect(task!.description).toContain("2026-08-31");
+  });
+
+  it("escala a error pasados 5 dias sin que nadie lo revise", async () => {
+    enFecha("2026-09-08T12:00:00Z"); // 6 dias despues de creado
+    mockBorradoresAuto([borradorAuto({ createdAt: new Date("2026-09-02T12:00:00Z") })]);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_BORRADOR_AUTO_SIN_REVISAR");
+    expect(task!.severity).toBe("error");
+  });
+
+  it("pluraliza cuando hay mas de un borrador automatico sin revisar", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    mockBorradoresAuto([
+      borradorAuto({ id: "run-auto-ves", currencySegment: "VES" }),
+      borradorAuto({ id: "run-auto-usd", currencySegment: "USD" }),
+    ]);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_BORRADOR_AUTO_SIN_REVISAR");
+    expect(task!.count).toBe(2);
+    expect(task!.title).toContain("2 borradores automáticos");
+  });
+
+  it("consulta SOLO los borradores creados por el cron, no los de un humano", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    mockBorradoresAuto([]);
+
+    await PendingTasksService.getPendingTasks("company-1");
+    const llamadaAutoDrafts = vi.mocked(prisma.payrollRun.findMany).mock.calls.find(
+      (c) => (c[0] as { where?: { createdByUserId?: string } })?.where?.createdByUserId,
+    );
+    expect(llamadaAutoDrafts).toBeDefined();
+    const where = (llamadaAutoDrafts![0] as { where: { status: string; createdByUserId: string } }).where;
+    expect(where.status).toBe("DRAFT");
+    expect(where.createdByUserId).toBe("system:payroll-auto-draft");
+  });
+
+  it("NO avisa cuando no hay borradores automaticos pendientes", async () => {
+    enFecha("2026-09-02T12:00:00Z");
+    mockBorradoresAuto([]);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    expect(result.tasks.find((t) => t.type === "NOM_BORRADOR_AUTO_SIN_REVISAR")).toBeUndefined();
   });
 });
