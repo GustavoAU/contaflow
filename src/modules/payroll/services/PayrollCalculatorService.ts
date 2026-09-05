@@ -205,6 +205,13 @@ export function integralDailyWageFrom(
 //   urbano (límite inferior) y DIEZ (límite superior).
 export const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
 export const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
+// Ley de Protección de las Pensiones de Seguridad Social Frente al Bloqueo
+// Imperialista (G.O. 6.806 Extraordinario, 08-05-2024) — Decreto 4.952
+// (G.O. 42.880) fija la tasa en 9%. Patronal, sin componente obrero, sin
+// umbral de plantilla (Art. 6: toda persona jurídica privada con actividad
+// económica en Venezuela — a diferencia de INCES, que exige 5+ trabajadores).
+// Verificado con contador (2026-09).
+export const DEFAULT_PENSIONES_PAT_RATE = new Decimal("0.09");
 // LOTTT Art. 178: las horas extraordinarias "no podran exceder de diez horas
 // semanales, ni de cien horas por ano". El calculador solo validaba que no
 // fueran negativas.
@@ -293,6 +300,14 @@ export interface EmployeeCalculationInput {
   // sea cero: ahí se cotiza sobre el mes en curso, que es lo único que existe.
   // Lo aporta PayrollRunService desde el run APPROVED anterior.
   previousMonthNormalWage?: Decimal;
+  // Análogo a `previousMonthNormalWage`, pero SIN filtrar por naturaleza
+  // salarial: suma TODAS las líneas EARNING del mes anterior (salario + todo
+  // bono no salarial pagado). Es la base de PENSIONES_PAT (Ley Protección de
+  // las Pensiones, G.O. 6.806) — verificado con contador (2026-09) que esta
+  // ley, a diferencia de IVSS/FAOV/INCES/RPE, SÍ incluye los bonos. Reutilizar
+  // `previousMonthNormalWage` aquí subestimaría la base: es exactamente lo que
+  // ese campo EXCLUYE a propósito (ver ADR-045 D-4).
+  previousMonthTotalCompensation?: Decimal;
   // Horas extraordinarias ya devengadas en lo que va del ano calendario, en runs
   // APPROVED anteriores. Sirve para el tope anual del Art. 178; sin este dato
   // solo se puede comprobar el semanal. Lo aporta PayrollRunService.
@@ -368,6 +383,25 @@ export interface PayrollCalculatorConfig {
   faovPatRate?: Decimal;
   rpeObrRate?: Decimal;
   rpePatRate?: Decimal;
+  // Ley Protección de las Pensiones de Seguridad Social Frente al Bloqueo
+  // Imperialista (G.O. 6.806 Extraordinario, 08-05-2024) — Decreto 4.952
+  // (G.O. 42.880): 9% patronal, sin componente obrero, sin umbral de plantilla
+  // (a diferencia de INCES). Verificado con contador (2026-09).
+  pensionesEnabled: boolean;
+  pensionesPatRate?: Decimal;
+  // Piso de la base (Art. 7: "en ningún caso... menor al ingreso mínimo
+  // integral indexado"), en USD — NO confundir con `salaryMinimumVes`, que es
+  // el salario mínimo legal (Bs. 130, congelado desde 2022): son dos topes
+  // legales distintos con la misma palabra "mínimo". `undefined` con
+  // `pensionesEnabled=true` BLOQUEA el cálculo (ver `calculateEmployeeLines`):
+  // a diferencia de un tope que protege al trabajador, este piso protege la
+  // base fiscal — asumir 0 subestimaría lo declarado ante el SENIAT.
+  ingresoMinimoIntegralUsd?: Decimal;
+  // Tasa BCV del ÚLTIMO DÍA DEL MES ANTERIOR (verificado con contador) — NO la
+  // de `usdToVesRate`, que es la del período en curso. Sólo hace falta cuando
+  // el sueldo está en VES; si el trabajador cobra en USD, el piso (ya en USD)
+  // no necesita conversión.
+  prevMonthEndUsdToVesRate?: Decimal | null;
 }
 
 export interface CalculatorLineOutput {
@@ -460,6 +494,24 @@ function salaryMinimumInCurrency(
   if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
   if (!usdToVesRate || usdToVesRate.lte(0)) throw new Error(MISSING_USD_RATE_MESSAGE);
   return salaryMinVes.dividedBy(usdToVesRate);
+}
+
+// Piso de PENSIONES_PAT (Art. 7 Ley Protección de las Pensiones): el INVERSO
+// de `salaryMinimumInCurrency` de arriba — la referencia está en USD, no en
+// Bs., así que va al revés: se MULTIPLICA para VES, nunca se divide. Nombre
+// propio a propósito, para que nadie la confunda con la de arriba por
+// simetría aparente y termine invirtiendo la operación.
+function ingresoMinimoIntegralInCurrency(
+  ingresoMinimoIntegralUsd: Decimal,
+  currency: PayrollPaymentCurrency,
+  usdToVesRateAtPrevMonthEnd: Decimal | null | undefined,
+): Decimal {
+  if (currency === "USD") return ingresoMinimoIntegralUsd;
+  if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
+  if (!usdToVesRateAtPrevMonthEnd || usdToVesRateAtPrevMonthEnd.lte(0)) {
+    throw new Error(MISSING_USD_RATE_MESSAGE);
+  }
+  return ingresoMinimoIntegralUsd.mul(usdToVesRateAtPrevMonthEnd);
 }
 
 // ─── PayrollCalculatorService ─────────────────────────────────────────────────
@@ -562,11 +614,31 @@ export const PayrollCalculatorService = {
     const faovPatRate     = config.faovPatRate  ?? DEFAULT_FAOV_PAT_RATE;
     const rpeWorkerRate   = config.rpeObrRate   ?? DEFAULT_RPE_WORKER_RATE;
     const rpePatRate      = config.rpePatRate   ?? DEFAULT_RPE_PAT_RATE;
+    const pensionesPatRate = config.pensionesPatRate ?? DEFAULT_PENSIONES_PAT_RATE;
     const salary = emp.salaryAmount;
     // Tope legal llevado a la moneda del sueldo (H-4).
     const salaryMinInCurrency = salaryMinimumInCurrency(
       salaryMinimumVes, emp.salaryCurrency, config.usdToVesRate,
     );
+    // Piso de PENSIONES_PAT (Art. 7) llevado a la moneda del sueldo. Sólo se
+    // resuelve si el organismo está activo: exigir la tasa BCV de fin de mes
+    // anterior a una empresa que ni siquiera tiene esto activado sería un
+    // bloqueo sin causa.
+    const ingresoMinimoIntegralInCurrencyValue = config.pensionesEnabled
+      ? (() => {
+          if (!config.ingresoMinimoIntegralUsd) {
+            throw new Error(
+              "Falta registrar el 'Ingreso mínimo integral' (Art. 7, Ley Protección " +
+              "de las Pensiones) en Topes Legales. Sin él, la base de esta " +
+              "contribución no puede calcularse — asumir Bs. 0 subestimaría lo que " +
+              "se declara ante el SENIAT."
+            );
+          }
+          return ingresoMinimoIntegralInCurrency(
+            config.ingresoMinimoIntegralUsd, emp.salaryCurrency, config.prevMonthEndUsdToVesRate,
+          );
+        })()
+      : new Decimal(0);
 
     const salaryBase = {
       salaryHistoryId: emp.salaryHistoryId,
@@ -680,6 +752,14 @@ export const PayrollCalculatorService = {
         natureById.get(l.conceptId) === "SALARIO_NORMAL")
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 
+    // Base de PENSIONES_PAT: TODAS las líneas EARNING, SIN filtrar por
+    // naturaleza salarial — a diferencia de `salarioNormalDelMes` de arriba,
+    // que excluye a propósito los bonos no salariales (ADR-045 D-4). Verificado
+    // con contador (2026-09): la Ley Protección de las Pensiones sí los suma.
+    const totalCompensacionDelMes = lines
+      .filter((l) => l.conceptType === "EARNING")
+      .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
+
     // ── D-5: las contribuciones van sobre el MES ANTERIOR ─────────────────────
     // LOTTT Art. 107 y LRPE Art. 46. Se usaba el mes en curso, lo que da otra
     // cifra en cuanto hay un aumento, una ausencia o un bono de por medio.
@@ -689,6 +769,9 @@ export const PayrollCalculatorService = {
     // hay. Nunca cero — un aporte que desaparece porque falta el histórico es
     // exactamente el tipo de silencio que este ADR viene a quitar.
     const salarioNormal = emp.previousMonthNormalWage ?? salarioNormalDelMes;
+    // PENSIONES_PAT sigue el mismo régimen de diferimiento (verificado con
+    // contador), pero con la base amplia de arriba.
+    const totalCompensacion = emp.previousMonthTotalCompensation ?? totalCompensacionDelMes;
 
     // ── Salario INTEGRAL: la base del FAOV, y sólo del FAOV ───────────────────
     // LRPVH Art. 33.1 (G.O. 6.805 Extr., 01-05-2024): el aporte es "el tres por
@@ -843,6 +926,28 @@ export const PayrollCalculatorService = {
         amount,
         basis,
         rate: rpePatRate,
+        ...salaryBase,
+      });
+    }
+
+    // ── PENSIONES_PAT (9% — Ley Protección de las Pensiones, G.O. 6.806) ─────
+    // Sin umbral de plantilla (Art. 6: toda persona jurídica privada), a
+    // diferencia de INCES_PAT. Base = MAX(compensación total, piso del
+    // ingreso mínimo integral) — Art. 7: "en ningún caso... menor a".
+    // Verificado con contador: un trabajador que gana menos del piso cotiza
+    // sobre el piso, no sobre lo que realmente gana.
+    const pensionesPatId = findConcept(systemConcepts, "PENSIONES_PAT");
+    if (config.pensionesEnabled && pensionesPatId) {
+      const basis = Decimal.max(totalCompensacion, ingresoMinimoIntegralInCurrencyValue);
+      const amount = basis.times(pensionesPatRate).toDecimalPlaces(2);
+      lines.push({
+        conceptCode: "PENSIONES_PAT",
+        conceptId: pensionesPatId,
+        employeeId: emp.employeeId,
+        conceptType: "EMPLOYER_COST",
+        amount,
+        basis,
+        rate: pensionesPatRate,
         ...salaryBase,
       });
     }

@@ -98,6 +98,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     incesEnabled: initial?.incesEnabled ?? true,
     banavihEnabled: initial?.banavihEnabled ?? true,
     rpeEnabled: initial?.rpeEnabled ?? true,
+    // Opt-in a propósito, a diferencia de los 4 de arriba — ver toggleOrganism.
+    pensionesEnabled: initial?.pensionesEnabled ?? false,
     cestaTicketType: initial?.cestaTicketType ?? "CARD",
     paymentCurrency: initial?.paymentCurrency ?? "VES",
     frequency: initial?.frequency ?? "BIWEEKLY",
@@ -116,6 +118,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     incesPatronalAccountId: initial?.incesPatronalAccountId ?? "",
     faovPatronalAccountId: initial?.faovPatronalAccountId ?? "",
     rpePatronalAccountId: initial?.rpePatronalAccountId ?? "",
+    pensionesPatronalAccountId: initial?.pensionesPatronalAccountId ?? "",
     // Beneficios legales
     benefitsExpenseAccountId: initial?.benefitsExpenseAccountId ?? "",
     benefitsPayableAccountId: initial?.benefitsPayableAccountId ?? "",
@@ -153,6 +156,21 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     set(key, !current as typeof form[typeof key]);
   }
 
+  // Riesgo inverso al de arriba: aquí lo delicado es ACTIVAR, no desactivar.
+  // Es opt-in a propósito (ver comentario en schema.prisma) — activarla sola
+  // crea un pasivo y una declaración que nadie pidió.
+  function togglePensiones() {
+    if (!form.pensionesEnabled) {
+      const ok = window.confirm(
+        "Vas a activar la Contribución de Protección de Pensiones (9% patronal, " +
+          "G.O. 6.806). Es una ley de solo 2 años y de baja adopción real — " +
+          "verifica con tu contador antes de activarla. ¿Confirma?"
+      );
+      if (!ok) return;
+    }
+    set("pensionesEnabled", !form.pensionesEnabled);
+  }
+
   function validateAccountConflicts(): string | null {
     // Reutiliza la misma lógica del useMemo para consistencia submit vs. tiempo-real
     return accountConflict;
@@ -178,6 +196,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
         incesPatronalAccountId: form.incesPatronalAccountId || null,
         faovPatronalAccountId: form.faovPatronalAccountId || null,
         rpePatronalAccountId: form.rpePatronalAccountId || null,
+        pensionesPatronalAccountId: form.pensionesPatronalAccountId || null,
         benefitsExpenseAccountId: form.benefitsExpenseAccountId || null,
         benefitsPayableAccountId: form.benefitsPayableAccountId || null,
         vacationPayableAccountId: form.vacationPayableAccountId || null,
@@ -330,6 +349,20 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 <span className="text-sm">{label}</span>
               </label>
             ))}
+
+            {/* Aparte del .map de arriba: el riesgo aquí es ACTIVAR, no
+                desactivar — ver togglePensiones. Apagado por defecto. */}
+            <label className="flex cursor-pointer items-center gap-3 py-1">
+              <input
+                type="checkbox"
+                checked={form.pensionesEnabled}
+                onChange={togglePensiones}
+                className="h-4 w-4 accent-blue-600"
+              />
+              <span className="text-sm">
+                Protección de Pensiones (9% patronal, sin componente obrero — G.O. 6.806)
+              </span>
+            </label>
 
           <div className="mt-4">
             <label htmlFor="ivssRiskClass" className="block text-sm font-medium text-gray-700 mb-1">
@@ -512,7 +545,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 <div>
                   <p className="text-sm font-medium text-gray-700">Cuentas contables — Aportes patronales</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Para causación de las contribuciones del patrono (IVSS 9%, INCES 2%, FAOV 2%, RPE 2%).
+                    Para causación de las contribuciones del patrono (IVSS 9%, INCES 2%, FAOV 2%, RPE 2%, Pensiones 9%).
                   </p>
                 </div>
                 {(
@@ -521,6 +554,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                     { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar" },
                     { key: "faovPatronalAccountId",  label: "FAOV Patronal por Pagar" },
                     { key: "rpePatronalAccountId",   label: "RPE Patronal por Pagar" },
+                    { key: "pensionesPatronalAccountId", label: "Protección de Pensiones por Pagar" },
                   ] as const
                 ).map(({ key, label }) => (
                   <div key={key}>
@@ -599,6 +633,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 form.incesEnabled && "INCES",
                 form.banavihEnabled && "Banavih",
                 form.rpeEnabled && "RPE",
+                form.pensionesEnabled && "Pensiones",
               ]
                 .filter(Boolean)
                 .join(" · ") || "Ninguno"}

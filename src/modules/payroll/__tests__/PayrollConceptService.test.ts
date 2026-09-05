@@ -93,14 +93,15 @@ describe("PayrollConceptService.seedDefaults", () => {
     mockTx();
   }
 
-  it("crea los 20 conceptos del sistema cuando no existe ninguno", async () => {
+  it("crea los 21 conceptos del sistema cuando no existe ninguno", async () => {
     existentes([]);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
     // 11 originales + 4 aportes patronales (F-03) + 3 de la auditoria 2026-06-02
     // +1 el 2026-08-30: BONO_DIVISAS (bono en divisas no salarial).
     // +1 el 2026-08-30: RETROACTIVO (salida cuando alguien se quedo fuera de un
     // periodo ya cerrado — solo hay un proceso vigente por periodo y moneda).
-    expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(20);
+    // +1 el 2026-09: PENSIONES_PAT (Ley Proteccion de las Pensiones, G.O. 6.806).
+    expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(21);
     const codes = vi.mocked(prisma.payrollConcept.create).mock.calls
       .map((c) => (c[0].data as { code: string }).code);
     // Sin SAL_BASE la nomina no tiene ingresos.

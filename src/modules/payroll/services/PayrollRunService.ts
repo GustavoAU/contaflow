@@ -352,6 +352,7 @@ export const PayrollRunService = {
       incesObrPct, incesPatPct,
       faovObrPct, faovPatPct,
       rpeObrPct, rpePatPct,
+      pensionesPatPct, ingresoMinimoIntegralUsd,
       usdFxRow,
     ] = await Promise.all([
       LegalThresholdService.getActive(companyId, "SALARY_MIN_VES",  periodDate),
@@ -363,6 +364,11 @@ export const PayrollRunService = {
       LegalThresholdService.getActive(companyId, "FAOV_PAT_RATE",  periodDate),
       LegalThresholdService.getActive(companyId, "RPE_OBR_RATE",   periodDate),
       LegalThresholdService.getActive(companyId, "RPE_PAT_RATE",   periodDate),
+      // Ley Protección de las Pensiones (G.O. 6.806) — verificado con contador
+      // 2026-09: tasa 9%, y el piso ("ingreso mínimo integral") está en USD, a
+      // diferencia de todos los demás topes de esta lista que están en Bs.
+      LegalThresholdService.getActive(companyId, "PENSIONES_PAT_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "INGRESO_MINIMO_INTEGRAL_USD", periodDate),
       // H-4: tasa Bs./USD para llevar los topes legales a la moneda del sueldo.
       // Misma ventana que usa approve() para el asiento (lte periodEnd, la más
       // reciente), para que el tope y el asiento no salgan de tasas distintas.
@@ -382,6 +388,29 @@ export const PayrollRunService = {
 
     const activeEmployeeCount = await prisma.employee.count({
       where: { companyId, status: "ACTIVE" },
+    });
+
+    // ── Mes ANTERIOR (ADR-045 D-5) ──────────────────────────────────────────
+    // LOTTT Art. 107: toda contribución se calcula "considerando el salario
+    // normal correspondiente al mes inmediatamente anterior a aquél en que se
+    // causó". LRPE Art. 46 lo repite para el RPE. Verificado con contador
+    // (2026-09): PENSIONES_PAT (Ley Protección de las Pensiones) sigue el
+    // mismo régimen — noviembre se paga, diciembre se declara con esa data.
+    const prevMonthStart = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1,
+    ));
+    const prevMonthEnd = new Date(Date.UTC(
+      periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0,
+    ));
+
+    // Piso de PENSIONES_PAT: verificado con contador que el "ingreso mínimo
+    // integral" en USD se convierte con la tasa BCV del ÚLTIMO DÍA del mes que
+    // se declara (el mes ANTERIOR) — NO con `usdFxRow` de arriba, que es la
+    // tasa del período en curso. Dos tasas distintas, dos propósitos distintos.
+    const prevMonthEndFxRow = await prisma.exchangeRate.findFirst({
+      where: { companyId, currency: "USD", date: { lte: prevMonthEnd } },
+      orderBy: { date: "desc" },
+      select: { rate: true },
     });
 
     const calcConfig: PayrollCalculatorConfig = {
@@ -415,23 +444,17 @@ export const PayrollRunService = {
       faovPatRate:  toRate(faovPatPct),
       rpeObrRate:   toRate(rpeObrPct),
       rpePatRate:   toRate(rpePatPct),
+      pensionesEnabled: config.pensionesEnabled,
+      pensionesPatRate: toRate(pensionesPatPct),
+      ingresoMinimoIntegralUsd: ingresoMinimoIntegralUsd ?? undefined,
+      prevMonthEndUsdToVesRate: prevMonthEndFxRow ? new Decimal(prevMonthEndFxRow.rate.toString()) : null,
     };
 
-    // ── Salario normal del MES ANTERIOR (ADR-045 D-5) ──────────────────────
-    // LOTTT Art. 107: toda contribución se calcula "considerando el salario
-    // normal correspondiente al mes inmediatamente anterior a aquél en que se
-    // causó". LRPE Art. 46 lo repite para el RPE.
-    //
-    // Se suman TODOS los runs aprobados de ese mes: en nómina quincenal son dos,
-    // y lo que pide el artículo es el salario del mes, no el de una quincena.
-    const prevMonthStart = new Date(Date.UTC(
-      periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1,
-    ));
-    const prevMonthEnd = new Date(Date.UTC(
-      periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0,
-    ));
-
+    // Se suman TODOS los runs APROBADOS de ese mes anterior: en nómina
+    // quincenal son dos, y lo que pide el Art. 107 es el salario del mes, no
+    // el de una quincena.
     const previousNormalWageByEmp = new Map<string, Decimal>();
+    const previousTotalCompensationByEmp = new Map<string, Decimal>();
     const prevRuns = await prisma.payrollRun.findMany({
       where: {
         companyId,
@@ -546,7 +569,6 @@ export const PayrollRunService = {
         // El catálogo sólo se consulta cuando la línea es anterior a la
         // migración del snapshot: ahí no hay nada congelado que respetar.
         const nature = l.salaryNature ?? natureByCode.get(l.conceptCode);
-        if (nature !== "SALARIO_NORMAL") continue;
         const to = currentCurrencyByEmp.get(l.employeeId);
         const from = l.salarySnapshotCurrency;
         if (!to) continue;
@@ -574,6 +596,16 @@ export const PayrollRunService = {
           amount = from === "USD" ? amount.mul(usdRate) : amount.div(usdRate);
         }
 
+        // PENSIONES_PAT (Ley Protección de las Pensiones, G.O. 6.806) suma
+        // TODAS las líneas EARNING del mes anterior — a diferencia de IVSS/
+        // FAOV/INCES/RPE, que sólo miran SALARIO_NORMAL. Verificado con
+        // contador (2026-09): esta ley sí incluye los bonos no salariales.
+        previousTotalCompensationByEmp.set(
+          l.employeeId,
+          (previousTotalCompensationByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
+        );
+
+        if (nature !== "SALARIO_NORMAL") continue;
         previousNormalWageByEmp.set(
           l.employeeId,
           (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
@@ -672,6 +704,7 @@ export const PayrollRunService = {
         // undefined para quien no tenga mes anterior: el calculador cotiza
         // entonces sobre el mes en curso (ver D-5).
         previousMonthNormalWage: previousNormalWageByEmp.get(e.id),
+        previousMonthTotalCompensation: previousTotalCompensationByEmp.get(e.id),
         overtimeHoursYearToDate: overtimeYtdByEmp.get(e.id) ?? new Decimal(0),
       }));
 
@@ -1159,10 +1192,12 @@ export const PayrollRunService = {
         incesPatronalAccountId: true,
         faovPatronalAccountId: true,
         rpePatronalAccountId: true,
+        pensionesPatronalAccountId: true,
         ivssEnabled: true,
         incesEnabled: true,
         banavihEnabled: true,
         rpeEnabled: true,
+        pensionesEnabled: true,
       },
     });
     if (!config) throw new Error("Configure la nómina antes de aprobar");
@@ -1245,7 +1280,13 @@ export const PayrollRunService = {
             .filter((l) => l.conceptCode === "RPE_PAT" && l.conceptType === "EMPLOYER_COST")
             .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
         : new Decimal(0);
-      const totalPatronal = ivssPatTotal.plus(incesPatTotal).plus(faovPatTotal).plus(rpePatTotal);
+      const pensionesPatTotal = config.pensionesEnabled
+        ? lines
+            .filter((l) => l.conceptCode === "PENSIONES_PAT" && l.conceptType === "EMPLOYER_COST")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+        : new Decimal(0);
+      const totalPatronal = ivssPatTotal.plus(incesPatTotal).plus(faovPatTotal).plus(rpePatTotal)
+        .plus(pensionesPatTotal);
 
       // V-1: debit patronal = SOLO los organismos con cuenta GL configurada — garantiza cuadre del asiento.
       // Si ivssPatronalAccountId=null pero incesPatronalAccountId≠null, el debit debe ser solo INCES.
@@ -1254,6 +1295,7 @@ export const PayrollRunService = {
         config.incesPatronalAccountId ? incesPatTotal : new Decimal(0),
         config.faovPatronalAccountId ? faovPatTotal : new Decimal(0),
         config.rpePatronalAccountId ? rpePatTotal : new Decimal(0),
+        config.pensionesPatronalAccountId ? pensionesPatTotal : new Decimal(0),
       ].reduce((s, v) => s.plus(v), new Decimal(0));
 
       // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
@@ -1324,6 +1366,7 @@ export const PayrollRunService = {
       const glIncesPatTotal     = incesPatTotal.mul(glMultiplier);
       const glFaovPatTotal      = faovPatTotal.mul(glMultiplier);
       const glRpePatTotal       = rpePatTotal.mul(glMultiplier);
+      const glPensionesPatTotal = pensionesPatTotal.mul(glMultiplier);
 
       const nominaEntries = [
         // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
@@ -1353,7 +1396,7 @@ export const PayrollRunService = {
         // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
         // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
         ...(glConfiguredPatronal.greaterThan(0)
-          ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE${fxNote}` }]
+          ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE/Pensiones${fxNote}` }]
           : []),
         ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
           ? [{ accountId: config.ivssPatronalAccountId, amount: glIvssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}` }]
@@ -1366,6 +1409,9 @@ export const PayrollRunService = {
           : []),
         ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
           ? [{ accountId: config.rpePatronalAccountId, amount: glRpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}` }]
+          : []),
+        ...(config.pensionesPatronalAccountId && glPensionesPatTotal.greaterThan(0)
+          ? [{ accountId: config.pensionesPatronalAccountId, amount: glPensionesPatTotal.negated(), description: `Nómina ${nomPeriod} — Protección de Pensiones patronal 9%${fxNote}` }]
           : []),
       ];
       assertBalancedGLEntries(nominaEntries); // N4: invariante partida doble

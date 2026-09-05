@@ -29,6 +29,7 @@ const BASE_INPUT = {
   incesEnabled: true,
   banavihEnabled: true,
   rpeEnabled: true,
+  pensionesEnabled: false,
   cestaTicketType: "CARD" as const,
   paymentCurrency: "VES" as const,
   frequency: "BIWEEKLY" as const,

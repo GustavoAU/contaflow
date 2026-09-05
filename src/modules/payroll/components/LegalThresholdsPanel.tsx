@@ -29,6 +29,8 @@ const TYPE_LABELS: Record<string, string> = {
   FAOV_PAT_RATE:   "FAOV/Banavih Patronal (%)",
   RPE_OBR_RATE:    "RPE/Paro Forzoso Obrero (%)",
   RPE_PAT_RATE:    "RPE/Paro Forzoso Patronal (%)",
+  PENSIONES_PAT_RATE: "Protección de Pensiones Patronal (%)",
+  INGRESO_MINIMO_INTEGRAL_USD: "Ingreso Mínimo Integral (USD)",
 };
 
 const TYPE_DEFAULTS: Record<string, string> = {
@@ -42,6 +44,8 @@ const TYPE_DEFAULTS: Record<string, string> = {
   FAOV_PAT_RATE:   "2.00",
   RPE_OBR_RATE:    "0.50",
   RPE_PAT_RATE:    "2.00",
+  PENSIONES_PAT_RATE: "9.00",
+  INGRESO_MINIMO_INTEGRAL_USD: "",
 };
 
 const RATE_TYPES = new Set([
@@ -49,14 +53,21 @@ const RATE_TYPES = new Set([
   "INCES_OBR_RATE", "INCES_PAT_RATE",
   "FAOV_OBR_RATE", "FAOV_PAT_RATE",
   "RPE_OBR_RATE", "RPE_PAT_RATE",
+  "PENSIONES_PAT_RATE",
 ]);
 
-const MONETARY_TYPES = ["SALARY_MIN_VES", "UT_VALUE"] as const;
+// El piso en USD (Art. 7, Ley Protección de las Pensiones) NO es un porcentaje
+// ni está en bolívares como los otros dos monetarios — se separa para que la
+// columna "Valor" pueda mostrar la unidad correcta en vez de asumir "Bs".
+const USD_TYPES = new Set(["INGRESO_MINIMO_INTEGRAL_USD"]);
+
+const MONETARY_TYPES = ["SALARY_MIN_VES", "UT_VALUE", "INGRESO_MINIMO_INTEGRAL_USD"] as const;
 const PARAFISCAL_RATE_TYPES = [
   "IVSS_OBR_RATE", "IVSS_PAT_RATE",
   "INCES_OBR_RATE", "INCES_PAT_RATE",
   "FAOV_OBR_RATE", "FAOV_PAT_RATE",
   "RPE_OBR_RATE", "RPE_PAT_RATE",
+  "PENSIONES_PAT_RATE",
 ] as const;
 
 const EMPTY_FORM = {
@@ -178,7 +189,7 @@ export default function LegalThresholdsPanel({
               <thead className="border-b bg-muted/50">
                 <tr>
                   <th scope="col" className="text-left px-4 py-2">Vigente desde</th>
-                  <th scope="col" className="text-right px-4 py-2">Valor (Bs)</th>
+                  <th scope="col" className="text-right px-4 py-2">Valor ({USD_TYPES.has(type) ? "USD" : "Bs"})</th>
                   <th scope="col" className="text-left px-4 py-2">Notas</th>
                   {isAdmin && <th scope="col" className="px-4 py-2" />}
                 </tr>
@@ -308,6 +319,7 @@ export default function LegalThresholdsPanel({
                 <optgroup label="Valores monetarios">
                   <option value="SALARY_MIN_VES">Salario Mínimo (Bs)</option>
                   <option value="UT_VALUE">Unidad Tributaria (Bs)</option>
+                  <option value="INGRESO_MINIMO_INTEGRAL_USD">Ingreso Mínimo Integral (USD)</option>
                 </optgroup>
                 <optgroup label="Alícuotas parafiscales (%)">
                   <option value="IVSS_OBR_RATE">IVSS Obrero</option>
@@ -318,6 +330,7 @@ export default function LegalThresholdsPanel({
                   <option value="FAOV_PAT_RATE">FAOV/Banavih Patronal</option>
                   <option value="RPE_OBR_RATE">RPE/Paro Forzoso Obrero</option>
                   <option value="RPE_PAT_RATE">RPE/Paro Forzoso Patronal</option>
+                  <option value="PENSIONES_PAT_RATE">Protección de Pensiones Patronal</option>
                 </optgroup>
               </select>
             </div>
@@ -336,7 +349,7 @@ export default function LegalThresholdsPanel({
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
-                {RATE_TYPES.has(form.type) ? "Alícuota (%)" : "Valor (Bs)"}
+                {RATE_TYPES.has(form.type) ? "Alícuota (%)" : USD_TYPES.has(form.type) ? "Valor (USD)" : "Valor (Bs)"}
               </label>
               <div className="relative">
                 <input
@@ -346,7 +359,7 @@ export default function LegalThresholdsPanel({
                   onChange={handleChange}
                   placeholder={RATE_TYPES.has(form.type)
                     ? `Ej: ${TYPE_DEFAULTS[form.type] ?? "4.00"}`
-                    : "Ej: 130.00"}
+                    : USD_TYPES.has(form.type) ? "Ej: 240.00" : "Ej: 130.00"}
                   required
                   className="w-full border rounded px-3 py-2 text-sm font-mono pr-8"
                 />

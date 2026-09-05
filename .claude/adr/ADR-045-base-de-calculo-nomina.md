@@ -113,10 +113,21 @@ retienen bolívares.
 | INCES patronal 2% | salario normal | — | **sin tope** | **trimestral** | ≥ 5 trabajadores |
 | INCES trabajador 0,5% | **utilidades anuales** | — | sin tope | **anual** | ≥ 5 trabajadores |
 | FAOV 1% / 2% | salario integral | — | **sin tope** | mensual | — |
+| Protección Pensiones patronal 9% (G.O. 6.806) | **compensación total** (salario + bonos no salariales) | **ingreso mínimo integral, USD** | sin tope | mensual | — (sin umbral de plantilla) |
 
 `salario normal` = Σ componentes `SALARIO_NORMAL`.
 `salario integral` = salario normal + alícuota de bono vacacional + alícuota de
 utilidades (Art. 122).
+`compensación total` = Σ TODAS las líneas `EARNING` del período, sin filtrar por
+`salaryNature` — a propósito INCLUYE lo que las filas de arriba EXCLUYEN
+(Cestaticket, Bono en divisas, etc.). Verificado con contador en ejercicio
+(2026-09): la Ley de Protección de las Pensiones (G.O. 6.806, Decreto 4.952 fija
+la tasa en 9%) es la única de esta tabla que suma bonos no salariales. El piso
+("ingreso mínimo integral", Art. 7 de esa ley) está en **USD**, no en Bs — es un
+concepto distinto de `SALARY_MIN_VES` (el salario mínimo legal) — y se convierte
+con la tasa BCV del **último día del mes anterior** que se declara, no la del día
+de cada pago. Ver `ingresoMinimoIntegralInCurrency` en `PayrollCalculatorService.ts`,
+el inverso deliberado de `salaryMinimumInCurrency` (multiplica, no divide).
 
 ### D-5 · La base es la del mes inmediatamente anterior
 

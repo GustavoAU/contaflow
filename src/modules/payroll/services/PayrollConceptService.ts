@@ -77,6 +77,9 @@ export const SYSTEM_CONCEPTS: Array<{
   { code: "INCES_PAT",  name: "INCES Patronal (2%)",               type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   { code: "FAOV_PAT",   name: "Banavih / FAOV Patronal (2%)",      type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
   { code: "RPE_PAT",    name: "Paro Forzoso Patronal (2%)",        type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
+  // Ley Protección de las Pensiones (G.O. 6.806, Decreto 4.952) — 9% patronal,
+  // sin componente obrero. OPT-IN, apagado por defecto: ver PayrollConfig.pensionesEnabled.
+  { code: "PENSIONES_PAT", name: "Protección de Pensiones (9%)",   type: "EMPLOYER_COST", affectsSalaryIntegral: false , salaryNature: "NO_SALARIAL" },
 ];
 
 // ─── Serialización ────────────────────────────────────────────────────────────
