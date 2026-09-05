@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
       upsert: vi.fn(),
       count: vi.fn(),
     },
+    account: { findMany: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -101,9 +102,16 @@ describe("PayrollConfigService.saveConfig", () => {
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
         payrollConfig: prisma.payrollConfig,
+        account: prisma.account,
         auditLog: prisma.auditLog,
       })) as never
     );
+    // Por defecto, "todas las cuentas pedidas existen y son de esta empresa":
+    // devuelve un {id} por cada id que la propia llamada pidió, así que
+    // assertAccountsBelongToCompany pasa sin que cada test tenga que
+    // configurarlo. Los tests que SÍ prueban el guard lo sobreescriben.
+    vi.mocked(prisma.account.findMany).mockImplementation((async (args: { where?: { id?: { in?: string[] } } }) =>
+      (args?.where?.id?.in ?? []).map((id) => ({ id }))) as never);
   });
 
   it("NOM-A-02: CREATE — AuditLog registra action CREATE_PAYROLL_CONFIG con oldValue null", async () => {
@@ -194,5 +202,18 @@ describe("PayrollConfigService.saveConfig", () => {
         }),
       }),
     );
+  });
+
+  it("RECHAZA guardar si una cuenta GL no pertenece a esta empresa (hallazgo security-agent 2026-09-05)", async () => {
+    // acc-ajena no está entre las que devuelve el mock por defecto para company-test
+    vi.mocked(prisma.account.findMany).mockResolvedValue([] as never);
+    await expect(
+      PayrollConfigService.saveConfig(COMPANY_ID, USER_ID, {
+        ...BASE_INPUT,
+        expenseAccountId: "acc-ajena",
+      }),
+    ).rejects.toThrow(/no existe o no pertenece/);
+    // Y no llega a escribir nada — el guard corre ANTES del upsert.
+    expect(prisma.payrollConfig.upsert).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,12 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+    // bancarias pedidas existen y son de esta empresa.
+    bankAccount: {
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id }))),
+    },
   },
 }));
 
@@ -137,6 +143,24 @@ describe("PaymentService.create", () => {
     expect(result.method).toBe("CASHEA");
     expect(result.commissionPct).toBe("3.5");
     expect(result.commissionAmount).toBe("35");
+  });
+
+  it("RECHAZA si la cuenta bancaria del pago no pertenece a esta empresa", async () => {
+    vi.mocked(prisma.bankAccount.findMany).mockResolvedValueOnce([]);
+
+    await expect(
+      PaymentService.create(prisma, {
+        companyId: "company-1",
+        method: "PAGOMOVIL",
+        amountVes: new Decimal("500.00"),
+        currency: "VES",
+        bankAccountId: "bank-ajena",
+        date: DATE,
+        createdBy: "user-1",
+      }),
+    ).rejects.toThrow(/no pertenece/);
+
+    expect(prisma.paymentRecord.create).not.toHaveBeenCalled();
   });
 });
 

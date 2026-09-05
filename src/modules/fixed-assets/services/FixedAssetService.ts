@@ -5,6 +5,7 @@
 
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, DepreciationMethod } from "@prisma/client";
 import type {
   CreateFixedAssetInput,
@@ -82,6 +83,13 @@ export class FixedAssetService {
    * Registra un nuevo activo fijo. AuditLog dentro del mismo tx (CLAUDE.md).
    */
   static async create(input: CreateFixedAssetInput, userId: string, tx: Tx) {
+    // Hallazgo MEDIUM del security-agent (2026-09-05): estas 4 cuentas GL no
+    // verificaban pertenecer a esta empresa antes de guardarse.
+    await assertAccountsBelongToCompany(tx, input.companyId, [
+      input.assetAccountId, input.depreciationAccountId, input.accDepreciationAccountId,
+      input.acquisitionCounterpartAccountId,
+    ]);
+
     const asset = await tx.fixedAsset.create({
       data: {
         companyId: input.companyId,
@@ -399,6 +407,10 @@ export class FixedAssetService {
     tx: Tx
   ): Promise<{ processed: number; skipped: number; totalAdjustment: Decimal }> {
     const { companyId, periodYear, periodMonth, patrimonioAccountId } = input;
+
+    // Hallazgo MEDIUM del security-agent (2026-09-05): no verificaba
+    // pertenecer a esta empresa antes de guardarse.
+    await assertAccountsBelongToCompany(tx, companyId, [patrimonioAccountId]);
 
     // 1. Obtener el índice INPC del período objetivo
     const periodRate = await tx.iNPCRate.findUnique({

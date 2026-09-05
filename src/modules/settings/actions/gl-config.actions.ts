@@ -10,6 +10,7 @@ import prisma from "@/lib/prisma";
 import { limiters } from "@/lib/ratelimit";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -121,6 +122,10 @@ export async function saveGLConfigAction(input: unknown): Promise<ActionResult<{
     const { companyId, ...fields } = parsed.data;
 
     await prisma.$transaction(async (tx) => {
+      // Hallazgo MEDIUM del security-agent (2026-09-05): estas 11 cuentas GL
+      // no verificaban pertenecer a esta empresa antes de guardarse.
+      await assertAccountsBelongToCompany(tx, companyId, Object.values(fields));
+
       await tx.companySettings.upsert({
         where: { companyId },
         update: fields,

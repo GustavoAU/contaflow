@@ -5,6 +5,7 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type {
   CreateExpenseCategoryInput,
   CreateExpenseInput,
@@ -286,6 +287,11 @@ export async function confirmExpense(
   if (expense.status !== "DRAFT") throw new Error("Solo se pueden confirmar gastos en estado DRAFT");
 
   const updated = await prisma.$transaction(async (tx) => {
+    // Hallazgo MEDIUM del security-agent (2026-09-05): si el modal de
+    // confirmación reasigna la cuenta contable, no verificaba pertenecer a
+    // esta empresa antes de guardarse.
+    await assertAccountsBelongToCompany(tx, input.companyId, [input.expenseAccountId]);
+
     const upd = await tx.expense.update({
       where: { id: input.expenseId },
       data: {

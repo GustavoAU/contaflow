@@ -6,6 +6,7 @@
 
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, AccountType } from "@prisma/client";
 import type { UpsertINPCRateInput, RunInflationAdjustmentInput, SetInflationBaseInput } from "../schemas/inpc.schema";
 
@@ -353,6 +354,12 @@ export class INPCService {
     userAgent: string | null = null,
   ): Promise<InflationAdjustmentSummary> {
     const { companyId, periodYear, periodMonth, adjustmentAccountId, repomoAccountId } = input;
+
+    // Hallazgo MEDIUM del security-agent (2026-09-05): estas 2 cuentas GL no
+    // verificaban pertenecer a esta empresa antes de guardarse. Las demás
+    // cuentas de este flujo (balances del `preview`) sí se validan — quedaban
+    // fuera a propósito porque son derivadas, no elegidas por el usuario aquí.
+    await assertAccountsBelongToCompany(tx, companyId, [adjustmentAccountId, repomoAccountId]);
 
     // Guard: verificar que no existan ajustes ya registrados para este período
     const existingCount = await tx.inflationAdjustment.count({

@@ -19,6 +19,12 @@ vi.mock("@/lib/prisma", () => ({
     companySettings: { findUnique: vi.fn(), upsert: vi.fn() },
     invoice: { findMany: vi.fn(), count: vi.fn() },
     auditLog: { create: vi.fn() },
+    // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+    // GL pedidas existen y son de esta empresa.
+    account: {
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id }))),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -68,7 +74,7 @@ beforeEach(() => {
   vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.$transaction).mockImplementation(
     ((fn: (tx: unknown) => unknown) =>
-      fn({ companySettings: prisma.companySettings, auditLog: prisma.auditLog })) as never
+      fn({ companySettings: prisma.companySettings, auditLog: prisma.auditLog, account: prisma.account })) as never
   );
 });
 

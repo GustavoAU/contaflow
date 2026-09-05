@@ -17,6 +17,12 @@ vi.mock("@/lib/prisma", () => ({
         },
         expenseCategory: { createMany: vi.fn(), create: vi.fn() },
         auditLog: { create: vi.fn() },
+        // Guard de cuentas ajenas (2026-09-05): por defecto, todas las
+        // cuentas pedidas existen y son de esta empresa.
+        account: {
+          findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+            where.id.in.map((id) => ({ id }))),
+        },
       })
     ),
     expense: {
@@ -311,6 +317,25 @@ describe("confirmExpense", () => {
     );
 
     expect(result.status).toBe("CONFIRMED");
+  });
+
+  it("RECHAZA reasignar a una cuenta que no pertenece a esta empresa (hallazgo security-agent 2026-09-05)", async () => {
+    vi.mocked(prisma.expense.findFirst).mockResolvedValue(makeDbExpense() as never);
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        expense: { update: vi.fn() },
+        auditLog: { create: vi.fn() },
+        account: { findMany: vi.fn().mockResolvedValue([]) }, // acc-ajena no es de esta empresa
+      };
+      return fn(tx);
+    }) as never);
+
+    await expect(
+      confirmExpense(
+        { expenseId: "expense-1", companyId: "company-1", expenseAccountId: "acc-ajena" },
+        "user-1",
+      ),
+    ).rejects.toThrow(/no existe o no pertenece/);
   });
 
   it("lanza error si el gasto no está en DRAFT", async () => {

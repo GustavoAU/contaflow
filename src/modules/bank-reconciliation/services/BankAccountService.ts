@@ -1,20 +1,28 @@
 // src/modules/bank-reconciliation/services/BankAccountService.ts
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "decimal.js";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { CreateBankAccountInput } from "../schemas/bank-account.schema";
 
 export const BankAccountService = {
   async create(input: CreateBankAccountInput) {
-    return prisma.bankAccount.create({
-      data: {
-        companyId: input.companyId,
-        accountId: input.accountId,
-        name: input.name,
-        bankName: input.bankName,
-        currency: input.currency as "VES" | "USD" | "EUR",
-        createdBy: input.createdBy,
-      },
-      include: { account: true },
+    // Hallazgo MEDIUM del security-agent (2026-09-05): `accountId` no
+    // verificaba pertenecer a esta empresa antes de guardarse. LOW follow-up
+    // (mismo audit): guard y create ahora comparten `tx` para que ambos vean
+    // el mismo snapshot, igual que el resto de sitios de account-guard.ts.
+    return prisma.$transaction(async (tx) => {
+      await assertAccountsBelongToCompany(tx, input.companyId, [input.accountId]);
+      return tx.bankAccount.create({
+        data: {
+          companyId: input.companyId,
+          accountId: input.accountId,
+          name: input.name,
+          bankName: input.bankName,
+          currency: input.currency as "VES" | "USD" | "EUR",
+          createdBy: input.createdBy,
+        },
+        include: { account: true },
+      });
     });
   },
 
