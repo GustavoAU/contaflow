@@ -353,6 +353,7 @@ model Account {
   payrollConfigsAsIncesPatronal         PayrollConfig[]          @relation("PayrollIncesPatronal")
   payrollConfigsAsFaovPatronal          PayrollConfig[]          @relation("PayrollFaovPatronal")
   payrollConfigsAsRpePatronal           PayrollConfig[]          @relation("PayrollRpePatronal")
+  payrollConfigsAsPensionesPatronal     PayrollConfig[]          @relation("PayrollPensionesPatronal")
   // Fase 37B: Módulo Gastos
   expensesAsAccount                     Expense[]                @relation("ExpenseAccount")
   expenseCategoryDefaults               ExpenseCategory[]        @relation("ExpenseCategoryAccount")
@@ -1692,14 +1693,35 @@ enum LegalThresholdType {
   SALARY_MIN_VES // Salario mínimo mensual nacional (Bs.) — Decreto presidencial
   UT_VALUE // Unidad Tributaria (Bs.) — Providencia SENIAT
   // Alícuotas parafiscales — valor almacenado como porcentaje (ej: 4.00 = 4%)
-  IVSS_OBR_RATE // IVSS obrero — LSS Art. 62 — default 4%
-  IVSS_PAT_RATE // IVSS patronal — LSS Art. 62 — default 9%
-  INCES_OBR_RATE // INCES obrero — Ley INCES Art. 30 — default 0.5%
-  INCES_PAT_RATE // INCES patronal — Ley INCES Art. 30 — default 2%
+  // Citas corregidas 2026-09: el tope está en el Art. 59 de la LSS (desarrollado
+  // por el 98 del Reglamento) y las tarifas en el Art. 66 (desarrollado por el
+  // 108/109) — "LSS Art. 62" no es ninguno de los dos. Mismo error de cita en
+  // Ley INCES: son los Arts. 49 (patronal) y 50 (obrero) de la ley de 2014
+  // (Decreto 1.414, G.O. 6.155), no el Art. 30 de la ley de 2008 derogada.
+  IVSS_OBR_RATE // IVSS obrero — LSS Reglamento Art. 108 — default 4%
+  IVSS_PAT_RATE // IVSS patronal — LSS Reglamento Art. 108/109 (por clase de riesgo) — default 9/10/11%
+  INCES_OBR_RATE // INCES obrero — Ley INCES Art. 50 — 0.5% sobre utilidades/aguinaldos, NO mensual
+  INCES_PAT_RATE // INCES patronal — Ley INCES Art. 49 — default 2%, empresas con 5+ trabajadores
   FAOV_OBR_RATE // FAOV/Banavih obrero — LRPVH (G.O. 6.805, 01-05-2024) — 1% del salario integral, sin tope
   FAOV_PAT_RATE // FAOV/Banavih patronal — LRPVH (G.O. 6.805, 01-05-2024) — 2% del salario integral, sin tope
-  RPE_OBR_RATE // RPE/Paro Forzoso obrero — LSSO Art. 7 — default 0.5%
-  RPE_PAT_RATE // RPE/Paro Forzoso patronal — LSSO Art. 7 — default 2%
+  RPE_OBR_RATE // RPE/Paro Forzoso obrero — LRPE Art. 46 (G.O. 38.281) — default 0.5%
+  RPE_PAT_RATE // RPE/Paro Forzoso patronal — LRPE Art. 46 (G.O. 38.281) — default 2%
+  // Ley de Protección de las Pensiones de Seguridad Social Frente al Bloqueo
+  // Imperialista (G.O. 6.806 Extraordinario, 08-05-2024) — Decreto 4.952
+  // (G.O. 42.880) fija la tasa en 9%. Patronal, SIN componente obrero, sin
+  // umbral de plantilla (a diferencia de INCES). Base: salario Y bonificaciones
+  // NO salariales (verificado con contador 2026-09: a diferencia de IVSS/FAOV/
+  // INCES/RPE, ESTA ley sí suma los bonos) del MES ANTERIOR — mismo régimen de
+  // diferimiento que IVSS/FAOV/BANAVIH (Art. 107 LOTTT).
+  PENSIONES_PAT_RATE
+  // Piso de la base de PENSIONES_PAT_RATE (Art. 7 de esa misma ley): "en ningún
+  // caso la base... será menor al ingreso mínimo integral indexado". Valor en
+  // USD (Cestaticket + Bono contra la Guerra Económica, Decreto 4.805) — NO
+  // confundir con SALARY_MIN_VES (Bs. 130, congelado desde 2022): son dos
+  // conceptos legales distintos con la misma palabra "mínimo". Se convierte a
+  // Bs. con la tasa BCV del ÚLTIMO DÍA del mes que se declara (verificado con
+  // contador 2026-09) — no con la tasa del día de cada pago.
+  INGRESO_MINIMO_INTEGRAL_USD
 }
 
 // ─── LegalThreshold ───────────────────────────────────────────────────────────
@@ -1747,6 +1769,15 @@ model PayrollConfig {
   incesEnabled                  Boolean                @default(true)
   banavihEnabled                Boolean                @default(true)
   rpeEnabled                    Boolean                @default(true) // Paro Forzoso RPE 0.5% (LSSO Art. 7)
+  // Contribución de Protección de Pensiones (G.O. 6.806, Decreto 4.952 — 9%
+  // patronal). OPT-IN a propósito, a diferencia de los otros 4 organismos: ley
+  // de solo 2 años (vs. décadas de IVSS/INCES/FAOV/RPE), verificada contra
+  // fuente secundaria + un contador, no contra el texto de Gaceta directamente
+  // como sí se logró para las demás; y verificado con el contador que la
+  // mayoría de empresas constituidas hoy NO la declaran en la práctica.
+  // Activarla sola le crearía a una empresa real un pasivo y una declaración
+  // que nadie pidió — mismo espíritu que `autoDraftEnabled`.
+  pensionesEnabled              Boolean                @default(false)
   cestaTicketType               CestaTicketType
   // Pagos
   paymentCurrency               PayrollPaymentCurrency
@@ -1777,6 +1808,7 @@ model PayrollConfig {
   incesPatronalAccountId        String? // LIABILITY — INCES Patronal por Pagar (Ley INCES Art. 49: 2%, trimestral)
   faovPatronalAccountId         String? // LIABILITY — FAOV Patronal por Pagar (LRPVH reformada G.O. 6.805: 2%, sin tope)
   rpePatronalAccountId          String? // LIABILITY — Paro Forzoso Patronal por Pagar (LRPE Art. 46: 2%)
+  pensionesPatronalAccountId    String? // LIABILITY — Contribución Protección Pensiones por Pagar (G.O. 6.806: 9%, recauda SENIAT — no IVSS/BANAVIH/INCES). 100% patronal, sin componente obrero: mismo patrón de UNA sola cuenta que INCES_PAT, no el de dos lados de IVSS/FAOV/RPE.
   // Préstamos a empleados — cuentas GL para desembolso y recuperación en nómina
   loanReceivableAccountId       String? // ASSET — Préstamos a Empleados (crédito cuando cuota se descuenta en nómina)
   disbursementBankAccountId     String? // ASSET — Banco desde donde se desembolsa el préstamo al empleado
@@ -1818,6 +1850,7 @@ model PayrollConfig {
   incesPatronalAccount        Account? @relation("PayrollIncesPatronal", fields: [incesPatronalAccountId], references: [id], onDelete: Restrict)
   faovPatronalAccount         Account? @relation("PayrollFaovPatronal", fields: [faovPatronalAccountId], references: [id], onDelete: Restrict)
   rpePatronalAccount          Account? @relation("PayrollRpePatronal", fields: [rpePatronalAccountId], references: [id], onDelete: Restrict)
+  pensionesPatronalAccount    Account? @relation("PayrollPensionesPatronal", fields: [pensionesPatronalAccountId], references: [id], onDelete: Restrict)
 }
 
 model OrderItem {

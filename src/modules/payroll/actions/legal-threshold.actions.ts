@@ -26,6 +26,7 @@ const CreateSchema = z.object({
     "INCES_OBR_RATE", "INCES_PAT_RATE",
     "FAOV_OBR_RATE", "FAOV_PAT_RATE",
     "RPE_OBR_RATE", "RPE_PAT_RATE",
+    "PENSIONES_PAT_RATE", "INGRESO_MINIMO_INTEGRAL_USD",
   ]),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD requerido"),
   value: z.string().refine((v) => {

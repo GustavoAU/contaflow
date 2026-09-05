@@ -34,6 +34,7 @@ const BASE_CONFIG: PayrollCalculatorConfig = {
   incesEnabled: true,
   banavihEnabled: true,
   rpeEnabled: true,
+  pensionesEnabled: false, // opt-in — la mayoría de los tests existentes no la ejercitan
   salaryMinimumVes: new Decimal(0), // sin tope — retro-compatible
   // Marzo de 2026 tiene CINCO lunes (2, 9, 16, 23 y 30): el IVSS se cotiza por
   // semana (Reglamento Art. 99), asi que el mes no vale siempre lo mismo.
@@ -1308,5 +1309,144 @@ describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () 
     );
     // 60 horas en un periodo de 5 semanas: el tope son 50.
     expect(r.overtimeWarnings.some((w) => w.kind === "SEMANAL")).toBe(true);
+  });
+});
+
+// ─── PENSIONES_PAT (Ley Protección de las Pensiones, G.O. 6.806) ──────────────
+// Verificado con contador (2026-09): 9% patronal, sin componente obrero, sin
+// umbral de plantilla, base = salario Y bonificaciones no salariales (a
+// diferencia de IVSS/FAOV/INCES/RPE) del MES ANTERIOR, con un piso en USD
+// ("ingreso mínimo integral") que se convierte con la tasa BCV del último día
+// del mes anterior.
+
+const SYSTEM_CONCEPTS_WITH_PENSIONES: SystemConceptRef[] = [
+  ...SYSTEM_CONCEPTS,
+  { code: "CESTA_TICKET", conceptId: "c-cesta", salaryNature: "NO_SALARIAL" },
+  { code: "PENSIONES_PAT", conceptId: "c-pensiones-pat", salaryNature: "NO_SALARIAL" },
+];
+
+const PENSIONES_CONFIG: PayrollCalculatorConfig = {
+  ...BASE_CONFIG,
+  systemConcepts: SYSTEM_CONCEPTS_WITH_PENSIONES,
+  pensionesEnabled: true,
+  ingresoMinimoIntegralUsd: new Decimal("240.00"),
+  prevMonthEndUsdToVesRate: new Decimal("50.00"),
+};
+
+const CESTA_TICKET_CONCEPT: ManualConceptCalculationInput = {
+  conceptId: "c-cesta",
+  conceptCode: "CESTA_TICKET",
+  conceptType: "EARNING",
+  employeeId: "emp-1",
+  amount: new Decimal("500"),
+  salaryNature: "NO_SALARIAL",
+};
+
+describe("PayrollCalculatorService — PENSIONES_PAT", () => {
+  it("NO calcula la línea si pensionesEnabled es false — control", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
+    expect(lines.find((l) => l.conceptCode === "PENSIONES_PAT")).toBeUndefined();
+  });
+
+  it("es EMPLOYER_COST — no toca el neto del trabajador", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.conceptType).toBe("EMPLOYER_COST");
+  });
+
+  it("suma salario Y bonos no salariales — a diferencia de INCES_PAT/RPE_OBR", () => {
+    // El mismo CESTA_TICKET que salarioNormal EXCLUYE a propósito (ADR-045
+    // D-4), esta ley lo INCLUYE (verificado con contador). Si alguien reutiliza
+    // salarioNormal por comodidad, este test lo delata.
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const lines = PayrollCalculatorService.calculateEmployeeLines(
+      emp, PENSIONES_CONFIG, [CESTA_TICKET_CONCEPT],
+    );
+    const pensionesPat = lines.find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const rpeObr = lines.find((l) => l.conceptCode === "RPE_OBR")!;
+    expect(rpeObr.basis!.toFixed(2)).toBe("30000.00"); // excluye el bono
+    expect(pensionesPat.basis!.toFixed(2)).toBe("30500.00"); // 30000 + 500
+    expect(pensionesPat.amount.toFixed(2)).toBe("2745.00"); // 30500 × 9%
+  });
+
+  it("sin umbral de plantilla — a diferencia de INCES, aplica con 1 solo empleado", () => {
+    const config: PayrollCalculatorConfig = { ...PENSIONES_CONFIG, activeEmployeeCount: 1 };
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, config)
+      .find((l) => l.conceptCode === "PENSIONES_PAT");
+    expect(line).toBeDefined();
+  });
+
+  it("el piso (Art. 7) manda cuando la compensación real es menor — MAX, no suma", () => {
+    // Sueldo de Bs. 1.000, muy por debajo del piso (240 USD x 50 Bs/USD = 12.000).
+    const emp = makeEmp({ salaryAmount: new Decimal("1000") });
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.basis!.toFixed(2)).toBe("12000.00"); // el piso, no los 1.000 reales
+    expect(line.amount.toFixed(2)).toBe("1080.00"); // 12000 × 9%
+  });
+
+  it("NO aplica el piso cuando la compensación real ya lo supera", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("50000") }); // > 12.000
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.basis!.toFixed(2)).toBe("50000.00");
+  });
+
+  it("el piso en USD NO necesita conversión cuando el sueldo ya está en USD", () => {
+    const config: PayrollCalculatorConfig = {
+      ...PENSIONES_CONFIG,
+      prevMonthEndUsdToVesRate: null, // sin tasa — y no hace falta
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("100"), salaryCurrency: "USD" }); // < 240
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, config)
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.basis!.toFixed(2)).toBe("240.00"); // el piso tal cual, sin ×tasa
+  });
+
+  it("BLOQUEA si pensionesEnabled=true y falta el piso configurado — nunca asume 0", () => {
+    const config: PayrollCalculatorConfig = {
+      ...PENSIONES_CONFIG,
+      ingresoMinimoIntegralUsd: undefined,
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
+      .toThrow(/Ingreso mínimo integral/);
+  });
+
+  it("BLOQUEA (no asume el piso en 0) si el sueldo es VES y falta la tasa BCV de fin de mes anterior", () => {
+    const config: PayrollCalculatorConfig = {
+      ...PENSIONES_CONFIG,
+      prevMonthEndUsdToVesRate: null,
+    };
+    const emp = makeEmp({ salaryAmount: new Decimal("30000"), salaryCurrency: "VES" });
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
+      .toThrow(MISSING_USD_RATE_MESSAGE);
+  });
+
+  it("cotiza sobre el MES ANTERIOR (total compensación), no sobre el mes en curso", () => {
+    const emp = makeEmp({
+      salaryAmount: new Decimal("50000"), // este mes le subieron el sueldo
+      previousMonthTotalCompensation: new Decimal("20000"), // pero el mes pasado ganó esto
+    });
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.basis!.toFixed(2)).toBe("20000.00");
+  });
+
+  it("sin mes anterior cotiza sobre el mes en curso (salario + bonos), nunca cero", () => {
+    const emp = makeEmp({ salaryAmount: new Decimal("30000") });
+    const line = PayrollCalculatorService
+      .calculateEmployeeLines(emp, PENSIONES_CONFIG, [CESTA_TICKET_CONCEPT])
+      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    expect(line.basis!.toFixed(2)).toBe("30500.00");
   });
 });

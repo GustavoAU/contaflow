@@ -29,6 +29,7 @@ export const GL_ACCOUNT_FIELDS = [
   { key: "faovPatronalAccountId",         label: "FAOV Patronal por Pagar",    grupo: "faov" },
   { key: "rpePayableAccountId",           label: "RPE Obrero por Pagar",       grupo: "rpe" },
   { key: "rpePatronalAccountId",          label: "RPE Patronal por Pagar",     grupo: "rpe" },
+  { key: "pensionesPatronalAccountId",    label: "Protección de Pensiones por Pagar", grupo: "pensiones" },
   { key: "benefitsExpenseAccountId",      label: "Gasto Prestaciones",         grupo: "gasto-prestaciones" },
   { key: "benefitsPayableAccountId",      label: "Prestaciones por Pagar",     grupo: "prestaciones" },
   { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar",       grupo: "vacaciones" },

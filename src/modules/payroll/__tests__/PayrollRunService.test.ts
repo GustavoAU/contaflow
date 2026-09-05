@@ -705,6 +705,45 @@ describe("PayrollRunService.create", () => {
     expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("11250.00");
   });
 
+  it("PENSIONES_PAT suma del mes anterior TODO lo que salarioNormal excluye (verificado con contador)", async () => {
+    setupCreateMocks();
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ivssEnabled: true, incesEnabled: true, banavihEnabled: true, frequency: "MONTHLY",
+      pensionesEnabled: true,
+    } as never);
+    // Piso bajo a propósito: este test verifica la SUMA, no el piso del Art. 7
+    // (ya cubierto en PayrollCalculatorService.test.ts).
+    vi.mocked(prisma.legalThreshold.findFirst).mockImplementation((async (args: { where?: { type?: string } }) =>
+      args?.where?.type === "INGRESO_MINIMO_INTEGRAL_USD" ? { value: new Decimal("1.00") } : null) as never);
+    // Sueldo en VES: el piso (en USD) necesita esta tasa para convertirse.
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: new Decimal("50.00") } as never);
+    vi.mocked(prisma.payrollConcept.findMany).mockResolvedValue([
+      { id: "c-sal", code: "SAL_BASE", salaryNature: "SALARIO_NORMAL" },
+      { id: "c-he", code: "HE_DIURNA", salaryNature: "SALARIAL_ACCIDENTAL" },
+      { id: "c-ivss", code: "IVSS_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-faov", code: "FAOV_OBR", salaryNature: "NO_SALARIAL" },
+      { id: "c-pensiones", code: "PENSIONES_PAT", salaryNature: "NO_SALARIAL" },
+    ] as never);
+    vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([{ id: "run-mar", periodStart: new Date("2026-03-01"), periodEnd: new Date("2026-03-31") }] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: "emp-1", conceptCode: "SAL_BASE", amount: new Decimal("10000") },
+      // La HE_DIURNA NO es SALARIO_NORMAL (Art. 104) — salarioNormal la excluye,
+      // pero PENSIONES_PAT (verificado con contador) SÍ la suma.
+      { employeeId: "emp-1", conceptCode: "HE_DIURNA", amount: new Decimal("5000") },
+    ] as never);
+
+    await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
+
+    const createManyArg = vi.mocked(prisma.payrollRunLine.createMany).mock.calls[0]![0]!;
+    const lines = createManyArg.data as Array<{ conceptCode: string; basis: Decimal | null }>;
+    const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
+    const pensiones = lines.find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    // FAOV sin cambios: sigue siendo 10.000 x 1,125 (solo SALARIO_NORMAL).
+    expect(new Decimal(faov.basis!.toString()).toFixed(2)).toBe("11250.00");
+    // PENSIONES_PAT: 10.000 + 5.000 = 15.000 (salario Y bono, mes anterior).
+    expect(new Decimal(pensiones.basis!.toString()).toFixed(2)).toBe("15000.00");
+  });
+
   it("D-5: sin nómina aprobada el mes anterior usa el mes en curso", async () => {
     setupCreateMocks(); // payrollRun.findMany → []
     await PayrollRunService.create(COMPANY_ID, USER_ID, INPUT);
@@ -1163,6 +1202,52 @@ describe("PayrollRunService.approve", () => {
     // Debit = 20 (solo INCES), crédito = -20 → asiento cuadrado
     expect(patronalDebit?.amount.toNumber()).toBe(20);
     expect(incesCredit?.amount.toNumber()).toBe(-20);
+  });
+
+  // V-1 + PENSIONES_PAT: mismo patrón que INCES_PAT — una sola cuenta,
+  // 100% patronal, sin lado obrero.
+  it("V-1: PENSIONES_PAT patronal se causa contra su propia cuenta GL", async () => {
+    mockTx();
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(BASE_RUN as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssPayableAccountId: null,
+      faovPayableAccountId: null,
+      incesPayableAccountId: null,
+      rpePayableAccountId: null,
+      loanReceivableAccountId: null,
+      ivssEnabled: false,
+      incesEnabled: false,
+      banavihEnabled: false,
+      rpeEnabled: false,
+      pensionesEnabled: true,
+      ivssPatronalAccountId: null,
+      incesPatronalAccountId: null,
+      faovPatronalAccountId: null,
+      rpePatronalAccountId: null,
+      pensionesPatronalAccountId: "acct-pensiones-pat",
+    } as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { conceptCode: "SAL_BASE", conceptType: "EARNING", amount: new Decimal("1000"), salarySnapshotCurrency: "VES" },
+      { conceptCode: "PENSIONES_PAT", conceptType: "EMPLOYER_COST", amount: new Decimal("90"), salarySnapshotCurrency: "VES" },
+    ] as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-pensiones" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({ ...BASE_RUN, status: "APPROVED", transactionId: "tx-pensiones" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never);
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    type GL = { accountId: string; amount: Decimal; description: string };
+    const entries = (txCall?.data?.entries?.create ?? []) as GL[];
+    const patronalDebit = entries.find((e) => e.description?.includes("aportes patronales"));
+    const pensionesCredit = entries.find((e) => e.accountId === "acct-pensiones-pat");
+    expect(patronalDebit?.amount.toNumber()).toBe(90);
+    expect(pensionesCredit?.amount.toNumber()).toBe(-90);
   });
 
   // V-2: conversión USD→VES en GL

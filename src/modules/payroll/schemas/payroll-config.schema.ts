@@ -16,6 +16,10 @@ export const PayrollConfigSchema = z.object({
   incesEnabled: z.boolean(),
   banavihEnabled: z.boolean(),
   rpeEnabled: z.boolean(),
+  // Contribución Protección de Pensiones (G.O. 6.806) — OPT-IN, apagado por
+  // defecto. Ley de solo 2 años y de baja adopción real (verificado con
+  // contador): activarla sola le crearía a una empresa un pasivo que nadie pidió.
+  pensionesEnabled: z.boolean().default(false),
   // Clase de riesgo declarada ante el IVSS. Determina la cotización patronal
   // (LSS Art. 59): mínimo 9% / medio 10% / máximo 11%. No es una preferencia:
   // la fija la actividad económica de la empresa según el Reglamento.
@@ -44,7 +48,7 @@ export const PayrollConfigSchema = z.object({
   workSchedule: z.enum(["LUNES_VIERNES", "LUNES_SABADO", "LUNES_SABADO_MEDIO"]).default("LUNES_VIERNES"),
   // ── Paso 3 — Cuentas contables ─────────────────────────────────────────────
   //
-  // ESTAS DIECISÉIS TIENEN QUE ESTAR TODAS. Zod descarta en silencio las claves
+  // ESTAS DIECISIETE TIENEN QUE ESTAR TODAS. Zod descarta en silencio las claves
   // que no declara, así que un campo ausente aquí NO da error: el asistente lo
   // envía, `.parse()` lo tira, y el usuario ve "Guardado" mientras su cambio
   // desaparece. Faltaban once —incluidos los cuatro aportes patronales y el
@@ -68,6 +72,7 @@ export const PayrollConfigSchema = z.object({
   incesPatronalAccountId: z.string().optional().nullable(),
   faovPatronalAccountId: z.string().optional().nullable(),
   rpePatronalAccountId: z.string().optional().nullable(),
+  pensionesPatronalAccountId: z.string().optional().nullable(),
 
   // Beneficios legales (NOM-D)
   benefitsExpenseAccountId: z.string().optional().nullable(),

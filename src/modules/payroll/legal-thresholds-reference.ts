@@ -36,6 +36,7 @@ import {
   DEFAULT_FAOV_PAT_RATE,
   DEFAULT_RPE_WORKER_RATE,
   DEFAULT_RPE_PAT_RATE,
+  DEFAULT_PENSIONES_PAT_RATE,
 } from "./services/PayrollCalculatorService";
 
 function pct(fraccion: Decimal): Decimal {
@@ -96,18 +97,38 @@ export const IVSS_PAT_RATE_REFERENCE_PCT: Record<IvssRiskClass, Decimal> = {
   MAXIMO: pct(IVSS_PAT_RATE_BY_RISK.MAXIMO), // 11%
 };
 
+/**
+ * Ley de Protección de las Pensiones de Seguridad Social Frente al Bloqueo
+ * Imperialista (G.O. 6.806 Extraordinario, 08-05-2024) — Decreto 4.952
+ * (G.O. 42.880) fija la tasa en 9%. Verificado contra finanzasdigital.com (Art.
+ * 6/7/9/10/12/13) y CONFIRMADO con contador en ejercicio (2026-09): patronal,
+ * sin componente obrero, sin umbral de plantilla, base = salario Y
+ * bonificaciones no salariales del MES ANTERIOR (mismo régimen que IVSS/FAOV/
+ * BANAVIH). Sigue vigente y en uso real, aunque el propio contador confirma
+ * que la mayoría de empresas constituidas no la declaran en la práctica.
+ */
+export const PENSIONES_PAT_RATE_REFERENCE_PCT = pct(DEFAULT_PENSIONES_PAT_RATE);
+
+/**
+ * Piso de la base (Art. 7): "en ningún caso... menor al ingreso mínimo
+ * integral indexado". CONFIRMADO con contador (2026-09): en Bs. se calcula
+ * con la tasa BCV del ÚLTIMO DÍA del mes que se declara — no con la tasa del
+ * día de cada pago, y no con la del período en curso.
+ *
+ * El "ingreso mínimo integral" es la suma de dos bonos indexados por decreto
+ * (Cestaticket + Bono contra la Guerra Económica, Decreto 4.805) — un
+ * concepto DISTINTO de `SALARY_MIN_VES_REFERENCE` (el salario mínimo legal,
+ * Bs. 130, congelado desde 2022). Mismo adjetivo "mínimo", dos leyes, dos
+ * fórmulas — no confundirlos.
+ *
+ * Valor vigente: USD 240/mes (subió de USD 190 el 30-04-2026, anuncio de
+ * Delcy Rodríguez). A diferencia del salario mínimo, este valor SÍ se mueve —
+ * revisar en cada decreto de ajuste del Bono de Guerra Económica.
+ */
+export const INGRESO_MINIMO_INTEGRAL_USD_REFERENCE = new Decimal("240.00");
+
 // Deliberadamente SIN valor de referencia:
 //
 // - UT_VALUE (Unidad Tributaria): existe como opción en el formulario de topes
 //   legales, pero ningún cálculo de nómina la usa todavía. No hay nada real
 //   con qué compararla.
-//
-// - La "Ley de Protección de las Pensiones de Seguridad Social Frente al
-//   Bloqueo Imperialista" (G.O. 6.806 Extraordinario, 08-05-2024; tasa fijada
-//   en 9% por Decreto 4.952, G.O. 42.880) es una contribución patronal real y
-//   separada que ContaFlow NO calcula en ningún lado hoy: no tiene
-//   `LegalThresholdType`, ni cuenta GL, ni línea en el calculador. Investigada
-//   y verificada contra finanzasdigital.com (misma fuente que ya se usó para
-//   verificar el FAOV) el 2026-09; queda fuera de este archivo a propósito
-//   porque no es un tope existente que se pueda sembrar — es una funcionalidad
-//   nueva pendiente de decisión.

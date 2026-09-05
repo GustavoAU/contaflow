@@ -35,6 +35,7 @@ export interface PayrollConfigRow {
   incesEnabled: boolean;
   banavihEnabled: boolean;
   rpeEnabled: boolean;
+  pensionesEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
@@ -52,6 +53,7 @@ export interface PayrollConfigRow {
   incesPatronalAccountId: string | null;
   faovPatronalAccountId: string | null;
   rpePatronalAccountId: string | null;
+  pensionesPatronalAccountId: string | null;
   // Beneficios legales (NOM-D)
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
@@ -74,6 +76,7 @@ export interface SavePayrollConfigInput {
   incesEnabled: boolean;
   banavihEnabled: boolean;
   rpeEnabled: boolean;
+  pensionesEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
@@ -91,6 +94,7 @@ export interface SavePayrollConfigInput {
   incesPatronalAccountId?: string | null;
   faovPatronalAccountId?: string | null;
   rpePatronalAccountId?: string | null;
+  pensionesPatronalAccountId?: string | null;
   // Beneficios legales
   benefitsExpenseAccountId?: string | null;
   benefitsPayableAccountId?: string | null;
@@ -113,6 +117,7 @@ function serializeConfig(c: {
   incesEnabled: boolean;
   banavihEnabled: boolean;
   rpeEnabled: boolean;
+  pensionesEnabled: boolean;
   cestaTicketType: CestaTicketType;
   paymentCurrency: PayrollPaymentCurrency;
   frequency: PayrollFrequency;
@@ -128,6 +133,7 @@ function serializeConfig(c: {
   incesPatronalAccountId: string | null;
   faovPatronalAccountId: string | null;
   rpePatronalAccountId: string | null;
+  pensionesPatronalAccountId: string | null;
   benefitsExpenseAccountId: string | null;
   benefitsPayableAccountId: string | null;
   vacationPayableAccountId: string | null;
@@ -148,6 +154,7 @@ function serializeConfig(c: {
     incesEnabled: c.incesEnabled,
     banavihEnabled: c.banavihEnabled,
     rpeEnabled: c.rpeEnabled,
+    pensionesEnabled: c.pensionesEnabled,
     cestaTicketType: c.cestaTicketType,
     paymentCurrency: c.paymentCurrency,
     frequency: c.frequency,
@@ -163,6 +170,7 @@ function serializeConfig(c: {
     incesPatronalAccountId: c.incesPatronalAccountId,
     faovPatronalAccountId: c.faovPatronalAccountId,
     rpePatronalAccountId: c.rpePatronalAccountId,
+    pensionesPatronalAccountId: c.pensionesPatronalAccountId,
     benefitsExpenseAccountId: c.benefitsExpenseAccountId,
     benefitsPayableAccountId: c.benefitsPayableAccountId,
     vacationPayableAccountId: c.vacationPayableAccountId,
@@ -240,6 +248,7 @@ export const PayrollConfigService = {
                 incesEnabled: previous.incesEnabled,
                 banavihEnabled: previous.banavihEnabled,
                 rpeEnabled: previous.rpeEnabled,
+                pensionesEnabled: previous.pensionesEnabled,
                 cestaTicketType: previous.cestaTicketType,
                 paymentCurrency: previous.paymentCurrency,
                 frequency: previous.frequency,
@@ -255,6 +264,7 @@ export const PayrollConfigService = {
             incesEnabled: input.incesEnabled,
             banavihEnabled: input.banavihEnabled,
             rpeEnabled: input.rpeEnabled,
+            pensionesEnabled: input.pensionesEnabled,
             cestaTicketType: input.cestaTicketType,
             paymentCurrency: input.paymentCurrency,
             frequency: input.frequency,
