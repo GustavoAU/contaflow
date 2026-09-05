@@ -12,6 +12,12 @@ vi.mock("@/lib/prisma", () => ({
     invoicePayment: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     company: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
+    // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+    // bancarias pedidas existen y son de esta empresa.
+    bankAccount: {
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id }))),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -90,6 +96,7 @@ function mockTx() {
         invoicePayment: prisma.invoicePayment,
         company: prisma.company,
         auditLog: prisma.auditLog,
+        bankAccount: prisma.bankAccount,
       })) as never
   );
 }
@@ -182,6 +189,26 @@ describe("PaymentBatchService.createBatch", () => {
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: "CREATE" }) })
     );
+  });
+
+  it("RECHAZA si la cuenta bancaria del lote no pertenece a esta empresa", async () => {
+    vi.mocked(prisma.bankAccount.findMany).mockResolvedValue([]);
+
+    await expect(
+      PaymentBatchService.createBatch({
+        companyId: COMPANY_ID,
+        method: "TRANSFERENCIA",
+        totalAmountVes: new Decimal("150000"),
+        date: DATE,
+        createdBy: USER_ID,
+        idempotencyKey: "idem-key-ajena",
+        bankAccountId: "bank-ajena",
+        lines: [{ invoiceId: INV_A, amountVes: new Decimal("150000") }],
+      })
+    ).rejects.toThrow(/no pertenece/);
+
+    expect(prisma.paymentBatch.create).not.toHaveBeenCalled();
+    expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
   });
 
   it("lanza error si líneas vacías", async () => {

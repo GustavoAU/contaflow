@@ -23,6 +23,12 @@ function makeMockTx() {
     auditLog: {
       create: vi.fn().mockResolvedValue({}),
     },
+    // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+    // pedidas existen y son de esta empresa.
+    account: {
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id }))),
+    },
   };
 }
 
@@ -410,5 +416,22 @@ describe("FixedAssetService.dispose — baseline guards", () => {
     );
     expect(depAccEntry).toBeDefined();
     expect(new Decimal(depAccEntry!.amount.toString()).equals(new Decimal("300"))).toBe(true);
+  });
+});
+
+// ─── Guard de cuenta ajena (hallazgo security-agent 2026-09-05) ──────────────
+describe("FixedAssetService.dispose — guard de cuenta ajena", () => {
+  it("RECHAZA si alguna de las 5 cuentas GL opcionales no pertenece a esta empresa", async () => {
+    const mockTx = makeMockTx();
+    mockTx.fixedAsset.findFirstOrThrow.mockResolvedValue(
+      makeAsset({ acquisitionDate: new Date("2024-06-01") })
+    );
+    mockTx.depreciationEntry.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    mockTx.account.findMany.mockResolvedValue([]); // gainLossAccountId no es de esta empresa
+
+    const input = makeInput({ gainLossAccountId: "acc-ajena" });
+    await expect(FixedAssetService.dispose(input, USER_ID, mockTx as never))
+      .rejects.toThrow(/no existe o no pertenece/);
+    expect(mockTx.transaction.create).not.toHaveBeenCalled();
   });
 });

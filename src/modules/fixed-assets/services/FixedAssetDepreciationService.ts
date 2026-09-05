@@ -4,6 +4,7 @@
 
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, DepreciationMethod, FixedAsset } from "@prisma/client";
 import type { DisposeFixedAssetInput } from "../schemas/fixed-asset.schema";
 
@@ -437,6 +438,14 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   if (asset.status === "DISPOSED") {
     throw new Error("El activo ya fue dado de baja");
   }
+
+  // Hallazgo MEDIUM del security-agent (2026-09-05): estas 5 cuentas GL
+  // (todas opcionales, elegidas en el modal de baja) no verificaban
+  // pertenecer a esta empresa antes de guardarse.
+  await assertAccountsBelongToCompany(tx, input.companyId, [
+    input.proceedsAccountId, input.ivaDFAccountId, input.gainLossAccountId,
+    input.art66ExpenseAccountId, input.ivaCFAccountId,
+  ]);
 
   const prevEntries = await tx.depreciationEntry.aggregate({
     where: { fixedAssetId: input.assetId },

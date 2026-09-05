@@ -19,6 +19,14 @@ vi.mock("@/lib/prisma", () => ({
     },
     incomeDistributionAudit: { create: vi.fn() },
     transaction: { create: vi.fn() },
+    // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+    // pedidas existen y son de la empresa que las pide. `vi.fn(impl)` con
+    // implementación en la factory sobrevive a `vi.clearAllMocks()` (que solo
+    // limpia calls/results, no la implementación).
+    account: {
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id }))),
+    },
   },
 }));
 
@@ -306,6 +314,49 @@ describe("createDistribution (mocked)", () => {
       meta: { target: ["companyId", "idempotencyKey"] },
     });
     expect(await messageOnCreateFailure(p2003)).toBe("Foreign key constraint failed");
+  });
+
+  // ── Guard de cuenta ajena (hallazgo security-agent 2026-09-05) ──────────────
+  // Caso especial: cada línea es de una empresa RECEPTORA distinta de
+  // `companyId` por diseño — se valida contra `recipientCompanyId` de esa
+  // línea, no contra la empresa que origina la distribución.
+
+  it("RECHAZA si la cuenta origen no pertenece a la empresa que distribuye", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([] as never); // acc-origin no es de COMPANY_ID
+    const { createDistribution } = await import("../services/IncomeDistributionService");
+
+    await expect(createDistribution({
+      companyId: COMPANY_ID,
+      date: new Date("2026-05-12"),
+      currencyCode: "VES",
+      totalAmountOriginal: new Decimal("1000"),
+      exchangeRate: new Decimal("1"),
+      originAccountId: "acc-origin",
+      lines: BASE_LINES,
+      createdBy: USER_ID,
+    } as never)).rejects.toThrow(/no pertenece/);
+    expect(prisma.incomeDistribution.create).not.toHaveBeenCalled();
+  });
+
+  it("RECHAZA si la cuenta de una línea no pertenece a la empresa RECEPTORA de esa línea", async () => {
+    // acc-origin (contra COMPANY_ID) sí existe; acc-2 (contra rc-2) no.
+    vi.mocked(prisma.account.findMany).mockImplementation((async (args: { where: { id: { in: string[] }; companyId: string } }) => {
+      if (args.where.companyId === "rc-2") return [];
+      return args.where.id.in.map((id) => ({ id }));
+    }) as never);
+    const { createDistribution } = await import("../services/IncomeDistributionService");
+
+    await expect(createDistribution({
+      companyId: COMPANY_ID,
+      date: new Date("2026-05-12"),
+      currencyCode: "VES",
+      totalAmountOriginal: new Decimal("1000"),
+      exchangeRate: new Decimal("1"),
+      originAccountId: "acc-origin",
+      lines: BASE_LINES,
+      createdBy: USER_ID,
+    } as never)).rejects.toThrow(/no pertenece/);
+    expect(prisma.incomeDistribution.create).not.toHaveBeenCalled();
   });
 });
 

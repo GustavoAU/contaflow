@@ -1,5 +1,6 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
+import { assertBankAccountsBelongToCompany } from "@/lib/account-guard";
 import { Currency, PaymentMethod, type Prisma } from "@prisma/client";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 
@@ -118,6 +119,11 @@ export class PaymentService {
     tx: typeof prisma,
     input: CreatePaymentData,
   ): Promise<PaymentRecordSummary> {
+    // Hallazgo MEDIUM del security-agent (2026-09-05): la cuenta bancaria del
+    // pago no verificaba pertenecer a esta empresa antes de guardarse. Cubre
+    // a la vez `payment.actions.ts` y `receivable.actions.ts` (mismo sumidero).
+    await assertBankAccountsBelongToCompany(tx, input.companyId, [input.bankAccountId]);
+
     const record = await tx.paymentRecord.create({
       data: {
         companyId: input.companyId,

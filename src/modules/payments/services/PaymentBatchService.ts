@@ -1,6 +1,7 @@
 import { Decimal } from "decimal.js";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import prisma from "@/lib/prisma";
+import { assertBankAccountsBelongToCompany } from "@/lib/account-guard";
 import { PaymentMethod, Currency, PaymentBatchStatus } from "@prisma/client";
 import { PaymentGLService } from "./PaymentGLService";
 import { VEN_TAX_RATES } from "@/lib/tax-config";
@@ -199,6 +200,10 @@ export class PaymentBatchService {
     }
 
     return prisma.$transaction(async (tx) => {
+      // Hallazgo MEDIUM del security-agent (2026-09-05): la cuenta bancaria
+      // del lote no verificaba pertenecer a esta empresa antes de guardarse.
+      await assertBankAccountsBelongToCompany(tx, input.companyId, [input.bankAccountId]);
+
       // H-004 follow-up (R-3): la fecha del lote debe caer en el período contable abierto
       await PeriodService.assertDateInOpenPeriod(input.companyId, input.date, tx);
 

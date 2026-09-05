@@ -13,6 +13,7 @@
 
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type {
   PayrollSizeRange,
   LottRegime,
@@ -214,6 +215,20 @@ export const PayrollConfigService = {
     userAgent: string | null = null
   ): Promise<PayrollConfigRow> {
     return prisma.$transaction(async (tx) => {
+      // Ninguna de las 17 cuentas GL de este formulario verificaba pertenecer
+      // a esta empresa antes de guardarse — el FK solo exige que el id EXISTA
+      // en Account, no que sea DE ESTA empresa. Hallazgo MEDIUM del
+      // security-agent (2026-09-05), corregido de una vez en todo el sistema.
+      await assertAccountsBelongToCompany(tx, companyId, [
+        input.expenseAccountId, input.payableAccountId,
+        input.ivssPayableAccountId, input.faovPayableAccountId, input.incesPayableAccountId, input.rpePayableAccountId,
+        input.ivssPatronalAccountId, input.incesPatronalAccountId, input.faovPatronalAccountId, input.rpePatronalAccountId,
+        input.pensionesPatronalAccountId,
+        input.benefitsExpenseAccountId, input.benefitsPayableAccountId,
+        input.vacationPayableAccountId, input.profitSharingPayableAccountId,
+        input.loanReceivableAccountId, input.disbursementBankAccountId,
+      ]);
+
       // Leer config previa para AuditLog (oldValue)
       const previous = await tx.payrollConfig.findUnique({
         where: { companyId },

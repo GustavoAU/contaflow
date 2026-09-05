@@ -197,6 +197,12 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
       fixedAsset: { create: vi.fn().mockResolvedValue({ id: "asset-1" }) },
       transaction: { create: txCreate, count: vi.fn().mockResolvedValue(5) },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
+      // Guard de cuentas ajenas (2026-09-05): por defecto, todas las cuentas
+      // pedidas existen y son de esta empresa.
+      account: {
+        findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id }))),
+      },
     };
   }
 
@@ -254,5 +260,32 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
     await FixedAssetService.create(BASE, "user-1", tx as never);
 
     expect(txCreate).not.toHaveBeenCalled();
+  });
+
+  it("RECHAZA si alguna cuenta GL no pertenece a esta empresa (hallazgo security-agent 2026-09-05)", async () => {
+    const tx = makeTx();
+    tx.account.findMany = vi.fn().mockResolvedValue([]); // ninguna de las 3 es de company
+
+    await expect(FixedAssetService.create(BASE, "user-1", tx as never))
+      .rejects.toThrow(/no pertenece(n)? a esta empresa/);
+    expect(tx.fixedAsset.create).not.toHaveBeenCalled();
+  });
+});
+
+// ─── FixedAssetService.postINPCRestatement — guard de cuenta ajena ───────────
+// El guard es lo primero que corre en la función (antes de leer el índice
+// INPC), así que un tx mínimo basta para probar el rechazo.
+
+describe("FixedAssetService.postINPCRestatement", () => {
+  it("RECHAZA si patrimonioAccountId no pertenece a esta empresa (hallazgo security-agent 2026-09-05)", async () => {
+    const tx = { account: { findMany: vi.fn().mockResolvedValue([]) } };
+
+    await expect(
+      FixedAssetService.postINPCRestatement(
+        { companyId: "company-1", periodYear: 2026, periodMonth: 8, patrimonioAccountId: "acc-ajena" } as never,
+        "user-1",
+        tx as never,
+      ),
+    ).rejects.toThrow(/no existe o no pertenece/);
   });
 });

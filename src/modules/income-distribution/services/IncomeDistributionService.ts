@@ -5,6 +5,7 @@ import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { IncomeDistributionStatus } from "@prisma/client";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -211,6 +212,17 @@ export async function createDistribution(
   const amounts = distributeAmounts(totalVes, input.lines);
 
   return prisma.$transaction(async (tx) => {
+    // Hallazgo MEDIUM del security-agent (2026-09-05): ni la cuenta origen ni
+    // las cuentas destino verificaban pertenecer a la empresa correspondiente.
+    // Caso especial: cada línea es de una empresa RECEPTORA distinta de
+    // `input.companyId` por diseño (una distribución de resultados reparte
+    // entre varios socios/empresas) — se valida cada una contra SU PROPIO
+    // `recipientCompanyId`, no contra la empresa que origina la distribución.
+    await assertAccountsBelongToCompany(tx, input.companyId, [input.originAccountId]);
+    await Promise.all(
+      input.lines.map((l) => assertAccountsBelongToCompany(tx, l.recipientCompanyId, [l.accountId])),
+    );
+
     let dist;
     try {
       dist = await tx.incomeDistribution.create({
