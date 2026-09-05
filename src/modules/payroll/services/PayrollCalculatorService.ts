@@ -38,7 +38,7 @@ import {
 // La cita anterior era "LSS Art. 62", que no es ninguno de estos: el tope está
 // en el Art. 59 de la Ley (desarrollado por el 98 del Reglamento) y las tarifas
 // en el Art. 66 de la Ley (desarrollado por el 109).
-const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
+export const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
 export const IVSS_PAT_RATE_BY_RISK: Record<IvssRiskClass, Decimal> = {
   MINIMO: new Decimal("0.09"),
   MEDIO:  new Decimal("0.10"),
@@ -66,7 +66,7 @@ export const INCES_MIN_EMPLOYEES = 5;
 // clase de error que el bono vacacional ("LOTTT Art. 223", que es de la LOT de
 // 1997) y el INCES ("Art. 30", de la ley de 2008 derogada en 2014): la constante
 // se tomó de la ley anterior y la cita se actualizó sola.
-const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
+export const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
 export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
 
 // Mínimos legales de las alícuotas del salario integral. Se acotan los valores
@@ -203,8 +203,8 @@ export function integralDailyWageFrom(
 //   cotización total 2,50% del salario normal — 80% patrono (2,0%) y 20%
 //   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
 //   urbano (límite inferior) y DIEZ (límite superior).
-const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
-const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
+export const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
 // LOTTT Art. 178: las horas extraordinarias "no podran exceder de diez horas
 // semanales, ni de cien horas por ano". El calculador solo validaba que no
 // fueran negativas.

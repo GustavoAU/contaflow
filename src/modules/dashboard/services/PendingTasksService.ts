@@ -10,6 +10,7 @@ import { todayInTimeZone } from "@/lib/today";
 import { getFiscalConfig, isSupportedCountry } from "@/lib/tax-config";
 import { ultimoPeriodoCerrado, diasDesdeCierre } from "@/modules/payroll/utils/payroll-periods";
 import { AUTO_DRAFT_ACTOR } from "@/modules/payroll/utils/auto-draft";
+import { SALARY_MIN_VES_REFERENCE } from "@/modules/payroll/legal-thresholds-reference";
 
 /** `YYYY-MM-DD` de una fecha `@db.Date` (medianoche UTC). */
 function isoDia(d: Date): string {
@@ -275,7 +276,7 @@ export const PendingTasksService = {
       prisma.legalThreshold.findFirst({
         where: { companyId, type: "SALARY_MIN_VES" },
         orderBy: { effectiveFrom: "desc" },
-        select: { effectiveFrom: true, verifiedAt: true },
+        select: { effectiveFrom: true, verifiedAt: true, value: true },
       }),
 
       // 17. Parte VII: Tasa BCV del mes anterior (para detectar intereses no calculados)
@@ -669,7 +670,30 @@ export const PendingTasksService = {
       ? new Date(nomLastSalMin.verifiedAt ?? nomLastSalMin.effectiveFrom).getTime()
       : 0;
 
-    if (nomActiveEmployeesCount > 0 && (!nomLastSalMin || salMinRevisadoEl < thirtyDaysAgo.getTime())) {
+    // Comparación contra la tabla de referencia (legal-thresholds-reference.ts):
+    // esto es lo que "la app avisa si difiere" significaba en la regla acordada.
+    // Antes sólo se medía ANTIGÜEDAD (¿lo confirmaron hace <30 días?); ahora
+    // también se compara el VALOR. Una confirmación reciente de un valor
+    // incorrecto es peor que una confirmación vieja de uno correcto, así que el
+    // desajuste manda sobre la antigüedad: dispara siempre que exista, aunque
+    // alguien lo haya "confirmado" ayer.
+    const salMinNoCoincide = nomLastSalMin != null && !new Decimal(nomLastSalMin.value).eq(SALARY_MIN_VES_REFERENCE);
+
+    if (nomActiveEmployeesCount > 0 && salMinNoCoincide) {
+      const registrado = new Decimal(nomLastSalMin!.value);
+      tasks.push({
+        type: "NOM_SALARIO_MINIMO_VENCIDO",
+        severity: "error",
+        title: "El salario mínimo registrado no coincide con el vigente",
+        description:
+          `Tienes registrado Bs. ${registrado.toFixed(2)}, pero el valor de referencia ` +
+          `vigente es Bs. ${SALARY_MIN_VES_REFERENCE.toFixed(2)}. Verifica si salió un ` +
+          `decreto nuevo antes de procesar nómina: los topes de IVSS, FAOV, INCES y RPE ` +
+          `son múltiplos de este valor.`,
+        count: 1,
+        href: "/payroll/legal-thresholds",
+      });
+    } else if (nomActiveEmployeesCount > 0 && (!nomLastSalMin || salMinRevisadoEl < thirtyDaysAgo.getTime())) {
       tasks.push({
         type: "NOM_SALARIO_MINIMO_VENCIDO",
         // Sin registro es un error real: se cotiza sobre Bs. 0. Con registro sin

@@ -298,6 +298,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
       verifiedAt: null,
+      value: "130.00", // coincide con la referencia: esto prueba la rama de ANTIGÜEDAD, no la de desajuste
     } as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -320,6 +321,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date("2022-03-01"),          // decreto de hace años
       verifiedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // confirmado hace 5 dias
+      value: "130.00",
     } as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -331,6 +333,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date("2022-03-01"),
       verifiedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      value: "130.00",
     } as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -355,10 +358,47 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 días — dentro de 30
+      value: "130.00",
     } as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     expect(result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO")).toBeUndefined();
+  });
+
+  // ── Desajuste contra la tabla de referencia (legal-thresholds-reference.ts) ──
+  // "La app avisa si difiere": el aviso de ANTIGÜEDAD (arriba) no basta si el
+  // valor guardado sencillamente no es el que dice la referencia vigente.
+
+  it("avisa con severity error si el valor NO coincide con la referencia, aunque se haya confirmado ayer", async () => {
+    // Una confirmacion reciente de un valor INCORRECTO es peor que una vieja de
+    // uno correcto: el desajuste manda sobre la antiguedad.
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date("2022-03-01"),
+      verifiedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // confirmado AYER
+      value: "150.00", // no es Bs. 130
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
+    expect(task).toBeDefined();
+    expect(task!.severity).toBe("error");
+    expect(task!.title).toContain("no coincide");
+    expect(task!.description).toContain("150.00");
+    expect(task!.description).toContain("130.00");
+  });
+
+  it("NO avisa de desajuste cuando el valor SI coincide con la referencia", async () => {
+    vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
+    vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
+      effectiveFrom: new Date("2022-03-01"),
+      verifiedAt: new Date(),
+      value: "130.00",
+    } as never);
+
+    const result = await PendingTasksService.getPendingTasks("company-1");
+    const task = result.tasks.find((t) => t.type === "NOM_SALARIO_MINIMO_VENCIDO");
+    expect(task).toBeUndefined();
   });
 
   // ── NOM_VIGENCIA_DENTRO_DEL_PERIODO ────────────────────────────────────────
@@ -571,6 +611,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     // mockAllZero ya pone employee.count = 0 → ninguna alerta de nómina
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
       effectiveFrom: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      value: "130.00",
     } as never); // tope vencido pero sin empleados → no alert
 
     const result = await PendingTasksService.getPendingTasks("company-1");
