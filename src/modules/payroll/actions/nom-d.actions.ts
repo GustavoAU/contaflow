@@ -494,7 +494,12 @@ export async function listBenefitAdvancesAction(
 
 export async function backfillBenefitsAction(
   companyId: string
-): Promise<ActionResult<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }>> {
+): Promise<ActionResult<{
+  employeesProcessed: number;
+  quartersProcessed: number;
+  totalAccrued: string;
+  errors: Array<{ employeeName: string; year: number; quarter: number; message: string }>;
+}>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ADMIN_ONLY,
     limiter: limiters.fiscal,

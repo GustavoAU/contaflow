@@ -674,7 +674,12 @@ export const BenefitAccrualService = {
     userId: string,
     ipAddress: string | null = null,
     userAgent: string | null = null
-  ): Promise<{ employeesProcessed: number; quartersProcessed: number; totalAccrued: string }> {
+  ): Promise<{
+    employeesProcessed: number;
+    quartersProcessed: number;
+    totalAccrued: string;
+    errors: Array<{ employeeName: string; year: number; quarter: number; message: string }>;
+  }> {
     const currentPeriod = await prisma.accountingPeriod.findFirst({
       where: { companyId, status: "OPEN" },
       orderBy: [{ year: "desc" }, { month: "desc" }],
@@ -724,6 +729,13 @@ export const BenefitAccrualService = {
     let totalAccrued = new Decimal(0);
     let quartersProcessed = 0;
     let employeesProcessed = 0;
+    // Bug encontrado en vivo (2026-09-07): un solo empleado con un dato
+    // faltante (ej. sin tasa USD histórica para su primer trimestre con
+    // sueldo) abortaba TODO el backfill de la empresa — nadie más quedaba
+    // procesado, sin ninguna fila creada, y el ADMIN solo veía un error
+    // genérico. Ahora se aísla por trimestre: se seguen intentando los demás
+    // trimestres/empleados y el problema puntual se reporta en `errors`.
+    const errors: Array<{ employeeName: string; year: number; quarter: number; message: string }> = [];
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -778,11 +790,15 @@ export const BenefitAccrualService = {
           if (salAtQuarter.currency === "USD") {
             const rateDecimal = getUSDRateAt(quarterEndDate);
             if (!rateDecimal) {
-              throw new Error(
-                `Backfill Q${quarter}/${year}: empleado ${emp.firstName} ${emp.lastName} tiene salario ` +
-                "en USD pero no hay tasa de cambio registrada para ese período. " +
-                "Registre las tasas BCV históricas en Contabilidad → Tasas de Cambio."
-              );
+              // Aislado por trimestre (no aborta el backfill de toda la empresa):
+              // se registra el hueco y se sigue con el siguiente trimestre/empleado.
+              errors.push({
+                employeeName: `${emp.firstName} ${emp.lastName}`,
+                year, quarter,
+                message: "Tiene salario en USD pero no hay tasa de cambio registrada para ese período. " +
+                  "Registre las tasas BCV históricas en Contabilidad → Tasas de Cambio.",
+              });
+              continue;
             }
             exchangeRateAtAccrual = rateDecimal;
             monthlyWage = monthlyWage.mul(exchangeRateAtAccrual);
@@ -917,7 +933,16 @@ export const BenefitAccrualService = {
               existingKeys.add(key);
               continue;
             }
-            throw err;
+            // Aislado por trimestre, igual que el hueco de tasa USD arriba: un
+            // error inesperado en ESTE trimestre no debe impedir que se sigan
+            // procesando los demás trimestres de este empleado ni los de los
+            // demás empleados de la empresa.
+            errors.push({
+              employeeName: `${emp.firstName} ${emp.lastName}`,
+              year, quarter,
+              message: err instanceof Error ? err.message : "Error desconocido",
+            });
+            continue;
           }
         }
       }
@@ -925,7 +950,7 @@ export const BenefitAccrualService = {
       if (empProcessed) employeesProcessed++;
     }
 
-    return { employeesProcessed, quartersProcessed, totalAccrued: totalAccrued.toFixed(4) };
+    return { employeesProcessed, quartersProcessed, totalAccrued: totalAccrued.toFixed(4), errors };
   },
 
   // ── listBcvRates — tasas registradas de la empresa ────────────────────────
