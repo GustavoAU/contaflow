@@ -39,23 +39,14 @@ import {
   DEFAULT_PENSIONES_PAT_RATE,
 } from "./services/PayrollCalculatorService";
 
+// Re-exportado desde salary-minimum-reference.ts (client-safe, sin esta
+// cadena de imports server-only) para no romper a quien ya lo importaba
+// desde aquí. Ver el comentario de ese archivo para el porqué de la mudanza.
+export { SALARY_MIN_VES_REFERENCE } from "./salary-minimum-reference";
+
 function pct(fraccion: Decimal): Decimal {
   return fraccion.times(100);
 }
-
-/**
- * Bs./mes. Decreto 4.653 (G.O. 42.339 Extraordinario, 01-03-2022). Congelado
- * desde entonces: los aumentos posteriores (Cestaticket, Bono contra la Guerra
- * Económica — Decreto 4.805, G.O. 6.746 Extraordinario) son bonos SIN
- * incidencia salarial y no mueven este valor, aunque el "ingreso mínimo
- * integral" resultante sea mucho mayor. Confundir el bono con el salario
- * mínimo hace que los topes de IVSS/FAOV/INCES/RPE se calculen sobre una base
- * que la ley no reconoce.
- *
- * Última verificación de vigencia: 2026-09 (fuentes fechadas ese mismo mes
- * coinciden en que sigue congelado).
- */
-export const SALARY_MIN_VES_REFERENCE = new Decimal("130.00");
 
 /**
  * Tasas parafiscales de referencia en PUNTOS PORCENTUALES, derivadas de las

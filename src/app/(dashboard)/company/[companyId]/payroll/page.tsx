@@ -16,6 +16,7 @@ import PayrollConfigSummary from "@/modules/payroll/components/PayrollConfigSumm
 import { AutoDraftToggle } from "@/modules/payroll/components/AutoDraftToggle";
 import { NavigationCard } from "@/components/ui/NavigationCard";
 import PayrollCompliancePanel from "@/modules/payroll/components/PayrollCompliancePanel";
+import { computeSalMinAlert } from "@/modules/payroll/utils/sal-min-alert";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -90,14 +91,21 @@ export default async function PayrollPage({ params }: Props) {
         prisma.legalThreshold.findFirst({
           where: { companyId, type: "SALARY_MIN_VES" },
           orderBy: { effectiveFrom: "desc" },
-          select: { effectiveFrom: true, value: true },
+          select: { effectiveFrom: true, value: true, verifiedAt: true },
         }),
         prisma.exchangeRate.findFirst({ where: { companyId, currency: "USD" }, orderBy: { date: "desc" }, select: { date: true } }),
       ])
     : [null, null, null];
 
-  // Threshold desactualizado: si tiene más de 90 días sin actualizar
-  const thresholdAge = latestThreshold
+  // Bug encontrado en vivo (2026-09-05): esto medía SOLO antigüedad de
+  // effectiveFrom, nunca `verifiedAt` ni el valor contra la referencia — un
+  // salario mínimo CORRECTO pero congelado desde 2022 (como el vigente hoy,
+  // Bs. 130) quedaba en ámbar para siempre. Ver utils/sal-min-alert.ts.
+  const salMinAlert = computeSalMinAlert(
+    latestThreshold?.value?.toString() ?? null,
+    (latestThreshold?.verifiedAt ?? latestThreshold?.effectiveFrom)?.toISOString() ?? null,
+  );
+  const thresholdAgeDias = latestThreshold
     ? Math.floor((Date.now() - new Date(latestThreshold.effectiveFrom).getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const exchangeRateAge = latestExchangeRate
@@ -120,16 +128,16 @@ export default async function PayrollPage({ params }: Props) {
           checks={[
             {
               label: "Salario mínimo / Topes Legales",
-              status: !latestThreshold
-                ? "red"
-                : thresholdAge !== null && thresholdAge > 120
-                  ? "amber"
-                  : "green",
-              detail: !latestThreshold
-                ? "Sin topes registrados — configura el salario mínimo vigente (tope cotización IVSS/INCES/FAOV/RPE)."
-                : thresholdAge !== null && thresholdAge > 120
-                  ? `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (desde ${latestThreshold.effectiveFrom.toISOString().slice(0, 10)}, hace ${thresholdAge} días) — verifica si hubo decreto presidencial reciente.`
-                  : `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })} — actualizado (hace ${thresholdAge} días).`,
+              status: !salMinAlert.tieneAviso
+                ? "green"
+                : salMinAlert.severity === "error"
+                  ? "red"
+                  : "amber",
+              detail: latestThreshold
+                ? `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}` +
+                  (thresholdAgeDias !== null ? ` (desde ${latestThreshold.effectiveFrom.toISOString().slice(0, 10)}, hace ${thresholdAgeDias} días)` : "") +
+                  (salMinAlert.tieneAviso ? ` — ${salMinAlert.mensaje}` : " — vigente.")
+                : salMinAlert.mensaje,
               href: "/payroll/legal-thresholds",
               hrefLabel: "Configurar",
             },
