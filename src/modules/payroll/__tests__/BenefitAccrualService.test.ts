@@ -490,6 +490,40 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
       })
     );
   });
+
+  it("un empleado en USD sin tasa historica NO aborta el backfill de los demas (bug encontrado en vivo 2026-09-07)", async () => {
+    // Antes, este error abortaba TODA la funcion sin procesar a nadie mas —
+    // ni siquiera a empleados sin ningun problema de datos.
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const empConProblema = {
+      ...BASE_EMPLOYEE,
+      id: "emp-usd",
+      hireDate: new Date(`${currentYear}-01-01`),
+      benefitBalance: null,
+      salaryHistory: [{
+        id: "sal-usd", effectiveFrom: new Date(`${currentYear}-01-01`),
+        amount: new Decimal("500"), currency: "USD" as const,
+      }],
+    };
+    const empSinProblema = {
+      ...BASE_EMPLOYEE,
+      id: "emp-ves",
+      hireDate: new Date(`${currentYear}-01-01`),
+      benefitBalance: null,
+    };
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([empConProblema, empSinProblema] as never);
+    vi.mocked(prisma.exchangeRate.findMany).mockResolvedValue([] as never); // sin tasas USD registradas
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0].employeeName).toContain("Pérez");
+    expect(result.errors[0].message).toMatch(/USD.*tasa de cambio/);
+    // El empleado sin problema SÍ se procesó a pesar del error del otro
+    expect(result.employeesProcessed).toBe(1);
+    expect(result.quartersProcessed).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("BenefitAccrualService.createBcvRate", () => {

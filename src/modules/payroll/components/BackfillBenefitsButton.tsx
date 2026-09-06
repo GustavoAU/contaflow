@@ -26,6 +26,7 @@ export function BackfillBenefitsButton({ companyId }: Props) {
     employeesProcessed: number;
     quartersProcessed: number;
     totalAccrued: string;
+    errors: Array<{ employeeName: string; year: number; quarter: number; message: string }>;
   } | null>(null);
 
   function handleClick() {
@@ -41,11 +42,14 @@ export function BackfillBenefitsButton({ companyId }: Props) {
       const res = await backfillBenefitsAction(companyId);
       if (res.success) {
         setResult(res.data);
-        toast.success(
-          res.data.quartersProcessed > 0
-            ? `Backfill completado: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)`
-            : "No había trimestres pendientes de acumular"
-        );
+        const conErrores = res.data.errors.length > 0 ? ` (${res.data.errors.length} con problemas, ver detalle)` : "";
+        if (res.data.quartersProcessed > 0) {
+          toast.success(`Backfill: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)${conErrores}`);
+        } else if (res.data.errors.length > 0) {
+          toast.error(`No se procesó ningún trimestre — ${res.data.errors.length} problema(s), ver detalle abajo`);
+        } else {
+          toast.success("No había trimestres pendientes de acumular");
+        }
       } else {
         toast.error(res.error);
       }
@@ -73,7 +77,7 @@ export function BackfillBenefitsButton({ companyId }: Props) {
         {isPending ? "Procesando…" : "Poner al día trimestres atrasados"}
       </button>
 
-      {result && (
+      {result && result.quartersProcessed > 0 && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
           <p className="font-medium text-green-800">Backfill completado</p>
           <p className="mt-1 text-green-700">
@@ -85,6 +89,22 @@ export function BackfillBenefitsButton({ companyId }: Props) {
               {Number(result.totalAccrued).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
             </span>
           </p>
+        </div>
+      )}
+
+      {result && result.errors.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+          <p className="font-medium text-amber-800">
+            {result.errors.length} trimestre(s) no se pudieron procesar
+          </p>
+          <ul className="mt-1 space-y-1 text-xs text-amber-700">
+            {result.errors.map((e, i) => (
+              <li key={i}>
+                <span className="font-mono font-semibold">Q{e.quarter}/{e.year}</span>
+                {" — "}{e.employeeName}: {e.message}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
