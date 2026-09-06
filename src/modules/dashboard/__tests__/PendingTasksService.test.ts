@@ -655,7 +655,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(task).toBeDefined();
     expect(task?.severity).toBe("error");
     expect(task?.count).toBe(2);
-    expect(task?.href).toBe("/accounting/journal");
+    expect(task?.href).toBe("/transactions/new");
     expect(task?.description).toContain("IGTF");
   });
 
@@ -681,7 +681,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(task).toBeDefined();
     expect(task?.severity).toBe("error");
     expect(task?.count).toBe(1);
-    expect(task?.href).toBe("/accounting/journal");
+    expect(task?.href).toBe("/transactions/new");
     expect(task?.description).toContain("1500.25");
   });
 

@@ -180,7 +180,7 @@ export default async function PayrollPage({ params }: Props) {
                 : exchangeRateAge !== null && exchangeRateAge > 30
                   ? `Última tasa hace ${exchangeRateAge} días — actualiza la tasa BCV para reflejar correctamente los salarios USD.`
                   : `Tasa actualizada (hace ${exchangeRateAge} días).`,
-              href: "/accounting/exchange-rates",
+              href: "/exchange-rates",
               hrefLabel: "Actualizar",
             },
             {
