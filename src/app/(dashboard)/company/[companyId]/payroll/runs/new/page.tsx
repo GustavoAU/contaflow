@@ -45,7 +45,7 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
     prisma.legalThreshold.findFirst({
       where: { companyId, type: "SALARY_MIN_VES" },
       orderBy: { effectiveFrom: "desc" },
-      select: { value: true, effectiveFrom: true },
+      select: { value: true, effectiveFrom: true, verifiedAt: true },
     }),
     prisma.payrollConfig.findUnique({
       where: { companyId },
@@ -88,7 +88,9 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
         activeEmployeeCount={activeEmployeeCount}
         initialStart={start}
         initialEnd={end}
-        salMinLastUpdate={salMinThreshold?.effectiveFrom.toISOString() ?? null}
+        salMinLastUpdate={
+          (salMinThreshold?.verifiedAt ?? salMinThreshold?.effectiveFrom)?.toISOString() ?? null
+        }
         salMinValue={salMinThreshold?.value.toString() ?? null}
         hasBcvRateForMonth={!!bcvRateForMonth}
         // La frecuencia manda sobre los cortes propuestos; "hoy" se calcula

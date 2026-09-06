@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { createPayrollRunAction } from "../actions/payroll-run.actions";
 import { salaryCurrencyAt, type SalaryVigencia } from "../utils/salary-vigencia";
 import { periodoPorDefecto, finDesdeInicio } from "../utils/payroll-period";
+import { computeSalMinAlert } from "../utils/sal-min-alert";
 import type { PayrollFrequency } from "@prisma/client";
 import { todayLocalISO } from "@/lib/today";
 import { EmployeePicker } from "./EmployeePicker";
@@ -191,9 +192,9 @@ export function PayrollRunForm({
     });
   }
 
-  // C-01: salario mínimo desactualizado si es null o tiene >30 días sin actualizar
-  const salMinIsStale = !salMinLastUpdate
-    || (Date.now() - new Date(salMinLastUpdate).getTime()) > 30 * 24 * 60 * 60 * 1000;
+  // C-01: ver computeSalMinAlert — el VALOR manda sobre la antigüedad.
+  const { tieneAviso: salMinTieneAviso, titulo: salMinTitulo, mensaje: salMinMensaje } =
+    computeSalMinAlert(salMinValue, salMinLastUpdate);
 
   const salMinFormatted = salMinValue
     ? `Bs. ${parseFloat(salMinValue).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -203,10 +204,6 @@ export function PayrollRunForm({
     : null;
   const faovCapFormatted = salMinValue
     ? `Bs. ${(parseFloat(salMinValue) * 10).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : null;
-
-  const salMinLastUpdateFormatted = salMinLastUpdate
-    ? new Date(salMinLastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
     : null;
 
   // El badge decía "se procesarán N activos" mientras abajo había menos
@@ -239,20 +236,11 @@ export function PayrollRunForm({
         )}
       </div>
 
-      {/* C-01: Alerta salario mínimo desactualizado */}
-      {salMinIsStale && (
+      {/* C-01: Alerta salario mínimo — sin registro, no coincide con la referencia, o sin reconfirmar en 30 días */}
+      {salMinTieneAviso && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-semibold">
-            Salario mínimo desactualizado — bases de cotización incorrectas
-          </p>
-          <p className="mt-1 text-xs text-amber-800">
-            {salMinLastUpdate
-              ? `Último registro: ${salMinLastUpdateFormatted} (hace más de 30 días).`
-              : "No hay registro de salario mínimo vigente para esta empresa."}
-            {salMinFormatted && (
-              <> Valor actual: <span className="font-mono font-semibold">{salMinFormatted}</span>.</>
-            )}
-          </p>
+          <p className="font-semibold">{salMinTitulo}</p>
+          <p className="mt-1 text-xs text-amber-800">{salMinMensaje}</p>
           {ivssCapFormatted && faovCapFormatted && (
             <p className="mt-1 text-xs text-amber-800">
               Topes actuales: IVSS/INCES/RPE = <span className="font-mono">{ivssCapFormatted}</span> (5×) ·{" "}
