@@ -2358,11 +2358,17 @@ model PayrollRunLine {
 // ADR-014: arquitectura de beneficios laborales LOTTT Venezuela
 
 enum BcvRateType {
-  ACTIVA // Tasa activa BCV (Art. 143 LOTTT — valor por defecto)
-  PROMEDIO // Tasa promedio BCV (alternativa)
+  // Cuarto Aparte Art. 143 LOTTT (mora/litigios) — NO para el interés sobre
+  // saldo acumulado que calcula BcvBenefitRate; eso es PROMEDIO.
+  ACTIVA
+  // Tercer Aparte Art. 143 LOTTT — "promedio entre tasa activa y pasiva",
+  // publicado así en el aviso oficial del BCV. Confirmado con contador
+  // (2026-09) que es el que aplica al interés sobre prestaciones acumuladas —
+  // valor por defecto de este modelo (BcvRateForm.tsx / nom-d.schema.ts).
+  PROMEDIO
 }
 
-// Tasa activa BCV mensual — fuente oficial para intereses sobre prestaciones (Art. 143 LOTTT)
+// Tasa BCV mensual — fuente oficial para intereses sobre prestaciones acumuladas (Art. 143 LOTTT, Tercer Aparte)
 // ADMIN-only: la tasa nunca viene del cliente en acciones de transacción (ADR-014 Dec. 2 / ADR-006 D-3)
 model BcvBenefitRate {
   id              String      @id @default(cuid())
@@ -2370,7 +2376,10 @@ model BcvBenefitRate {
   year            Int
   month           Int // 1–12
   annualRate      Decimal     @db.Decimal(5, 2) // porcentaje anual, ej: 17.50 = 17.5%
-  rateType        BcvRateType @default(ACTIVA) // ACTIVA por mandato Art. 143 LOTTT
+  // Default de columna sin cambiar a PROMEDIO (evita migración): la app
+  // SIEMPRE manda rateType explícito (ver BcvRateForm.tsx), así que este
+  // default de BD no se ejercita en la práctica. Ver comentario del enum.
+  rateType        BcvRateType @default(ACTIVA)
   source          String      @default("BCV") // "BCV" | "MANUAL"
   createdByUserId String
   createdAt       DateTime    @default(now())
