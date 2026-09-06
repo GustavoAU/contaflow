@@ -261,9 +261,9 @@ export default function ProfitSharingPanel({ companyId, employeeId, initialRecor
               type="button"
               onClick={handleSubmit}
               disabled={isPending || alreadyExistsForYear}
-              className="rounded bg-green-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded bg-green-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando..." : "Confirmar"}
+              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}{isPending ? "Calculando..." : "Confirmar"}
             </button>
           </div>
         </div>

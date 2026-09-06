@@ -107,9 +107,9 @@ export default function SalaryHistoryPanel({
               type="button"
               onClick={handleAdd}
               disabled={isPending}
-              className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
+              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
             </button>
             <button
               type="button"

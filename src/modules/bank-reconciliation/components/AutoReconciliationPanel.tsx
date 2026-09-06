@@ -295,9 +295,9 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
             <button
               onClick={handleConfirmAll}
               disabled={isPending}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Confirmando..." : "Confirmar seleccionadas"}
+              {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Confirmando..." : "Confirmar seleccionadas"}
             </button>
           </div>
         )}
@@ -380,7 +380,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
               className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <CheckCircleIcon className="h-4 w-4" />
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Procesando..." : "Iniciar conciliación automática"}
+              {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}{isPending ? "Procesando..." : "Iniciar conciliación automática"}
             </button>
             <button
               onClick={() => dispatch({ type: "RESET" })}
@@ -419,9 +419,9 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         <button
           type="button"
           disabled={isPending}
-          className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Analizando PDF..." : "Seleccionar PDF"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Analizando PDF..." : "Seleccionar PDF"}
         </button>
       </div>
 
