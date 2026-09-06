@@ -259,7 +259,7 @@ export function PayrollRunForm({
               FAOV = <span className="font-mono">{faovCapFormatted}</span> (10×).
               Consulta el decreto vigente en MINPPTRASS y actualiza en{" "}
               <a
-                href={`/company/${companyId}/payroll/thresholds`}
+                href={`/company/${companyId}/payroll/legal-thresholds`}
                 className="underline hover:text-amber-900"
               >
                 Topes Legales
@@ -268,7 +268,7 @@ export function PayrollRunForm({
           )}
           {!salMinFormatted && (
             <a
-              href={`/company/${companyId}/payroll/thresholds`}
+              href={`/company/${companyId}/payroll/legal-thresholds`}
               className="mt-1 block text-xs underline hover:text-amber-900"
             >
               Registrar salario mínimo vigente →
