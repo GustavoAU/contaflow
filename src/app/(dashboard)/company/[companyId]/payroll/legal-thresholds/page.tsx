@@ -22,9 +22,6 @@ export default async function LegalThresholdsPage({ params }: Props) {
 
   const isAdmin = canAccess(member.role, ROLES.ACCOUNTING);
   const thresholds = await LegalThresholdService.list(companyId);
-  const lastSalMin = thresholds.find((t) => t.type === "SALARY_MIN_VES");
-  const salMinStale = !lastSalMin ||
-    (Date.now() - new Date(lastSalMin.effectiveFrom).getTime()) > 180 * 24 * 60 * 60 * 1000;
 
   return (
     <div className="space-y-6">
@@ -46,7 +43,6 @@ export default async function LegalThresholdsPage({ params }: Props) {
         companyId={companyId}
         initialThresholds={thresholds}
         isAdmin={isAdmin}
-        salMinStale={salMinStale}
       />
     </div>
   );

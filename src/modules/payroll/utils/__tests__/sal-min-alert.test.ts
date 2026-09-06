@@ -14,17 +14,19 @@ const RECIENTE = new Date(NOW - 5 * 24 * 60 * 60 * 1000).toISOString(); // hace 
 const VIEJO_2022 = "2022-03-01T00:00:00.000Z"; // años de antigüedad
 
 describe("computeSalMinAlert", () => {
-  it("sin registro → aviso con título 'sin registrar'", () => {
+  it("sin registro → aviso ERROR con título 'sin registrar'", () => {
     const r = computeSalMinAlert(null, null, NOW);
     expect(r.tieneAviso).toBe(true);
+    expect(r.severity).toBe("error");
     expect(r.titulo).toBe("Salario mínimo sin registrar");
   });
 
-  it("valor CORRECTO pero decretado hace años → aviso SUAVE de reconfirmar, no 'incorrectas' (el bug que se corrigió)", () => {
+  it("valor CORRECTO pero decretado hace años → aviso INFO de reconfirmar, no 'incorrectas' (el bug que se corrigió)", () => {
     // Antes: título "desactualizado — bases de cotización incorrectas" (error),
     // por la sola antigüedad de un valor que en realidad sigue vigente.
     const r = computeSalMinAlert(REF, VIEJO_2022, NOW);
     expect(r.tieneAviso).toBe(true);
+    expect(r.severity).toBe("info");
     expect(r.titulo).toBe("Confirma que el salario mínimo sigue vigente");
     expect(r.titulo).not.toMatch(/no coincide|incorrectas/);
   });
@@ -43,10 +45,11 @@ describe("computeSalMinAlert", () => {
     expect(r.titulo).toBe("Confirma que el salario mínimo sigue vigente");
   });
 
-  it("valor que NO coincide con la referencia → error, manda sobre la antigüedad", () => {
+  it("valor que NO coincide con la referencia → ERROR, manda sobre la antigüedad", () => {
     // Confirmado AYER (recentísimo) pero con un valor distinto al vigente.
     const r = computeSalMinAlert("999.00", RECIENTE, NOW);
     expect(r.tieneAviso).toBe(true);
+    expect(r.severity).toBe("error");
     expect(r.titulo).toBe("El salario mínimo registrado no coincide con el vigente");
   });
 

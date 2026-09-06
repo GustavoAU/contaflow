@@ -19,6 +19,9 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface SalMinAlert {
   tieneAviso: boolean;
+  /** "error": sin registro o valor que no coincide con la referencia — real.
+   *  "info": valor correcto, sólo falta reconfirmar tras 30 días — cosmético. */
+  severity: "error" | "info";
   titulo: string;
   mensaje: string;
 }
@@ -63,5 +66,7 @@ export function computeSalMinAlert(
         `${salMinFormatted}. Comprueba en MINPPTRASS si hubo un decreto nuevo; si sigue igual, ` +
         "confírmalo en Topes Legales.";
 
-  return { tieneAviso, titulo, mensaje };
+  const severity: "error" | "info" = sinRegistro || noCoincide ? "error" : "info";
+
+  return { tieneAviso, severity, titulo, mensaje };
 }
