@@ -9,6 +9,7 @@ import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { BenefitAccrualService } from "@/modules/payroll/services/BenefitAccrualService";
 import { EmployeeService } from "@/modules/payroll/services/EmployeeService";
 import AccrueQuarterForm from "@/modules/payroll/components/AccrueQuarterForm";
+import { BackfillBenefitsButton } from "@/modules/payroll/components/BackfillBenefitsButton";
 import PostInterestForm from "@/modules/payroll/components/PostInterestForm";
 import BcvRateForm from "@/modules/payroll/components/BcvRateForm";
 import BcvRateList from "@/modules/payroll/components/BcvRateList";
@@ -102,6 +103,9 @@ export default async function BenefitsPage({ params }: Props) {
               5 días de salario integral por trimestre (Art. 142 LOTTT). Se procesa una vez por trimestre para todos los empleados activos.
             </p>
             <AccrueQuarterForm companyId={companyId} isCurrentQuarterAccrued={!!currentQuarterAccrual} />
+            <div className="mt-4 border-t pt-4">
+              <BackfillBenefitsButton companyId={companyId} />
+            </div>
           </section>
 
           {/* Intereses BCV */}
