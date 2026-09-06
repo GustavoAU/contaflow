@@ -23,10 +23,11 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- los delegados
-// reales de Prisma (AccountDelegate/BankAccountDelegate) tienen firmas de
-// `findMany` incompatibles entre sí en el tipo del argumento; este helper solo
-// necesita `where.id.in`/`where.companyId`/`select.id`, que ambos aceptan.
+// Los delegados reales de Prisma (AccountDelegate/BankAccountDelegate) tienen
+// firmas de `findMany` incompatibles entre sí en el tipo del argumento; este
+// helper solo necesita `where.id.in`/`where.companyId`/`select.id`, que ambos
+// aceptan.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Delegate = { findMany: (args: any) => Promise<Array<{ id: string }>> };
 
 async function assertBelongToCompany(
