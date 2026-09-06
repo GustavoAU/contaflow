@@ -18,7 +18,15 @@ export default function BcvRateForm({ companyId, hasCurrentMonthRate, hasPrevMon
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [annualRate, setAnnualRate] = useState("");
-  const [rateType, setRateType] = useState<"ACTIVA" | "PROMEDIO">("ACTIVA");
+  // Bug encontrado en vivo (2026-09-06) + confirmado con contador: el aviso
+  // oficial del BCV publica DOS tasas bajo el Art. 143 LOTTT — la "Activa"
+  // pura (Cuarto Aparte, mora/litigios) y el "Promedio" entre activa y pasiva
+  // (Tercer Aparte, interés sobre el saldo ACUMULADO de prestaciones — que es
+  // justo lo que esta pantalla calcula). El default anterior era "ACTIVA",
+  // que llevó a registrar 3 tasas de más de la empresa real con el tipo
+  // equivocado (ninguna llegó a usarse para postear interés, así que no hubo
+  // corrección que revertir — pero el default sesgaba a repetir el error).
+  const [rateType, setRateType] = useState<"ACTIVA" | "PROMEDIO">("PROMEDIO");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,13 +124,16 @@ export default function BcvRateForm({ companyId, hasCurrentMonthRate, hasPrevMon
             onChange={(e) => setRateType(e.target.value as "ACTIVA" | "PROMEDIO")}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="ACTIVA">Activa (Art. 143 LOTTT)</option>
-            <option value="PROMEDIO">Promedio</option>
+            <option value="PROMEDIO">Promedio (Tercer Aparte — interés sobre saldo acumulado)</option>
+            <option value="ACTIVA">Activa (Cuarto Aparte — mora/litigios)</option>
           </select>
         </div>
       </div>
       <p className="text-xs text-gray-400">
-        Art. 143 LOTTT — usar la <strong>Tasa Activa</strong> vigente publicada por el BCV.
+        El aviso oficial del BCV publica dos tasas bajo el Art. 143 LOTTT: la <strong>Activa</strong> pura
+        (Cuarto Aparte, para mora/litigios) y el <strong>Promedio</strong> entre activa y pasiva (Tercer
+        Aparte). Esta pantalla calcula el interés sobre el <strong>saldo acumulado de prestaciones</strong>,
+        que corresponde al Tercer Aparte — usar <strong>Promedio</strong>, confirmado con contador (2026-09).
       </p>
       <button
         type="submit"

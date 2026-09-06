@@ -20,7 +20,11 @@ export const CreateBcvRateSchema = z.object({
     .number()
     .positive({ message: "La tasa debe ser positiva" })
     .max(500, { message: "La tasa anual no puede superar el 500%" }),
-  rateType: z.enum(["ACTIVA", "PROMEDIO"]).default("ACTIVA"),
+  // Tercer Aparte Art. 143 LOTTT (interés sobre saldo acumulado, lo que este
+  // schema alimenta) usa el Promedio activa-pasiva, no la Activa pura — ver
+  // BcvRateForm.tsx. El formulario siempre manda un valor explícito; este
+  // default sólo importa si algo llama la action sin `rateType`.
+  rateType: z.enum(["ACTIVA", "PROMEDIO"]).default("PROMEDIO"),
 });
 
 export type CreateBcvRateInput = z.infer<typeof CreateBcvRateSchema>;
