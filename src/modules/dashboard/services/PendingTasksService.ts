@@ -635,7 +635,7 @@ export const PendingTasksService = {
         title: "IGTF sin registrar en asiento contable",
         description: `${igtfGlIncompletoCount} factura${pl ? "s tienen" : " tiene"} IGTF pendiente de registrar en el Libro Diario (asiento de causación original no incluyó la línea IGTF). Cree un asiento manual de corrección: Dr CxC o Banco / Cr IGTF por Enterar (Ley IGTF Art. 4).`,
         count: igtfGlIncompletoCount,
-        href: "/accounting/journal",
+        href: "/transactions/new",
       });
     }
 
@@ -971,7 +971,7 @@ export const PendingTasksService = {
           title: "Descuadre CxC: cartera ≠ Libro Mayor",
           description: `Diferencia de Bs. ${gap.toDecimalPlaces(2).toFixed(2)} entre el saldo de facturas pendientes y la cuenta Cuentas por Cobrar del Libro Mayor. Posible causa: cobros registrados sin asiento GL (Art. 32-35 Código de Comercio).`,
           count: 1,
-          href: "/accounting/journal",
+          href: "/transactions/new",
         });
       }
     }
