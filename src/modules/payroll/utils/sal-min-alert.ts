@@ -13,7 +13,11 @@
 // coincide, es un error aunque se haya "confirmado" ayer. Sólo si coincide
 // pero nadie lo reconfirmó en 30 días se pide revisar, con severidad menor.
 import Decimal from "decimal.js";
-import { SALARY_MIN_VES_REFERENCE } from "../legal-thresholds-reference";
+// Client-safe a propósito: NO importar de "../legal-thresholds-reference"
+// (arrastra PayrollCalculatorService → prisma → node:async_hooks, que
+// webpack no puede empaquetar para el navegador — este helper lo usan
+// PayrollRunForm y LegalThresholdsPanel, ambos "use client").
+import { SALARY_MIN_VES_REFERENCE } from "../salary-minimum-reference";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
