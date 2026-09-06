@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { upsertExchangeRateAction, fetchBcvRateAction } from "../actions/exchange-rate.actions";
 import type { ExchangeRateSummary } from "../services/ExchangeRateService";
@@ -15,6 +16,7 @@ type Props = {
 const today = () => todayLocalISO();
 
 export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isBcvPending, startBcvTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
         setRate("");
         setDate(today());
         onSuccess?.(result.data);
+        router.refresh(); // el action ya revalidó el path — esto refresca el historial visible
       }
     });
   }
@@ -65,6 +68,7 @@ export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
       } else {
         setBcvSuccess(true);
         onSuccess?.(result.data);
+        router.refresh();
       }
     });
   }
@@ -177,9 +181,10 @@ export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
         type="submit"
         disabled={isPending}
         aria-busy={isPending}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar tasa"}
+        {isPending && <Loader2Icon className="size-4 animate-spin" />}
+        {isPending ? "Guardando..." : "Guardar tasa"}
       </button>
     </form>
   );
