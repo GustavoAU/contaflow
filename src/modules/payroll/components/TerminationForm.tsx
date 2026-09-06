@@ -146,9 +146,9 @@ export default function TerminationForm({ companyId, employees }: Props) {
           type="submit"
           disabled={isPending}
           aria-busy={isPending}
-          className="rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Calculando…" : "Calcular liquidación"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Calculando…" : "Calcular liquidación"}
         </button>
         <button
           type="button"

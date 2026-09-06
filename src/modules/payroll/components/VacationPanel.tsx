@@ -275,9 +275,9 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
               type="button"
               onClick={handleSubmit}
               disabled={isPending || !form.startDate || !form.endDate}
-              className="rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando..." : "Confirmar"}
+              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}{isPending ? "Registrando..." : "Confirmar"}
             </button>
           </div>
         </div>

@@ -176,9 +176,9 @@ export function InflationAdjustmentPanel({
           <button
             onClick={handlePreview}
             disabled={isPendingPreview || !adjustmentAccountId}
-            className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {isPendingPreview && <Loader2Icon className="animate-spin" />}{isPendingPreview ? "Calculando..." : "Vista Previa"}
+            {isPendingPreview && <Loader2Icon className="size-4 animate-spin" />}{isPendingPreview ? "Calculando..." : "Vista Previa"}
           </button>
         </div>
 
@@ -316,9 +316,9 @@ export function InflationAdjustmentPanel({
                   <button
                     onClick={handleConfirmRun}
                     disabled={isPendingRun}
-                    className="rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
-                    {isPendingRun && <Loader2Icon className="animate-spin" />}{isPendingRun ? "Registrando..." : "Confirmar"}
+                    {isPendingRun && <Loader2Icon className="size-4 animate-spin" />}{isPendingRun ? "Registrando..." : "Confirmar"}
                   </button>
                   <button
                     onClick={() => setShowConfirm(false)}

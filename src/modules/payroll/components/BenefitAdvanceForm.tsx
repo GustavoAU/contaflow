@@ -126,9 +126,9 @@ export default function BenefitAdvanceForm({
           type="submit"
           disabled={isPending}
           aria-busy={isPending}
-          className="rounded-md bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando…" : "Confirmar anticipo"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Registrando…" : "Confirmar anticipo"}
         </button>
       </div>
     </form>

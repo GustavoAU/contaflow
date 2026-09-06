@@ -289,9 +289,9 @@ function MovementsTab({
               type="button"
               onClick={handleSearch}
               disabled={isPending}
-              className="w-full rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Buscando..." : "Buscar"}
+              {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Buscando..." : "Buscar"}
             </button>
           </div>
         </div>

@@ -151,9 +151,9 @@ export function NotificationBell({ companyId }: Props) {
                   });
                 }}
                 disabled={isPending}
-                className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50"
               >
-                {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
+                {isPending && <Loader2Icon className="size-3 animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
               </button>
             </div>
           )}
