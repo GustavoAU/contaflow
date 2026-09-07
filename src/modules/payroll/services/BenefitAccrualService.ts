@@ -685,13 +685,13 @@ export const BenefitAccrualService = {
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });
     if (!currentPeriod) {
-      throw new Error("No hay período contable abierto para registrar el backfill de prestaciones");
+      throw new Error("No hay período contable abierto para registrar los trimestres atrasados de prestaciones");
     }
 
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config) throw new Error("Configure la nómina antes de calcular prestaciones");
     if (!config.benefitsExpenseAccountId || !config.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones antes de hacer backfill");
+      throw new Error("Configure las cuentas contables de prestaciones antes de poner al día trimestres atrasados");
     }
 
     const employees = await prisma.employee.findMany({
@@ -844,12 +844,12 @@ export const BenefitAccrualService = {
                 {
                   accountId: config.benefitsExpenseAccountId!,
                   amount: accrualAmount.toDecimalPlaces(4),
-                  description: `Backfill LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                  description: `Acumulación retroactiva LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                 },
                 {
                   accountId: config.benefitsPayableAccountId!,
                   amount: accrualAmount.negated().toDecimalPlaces(4),
-                  description: `Pasivo prestaciones backfill Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
+                  description: `Pasivo prestaciones (acumulación retroactiva) Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                 },
               ];
               assertBalancedGLEntries(backfillEntries); // N4: invariante partida doble
@@ -859,7 +859,7 @@ export const BenefitAccrualService = {
                   periodId: currentPeriod.id,
                   number: `NOM-D-BF-Q${quarter}-${year}-${emp.id.slice(-6)}`,
                   date: new Date(),
-                  description: `[Backfill] Prestaciones Q${quarter}/${year} — ${emp.firstName} ${emp.lastName} (${BASE_DAYS_PER_QUARTER}d base${additionalDays.gt(0) ? `+${additionalDays.toFixed(2)}d antig.` : ""})`,
+                  description: `[Trimestre atrasado] Prestaciones Q${quarter}/${year} — ${emp.firstName} ${emp.lastName} (${BASE_DAYS_PER_QUARTER}d base${additionalDays.gt(0) ? `+${additionalDays.toFixed(2)}d antig.` : ""})`,
                   userId,
                   type: "DIARIO",
                   entries: {
