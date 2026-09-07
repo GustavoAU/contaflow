@@ -10,13 +10,29 @@
 // la app — cubre justo esos huecos, no la configuración inicial (ya cubierta
 // por PayrollWizard/activate-modules).
 //
-// Aparece solo una vez por empresa (localStorage, mismo patrón que
-// cf-ai-tip-shown en FloatingAIAssistant y cf-ocr-privacy-ack en
-// InvoiceUploader — try/catch porque localStorage puede no estar disponible).
-// Un link "Ver guía" cerca del título permite reabrirla cuando se quiera.
+// Montada en company/[companyId]/layout.tsx (no en la página de Nómina) a
+// propósito: ese layout NO se remonta al navegar entre páginas hermanas
+// (Nómina, Tasas de Cambio, Topes Legales, Prestaciones son todas rutas bajo
+// el mismo layout), así que el estado sobrevive cuando el usuario sigue el
+// link de un paso — antes se perdía la guía al navegar (reportado en vivo
+// por Gustavo probando el paso 1: el modal bloqueaba la página destino y al
+// cerrarlo se marcaba "vista" para siempre, sin poder retomarla).
+//
+// Por eso el link de cada paso no cierra el modal, lo MINIMIZA: navega y
+// deja un pill flotante ("Continuar guía") en vez de un overlay bloqueando
+// la página destino — el usuario puede interactuar libremente con Topes
+// Legales/Tasas de Cambio/Prestaciones y retomar el tour cuando quiera, en
+// el mismo paso donde lo dejó. El trigger de "primera vez" solo dispara
+// estando en el hub de Nómina.
+//
+// "Vista" es permanente vía localStorage (mismo patrón que cf-ai-tip-shown
+// en FloatingAIAssistant y cf-ocr-privacy-ack en InvoiceUploader — try/catch
+// porque localStorage puede no estar disponible) y solo se marca al cerrar
+// con la X o terminar el tour — nunca al hacer clic en el link de un paso.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { XIcon, ChevronRightIcon, ChevronLeftIcon, CircleHelpIcon } from "lucide-react";
 
 type Props = { companyId: string };
@@ -99,26 +115,36 @@ function useSteps(companyId: string): Step[] {
   ];
 }
 
+type Visibility = "hidden" | "modal" | "minimized";
+
 export function PayrollFirstVisitGuide({ companyId }: Props) {
-  const [open, setOpen] = useState(false);
+  const [visibility, setVisibility] = useState<Visibility>("hidden");
   const [step, setStep] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const steps = useSteps(companyId);
+  const pathname = usePathname();
+  const hubPath = `/company/${companyId}/payroll`;
+  const onHub = pathname === hubPath;
 
   useEffect(() => {
-    // queueMicrotask (no un setState directo en el cuerpo del efecto) — mismo
-    // patrón que el callout de FloatingAIAssistant (cf-ai-tip-shown).
+    // Se re-evalúa en cada navegación (el layout no remonta), pero solo
+    // dispara estando en el hub — así el link de un paso puede llevar a otra
+    // página sin reabrir/reiniciar la guía. Update funcional: si ya estaba
+    // "minimized" (mitad de tour) no la pisa de vuelta a "modal".
+    if (!onHub) return;
     queueMicrotask(() => {
       try {
-        if (!localStorage.getItem(storageKey(companyId))) setOpen(true);
+        if (!localStorage.getItem(storageKey(companyId))) {
+          setVisibility((v) => (v === "hidden" ? "modal" : v));
+        }
       } catch {
         // localStorage no disponible (SSR, cookies bloqueadas) — no mostrar
       }
     });
-  }, [companyId]);
+  }, [companyId, onHub]);
 
   useEffect(() => {
-    if (!open) return;
+    if (visibility !== "modal") return;
     function onEscape(e: KeyboardEvent) {
       if (e.key === "Escape") close();
     }
@@ -126,28 +152,55 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
     dialogRef.current?.focus();
     return () => document.removeEventListener("keydown", onEscape);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [visibility]);
 
   function close() {
-    setOpen(false);
+    setVisibility("hidden");
     setStep(0);
     try { localStorage.setItem(storageKey(companyId), "1"); } catch { /* noop */ }
   }
 
-  function reopen() {
-    setStep(0);
-    setOpen(true);
+  function minimize() {
+    setVisibility("minimized");
   }
 
-  if (!open) {
+  function reopenFresh() {
+    setStep(0);
+    setVisibility("modal");
+  }
+
+  function resume() {
+    setVisibility("modal");
+  }
+
+  if (visibility === "hidden") {
+    // El pill de reabrir desde cero solo aparece en el hub — en las páginas
+    // destino de cada paso no hay dónde "volver" a montarlo si el usuario
+    // cerró del todo, así que evitamos mostrarlo fuera de lugar.
+    if (!onHub) return null;
     return (
       <button
         type="button"
-        onClick={reopen}
-        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+        onClick={reopenFresh}
+        className="fixed bottom-6 left-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <CircleHelpIcon className="size-3.5" />
-        Ver guía
+        Ver guía de Nómina
+      </button>
+    );
+  }
+
+  if (visibility === "minimized") {
+    // Sin overlay: el usuario está aquí para interactuar de verdad con la
+    // página destino (Topes Legales / Tasas de Cambio / Prestaciones).
+    return (
+      <button
+        type="button"
+        onClick={resume}
+        className="fixed bottom-6 left-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70"
+      >
+        <CircleHelpIcon className="size-3.5" />
+        Continuar guía ({step + 1}/{steps.length})
       </button>
     );
   }
@@ -184,7 +237,7 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
 
         <Link
           href={current.href}
-          onClick={close}
+          onClick={minimize}
           className="mt-4 inline-block text-sm font-medium text-blue-600 hover:underline"
         >
           {current.hrefLabel} →
