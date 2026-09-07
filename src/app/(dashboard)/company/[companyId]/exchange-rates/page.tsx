@@ -40,7 +40,11 @@ export default async function ExchangeRatesPage({ params }: Props) {
   });
   if (!member) redirect("/");
 
-  const result = await listExchangeRatesAction(companyId);
+  // Sin límite explícito el default es 30 filas (USD+EUR intercalados, ~15
+  // días de auto-fetch) — insuficiente para ver una tasa histórica manual
+  // (ej. backfill de prestaciones) más vieja que eso. Esta pantalla existe
+  // justo para revisar/registrar fechas pasadas, así que pide más.
+  const result = await listExchangeRatesAction(companyId, undefined, 200);
   const rates = result.success ? result.data : [];
 
   return (

@@ -73,12 +73,13 @@ export async function upsertExchangeRateAction(
 export async function listExchangeRatesAction(
   companyId: string,
   currency?: Currency,
+  limit?: number,
 ): Promise<ActionResult<ExchangeRateSummary[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;
 
-    const data = await ExchangeRateService.list(companyId, currency);
+    const data = await ExchangeRateService.list(companyId, currency, limit);
     return { success: true, data };
   } catch (err) {
     return toActionError(err);
