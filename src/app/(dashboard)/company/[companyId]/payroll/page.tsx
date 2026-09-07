@@ -17,7 +17,6 @@ import { AutoDraftToggle } from "@/modules/payroll/components/AutoDraftToggle";
 import { NavigationCard } from "@/components/ui/NavigationCard";
 import PayrollCompliancePanel from "@/modules/payroll/components/PayrollCompliancePanel";
 import { computeSalMinAlert } from "@/modules/payroll/utils/sal-min-alert";
-import { PayrollFirstVisitGuide } from "@/modules/payroll/components/PayrollFirstVisitGuide";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -116,10 +115,7 @@ export default async function PayrollPage({ params }: Props) {
   return (
     <div className="space-y-8 p-6">
       <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Nómina</h1>
-          {isAdmin && <PayrollFirstVisitGuide companyId={companyId} />}
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Nómina</h1>
         <p className="mt-1 text-sm text-gray-500">
           Gestión de nómina según LOTTT, IVSS, INCES y Banavih.
         </p>

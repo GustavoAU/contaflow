@@ -11,6 +11,7 @@ import * as Sentry from "@sentry/nextjs";
 import { getCompanyGrants } from "@/lib/get-company-grants";
 import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
 import { FloatingAIAssistant } from "@/modules/ai-assistant/components/FloatingAIAssistant";
+import { PayrollFirstVisitGuide } from "@/modules/payroll/components/PayrollFirstVisitGuide";
 import type { UserRole } from "@/lib/nav-items";
 import { getViewMode } from "@/lib/view-mode";
 import { APP_VERSION, CERTIFIED_VERSION } from "@/lib/version";
@@ -163,6 +164,12 @@ export default async function CompanyLayout({ children, params }: Props) {
           companyName={company.name}
           initialAnomaly={initialAnomaly}
         />
+      )}
+
+      {/* Guía de primera visita a Nómina — montada aquí (no en la página) para que
+          sobreviva la navegación entre Nómina/Tasas de Cambio/Topes Legales/Prestaciones. */}
+      {canAccess(company.role, ROLES.ADMIN_ONLY) && (
+        <PayrollFirstVisitGuide companyId={companyId} />
       )}
     </div>
     </FiscalUIProvider>
