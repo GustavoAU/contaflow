@@ -212,7 +212,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
       return (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
           <div className="flex items-start gap-3">
-            <AlertCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+            <AlertCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div>
               <h3 className="font-semibold text-amber-900">Conciliación no disponible</h3>
               <p className="mt-1 text-sm text-amber-800">
@@ -328,7 +328,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
 
           {balanceError && (
             <div className="mb-3 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              <AlertCircleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{balanceError}</span>
             </div>
           )}
@@ -435,7 +435,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
 
       {state.error && (
         <div className="mt-3 flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          <XCircleIcon className="h-4 w-4 flex-shrink-0" />
+          <XCircleIcon className="h-4 w-4 shrink-0" />
           {state.error}
         </div>
       )}
@@ -528,7 +528,7 @@ function ResultSection({
                   {showConfirm && onToggle && row.matchId && (
                     <button
                       onClick={() => onToggle(row)}
-                      className={`flex-shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                         isSelected
                           ? "bg-green-600 text-white hover:bg-green-700"
                           : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
@@ -545,7 +545,7 @@ function ResultSection({
                   )}
 
                   {showConfirm && onToggle && !row.matchId && (
-                    <span className="flex-shrink-0 rounded-md border border-zinc-200 px-3 py-1.5 text-xs text-zinc-400">
+                    <span className="shrink-0 rounded-md border border-zinc-200 px-3 py-1.5 text-xs text-zinc-400">
                       <XIcon className="inline h-3 w-3" /> Sin match
                     </span>
                   )}
