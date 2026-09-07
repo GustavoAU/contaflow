@@ -182,7 +182,7 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
       <button
         type="button"
         onClick={reopenFresh}
-        className="fixed bottom-6 left-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className="fixed bottom-24 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <CircleHelpIcon className="size-3.5" />
         Ver guía de Nómina
@@ -197,7 +197,7 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
       <button
         type="button"
         onClick={resume}
-        className="fixed bottom-6 left-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70"
+        className="fixed bottom-24 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70"
       >
         <CircleHelpIcon className="size-3.5" />
         Continuar guía ({step + 1}/{steps.length})
