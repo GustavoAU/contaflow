@@ -44,7 +44,7 @@ export function BackfillBenefitsButton({ companyId }: Props) {
         setResult(res.data);
         const conErrores = res.data.errors.length > 0 ? ` (${res.data.errors.length} con problemas, ver detalle)` : "";
         if (res.data.quartersProcessed > 0) {
-          toast.success(`Backfill: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)${conErrores}`);
+          toast.success(`Puesto al día: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)${conErrores}`);
         } else if (res.data.errors.length > 0) {
           toast.error(`No se procesó ningún trimestre — ${res.data.errors.length} problema(s), ver detalle abajo`);
         } else {
@@ -79,7 +79,7 @@ export function BackfillBenefitsButton({ companyId }: Props) {
 
       {result && result.quartersProcessed > 0 && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
-          <p className="font-medium text-green-800">Backfill completado</p>
+          <p className="font-medium text-green-800">Trimestres puestos al día</p>
           <p className="mt-1 text-green-700">
             Trimestres procesados: <span className="font-mono font-semibold">{result.quartersProcessed}</span>
             &nbsp;·&nbsp;
