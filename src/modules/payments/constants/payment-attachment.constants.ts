@@ -10,8 +10,9 @@ export const ALLOWED_MIME_TYPES = [
 ] as const;
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
-export const MAX_SIZE_BYTES = 5_242_880; // 5 MB
-export const MAX_SIZE_MB = MAX_SIZE_BYTES / 1_048_576; // 5
+// 4 MB: el archivo pasa por una Vercel Function (ADR-047), cuyo cuerpo admite como máximo 4,5 MB.
+export const MAX_SIZE_BYTES = 4_194_304;
+export const MAX_SIZE_MB = MAX_SIZE_BYTES / 1_048_576; // 4
 
 const EXT_BY_MIME: Record<AllowedMimeType, string> = {
   "application/pdf": ".pdf",
@@ -20,10 +21,13 @@ const EXT_BY_MIME: Record<AllowedMimeType, string> = {
   "image/webp": ".webp",
 };
 
+// Tope de comprobantes registrados por pago CONTANDO los eliminados: el soft-delete conserva el blob (ADR-029 D-6)
+// y sin techo un usuario con permiso de escritura podría ciclar subir/borrar y llenar el almacenamiento.
+export const MAX_ATTACHMENTS_PER_PAYMENT = 10;
+
 const LEAF_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$/;
 
-// handleUpload firma el token con el pathname que envía el cliente e ignora el del servidor:
-// el cliente lo arma con este builder y el servidor valida lo recibido con isValidAttachmentPathname.
+// La ruta la fija el servidor (nunca el cliente) con este builder; isValidAttachmentPathname la verifica al leer.
 export function buildAttachmentPathname(
   companyId: string,
   paymentRecordId: string,
@@ -58,6 +62,13 @@ export function sanitizeAttachmentFileName(name: unknown): string {
   return kept.slice(0, 200).join("").trim() || "comprobante";
 }
 
+// La extensión del nombre la dicta el tipo detectado por bytes: "x.pdf.hta" con cabecera %PDF no debe guardarse ni
+// servirse como .hta. Solo se reemplaza una extensión alfabética ("Pago 12.05.2026" conserva el año).
+export function attachmentFileNameFor(name: unknown, mimeType: AllowedMimeType): string {
+  const base = sanitizeAttachmentFileName(name).replace(/\.[A-Za-z]{1,8}$/, "").trim() || "comprobante";
+  return `${base}${EXT_BY_MIME[mimeType]}`;
+}
+
 // Con mimeType, la extensión de la ruta debe ser la de ese tipo: el mimeType que se guarda en BD sale de la extensión.
 export function isValidAttachmentPathname(
   pathname: string,
@@ -70,4 +81,24 @@ export function isValidAttachmentPathname(
   const leaf = pathname.slice(prefix.length);
   if (!LEAF_RE.test(leaf)) return false;
   return mimeType === undefined || leaf.endsWith(EXT_BY_MIME[mimeType]);
+}
+
+// Ruta autenticada por la que el navegador abre un comprobante: el blob es privado y su URL no sirve al cliente.
+export function attachmentDownloadPath(companyId: string, attachmentId: string): string {
+  return `/api/company/${companyId}/payments/attachments/${attachmentId}/download`;
+}
+
+function startsWith(bytes: Uint8Array, signature: number[], offset = 0): boolean {
+  return bytes.length >= offset + signature.length && signature.every((b, i) => bytes[offset + i] === b);
+}
+
+// El tipo declarado por el navegador (`file.type`) no prueba nada: se decide por los primeros bytes del archivo.
+export function detectAttachmentMime(bytes: Uint8Array): AllowedMimeType | null {
+  if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf"; // %PDF-
+  if (startsWith(bytes, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+    return "image/webp"; // RIFF????WEBP
+  }
+  return null;
 }

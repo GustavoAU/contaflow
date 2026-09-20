@@ -6,8 +6,8 @@ import { PaymentAttachmentService } from "./PaymentAttachmentService";
 vi.mock("@/lib/prisma", () => ({
   default: {
     $transaction: vi.fn(),
-    $executeRaw: vi.fn(),
-    paymentAttachment: { findFirst: vi.fn(), create: vi.fn() },
+    $queryRaw: vi.fn(),
+    paymentAttachment: { findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -37,12 +37,39 @@ const CREATED_ROW = {
 describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ id: "pay-1" }] as never);
+    vi.mocked(prisma.paymentAttachment.count).mockResolvedValue(0 as never);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
       fn({
-        $executeRaw: prisma.$executeRaw,
+        $queryRaw: prisma.$queryRaw,
         paymentAttachment: prisma.paymentAttachment,
         auditLog: prisma.auditLog,
       })) as never);
+  });
+
+  it("si el pago se anuló mientras se subía el archivo (el bloqueo no encuentra fila activa) no adjunta nada", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never);
+
+    await expect(PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD)).rejects.toThrow(
+      "El pago no existe o fue anulado",
+    );
+
+    expect(vi.mocked(prisma.paymentAttachment.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("tope por pago: los comprobantes eliminados también cuentan (el soft-delete conserva el blob)", async () => {
+    vi.mocked(prisma.paymentAttachment.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.paymentAttachment.count).mockResolvedValue(10 as never);
+
+    await expect(PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD)).rejects.toThrow(
+      "alcanzó el máximo de 10 comprobantes",
+    );
+
+    expect(vi.mocked(prisma.paymentAttachment.count)).toHaveBeenCalledWith({
+      where: { paymentRecordId: "pay-1", companyId: "company-1" }, // sin deletedAt: cuenta también los eliminados
+    });
+    expect(vi.mocked(prisma.paymentAttachment.create)).not.toHaveBeenCalled();
   });
 
   it("crea el adjunto y su AuditLog cuando el pago no tiene uno activo", async () => {
@@ -78,7 +105,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
 
     await PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD);
 
-    const lock = vi.mocked(prisma.$executeRaw);
+    const lock = vi.mocked(prisma.$queryRaw);
     expect(lock).toHaveBeenCalledOnce();
     expect(lock.mock.calls[0].slice(1)).toEqual(["pay-1", "company-1"]);
     expect(lock.mock.invocationCallOrder[0]).toBeLessThan(

@@ -3,6 +3,7 @@
 // Contenido en Vercel Blob — solo metadatos + contentHash en BD (R-2)
 
 import prisma from "@/lib/prisma";
+import { MAX_ATTACHMENTS_PER_PAYMENT } from "@/modules/payments/constants/payment-attachment.constants";
 
 // ─── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ export type AttachmentSummary = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
-  blobUrl: string;
   contentHash: string;
   uploadedBy: string;
   uploadedAt: Date;
@@ -49,7 +49,6 @@ function serialize(
     fileName: row.fileName,
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
-    blobUrl: row.blobUrl,
     contentHash: row.contentHash,
     uploadedBy: row.uploadedBy,
     uploadedAt: row.uploadedAt,
@@ -61,8 +60,8 @@ function serialize(
 
 export const PaymentAttachmentService = {
   /**
-   * Persiste los metadatos del adjunto tras un upload exitoso a Vercel Blob.
-   * Llamado exclusivamente desde onUploadCompleted en la API route.
+   * Persiste los metadatos del adjunto tras guardar el archivo en el Blob privado.
+   * Llamado exclusivamente desde la ruta POST /api/payments/attachments/upload.
    *
    * Idempotente: P2002 en @@unique([companyId, blobKey]) → "ya registrado".
    */
@@ -72,7 +71,9 @@ export const PaymentAttachmentService = {
     return await prisma.$transaction(async (tx) => {
       // ADR-029 D-5 también aquí: un token reutilizado dentro de su vigencia sube otro blob y dispara otro callback.
       // Bloqueo de fila del pago: bajo ReadCommitted dos callbacks simultáneos verían "ninguno activo" e insertarían ambos.
-      await tx.$executeRaw`SELECT id FROM "PaymentRecord" WHERE id = ${payload.paymentRecordId} AND "companyId" = ${payload.companyId} FOR UPDATE`;
+      // El bloqueo también revalida el pago: si se anuló mientras se subía el archivo, no se adjunta a un pago anulado.
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "PaymentRecord" WHERE id = ${payload.paymentRecordId} AND "companyId" = ${payload.companyId} AND "deletedAt" IS NULL FOR UPDATE`;
+      if (locked.length === 0) throw new Error("El pago no existe o fue anulado");
       const active = await tx.paymentAttachment.findFirst({
         where: {
           paymentRecordId: payload.paymentRecordId,
@@ -82,6 +83,15 @@ export const PaymentAttachmentService = {
         select: { id: true },
       });
       if (active) throw new Error("Este pago ya tiene un comprobante adjunto");
+
+      const registered = await tx.paymentAttachment.count({
+        where: { paymentRecordId: payload.paymentRecordId, companyId: payload.companyId },
+      });
+      if (registered >= MAX_ATTACHMENTS_PER_PAYMENT) {
+        throw new Error(
+          `Este pago alcanzó el máximo de ${MAX_ATTACHMENTS_PER_PAYMENT} comprobantes registrados (se cuentan también los eliminados).`,
+        );
+      }
 
       let attachment;
       try {

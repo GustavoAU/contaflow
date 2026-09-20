@@ -64,6 +64,8 @@ vi.mock("@/modules/accounting/services/PeriodService", () => ({
 
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+vi.mock("@/lib/private-blob", () => ({ getPrivateBlob: vi.fn() }));
+import { getPrivateBlob } from "@/lib/private-blob";
 import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
@@ -706,7 +708,7 @@ describe("listPaymentsAction — IDOR guard", () => {
 describe("analyzeReceiptAction — seguridad y degradación graceful", () => {
   const ATTACHMENT_ID = "attach-1";
   const MOCK_ATTACHMENT = {
-    blobUrl: "https://blob.example.com/receipt.jpg",
+    blobKey: "company-1/payments/pay-1/0b5d1c1e-6f0a-4c33-9a57-3f2d8e9b7a10.jpg",
     mimeType: "image/jpeg",
   };
 
@@ -778,5 +780,20 @@ describe("analyzeReceiptAction — seguridad y degradación graceful", () => {
     }
     // NUNCA exponer detalles técnicos al cliente
     if (!result.success) expect(result.error).not.toContain("GEMINI_API_KEY");
+  });
+
+  it("lee el comprobante del Blob PRIVADO con get() por blobKey, sin hacer fetch a la URL (ADR-047)", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    vi.mocked(getPrivateBlob).mockResolvedValue(null as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
+
+    expect(getPrivateBlob).toHaveBeenCalledWith(MOCK_ATTACHMENT.blobKey, expect.any(AbortSignal));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("no está disponible ahora mismo");
+    fetchSpy.mockRestore();
+    delete process.env.GEMINI_API_KEY;
   });
 });

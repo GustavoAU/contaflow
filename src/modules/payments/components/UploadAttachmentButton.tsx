@@ -1,11 +1,10 @@
 "use client";
 
 // src/modules/payments/components/UploadAttachmentButton.tsx
-// ADR-029: Upload de comprobante de pago via Vercel Blob client-side.
-// El archivo nunca transita por Next.js — va directo al CDN de Vercel Blob.
+// ADR-029 / ADR-047: el comprobante se envía a una ruta autenticada del servidor, que lo guarda en el Blob PRIVADO.
+// Se abre por otra ruta autenticada (attachmentDownloadPath): la URL del blob no sirve al navegador.
 
 import { useRef, useState, useTransition } from "react";
-import { upload } from "@vercel/blob/client";
 import { Loader2Icon, PaperclipIcon, TrashIcon, FileIcon, ImageIcon, ExternalLinkIcon } from "lucide-react";
 import { deleteAttachmentAction } from "../actions/payment.actions";
 import type { AttachmentSummary } from "../services/PaymentAttachmentService";
@@ -13,21 +12,10 @@ import {
   ALLOWED_MIME_TYPES,
   MAX_SIZE_BYTES,
   MAX_SIZE_MB,
-  buildAttachmentPathname,
-  type AllowedMimeType,
+  attachmentDownloadPath,
 } from "../constants/payment-attachment.constants";
 
 const MIME_ACCEPT = ALLOWED_MIME_TYPES.join(",");
-
-// ─── SHA-256 client-side (R-2) ────────────────────────────────────────────────
-
-async function sha256Hex(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  const hashBuf = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hashBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 // ─── Sub-componente — adjunto existente ──────────────────────────────────────
 
@@ -45,6 +33,7 @@ function AttachmentRow({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isPdf = attachment.mimeType === "application/pdf";
+  const href = attachmentDownloadPath(companyId, attachment.id);
 
   function handleDelete() {
     setError(null);
@@ -66,7 +55,7 @@ function AttachmentRow({
         <ImageIcon className="size-4 shrink-0 text-blue-500" />
       )}
       <a
-        href={attachment.blobUrl}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="min-w-0 flex-1 truncate text-blue-700 hover:underline"
@@ -78,7 +67,7 @@ function AttachmentRow({
         {(attachment.sizeBytes / 1024).toFixed(0)} KB
       </span>
       <a
-        href={attachment.blobUrl}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="shrink-0 text-zinc-400 hover:text-zinc-700"
@@ -130,7 +119,7 @@ export function UploadAttachmentButton({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const blobEnabled = true; // el servidor reportará 503 si BLOB_READ_WRITE_TOKEN falta
+  const blobEnabled = true; // el servidor reportará 503 si el store Blob no está configurado
   const hasAttachment = existingAttachments.length > 0;
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -155,28 +144,20 @@ export function UploadAttachmentButton({
 
     setUploading(true);
     try {
-      // ── SHA-256 client-side antes del upload (R-2) ──────────────────────
-      const contentHash = await sha256Hex(file);
-
-      // ── upload() envía el archivo directo a Vercel Blob CDN ─────────────
-      const pathname = buildAttachmentPathname(
-        companyId,
-        paymentRecordId,
-        file.type as AllowedMimeType,
-        crypto.randomUUID(),
-      );
-      await upload(pathname, file, {
-        access: "public",
-        handleUploadUrl: "/api/payments/attachments/upload",
-        clientPayload: JSON.stringify({
-          companyId,
-          paymentRecordId,
-          contentType: file.type,
-          contentHash,
-          fileSize: file.size, // PutBlobResult no expone size — lo pasamos en payload
-          fileName: file.name,
-        }),
-      });
+      // El servidor valida el contenido real, calcula el SHA-256 (R-2) y decide la ruta del archivo.
+      const body = new FormData();
+      body.set("companyId", companyId);
+      body.set("paymentRecordId", paymentRecordId);
+      body.set("file", file);
+      const res = await fetch("/api/payments/attachments/upload", { method: "POST", body });
+      if (!res.ok) {
+        // Vercel corta con 413 (sin JSON) los cuerpos que superan su tope antes de llegar a la ruta.
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(
+          data?.error ??
+            (res.status === 413 ? `El archivo supera el límite de ${MAX_SIZE_MB} MB.` : "Error al subir el archivo"),
+        );
+      }
 
       onUploaded?.();
     } catch (err) {
