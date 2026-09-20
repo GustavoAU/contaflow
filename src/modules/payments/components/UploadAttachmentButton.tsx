@@ -13,6 +13,8 @@ import {
   ALLOWED_MIME_TYPES,
   MAX_SIZE_BYTES,
   MAX_SIZE_MB,
+  buildAttachmentPathname,
+  type AllowedMimeType,
 } from "../constants/payment-attachment.constants";
 
 const MIME_ACCEPT = ALLOWED_MIME_TYPES.join(",");
@@ -157,7 +159,13 @@ export function UploadAttachmentButton({
       const contentHash = await sha256Hex(file);
 
       // ── upload() envía el archivo directo a Vercel Blob CDN ─────────────
-      await upload(file.name, file, {
+      const pathname = buildAttachmentPathname(
+        companyId,
+        paymentRecordId,
+        file.type as AllowedMimeType,
+        crypto.randomUUID(),
+      );
+      await upload(pathname, file, {
         access: "public",
         handleUploadUrl: "/api/payments/attachments/upload",
         clientPayload: JSON.stringify({
@@ -166,6 +174,7 @@ export function UploadAttachmentButton({
           contentType: file.type,
           contentHash,
           fileSize: file.size, // PutBlobResult no expone size — lo pasamos en payload
+          fileName: file.name,
         }),
       });
 

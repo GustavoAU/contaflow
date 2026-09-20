@@ -171,7 +171,7 @@ const ALLOWED_MIME_TYPES = [
 ```
 {companyId}/payments/{paymentRecordId}/{uuidv4}.{ext}
 ```
-El prefijo `companyId` garantiza que cada empresa tiene un namespace aislado en Vercel Blob. No hay URL de adivinanza posible: el UUID es aleatorio por cada upload.
+El prefijo `companyId` garantiza que cada empresa tiene un namespace aislado en Vercel Blob. No hay URL de adivinanza posible: el UUID es aleatorio por cada upload. *(Corregido: ver Addendum 2026-09-19. Esto no era cierto: el SDK ignoraba el pathname del servidor.)*
 
 **Acceso a `blobUrl`:** La URL es pública en Vercel Blob (no hay auth nativa por URL). La seguridad se impone a nivel de la UI y la API: el componente que muestra el enlace solo se renderiza si el usuario pertenece a la empresa propietaria del `PaymentAttachment`. Nunca se expone `blobUrl` en una API pública sin verificar `companyId`.
 
@@ -359,7 +359,7 @@ async function softDeleteAttachment(
 //
 // handleUpload config:
 //   access: 'public'
-//   addRandomSuffix: false  (el pathname ya incluye UUID)
+//   addRandomSuffix: false  (el pathname ya incluye UUID)  <- Corregido: ver Addendum 2026-09-19. Ahora true.
 //   allowedContentTypes: ALLOWED_MIME_TYPES
 //   maximumSizeInBytes: 5_242_880
 //   pathname: `{companyId}/payments/{paymentRecordId}/{uuidv4()}.{ext}`
@@ -486,7 +486,7 @@ export const runtime = "nodejs";
 
 ### Negativas / Consideraciones
 
-- `blobUrl` es una URL pública sin autenticación nativa de Vercel Blob. La seguridad es por oscuridad (pathname con UUID) + control de acceso a nivel de UI. Post-lanzamiento, evaluar Vercel Blob `access: 'private'` con tokens de descarga firmados si se requiere mayor control (ej. datos sensibles).
+- `blobUrl` es una URL pública sin autenticación nativa de Vercel Blob. La seguridad es por oscuridad (pathname con UUID) + control de acceso a nivel de UI. *(Corregido: ver Addendum 2026-09-19.)* Post-lanzamiento, evaluar Vercel Blob `access: 'private'` con tokens de descarga firmados si se requiere mayor control (ej. datos sensibles).
 - El callback `onUploadCompleted` de Vercel Blob puede fallar si el servidor Next.js está caído justo en ese momento. En ese caso el blob existe en Vercel pero no hay `PaymentAttachment` en BD. Mitigación: el `@@unique([companyId, blobKey])` permite reintentar `onUploadCompleted` de forma idempotente si Vercel Blob reintenta el callback.
 - SHA-256 calculado client-side: el servidor no re-verifica el hash descargando el blob (implicaría un GET adicional). La integridad es declarativa. Si se requiere verificación server-side del hash, agregar un job de background post-upload (diferido a post-lanzamiento).
 - El free tier de Vercel Blob es 1 GB. Para una empresa con 500 pagos/mes y comprobantes de ~200 KB promedio, el consumo es ~100 MB/mes. El tier gratuito cubre ~10 meses. El tier Pro de Vercel Blob es $0.023/GB/mes — costo marginal en SaaS.
@@ -500,3 +500,17 @@ export const runtime = "nodejs";
 - ADR-003: onDelete Restrict en tablas contables — aplicado en FK a PaymentRecord y Company
 - ADR-004: companyId obligatorio en findMany/findFirst — aplicado en todos los métodos del servicio
 - ADR-006: Security controls — D-1 (role guard), D-4 (AuditLog append-only), D-5 (rate limiting)
+
+---
+
+## Addendum 2026-09-19 — el pathname del servidor NO se respetaba (corrección de la premisa de seguridad)
+
+**Qué estaba mal.** Este ADR asumía que `onBeforeGenerateToken` podía fijar el `pathname` (`{companyId}/payments/{paymentRecordId}/{uuid}.{ext}`) y que por eso "no hay URL de adivinanza posible". No era cierto: `handleUpload` de `@vercel/blob` (2.4.0, `client.js` ~274-277) firma el token con el `pathname` que envía el **navegador** y descarta el que devuelve el servidor (el tipo de retorno del callback ni siquiera lo admite). Como el cliente enviaba `file.name`, el comprobante quedaba en `/{nombre-original}`: URL predecible, sin prefijo de tenant y en un namespace global del store (dos comprobantes con el mismo nombre chocaban, incluso entre empresas, por `allowOverwrite=false`). Lo detectó la auditoría del `security-agent` y se reprodujo con el SDK instalado. Ningún comprobante se había subido aún en producción (`PaymentAttachment` vacía el 2026-09-19).
+
+**Decisión.**
+1. El cliente arma el `pathname` con `buildAttachmentPathname` y manda el nombre original en `clientPayload.fileName`.
+2. El servidor valida el `pathname` recibido con `isValidAttachmentPathname` (prefijo `{companyId}/payments/{paymentRecordId}/`, hoja `{uuid}.{pdf|jpg|png|webp}`) y devuelve `addRandomSuffix: true`, que el SDK sí respeta: la URL final no es deducible aunque el cliente eligiera un UUID predecible.
+3. El nombre original se sanea con `sanitizeAttachmentFileName` antes de guardarse como `fileName`.
+4. Regresión: `route.test.ts` usa el `handleUpload` real y decodifica el token firmado. Los mocks anteriores ocultaron el defecto.
+
+**Riesgo residual (sin cambios).** El blob sigue siendo `access: 'public'`: la URL es un bearer sin revocación, el soft-delete (D-6) deja el blob vivo y el CDN lo cachea ~1 mes. Solución de fondo pendiente: store Blob privado + ruta de descarga autenticada con `requireCompanyAction` que haga stream con `get()`; hay que migrar también `analyzeReceiptAction` (`payment.actions.ts`, hace `fetch(blobUrl)`). No bloquea un Alpha con un solo tenant; sí es requisito antes del segundo tenant o GA.

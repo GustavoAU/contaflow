@@ -19,6 +19,8 @@ import { PaymentAttachmentService } from "@/modules/payments/services/PaymentAtt
 import {
   ALLOWED_MIME_TYPES,
   MAX_SIZE_BYTES,
+  isValidAttachmentPathname,
+  sanitizeAttachmentFileName,
 } from "@/modules/payments/constants/payment-attachment.constants";
 import path from "path";
 
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         contentType?: string;
         contentHash?: string;
         fileSize?: number;
+        fileName?: string;
       } = {};
       try {
         parsed = JSON.parse(clientPayload ?? "{}") as typeof parsed;
@@ -128,14 +131,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       // ── Pathname aislado por tenant (ADR-004) ─────────────────────────────
-      const ext = path.extname(pathname).toLowerCase() || ".bin";
-      const safePath = `${companyId}/payments/${paymentRecordId}/${crypto.randomUUID()}${ext}`;
+      // handleUpload firma el token con el pathname del cliente e ignora el del servidor: se valida lo recibido.
+      if (!isValidAttachmentPathname(pathname, companyId, paymentRecordId)) {
+        throw new Error("Ruta de archivo inválida");
+      }
+      const originalFileName = sanitizeAttachmentFileName(parsed.fileName);
 
       return {
         allowedContentTypes: [...ALLOWED_MIME_TYPES],
         maximumSizeInBytes: MAX_SIZE_BYTES,
-        pathname: safePath,
-        addRandomSuffix: false,
+        addRandomSuffix: true,
         tokenPayload: JSON.stringify({
           companyId,
           paymentRecordId,
@@ -144,7 +149,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           uploadedBy: userId,
           ipAddress,
           userAgent,
-          originalFileName: pathname,
+          originalFileName,
         }),
       };
     },
