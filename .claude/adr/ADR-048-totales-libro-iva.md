@@ -32,17 +32,48 @@ Se calcula **una sola vez en `InvoiceService.getBook` con Decimal** y la pantall
 - Nuevos campos: `InvoiceBookRow.total` y `InvoiceBookSummary.totalBase|totalIva|totalAmount`. Se aplica a los dos
   caminos que arman filas (`getBook` y `getInvoiceBookPaginated`).
 
+### Consumidores del `summary` (revisión fiscal independiente, 2026-09-20)
+
+Como el `summary` pasó a ir firmado, se revisó cada lector; dos eran regresiones reales y se corrigieron:
+
+- **TXT SIVIT** (`buildInvoiceBookTXT`): las líneas imprimen las NC sin signo (tipo `03`) y el pie leía el `summary`
+  ya neteado, así que con cualquier NC el archivo no cuadraba consigo mismo. El pie ahora suma **las celdas
+  impresas** (Decimal), no el `summary`. Los importes por línea no se tocaron.
+- **Panel de resumen por alícuota**: ocultaba la fila cuando el neto era `<= 0`; un mes con más NC que facturas
+  de esa alícuota desaparecía. Ahora solo se oculta el cero exacto.
+- **PDF**: la fila TOTALES era una sola celda con un `flex` igual al nº de columnas; midiendo las coordenadas del
+  PDF real, las cifras quedaban **32 pt** a la izquierda de su columna (react-pdf no reparte ese peso como la suma
+  de las columnas que reemplaza). Ahora TOTALES se emite celda por celda con los mismos estilos que la cabecera y
+  las filas; medido después: 0 pt de desfase en Compras y en Ventas.
+- El ZIP SIVIT (`SivitExportService`) tiene su propia consulta y no lee el `summary`; ni Forma 30 ni el dashboard
+  llaman a `getBook`.
+
 ## A confirmar con el contador
 
 1. ¿Las notas de crédito deben mostrarse con **signo negativo en la propia fila** del libro? Hoy restan solo en TOTALES.
 2. ¿El Total del libro de ventas debe incluir el IGTF? (SIVIT lo excluye.)
-3. La base exenta va en la misma columna Base; ¿debe ir aparte?
+3. La base exenta va en la misma columna Base; ¿debe ir aparte? (Con base 700 e IVA 80 la fila no cuadra por
+   alícuota; la alternativa es "Base gravada" + columna "Exento", con el mismo Total.)
+4. Facturas anuladas: hoy el libro excluye `deletedAt` (y nada escribe `paymentStatus = VOIDED` en facturas). ¿Deben
+   figurar con montos en cero para no dejar huecos en el correlativo?
+
+Recomendación para 1: signo negativo en la propia fila, así Σ de la columna visible = TOTALES. No se hizo porque
+cambiaría también las líneas del TXT SIVIT (regulatorio) y el criterio es del contador.
 
 ## Fuera de alcance (pendiente)
 
+- **Prioridad alta — total inflado al CREAR facturas de lujo por el formulario.** `InvoiceForm` envía `taxLines`
+  sin `lines`, o sea la ruta legacy de `InvoiceService.create` (`totalAmountVes = Σ(base + monto)` de todas las
+  líneas, ~línea 254), y el par `IVA_GENERAL`/`IVA_ADICIONAL` lleva la misma base: base 1000 → `totalAmountVes` 2310
+  (correcto 1310), `pendingAmount` y el asiento (Ingresos 2000 / CxC 2310) heredan el error; el subtotal del
+  formulario (`InvoiceForm.tsx:461`) y `igtfBase` también suman la base dos veces. La ruta con `lines` sí da 1310.
+  El libro, tras este ADR, muestra el valor correcto, así que difiere de CxC. Va en su propia rama (toca creación,
+  GL y datos ya guardados: requiere data-fix).
+
 - Persistir `luxuryGroupId` (cambio de schema, arch-agent): permitiría el panel "31 % lujo" y la base única en la Forma 30.
-- **TXT SIVIT** (`export-helpers.ts`): suma la base adicional dentro de Base16 (duplica) y su pie omite la adicional, y
-  `SivitExportService` usa `.find()` y descarta líneas repetidas. Es un formato regulatorio: no se toca sin su especificación.
+- **TXT SIVIT** (`export-helpers.ts`): las líneas suman la base adicional dentro de Base16 (duplica la base de lujo)
+  y `SivitExportService` usa `.find()` y descarta líneas repetidas (una factura mixta da 730 en el ZIP contra 1890 en
+  el libro). Es un formato regulatorio: no se tocan las líneas sin su especificación. El pie ya es coherente con ellas.
 - Exclusión de facturas anuladas (`VOIDED`) en el libro: hoy solo filtra `deletedAt`.
 - La ruta legacy de creación y las NC/ND suman `base + monto` de todas las líneas; un `IVA_ADICIONAL` manual duplicaría
   `totalAmountVes` y el asiento (`total − iva`).

@@ -2,6 +2,7 @@
 // Extraído MECÁNICAMENTE desde InvoiceBook.tsx (sin cambios de lógica) — split por tamaño de archivo.
 // Exportación Excel + TXT (SIVIT/SENIAT Providencia 00071) del libro de compras/ventas.
 
+import { Decimal } from "decimal.js";
 import type { InvoiceBookResult, InvoiceBookRow } from "@/modules/invoices/services/InvoiceService";
 import { fmtDate } from "@/lib/format";
 
@@ -144,13 +145,13 @@ export async function exportInvoiceBookExcel(
 // ALERTA 5: Exportación TXT compatible con SIVIT/SENIAT (Providencia 00071)
 // Formato: pipe-delimited, una línea por factura, fecha DD/MM/YYYY, decimales con punto
 // Verificar campos exactos con versión vigente de SIVIT antes de carga al portal
-export function exportInvoiceBookTXT(
+export function buildInvoiceBookTXT(
   result: InvoiceBookResult,
   type: "SALE" | "PURCHASE",
   companyName: string,
   year: number,
   month: number
-) {
+): string {
   const DOC_TYPE: Record<string, string> = {
     FACTURA:      "01",
     NOTA_DEBITO:  "02",
@@ -177,7 +178,7 @@ export function exportInvoiceBookTXT(
     `# RIF|Nombre|Nro.Factura|Nro.Control|Fecha|TipoDoc|Base16%|IVA16%|Base8%|IVA8%|Exento|IVARetenido${type === "PURCHASE" ? "|ISLRRetenido" : "|BaseIGTF|IGTF"}`,
   ].join("\n");
 
-  const lines = result.rows.map((row) => {
+  const rowFields = result.rows.map((row) => {
     // Agregar bases e IVA por alícuota
     let base16 = 0, iva16 = 0, base8 = 0, iva8 = 0, exento = 0;
     for (const tl of row.taxLines) {
@@ -210,28 +211,39 @@ export function exportInvoiceBookTXT(
         : [fmtNum(row.igtfBase), fmtNum(row.igtfAmount)]),
     ];
 
-    return fields.join("|");
+    return fields;
   });
 
-  const s = result.summary;
+  // El pie suma las celdas ya impresas, no result.summary: el summary netea las NC y las líneas
+  // las imprimen sin signo (tipo 03), así que el archivo dejaría de cuadrar consigo mismo.
+  const sumColumn = (col: number) =>
+    rowFields.reduce((acc, f) => acc.plus(f[col]!), new Decimal(0)).toFixed(2);
   const footer = [
     "",
     `# TOTALES`,
     [
       "TOTAL", "", "", "", "", "",
-      fmtNum(s.totalBaseGeneral),
-      fmtNum(s.totalIvaGeneral),
-      fmtNum(s.totalBaseReduced),
-      fmtNum(s.totalIvaReduced),
-      fmtNum(s.totalExempt),
-      fmtNum(s.totalIvaRetention),
-      ...(type === "PURCHASE"
-        ? [fmtNum(s.totalIslrRetention)]
-        : ["", fmtNum(s.totalIgtf)]),
+      sumColumn(6),
+      sumColumn(7),
+      sumColumn(8),
+      sumColumn(9),
+      sumColumn(10),
+      sumColumn(11),
+      ...(type === "PURCHASE" ? [sumColumn(12)] : ["", sumColumn(13)]),
     ].join("|"),
   ].join("\n");
 
-  const content = [header, ...lines, footer].join("\n");
+  return [header, ...rowFields.map((f) => f.join("|")), footer].join("\n");
+}
+
+export function exportInvoiceBookTXT(
+  result: InvoiceBookResult,
+  type: "SALE" | "PURCHASE",
+  companyName: string,
+  year: number,
+  month: number
+) {
+  const content = buildInvoiceBookTXT(result, type, companyName, year, month);
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
