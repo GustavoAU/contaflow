@@ -16,6 +16,7 @@ import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService"
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { Prisma } from "@prisma/client";
 import { StockConfirmRequiredError } from "../services/InvoiceLineService";
+import { put } from "@vercel/blob";
 
 const TEST_IDEMPOTENCY_KEY = "550e8400-e29b-41d4-a716-446655440000";
 const TEST_IDEMPOTENCY_KEY_2 = "660e8400-e29b-41d4-a716-446655440001";
@@ -451,6 +452,26 @@ describe("exportInvoiceBookPDFAction", () => {
     }
     expect(generateInvoiceBookPDF).toHaveBeenCalledOnce();
     expect(vi.mocked(prisma.fiscalReport.create)).toHaveBeenCalledOnce();
+  });
+
+  it("sube con sufijo aleatorio: la URL pública no es deducible y re-exportar el mismo mes no choca", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
+    vi.mocked(InvoiceService.getBook).mockResolvedValue({
+      rows: [],
+      summary: EMPTY_SUMMARY,
+    } as never);
+    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({} as never);
+
+    await exportInvoiceBookPDFAction(validParams);
+
+    expect(vi.mocked(put)).toHaveBeenCalledWith(
+      "fiscal/company-1/libro-ventas-2026-01.pdf",
+      expect.anything(),
+      expect.objectContaining({ addRandomSuffix: true }),
+    );
   });
 });
 

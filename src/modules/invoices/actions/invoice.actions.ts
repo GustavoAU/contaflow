@@ -300,8 +300,10 @@ export async function exportInvoiceBookPDFAction(params: {
     const bookSlug = params.type === "SALE" ? "ventas" : "compras";
     const filename = `fiscal/${params.companyId}/libro-${bookSlug}-${params.year}-${mm}.pdf`;
 
+    // Sin sufijo la URL pública era deducible (un mes revelaba los demás) y re-exportar el mismo mes fallaba (allowOverwrite=false).
     const blob = await put(filename, pdfBuffer, {
       access: "public",
+      addRandomSuffix: true,
       contentType: "application/pdf",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
