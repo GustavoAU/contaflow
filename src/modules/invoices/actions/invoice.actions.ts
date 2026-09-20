@@ -250,7 +250,15 @@ export async function getInvoicesPaginatedAction(
 }
 
 // ─── Exportar libro de compras/ventas en PDF ───────────────────────────────────
-// M9: R-2 — PDF Libro de Ventas/Compras va a Vercel Blob; solo URL + contentHash viajan al cliente
+// M9: R-2 — PDF Libro de Ventas/Compras va a Vercel Blob PRIVADO; al cliente solo viajan la ruta de
+// descarga autenticada y el contentHash (ADR-047).
+const ExportBookParamsSchema = z.object({
+  companyId: z.string().min(1),
+  type: z.enum(["SALE", "PURCHASE"]),
+  year: z.number().int().min(2000).max(2100),
+  month: z.number().int().min(1).max(12),
+});
+
 export async function exportInvoiceBookPDFAction(params: {
   companyId: string
   type: "SALE" | "PURCHASE"
@@ -258,7 +266,13 @@ export async function exportInvoiceBookPDFAction(params: {
   month: number
 }): Promise<{ success: true; url: string; contentHash: string } | { success: false; error: string }> {
   try {
-    const ctx = await requireCompanyAction(params.companyId, {
+    // year y month entran en la ruta del blob y en el nombre del PDF: sin tipos estrictos, un valor como
+    // "2026/../x" o el mes 13 generaba una ruta y un libro incoherentes.
+    const parsed = ExportBookParamsSchema.safeParse(params);
+    if (!parsed.success) return { success: false, error: "Parámetros del libro inválidos" };
+    const { companyId, type, year, month } = parsed.data;
+
+    const ctx = await requireCompanyAction(companyId, {
       roles: ROLES.ACCOUNTING,
       limiter: limiters.export,
     });
@@ -266,62 +280,64 @@ export async function exportInvoiceBookPDFAction(params: {
     const { userId } = ctx;
 
     const company = await prisma.company.findUnique({
-      where: { id: params.companyId },
+      where: { id: companyId },
       select: { name: true, rif: true },
     });
     if (!company) return { success: false, error: "Empresa no encontrada o acceso denegado" };
 
-    const { rows, summary } = await InvoiceService.getBook({
-      companyId: params.companyId,
-      type: params.type,
-      year: params.year,
-      month: params.month,
-    });
+    const { rows, summary } = await InvoiceService.getBook({ companyId, type, year, month });
 
-    const mm = String(params.month).padStart(2, "0");
-    const monthLabel = new Date(params.year, params.month - 1, 1).toLocaleString("es-VE", {
+    const mm = String(month).padStart(2, "0");
+    const monthLabel = new Date(year, month - 1, 1).toLocaleString("es-VE", {
       month: "long",
       year: "numeric",
     });
 
     const pdfBuffer = await generateInvoiceBookPDF({
-      companyId: params.companyId,
+      companyId,
       companyName: company.name,
       companyRif: company.rif ?? "",
-      periodId: `${params.year}-${mm}`,
+      periodId: `${year}-${mm}`,
       periodLabel: monthLabel,
-      invoiceType: params.type,
+      invoiceType: type,
       invoices: rows,
       summary,
     });
 
     // R-2: contentHash SHA-256 + subida a Object Storage
     const contentHash = createHash("sha256").update(pdfBuffer).digest("hex");
-    const bookSlug = params.type === "SALE" ? "ventas" : "compras";
-    const filename = `fiscal/${params.companyId}/libro-${bookSlug}-${params.year}-${mm}.pdf`;
+    const bookSlug = type === "SALE" ? "ventas" : "compras";
+    const filename = `fiscal/${companyId}/libro-${bookSlug}-${year}-${mm}.pdf`;
 
-    // Sin sufijo la URL pública era deducible (un mes revelaba los demás) y re-exportar el mismo mes fallaba (allowOverwrite=false).
+    // Store PRIVADO: un store privado rechaza access "public" (ADR-047). El sufijo aleatorio evita el error
+    // por ruta repetida al re-exportar el mismo mes (allowOverwrite=false por defecto).
     const blob = await put(filename, pdfBuffer, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
       contentType: "application/pdf",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
     // R-2: metadata + contentHash en DB (no el PDF)
-    await prisma.fiscalReport.create({
+    const report = await prisma.fiscalReport.create({
       data: {
-        companyId: params.companyId,
-        reportType: params.type === "SALE" ? "LIBRO_VENTAS" : "LIBRO_COMPRAS",
-        year: params.year,
-        month: params.month,
+        companyId,
+        reportType: type === "SALE" ? "LIBRO_VENTAS" : "LIBRO_COMPRAS",
+        year,
+        month,
         blobUrl: blob.url,
         contentHash,
         generatedBy: userId,
       },
+      select: { id: true },
     });
 
-    return { success: true, url: blob.url, contentHash };
+    // blob.url no sirve desde el navegador (privado): la descarga pasa por una ruta que autentica.
+    return {
+      success: true,
+      url: `/api/company/${companyId}/fiscal-reports/${report.id}/download`,
+      contentHash,
+    };
   } catch (error) {
     return { success: false, error: mapPrismaError(error) };
   }

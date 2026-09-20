@@ -110,7 +110,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
         toast.error(result.error);
         return;
       }
-      // M9: PDF en Vercel Blob — abrimos la URL directamente (no buffer en memoria)
+      // M9: el PDF vive en un Blob PRIVADO; result.url es la ruta autenticada que lo entrega (ADR-047)
       const a = document.createElement("a");
       a.href = result.url;
       a.download = `libro-${type === "SALE" ? "ventas" : "compras"}-${year}-${String(month).padStart(2, "0")}.pdf`;
