@@ -26,6 +26,13 @@ describe("buildAttachmentPathname / isValidAttachmentPathname", () => {
     expect(isValidAttachmentPathname("comprobante.pdf", "co-1", "pay-1")).toBe(false);
     expect(isValidAttachmentPathname("co-1/payments/pay-1/comprobante.pdf", "co-1", "pay-1")).toBe(false);
   });
+
+  it("no acepta mayúsculas: el cliente siempre genera uuid y extensión en minúsculas", () => {
+    const upper = `co-1/payments/pay-1/${UUID.toUpperCase()}.pdf`;
+    const upperExt = `co-1/payments/pay-1/${UUID}.PDF`;
+    expect(isValidAttachmentPathname(upper, "co-1", "pay-1")).toBe(false);
+    expect(isValidAttachmentPathname(upperExt, "co-1", "pay-1")).toBe(false);
+  });
 });
 
 describe("sanitizeAttachmentFileName", () => {
@@ -46,5 +53,23 @@ describe("sanitizeAttachmentFileName", () => {
     expect(sanitizeAttachmentFileName(undefined)).toBe("comprobante");
     expect(sanitizeAttachmentFileName("   ")).toBe("comprobante");
     expect(sanitizeAttachmentFileName("///")).toBe("comprobante");
+  });
+
+  it("no acepta algo que no sea string (un array conservaría saltos de línea)", () => {
+    expect(sanitizeAttachmentFileName(["a/../b" + String.fromCharCode(10) + "X"])).toBe("comprobante");
+    expect(sanitizeAttachmentFileName({ toString: () => "x" })).toBe("comprobante");
+    expect(sanitizeAttachmentFileName(42)).toBe("comprobante");
+  });
+
+  it("quita caracteres bidi e invisibles (RLO, zero-width, BOM)", () => {
+    const sucio = "a" + String.fromCodePoint(0x202e) + "b" + String.fromCodePoint(0x200b) + "c" + String.fromCodePoint(0xfeff) + ".pdf";
+    expect(sanitizeAttachmentFileName(sucio)).toBe("abc.pdf");
+  });
+
+  it("al truncar no parte un carácter fuera del plano básico (emoji)", () => {
+    const largo = "x".repeat(199) + String.fromCodePoint(0x1f600) + "y";
+    const limpio = sanitizeAttachmentFileName(largo);
+    expect(Array.from(limpio)).toHaveLength(200);
+    expect(limpio.endsWith(String.fromCodePoint(0x1f600))).toBe(true);
   });
 });

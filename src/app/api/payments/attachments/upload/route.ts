@@ -23,8 +23,24 @@ import {
   sanitizeAttachmentFileName,
 } from "@/modules/payments/constants/payment-attachment.constants";
 import path from "path";
+import { z } from "zod";
 
 export const runtime = "nodejs"; // handleUpload incompatible con Edge Runtime
+
+// El clientPayload viene del navegador: sin tipos estrictos, un objeto como companyId se cuela en los
+// where de Prisma como filtro (ej. { not: "x" }) y evade la verificación de pertenencia.
+const ID_RE = /^[A-Za-z0-9_-]+$/;
+const ClientPayloadSchema = z.object({
+  companyId: z.string().min(1).max(64).regex(ID_RE),
+  paymentRecordId: z.string().min(1).max(64).regex(ID_RE),
+  contentType: z.string().min(1),
+  contentHash: z.string().regex(/^[0-9a-f]{64}$/i),
+  fileSize: z.number().int().min(0).max(MAX_SIZE_BYTES),
+  fileName: z.string().max(255).optional(),
+});
+
+// Ventana corta: con addRandomSuffix un token reutilizado crea un blob nuevo cada vez.
+const TOKEN_TTL_MS = 10 * 60_000;
 
 // ─── POST /api/payments/attachments/upload ────────────────────────────────────
 
@@ -65,37 +81,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       // ── Parsear clientPayload ─────────────────────────────────────────────
-      let parsed: {
-        companyId?: string;
-        paymentRecordId?: string;
-        contentType?: string;
-        contentHash?: string;
-        fileSize?: number;
-        fileName?: string;
-      } = {};
+      let rawPayload: unknown;
       try {
-        parsed = JSON.parse(clientPayload ?? "{}") as typeof parsed;
+        rawPayload = JSON.parse(clientPayload ?? "{}");
       } catch {
         throw new Error("Payload inválido");
       }
+      const validated = ClientPayloadSchema.safeParse(rawPayload);
+      if (!validated.success) throw new Error("Payload inválido");
+      const parsed = validated.data;
 
-      const companyId = parsed.companyId ?? "";
-      const paymentRecordId = parsed.paymentRecordId ?? "";
-      const contentHash = parsed.contentHash ?? "";
-      const fileSize = parsed.fileSize ?? 0;
-      const declaredContentType = parsed.contentType ?? "";
-
-      if (!companyId || !paymentRecordId) {
-        throw new Error("companyId y paymentRecordId son requeridos");
-      }
+      const { companyId, paymentRecordId, contentHash, fileSize } = parsed;
 
       // ── MIME type (ADR-029 D-4) ───────────────────────────────────────────
-      if (
-        declaredContentType &&
-        !ALLOWED_MIME_TYPES.includes(
-          declaredContentType as (typeof ALLOWED_MIME_TYPES)[number],
-        )
-      ) {
+      if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(parsed.contentType)) {
         throw new Error("Tipo de archivo no permitido. Use PDF, JPEG, PNG o WebP.");
       }
 
@@ -141,6 +140,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         allowedContentTypes: [...ALLOWED_MIME_TYPES],
         maximumSizeInBytes: MAX_SIZE_BYTES,
         addRandomSuffix: true,
+        validUntil: Date.now() + TOKEN_TTL_MS,
         tokenPayload: JSON.stringify({
           companyId,
           paymentRecordId,
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     },
 
     // ── Fase 2: upload completado ─────────────────────────────────────────────
-    // Llamado por Vercel Blob CDN (producción) o por el browser SDK (desarrollo).
+    // Llamado por Vercel Blob CDN. En desarrollo el SDK no registra callback salvo con VERCEL_BLOB_CALLBACK_URL (túnel).
     // NO aplica Clerk auth — la autenticación es la firma de Vercel Blob.
     onUploadCompleted: async ({ blob, tokenPayload }) => {
       try {
