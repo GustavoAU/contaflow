@@ -242,18 +242,28 @@ function TotalsRow({
   summary: InvoiceBookSummary
   invoiceType: "SALE" | "PURCHASE"
 }) {
-  // Número de columnas vacías antes de Base Imponible:
+  // Columnas antes de Base Imponible:
   // Fecha, Proveedor/Cliente, RIF, N° Factura, N° Control, Tipo Doc, Categoría, N° Doc Rel.
-  // + N° Planilla Imp. (solo PURCHASE), Impuesto
+  // + N° Planilla Imp. (solo PURCHASE), Impuesto.
+  // Se emiten celda por celda con los mismos estilos que TableHeader/InvoiceRow (TOTALES en la primera,
+  // Proveedor/Cliente es la ancha): una sola celda con `flex` sumado desalineaba las cifras hasta 30 pt,
+  // porque react-pdf no reparte ese peso como la suma de las columnas que reemplaza.
   const leadingCols = invoiceType === "PURCHASE" ? 10 : 9
+  const leading = [
+    React.createElement(Text, { style: styles.totalsLabel }, "TOTALES"),
+    React.createElement(Text, { style: styles.cellWide }, ""),
+    ...Array.from({ length: leadingCols - 2 }, () =>
+      React.createElement(Text, { style: styles.cell }, ""),
+    ),
+  ]
 
   return React.createElement(
     View,
     { style: styles.totalsRow },
-    React.createElement(Text, { style: { ...styles.totalsLabel, flex: leadingCols } }, "TOTALES"),
-    React.createElement(Text, { style: styles.totalsCell }, summary.totalBaseGeneral),
+    ...leading,
+    React.createElement(Text, { style: styles.totalsCell }, summary.totalBase),
     React.createElement(Text, { style: styles.cellNarrowRight }, ""),
-    React.createElement(Text, { style: styles.totalsCell }, summary.totalIvaGeneral),
+    React.createElement(Text, { style: styles.totalsCell }, summary.totalIva),
     React.createElement(Text, { style: styles.totalsCell }, summary.totalIvaRetention),
     React.createElement(Text, { style: styles.cell }, ""),
     ...(invoiceType === "PURCHASE"

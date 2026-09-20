@@ -32,11 +32,13 @@ function Row({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
 
 export function InvoiceBookSummaryPanel({ result, type }: Props) {
   const s = result.summary;
-  const hasReduced    = parseFloat(s.totalBaseReduced) > 0;
-  const hasAdditional = parseFloat(s.totalBaseAdditional) > 0;
-  const hasExempt     = parseFloat(s.totalExempt) > 0;
-  const hasIslr       = type === "PURCHASE" && parseFloat(s.totalIslrRetention) > 0;
-  const hasIgtf       = type === "SALE"     && parseFloat(s.totalIgtf) > 0;
+  // Los subtotales son netos (las NC restan): un neto negativo también debe mostrarse, solo el cero se oculta.
+  const nonZero = (v: string) => parseFloat(v) !== 0;
+  const hasReduced    = nonZero(s.totalBaseReduced);
+  const hasAdditional = nonZero(s.totalBaseAdditional);
+  const hasExempt     = nonZero(s.totalExempt);
+  const hasIslr       = type === "PURCHASE" && nonZero(s.totalIslrRetention);
+  const hasIgtf       = type === "SALE"     && nonZero(s.totalIgtf);
 
   return (
     <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -53,7 +55,7 @@ export function InvoiceBookSummaryPanel({ result, type }: Props) {
             <MoneyBadge amount={s.totalExempt} currency="VES" />
           </div>
         )}
-        {parseFloat(s.totalIvaRetention) > 0 && (
+        {nonZero(s.totalIvaRetention) && (
           <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
             <span>IVA Retenido (comprobantes)</span>
             <MoneyBadge amount={s.totalIvaRetention} currency="VES" />

@@ -88,11 +88,8 @@ export function InvoiceBookTable({
           {result.rows.map((row) => {
             const isFactura = row.docType === "FACTURA";
             const ncNdOpen = expandedNcNdId === row.id;
-            const totalBase = row.taxLines.reduce((acc, l) => acc + parseFloat(l.base), 0);
-            const totalIva  = row.taxLines.reduce((acc, l) => acc + parseFloat(l.amount), 0);
-            const igtf = parseFloat(row.igtfAmount);
-            const rowTotal = totalBase + totalIva + igtf;
-
+            // Base + IVA con la base una sola vez y sin IGTF, calculado en el servidor con Decimal (getBook)
+            const rowTotal = row.total;
 
             // Botón NC/ND solo para FACTURAs
             const ncNdButton = isFactura ? (
@@ -185,7 +182,7 @@ export function InvoiceBookTable({
                       </td>
                     )}
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
-                      {rowTotal > 0
+                      {rowTotal !== "0.00"
                         ? <MoneyBadge amount={rowTotal} currency="VES" exchangeRate={row.exchangeRate ?? undefined} />
                         : "—"}
                     </td>
@@ -297,11 +294,11 @@ export function InvoiceBookTable({
             <td colSpan={4} className="px-4 py-3" />
             <td className="px-4 py-3" />{/* Impuesto col */}
             <td className="px-4 py-3 text-right whitespace-nowrap">
-              <MoneyBadge amount={result.summary.totalBaseGeneral} currency="VES" />
+              <MoneyBadge amount={result.summary.totalBase} currency="VES" />
             </td>
             <td className="px-4 py-3" />{/* Tasa% col */}
             <td className="px-4 py-3 text-right whitespace-nowrap">
-              <MoneyBadge amount={result.summary.totalIvaGeneral} currency="VES" />
+              <MoneyBadge amount={result.summary.totalIva} currency="VES" />
             </td>
             <td className="px-4 py-3 text-right text-orange-700 whitespace-nowrap">
               <MoneyBadge amount={result.summary.totalIvaRetention} currency="VES" align="right" />
@@ -317,16 +314,7 @@ export function InvoiceBookTable({
               </td>
             )}
             <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
-              <MoneyBadge
-                amount={result.rows.reduce((acc, row) => {
-                  const rt = row.taxLines.reduce(
-                    (a, l) => a + parseFloat(l.base) + parseFloat(l.amount),
-                    0
-                  ) + parseFloat(row.igtfAmount);
-                  return acc + rt;
-                }, 0)}
-                currency="VES"
-              />
+              <MoneyBadge amount={result.summary.totalAmount} currency="VES" />
             </td>
           </tr>
         </tfoot>

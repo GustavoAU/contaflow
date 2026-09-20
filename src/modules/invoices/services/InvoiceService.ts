@@ -64,6 +64,11 @@ export type InvoiceBookRow = {
   exchangeRateId: string | null;
   exchangeRate: InvoiceBookExchangeRate | null;
   taxLines: InvoiceTaxLineSerialized[];
+  /**
+   * Base + IVA de la factura contando la base UNA sola vez (la base de IVA_ADICIONAL duplica la de IVA_GENERAL)
+   * y sin IGTF. Siempre magnitud positiva, también en NOTA_CREDITO: el signo solo se aplica en los totales.
+   */
+  total: string;
   /** Estado de transmisión SENIAT (PA-121) — solo para facturas SALE; null si no aplica */
   seniatStatus: "PENDING" | "SENT" | "FAILED" | null;
 };
@@ -79,12 +84,41 @@ export type InvoiceBookSummary = {
   totalIvaRetention: string;
   totalIslrRetention: string;
   totalIgtf: string;
+  /**
+   * Totales de columna del libro: base UNA sola vez (general + reducida + exenta), IVA de todas las alícuotas y
+   * su suma. Firmados: NOTA_CREDITO resta. Base + IVA = Total (el IGTF va aparte). Los `total*` por alícuota
+   * de arriba también van firmados.
+   */
+  totalBase: string;
+  totalIva: string;
+  totalAmount: string;
 };
 
 export type InvoiceBookResult = {
   rows: InvoiceBookRow[];
   summary: InvoiceBookSummary;
 };
+
+type BookTaxLine = { taxType: string; base: { toString(): string }; amount: { toString(): string } };
+
+// Base e IVA de UNA factura para el libro. ADICIONAL_31 (lujo) se guarda como dos líneas con la MISMA base
+// (IVA_GENERAL + IVA_ADICIONAL) y la BD no distingue el grupo (InvoiceTaxLine no tiene luxuryGroupId): la base
+// adicional se cuenta solo en lo que excede a la general (una factura con solo IVA_ADICIONAL conserva su base).
+function bookAmounts(lines: BookTaxLine[]): { base: Decimal; iva: Decimal } {
+  let general = new Decimal(0);
+  let additional = new Decimal(0);
+  let otherBase = new Decimal(0); // reducida + exenta
+  let iva = new Decimal(0);
+  for (const line of lines) {
+    const base = new Decimal(line.base.toString());
+    iva = iva.plus(line.amount.toString());
+    if (line.taxType === "IVA_GENERAL") general = general.plus(base);
+    else if (line.taxType === "IVA_ADICIONAL") additional = additional.plus(base);
+    else otherBase = otherBase.plus(base);
+  }
+  const uncoveredAdditional = Decimal.max(additional.minus(general), 0);
+  return { base: general.plus(otherBase).plus(uncoveredAdditional), iva };
+}
 
 // ─── Paginación cursor-based ──────────────────────────────────────────────────
 
@@ -609,6 +643,10 @@ export class InvoiceService {
       exchangeRateId: inv.exchangeRateId,
       exchangeRate: null, // paginated book view doesn't include rate details
       seniatStatus: null, // paginated view omits SENIAT status
+      total: (() => {
+        const { base, iva } = bookAmounts(inv.taxLines);
+        return base.plus(iva).toFixed(2);
+      })(),
       taxLines: inv.taxLines.map((line) => ({
         id: line.id,
         taxType: line.taxType,
@@ -730,24 +768,46 @@ export class InvoiceService {
           amount: line.amount.toFixed(2),
           description: line.description ?? null,
         })),
+        total: (() => {
+          const { base, iva } = bookAmounts(inv.taxLines);
+          return base.plus(iva).toFixed(2);
+        })(),
         seniatStatus: (inv.seniatSubmission?.status ?? null) as "PENDING" | "SENT" | "FAILED" | null,
       };
     });
 
-    // ─── Sumar taxLines por tipo ─────────────────────────────────────────────
+    // ─── Totales del libro ───────────────────────────────────────────────────
+    // Las NOTA_CREDITO se guardan con importes positivos (InvoiceCreditDebitNoteService): en los totales RESTAN.
+    const signOf = (docType: string) => (docType === "NOTA_CREDITO" ? -1 : 1);
+
     const sumTaxLines = (type: string) =>
       invoices
-        .flatMap((inv) => inv.taxLines)
-        .filter((line) => line.taxType === type)
-        .reduce((acc, line) => acc.plus(line.amount), new Decimal(0))
+        .reduce((acc, inv) => {
+          const sign = signOf(inv.docType);
+          return inv.taxLines
+            .filter((line) => line.taxType === type)
+            .reduce((a, line) => a.plus(new Decimal(line.amount.toString()).times(sign)), acc);
+        }, new Decimal(0))
         .toFixed(2);
 
     const sumTaxBases = (type: string) =>
       invoices
-        .flatMap((inv) => inv.taxLines)
-        .filter((line) => line.taxType === type)
-        .reduce((acc, line) => acc.plus(line.base), new Decimal(0))
+        .reduce((acc, inv) => {
+          const sign = signOf(inv.docType);
+          return inv.taxLines
+            .filter((line) => line.taxType === type)
+            .reduce((a, line) => a.plus(new Decimal(line.base.toString()).times(sign)), acc);
+        }, new Decimal(0))
         .toFixed(2);
+
+    let totalBase = new Decimal(0);
+    let totalIva = new Decimal(0);
+    for (const inv of invoices) {
+      const sign = signOf(inv.docType);
+      const { base, iva } = bookAmounts(inv.taxLines);
+      totalBase = totalBase.plus(base.times(sign));
+      totalIva = totalIva.plus(iva.times(sign));
+    }
 
     const summary: InvoiceBookSummary = {
       totalBaseGeneral: sumTaxBases("IVA_GENERAL"),
@@ -758,9 +818,18 @@ export class InvoiceService {
       totalIvaAdditional: sumTaxLines("IVA_ADICIONAL"),
       totalExempt: sumTaxBases("EXENTO"),
       // Sumar desde rows — ya incorporan montos derivados de Retenciones vinculadas
-      totalIvaRetention: rows.reduce((acc, r) => acc.plus(new Decimal(r.ivaRetentionAmount)), new Decimal(0)).toFixed(2),
-      totalIslrRetention: rows.reduce((acc, r) => acc.plus(new Decimal(r.islrRetentionAmount)), new Decimal(0)).toFixed(2),
-      totalIgtf: invoices.reduce((acc, inv) => acc.plus(inv.igtfAmount), new Decimal(0)).toFixed(2),
+      totalIvaRetention: rows
+        .reduce((acc, r) => acc.plus(new Decimal(r.ivaRetentionAmount).times(signOf(r.docType))), new Decimal(0))
+        .toFixed(2),
+      totalIslrRetention: rows
+        .reduce((acc, r) => acc.plus(new Decimal(r.islrRetentionAmount).times(signOf(r.docType))), new Decimal(0))
+        .toFixed(2),
+      totalIgtf: invoices
+        .reduce((acc, inv) => acc.plus(new Decimal(inv.igtfAmount.toString()).times(signOf(inv.docType))), new Decimal(0))
+        .toFixed(2),
+      totalBase: totalBase.toFixed(2),
+      totalIva: totalIva.toFixed(2),
+      totalAmount: totalBase.plus(totalIva).toFixed(2),
     };
 
     return { rows, summary };
