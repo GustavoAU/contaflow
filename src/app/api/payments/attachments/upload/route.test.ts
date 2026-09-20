@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   paymentFind: vi.fn(),
   attachmentFind: vi.fn(),
   captureException: vi.fn(),
+  rateLimit: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: h.auth }));
@@ -20,7 +21,7 @@ vi.mock("@/lib/prisma", () => ({
   default: { paymentRecord: { findFirst: h.paymentFind }, paymentAttachment: { findFirst: h.attachmentFind } },
 }));
 vi.mock("@/lib/action-guard", () => ({ requireCompanyAction: h.guard }));
-vi.mock("@/lib/ratelimit", () => ({ limiters: { fiscal: {}, read: {} }, checkRateLimit: vi.fn() }));
+vi.mock("@/lib/ratelimit", () => ({ limiters: { fiscal: {}, read: {} }, checkRateLimit: h.rateLimit }));
 vi.mock("@/lib/private-blob", () => ({
   isPrivateBlobConfigured: h.configured,
   putPrivateBlob: h.put,
@@ -36,14 +37,25 @@ import { MAX_SIZE_BYTES } from "@/modules/payments/constants/payment-attachment.
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a]);
 const HTML = new TextEncoder().encode("<html><script>alert(1)</script></html>");
 
-function request(opts: { file?: Uint8Array | null; fields?: Record<string, string>; contentLength?: string } = {}) {
+function request(
+  opts: {
+    file?: Uint8Array | null;
+    fields?: Record<string, string>;
+    contentLength?: string;
+    fileName?: string;
+    headers?: Record<string, string>;
+  } = {},
+) {
   const form = new FormData();
   const fields = opts.fields ?? { companyId: "co-1", paymentRecordId: "pay-1" };
   for (const [k, v] of Object.entries(fields)) form.set(k, v);
   if (opts.file !== null) {
-    form.set("file", new File([(opts.file ?? PDF) as BlobPart], "comprobante.pdf", { type: "application/pdf" }));
+    form.set(
+      "file",
+      new File([(opts.file ?? PDF) as BlobPart], opts.fileName ?? "comprobante.pdf", { type: "application/pdf" }),
+    );
   }
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (opts.contentLength) headers["content-length"] = opts.contentLength;
   return new Request("https://contaflow.test/api/payments/attachments/upload", {
     method: "POST",
@@ -56,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.configured.mockReturnValue(true);
   h.auth.mockResolvedValue({ userId: "user-1" });
+  h.rateLimit.mockResolvedValue({ allowed: true });
   h.guard.mockResolvedValue({ ok: true, userId: "user-1", role: "ACCOUNTANT", ipAddress: "1.2.3.4", userAgent: "UA" });
   h.paymentFind.mockResolvedValue({ deletedAt: null });
   h.attachmentFind.mockResolvedValue(null);
@@ -79,6 +92,35 @@ describe("POST /api/payments/attachments/upload — subida por el servidor al Bl
     expect(res.status).toBe(401);
     expect(h.guard).not.toHaveBeenCalled();
     expect(h.put).not.toHaveBeenCalled();
+  });
+
+  it("429 por USUARIO antes de leer el cuerpo: rotar companyId no da un cubo nuevo (auditoría de seguridad)", async () => {
+    h.rateLimit.mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes" });
+    const req = request({ fields: { companyId: "empresa-inventada-1", paymentRecordId: "pay-1" } });
+    const formData = vi.spyOn(req, "formData");
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(429);
+    expect(h.rateLimit).toHaveBeenCalledWith("user:user-1", expect.anything());
+    expect(formData).not.toHaveBeenCalled();
+    expect(h.guard).not.toHaveBeenCalled();
+  });
+
+  it("403 si el navegador declara la petición como cross-site (defensa en profundidad contra CSRF)", async () => {
+    const res = await POST(request({ headers: { "sec-fetch-site": "cross-site" } }));
+    expect(res.status).toBe(403);
+    expect(h.auth).not.toHaveBeenCalled();
+  });
+
+  it("400 si el Content-Length no es un número válido", async () => {
+    expect((await POST(request({ contentLength: "abc" }))).status).toBe(400);
+    expect(h.put).not.toHaveBeenCalled();
+  });
+
+  it("el nombre guardado lleva la extensión del tipo detectado, no la que puso el usuario (x.pdf.hta)", async () => {
+    await POST(request({ fileName: "recibo.hta" }));
+    expect(h.persist).toHaveBeenCalledWith(expect.objectContaining({ fileName: "recibo.pdf" }));
   });
 
   it("413 si el Content-Length declarado supera el tope, antes de leer el cuerpo", async () => {

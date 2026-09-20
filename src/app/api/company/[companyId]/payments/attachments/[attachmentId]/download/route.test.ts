@@ -90,9 +90,23 @@ describe("GET /api/company/[companyId]/payments/attachments/[attachmentId]/downl
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Content-SHA256")).toBe("a".repeat(64));
     const disposition = res.headers.get("Content-Disposition")!;
-    expect(disposition).toContain("inline");
+    expect(disposition.startsWith("attachment;")).toBe(true); // PDF: se descarga (CSP object-src 'none')
     expect(disposition).toContain(`filename*=UTF-8''${encodeURIComponent("Transferencia ñandú.pdf")}`);
     expect(disposition).toContain('filename="Transferencia_and_.pdf"'); // ASCII de respaldo sin caracteres raros
+  });
+
+  it("una imagen se sirve en línea", async () => {
+    h.find.mockResolvedValue({ ...ROW, mimeType: "image/png", fileName: "captura.png" });
+    const res = await call();
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Content-Disposition")!.startsWith("inline;")).toBe(true);
+  });
+
+  it("la extensión del nombre sigue al tipo aunque la fila diga otra (x.pdf.hta => .pdf)", async () => {
+    h.find.mockResolvedValue({ ...ROW, fileName: "recibo.hta" });
+    const disposition = (await call()).headers.get("Content-Disposition")!;
+    expect(disposition).toContain("filename*=UTF-8''recibo.pdf");
+    expect(disposition).not.toContain(".hta");
   });
 
   it("un mimeType guardado fuera de la lista se sirve como binario, no como HTML", async () => {

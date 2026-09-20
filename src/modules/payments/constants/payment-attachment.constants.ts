@@ -21,6 +21,10 @@ const EXT_BY_MIME: Record<AllowedMimeType, string> = {
   "image/webp": ".webp",
 };
 
+// Tope de comprobantes registrados por pago CONTANDO los eliminados: el soft-delete conserva el blob (ADR-029 D-6)
+// y sin techo un usuario con permiso de escritura podría ciclar subir/borrar y llenar el almacenamiento.
+export const MAX_ATTACHMENTS_PER_PAYMENT = 10;
+
 const LEAF_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$/;
 
 // La ruta la fija el servidor (nunca el cliente) con este builder; isValidAttachmentPathname la verifica al leer.
@@ -56,6 +60,13 @@ export function sanitizeAttachmentFileName(name: unknown): string {
   if (typeof name !== "string") return "comprobante";
   const kept = Array.from(name).filter((ch) => !isUnsafeFileNameChar(ch.codePointAt(0) ?? 0));
   return kept.slice(0, 200).join("").trim() || "comprobante";
+}
+
+// La extensión del nombre la dicta el tipo detectado por bytes: "x.pdf.hta" con cabecera %PDF no debe guardarse ni
+// servirse como .hta. Solo se reemplaza una extensión alfabética ("Pago 12.05.2026" conserva el año).
+export function attachmentFileNameFor(name: unknown, mimeType: AllowedMimeType): string {
+  const base = sanitizeAttachmentFileName(name).replace(/\.[A-Za-z]{1,8}$/, "").trim() || "comprobante";
+  return `${base}${EXT_BY_MIME[mimeType]}`;
 }
 
 // Con mimeType, la extensión de la ruta debe ser la de ese tipo: el mimeType que se guarda en BD sale de la extensión.

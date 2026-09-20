@@ -2,8 +2,10 @@
 import { describe, it, expect } from "vitest";
 import {
   ALLOWED_MIME_TYPES,
+  MAX_ATTACHMENTS_PER_PAYMENT,
   MAX_SIZE_BYTES,
   attachmentDownloadPath,
+  attachmentFileNameFor,
   buildAttachmentPathname,
   detectAttachmentMime,
   isValidAttachmentPathname,
@@ -111,7 +113,29 @@ describe("detectAttachmentMime — el tipo sale de los bytes, no del navegador",
   });
 });
 
+describe("attachmentFileNameFor — la extensión la dicta el tipo detectado", () => {
+  it("reemplaza una extensión ejecutable o engañosa por la del tipo real", () => {
+    expect(attachmentFileNameFor("recibo.hta", "application/pdf")).toBe("recibo.pdf");
+    expect(attachmentFileNameFor("x.pdf.bat", "application/pdf")).toBe("x.pdf.pdf");
+    expect(attachmentFileNameFor("captura.exe", "image/png")).toBe("captura.png");
+  });
+
+  it("añade la extensión si falta y conserva un nombre con fecha (la extensión numérica no se toca)", () => {
+    expect(attachmentFileNameFor("comprobante", "image/jpeg")).toBe("comprobante.jpg");
+    expect(attachmentFileNameFor("Pago 12.05.2026", "image/jpeg")).toBe("Pago 12.05.2026.jpg");
+  });
+
+  it("un nombre vacío, solo extensión o que no es texto queda como comprobante", () => {
+    expect(attachmentFileNameFor(".pdf", "application/pdf")).toBe("comprobante.pdf");
+    expect(attachmentFileNameFor(undefined, "image/webp")).toBe("comprobante.webp");
+  });
+});
+
 describe("límites y rutas de descarga", () => {
+  it("hay un tope de comprobantes por pago que cuenta también los eliminados", () => {
+    expect(MAX_ATTACHMENTS_PER_PAYMENT).toBe(10);
+  });
+
   it("el tope cabe en el cuerpo de una Vercel Function (4,5 MB) con margen para el multipart", () => {
     expect(MAX_SIZE_BYTES).toBe(4 * 1024 * 1024);
     expect(MAX_SIZE_BYTES).toBeLessThan(4.5 * 1024 * 1024);

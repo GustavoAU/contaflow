@@ -12,7 +12,9 @@ import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { getPrivateBlob } from "@/lib/private-blob";
 import {
   ALLOWED_MIME_TYPES,
+  attachmentFileNameFor,
   isValidAttachmentPathname,
+  type AllowedMimeType,
 } from "@/modules/payments/constants/payment-attachment.constants";
 
 export const runtime = "nodejs";
@@ -20,9 +22,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 // Nombre ASCII de respaldo + el real codificado (RFC 5987): nunca se inserta texto libre en la cabecera.
-function contentDisposition(fileName: string): string {
+function contentDisposition(kind: "inline" | "attachment", fileName: string): string {
   const ascii = fileName.replace(/[^A-Za-z0-9._-]+/g, "_") || "comprobante";
-  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 export async function GET(
@@ -67,14 +69,17 @@ export async function GET(
     return NextResponse.json({ error: "El comprobante no está disponible" }, { status: 404 });
   }
 
-  const contentType = (ALLOWED_MIME_TYPES as readonly string[]).includes(attachment.mimeType)
-    ? attachment.mimeType
-    : "application/octet-stream";
+  const known = (ALLOWED_MIME_TYPES as readonly string[]).includes(attachment.mimeType);
+  const contentType = known ? attachment.mimeType : "application/octet-stream";
+  // La extensión del nombre sigue al tipo (filas antiguas incluidas). Los PDF se descargan: la CSP obligatoria del
+  // middleware trae object-src 'none' y el visor de PDF del navegador puede quedar bloqueado; las imágenes van en línea.
+  const fileName = known ? attachmentFileNameFor(attachment.fileName, attachment.mimeType as AllowedMimeType) : "comprobante";
+  const kind = known && contentType !== "application/pdf" ? "inline" : "attachment";
 
   return new NextResponse(result.stream, {
     headers: {
       "Content-Type": contentType,
-      "Content-Disposition": contentDisposition(attachment.fileName),
+      "Content-Disposition": contentDisposition(kind, fileName),
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
       "X-Content-SHA256": attachment.contentHash,

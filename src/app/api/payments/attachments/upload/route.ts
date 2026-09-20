@@ -11,7 +11,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { limiters } from "@/lib/ratelimit";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 import { toActionError } from "@/lib/action-errors";
 import { deletePrivateBlob, isPrivateBlobConfigured, putPrivateBlob } from "@/lib/private-blob";
 import { PaymentAttachmentService } from "@/modules/payments/services/PaymentAttachmentService";
@@ -19,8 +19,8 @@ import {
   MAX_SIZE_BYTES,
   MAX_SIZE_MB,
   buildAttachmentPathname,
+  attachmentFileNameFor,
   detectAttachmentMime,
-  sanitizeAttachmentFileName,
 } from "@/modules/payments/constants/payment-attachment.constants";
 
 export const runtime = "nodejs";
@@ -44,13 +44,25 @@ const reject = (error: string, status: number) =>
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isPrivateBlobConfigured()) return reject("Adjuntos no disponibles en esta configuración", 503);
 
+  // Defensa en profundidad además de SameSite: el navegador marca las peticiones que vienen de otro sitio.
+  if (request.headers.get("sec-fetch-site") === "cross-site") return reject("Solicitud no permitida", 403);
+
   // Sin sesión no se lee el cuerpo.
   const { userId } = await auth();
   if (!userId) return reject("No autorizado", 401);
 
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (declaredLength > MAX_SIZE_BYTES + MULTIPART_OVERHEAD_BYTES) {
-    return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
+  // Límite por USUARIO y ANTES de leer el cuerpo: companyId sale del formulario y aún no está autorizado, así que un
+  // límite por (empresa x usuario) se elude rotando ids, y cada intento parsearía hasta 4,5 MB.
+  const rl = await checkRateLimit(`user:${userId}`, limiters.fiscal);
+  if (!rl.allowed) return reject(rl.error ?? "Demasiadas solicitudes. Intenta de nuevo más tarde.", 429);
+
+  const rawLength = request.headers.get("content-length");
+  if (rawLength !== null) {
+    const declaredLength = Number(rawLength);
+    if (!Number.isFinite(declaredLength) || declaredLength < 0) return reject("Solicitud inválida", 400);
+    if (declaredLength > MAX_SIZE_BYTES + MULTIPART_OVERHEAD_BYTES) {
+      return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
+    }
   }
 
   let form: FormData;
@@ -69,12 +81,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (file.size > MAX_SIZE_BYTES) return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
   const { companyId, paymentRecordId } = fields.data;
 
-  // Membresía + rol + límite + IP/UA (ADR-004, ADR-041, R-6). companyId sale de la URL/form: aquí se autoriza.
-  const ctx = await requireCompanyAction(companyId, {
-    roles: ROLES.WRITERS,
-    limiter: limiters.fiscal,
-    captureNet: true,
-  });
+  // Membresía + rol + IP/UA (ADR-004, ADR-041, R-6). companyId sale del formulario: aquí se autoriza.
+  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, captureNet: true });
   if (!ctx.ok) return reject(ctx.error.error, 403);
 
   // El pago pertenece a la empresa y no está anulado (ADR-004).
@@ -114,7 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const attachment = await PaymentAttachmentService.persistAttachmentMetadata({
       companyId,
       paymentRecordId,
-      fileName: sanitizeAttachmentFileName(file.name),
+      fileName: attachmentFileNameFor(file.name, mimeType),
       mimeType,
       sizeBytes: bytes.length,
       blobUrl: blob.url,
