@@ -251,6 +251,8 @@ describe("POST /api/payments/attachments/upload (handleUpload real)", () => {
 
       expect(res.status).toBe(400);
       expect(vi.mocked(PaymentAttachmentService.persistAttachmentMetadata)).not.toHaveBeenCalled();
+      // Un callback rechazado no debe ser mudo: es lo que pasaría con un token rotado sin redesplegar.
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("callback rechazado"), expect.any(String));
     });
   });
 

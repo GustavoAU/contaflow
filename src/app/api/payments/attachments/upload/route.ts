@@ -229,6 +229,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     // Con sesión un fallo inesperado es nuestro; sin sesión es un callback con firma inválida.
     if (sessionUserId) Sentry.captureException(error);
+    else console.warn("[PaymentAttachment] callback rechazado:", error instanceof Error ? error.message : "error desconocido");
     return NextResponse.json(
       { error: "No se pudo procesar la subida" },
       { status: sessionUserId ? 500 : 400 },
