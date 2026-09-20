@@ -33,17 +33,22 @@ export function buildAttachmentPathname(
   return `${companyId}/payments/${paymentRecordId}/${uuid}${EXT_BY_MIME[mimeType]}`;
 }
 
-// Fuera: controles, "/" y barra invertida (47, 92), y caracteres invisibles o bidi (zero-width, RLO, BOM...).
+// Fuera: controles, "/" y barra invertida (47, 92), invisibles o bidi (zero-width, RLO, BOM, soft hyphen,
+// etiquetas Unicode) y surrogates sueltos (un surrogate huérfano rompe la serialización JSON del AuditLog).
 function isUnsafeFileNameChar(code: number): boolean {
   return (
     code < 32 ||
     (code >= 127 && code <= 159) ||
     code === 47 ||
     code === 92 ||
+    code === 0x00ad ||
+    code === 0x061c ||
     (code >= 0x200b && code <= 0x200f) ||
     (code >= 0x2028 && code <= 0x202e) ||
     (code >= 0x2060 && code <= 0x206f) ||
-    code === 0xfeff
+    (code >= 0xd800 && code <= 0xdfff) ||
+    code === 0xfeff ||
+    (code >= 0xe0000 && code <= 0xe007f)
   );
 }
 
@@ -53,11 +58,16 @@ export function sanitizeAttachmentFileName(name: unknown): string {
   return kept.slice(0, 200).join("").trim() || "comprobante";
 }
 
+// Con mimeType, la extensión de la ruta debe ser la de ese tipo: el mimeType que se guarda en BD sale de la extensión.
 export function isValidAttachmentPathname(
   pathname: string,
   companyId: string,
   paymentRecordId: string,
+  mimeType?: AllowedMimeType,
 ): boolean {
   const prefix = `${companyId}/payments/${paymentRecordId}/`;
-  return pathname.startsWith(prefix) && LEAF_RE.test(pathname.slice(prefix.length));
+  if (!pathname.startsWith(prefix)) return false;
+  const leaf = pathname.slice(prefix.length);
+  if (!LEAF_RE.test(leaf)) return false;
+  return mimeType === undefined || leaf.endsWith(EXT_BY_MIME[mimeType]);
 }

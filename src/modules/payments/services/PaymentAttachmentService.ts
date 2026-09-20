@@ -71,6 +71,8 @@ export const PaymentAttachmentService = {
   ): Promise<AttachmentSummary> {
     return await prisma.$transaction(async (tx) => {
       // ADR-029 D-5 también aquí: un token reutilizado dentro de su vigencia sube otro blob y dispara otro callback.
+      // Bloqueo de fila del pago: bajo ReadCommitted dos callbacks simultáneos verían "ninguno activo" e insertarían ambos.
+      await tx.$executeRaw`SELECT id FROM "PaymentRecord" WHERE id = ${payload.paymentRecordId} AND "companyId" = ${payload.companyId} FOR UPDATE`;
       const active = await tx.paymentAttachment.findFirst({
         where: {
           paymentRecordId: payload.paymentRecordId,

@@ -6,6 +6,7 @@ import { PaymentAttachmentService } from "./PaymentAttachmentService";
 vi.mock("@/lib/prisma", () => ({
   default: {
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
     paymentAttachment: { findFirst: vi.fn(), create: vi.fn() },
     auditLog: { create: vi.fn() },
   },
@@ -37,7 +38,11 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ paymentAttachment: prisma.paymentAttachment, auditLog: prisma.auditLog })) as never);
+      fn({
+        $executeRaw: prisma.$executeRaw,
+        paymentAttachment: prisma.paymentAttachment,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("crea el adjunto y su AuditLog cuando el pago no tiene uno activo", async () => {
@@ -64,6 +69,20 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
       expect.objectContaining({
         where: { paymentRecordId: "pay-1", companyId: "company-1", deletedAt: null },
       }),
+    );
+  });
+
+  it("B1: bloquea la fila del pago (FOR UPDATE, con companyId) antes de comprobar D-5", async () => {
+    vi.mocked(prisma.paymentAttachment.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.paymentAttachment.create).mockResolvedValue(CREATED_ROW as never);
+
+    await PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD);
+
+    const lock = vi.mocked(prisma.$executeRaw);
+    expect(lock).toHaveBeenCalledOnce();
+    expect(lock.mock.calls[0].slice(1)).toEqual(["pay-1", "company-1"]);
+    expect(lock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(prisma.paymentAttachment.findFirst).mock.invocationCallOrder[0],
     );
   });
 });

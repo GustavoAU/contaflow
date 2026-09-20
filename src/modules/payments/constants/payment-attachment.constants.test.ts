@@ -33,6 +33,12 @@ describe("buildAttachmentPathname / isValidAttachmentPathname", () => {
     expect(isValidAttachmentPathname(upper, "co-1", "pay-1")).toBe(false);
     expect(isValidAttachmentPathname(upperExt, "co-1", "pay-1")).toBe(false);
   });
+
+  it("con el tipo declarado, la extensión de la ruta debe ser la de ese tipo", () => {
+    const png = buildAttachmentPathname("co-1", "pay-1", "image/png", UUID);
+    expect(isValidAttachmentPathname(png, "co-1", "pay-1", "image/png")).toBe(true);
+    expect(isValidAttachmentPathname(png, "co-1", "pay-1", "application/pdf")).toBe(false);
+  });
 });
 
 describe("sanitizeAttachmentFileName", () => {
@@ -71,5 +77,12 @@ describe("sanitizeAttachmentFileName", () => {
     const limpio = sanitizeAttachmentFileName(largo);
     expect(Array.from(limpio)).toHaveLength(200);
     expect(limpio.endsWith(String.fromCodePoint(0x1f600))).toBe(true);
+  });
+
+  it("quita soft hyphen, marca de dirección árabe, etiquetas Unicode y surrogates sueltos", () => {
+    const sucio =
+      "a" + String.fromCodePoint(0x00ad) + "b" + String.fromCodePoint(0x061c) + "c" +
+      String.fromCodePoint(0xe0041) + "d" + String.fromCharCode(0xd800) + "e.pdf";
+    expect(sanitizeAttachmentFileName(sucio)).toBe("abcde.pdf");
   });
 });
