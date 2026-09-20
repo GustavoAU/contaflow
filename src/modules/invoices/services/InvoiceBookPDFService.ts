@@ -251,9 +251,9 @@ function TotalsRow({
     View,
     { style: styles.totalsRow },
     React.createElement(Text, { style: { ...styles.totalsLabel, flex: leadingCols } }, "TOTALES"),
-    React.createElement(Text, { style: styles.totalsCell }, summary.totalBaseGeneral),
+    React.createElement(Text, { style: styles.totalsCell }, summary.totalBase),
     React.createElement(Text, { style: styles.cellNarrowRight }, ""),
-    React.createElement(Text, { style: styles.totalsCell }, summary.totalIvaGeneral),
+    React.createElement(Text, { style: styles.totalsCell }, summary.totalIva),
     React.createElement(Text, { style: styles.totalsCell }, summary.totalIvaRetention),
     React.createElement(Text, { style: styles.cell }, ""),
     ...(invoiceType === "PURCHASE"

@@ -68,7 +68,6 @@ export async function exportInvoiceBookExcel(
 
   result.rows.forEach((row: InvoiceBookRow) => {
     if (row.taxLines.length === 0) {
-      const rowTotalExcel = parseFloat(row.igtfAmount);
       ws.addRow([
         fmtDate(row.date),
         row.counterpartName,
@@ -84,13 +83,11 @@ export async function exportInvoiceBookExcel(
         row.ivaRetentionVoucher ?? "",
         ...(type === "PURCHASE" ? [row.islrRetentionAmount] : []),
         ...(type === "SALE" ? [row.igtfBase, row.igtfAmount] : []),
-        rowTotalExcel > 0 ? rowTotalExcel : "—",
+        row.total !== "0.00" ? Number(row.total) : "—",
       ]);
     } else {
-      const rowTotalExcel = row.taxLines.reduce(
-        (acc, l) => acc + parseFloat(l.base) + parseFloat(l.amount),
-        0
-      ) + parseFloat(row.igtfAmount);
+      // Total calculado en el servidor con Decimal (base una sola vez, sin IGTF); Number solo para la celda
+      const rowTotalExcel = Number(row.total);
       row.taxLines.forEach((line, idx) => {
         ws.addRow([
           idx === 0 ? fmtDate(row.date) : "",
@@ -124,14 +121,12 @@ export async function exportInvoiceBookExcel(
     "TOTALES", "", "", "", "", "", "", "",
     ...(type === "PURCHASE" ? [""] : []),
     "",
-    s.totalBaseGeneral, "",
-    s.totalIvaGeneral,
+    s.totalBase, "",
+    s.totalIva,
     s.totalIvaRetention, "",
     ...(type === "PURCHASE" ? [s.totalIslrRetention] : []),
     ...(type === "SALE" ? ["", s.totalIgtf] : []),
-    result.rows.reduce((acc, row) => {
-      return acc + row.taxLines.reduce((a, l) => a + parseFloat(l.base) + parseFloat(l.amount), 0) + parseFloat(row.igtfAmount);
-    }, 0),
+    Number(s.totalAmount),
   ]);
 
   const buffer = await wb.xlsx.writeBuffer();

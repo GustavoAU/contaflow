@@ -36,6 +36,9 @@ const baseParams: InvoiceBookPDFParams = {
     totalIvaRetention: "0.00",
     totalIslrRetention: "0.00",
     totalIgtf: "30.00",
+    totalBase: "1000.00",
+    totalIva: "160.00",
+    totalAmount: "1160.00",
   },
 }
 
@@ -63,6 +66,7 @@ const sampleInvoice = {
   exchangeRate: null,
   // seniatStatus: campo añadido en Sprint Cegid para badge SENIAT en Libro de Ventas
   seniatStatus: null as null,
+  total: "1160.00",
   taxLines: [
     {
       id: "line-1",
@@ -128,6 +132,9 @@ describe("generateInvoiceBookPDF", () => {
       summary: {
         ...baseParams.summary,
         totalIgtf: "0.00",
+        totalBase: "0.00",
+        totalIva: "0.00",
+        totalAmount: "0.00",
         totalIslrRetention: "50.00",
       },
     }
@@ -162,6 +169,9 @@ describe("generateInvoiceBookPDF", () => {
         totalIvaRetention: "0.00",
         totalIslrRetention: "0.00",
         totalIgtf: "0.00",
+        totalBase: "0.00",
+        totalIva: "0.00",
+        totalAmount: "0.00",
       },
     }
 

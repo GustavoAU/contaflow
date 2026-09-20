@@ -612,3 +612,160 @@ describe("InvoiceService.getInvoiceBookPaginated", () => {
     expect(result.items[0].ivaRetentionAmount).toBe("0.00");
   });
 });
+
+// ─── Totales de columna del libro (fila TOTALES) ──────────────────────────────
+// Casos fijados con el fiscal-agent (2026-09-20). Criterio a confirmar con el contador: base una sola vez,
+// NOTA_CREDITO resta, IGTF fuera del Total. Bug original: TOTALES solo sumaba IVA_GENERAL.
+describe("InvoiceService.getBook — totales de columna (Base / IVA / Total)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const FILTER = { companyId: "company-1", type: "PURCHASE" as const, year: 2026, month: 5 };
+  const book = async (invoices: unknown[]) => {
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue(invoices as never);
+    return InvoiceService.getBook(FILTER);
+  };
+  const inv = (id: string, taxLines: ReturnType<typeof makeTaxLine>[], overrides = {}) =>
+    makeInvoiceRow({ id, invoiceNumber: id, taxLines, ...overrides });
+
+  it("caso del dueño (Libro de Compras, mayo 2026): general + reducido suman en TOTALES", async () => {
+    const { rows, summary } = await book([
+      inv("a", [makeTaxLine("IVA_GENERAL", "120.00", "16", "19.20")]),
+      inv("b", [makeTaxLine("IVA_GENERAL", "100.00", "16", "16.00")]),
+      inv("c", [makeTaxLine("IVA_REDUCIDO", "787430.00", "8", "62994.40")]),
+      inv("d", [makeTaxLine("IVA_GENERAL", "50.00", "16", "8.00")]),
+    ]);
+
+    expect(rows.map((r) => r.total)).toEqual(["139.20", "116.00", "850424.40", "58.00"]);
+    expect(summary.totalBase).toBe("787700.00");
+    expect(summary.totalIva).toBe("63037.60");
+    expect(summary.totalAmount).toBe("850737.60");
+    // El resumen por alícuota (que ya estaba bien) no cambia
+    expect(summary.totalBaseGeneral).toBe("270.00");
+    expect(summary.totalIvaGeneral).toBe("43.20");
+    expect(summary.totalBaseReduced).toBe("787430.00");
+    expect(summary.totalIvaReduced).toBe("62994.40");
+  });
+
+  it("lujo (ADICIONAL_31): la base, que se guarda en dos líneas, se cuenta UNA vez", async () => {
+    const { rows, summary } = await book([
+      inv("lujo", [
+        makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00"),
+        makeTaxLine("IVA_ADICIONAL", "1000.00", "15", "150.00"),
+      ]),
+    ]);
+
+    expect(rows[0].total).toBe("1310.00"); // antes 2310: contaba la base dos veces
+    expect(summary.totalBase).toBe("1000.00");
+    expect(summary.totalIva).toBe("310.00");
+    expect(summary.totalAmount).toBe("1310.00");
+  });
+
+  it("lujo con centavos: 1333.33 → IVA 213.33 + 200.00", async () => {
+    const { summary } = await book([
+      inv("lujo", [
+        makeTaxLine("IVA_GENERAL", "1333.33", "16", "213.33"),
+        makeTaxLine("IVA_ADICIONAL", "1333.33", "15", "200.00"),
+      ]),
+    ]);
+
+    expect(summary.totalBase).toBe("1333.33");
+    expect(summary.totalIva).toBe("413.33");
+    expect(summary.totalAmount).toBe("1746.66");
+  });
+
+  it("factura mixta: general normal + lujo comparten alícuota general; la base adicional ya está cubierta", async () => {
+    const { rows, summary } = await book([
+      inv("mixta", [
+        makeTaxLine("IVA_GENERAL", "500.00", "16", "80.00"),
+        makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00"),
+        makeTaxLine("IVA_ADICIONAL", "1000.00", "15", "150.00"),
+      ]),
+    ]);
+
+    expect(rows[0].total).toBe("1890.00"); // base 1500 una vez + IVA 390
+    expect(summary.totalBase).toBe("1500.00");
+    expect(summary.totalIva).toBe("390.00");
+  });
+
+  it("factura con solo IVA_ADICIONAL (sin línea general): conserva su base", async () => {
+    const { summary } = await book([inv("solo-adicional", [makeTaxLine("IVA_ADICIONAL", "1000.00", "15", "150.00")])]);
+
+    expect(summary.totalBase).toBe("1000.00");
+    expect(summary.totalAmount).toBe("1150.00");
+  });
+
+  it("línea exenta: su base entra en Base y no genera IVA", async () => {
+    const { rows, summary } = await book([
+      inv("mixta-exenta", [
+        makeTaxLine("IVA_GENERAL", "500.00", "16", "80.00"),
+        makeTaxLine("EXENTO", "200.00", "0", "0.00"),
+      ]),
+    ]);
+
+    expect(rows[0].total).toBe("780.00");
+    expect(summary.totalBase).toBe("700.00");
+    expect(summary.totalIva).toBe("80.00");
+    expect(summary.totalAmount).toBe("780.00");
+  });
+
+  it("nota de crédito RESTA en los totales y la de débito SUMA; la fila conserva su magnitud", async () => {
+    const { rows, summary } = await book([
+      inv("factura", [makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00")]),
+      inv("nc", [makeTaxLine("IVA_GENERAL", "250.00", "16", "40.00")], { docType: "NOTA_CREDITO" }),
+      inv("nd", [makeTaxLine("IVA_GENERAL", "100.00", "16", "16.00")], { docType: "NOTA_DEBITO" }),
+    ]);
+
+    expect(rows.map((r) => r.total)).toEqual(["1160.00", "290.00", "116.00"]); // magnitudes, sin signo
+    expect(summary.totalBase).toBe("850.00");
+    expect(summary.totalIva).toBe("136.00");
+    expect(summary.totalAmount).toBe("986.00"); // antes 1566: las NC sumaban
+    // El resumen por alícuota también va firmado
+    expect(summary.totalBaseGeneral).toBe("850.00");
+    expect(summary.totalIvaGeneral).toBe("136.00");
+  });
+
+  it("las retenciones y el IGTF de una nota de crédito también restan", async () => {
+    const { summary } = await book([
+      inv("factura", [makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00")], {
+        ivaRetentionAmount: new Decimal("120.00"),
+        igtfAmount: new Decimal("30.00"),
+      }),
+      inv("nc", [makeTaxLine("IVA_GENERAL", "250.00", "16", "40.00")], {
+        docType: "NOTA_CREDITO",
+        ivaRetentionAmount: new Decimal("30.00"),
+        igtfAmount: new Decimal("7.50"),
+      }),
+    ]);
+
+    expect(summary.totalIvaRetention).toBe("90.00");
+    expect(summary.totalIgtf).toBe("22.50");
+  });
+
+  it("el IGTF queda fuera del Total (columna aparte): venta base 1000, IVA 160, IGTF 34.80", async () => {
+    const { rows, summary } = await book([
+      inv("usd", [makeTaxLine("IVA_GENERAL", "1000.00", "16", "160.00")], {
+        igtfBase: new Decimal("1160.00"),
+        igtfAmount: new Decimal("34.80"),
+      }),
+    ]);
+
+    expect(rows[0].total).toBe("1160.00");
+    expect(summary.totalAmount).toBe("1160.00");
+    expect(summary.totalIgtf).toBe("34.80");
+  });
+
+  it("libro vacío: los tres totales de columna son 0.00 (nunca -0.00)", async () => {
+    const { summary } = await book([]);
+
+    expect(summary.totalBase).toBe("0.00");
+    expect(summary.totalIva).toBe("0.00");
+    expect(summary.totalAmount).toBe("0.00");
+  });
+
+  it("factura sin líneas de impuesto: total 0.00 y no altera los totales", async () => {
+    const { rows, summary } = await book([inv("sin-lineas", [])]);
+
+    expect(rows[0].total).toBe("0.00");
+    expect(summary.totalAmount).toBe("0.00");
+  });
+});
