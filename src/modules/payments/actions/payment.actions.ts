@@ -10,6 +10,7 @@ import { requireCompanyAction } from "@/lib/action-guard";
 import { CreatePaymentSchema } from "../schemas/payment.schema";
 import { PaymentService, PaymentRecordSummary } from "../services/PaymentService";
 import { limiters } from "@/lib/ratelimit";
+import { getPrivateBlob } from "@/lib/private-blob";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PaymentAttachmentService, AttachmentSummary } from "../services/PaymentAttachmentService";
@@ -436,7 +437,7 @@ export async function analyzeReceiptAction(
     // Verificar que el adjunto pertenece a esta empresa (ADR-004)
     const attachment = await prisma.paymentAttachment.findFirst({
       where: { id: attachmentId, companyId, deletedAt: null },
-      select: { blobUrl: true, mimeType: true },
+      select: { blobKey: true, mimeType: true },
     });
     if (!attachment) return { success: false, error: "Comprobante no encontrado" };
 
@@ -451,9 +452,10 @@ export async function analyzeReceiptAction(
 
     let fileBase64: string;
     try {
-      const fileResponse = await fetch(attachment.blobUrl, { signal: abortController.signal });
-      if (!fileResponse.ok) throw new Error("Blob no accesible");
-      const buffer = await fileResponse.arrayBuffer();
+      // Blob privado (ADR-047): se lee con get() por pathname, no con fetch a la URL guardada.
+      const blob = await getPrivateBlob(attachment.blobKey, abortController.signal);
+      if (!blob || blob.statusCode !== 200) throw new Error("Blob no accesible");
+      const buffer = await new Response(blob.stream).arrayBuffer();
       fileBase64 = Buffer.from(buffer).toString("base64");
     } catch {
       return { success: false, error: "El análisis con IA no está disponible ahora mismo." };

@@ -2,7 +2,10 @@
 import { describe, it, expect } from "vitest";
 import {
   ALLOWED_MIME_TYPES,
+  MAX_SIZE_BYTES,
+  attachmentDownloadPath,
   buildAttachmentPathname,
+  detectAttachmentMime,
   isValidAttachmentPathname,
   sanitizeAttachmentFileName,
 } from "./payment-attachment.constants";
@@ -84,5 +87,37 @@ describe("sanitizeAttachmentFileName", () => {
       "a" + String.fromCodePoint(0x00ad) + "b" + String.fromCodePoint(0x061c) + "c" +
       String.fromCodePoint(0xe0041) + "d" + String.fromCharCode(0xd800) + "e.pdf";
     expect(sanitizeAttachmentFileName(sucio)).toBe("abcde.pdf");
+  });
+});
+
+describe("detectAttachmentMime — el tipo sale de los bytes, no del navegador", () => {
+  const bytes = (...b: number[]) => new Uint8Array(b);
+  const webp = bytes(0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50);
+
+  it("reconoce PDF, JPEG, PNG y WebP", () => {
+    expect(detectAttachmentMime(bytes(0x25, 0x50, 0x44, 0x46, 0x2d, 0x31))).toBe("application/pdf");
+    expect(detectAttachmentMime(bytes(0xff, 0xd8, 0xff, 0xe0))).toBe("image/jpeg");
+    expect(detectAttachmentMime(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))).toBe("image/png");
+    expect(detectAttachmentMime(webp)).toBe("image/webp");
+  });
+
+  it("rechaza lo que no es uno de los cuatro (HTML, exe, WAV que también es RIFF, texto corto, vacío)", () => {
+    const text = (s: string) => new TextEncoder().encode(s);
+    expect(detectAttachmentMime(text("<html><script>alert(1)</script>"))).toBeNull();
+    expect(detectAttachmentMime(text("%PDF"))).toBeNull(); // sin el guion no es la cabecera
+    expect(detectAttachmentMime(bytes(0x4d, 0x5a, 0x90, 0x00))).toBeNull(); // MZ (exe)
+    expect(detectAttachmentMime(bytes(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45))).toBeNull(); // WAV
+    expect(detectAttachmentMime(new Uint8Array())).toBeNull();
+  });
+});
+
+describe("límites y rutas de descarga", () => {
+  it("el tope cabe en el cuerpo de una Vercel Function (4,5 MB) con margen para el multipart", () => {
+    expect(MAX_SIZE_BYTES).toBe(4 * 1024 * 1024);
+    expect(MAX_SIZE_BYTES).toBeLessThan(4.5 * 1024 * 1024);
+  });
+
+  it("la ruta de descarga va bajo la empresa, con sesión (no es la URL del blob)", () => {
+    expect(attachmentDownloadPath("co-1", "att-9")).toBe("/api/company/co-1/payments/attachments/att-9/download");
   });
 });

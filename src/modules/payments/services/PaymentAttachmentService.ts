@@ -25,7 +25,6 @@ export type AttachmentSummary = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
-  blobUrl: string;
   contentHash: string;
   uploadedBy: string;
   uploadedAt: Date;
@@ -49,7 +48,6 @@ function serialize(
     fileName: row.fileName,
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
-    blobUrl: row.blobUrl,
     contentHash: row.contentHash,
     uploadedBy: row.uploadedBy,
     uploadedAt: row.uploadedAt,
@@ -61,8 +59,8 @@ function serialize(
 
 export const PaymentAttachmentService = {
   /**
-   * Persiste los metadatos del adjunto tras un upload exitoso a Vercel Blob.
-   * Llamado exclusivamente desde onUploadCompleted en la API route.
+   * Persiste los metadatos del adjunto tras guardar el archivo en el Blob privado.
+   * Llamado exclusivamente desde la ruta POST /api/payments/attachments/upload.
    *
    * Idempotente: P2002 en @@unique([companyId, blobKey]) → "ya registrado".
    */

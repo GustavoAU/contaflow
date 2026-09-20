@@ -8,9 +8,10 @@ const isPublic = createRouteMatcher(PUBLIC_ROUTE_PATTERNS);
 const at = (path: string) => new NextRequest(`https://contaflow.test${path}`, { method: "POST" });
 
 describe("PUBLIC_ROUTE_PATTERNS", () => {
-  it("deja pasar el callback de Vercel Blob (sin sesión) hasta la ruta de adjuntos", () => {
-    // Si falta, Clerk lo reescribe a "no encontrado" con 200 y onUploadCompleted nunca corre.
-    expect(isPublic(at("/api/payments/attachments/upload"))).toBe(true);
+  it("la subida y la descarga de comprobantes NO son públicas: van con sesión de Clerk (ADR-047)", () => {
+    // Ya no hay callback de Vercel Blob: el servidor recibe el archivo y lo guarda él mismo.
+    expect(isPublic(at("/api/payments/attachments/upload"))).toBe(false);
+    expect(isPublic(at("/api/company/c1/payments/attachments/a1/download"))).toBe(false);
   });
 
   it("mantiene públicas las rutas que ya se autentican por otro medio", () => {

@@ -49,10 +49,30 @@ las dos ya corregidas (el middleware bloqueaba el callback; `handleUpload` ignor
 - Cada exportación crea un blob y una fila `FiscalReport` nuevos (historial con su hash); no hay limpieza.
   Si `fiscalReport.create` falla tras el `put` queda un blob huérfano, privado (sin fuga).
 
+## Addendum 2026-09-20 — comprobantes de pago (ADR-029)
+
+Se descartó migrar al flujo *presigned* (subida directa navegador→CDN + callback público de Vercel): exigía una ruta
+pública en el middleware, verificar firmas de webhook y dependía de semánticas del SDK que ya nos habían fallado tres
+veces (ruta pública bloqueada por Clerk, pathname del servidor ignorado por `handleUpload`, store privado). En su lugar:
+
+- **Subida por el servidor**: `POST /api/payments/attachments/upload` (multipart, con sesión de Clerk; ya NO es ruta
+  pública). El servidor valida membresía/rol (`requireCompanyAction`, ADR-041), pago de la empresa y no anulado, **el tipo
+  por los bytes** (`detectAttachmentMime`; `file.type` no prueba nada), calcula el **SHA-256** (R-2, antes lo enviaba el
+  navegador), fija la ruta (`{companyId}/payments/{pagoId}/{uuid}.{ext}`) y registra en BD en la misma petición. Si el
+  registro falla, borra el blob (sin fila no queda huérfano). Un fallo del store no deja nada en la BD.
+- **Descarga**: `GET /api/company/[companyId]/payments/attachments/[attachmentId]/download` (mismo patrón que el libro:
+  Clerk + límite por usuario + membresía + `findFirst({id, companyId, deletedAt: null})` + `get()` por pathname con
+  verificación de prefijo; tipo servido desde la lista permitida, `nosniff`, `private, no-store`).
+  `AttachmentSummary` ya no expone `blobUrl` al navegador. `analyzeReceiptAction` lee con `get()` en vez de `fetch(blobUrl)`.
+- **Coste asumido: tope de 4 MB** (antes 5): una Vercel Function admite 4,5 MB de cuerpo. La alternativa que conserva
+  5 MB es la subida directa con callback público, descartada por robustez.
+- `src/lib/private-blob.ts` es el único sitio que elige credencial: el paso a OIDC se hace ahí.
+
 ## Pendiente
 
-- **Adjuntos de pago** (ADR-029): `upload()` con `access: "private"` usa el flujo *presigned*
-  (`blob.generate-presigned-url`, verificado con `BLOB_WEBHOOK_PUBLIC_KEY`, ya presente en el entorno).
-  Hay que cambiar la ruta de subida, añadir una ruta de descarga y pasar `analyzeReceiptAction` de
-  `fetch(blobUrl)` a `get()`. Requiere probar contra el store real.
+- **Probar en Preview** el flujo completo de comprobantes (subir PDF/JPG, abrirlo, eliminarlo, subir uno de 4-5 MB y
+  ver el mensaje de 413) y leer los logs de Vercel.
+- **OIDC**: en el store, pestaña Projects → menú del proyecto → *Upgrade to OIDC*; luego quitar `token:` de
+  `private-blob.ts`, de `exportInvoiceBookPDFAction` y de la ruta de descarga del libro, y borrar
+  `BLOB_READ_WRITE_TOKEN` de Vercel y de `.env.local`. `isPrivateBlobConfigured()` deberá comprobar `BLOB_STORE_ID`.
 - Verificar en producción tras el deploy: exportar el mismo libro dos veces (dos filas) y descargarlo.
