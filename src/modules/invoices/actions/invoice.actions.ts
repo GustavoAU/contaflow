@@ -253,7 +253,7 @@ export async function getInvoicesPaginatedAction(
 // M9: R-2 — PDF Libro de Ventas/Compras va a Vercel Blob PRIVADO; al cliente solo viajan la ruta de
 // descarga autenticada y el contentHash (ADR-047).
 const ExportBookParamsSchema = z.object({
-  companyId: z.string().min(1),
+  companyId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
   type: z.enum(["SALE", "PURCHASE"]),
   year: z.number().int().min(2000).max(2100),
   month: z.number().int().min(1).max(12),

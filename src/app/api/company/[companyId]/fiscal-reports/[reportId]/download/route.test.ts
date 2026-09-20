@@ -68,7 +68,43 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Content-SHA256")).toBe("a".repeat(64));
-    expect(vi.mocked(get)).toHaveBeenCalledWith(BLOB_URL, expect.objectContaining({ access: "private" }));
+    expect(vi.mocked(get)).toHaveBeenCalledWith(
+      "fiscal/company-1/libro-ventas-2026-09-abc.pdf",
+      expect.objectContaining({ access: "private", abortSignal: expect.anything() }),
+    );
+  });
+
+  it("pide el blob por pathname, no por la URL guardada: la petición queda anclada a nuestro store", async () => {
+    vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({
+      ...REPORT,
+      blobUrl: "https://otro-store.private.blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-09-abc.pdf",
+    } as never);
+
+    await call();
+
+    const [firstArg] = vi.mocked(get).mock.calls[0];
+    expect(firstArg).toBe("fiscal/company-1/libro-ventas-2026-09-abc.pdf");
+    expect(firstArg).not.toContain("otro-store");
+  });
+
+  it("un blobUrl fuera del prefijo de la empresa da 404, avisa a Sentry y no toca el store", async () => {
+    vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({
+      ...REPORT,
+      blobUrl: "https://store.private.blob.vercel-storage.com/fiscal/company-2/libro-ventas-2026-09-abc.pdf",
+    } as never);
+
+    const res = await call();
+
+    expect(res.status).toBe(404);
+    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledOnce();
+  });
+
+  it("un blobUrl que no es una URL da 404 sin tocar el store", async () => {
+    vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({ ...REPORT, blobUrl: "no-es-una-url" } as never);
+
+    expect((await call()).status).toBe(404);
+    expect(vi.mocked(get)).not.toHaveBeenCalled();
   });
 
   it("sin sesión responde 401 y no toca la base ni el blob", async () => {
@@ -87,6 +123,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     const res = await call();
 
     expect(res.status).toBe(429);
+    expect(vi.mocked(checkRateLimit)).toHaveBeenCalledWith("user:user-1", expect.anything());
     expect(vi.mocked(get)).not.toHaveBeenCalled();
   });
 

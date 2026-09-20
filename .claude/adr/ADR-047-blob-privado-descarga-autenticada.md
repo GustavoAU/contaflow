@@ -26,20 +26,26 @@ las dos ya corregidas (el middleware bloqueaba el callback; `handleUpload` ignor
 1. **Escribir** con `access: "private"` y `addRandomSuffix: true` (evita el error por ruta repetida al re-exportar).
 2. **Entregar** solo a través de una ruta propia que autentica y hace stream con `get()`:
    `GET /api/company/[companyId]/fiscal-reports/[reportId]/download`.
-   - Sesión (Clerk) + límite `limiters.read` + membresía y rol `ROLES.ACCOUNTING` (`requireCompanyAction`).
+   - Sesión (Clerk) + límite `limiters.read` con clave `user:{userId}` (el `companyId` de la URL aún no está
+     autorizado: rotarlo no debe eludir el límite) + membresía y rol `ROLES.ACCOUNTING` (`requireCompanyAction`).
    - `findFirst({ id, companyId })` (ADR-004): un `reportId` ajeno da **404**, no 403.
    - Cabeceras: `Content-Disposition: attachment`, `Cache-Control: private, no-store`,
      `X-Content-Type-Options: nosniff`, `X-Content-SHA256` (R-2).
    - La autenticación va **dentro de la ruta**, junto al `get()`, no en el middleware (recomendación de Vercel).
-3. `FiscalReport.blobUrl` sigue guardando la URL del blob, que ahora **no sirve desde el navegador**; `get()`
-   acepta URL o pathname. La acción devuelve al cliente la ruta de descarga, no `blob.url`.
+3. `FiscalReport.blobUrl` sigue guardando la URL del blob, que ahora **no sirve desde el navegador**. La ruta
+   deriva el **pathname** de esa URL, exige el prefijo `fiscal/{companyId}/` (si no, 404 + Sentry) y llama a
+   `get(pathname)`: así la petición queda anclada a nuestro store y no a cualquier host `*.blob.vercel-storage.com`.
+   La acción devuelve al cliente la ruta de descarga, no `blob.url`. `abortSignal` y `maxDuration = 30` acotan el stream.
 4. `year`/`month`/`type` de `exportInvoiceBookPDFAction` se validan con Zod: entran en la ruta del blob.
 
 ## Consecuencias
 
 - Un blob privado no tiene URL compartible: ver el libro exige sesión y rol en cada descarga.
-- Con el store conectado al proyecto (`BLOB_STORE_ID`), el SDK autentica con **OIDC** en Vercel; en local usa
-  `BLOB_READ_WRITE_TOKEN`. El token largo sigue haciendo falta para firmar tokens de cliente (adjuntos).
+- **Credencial hoy: el token largo `BLOB_READ_WRITE_TOKEN`, pasado explícitamente** (`token:` en `put`/`get`).
+  El SDK resuelve así: token explícito, luego OIDC (`VERCEL_OIDC_TOKEN` + `BLOB_STORE_ID`), luego el token del
+  entorno; mientras se pase `token:`, OIDC NO se usa. Es lo que se probó contra el store real. Objetivo: quitar
+  el `token:` explícito y, al migrar los adjuntos al flujo *presigned*, eliminar `BLOB_READ_WRITE_TOKEN`
+  (`handleUpload` lo exige; `handleUploadPresigned` funciona con OIDC). Probar en Preview antes.
 - Cada exportación crea un blob y una fila `FiscalReport` nuevos (historial con su hash); no hay limpieza.
   Si `fiscalReport.create` falla tras el `put` queda un blob huérfano, privado (sin fuga).
 

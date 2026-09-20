@@ -10,15 +10,24 @@ import * as Sentry from "@sentry/nextjs";
 import prisma from "@/lib/prisma";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { checkRateLimit, limiters, fiscalKey } from "@/lib/ratelimit";
+import { checkRateLimit, limiters } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const BOOK_SLUG: Record<string, string> = { LIBRO_VENTAS: "ventas", LIBRO_COMPRAS: "compras" };
 
+function blobPathnameOf(blobUrl: string): string | null {
+  try {
+    return decodeURIComponent(new URL(blobUrl).pathname.slice(1));
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ companyId: string; reportId: string }> },
 ): Promise<Response> {
   const { companyId, reportId } = await params;
@@ -26,7 +35,8 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-  const rl = await checkRateLimit(fiscalKey(companyId, userId), limiters.read);
+  // Clave por usuario: companyId viene de la URL y aún no está autorizado; rotarlo no debe eludir el límite.
+  const rl = await checkRateLimit(`user:${userId}`, limiters.read);
   if (!rl.allowed) return NextResponse.json({ error: rl.error }, { status: 429 });
 
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -39,11 +49,23 @@ export async function GET(
   });
   if (!report) return NextResponse.json({ error: "Reporte no encontrado" }, { status: 404 });
 
+  // get() con pathname, no con la URL guardada: así la petición queda anclada a NUESTRO store y no a
+  // cualquier host *.blob.vercel-storage.com. Además el pathname debe ser de la empresa (fiscal/{companyId}/).
+  const pathname = blobPathnameOf(report.blobUrl);
+  if (!pathname || !pathname.startsWith(`fiscal/${companyId}/`)) {
+    Sentry.captureMessage("FiscalReport.blobUrl fuera del prefijo de su empresa", {
+      level: "error",
+      tags: { companyId, reportId },
+    });
+    return NextResponse.json({ error: "El archivo del reporte no está disponible" }, { status: 404 });
+  }
+
   let result: Awaited<ReturnType<typeof get>>;
   try {
-    result = await get(report.blobUrl, {
+    result = await get(pathname, {
       access: "private",
       token: process.env.BLOB_READ_WRITE_TOKEN,
+      abortSignal: req.signal,
     });
   } catch (error) {
     Sentry.captureException(error);

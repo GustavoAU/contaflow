@@ -485,6 +485,8 @@ describe("exportInvoiceBookPDFAction", () => {
       { ...validParams, year: 1999 },
       { ...validParams, year: "2026/../x" },
       { ...validParams, type: "OTRO" },
+      { ...validParams, companyId: "a/../b" },
+      { ...validParams, companyId: "c".repeat(65) },
     ]) {
       const result = await exportInvoiceBookPDFAction(bad as never);
       expect(result).toEqual({ success: false, error: "Parámetros del libro inválidos" });
