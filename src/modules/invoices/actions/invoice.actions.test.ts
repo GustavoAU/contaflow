@@ -441,13 +441,14 @@ describe("exportInvoiceBookPDFAction", () => {
       summary: EMPTY_SUMMARY,
     } as never);
     vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
-    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({ id: "rep-1" } as never);
 
     const result = await exportInvoiceBookPDFAction(validParams);
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.url).toContain("blob.vercel-storage.com");
+      expect(result.url).toBe("/api/company/company-1/fiscal-reports/rep-1/download");
+      expect(result.url).not.toContain("blob.vercel-storage.com");
       expect(result.contentHash).toMatch(/^[a-f0-9]{64}$/);
     }
     expect(generateInvoiceBookPDF).toHaveBeenCalledOnce();
@@ -463,15 +464,36 @@ describe("exportInvoiceBookPDFAction", () => {
       summary: EMPTY_SUMMARY,
     } as never);
     vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
-    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.fiscalReport.create).mockResolvedValue({ id: "rep-1" } as never);
 
     await exportInvoiceBookPDFAction(validParams);
 
     expect(vi.mocked(put)).toHaveBeenCalledWith(
       "fiscal/company-1/libro-ventas-2026-01.pdf",
       expect.anything(),
-      expect.objectContaining({ addRandomSuffix: true }),
+      expect.objectContaining({ access: "private", addRandomSuffix: true }),
     );
+  });
+
+  it("valida year, month y type: entran en la ruta del blob y no pueden colar segmentos", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+
+    for (const bad of [
+      { ...validParams, month: 13 },
+      { ...validParams, month: 0 },
+      { ...validParams, year: 1999 },
+      { ...validParams, year: "2026/../x" },
+      { ...validParams, type: "OTRO" },
+      { ...validParams, companyId: "a/../b" },
+      { ...validParams, companyId: "c".repeat(65) },
+    ]) {
+      const result = await exportInvoiceBookPDFAction(bad as never);
+      expect(result).toEqual({ success: false, error: "Parámetros del libro inválidos" });
+    }
+
+    expect(vi.mocked(put)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.fiscalReport.create)).not.toHaveBeenCalled();
   });
 });
 
