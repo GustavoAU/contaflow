@@ -68,11 +68,19 @@ veces (ruta pública bloqueada por Clerk, pathname del servidor ignorado por `ha
   5 MB es la subida directa con callback público, descartada por robustez.
 - `src/lib/private-blob.ts` es el único sitio que elige credencial: el paso a OIDC se hace ahí.
 
+## Addendum 2026-09-21 — OIDC en Vercel (rama `chore/blob-oidc`)
+
+`src/lib/private-blob.ts` elige la credencial por entorno: en Vercel (`VERCEL=1`) NO pasa `token`, así que el SDK usa OIDC
+(`VERCEL_OIDC_TOKEN` + `BLOB_STORE_ID`); fuera de Vercel usa el token estático de `.env.local` (un token OIDC local dura 12 h y
+solo se renueva con el CLI de Vercel). El libro fiscal (exportar y descargar) y los comprobantes ya pasan por ese helper: es el único
+sitio que toca el SDK. Un `token` explícito GANA sobre OIDC y en Vercel OIDC no tiene reintento con el token del entorno: si el store
+no autoriza OIDC para el proyecto da 403 (por eso se prueba en Preview antes de quitar nada). Con OIDC funcionando, se borra
+`BLOB_READ_WRITE_TOKEN` de las variables de Vercel (Production y Preview) y desaparece el aviso "Needs Attention".
+
 ## Pendiente
 
-- **Probar en Preview** el flujo completo de comprobantes (subir PDF/JPG, abrirlo, eliminarlo, subir uno de 4-5 MB y
-  ver el mensaje de 413) y leer los logs de Vercel.
-- **OIDC**: en el store, pestaña Projects → menú del proyecto → *Upgrade to OIDC*; luego quitar `token:` de
-  `private-blob.ts`, de `exportInvoiceBookPDFAction` y de la ruta de descarga del libro, y borrar
-  `BLOB_READ_WRITE_TOKEN` de Vercel y de `.env.local`. `isPrivateBlobConfigured()` deberá comprobar `BLOB_STORE_ID`.
-- Verificar en producción tras el deploy: exportar el mismo libro dos veces (dos filas) y descargarlo.
+- **Probar OIDC en Preview** (rama `chore/blob-oidc`): exportar y descargar el libro PDF y subir/abrir un comprobante, y leer
+  los logs de Vercel. Si da 403, en el store → pestaña Projects → menú del proyecto → *Upgrade to OIDC* (ojo: puede revocar el
+  token estático que se usa en local; entonces el desarrollo local pasaría a `vercel env pull` + sesión del CLI) y repetir.
+- Con OIDC verificado: borrar `BLOB_READ_WRITE_TOKEN` de Vercel (Production y Preview), redesplegar y comprobar en producción.
+- Probar los comprobantes de pago en producción (Pagos → adjuntar un PDF y una imagen).

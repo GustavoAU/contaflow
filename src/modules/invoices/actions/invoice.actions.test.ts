@@ -16,7 +16,9 @@ import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService"
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { Prisma } from "@prisma/client";
 import { StockConfirmRequiredError } from "../services/InvoiceLineService";
-import { put } from "@vercel/blob";
+import { putPrivateBlob } from "@/lib/private-blob";
+import * as Sentry from "@sentry/nextjs";
+import { createHash } from "node:crypto";
 
 const TEST_IDEMPOTENCY_KEY = "550e8400-e29b-41d4-a716-446655440000";
 const TEST_IDEMPOTENCY_KEY_2 = "660e8400-e29b-41d4-a716-446655440001";
@@ -92,8 +94,13 @@ vi.mock("qrcode", () => ({
   },
 }));
 
-vi.mock("@vercel/blob", () => ({
-  put: vi.fn().mockResolvedValue({ url: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf" }),
+vi.mock("@sentry/nextjs", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  captureException: vi.fn(),
+}));
+// El SDK de Vercel Blob solo lo toca src/lib/private-blob.ts (su test cubre la elección de credencial).
+vi.mock("@/lib/private-blob", () => ({
+  putPrivateBlob: vi.fn().mockResolvedValue({ url: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf" }),
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -452,7 +459,22 @@ describe("exportInvoiceBookPDFAction", () => {
       expect(result.contentHash).toMatch(/^[a-f0-9]{64}$/);
     }
     expect(generateInvoiceBookPDF).toHaveBeenCalledOnce();
+    expect(vi.mocked(putPrivateBlob)).toHaveBeenCalledOnce();
+    // R-2: en BD solo metadatos: la URL que devolvió el store y el SHA-256 del PDF, nunca el PDF.
     expect(vi.mocked(prisma.fiscalReport.create)).toHaveBeenCalledOnce();
+    expect(vi.mocked(prisma.fiscalReport.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: "company-1",
+          reportType: "LIBRO_VENTAS",
+          year: 2026,
+          month: 1,
+          blobUrl: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf",
+          contentHash: createHash("sha256").update(Buffer.from("fake-pdf")).digest("hex"),
+          generatedBy: "user-1",
+        }),
+      }),
+    );
   });
 
   it("sube con sufijo aleatorio: la URL pública no es deducible y re-exportar el mismo mes no choca", async () => {
@@ -463,16 +485,59 @@ describe("exportInvoiceBookPDFAction", () => {
       rows: [],
       summary: EMPTY_SUMMARY,
     } as never);
-    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+    const pdf = Buffer.from("fake-pdf");
+    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(pdf);
     vi.mocked(prisma.fiscalReport.create).mockResolvedValue({ id: "rep-1" } as never);
 
     await exportInvoiceBookPDFAction(validParams);
 
-    expect(vi.mocked(put)).toHaveBeenCalledWith(
+    // La credencial y el access "private" los decide private-blob.ts; la acción aporta ruta, buffer, tipo y el sufijo.
+    expect(vi.mocked(putPrivateBlob)).toHaveBeenCalledOnce();
+    expect(vi.mocked(putPrivateBlob)).toHaveBeenCalledWith(
       "fiscal/company-1/libro-ventas-2026-01.pdf",
-      expect.anything(),
-      expect.objectContaining({ access: "private", addRandomSuffix: true }),
+      pdf,
+      "application/pdf",
+      { addRandomSuffix: true },
     );
+  });
+
+  it("si la subida al blob falla devuelve success:false y no registra ningún FiscalReport huérfano", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
+    vi.mocked(InvoiceService.getBook).mockResolvedValue({
+      rows: [],
+      summary: EMPTY_SUMMARY,
+    } as never);
+    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+    vi.mocked(putPrivateBlob).mockRejectedValueOnce(new Error("blob store unavailable"));
+
+    const result = await exportInvoiceBookPDFAction(validParams);
+
+    expect(result.success).toBe(false);
+    expect(vi.mocked(prisma.fiscalReport.create)).not.toHaveBeenCalled();
+  });
+
+  it("el mensaje del SDK NO llega al navegador (puede nombrar variables de entorno) y se reporta a Sentry", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
+    vi.mocked(InvoiceService.getBook).mockResolvedValue({
+      rows: [],
+      summary: EMPTY_SUMMARY,
+    } as never);
+    vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+    const sdkError = new Error(
+      "Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option.",
+    );
+    vi.mocked(putPrivateBlob).mockRejectedValueOnce(sdkError);
+
+    const result = await exportInvoiceBookPDFAction(validParams);
+
+    expect(result).toEqual({ success: false, error: "No se pudo guardar el libro. Intenta de nuevo." });
+    expect(JSON.stringify(result)).not.toContain("BLOB_");
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(sdkError);
+    expect(vi.mocked(prisma.fiscalReport.create)).not.toHaveBeenCalled();
   });
 
   it("valida year, month y type: entran en la ruta del blob y no pueden colar segmentos", async () => {
@@ -492,7 +557,7 @@ describe("exportInvoiceBookPDFAction", () => {
       expect(result).toEqual({ success: false, error: "Parámetros del libro inválidos" });
     }
 
-    expect(vi.mocked(put)).not.toHaveBeenCalled();
+    expect(vi.mocked(putPrivateBlob)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.fiscalReport.create)).not.toHaveBeenCalled();
   });
 });

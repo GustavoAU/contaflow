@@ -5,12 +5,12 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { get } from "@vercel/blob";
 import * as Sentry from "@sentry/nextjs";
 import prisma from "@/lib/prisma";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { checkRateLimit, limiters } from "@/lib/ratelimit";
+import { getPrivateBlob } from "@/lib/private-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,13 +60,9 @@ export async function GET(
     return NextResponse.json({ error: "El archivo del reporte no está disponible" }, { status: 404 });
   }
 
-  let result: Awaited<ReturnType<typeof get>>;
+  let result: Awaited<ReturnType<typeof getPrivateBlob>>;
   try {
-    result = await get(pathname, {
-      access: "private",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      abortSignal: req.signal,
-    });
+    result = await getPrivateBlob(pathname, req.signal);
   } catch (error) {
     Sentry.captureException(error);
     return NextResponse.json({ error: "No se pudo obtener el archivo" }, { status: 502 });

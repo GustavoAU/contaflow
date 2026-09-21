@@ -1,14 +1,15 @@
 // src/app/api/company/[companyId]/fiscal-reports/[reportId]/download/route.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { auth } from "@clerk/nextjs/server";
-import { get } from "@vercel/blob";
 import * as Sentry from "@sentry/nextjs";
 import prisma from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { getPrivateBlob } from "@/lib/private-blob";
 import { GET } from "./route";
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: vi.fn() }));
-vi.mock("@vercel/blob", () => ({ get: vi.fn() }));
+// El SDK de Vercel Blob solo lo toca src/lib/private-blob.ts (su test cubre la elección de credencial).
+vi.mock("@/lib/private-blob", () => ({ getPrivateBlob: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn(), captureMessage: vi.fn() }));
 
 vi.mock("next/headers", () => ({
@@ -37,8 +38,8 @@ const REPORT = {
   contentHash: "a".repeat(64),
 };
 
-function call(companyId = "company-1", reportId = "rep-1") {
-  return GET(new Request("http://localhost/x"), { params: Promise.resolve({ companyId, reportId }) });
+function call(companyId = "company-1", reportId = "rep-1", req: Request = new Request("http://localhost/x")) {
+  return GET(req, { params: Promise.resolve({ companyId, reportId }) });
 }
 
 function blobResult(text = "%PDF-fake") {
@@ -55,7 +56,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
       company: { country: "VEN" },
     } as never);
     vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue(REPORT as never);
-    vi.mocked(get).mockResolvedValue(blobResult() as never);
+    vi.mocked(getPrivateBlob).mockResolvedValue(blobResult() as never);
   });
 
   it("entrega el PDF en stream con cabeceras de descarga y sin caché compartida", async () => {
@@ -68,10 +69,23 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Content-SHA256")).toBe("a".repeat(64));
-    expect(vi.mocked(get)).toHaveBeenCalledWith(
-      "fiscal/company-1/libro-ventas-2026-09-abc.pdf",
-      expect.objectContaining({ access: "private", abortSignal: expect.anything() }),
-    );
+    expect(vi.mocked(getPrivateBlob)).toHaveBeenCalledOnce();
+    const [pathname, signal] = vi.mocked(getPrivateBlob).mock.calls[0];
+    expect(pathname).toBe("fiscal/company-1/libro-ventas-2026-09-abc.pdf");
+    expect(signal).toBeDefined();
+  });
+
+  it("reenvía al store la señal de la petición: si el cliente corta la descarga, se cancela la lectura del blob", async () => {
+    const controller = new AbortController();
+    const req = new Request("http://localhost/x", { signal: controller.signal });
+
+    await call("company-1", "rep-1", req);
+
+    const [, signal] = vi.mocked(getPrivateBlob).mock.calls[0];
+    expect(signal).toBe(req.signal);
+    expect(signal?.aborted).toBe(false);
+    controller.abort();
+    expect(signal?.aborted).toBe(true);
   });
 
   it("pide el blob por pathname, no por la URL guardada: la petición queda anclada a nuestro store", async () => {
@@ -82,7 +96,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
 
     await call();
 
-    const [firstArg] = vi.mocked(get).mock.calls[0];
+    const [firstArg] = vi.mocked(getPrivateBlob).mock.calls[0];
     expect(firstArg).toBe("fiscal/company-1/libro-ventas-2026-09-abc.pdf");
     expect(firstArg).not.toContain("otro-store");
   });
@@ -96,7 +110,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     const res = await call();
 
     expect(res.status).toBe(404);
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
     expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledOnce();
   });
 
@@ -104,7 +118,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({ ...REPORT, blobUrl: "no-es-una-url" } as never);
 
     expect((await call()).status).toBe(404);
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("sin sesión responde 401 y no toca la base ni el blob", async () => {
@@ -114,7 +128,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
 
     expect(res.status).toBe(401);
     expect(vi.mocked(prisma.companyMember.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("con el límite de lecturas agotado responde 429", async () => {
@@ -124,7 +138,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
 
     expect(res.status).toBe(429);
     expect(vi.mocked(checkRateLimit)).toHaveBeenCalledWith("user:user-1", expect.anything());
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("quien no es miembro de la empresa recibe 403", async () => {
@@ -134,7 +148,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
 
     expect(res.status).toBe(403);
     expect(vi.mocked(prisma.fiscalReport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("un rol sin acceso contable (VIEWER) recibe 403", async () => {
@@ -146,7 +160,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     const res = await call();
 
     expect(res.status).toBe(403);
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("un reporte de otra empresa da 404 (el where lleva companyId) y no toca el blob", async () => {
@@ -158,17 +172,17 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     expect(vi.mocked(prisma.fiscalReport.findFirst)).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "rep-de-otra-empresa", companyId: "company-1" } }),
     );
-    expect(vi.mocked(get)).not.toHaveBeenCalled();
+    expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });
 
   it("si el archivo ya no está en el store responde 404", async () => {
-    vi.mocked(get).mockResolvedValue(null as never);
+    vi.mocked(getPrivateBlob).mockResolvedValue(null as never);
 
     expect((await call()).status).toBe(404);
   });
 
   it("si el store falla responde 502 genérico, avisa a Sentry y no filtra el detalle", async () => {
-    vi.mocked(get).mockRejectedValue(new Error("token rw_secreto rechazado"));
+    vi.mocked(getPrivateBlob).mockRejectedValue(new Error("token rw_secreto rechazado"));
 
     const res = await call();
     const texto = await res.text();
