@@ -94,4 +94,8 @@ mostrada). El asiento (`InvoiceGLPostingService`, `total − iva`) era correcto 
   la retención de una venta de lujo fija 16 % (`retention.actions`, `calculate`); una NC por el total de una factura
   retenida se rechaza porque `InvoiceCreditDebitNoteService` compara el total bruto con el pendiente neto de retención
   (preexistente); el panel rotula "31 %" con el IVA de 15 %; `superRefine` en `CreateInvoiceSchema` (ΣA ≤ ΣG) es política
-  de negocio; persistir `luxuryGroupId` (arch-agent); `IGTFService.applies` usa AND y best-practices §3.2 usa OR.
+  de negocio; persistir `luxuryGroupId` (arch-agent); `IGTFService.applies` usa AND y best-practices §3.2 usa OR. **Integridad del IVA (preexistente, hallazgo del security-agent,
+  verificado en el schema)**: `TaxLineSchema` solo valida rango y tasa canónica; nadie comprueba que `monto = base × tasa`
+  y `InvoiceService.create` guarda el `amount` que envía el cliente, así que un IVA mal calculado (o manipulado) entra en
+  el libro, la Forma 30 y el total. Arreglo posible: recalcular el IVA en el servidor o un `superRefine` con tolerancia de
+  redondeo; cambia lo que se acepta, por eso es decisión de negocio y va en su propia rama.
