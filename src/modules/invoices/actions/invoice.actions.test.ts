@@ -95,7 +95,7 @@ vi.mock("qrcode", () => ({
 }));
 
 vi.mock("@sentry/nextjs", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@sentry/nextjs")>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   captureException: vi.fn(),
 }));
 // El SDK de Vercel Blob solo lo toca src/lib/private-blob.ts (su test cubre la elección de credencial).
