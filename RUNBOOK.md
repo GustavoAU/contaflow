@@ -272,7 +272,7 @@ Ejecutar el **primer lunes de cada mes**:
 |---|---|---|
 | `DATABASE_URL` | Neon pooled (PgBouncer) | App no arranca |
 | `DATABASE_URL_DIRECT` | Neon direct (migraciones) | `prisma migrate` falla |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob | PDFs no se generan |
+| `BLOB_STORE_ID` (Vercel, con OIDC) / `BLOB_READ_WRITE_TOKEN` (solo local) | Vercel Blob | PDFs y comprobantes no se guardan |
 | `UPSTASH_REDIS_REST_URL` | Rate limiting | Pasa a modo permisivo |
 | `QSTASH_TOKEN` | Cola QStash (SENIAT) | Retransmisión SENIAT falla |
 | `QSTASH_CURRENT_SIGNING_KEY` | Verificación webhook | Webhooks rechazados |

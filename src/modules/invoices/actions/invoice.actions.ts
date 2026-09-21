@@ -2,6 +2,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { limiters } from "@/lib/ratelimit";
@@ -31,7 +32,7 @@ import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
 import { assertWriteAllowed, READ_ONLY_MESSAGE } from "@/modules/billing/services/SubscriptionService";
-import { put } from "@vercel/blob";
+import { putPrivateBlob } from "@/lib/private-blob";
 import { createHash } from "crypto";
 
 // MP-5a (ADR-042 D-1): el schema definitivo depende del país, y el país sale del
@@ -312,12 +313,14 @@ export async function exportInvoiceBookPDFAction(params: {
 
     // Store PRIVADO: un store privado rechaza access "public" (ADR-047). El sufijo aleatorio evita el error
     // por ruta repetida al re-exportar el mismo mes (allowOverwrite=false por defecto).
-    const blob = await put(filename, pdfBuffer, {
-      access: "private",
-      addRandomSuffix: true,
-      contentType: "application/pdf",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
+    let blob: Awaited<ReturnType<typeof putPrivateBlob>>;
+    try {
+      blob = await putPrivateBlob(filename, pdfBuffer, "application/pdf", { addRandomSuffix: true });
+    } catch (blobError) {
+      // El mensaje del SDK puede nombrar variables de entorno (BLOB_STORE_ID...): mapPrismaError lo devolvería crudo al navegador.
+      Sentry.captureException(blobError);
+      return { success: false, error: "No se pudo guardar el libro. Intenta de nuevo." };
+    }
 
     // R-2: metadata + contentHash en DB (no el PDF)
     const report = await prisma.fiscalReport.create({
