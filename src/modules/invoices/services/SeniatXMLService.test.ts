@@ -73,9 +73,11 @@ describe("SeniatXMLService.generate", () => {
       ],
     };
     const xml = SeniatXMLService.generate(params);
-    expect(xml).toContain("<TotalBaseImponible>1700.00</TotalBaseImponible>");
+    // fix/factura-lujo-total: la base de IVA_ADICIONAL (200) ya está cubierta por la de
+    // IVA_GENERAL (1000) → no suma base propia. Antes esperaba 1700.00 / 1930.00 (con el bug).
+    expect(xml).toContain("<TotalBaseImponible>1500.00</TotalBaseImponible>");
     expect(xml).toContain("<TotalIVA>230.00</TotalIVA>");
-    expect(xml).toContain("<MontoTotal>1930.00</MontoTotal>");
+    expect(xml).toContain("<MontoTotal>1730.00</MontoTotal>");
     expect(xml).toContain('<AlicuotaReducida tasa="8.00">');
     expect(xml).toContain('<AlicuotaAdicional tasa="15.00">');
   });
@@ -168,6 +170,96 @@ describe("SeniatXMLService.generate", () => {
   it("mapea correctamente docType NOTA_CREDITO", () => {
     const xml = SeniatXMLService.generate({ ...BASE_PARAMS, docType: "NOTA_CREDITO" });
     expect(xml).toContain("<TipoDocumento>NOTA_DE_CREDITO</TipoDocumento>");
+  });
+});
+
+// ─── fix/factura-lujo-total — TDD SPEC (RED) ──────────────────────────────────
+// Una factura de lujo (ADICIONAL_31) se guarda como DOS InvoiceTaxLine con la MISMA base
+// (IVA_GENERAL 16% + IVA_ADICIONAL 15%). `generate` sumaba `base` de TODAS las filas y el XML
+// declaraba TotalBaseImponible 2000.00 / MontoTotal 2310.00 en vez de 1000.00 / 1310.00.
+// El desglose por alícuota (DetalleImpuestos) NO cambia: sigue habiendo un nodo por fila.
+describe("SeniatXMLService.generate — factura de lujo (base contada UNA vez)", () => {
+  const luxury = (base: string, general: string, additional: string): SeniatXMLParams => ({
+    ...BASE_PARAMS,
+    taxLines: [
+      { taxType: "IVA_GENERAL", base, rate: "16.00", amount: general },
+      { taxType: "IVA_ADICIONAL", base, rate: "15.00", amount: additional },
+    ],
+  });
+
+  it("TotalBaseImponible = 1000.00 (hoy 2000.00)", () => {
+    const xml = SeniatXMLService.generate(luxury("1000.00", "160.00", "150.00"));
+    expect(xml).toContain("<TotalBaseImponible>1000.00</TotalBaseImponible>");
+  });
+
+  it("GUARDA: TotalIVA = 310.00 (el IVA nunca estuvo mal; solo la base)", () => {
+    const xml = SeniatXMLService.generate(luxury("1000.00", "160.00", "150.00"));
+    expect(xml).toContain("<TotalIVA>310.00</TotalIVA>");
+  });
+
+  it("MontoTotal = 1310.00 (hoy 2310.00)", () => {
+    const xml = SeniatXMLService.generate(luxury("1000.00", "160.00", "150.00"));
+    expect(xml).toContain("<MontoTotal>1310.00</MontoTotal>");
+  });
+
+  it("lujo con centavos (1333.33 → IVA 213.33 + 200.00): base 1333.33, IVA 413.33, total 1746.66", () => {
+    const xml = SeniatXMLService.generate(luxury("1333.33", "213.33", "200.00"));
+    expect(xml).toContain("<TotalBaseImponible>1333.33</TotalBaseImponible>");
+    expect(xml).toContain("<TotalIVA>413.33</TotalIVA>");
+    expect(xml).toContain("<MontoTotal>1746.66</MontoTotal>");
+  });
+
+  it("factura mixta (general 600 + lujo 400 = tres filas): base 1000.00, IVA 220.00, total 1220.00", () => {
+    const xml = SeniatXMLService.generate({
+      ...BASE_PARAMS,
+      taxLines: [
+        { taxType: "IVA_GENERAL", base: "600.00", rate: "16.00", amount: "96.00" },
+        { taxType: "IVA_GENERAL", base: "400.00", rate: "16.00", amount: "64.00" },
+        { taxType: "IVA_ADICIONAL", base: "400.00", rate: "15.00", amount: "60.00" },
+      ],
+    });
+    expect(xml).toContain("<TotalBaseImponible>1000.00</TotalBaseImponible>");
+    expect(xml).toContain("<TotalIVA>220.00</TotalIVA>");
+    expect(xml).toContain("<MontoTotal>1220.00</MontoTotal>");
+  });
+
+  it("GUARDA: el detalle conserva los DOS nodos por alícuota, cada uno con su base y su monto", () => {
+    const xml = SeniatXMLService.generate(luxury("1000.00", "160.00", "150.00"));
+    expect(xml).toContain('<AlicuotaGeneral tasa="16.00">');
+    expect(xml).toContain('<AlicuotaAdicional tasa="15.00">');
+    expect(xml).toContain("<MontoIVA>160.00</MontoIVA>");
+    expect(xml).toContain("<MontoIVA>150.00</MontoIVA>");
+    // La base se declara en cada nodo de detalle (2 veces) — solo el total la cuenta una vez
+    expect(xml.match(/<BaseImponible>1000\.00<\/BaseImponible>/g)).toHaveLength(2);
+  });
+
+  it("GUARDA: solo IVA_ADICIONAL (sin general) conserva su base: 1000.00 / 150.00 / 1150.00", () => {
+    const xml = SeniatXMLService.generate({
+      ...BASE_PARAMS,
+      taxLines: [{ taxType: "IVA_ADICIONAL", base: "1000.00", rate: "15.00", amount: "150.00" }],
+    });
+    expect(xml).toContain("<TotalBaseImponible>1000.00</TotalBaseImponible>");
+    expect(xml).toContain("<MontoTotal>1150.00</MontoTotal>");
+  });
+
+  it("GUARDA: sin lujo (solo general 1000/160) sigue dando base 1000.00 / total 1160.00", () => {
+    const xml = SeniatXMLService.generate(BASE_PARAMS);
+    expect(xml).toContain("<TotalBaseImponible>1000.00</TotalBaseImponible>");
+    expect(xml).toContain("<MontoTotal>1160.00</MontoTotal>");
+  });
+
+  it("GUARDA: mezcla general + reducido + exento suma la base de cada alícuota (1700 / 200 / 1900)", () => {
+    const xml = SeniatXMLService.generate({
+      ...BASE_PARAMS,
+      taxLines: [
+        { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "160.00" },
+        { taxType: "IVA_REDUCIDO", base: "500.00", rate: "8.00", amount: "40.00" },
+        { taxType: "EXENTO", base: "200.00", rate: "0", amount: "0.00" },
+      ],
+    });
+    expect(xml).toContain("<TotalBaseImponible>1700.00</TotalBaseImponible>");
+    expect(xml).toContain("<TotalIVA>200.00</TotalIVA>");
+    expect(xml).toContain("<MontoTotal>1900.00</MontoTotal>");
   });
 });
 

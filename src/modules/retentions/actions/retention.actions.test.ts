@@ -933,8 +933,8 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
       invoiceNumber: "B00000001",
       taxLines: [
-        { base: { toString: () => "800.00" } },
-        { base: { toString: () => "200.00" } },
+        { taxType: "IVA_GENERAL", base: { toString: () => "800.00" }, amount: { toString: () => "128.00" } },
+        { taxType: "IVA_GENERAL", base: { toString: () => "200.00" }, amount: { toString: () => "32.00" } },
       ],
     } as never);
 
@@ -954,7 +954,9 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     // Factura en BD con base imponible de 1000
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
       invoiceNumber: "B00000001",
-      taxLines: [{ base: { toString: () => "1000.00" } }],
+      taxLines: [
+        { taxType: "IVA_GENERAL", base: { toString: () => "1000.00" }, amount: { toString: () => "160.00" } },
+      ],
     } as never);
 
     const result = await createRetentionAction({
@@ -976,4 +978,153 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
 
     expect(result.success).toBe(true);
   });
+  // ─── fix/factura-lujo-total — TDD SPEC (RED) ────────────────────────────────
+  // Una factura de lujo (ADICIONAL_31) se guarda como DOS InvoiceTaxLine con la MISMA base
+  // (IVA_GENERAL 16% + IVA_ADICIONAL 15%). El guard sumaba la base de TODAS las filas: para una
+  // factura de base 1000 daba 2000 y dejaba pasar retenciones con taxBase de hasta ~2001.
+  //
+  // El mock de prisma.invoice.findFirst simula la PROYECCIÓN de Prisma: devuelve SOLO los campos
+  // de taxLines pedidos en `select`. Así estos tests también fallan si la implementación deja de
+  // pedir `taxType`/`amount` (sin ellos todas las filas caen en el mismo grupo, la base vuelve a
+  // contarse doble y el bug seguiría en producción aunque el test con datos "completos" pasara).
+  type InvoiceLineFixture = { taxType: string; base: string; amount: string };
+
+  function mockInvoiceWithTaxLines(taxLines: InvoiceLineFixture[]) {
+    vi.mocked(prisma.invoice.findFirst).mockImplementation((async (args?: {
+      select?: { taxLines?: { select?: Record<string, boolean> } };
+    }) => {
+      const selected = args?.select?.taxLines?.select ?? {};
+      return {
+        id: "inv-lujo",
+        invoiceNumber: "B00000001",
+        transactionId: null,
+        taxLines: taxLines.map((line) => {
+          const full: Record<string, unknown> = {
+            taxType: line.taxType,
+            base: { toString: () => line.base },
+            amount: { toString: () => line.amount },
+          };
+          return Object.fromEntries(Object.entries(full).filter(([key]) => selected[key] === true));
+        }),
+      };
+    }) as never);
+  }
+
+  // Factura de lujo de base 1000: total 1310 (1000 + 160 + 150), guardada como dos filas
+  const LUXURY_INVOICE: InvoiceLineFixture[] = [
+    { taxType: "IVA_GENERAL", base: "1000.00", amount: "160.00" },
+    { taxType: "IVA_ADICIONAL", base: "1000.00", amount: "150.00" },
+  ];
+
+  it("lujo (base 1000 en DOS filas): rechaza taxBase 2000.00 porque supera la base real de la factura", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "2000.00" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("supera la base imponible registrada");
+      expect(result.error).toContain("B00000001");
+    }
+    expect(prisma.retencion.create).not.toHaveBeenCalled();
+  });
+
+  it("lujo: el mensaje informa la base REAL de la factura (Bs. 1000.00), no la doble (Bs. 2000.00)", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "2000.00" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("(Bs. 2000.00)"); // base de la retención
+      expect(result.error).toContain("(Bs. 1000.00)"); // base de la factura
+    }
+  });
+
+  it("lujo: rechaza taxBase 1500.00 (hoy pasa porque se compara contra 2000)", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1500.00" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("supera la base imponible registrada");
+  });
+
+  it("lujo: rechaza taxBase 1001.01 — la tolerancia de 1 Bs se aplica sobre la base real (1000), no sobre 2000", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1001.01" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("supera la base imponible registrada");
+  });
+
+  it("GUARDA: lujo: ACEPTA taxBase 1000.00 (igual a la base de la factura)", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1000.00" });
+
+    expect(result.success).toBe(true);
+    expect(prisma.retencion.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("GUARDA: lujo: ACEPTA taxBase 1001.00 (justo en el borde de la tolerancia de 1 Bs)", async () => {
+    mockInvoiceWithTaxLines(LUXURY_INVOICE);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1001.00" });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("factura mixta (general 600 + lujo 400 = tres filas, base real 1000): rechaza taxBase 1400.00", async () => {
+    // ΣG = 600 + 400 = 1000, ΣA = 400 (ya cubierta) → base real 1000. Hoy suma 1400.
+    mockInvoiceWithTaxLines([
+      { taxType: "IVA_GENERAL", base: "600.00", amount: "96.00" },
+      { taxType: "IVA_GENERAL", base: "400.00", amount: "64.00" },
+      { taxType: "IVA_ADICIONAL", base: "400.00", amount: "60.00" },
+    ]);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1400.00" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("supera la base imponible registrada");
+  });
+
+  it("GUARDA: factura mixta (base real 1000): ACEPTA taxBase 1000.00", async () => {
+    mockInvoiceWithTaxLines([
+      { taxType: "IVA_GENERAL", base: "600.00", amount: "96.00" },
+      { taxType: "IVA_GENERAL", base: "400.00", amount: "64.00" },
+      { taxType: "IVA_ADICIONAL", base: "400.00", amount: "60.00" },
+    ]);
+
+    const result = await createRetentionAction({ ...VALID_INPUT, taxBase: "1000.00" });
+
+    expect(result.success).toBe(true);
+  });
+
+  // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
+  it("GUARDA: factura con solo IVA_ADICIONAL manual (sin general) conserva su base: rechaza 1500.00, acepta 1000.00", async () => {
+    mockInvoiceWithTaxLines([{ taxType: "IVA_ADICIONAL", base: "1000.00", amount: "150.00" }]);
+
+    const rejected = await createRetentionAction({ ...VALID_INPUT, taxBase: "1500.00" });
+    expect(rejected.success).toBe(false);
+
+    vi.mocked(prisma.retencion.create).mockClear();
+    const accepted = await createRetentionAction({ ...VALID_INPUT, taxBase: "1000.00" });
+    expect(accepted.success).toBe(true);
+  });
+
+  it("GUARDA: factura general + reducido (base 787700) — rechaza 788000.00 y acepta 787700.00", async () => {
+    mockInvoiceWithTaxLines([
+      { taxType: "IVA_GENERAL", base: "270.00", amount: "43.20" },
+      { taxType: "IVA_REDUCIDO", base: "787430.00", amount: "62994.40" },
+    ]);
+
+    const rejected = await createRetentionAction({ ...VALID_INPUT, taxBase: "788000.00" });
+    expect(rejected.success).toBe(false);
+
+    const accepted = await createRetentionAction({ ...VALID_INPUT, taxBase: "787700.00" });
+    expect(accepted.success).toBe(true);
+  });
+
 });

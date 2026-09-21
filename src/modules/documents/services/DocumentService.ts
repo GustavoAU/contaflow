@@ -4,6 +4,7 @@
 // para mantener el bounded context limpio (ADR DDD).
 
 import prisma from "@/lib/prisma";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -222,12 +223,9 @@ export class DocumentService {
       rate: new Decimal(l.rate.toString()).toFixed(2),
       amount: new Decimal(l.amount.toString()).toFixed(2),
     }));
-    const totalBase = mappedTaxLines
-      .reduce((acc, l) => acc.plus(l.base), new Decimal(0))
-      .toFixed(2);
-    const totalIva = mappedTaxLines
-      .reduce((acc, l) => acc.plus(l.amount), new Decimal(0))
-      .toFixed(2);
+    const amounts = invoiceBaseAndIva(mappedTaxLines);
+    const totalBase = amounts.base.toFixed(2);
+    const totalIva = amounts.iva.toFixed(2);
     const montoTotal = new Decimal(totalBase).plus(totalIva).toFixed(2);
 
     const qrContent = SeniatXMLService.qrContent({

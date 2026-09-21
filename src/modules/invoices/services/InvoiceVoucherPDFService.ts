@@ -2,6 +2,7 @@
 import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
 import React from "react"
 import { Decimal } from "decimal.js"
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts"
 import { fmtDate } from "@/lib/format"
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
@@ -228,12 +229,9 @@ function TaxLinesTable({ p }: { p: InvoiceVoucherPDFParams }) {
 }
 
 function TotalsSection({ p }: { p: InvoiceVoucherPDFParams }) {
-  const totalBase = p.taxLines
-    .reduce((acc, l) => acc.plus(l.base), new Decimal(0))
-    .toFixed(2)
-  const totalIva = p.taxLines
-    .reduce((acc, l) => acc.plus(l.amount), new Decimal(0))
-    .toFixed(2)
+  const amounts = invoiceBaseAndIva(p.taxLines)
+  const totalBase = amounts.base.toFixed(2)
+  const totalIva = amounts.iva.toFixed(2)
   const totalInvoice = new Decimal(totalBase).plus(totalIva).toFixed(2)
 
   return React.createElement(

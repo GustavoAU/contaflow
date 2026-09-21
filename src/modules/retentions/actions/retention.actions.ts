@@ -8,6 +8,7 @@ import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
@@ -112,14 +113,12 @@ export async function createRetentionAction(
         id: true,
         invoiceNumber: true,
         transactionId: true,
-        taxLines: { select: { base: true } },
+        taxLines: { select: { taxType: true, base: true, amount: true } },
       },
     });
     if (matchedInvoice && matchedInvoice.taxLines.length > 0) {
-      const invoiceBase = matchedInvoice.taxLines.reduce(
-        (acc, tl) => acc.plus(new Decimal(tl.base.toString())),
-        new Decimal(0)
-      );
+      // Base UNA vez: la de lujo va en dos líneas (general + adicional) y sumarlas duplicaría el tope.
+      const invoiceBase = invoiceBaseAndIva(matchedInvoice.taxLines).base;
       const retBase = new Decimal(data.taxBase);
       // Tolerancia 1 Bs para diferencias de redondeo
       if (retBase.minus(invoiceBase).greaterThan(new Decimal("1"))) {
