@@ -1,6 +1,7 @@
 // src/modules/invoices/services/InvoiceCreditDebitNoteService.ts
 // Extraído MECÁNICAMENTE desde InvoiceService.ts (sin cambios de lógica) — split por tamaño de archivo.
 import { Decimal } from "decimal.js";
+import { invoiceTotalAmount } from "@/lib/invoice-amounts";
 import prismaDefault from "@/lib/prisma";
 import type { TaxLineType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
@@ -88,10 +89,7 @@ export async function createCreditNote(
       const resolvedPeriodId = periodForDate?.id ?? null;
 
       // Calculate totalAmountVes from taxLines (never trust client-side totalAmountVes)
-      const totalAmountVes = data.taxLines.reduce(
-        (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
-        new Decimal(0)
-      );
+      const totalAmountVes = invoiceTotalAmount(data.taxLines);
 
       // Amount guard
       const pendingAmount = original.pendingAmount ? new Decimal(original.pendingAmount.toString()) : new Decimal(0);
@@ -323,10 +321,7 @@ export async function createDebitNote(
       const ndResolvedPeriodId = ndPeriodForDate?.id ?? null;
 
       // Calculate totalAmountVes from taxLines
-      const totalAmountVes = data.taxLines.reduce(
-        (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
-        new Decimal(0)
-      );
+      const totalAmountVes = invoiceTotalAmount(data.taxLines);
 
       // Derive relatedDocNumber server-side
       const relatedDocNumber = original.invoiceNumber;

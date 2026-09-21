@@ -575,6 +575,224 @@ describe("InvoiceService.createDebitNote", () => {
   });
 });
 
+// ─── fix/factura-lujo-total — TDD SPEC (RED) ──────────────────────────────────
+// NC/ND sobre facturas de lujo. Una factura de lujo (ADICIONAL_31) se guarda como DOS
+// InvoiceTaxLine con la MISMA base (IVA_GENERAL 16% + IVA_ADICIONAL 15%): el total correcto de
+// base 1000 es 1000 + 160 + 150 = 1310. createCreditNote/createDebitNote lo calculaban con
+// `base + amount` de TODAS las filas (2310) → la NC de lujo se RECHAZABA ("supera el saldo
+// pendiente", porque 2310 > 1310) y la ND guardaba un total inflado.
+const LUXURY_NOTE_LINES = [
+  { taxType: "IVA_GENERAL" as const, base: "1000.00", rate: "16", amount: "160.00" },
+  { taxType: "IVA_ADICIONAL" as const, base: "1000.00", rate: "15", amount: "150.00" },
+];
+
+// Factura original de lujo ya emitida: base 1000 → total 1310, sin cobrar nada aún.
+const luxuryOriginalInvoice = {
+  ...validOriginalInvoice,
+  pendingAmount: new Decimal("1310.00"),
+  totalAmountVes: new Decimal("1310.00"),
+};
+
+type NoteRowData = { totalAmountVes: Decimal; pendingAmount: Decimal };
+type OriginalUpdateData = { pendingAmount: Decimal; paymentStatus: string };
+type AuditCallArg = { data: { action: string; newValue: Record<string, unknown> } };
+
+const noteRowCreated = () =>
+  (vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as { data: NoteRowData }).data;
+const originalUpdated = () =>
+  (vi.mocked(prisma.invoice.update).mock.calls[0]?.[0] as { data: OriginalUpdateData }).data;
+const auditNewValue = (action: string) =>
+  vi
+    .mocked(prisma.auditLog.create)
+    .mock.calls.map((c) => c[0] as unknown as AuditCallArg)
+    .find((c) => c.data.action === action)?.data.newValue;
+
+describe("InvoiceService.createCreditNote — factura de lujo (base contada UNA vez)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupTransactionMock();
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(luxuryOriginalInvoice as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue(mockNcInvoice as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockCompanySettingsFindUnique.mockResolvedValue(null);
+    mockGLCanPost.mockReturnValue(false);
+  });
+
+  it("NC de lujo base 1000 sobre factura con saldo 1310.00 se ACEPTA (hoy: se rechaza porque calcula 2310)", async () => {
+    await expect(
+      createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY),
+    ).resolves.toBeDefined();
+  });
+
+  it("guarda la NC con totalAmountVes 1310.00 (no 2310.00) y pendingAmount 0.00", async () => {
+    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+
+    expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("1310.00");
+    expect(new Decimal(noteRowCreated().pendingAmount).toFixed(2)).toBe("0.00");
+  });
+
+  it("deja el saldo de la factura original en 0.00 y la marca PAID", async () => {
+    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+
+    expect(new Decimal(originalUpdated().pendingAmount).toFixed(2)).toBe("0.00");
+    expect(originalUpdated().paymentStatus).toBe("PAID");
+  });
+
+  it("NC PARCIAL de lujo base 500 (total 655.00) deja saldo 655.00 y PARTIAL (hoy: total 1155.00, saldo 155.00)", async () => {
+    await createCreditNote(
+      COMPANY_ID,
+      {
+        ...validNoteData,
+        taxLines: [
+          { taxType: "IVA_GENERAL" as const, base: "500.00", rate: "16", amount: "80.00" },
+          { taxType: "IVA_ADICIONAL" as const, base: "500.00", rate: "15", amount: "75.00" },
+        ],
+      },
+      CREATED_BY,
+    );
+
+    expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("655.00");
+    expect(new Decimal(originalUpdated().pendingAmount).toFixed(2)).toBe("655.00");
+    expect(originalUpdated().paymentStatus).toBe("PARTIAL");
+  });
+
+  it("el AuditLog CREATE_NC registra totalAmountVes 1310.00", async () => {
+    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+
+    expect(auditNewValue("CREATE_NC")).toEqual(expect.objectContaining({ totalAmountVes: "1310.00" }));
+  });
+
+  it("el detalle de la NC conserva las DOS filas de InvoiceTaxLine", async () => {
+    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+
+    const data = vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as {
+      data: { taxLines: { create: Array<{ taxType: string }> } };
+    };
+    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual(["IVA_GENERAL", "IVA_ADICIONAL"]);
+  });
+
+  // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
+  it("GUARDA: NC de lujo que excede el saldo por 1 centavo (1310.01 > 1310.00) sigue rechazada", async () => {
+    await expect(
+      createCreditNote(
+        COMPANY_ID,
+        {
+          ...validNoteData,
+          taxLines: [
+            { taxType: "IVA_GENERAL" as const, base: "1000.01", rate: "16", amount: "160.00" },
+            { taxType: "IVA_ADICIONAL" as const, base: "1000.01", rate: "15", amount: "150.00" },
+          ],
+        },
+        CREATED_BY,
+      ),
+    ).rejects.toThrow("El monto de la nota supera el saldo pendiente de la factura original");
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("InvoiceService.createDebitNote — factura de lujo (base contada UNA vez)", () => {
+  const luxuryNdInvoice = {
+    id: "nd-lujo",
+    companyId: COMPANY_ID,
+    type: "SALE",
+    docType: "NOTA_DEBITO",
+    invoiceNumber: "ND-0000002",
+    controlNumber: "00-00000004",
+    relatedInvoiceId: "inv-original",
+    relatedDocNumber: "0000001",
+    totalAmountVes: new Decimal("1310.00"),
+    // ADR-019: buildPayload requiere date/currency/counterpart del documento creado
+    date: new Date("2026-04-10"),
+    currency: "VES",
+    counterpartName: "Cliente ABC",
+    counterpartRif: "J-12345678-9",
+    taxLines: [],
+  };
+
+  const luxuryNdData = {
+    relatedInvoiceId: "inv-original",
+    invoiceNumber: "ND-0000002",
+    date: new Date("2026-04-10"),
+    counterpartName: "Cliente ABC",
+    counterpartRif: "J-12345678-9",
+    taxLines: LUXURY_NOTE_LINES,
+    ivaRetentionAmount: "0",
+    islrRetentionAmount: "0",
+    igtfBase: "0",
+    igtfAmount: "0",
+    currency: "VES" as const,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupTransactionMock();
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(luxuryOriginalInvoice as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue(luxuryNdInvoice as never);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockCompanySettingsFindUnique.mockResolvedValue(null);
+    mockGLCanPost.mockReturnValue(false);
+  });
+
+  it("ND de lujo base 1000 guarda totalAmountVes 1310.00 y pendingAmount 1310.00 (hoy: 2310.00)", async () => {
+    await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
+
+    expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("1310.00");
+    expect(new Decimal(noteRowCreated().pendingAmount).toFixed(2)).toBe("1310.00");
+  });
+
+  it("suma 1310.00 (no 2310.00) al saldo de la original: 1310.00 → 2620.00", async () => {
+    await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
+
+    expect(new Decimal(originalUpdated().pendingAmount).toFixed(2)).toBe("2620.00");
+  });
+
+  it("original PAGADA (saldo 0) + ND de lujo → saldo 1310.00 y PARTIAL", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      ...luxuryOriginalInvoice,
+      pendingAmount: new Decimal("0"),
+      paymentStatus: "PAID",
+    } as never);
+
+    await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
+
+    expect(new Decimal(originalUpdated().pendingAmount).toFixed(2)).toBe("1310.00");
+    expect(originalUpdated().paymentStatus).toBe("PARTIAL");
+  });
+
+  it("el AuditLog CREATE_ND registra totalAmountVes 1310.00", async () => {
+    await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
+
+    expect(auditNewValue("CREATE_ND")).toEqual(expect.objectContaining({ totalAmountVes: "1310.00" }));
+  });
+
+  it("GUARDA: el detalle de la ND conserva las DOS filas de InvoiceTaxLine", async () => {
+    await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
+
+    const data = vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as {
+      data: { taxLines: { create: Array<{ taxType: string }> } };
+    };
+    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual(["IVA_GENERAL", "IVA_ADICIONAL"]);
+  });
+
+  // ── Guarda de sobrecorrección (pasa hoy y debe seguir pasando) ────────────
+  it("GUARDA: ND sin lujo (G 172.41/27.59) sigue guardando total 200.00", async () => {
+    await createDebitNote(
+      COMPANY_ID,
+      {
+        ...luxuryNdData,
+        taxLines: [{ taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" }],
+      },
+      CREATED_BY,
+    );
+
+    expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("200.00");
+  });
+});
+
 // ─── getCreditDebitNotes tests ────────────────────────────────────────────────
 describe("InvoiceService.getCreditDebitNotes", () => {
   beforeEach(() => {

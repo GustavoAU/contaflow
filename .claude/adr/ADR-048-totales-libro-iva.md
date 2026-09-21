@@ -75,5 +75,27 @@ cambiaría también las líneas del TXT SIVIT (regulatorio) y el criterio es del
   y `SivitExportService` usa `.find()` y descarta líneas repetidas (una factura mixta da 730 en el ZIP contra 1890 en
   el libro). Es un formato regulatorio: no se tocan las líneas sin su especificación. El pie ya es coherente con ellas.
 - Exclusión de facturas anuladas (`VOIDED`) en el libro: hoy solo filtra `deletedAt`.
-- La ruta legacy de creación y las NC/ND suman `base + monto` de todas las líneas; un `IVA_ADICIONAL` manual duplicaría
-  `totalAmountVes` y el asiento (`total − iva`).
+- ~~La ruta legacy de creación y las NC/ND suman `base + monto`...~~ RESUELTO 2026-09-20, ver el addendum.
+
+## Addendum 2026-09-20 — el criterio pasa a `src/lib/invoice-amounts.ts` (rama `fix/factura-lujo-total`)
+
+`invoiceBaseAndIva` / `invoiceTotalAmount` (módulo puro, solo decimal.js) reemplazan a `bookAmounts` y son la fuente única
+del criterio de lujo. Se aplican en: creación legacy (`InvoiceService.create`, la única que usan el formulario y el import),
+NC y ND, `SeniatXMLService`, QR (`invoice.actions` y `DocumentService`), PDF del voucher, guard de base de las retenciones
+y el subtotal/IGTF del formulario. Una factura de lujo de base 1000 da 1310 en todos (antes 2310 al crear y 2000 de base
+mostrada). El asiento (`InvoiceGLPostingService`, `total − iva`) era correcto y solo heredaba el total inflado; el
+`igtfBase` que envía el formulario también heredaba el error (IGTF 69,30 en vez de 39,30).
+
+- **Datos históricos**: la BD de producción no tiene facturas con `IVA_ADICIONAL` (0 de 39): no hay data-fix. En otro
+  entorno habría que detectar las creadas antes del fix (`totalAmountVes` > base una vez + IVA) y corregirlas con asientos
+  correctores (ADR-015 si el período cerró); los `SeniatSubmission` pendientes conservan el total viejo.
+- **Seguimientos** (no van aquí: piden especificación del formato, criterio del contador o schema): Base16 del TXT SIVIT
+  (`export-helpers.ts`) y `ExportService` (`.find`); Forma 30 repite la base de lujo en A1/A3 (`DeclaracionIVAService`);
+  la retención de una venta de lujo fija 16 % (`retention.actions`, `calculate`); una NC por el total de una factura
+  retenida se rechaza porque `InvoiceCreditDebitNoteService` compara el total bruto con el pendiente neto de retención
+  (preexistente); el panel rotula "31 %" con el IVA de 15 %; `superRefine` en `CreateInvoiceSchema` (ΣA ≤ ΣG) es política
+  de negocio; persistir `luxuryGroupId` (arch-agent); `IGTFService.applies` usa AND y best-practices §3.2 usa OR. **Integridad del IVA (preexistente, hallazgo del security-agent,
+  verificado en el schema)**: `TaxLineSchema` solo valida rango y tasa canónica; nadie comprueba que `monto = base × tasa`
+  y `InvoiceService.create` guarda el `amount` que envía el cliente, así que un IVA mal calculado (o manipulado) entra en
+  el libro, la Forma 30 y el total. Arreglo posible: recalcular el IVA en el servidor o un `superRefine` con tolerancia de
+  redondeo; cambia lo que se acepta, por eso es decisión de negocio y va en su propia rama.

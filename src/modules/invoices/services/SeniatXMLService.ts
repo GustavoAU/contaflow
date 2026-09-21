@@ -9,6 +9,7 @@
 // Escape XML obligatorio en todos los valores de texto.
 
 import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
 
@@ -96,12 +97,9 @@ export class SeniatXMLService {
     const tipoOperacion = p.invoiceType === "SALE" ? "VENTA" : "COMPRA";
 
     // ── Totales calculados ─────────────────────────────────────────────────────
-    const totalBase = p.taxLines
-      .reduce((acc, l) => acc.plus(l.base), new Decimal(0))
-      .toFixed(2);
-    const totalIva = p.taxLines
-      .reduce((acc, l) => acc.plus(l.amount), new Decimal(0))
-      .toFixed(2);
+    const amounts = invoiceBaseAndIva(p.taxLines);
+    const totalBase = amounts.base.toFixed(2);
+    const totalIva = amounts.iva.toFixed(2);
     const montoTotal = new Decimal(totalBase).plus(totalIva).toFixed(2);
 
     // ── Líneas de impuesto → nodos XML ────────────────────────────────────────

@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
 import {
   createInvoiceAction,
   createCreditNoteAction,
@@ -458,11 +459,22 @@ export function InvoiceForm({
   const totalIva = sumTaxLines(taxLines);
 
   // ─── Subtotal y total general ────────────────────────────────────────────────
-  const subtotal = taxLines
-    .reduce((acc, l) => {
-      try { return acc.plus(new Decimal(l.base || "0")); } catch { return acc; }
-    }, new Decimal(0))
-    .toFixed(2);
+  // Base UNA vez: la de lujo va en dos líneas (general + adicional). Mismo criterio que el servidor.
+  const subtotal = invoiceBaseAndIva(
+    taxLines.flatMap((l) => {
+      try {
+        return [
+          {
+            taxType: l.taxType,
+            base: new Decimal(l.base || "0").toString(),
+            amount: new Decimal(l.amount || "0").toString(),
+          },
+        ];
+      } catch {
+        return []; // línea a medio escribir: no cuenta
+      }
+    }),
+  ).base.toFixed(2);
 
   // ─── Auto-actualizar Base IGTF cuando cambian las líneas de impuesto ─────────
   useEffect(() => {

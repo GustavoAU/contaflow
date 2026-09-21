@@ -590,6 +590,100 @@ describe("exportInvoiceVoucherPDFAction", () => {
   });
 });
 
+// ─── fix/factura-lujo-total — TDD SPEC (RED) ──────────────────────────────────
+// El QR del comprobante lleva `montoTotal`. Una factura de lujo (ADICIONAL_31) llega como DOS
+// InvoiceTaxLine con la MISMA base (IVA_GENERAL 16% + IVA_ADICIONAL 15%): la acción sumaba
+// `base + amount` de TODAS las filas y el QR llevaba TOTAL=2310.00 en vez de 1310.00.
+describe("exportInvoiceVoucherPDFAction — montoTotal del QR en factura de lujo", () => {
+  // Los Decimal de Prisma se mockean con `toFixed` (es lo único que la acción les pide)
+  const taxLine = (taxType: string, base: string, rate: string, amount: string) => ({
+    taxType,
+    base: { toFixed: () => base },
+    rate: { toFixed: () => rate },
+    amount: { toFixed: () => amount },
+  });
+
+  const luxuryInvoice = (base: string, general: string, additional: string) => ({
+    ...mockInvoice,
+    taxLines: [
+      taxLine("IVA_GENERAL", base, "16.00", general),
+      taxLine("IVA_ADICIONAL", base, "15.00", additional),
+    ],
+  });
+
+  async function qrArgsFor(invoice: unknown) {
+    vi.mocked(InvoiceService.getById).mockResolvedValue(invoice as never);
+    const result = await exportInvoiceVoucherPDFAction("inv-1", "company-1");
+    expect(result.success).toBe(true);
+    const { SeniatXMLService } = await import("../services/SeniatXMLService");
+    expect(SeniatXMLService.qrContent).toHaveBeenCalledTimes(1);
+    return vi.mocked(SeniatXMLService.qrContent).mock.calls[0]![0];
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
+    vi.mocked(generateInvoiceVoucherPDF).mockResolvedValue(Buffer.from("fake-voucher-pdf"));
+  });
+
+  it("base 1000 (G 1000/160.00 + A 1000/150.00): el QR lleva montoTotal 1310.00 (hoy 2310.00)", async () => {
+    const qrArgs = await qrArgsFor(luxuryInvoice("1000.00", "160.00", "150.00"));
+
+    expect(qrArgs.montoTotal).toBe("1310.00");
+  });
+
+  it("lujo con centavos (1333.33 → IVA 213.33 + 200.00): montoTotal 1746.66", async () => {
+    const qrArgs = await qrArgsFor(luxuryInvoice("1333.33", "213.33", "200.00"));
+
+    expect(qrArgs.montoTotal).toBe("1746.66");
+  });
+
+  it("factura mixta (general 600 + lujo 400 = tres filas): montoTotal 1220.00", async () => {
+    const qrArgs = await qrArgsFor({
+      ...mockInvoice,
+      taxLines: [
+        taxLine("IVA_GENERAL", "600.00", "16.00", "96.00"),
+        taxLine("IVA_GENERAL", "400.00", "16.00", "64.00"),
+        taxLine("IVA_ADICIONAL", "400.00", "15.00", "60.00"),
+      ],
+    });
+
+    expect(qrArgs.montoTotal).toBe("1220.00");
+  });
+
+  it("GUARDA: el PDF sigue recibiendo las DOS filas de detalle (solo cambia el total del QR)", async () => {
+    await qrArgsFor(luxuryInvoice("1000.00", "160.00", "150.00"));
+
+    expect(generateInvoiceVoucherPDF).toHaveBeenCalledTimes(1);
+    const pdfParams = vi.mocked(generateInvoiceVoucherPDF).mock.calls[0]![0];
+    expect(pdfParams.taxLines).toEqual([
+      { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "160.00" },
+      { taxType: "IVA_ADICIONAL", base: "1000.00", rate: "15.00", amount: "150.00" },
+    ]);
+  });
+
+  // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
+  it("GUARDA: solo general 1000/160 → montoTotal 1160.00", async () => {
+    const qrArgs = await qrArgsFor(mockInvoice);
+
+    expect(qrArgs.montoTotal).toBe("1160.00");
+  });
+
+  it("GUARDA: general + reducido + exento → base de cada alícuota entra una vez (montoTotal 1900.00)", async () => {
+    const qrArgs = await qrArgsFor({
+      ...mockInvoice,
+      taxLines: [
+        taxLine("IVA_GENERAL", "1000.00", "16.00", "160.00"),
+        taxLine("IVA_REDUCIDO", "500.00", "8.00", "40.00"),
+        taxLine("EXENTO", "200.00", "0.00", "0.00"),
+      ],
+    });
+
+    expect(qrArgs.montoTotal).toBe("1900.00");
+  });
+});
+
 // ─── getInvoicesPaginatedAction ───────────────────────────────────────────────
 
 describe("getInvoicesPaginatedAction", () => {

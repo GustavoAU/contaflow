@@ -269,6 +269,135 @@ describe("InvoiceService.create", () => {
   });
 });
 
+// ─── fix/factura-lujo-total — TDD SPEC (RED) ──────────────────────────────────
+// Una factura de lujo (ADICIONAL_31) se guarda como DOS InvoiceTaxLine con la MISMA base:
+// IVA_GENERAL 16% + IVA_ADICIONAL 15%. En la ruta legacy (`taxLines` sin `lines`) el total
+// se calculaba sumando `base + amount` de TODAS las filas → la base entraba dos veces
+// (2310.00 en vez de 1310.00 para base 1000) y `pendingAmount` heredaba el error.
+describe("InvoiceService.create — factura de lujo (ruta legacy con taxLines)", () => {
+  const LUXURY_LINES = [
+    { taxType: "IVA_GENERAL" as const, base: "1000.00", rate: "16", amount: "160.00" },
+    { taxType: "IVA_ADICIONAL" as const, base: "1000.00", rate: "15", amount: "150.00" },
+  ];
+
+  type CreateArg = {
+    data: {
+      totalAmountVes: Decimal;
+      pendingAmount: Decimal;
+      taxLines: { create: Array<{ taxType: string; base: Decimal; amount: Decimal }> };
+    };
+  };
+
+  // Lo que el servicio le pasó a prisma.invoice.create, con los Decimal serializados a 2 decimales
+  function created() {
+    const arg = vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as CreateArg;
+    return {
+      totalAmountVes: new Decimal(arg.data.totalAmountVes).toFixed(2),
+      pendingAmount: new Decimal(arg.data.pendingAmount).toFixed(2),
+      taxLines: arg.data.taxLines.create.map((tl) => ({
+        taxType: tl.taxType,
+        base: new Decimal(tl.base).toFixed(2),
+        amount: new Decimal(tl.amount).toFixed(2),
+      })),
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ paymentTermDays: 30 } as never);
+    vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
+  });
+
+  it("G 1000/160.00 + A 1000/150.00 → totalAmountVes 1310.00 (base UNA vez), no 2310.00", async () => {
+    await InvoiceService.create({ ...BASE_INPUT, taxLines: LUXURY_LINES });
+
+    expect(created().totalAmountVes).toBe("1310.00");
+  });
+
+  it("pendingAmount inicial = 1310.00 cuando no hay retenciones", async () => {
+    await InvoiceService.create({ ...BASE_INPUT, taxLines: LUXURY_LINES });
+
+    expect(created().pendingAmount).toBe("1310.00");
+  });
+
+  it("pendingAmount = total − retenciones: 1310.00 − 120.00 IVA − 10.00 ISLR = 1180.00 (total sigue en 1310.00)", async () => {
+    await InvoiceService.create({
+      ...BASE_INPUT,
+      taxLines: LUXURY_LINES,
+      ivaRetentionAmount: "120.00",
+      islrRetentionAmount: "10.00",
+    });
+
+    expect(created().totalAmountVes).toBe("1310.00");
+    expect(created().pendingAmount).toBe("1180.00");
+  });
+
+  it("lujo con centavos (1333.33 → IVA 213.33 + 200.00) → total 1746.66, sin error de coma flotante", async () => {
+    await InvoiceService.create({
+      ...BASE_INPUT,
+      taxLines: [
+        { taxType: "IVA_GENERAL" as const, base: "1333.33", rate: "16", amount: "213.33" },
+        { taxType: "IVA_ADICIONAL" as const, base: "1333.33", rate: "15", amount: "200.00" },
+      ],
+    });
+
+    expect(created().totalAmountVes).toBe("1746.66");
+  });
+
+  it("factura mixta (general 600 + lujo 400 = tres filas) → total 1220.00, no 1620.00", async () => {
+    // ΣG = 600 + 400 = 1000, ΣA = 400 → base 1000 · IVA 96 + 64 + 60 = 220
+    await InvoiceService.create({
+      ...BASE_INPUT,
+      taxLines: [
+        { taxType: "IVA_GENERAL" as const, base: "600.00", rate: "16", amount: "96.00" },
+        { taxType: "IVA_GENERAL" as const, base: "400.00", rate: "16", amount: "64.00" },
+        { taxType: "IVA_ADICIONAL" as const, base: "400.00", rate: "15", amount: "60.00" },
+      ],
+    });
+
+    expect(created().totalAmountVes).toBe("1220.00");
+  });
+
+  it("GUARDA: el detalle conserva las DOS filas de InvoiceTaxLine (solo cambia el total, no el desglose)", async () => {
+    await InvoiceService.create({ ...BASE_INPUT, taxLines: LUXURY_LINES });
+
+    expect(created().taxLines).toEqual([
+      { taxType: "IVA_GENERAL", base: "1000.00", amount: "160.00" },
+      { taxType: "IVA_ADICIONAL", base: "1000.00", amount: "150.00" },
+    ]);
+  });
+
+  // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
+  it("GUARDA: solo general 1000/160 → total 1160.00 (sin lujo no cambia)", async () => {
+    await InvoiceService.create(BASE_INPUT);
+
+    expect(created().totalAmountVes).toBe("1160.00");
+  });
+
+  it("GUARDA: general + reducido + exento → base de cada alícuota entra una vez (total 851237.60)", async () => {
+    await InvoiceService.create({
+      ...BASE_INPUT,
+      taxLines: [
+        { taxType: "IVA_GENERAL" as const, base: "270.00", rate: "16", amount: "43.20" },
+        { taxType: "IVA_REDUCIDO" as const, base: "787430.00", rate: "8", amount: "62994.40" },
+        { taxType: "EXENTO" as const, base: "500.00", rate: "0", amount: "0.00" },
+      ],
+    });
+
+    // base 270 + 787430 + 500 = 788200 · IVA 63037.60
+    expect(created().totalAmountVes).toBe("851237.60");
+  });
+
+  it("GUARDA: IVA_ADICIONAL manual SIN IVA_GENERAL conserva su base (1000 + 150 = 1150.00)", async () => {
+    await InvoiceService.create({
+      ...BASE_INPUT,
+      taxLines: [{ taxType: "IVA_ADICIONAL" as const, base: "1000.00", rate: "15", amount: "150.00" }],
+    });
+
+    expect(created().totalAmountVes).toBe("1150.00");
+  });
+});
+
 describe("InvoiceService.getBook", () => {
   beforeEach(() => vi.clearAllMocks());
 

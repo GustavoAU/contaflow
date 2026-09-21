@@ -1,5 +1,6 @@
 // src/modules/invoices/services/InvoiceService.ts
 import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva, invoiceTotalAmount } from "@/lib/invoice-amounts";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, TaxLineType } from "@prisma/client";
 import type { CreateInvoiceInput, CreateInvoiceWithLinesInput, InvoiceBookFilter } from "../schemas/invoice.schema";
@@ -98,27 +99,6 @@ export type InvoiceBookResult = {
   rows: InvoiceBookRow[];
   summary: InvoiceBookSummary;
 };
-
-type BookTaxLine = { taxType: string; base: { toString(): string }; amount: { toString(): string } };
-
-// Base e IVA de UNA factura para el libro. ADICIONAL_31 (lujo) se guarda como dos líneas con la MISMA base
-// (IVA_GENERAL + IVA_ADICIONAL) y la BD no distingue el grupo (InvoiceTaxLine no tiene luxuryGroupId): la base
-// adicional se cuenta solo en lo que excede a la general (una factura con solo IVA_ADICIONAL conserva su base).
-function bookAmounts(lines: BookTaxLine[]): { base: Decimal; iva: Decimal } {
-  let general = new Decimal(0);
-  let additional = new Decimal(0);
-  let otherBase = new Decimal(0); // reducida + exenta
-  let iva = new Decimal(0);
-  for (const line of lines) {
-    const base = new Decimal(line.base.toString());
-    iva = iva.plus(line.amount.toString());
-    if (line.taxType === "IVA_GENERAL") general = general.plus(base);
-    else if (line.taxType === "IVA_ADICIONAL") additional = additional.plus(base);
-    else otherBase = otherBase.plus(base);
-  }
-  const uncoveredAdditional = Decimal.max(additional.minus(general), 0);
-  return { base: general.plus(otherBase).plus(uncoveredAdditional), iva };
-}
 
 // ─── Paginación cursor-based ──────────────────────────────────────────────────
 
@@ -251,10 +231,8 @@ export class InvoiceService {
         amount: new Decimal(line.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
         description: line.description ?? null,
       }));
-      totalAmountVes = input.taxLines.reduce(
-        (acc, line) => acc.plus(new Decimal(line.base)).plus(new Decimal(line.amount)),
-        new Decimal(0)
-      );
+      // La base de lujo va en dos líneas (general + adicional): invoiceTotalAmount la cuenta una sola vez.
+      totalAmountVes = invoiceTotalAmount(input.taxLines);
     }
 
     const pendingAmount = InvoiceService.computeInitialPendingAmount(
@@ -644,7 +622,7 @@ export class InvoiceService {
       exchangeRate: null, // paginated book view doesn't include rate details
       seniatStatus: null, // paginated view omits SENIAT status
       total: (() => {
-        const { base, iva } = bookAmounts(inv.taxLines);
+        const { base, iva } = invoiceBaseAndIva(inv.taxLines);
         return base.plus(iva).toFixed(2);
       })(),
       taxLines: inv.taxLines.map((line) => ({
@@ -769,7 +747,7 @@ export class InvoiceService {
           description: line.description ?? null,
         })),
         total: (() => {
-          const { base, iva } = bookAmounts(inv.taxLines);
+          const { base, iva } = invoiceBaseAndIva(inv.taxLines);
           return base.plus(iva).toFixed(2);
         })(),
         seniatStatus: (inv.seniatSubmission?.status ?? null) as "PENDING" | "SENT" | "FAILED" | null,
@@ -804,7 +782,7 @@ export class InvoiceService {
     let totalIva = new Decimal(0);
     for (const inv of invoices) {
       const sign = signOf(inv.docType);
-      const { base, iva } = bookAmounts(inv.taxLines);
+      const { base, iva } = invoiceBaseAndIva(inv.taxLines);
       totalBase = totalBase.plus(base.times(sign));
       totalIva = totalIva.plus(iva.times(sign));
     }

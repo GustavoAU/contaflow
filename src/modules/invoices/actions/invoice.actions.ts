@@ -23,6 +23,7 @@ import { generateInvoiceVoucherPDF } from "../services/InvoiceVoucherPDFService"
 import { SeniatXMLService } from "../services/SeniatXMLService";
 import { SeniatReportingService } from "../services/SeniatReportingService";
 import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
 import qrcode from "qrcode";
 import { mapPrismaError, isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 import { StockConfirmRequiredError } from "../services/InvoiceLineService";
@@ -365,12 +366,9 @@ export async function exportInvoiceVoucherPDFAction(
       rate: l.rate.toFixed(2),
       amount: l.amount.toFixed(2),
     }));
-    const totalBase = mappedTaxLines.reduce(
-      (acc, l) => acc.plus(l.base), new Decimal(0)
-    ).toFixed(2);
-    const totalIva = mappedTaxLines.reduce(
-      (acc, l) => acc.plus(l.amount), new Decimal(0)
-    ).toFixed(2);
+    const amounts = invoiceBaseAndIva(mappedTaxLines);
+    const totalBase = amounts.base.toFixed(2);
+    const totalIva = amounts.iva.toFixed(2);
     const montoTotal = new Decimal(totalBase).plus(totalIva).toFixed(2);
 
     const qrContent = SeniatXMLService.qrContent({
