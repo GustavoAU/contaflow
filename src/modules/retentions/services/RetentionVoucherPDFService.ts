@@ -11,7 +11,13 @@ export type RetentionVoucherParams = {
   companyRif: string
   companyAddress?: string
   // Datos de la retención
-  voucherNumber: string             // formato "00-XXXXXXXX"
+  // ADR-052: correlativo de IVA (o de ISLR cuando retentionType es "ISLR" — ver
+  // exportRetentionVoucherPDFAction, que elige el campo correcto para este slot).
+  voucherNumber: string              // formato "00-XXXXXXXX"
+  // ADR-052: correlativo de ISLR — solo se pasa (y se imprime, como línea aparte)
+  // cuando retentionType es "AMBAS", porque IVA e ISLR llevan correlativo
+  // independiente y ambos deben quedar impresos.
+  islrVoucherNumber?: string
   issueDate: Date
   providerName: string
   providerRif: string
@@ -225,9 +231,20 @@ function VoucherHeader({ params }: { params: RetentionVoucherParams }) {
     React.createElement(
       View,
       { style: styles.infoRow },
-      React.createElement(Text, { style: styles.infoLabel }, "N° Comprobante:"),
+      // ADR-052: AMBAS lleva dos correlativos independientes — se rotula cada uno
+      // para no sugerir que es un solo número. Un tipo simple mantiene la etiqueta
+      // genérica (menos ruido cuando solo hay un comprobante).
+      React.createElement(Text, { style: styles.infoLabel }, params.islrVoucherNumber ? "N° Comprobante IVA:" : "N° Comprobante:"),
       React.createElement(Text, { style: styles.infoValue }, params.voucherNumber),
     ),
+    params.islrVoucherNumber
+      ? React.createElement(
+          View,
+          { style: styles.infoRow },
+          React.createElement(Text, { style: styles.infoLabel }, "N° Comprobante ISLR:"),
+          React.createElement(Text, { style: styles.infoValue }, params.islrVoucherNumber),
+        )
+      : null,
     React.createElement(
       View,
       { style: styles.infoRow },
@@ -372,7 +389,9 @@ function RetentionVoucherDocument({ params }: { params: RetentionVoucherParams }
         React.createElement(
           Text,
           null,
-          `${params.companyName} — Comprobante N° ${params.voucherNumber} — ${params.periodLabel}`,
+          params.islrVoucherNumber
+            ? `${params.companyName} — Comprobante IVA N° ${params.voucherNumber} / ISLR N° ${params.islrVoucherNumber} — ${params.periodLabel}`
+            : `${params.companyName} — Comprobante N° ${params.voucherNumber} — ${params.periodLabel}`,
         ),
         React.createElement(
           Text,

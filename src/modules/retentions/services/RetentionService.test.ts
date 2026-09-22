@@ -100,6 +100,104 @@ describe("RetentionService.validateRif", () => {
   });
 });
 
+// ─── ADR-052: getNextIvaVoucherNumber / getNextIslrVoucherNumber ──────────────
+//
+// Fake tabla de secuencia con estado real (no un valor fijo) — así el test
+// ejerce el incremento/reinicio de verdad y no solo la aritmética del formato.
+// Ver memoria "correlativos-por-count": un mock de valor fijo pasaría igual con
+// la fórmula correcta y con la equivocada.
+
+import { getNextIvaVoucherNumber, getNextIslrVoucherNumber } from "./RetentionService";
+import type { Prisma } from "@prisma/client";
+
+function fakeIvaSequenceTx() {
+  const rows = new Map<string, { lastNumber: number }>();
+  return {
+    ivaRetentionSequence: {
+      upsert: vi.fn(async ({ where, create, update }: {
+        where: { companyId: string };
+        create: { lastNumber: number };
+        update: { lastNumber: { increment: number } };
+      }) => {
+        const key = where.companyId;
+        const existing = rows.get(key);
+        const row = existing
+          ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
+          : { lastNumber: create.lastNumber };
+        rows.set(key, row);
+        return row;
+      }),
+    },
+  } as unknown as Prisma.TransactionClient;
+}
+
+function fakeIslrSequenceTx() {
+  const rows = new Map<string, { lastNumber: number }>();
+  return {
+    islrRetentionSequence: {
+      upsert: vi.fn(async ({ where, create, update }: {
+        where: { companyId_year_month: { companyId: string; year: number; month: number } };
+        create: { lastNumber: number };
+        update: { lastNumber: { increment: number } };
+      }) => {
+        const { companyId, year, month } = where.companyId_year_month;
+        const key = `${companyId}:${year}:${month}`;
+        const existing = rows.get(key);
+        const row = existing
+          ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
+          : { lastNumber: create.lastNumber };
+        rows.set(key, row);
+        return row;
+      }),
+    },
+  } as unknown as Prisma.TransactionClient;
+}
+
+describe("getNextIvaVoucherNumber", () => {
+  it("incrementa CONTINUAMENTE dentro del mismo mes — nunca reinicia a 1", async () => {
+    const tx = fakeIvaSequenceTx();
+    const n1 = await getNextIvaVoucherNumber(tx, "comp-1", new Date("2026-09-05T00:00:00Z"));
+    const n2 = await getNextIvaVoucherNumber(tx, "comp-1", new Date("2026-09-20T00:00:00Z"));
+    expect(n1).toBe("20260900000001");
+    expect(n2).toBe("20260900000002");
+  });
+
+  it("al cambiar de mes el contador SIGUE (no reinicia) — confirmado con contador real", async () => {
+    const tx = fakeIvaSequenceTx();
+    await getNextIvaVoucherNumber(tx, "comp-1", new Date("2026-09-28T00:00:00Z"));
+    await getNextIvaVoucherNumber(tx, "comp-1", new Date("2026-09-30T00:00:00Z"));
+    // Octubre: el prefijo cambia a 202610, pero el correlativo sigue en 3, NO vuelve a 1.
+    const n3 = await getNextIvaVoucherNumber(tx, "comp-1", new Date("2026-10-01T00:00:00Z"));
+    expect(n3).toBe("20261000000003");
+  });
+
+  it("empresas distintas tienen contadores independientes", async () => {
+    const tx = fakeIvaSequenceTx();
+    const a1 = await getNextIvaVoucherNumber(tx, "comp-a", new Date("2026-09-05T00:00:00Z"));
+    const b1 = await getNextIvaVoucherNumber(tx, "comp-b", new Date("2026-09-05T00:00:00Z"));
+    expect(a1).toBe("20260900000001");
+    expect(b1).toBe("20260900000001");
+  });
+});
+
+describe("getNextIslrVoucherNumber", () => {
+  it("incrementa dentro del mismo mes", async () => {
+    const tx = fakeIslrSequenceTx();
+    const n1 = await getNextIslrVoucherNumber(tx, "comp-1", new Date("2026-09-05T00:00:00Z"));
+    const n2 = await getNextIslrVoucherNumber(tx, "comp-1", new Date("2026-09-20T00:00:00Z"));
+    expect(n1).toBe("20260900000001");
+    expect(n2).toBe("20260900000002");
+  });
+
+  it("al cambiar de mes SÍ reinicia a 1 — a diferencia de IVA", async () => {
+    const tx = fakeIslrSequenceTx();
+    await getNextIslrVoucherNumber(tx, "comp-1", new Date("2026-09-28T00:00:00Z"));
+    await getNextIslrVoucherNumber(tx, "comp-1", new Date("2026-09-30T00:00:00Z"));
+    const n3 = await getNextIslrVoucherNumber(tx, "comp-1", new Date("2026-10-01T00:00:00Z"));
+    expect(n3).toBe("20261000000001");
+  });
+});
+
 // ─── Tests para linkRetentionToInvoice y getRetentionsByInvoice ───────────────
 
 import { vi, beforeEach } from "vitest";

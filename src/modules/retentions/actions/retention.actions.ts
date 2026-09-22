@@ -22,7 +22,8 @@ import {
 import {
   RetentionService,
   linkRetentionToInvoice,
-  getNextVoucherNumber,
+  getNextIvaVoucherNumber,
+  getNextIslrVoucherNumber,
   enterRetention,
 } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
@@ -44,6 +45,7 @@ export type RetentionSummary = {
   fatAmount: string | null;
   totalRetention: string;
   voucherNumber: string | null;
+  islrVoucherNumber: string | null;
   type: string;
   status: string;
   enteradoAt: Date | null;
@@ -190,7 +192,14 @@ export async function createRetentionAction(
         retention = await prisma.$transaction(
           async (tx) =>
             withCompanyContext(data.companyId, tx, async (tx) => {
-              const voucherNumber = await getNextVoucherNumber(tx, data.companyId, new Date());
+              // ADR-052: correlativos INDEPENDIENTES — IVA continuo, ISLR con reinicio
+              // mensual. Cada uno se genera solo si el tipo de retención lo requiere.
+              const voucherNumber = data.type !== "ISLR"
+                ? await getNextIvaVoucherNumber(tx, data.companyId, new Date())
+                : null;
+              const islrVoucherNumber = data.type !== "IVA"
+                ? await getNextIslrVoucherNumber(tx, data.companyId, new Date())
+                : null;
 
               const ret = await tx.retencion.create({
                 data: {
@@ -218,6 +227,7 @@ export async function createRetentionAction(
                     : null,
                   totalRetention: new Decimal(calc.totalRetention),
                   voucherNumber,
+                  islrVoucherNumber,
                   type: data.type,
                   status: "PENDING",
                   createdBy: userId,
@@ -239,6 +249,7 @@ export async function createRetentionAction(
                     invoiceNumber: data.invoiceNumber,
                     totalRetention: calc.totalRetention,
                     voucherNumber,
+                    islrVoucherNumber,
                     applyInces: data.applyInces ?? false,
                     applyFat: data.applyFat ?? false,
                   },
@@ -303,27 +314,37 @@ export async function createRetentionAction(
                       accountId: glSettings.islrRetentionPayableAccountId,
                       // Cr Ret.ISLR: obligación por enterar al SENIAT
                       amount: islrRet.negated(),
-                      description: `Retención ISLR ${voucherNumber} — Ret. por enterar`,
+                      description: `Retención ISLR ${islrVoucherNumber} — Ret. por enterar`,
                     },
                   );
                 }
 
                 if (glEntries.length > 0 && totalGlRetention.greaterThan(0)) {
+                  // ADR-052: IVA y ISLR son secuencias INDEPENDIENTES — pueden coincidir en
+                  // el mismo valor numérico en el mismo período (p.ej. ambas en su primer
+                  // comprobante del mes). Transaction tiene @@unique([companyId, number]),
+                  // así que el prefijo de tipo es obligatorio: sin él, un "RET-<mismo número>"
+                  // de una retención IVA y otra ISLR distintas chocarían en P2002.
+                  const retNumbersLabel = [
+                    voucherNumber ? `IVA-${voucherNumber}` : null,
+                    islrVoucherNumber ? `ISLR-${islrVoucherNumber}` : null,
+                  ].filter(Boolean).join("_");
+
                   // Dr CxP por el total retenido (IVA + ISLR combinados en un solo débito)
                   glEntries.unshift({
                     accountId: glSettings.apAccountId,
                     // Dr CxP: reduce lo que se le pagará al proveedor
                     amount: totalGlRetention,
-                    description: `Retenciones ${voucherNumber} — CxP`,
+                    description: `Retenciones ${retNumbersLabel} — CxP`,
                   });
 
                   assertBalancedGLEntries(glEntries); // N4: invariante partida doble
                   const retGlTx = await tx.transaction.create({
                     data: {
                       companyId: data.companyId,
-                      number: `RET-${voucherNumber}`,
+                      number: `RET-${retNumbersLabel}`,
                       date: data.invoiceDate,
-                      description: `Retenciones ${voucherNumber} — ${data.providerName} (Factura ${data.invoiceNumber})`,
+                      description: `Retenciones ${retNumbersLabel} — ${data.providerName} (Factura ${data.invoiceNumber})`,
                       type: "DIARIO",
                       userId,
                       entries: { create: glEntries },
@@ -379,12 +400,12 @@ export async function createRetentionAction(
     return { success: true, data: serializeRetention(retention) };
   } catch (error) {
     // Z-1: acotar POR CONSTRAINT. Antes cualquier P2002 entraba aqui, incluido
-    // el del correlativo de comprobante (getNextVoucherNumber corre dentro de
-    // esta misma transaccion). Si no habia fila recuperable caia al mensaje
+    // el del correlativo de comprobante (getNextIvaVoucherNumber/getNextIslrVoucherNumber
+    // corren dentro de esta misma transaccion). Si no habia fila recuperable caia al mensaje
     // generico "Ya existe un registro con esos datos" — cuando una colision de
     // correlativo debe comunicarse como transitoria y REINTENTABLE, que es lo
     // contrario de lo que ese texto sugiere (quick-reference Z-1).
-    if (p2002TargetIncludes(error, "voucherNumber")) {
+    if (p2002TargetIncludes(error, "voucherNumber") || p2002TargetIncludes(error, "islrVoucherNumber")) {
       return { success: false, error: "Error transitorio — intenta de nuevo." };
     }
     if (p2002TargetIncludes(error, "idempotencyKey") && validated?.idempotencyKey) {
@@ -456,11 +477,18 @@ export async function exportRetentionVoucherPDFAction(
     if (retentionType === "ISLR") retentionRate = Number(retention.islrRetentionPct ?? 0)
     else if (retentionType === "IVA") retentionRate = Number(retention.ivaRetentionPct)
 
+    // ADR-052: voucherNumber (IVA) e islrVoucherNumber son correlativos independientes.
+    // Un tipo simple (IVA o ISLR) imprime UN número en el slot genérico del PDF —
+    // eligiendo el campo que de verdad aplica a ese tipo. AMBAS imprime los dos.
+    const primaryVoucherNumber =
+      retentionType === "ISLR" ? retention.islrVoucherNumber : retention.voucherNumber;
+
     const pdfBuffer = await generateRetentionVoucherPDF({
       companyName: retention.company.name,
       companyRif: retention.company.rif ?? "",
       companyAddress: retention.company.address ?? undefined,
-      voucherNumber: retention.voucherNumber ?? retention.id,
+      voucherNumber: primaryVoucherNumber ?? retention.id,
+      islrVoucherNumber: retentionType === "AMBAS" ? (retention.islrVoucherNumber ?? undefined) : undefined,
       issueDate,
       providerName: retention.providerName,
       providerRif: retention.providerRif,
@@ -822,6 +850,7 @@ function serializeRetention(r: Retencion): RetentionSummary {
     fatAmount: r.fatAmount?.toString() ?? null,
     totalRetention: r.totalRetention.toString(),
     voucherNumber: r.voucherNumber ?? null,
+    islrVoucherNumber: r.islrVoucherNumber ?? null,
     type: r.type,
     status: r.status,
     enteradoAt: r.enteradoAt ?? null,
