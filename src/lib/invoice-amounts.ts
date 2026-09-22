@@ -32,3 +32,37 @@ export function invoiceTotalAmount(lines: AmountTaxLine[]): Decimal {
   const { base, iva } = invoiceBaseAndIva(lines);
   return base.plus(iva);
 }
+
+// ─── ADR-049 — tolerancia de "IVA impreso" y editabilidad en el formulario ────────────────────────
+// Módulo compartido servidor/cliente: fuente ÚNICA de esta clasificación (antes invoice.schema.ts
+// tenía su propia copia con la lógica INVERTIDA — allow-list de los docType ESTRICTOS, así que
+// cualquier docType nuevo de venta heredaba tolerancia amplia por omisión, fail-OPEN). Aquí es al
+// revés a propósito: allow-list de los LENIENTES (impresora fiscal); todo lo demás, incluido
+// cualquier docType futuro, es estricto por omisión — fail-CLOSED.
+export const IVA_TOLERANCE_STRICT = new Decimal("0.01"); // ventas que emite ContaFlow (FACTURA/NC/ND) y toda moneda extranjera
+export const IVA_TOLERANCE_PRINTED = new Decimal("1.00"); // compras y reportes de impresora fiscal, en VES: el impreso manda
+
+// Únicos docType de VENTA con tolerancia amplia: acumulan redondeos de una impresora fiscal o de un
+// resumen, no los calcula ContaFlow línea a línea.
+export const LENIENT_SALE_DOC_TYPES: readonly string[] = [
+  "REPORTE_Z",
+  "RESUMEN_VENTAS",
+  "PLANILLA_IMPORTACION",
+  "OTRO",
+];
+
+/** Tolerancia por línea entre el IVA recibido y base × tasa, según ADR-049. */
+export function ivaLineTolerance(opts: { type: string; docType: string; currency: string }): Decimal {
+  if (opts.currency !== "VES") return IVA_TOLERANCE_STRICT;
+  if (opts.type === "PURCHASE") return IVA_TOLERANCE_PRINTED; // cualquier docType: el proveedor imprime el IVA
+  return LENIENT_SALE_DOC_TYPES.includes(opts.docType) ? IVA_TOLERANCE_PRINTED : IVA_TOLERANCE_STRICT;
+}
+
+/** true si el formulario debe dejar escribir el "Monto IVA" impreso en vez de calcularlo. */
+export function isIvaAmountEditable(opts: { type: string; docType: string; taxType?: string }): boolean {
+  // hallazgo H2 (revisión fiscal ADR-049): el IVA de una línea EXENTO es siempre 0 — no existe un
+  // "IVA impreso" que editar ahí — así que este override gana sin importar type/docType.
+  if (opts.taxType === "EXENTO") return false;
+  if (opts.type === "PURCHASE") return true;
+  return LENIENT_SALE_DOC_TYPES.includes(opts.docType);
+}

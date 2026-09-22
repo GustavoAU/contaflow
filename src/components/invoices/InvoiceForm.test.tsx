@@ -89,9 +89,10 @@ describe("InvoiceForm — desglose de impuestos", () => {
     const baseInput = screen.getByPlaceholderText("0.00");
     fireEvent.change(baseInput, { target: { value: "1000" } });
     await waitFor(() => {
-      // El input ahora muestra el monto formateado con símbolo de moneda (VES por defecto)
-      const amountInputs = screen.getAllByRole("textbox");
-      const amountInput = amountInputs.find((el) => (el as HTMLInputElement).value.includes("160"));
+      // ADR-049: en COMPRA (BASE_PROPS por defecto) el input de Monto IVA es editable (type="number",
+      // fuera de role="textbox") y muestra el monto crudo, no formateado con símbolo de moneda.
+      const amountInputs = Array.from(document.querySelectorAll("input"));
+      const amountInput = amountInputs.find((el) => el.value.includes("160"));
       expect(amountInput).toBeTruthy();
     });
   });

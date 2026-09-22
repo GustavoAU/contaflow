@@ -3,6 +3,7 @@
 // Sin cambios de lógica — solo cambio de ubicación.
 
 import { Decimal } from "decimal.js";
+import { ivaLineTolerance } from "@/lib/invoice-amounts";
 import type { TaxLine, TaxLineType } from "./types";
 
 export const DOC_TYPES = [
@@ -128,11 +129,15 @@ export function updateTaxLineState(
 
   // 3. SINCRONIZACIÓN ATÓMICA DE BASES — espejo entre líneas vinculadas
   if (field === "base" && line.luxuryGroupId) {
-    return prev.map((l) =>
-      l.luxuryGroupId === line.luxuryGroupId
+    return prev.map((l) => {
+      if (l.luxuryGroupId !== line.luxuryGroupId) return l;
+      // hallazgo H1 (revisión fiscal ADR-049): la base SIEMPRE se espeja, pero el amount solo se
+      // recalcula si esta línea seguía en "auto-tracking" (nadie escribió un IVA impreso a mano).
+      const wasAutoTracking = l.amount === calcAmount(l.base, l.rate);
+      return wasAutoTracking
         ? { ...l, base: value, amount: calcAmount(value, l.rate) }
-        : l
-    );
+        : { ...l, base: value };
+    });
   }
 
   // 4. CAMBIO DE TIPO NORMAL — líneas no vinculadas
@@ -161,10 +166,15 @@ export function updateTaxLineState(
     if (l.id !== id) return l;
     const updated = { ...l, [field]: value };
     if (field === "base" || field === "rate") {
-      updated.amount = calcAmount(
-        field === "base" ? value : l.base,
-        field === "rate" ? value : l.rate
-      );
+      // hallazgo H1 (revisión fiscal ADR-049): no pisar en silencio un Monto IVA que el usuario ya
+      // desvió a mano (el "IVA impreso") — solo se recalcula si seguía en "auto-tracking".
+      const wasAutoTracking = l.amount === calcAmount(l.base, l.rate);
+      if (wasAutoTracking) {
+        updated.amount = calcAmount(
+          field === "base" ? value : l.base,
+          field === "rate" ? value : l.rate
+        );
+      }
     }
     return updated;
   });
@@ -175,7 +185,8 @@ export function updateTaxLineState(
 // parámetro lo que antes leía por closure (taxLines, taxCategory).
 export function validateTaxLinesBeforeSubmit(
   taxLines: TaxLine[],
-  taxCategory: string
+  taxCategory: string,
+  docContext: { type: string; docType: string; currency: string }
 ): string | null {
   const hasAdicional = taxLines.some((l) => l.taxType === "IVA_ADICIONAL");
   const hasGeneral = taxLines.some((l) => l.taxType === "IVA_GENERAL");
@@ -202,9 +213,18 @@ export function validateTaxLinesBeforeSubmit(
     return "Debes ingresar al menos una base imponible mayor a cero.";
   }
 
+  // ADR-049: el IVA impreso de una compra (o de un reporte de impresora fiscal) puede diferir de
+  // base × tasa dentro de una tolerancia — ya no se exige igualdad exacta en esos casos.
+  const tolerance = ivaLineTolerance(docContext);
   for (const line of linesWithBase) {
     const expected = calcAmount(line.base, line.rate);
-    if (line.amount !== expected) {
+    let diff: Decimal;
+    try {
+      diff = new Decimal(line.amount || "0").minus(expected).abs();
+    } catch {
+      return `Monto IVA inconsistente en línea ${line.taxType.replace(/_/g, " ")}. Recalculando...`;
+    }
+    if (diff.greaterThan(tolerance)) {
       return `Monto IVA inconsistente en línea ${line.taxType.replace(/_/g, " ")}. Recalculando...`;
     }
   }
