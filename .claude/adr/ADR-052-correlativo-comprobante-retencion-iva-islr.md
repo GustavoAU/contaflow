@@ -1,4 +1,4 @@
-# ADR-051 — Correlativo del comprobante de retención: IVA continuo, ISLR independiente
+# ADR-052 — Correlativo del comprobante de retención: IVA continuo, ISLR independiente
 
 **Estado:** Propuesto — pendiente confirmación del dueño en 2 puntos (ver "Preguntas abiertas")
 **Fecha:** 2026-09-22
