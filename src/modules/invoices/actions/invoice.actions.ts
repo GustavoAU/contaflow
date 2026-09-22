@@ -480,8 +480,13 @@ export async function createCreditNoteAction(input: unknown) {
     });
     if (!ctx.ok) return ctx.error;
 
-    // Validación completa con el schema del país (ADR-042 D-1)
-    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse(input);
+    // Validación completa con el schema del país (ADR-042 D-1). ADR-049 hueco C: docType SIEMPRE "NOTA_CREDITO" —
+    // el que declare el cliente se descarta, porque elegía la tolerancia de integridad del IVA (InvoiceService lo
+    // vuelve a forzar más abajo; validarlo aquí también es lo que hace que la tolerancia correcta se aplique).
+    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse({
+      ...(typeof input === "object" && input !== null ? input : {}),
+      docType: "NOTA_CREDITO",
+    });
     if (!parsed.success) {
       return { success: false as const, error: parsed.error.issues[0].message };
     }
@@ -528,8 +533,13 @@ export async function createDebitNoteAction(input: unknown) {
     });
     if (!ctx.ok) return ctx.error;
 
-    // Validación completa con el schema del país (ADR-042 D-1)
-    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse(input);
+    // Validación completa con el schema del país (ADR-042 D-1). ADR-049 hueco C: docType SIEMPRE "NOTA_DEBITO" —
+    // el que declare el cliente se descarta, porque elegía la tolerancia de integridad del IVA (InvoiceService lo
+    // vuelve a forzar más abajo; validarlo aquí también es lo que hace que la tolerancia correcta se aplique).
+    const parsed = getInvoiceSchemas(getFiscalConfig(ctx.country)).creditDebitNote.safeParse({
+      ...(typeof input === "object" && input !== null ? input : {}),
+      docType: "NOTA_DEBITO",
+    });
     if (!parsed.success) {
       return { success: false as const, error: parsed.error.issues[0].message };
     }

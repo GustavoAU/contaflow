@@ -17,7 +17,7 @@ import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 import { getDefaultFiscalConfig, memoizePerCountry } from "@/lib/countries";
 import type { FiscalConfig } from "@/lib/countries/types";
-import { checkControlNumber, strictDecimal, zBusinessDate, zTaxId } from "@/lib/zod-helpers";
+import { checkControlNumber, isPlainDecimal, strictDecimal, zBusinessDate, zTaxId } from "@/lib/zod-helpers";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 // Invariantes por país: son los enums de Prisma. Un país nuevo AGREGA valores al
@@ -53,6 +53,12 @@ const withinAmountRange = (v: string) => {
 };
 const amountField = () =>
   z.string().refine(withinAmountRange, { error: "Monto fuera del rango permitido" });
+
+// ADR-049: tolerancia por línea entre el IVA recibido y base × tasa, en la unidad de los montos (Bs.). Es la ÚNICA definición:
+// cambiarla es una decisión de negocio. En compras el IVA viene IMPRESO en la factura del proveedor y ese monto manda.
+const IVA_TOLERANCE_STRICT = new Decimal("0.01"); // ventas que emite ContaFlow (FACTURA / NOTA_CREDITO / NOTA_DEBITO)
+const IVA_TOLERANCE_PRINTED = new Decimal("1.00"); // compras y reportes de impresora fiscal (acumulan redondeos)
+const STRICT_SALE_DOC_TYPES: readonly string[] = ["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO"];
 
 // ─── Schemas sin dependencia de país ──────────────────────────────────────────
 // Se quedan a nivel de módulo a propósito: meterlos en la factory solo añadiría
@@ -154,15 +160,16 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
       }),
     })
     .superRefine((data, ctx) => {
-      // ADR-006 D-3: la tasa enviada debe coincidir con la canónica del taxType
+      // ADR-006 D-3: la tasa enviada debe coincidir con la canónica del taxType.
+      // ADR-049 hueco A: "coincidir" exige además que sea decimal LLANO de máximo 12 caracteres — decimal.js
+      // considera "1.6e1", "0x10" o "16.0000000000000" iguales a 16, y eso dejaba pasar una `rate` fabricada para
+      // saltarse el chequeo de base × tasa (que también dejaba de leerla, más abajo, en create.superRefine).
       const expected = canonicalTaxRates[data.taxType];
       if (expected !== undefined) {
-        let rateMatches = false;
-        try {
-          rateMatches = new Decimal(data.rate).eq(new Decimal(expected));
-        } catch {
-          rateMatches = false;
-        }
+        const rateMatches =
+          isPlainDecimal(data.rate) &&
+          data.rate.length <= 12 &&
+          new Decimal(data.rate).eq(new Decimal(expected));
         if (!rateMatches) {
           ctx.addIssue({
             code: "custom",
@@ -247,6 +254,43 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
       } catch {
         // ivaRetentionAmount parse error already caught by field refine
       }
+      // ADR-049: el monto de IVA de cada línea debe cuadrar con base × tasa. Este refine corre aunque un campo hijo ya haya
+      // fallado, así que solo se evalúan las líneas cuyos valores se pueden leer Y están dentro del rango permitido (las
+      // demás las reporta su propio refine; sin este tope, una base de miles de dígitos haría calcular y devolver un mensaje enorme).
+      // hueco A: la tasa esperada es SIEMPRE la canónica del taxType — la del servidor, nunca el string `rate` que envía el
+      // cliente. Por eso este bloque ni lo lee: quien exige que `rate` sea decimal llano de máximo 12 caracteres es
+      // `taxLine.superRefine` (arriba), y antes ambas guardas fallaban ABIERTO (una `rate` fabricada, tipo "1.6e1" o
+      // "0x10", evadía las dos a la vez).
+      // hueco B: los montos llegan en la MONEDA DEL DOCUMENTO (`currency`), no siempre en Bs. — 1,00 en USD/EUR equivaldría
+      // a unos Bs. 549, así que fuera de VES se usa siempre la tolerancia estricta (la unidad mínima de esa moneda).
+      const isForeignCurrency = data.currency !== "VES";
+      const tolerance =
+        isForeignCurrency || (data.type === "SALE" && STRICT_SALE_DOC_TYPES.includes(data.docType))
+          ? IVA_TOLERANCE_STRICT
+          : IVA_TOLERANCE_PRINTED;
+      const unitLabel = isForeignCurrency ? data.currency : "Bs.";
+      const lines: unknown[] = Array.isArray(data.taxLines) ? data.taxLines : [];
+      lines.forEach((raw, i) => {
+        const line = raw as { taxType?: unknown; base?: unknown; amount?: unknown } | null;
+        if (!line || typeof line.taxType !== "string" || typeof line.base !== "string" || typeof line.amount !== "string") return;
+        const canonicalRate = canonicalTaxRates[line.taxType];
+        if (canonicalRate === undefined || !withinAmountRange(line.base) || !withinAmountRange(line.amount)) return;
+        let received: Decimal;
+        let expected: Decimal;
+        try {
+          expected = strictDecimal(line.base).times(canonicalRate).dividedBy(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+          received = strictDecimal(line.amount);
+        } catch {
+          return;
+        }
+        if (received.minus(expected).abs().greaterThan(tolerance)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `El IVA de la línea (${unitLabel} ${received.toFixed(2)}) no coincide con base × tasa (${unitLabel} ${expected.toFixed(2)}); diferencia máxima permitida ${unitLabel} ${tolerance.toFixed(2)}`,
+            path: ["taxLines", i, "amount"],
+          });
+        }
+      });
     });
 
   const creditDebitNote = create

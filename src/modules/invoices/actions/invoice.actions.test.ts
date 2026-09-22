@@ -1,7 +1,9 @@
 // src/modules/invoices/actions/invoice.actions.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import {
   createInvoiceAction,
+  createCreditNoteAction,
+  createDebitNoteAction,
   getInvoiceBookAction,
   exportInvoiceBookPDFAction,
   exportInvoiceVoucherPDFAction,
@@ -63,6 +65,8 @@ vi.mock("../services/InvoiceService", () => ({
     getBook: vi.fn(),
     getById: vi.fn(),
     getInvoicesPaginated: vi.fn(),
+    createCreditNote: vi.fn(),
+    createDebitNote: vi.fn(),
   },
 }));
 
@@ -363,6 +367,69 @@ describe("createInvoiceAction", () => {
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.stockWarnings).toBeUndefined();
+  });
+
+  // ── Z-2: integridad del IVA (monto = base × tasa) — TDD SPEC ────────────────
+  // Regla: tolerancia Bs. 0.01 en VENTA FACTURA/NC/ND; Bs. 1.00 en cualquier COMPRA
+  // (el IVA impreso por el proveedor manda y se guarda tal cual). El detalle del schema
+  // llega al usuario porque la action devuelve `issues[0].message`.
+  describe("integridad del IVA: monto = base × tasa", () => {
+    it("VENTA con IVA incoherente → success:false con el detalle y NO crea nada", async () => {
+      vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-iva-incoherente" } as never);
+
+      const result = await createInvoiceAction({
+        ...BASE_INPUT,
+        taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "12.34" }],
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatch(/(?<!\d)12[.,]34(?!\d)/); // monto recibido
+        expect(result.error).toMatch(/(?<!\d)160[.,]00(?!\d)/); // esperado: 1000 × 16 %
+        expect(result.error).toMatch(/(?<!\d)0[.,]01(?!\d)/); // tolerancia de una venta
+      }
+      expect(InvoiceService.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it("COMPRA con IVA impreso dentro de Bs. 1.00 → se crea y el IVA se guarda tal cual", async () => {
+      vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-compra-1" } as never);
+
+      const result = await createInvoiceAction({
+        ...BASE_INPUT,
+        type: "PURCHASE",
+        taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.90" }],
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data).toBe("inv-compra-1");
+      expect(InvoiceService.create).toHaveBeenCalledOnce();
+      const [saved] = vi.mocked(InvoiceService.create).mock.calls[0];
+      expect(saved.taxLines).toEqual([
+        { taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.90" },
+      ]);
+    });
+
+    it("COMPRA con IVA impreso fuera de Bs. 1.00 → success:false con la tolerancia 1.00 y NO crea nada", async () => {
+      vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-compra-mala" } as never);
+
+      const result = await createInvoiceAction({
+        ...BASE_INPUT,
+        type: "PURCHASE",
+        taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "12.34" }],
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatch(/(?<!\d)12[.,]34(?!\d)/);
+        expect(result.error).toMatch(/(?<!\d)160[.,]00(?!\d)/);
+        expect(result.error).toMatch(/(?<!\d)1[.,]00(?!\d)/); // tolerancia de una compra
+      }
+      expect(InvoiceService.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -909,5 +976,216 @@ describe("exportInvoiceXMLAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("XML error");
+  });
+});
+
+// ─── createCreditNoteAction / createDebitNoteAction — el docType del cliente se IGNORA (ADR-049 hueco C) ─────────
+//
+// TDD SPEC (RED primero). Las actions parseaban `input` con el schema `creditDebitNote` tal cual, así que el docType lo
+// declaraba el cliente: una NC de VENTA enviada con docType "OTRO" obtenía la tolerancia de impresora fiscal (Bs. 1.00)
+// en vez de la estricta (0.01), porque el servicio recién DESPUÉS fuerza NOTA_CREDITO / NOTA_DEBITO.
+// Comportamiento nuevo: la action parsea `{ ...input, docType: "NOTA_CREDITO" }` (o "NOTA_DEBITO"), o sea el docType
+// declarado por el cliente no cuenta, y el servicio recibe SIEMPRE el docType de la nota que la action representa.
+// Solo cambia la VENTA: en compras la tolerancia sigue siendo 1.00 con cualquier docType declarado.
+
+type NoteResult = { success: true; data: unknown } | { success: false; error: string };
+type NoteDocType = "NOTA_CREDITO" | "NOTA_DEBITO";
+
+const NOTE_ACTIONS: Array<{
+  name: string;
+  run: (input: unknown) => Promise<NoteResult>;
+  service: Mock;
+  docType: NoteDocType;
+  otherDocType: NoteDocType;
+  serviceResult: { id: string };
+}> = [
+  {
+    name: "createCreditNoteAction",
+    run: createCreditNoteAction,
+    service: InvoiceService.createCreditNote as unknown as Mock,
+    docType: "NOTA_CREDITO",
+    otherDocType: "NOTA_DEBITO",
+    serviceResult: { id: "nc-1" },
+  },
+  {
+    name: "createDebitNoteAction",
+    run: createDebitNoteAction,
+    service: InvoiceService.createDebitNote as unknown as Mock,
+    docType: "NOTA_DEBITO",
+    otherDocType: "NOTA_CREDITO",
+    serviceResult: { id: "nd-1" },
+  },
+];
+
+const NOTE_BASE = {
+  companyId: "company-1",
+  relatedInvoiceId: "inv-original",
+  taxCategory: "GRAVADA",
+  invoiceNumber: "NC-0000001",
+  date: "2026-04-10",
+  counterpartName: "Cliente ABC",
+  counterpartRif: "J-12345678-9",
+  currency: "VES",
+  ivaRetentionAmount: "0",
+  islrRetentionAmount: "0",
+  igtfBase: "0",
+  igtfAmount: "0",
+};
+
+// Una línea IVA_GENERAL sobre base 1000.00: el IVA correcto es 160.00 (la action ve strings, como llegan del cliente).
+const noteTaxLines = (amount: string) => [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount }];
+
+/** NC/ND de VENTA. `docType: undefined` OMITE la clave (el schema aplicaría su default). */
+const saleNote = (docType: string | undefined, amount: string) => ({
+  ...NOTE_BASE,
+  type: "SALE",
+  ...(docType === undefined ? {} : { docType }),
+  taxLines: noteTaxLines(amount),
+});
+
+/** NC/ND de COMPRA: el Nº de control impreso por el proveedor es obligatorio. */
+const purchaseNote = (docType: string | undefined, amount: string) => ({
+  ...NOTE_BASE,
+  type: "PURCHASE",
+  controlNumber: "00-00000001",
+  ...(docType === undefined ? {} : { docType }),
+  taxLines: noteTaxLines(amount),
+});
+
+// Un monto suelto en el mensaje: se tolera "." o "," decimal y el número no puede ser parte de otro más largo.
+const moneyRe = (v: string) => new RegExp(`(?<!\\d)${v.replace(".", "[.,]")}(?!\\d)`);
+
+describe.each(NOTE_ACTIONS)("$name — el docType del cliente se ignora (ADR-049 hueco C)", ({ run, service, docType, otherDocType, serviceResult }) => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    service.mockResolvedValue(serviceResult);
+  });
+
+  // ── VENTA: la tolerancia estricta 0.01 NO depende del docType declarado ─────────────────────────
+  it.each(["OTRO", "REPORTE_Z", "RESUMEN_VENTAS", "PLANILLA_IMPORTACION"])(
+    "VENTA con docType declarado %s y el IVA descuadrado en 0.50 → success:false por base × tasa (tolerancia 0.01) y NO llama al servicio",
+    async (declared) => {
+      const result = await run(saleNote(declared, "160.50"));
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatch(/base × tasa/);
+        expect(result.error).toMatch(moneyRe("160.50")); // recibido
+        expect(result.error).toMatch(moneyRe("160.00")); // esperado: 1000.00 x 16 %
+        expect(result.error).toMatch(moneyRe("0.01")); // tolerancia de una venta que emite ContaFlow
+        expect(result.error).not.toMatch(moneyRe("1.00")); // no la de impresora fiscal
+      }
+      expect(service).not.toHaveBeenCalled();
+    },
+  );
+
+  it("VENTA con docType declarado OTRO: el descuadre por debajo (159.50) también se rechaza y no llama al servicio", async () => {
+    const result = await run(saleNote("OTRO", "159.50"));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/base × tasa/);
+      expect(result.error).toMatch(moneyRe("159.50"));
+      expect(result.error).toMatch(moneyRe("160.00"));
+    }
+    expect(service).not.toHaveBeenCalled();
+  });
+
+  it("VENTA con docType declarado OTRO: el borde es 0.01 — 160.02 (dif 0.02) se rechaza", async () => {
+    const result = await run(saleNote("OTRO", "160.02"));
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toMatch(/base × tasa/);
+    expect(service).not.toHaveBeenCalled();
+  });
+
+  it("VENTA con docType declarado OTRO: el borde 160.01 (dif 0.01) se acepta (guarda, pasa hoy)", async () => {
+    const result = await run(saleNote("OTRO", "160.01"));
+
+    expect(result.success).toBe(true);
+    expect(service).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { declared: "FACTURA" },
+    { declared: "NOTA_CREDITO" },
+    { declared: "NOTA_DEBITO" },
+    { declared: undefined },
+  ])("VENTA con docType declarado $declared y el IVA descuadrado en 0.50 → se rechaza (guarda: ya era estricta, pasa hoy)", async ({ declared }) => {
+    const result = await run(saleNote(declared, "160.50"));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/base × tasa/);
+      expect(result.error).toMatch(moneyRe("0.01"));
+    }
+    expect(service).not.toHaveBeenCalled();
+  });
+
+  // ── El servicio recibe SIEMPRE el docType de la nota, no el que declaró el cliente ──────────────
+  it.each([
+    { kind: "VENTA", type: "SALE", build: saleNote, declared: "OTRO" },
+    { kind: "VENTA", type: "SALE", build: saleNote, declared: "REPORTE_Z" },
+    { kind: "VENTA", type: "SALE", build: saleNote, declared: "FACTURA" },
+    { kind: "VENTA", type: "SALE", build: saleNote, declared: otherDocType },
+    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: "OTRO" },
+    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: otherDocType },
+  ])("$kind con docType declarado $declared e IVA exacto → success y el servicio recibe el docType de la nota", async ({ type, build, declared }) => {
+    const result = await run(build(declared, "160.00"));
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toEqual(serviceResult);
+    expect(service).toHaveBeenCalledTimes(1);
+    expect(service).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({ docType, type, relatedInvoiceId: "inv-original", invoiceNumber: "NC-0000001" }),
+      "user-1",
+      null,
+      null,
+    );
+  });
+
+  it.each([
+    { kind: "VENTA", type: "SALE", build: saleNote },
+    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote },
+  ])("$kind sin docType declarado e IVA exacto → el servicio recibe el docType de la nota (guarda: hoy lo fuerza el servicio)", async ({ type, build }) => {
+    const result = await run(build(undefined, "160.00"));
+
+    expect(result.success).toBe(true);
+    expect(service).toHaveBeenCalledTimes(1);
+    expect(service).toHaveBeenCalledWith("company-1", expect.objectContaining({ type }), "user-1", null, null);
+  });
+
+  // ── COMPRA: nada cambia — el IVA impreso por el proveedor manda, tolerancia 1.00 ────────────────
+  it("COMPRA con docType declarado OTRO y el IVA impreso desviado 0.50 → sigue ACEPTÁNDOSE (compras = 1.00) y se guarda TAL CUAL", async () => {
+    const result = await run(purchaseNote("OTRO", "160.50"));
+
+    expect(result.success).toBe(true);
+    expect(service).toHaveBeenCalledTimes(1);
+    expect(service).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({
+        type: "PURCHASE",
+        taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.50" }],
+      }),
+      "user-1",
+      null,
+      null,
+    );
+  });
+
+  it("COMPRA con docType declarado OTRO y desviación 1.01 → se rechaza con la tolerancia 1.00 de compras y no llama al servicio", async () => {
+    const result = await run(purchaseNote("OTRO", "161.01"));
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/base × tasa/);
+      expect(result.error).toMatch(moneyRe("161.01")); // recibido
+      expect(result.error).toMatch(moneyRe("1.00")); // tolerancia de compras
+      expect(result.error).not.toMatch(moneyRe("0.01"));
+    }
+    expect(service).not.toHaveBeenCalled();
   });
 });
