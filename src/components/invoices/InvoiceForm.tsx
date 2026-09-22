@@ -366,7 +366,7 @@ export function InvoiceForm({
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const validationError = validateTaxLinesBeforeSubmit(taxLines, taxCategory);
+    const validationError = validateTaxLinesBeforeSubmit(taxLines, taxCategory, { type, docType, currency });
     if (validationError) {
       toast.error(validationError);
       return;
@@ -557,6 +557,8 @@ export function InvoiceForm({
             removeTaxLine={removeTaxLine}
             updateTaxLine={updateTaxLine}
             hasAdditionalWithoutGeneral={hasAdditionalWithoutGeneral}
+            type={type}
+            docType={docType}
           />
 
           <InvoiceRetentionsIgtfSection

@@ -4,6 +4,7 @@
 "use client";
 
 import { formatCurrencyAmount } from "./helpers";
+import { isIvaAmountEditable } from "@/lib/invoice-amounts";
 import type { TaxLine, TaxLineType } from "./types";
 
 type Props = {
@@ -17,6 +18,10 @@ type Props = {
   removeTaxLine: (id: string) => void;
   updateTaxLine: (id: string, field: keyof TaxLine, value: string) => void;
   hasAdditionalWithoutGeneral: () => boolean;
+  // ADR-049: decide si "Monto IVA" se auto-calcula (venta FACTURA/NC/ND, las emite ContaFlow) o
+  // el usuario puede escribir el IVA impreso (compras, y reportes de impresora fiscal).
+  type: "SALE" | "PURCHASE";
+  docType: string;
 };
 
 export function InvoiceTaxLinesSection({
@@ -30,6 +35,8 @@ export function InvoiceTaxLinesSection({
   removeTaxLine,
   updateTaxLine,
   hasAdditionalWithoutGeneral,
+  type,
+  docType,
 }: Props) {
   return (
     <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
@@ -63,7 +70,11 @@ export function InvoiceTaxLinesSection({
         </div>
       )}
 
-      {taxLines.map((line, idx) => (
+      {taxLines.map((line, idx) => {
+        // hallazgo H2 (revisión fiscal ADR-049): por LÍNEA, no una sola vez para todo el documento —
+        // una línea EXENTO nunca es editable aunque el resto del documento sí lo sea.
+        const montoIvaEditable = isIvaAmountEditable({ type, docType, taxType: line.taxType });
+        return (
         <div
           key={line.id}
           className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3"
@@ -178,17 +189,37 @@ export function InvoiceTaxLinesSection({
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Monto IVA
+                {montoIvaEditable && (
+                  <span
+                    className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-10 font-bold text-emerald-700 uppercase"
+                    title="El IVA impreso en el documento puede diferir de base × tasa (ADR-049)"
+                  >
+                    Impreso
+                  </span>
+                )}
               </label>
-              <input
-                type="text"
-                value={formatCurrencyAmount(line.amount, currency)}
-                readOnly
-                className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
-              />
+              {montoIvaEditable ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={line.amount}
+                  onChange={(e) => updateTaxLine(line.id, "amount", e.target.value)}
+                  className="w-full rounded-md border bg-white px-3 py-2 text-right font-mono text-sm font-semibold text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={formatCurrencyAmount(line.amount, currency)}
+                  readOnly
+                  className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
+                />
+              )}
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       {/* Total IVA */}
       <div className="flex justify-end border-t border-zinc-200 pt-2">

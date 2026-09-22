@@ -18,6 +18,7 @@ import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 import { getDefaultFiscalConfig, memoizePerCountry } from "@/lib/countries";
 import type { FiscalConfig } from "@/lib/countries/types";
 import { checkControlNumber, isPlainDecimal, strictDecimal, zBusinessDate, zTaxId } from "@/lib/zod-helpers";
+import { ivaLineTolerance } from "@/lib/invoice-amounts";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 // Invariantes por país: son los enums de Prisma. Un país nuevo AGREGA valores al
@@ -54,11 +55,11 @@ const withinAmountRange = (v: string) => {
 const amountField = () =>
   z.string().refine(withinAmountRange, { error: "Monto fuera del rango permitido" });
 
-// ADR-049: tolerancia por línea entre el IVA recibido y base × tasa, en la unidad de los montos (Bs.). Es la ÚNICA definición:
-// cambiarla es una decisión de negocio. En compras el IVA viene IMPRESO en la factura del proveedor y ese monto manda.
-const IVA_TOLERANCE_STRICT = new Decimal("0.01"); // ventas que emite ContaFlow (FACTURA / NOTA_CREDITO / NOTA_DEBITO)
-const IVA_TOLERANCE_PRINTED = new Decimal("1.00"); // compras y reportes de impresora fiscal (acumulan redondeos)
-const STRICT_SALE_DOC_TYPES: readonly string[] = ["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO"];
+// ADR-049: tolerancia por línea entre el IVA recibido y base × tasa — fuente única en `@/lib/invoice-amounts`
+// (el mismo módulo puro que también importa el formulario, para que "editable" y "lo que el servidor acepta"
+// sean SIEMPRE la misma decisión; antes esta constante estaba duplicada aquí con la clasificación al revés
+// —allow-list de los docType ESTRICTOS— y eso era fail-OPEN: cualquier docType de venta nuevo heredaba
+// tolerancia amplia por omisión sin que nadie lo decidiera).
 
 // ─── Schemas sin dependencia de país ──────────────────────────────────────────
 // Se quedan a nivel de módulo a propósito: meterlos en la factory solo añadiría
@@ -264,10 +265,7 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
       // hueco B: los montos llegan en la MONEDA DEL DOCUMENTO (`currency`), no siempre en Bs. — 1,00 en USD/EUR equivaldría
       // a unos Bs. 549, así que fuera de VES se usa siempre la tolerancia estricta (la unidad mínima de esa moneda).
       const isForeignCurrency = data.currency !== "VES";
-      const tolerance =
-        isForeignCurrency || (data.type === "SALE" && STRICT_SALE_DOC_TYPES.includes(data.docType))
-          ? IVA_TOLERANCE_STRICT
-          : IVA_TOLERANCE_PRINTED;
+      const tolerance = ivaLineTolerance({ type: data.type, docType: data.docType, currency: data.currency });
       const unitLabel = isForeignCurrency ? data.currency : "Bs.";
       const lines: unknown[] = Array.isArray(data.taxLines) ? data.taxLines : [];
       lines.forEach((raw, i) => {

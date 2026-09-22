@@ -282,3 +282,172 @@ describe("invoice-amounts.ts — módulo puro (ARCH)", () => {
     expect(typeof invoiceTotalAmount).toBe("function");
   });
 });
+
+// ─── ivaLineTolerance / isIvaAmountEditable — clasificación "IVA impreso" (ADR-049 + UI editable) ──
+// TDD SPEC (RED) — fix/iva-impreso-compras-ui.
+// Estos dos exports NO existen todavía en invoice-amounts.ts: este import falla al cargar el
+// módulo hasta que se implementen (todo lo que sigue en este archivo queda en RED hasta entonces).
+//
+// Diseño acordado (ver ADR-049 y el fallo fail-open detectado en invoice.schema.ts): un
+// allow-list de los 4 docType de venta LENIENTES (impresora fiscal / resúmenes); todo lo
+// demás — incluido cualquier docType FUTURO desconocido — es ESTRICTO por omisión
+// (fail-CLOSED). El servidor (invoice.schema.ts, STRICT_SALE_DOC_TYPES) hoy hace lo
+// contrario: allow-list de los ESTRICTOS, todo lo demás cae en amplio por omisión.
+import {
+  ivaLineTolerance,
+  isIvaAmountEditable,
+  IVA_TOLERANCE_STRICT,
+  IVA_TOLERANCE_PRINTED,
+  LENIENT_SALE_DOC_TYPES,
+} from "./invoice-amounts";
+
+const ALL_DOC_TYPES = [
+  "FACTURA",
+  "NOTA_DEBITO",
+  "NOTA_CREDITO",
+  "REPORTE_Z",
+  "RESUMEN_VENTAS",
+  "PLANILLA_IMPORTACION",
+  "OTRO",
+] as const;
+const LENIENT_DOC_TYPES = ["REPORTE_Z", "RESUMEN_VENTAS", "PLANILLA_IMPORTACION", "OTRO"];
+
+describe("ivaLineTolerance — venta (SALE) en VES: solo los 4 docType de impresora fiscal son PRINTED", () => {
+  it.each(ALL_DOC_TYPES.map((docType) => [docType, LENIENT_DOC_TYPES.includes(docType)] as const))(
+    "docType=%s → lenient=%s",
+    (docType, expectLenient) => {
+      const tolerance = ivaLineTolerance({ type: "SALE", docType, currency: "VES" });
+      const expected = expectLenient ? IVA_TOLERANCE_PRINTED : IVA_TOLERANCE_STRICT;
+      expect(tolerance.equals(expected)).toBe(true);
+    }
+  );
+});
+
+describe("ivaLineTolerance — venta (SALE) en USD: siempre STRICT sin importar el docType", () => {
+  it.each(ALL_DOC_TYPES)("docType=%s → STRICT (0.01)", (docType) => {
+    const tolerance = ivaLineTolerance({ type: "SALE", docType, currency: "USD" });
+    expect(tolerance.equals(IVA_TOLERANCE_STRICT)).toBe(true);
+  });
+});
+
+describe("ivaLineTolerance — compra (PURCHASE) en VES: siempre PRINTED sin importar el docType", () => {
+  it.each(ALL_DOC_TYPES)("docType=%s → PRINTED (1.00)", (docType) => {
+    const tolerance = ivaLineTolerance({ type: "PURCHASE", docType, currency: "VES" });
+    expect(tolerance.equals(IVA_TOLERANCE_PRINTED)).toBe(true);
+  });
+});
+
+describe("ivaLineTolerance — compra (PURCHASE) en moneda extranjera: siempre STRICT sin importar el docType", () => {
+  it.each(ALL_DOC_TYPES)("USD docType=%s → STRICT (0.01)", (docType) => {
+    expect(ivaLineTolerance({ type: "PURCHASE", docType, currency: "USD" }).equals(IVA_TOLERANCE_STRICT)).toBe(true);
+  });
+
+  it.each(ALL_DOC_TYPES)("EUR docType=%s → STRICT (0.01)", (docType) => {
+    expect(ivaLineTolerance({ type: "PURCHASE", docType, currency: "EUR" }).equals(IVA_TOLERANCE_STRICT)).toBe(true);
+  });
+});
+
+describe("ivaLineTolerance — fail-CLOSED: docType de venta futuro/desconocido es ESTRICTO, no amplio", () => {
+  it("venta con docType inexistente en VES → IVA_TOLERANCE_STRICT (NO amplia): el caso que motiva el rediseño", () => {
+    // La clasificación vieja del servidor (invoice.schema.ts) es un allow-list de los
+    // ESTRICTOS: cualquier docType que no esté en esa lista cae en amplio por omisión
+    // (fail-open). Con los 7 docType actuales da el mismo resultado, pero un docType nuevo
+    // heredaría tolerancia amplia sin que nadie lo decidiera. Aquí se invierte: estricto
+    // por omisión.
+    const tolerance = ivaLineTolerance({
+      type: "SALE",
+      docType: "UN_DOCTYPE_FUTURO_DESCONOCIDO",
+      currency: "VES",
+    });
+    expect(tolerance.equals(IVA_TOLERANCE_STRICT)).toBe(true);
+    expect(tolerance.equals(IVA_TOLERANCE_PRINTED)).toBe(false);
+  });
+});
+
+describe("isIvaAmountEditable — mismos 7×2 casos; no depende de currency", () => {
+  it.each(ALL_DOC_TYPES.map((docType) => [docType, LENIENT_DOC_TYPES.includes(docType)] as const))(
+    "SALE docType=%s → editable=%s",
+    (docType, expected) => {
+      expect(isIvaAmountEditable({ type: "SALE", docType })).toBe(expected);
+    }
+  );
+
+  it.each(ALL_DOC_TYPES)("PURCHASE docType=%s → siempre editable", (docType) => {
+    expect(isIvaAmountEditable({ type: "PURCHASE", docType })).toBe(true);
+  });
+
+  it("docType de venta futuro/desconocido → NO editable (auto-calculado, el lado seguro/fail-closed)", () => {
+    expect(isIvaAmountEditable({ type: "SALE", docType: "UN_DOCTYPE_FUTURO_DESCONOCIDO" })).toBe(false);
+  });
+});
+
+describe("LENIENT_SALE_DOC_TYPES — exactamente los 4 docType de impresora fiscal", () => {
+  it("contiene REPORTE_Z, RESUMEN_VENTAS, PLANILLA_IMPORTACION, OTRO — nada más", () => {
+    expect([...LENIENT_SALE_DOC_TYPES].sort()).toEqual(
+      ["OTRO", "PLANILLA_IMPORTACION", "REPORTE_Z", "RESUMEN_VENTAS"].sort()
+    );
+    expect(LENIENT_SALE_DOC_TYPES.length).toBe(4);
+  });
+});
+
+describe("ivaLineTolerance / isIvaAmountEditable — usan Decimal.js, no floats", () => {
+  it("IVA_TOLERANCE_STRICT e IVA_TOLERANCE_PRINTED son instancias de Decimal con el valor exacto", () => {
+    expect(IVA_TOLERANCE_STRICT).toBeInstanceOf(Decimal);
+    expect(IVA_TOLERANCE_PRINTED).toBeInstanceOf(Decimal);
+    expect(IVA_TOLERANCE_STRICT.equals(new Decimal("0.01"))).toBe(true);
+    expect(IVA_TOLERANCE_PRINTED.equals(new Decimal("1.00"))).toBe(true);
+  });
+
+  it("ivaLineTolerance devuelve una instancia de Decimal, no un number", () => {
+    const tolerance = ivaLineTolerance({ type: "PURCHASE", docType: "FACTURA", currency: "VES" });
+    expect(tolerance).toBeInstanceOf(Decimal);
+    expect(typeof tolerance).not.toBe("number");
+  });
+
+  it("isIvaAmountEditable devuelve un boolean estricto", () => {
+    expect(typeof isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA" })).toBe("boolean");
+  });
+});
+
+// ─── isIvaAmountEditable — H2: taxType EXENTO nunca es editable (ADR-049, hallazgo H2) ────────
+// TDD SPEC (RED) — fix/iva-impreso-compras-ui, hallazgo H2 de la revisión fiscal de ADR-049.
+// `isIvaAmountEditable({type, docType})` no mira `taxType`: una línea EXENTO también queda
+// "editable" en compras (o en los 4 docType leniente de venta), y el usuario puede teclear un
+// monto de IVA que el servidor SIEMPRE rechaza (la alícuota canónica de EXENTO es 0 — no existe
+// un "IVA impreso" para una línea exenta). `isIvaAmountEditable` gana un 3er parámetro OPCIONAL
+// `taxType`: si es "EXENTO", devuelve `false` incondicionalmente, sin importar `type`/`docType`.
+// Retrocompatible: sin `taxType` (undefined) el comportamiento es idéntico al de antes — los
+// tests de arriba (7×2 + guardas) no se tocan y siguen pasando.
+describe("isIvaAmountEditable — H2: taxType EXENTO nunca es editable (ADR-049, hallazgo H2)", () => {
+  it("RED: PURCHASE + FACTURA + taxType EXENTO → false (hoy PURCHASE siempre da true, sin mirar taxType)", () => {
+    expect(
+      isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA", taxType: "EXENTO" })
+    ).toBe(false);
+  });
+
+  it("RED: SALE + REPORTE_Z (docType leniente) + taxType EXENTO → false (hoy da true por el docType; el override de EXENTO debe ganar incluso ahí)", () => {
+    expect(
+      isIvaAmountEditable({ type: "SALE", docType: "REPORTE_Z", taxType: "EXENTO" })
+    ).toBe(false);
+  });
+
+  it("guarda: SALE + FACTURA (docType estricto, ya daba false) + taxType EXENTO → sigue false", () => {
+    expect(
+      isIvaAmountEditable({ type: "SALE", docType: "FACTURA", taxType: "EXENTO" })
+    ).toBe(false);
+  });
+
+  it("guarda: taxType distinto de EXENTO no cambia nada — PURCHASE + FACTURA + IVA_GENERAL → true", () => {
+    expect(
+      isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA", taxType: "IVA_GENERAL" })
+    ).toBe(true);
+  });
+
+  it("guarda: sin taxType (como antes) — PURCHASE sigue siempre editable", () => {
+    expect(isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA" })).toBe(true);
+  });
+
+  it("guarda: sin taxType (como antes) — SALE + FACTURA sigue no editable", () => {
+    expect(isIvaAmountEditable({ type: "SALE", docType: "FACTURA" })).toBe(false);
+  });
+});

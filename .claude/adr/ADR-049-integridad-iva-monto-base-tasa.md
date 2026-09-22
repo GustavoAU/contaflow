@@ -78,8 +78,42 @@ sus tests: 72/88/24 respectivamente) — no pasan por casualidad. Veredicto de a
   validar). El IVA de sus líneas se calcula en el servidor, así que ADR-049 no aplica ahí, pero el resto de huecos siguen abiertos.
 - `amountField()` usa `.abs()`: `ivaRetentionAmount`, `islrRetentionAmount`, `igtfBase` e `igtfAmount` aceptan **negativos**, e IGTF y
   las retenciones no se contrastan contra la factura (mismo principio que esta ADR, aplicado a otros montos). Candidato a ADR-050.
-- El "IVA impreso manda" en compras es hoy papel: `InvoiceTaxLinesSection.tsx` calcula "Monto IVA" en el cliente y es de solo lectura
-  (`calcAmount` = base × tasa), así que el formulario nunca envía un monto distinto del calculado. La tolerancia de 1,00 en compras
-  solo se ejercita hoy por API directa; falta una UI de "IVA impreso" editable para que el criterio de esta ADR tenga efecto real.
+- ~~El "IVA impreso manda" en compras es hoy papel...~~ **Resuelto, ver addendum 2026-09-22.**
 - El `type` de una NC/ND ("SALE"/"PURCHASE") también lo puede declarar el cliente (`InvoiceCreditDebitNoteService`: `data.type ||
   original.type`) — no se corrigió aquí porque no elige la tolerancia de esta ADR; es un hallazgo aparte de aislamiento de datos.
+
+## Addendum 2026-09-22 — el formulario ya deja escribir el "IVA impreso" (rama `fix/iva-impreso-compras-ui`)
+
+El punto de "Fuera de alcance" de arriba quedó resuelto: `InvoiceTaxLinesSection.tsx` deja escribir "Monto IVA" (badge "Impreso") en
+cualquier COMPRA, o venta REPORTE_Z/RESUMEN_VENTAS/PLANILLA_IMPORTACION/OTRO — exactamente donde el servidor ya daba tolerancia amplia.
+Sigue de solo lectura en venta FACTURA/NOTA_CREDITO/NOTA_DEBITO (las emite y calcula ContaFlow).
+
+**Fuente única servidor/cliente.** La decisión de tolerancia (`ivaLineTolerance`) y de editabilidad (`isIvaAmountEditable`) viven en
+`src/lib/invoice-amounts.ts` (módulo puro, solo `decimal.js`, importado tanto por el schema del servidor como por el formulario) — antes
+`invoice.schema.ts` tenía su propia copia de la lógica DUPLICADA, y esa copia era un allow-list de los docType ESTRICTOS (todo lo demás
+caía en tolerancia amplia por omisión, fail-**open**). Aprovechando el mover a un módulo compartido, se invirtió a un allow-list de los
+LENIENTES (`LENIENT_SALE_DOC_TYPES`) — todo lo demás, incluido cualquier docType futuro, es estricto por omisión (fail-**closed**). Para
+los 7 docType del enum actual el resultado es idéntico (verificado con script y con los tests existentes de `invoice.schema.ts` sin
+tocarlos).
+
+**Revisión fiscal + seguridad (independientes) antes de mergear.** security-agent: GO (0 crítico/alto; 1 MEDIO preexistente y no
+introducido por esta rama — `withinAmountRange` no acota decimales, lo comparte con el campo "Base Imponible" que ya era editable antes
+de este branch; candidato a ADR-050 junto con el punto de retenciones/IGTF negativos de arriba). fiscal-agent: GO con condiciones, 2
+hallazgos ALTOS confirmados y corregidos antes de mergear:
+
+- **H1 — editar la Base después de escribir un IVA impreso a mano lo borraba en silencio.** `updateTaxLineState` (helpers.ts) siempre
+  recalculaba `amount = base × tasa` al cambiar `base`/`rate`, sin mirar si el usuario ya lo había desviado a mano. Inofensivo mientras
+  el campo era readOnly; con el campo editable, corregir la base — el flujo más común — borraba el IVA impreso sin aviso. Fix: antes de
+  recalcular, compara el `amount` actual contra `calcAmount` de los valores VIEJOS ("auto-tracking"); si ya estaba desviado, no lo toca.
+- **H2 — la línea EXENTO también se volvía editable, y el cliente nunca la validaba.** `isIvaAmountEditable` no miraba `taxType` y se
+  calculaba UNA VEZ para todo el documento; además `validateTaxLinesBeforeSubmit` excluye `taxType === "EXENTO"` de la validación local
+  a propósito (no tiene IVA), así que un monto tecleado ahí nunca se comprobaba en el cliente — el servidor sí lo rechazaba (la alícuota
+  canónica de EXENTO es 0), con un mensaje que el usuario no esperaba tras "pasar" la pantalla. Fix: `isIvaAmountEditable` gana un 3er
+  parámetro opcional `taxType` — `"EXENTO"` siempre da `false`, sin importar `type`/`docType` — y la editabilidad se calcula POR LÍNEA.
+- **H3 — documentado, no bloqueante.** `isIvaAmountEditable` no depende de `currency`: una compra en USD/EUR muestra el campo editable +
+  badge "Impreso", pero `ivaLineTolerance` fuera de VES siempre es estricta (0,01) — casi cualquier "IVA impreso" en divisa no pasará. No
+  es una divergencia cliente/servidor (`validateTaxLinesBeforeSubmit` usa la misma `ivaLineTolerance`, bloquea localmente igual que el
+  servidor), es una limitación de expectativa: el badge no aclara que en moneda extranjera la tolerancia es mínima. Pendiente de UX.
+
+Los 3 fixes (más los 3 de la sección anterior) están verificados por test RED→GREEN y por **mutación** (revertir cada uno por separado
+hace fallar tests específicos, no pasan por casualidad).
