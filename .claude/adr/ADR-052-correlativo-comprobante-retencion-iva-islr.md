@@ -1,6 +1,6 @@
 # ADR-052 — Correlativo del comprobante de retención: IVA continuo, ISLR independiente
 
-**Estado:** Propuesto — pendiente confirmación del dueño en 2 puntos (ver "Preguntas abiertas")
+**Estado:** Aceptado e implementado (2026-09-22) — rama `fix/retencion-correlativo-continuo`
 **Fecha:** 2026-09-22
 **Relacionados:** Z-1 (correlativos de documentos fiscales), R-6 (trazabilidad), [[correlativos-por-count]] (memoria — anti-patrón de numeración), ADR-049 (integridad de montos, precedente de revisión fiscal en el módulo de facturación)
 
@@ -88,18 +88,33 @@ cuando `type` es `ISLR` o `AMBAS`. Todo call-site que hoy lee `voucherNumber` as
 (PDF, reconciliación, `exportRetentionVoucherPDFAction`, etc.) hay que auditarlo — son al menos 8 archivos (`RetentionService.ts`,
 `retention.actions.ts`, `RetentionVoucherPDFService.ts` y sus tests).
 
-## Preguntas abiertas — necesito la decisión del dueño antes de tocar el schema
+## Preguntas abiertas — resueltas por Gustavo (2026-09-22)
 
-1. **¿Hay comprobantes de retención reales ya emitidos en producción bajo el esquema viejo (reinicio mensual)?** Si sí, la
-   migración de arranque del contador continuo de IVA no puede empezar en 0 sin criterio — hay que decidir con qué valor
-   sembrarlo (candidato: el total histórico de retenciones IVA/AMBAS de la empresa, calculado UNA SOLA VEZ en la migración, no
-   como mecanismo permanente — ver la advertencia de [[correlativos-por-count]] sobre no derivar correlativos vivos de `count()`).
-   Si es data de prueba/alpha sin comprobantes reales entregados a terceros, se puede resetear limpio sin backfill.
-2. **¿El negocio necesita imprimir DOS comprobantes PDF separados** (uno de retención de IVA, otro de ISLR) cuando
-   `type === AMBAS`, ya que legalmente son dos documentos distintos con su propio correlativo? Hoy `RetentionVoucherPDFService`
-   genera un solo PDF con un solo `voucherNumber`. Si la respuesta es sí, este ADR se queda corto y hace falta diseñar el
-   split de UI/PDF antes de implementar; si es no (por ahora basta con que cada número quede bien guardado y trazable, aunque
-   el PDF actual solo muestre uno), la implementación es mucho más acotada.
+1. **¿Hay comprobantes de retención reales ya emitidos en producción?** No — confirmado. Los 10 registros de `Retencion` en la
+   BD son datos de prueba de alpha. Se resetea limpio: `RetentionSequence` se elimina por completo, sin backfill ni migración
+   de datos históricos.
+2. **¿Dos PDF separados para AMBAS?** No es necesario — "por lo general se generan los dos comprobantes por separado en todos
+   los sistemas que he manejado, pero si los quieres hacer los dos en un solo PDF no hay problema... con tal cada uno tenga su
+   secuencia en los correlativos". Se implementó UN solo PDF que imprime ambos números por separado y rotulados (`N° Comprobante
+   IVA:` / `N° Comprobante ISLR:`) cuando `type === AMBAS` — más simple que dos documentos y cumple el requisito real (cada
+   correlativo independiente y trazable).
+
+## Implementación (resumen — ver commit `bc92650`)
+
+- Esquema: `IvaRetentionSequence` (`companyId` único, contador continuo) e `IslrRetentionSequence` (idéntico al mecanismo viejo,
+  reinicio mensual) reemplazan a `RetentionSequence`. `Retencion.islrVoucherNumber` + `Invoice.islrRetentionVoucher` nuevos, con
+  índice único parcial propio `(companyId, islrVoucherNumber)`.
+- `RetentionService.ts`: `getNextIvaVoucherNumber` / `getNextIslrVoucherNumber` reemplazan a `getNextVoucherNumber`. Cubiertos
+  con tests de secuencia real (tabla fake con estado, no un mock de valor fijo — ver [[correlativos-por-count]]) que prueban
+  que IVA nunca reinicia y que ISLR sí.
+- `retention.actions.ts`: cada `type` pide solo el/los correlativo(s) que le corresponden. Hallazgo durante la implementación
+  (no estaba en el diseño original): `Transaction` tiene `@@unique([companyId, number])`, y como IVA/ISLR son ahora secuencias
+  independientes pueden coincidir en el mismo valor numérico en el mismo período — el `number` del asiento de emisión (antes
+  `RET-${voucherNumber}`) necesitó prefijo de tipo (`RET-IVA-...`/`RET-ISLR-...`) para no chocar en P2002.
+- Migración aplicada contra la BD real vía Neon MCP (HTTP 443 — VPN bloquea TCP 5432, `prisma db execute`/`migrate resolve`
+  fallan P1001; ver memoria "migraciones-neon-vpn-http"). RLS ENABLE+FORCE+policy verificado con `verify-rls.mjs` (93 tablas,
+  0 sin cobertura) y `verify-drift.mjs` (94=94, sin drift).
+- 131/131 tests en `src/modules/retentions`, `tsc --noEmit` 0 errores.
 
 ## Fuera de alcance
 
