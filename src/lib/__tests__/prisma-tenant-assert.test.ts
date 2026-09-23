@@ -1254,13 +1254,16 @@ describe("catálogos de operaciones", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("SCOPE_MAP (DMMF real)", () => {
-  it("cubre 90 modelos: las mismas 90 tablas que tienen RLS (verify-rls.mjs)", () => {
+  it("cubre 91 modelos: las mismas 91 tablas que tienen RLS (verify-rls.mjs)", () => {
     // +1 el 2026-08-29: OvertimeEntry (registro de horas extraordinarias,
     // LOTTT Art. 183).
     // +1 el 2026-08-30: EmployeeRecurringConcept (asignaciones fijas por
     // trabajador — el bono en divisas no salarial).
+    // ADR-052 (2026-09-22): -1 RetentionSequence (eliminada) +2
+    // IvaRetentionSequence/IslrRetentionSequence (correlativo IVA continuo
+    // independiente del de ISLR) = neto +1.
     // El conteo se mueve a la vez que verify-rls.mjs.
-    expect(SCOPE_MAP.size).toBe(90);
+    expect(SCOPE_MAP.size).toBe(91);
   });
 
   it("User NO está: es global por diseño", () => {
