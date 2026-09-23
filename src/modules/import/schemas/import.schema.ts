@@ -9,6 +9,10 @@ export const ImportAccountRowSchema = z.object({
   }),
 
   descripcion: z.string().optional(),
+  // Feedback tester Alpha 2026-09-22: cuenta de "título" (false, columna "G/M"="G", agrupa,
+  // nunca recibe un JournalEntry — ver src/lib/prisma-postable-account-gate.ts) vs cuenta de
+  // detalle/movimiento (true, "M", default). Mapeado en ImportService.parseAccountsExcel.
+  isPostable: z.boolean().default(true),
 });
 
 export type ImportAccountRow = z.infer<typeof ImportAccountRowSchema>;
