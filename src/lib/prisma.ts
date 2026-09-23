@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { createBillingGateExtension } from "./prisma-billing-gate";
 import { createTenantAssertExtension, resolveMode } from "./prisma-tenant-assert";
+import { createPostableAccountGateExtension } from "./prisma-postable-account-gate";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL no está definida en las variables de entorno");
@@ -39,7 +40,9 @@ function createExtendedPrisma(): PrismaClient {
   // helpers que usan Prisma.TransactionClient.
   const extended = base
     .$extends(createBillingGateExtension(base))
-    .$extends(createTenantAssertExtension(resolveMode(process.env.TENANT_ASSERT_MODE)));
+    .$extends(createTenantAssertExtension(resolveMode(process.env.TENANT_ASSERT_MODE)))
+    // Feedback tester Alpha 2026-09-22: ninguna cuenta de título recibe un JournalEntry directo.
+    .$extends(createPostableAccountGateExtension(base));
   return extended as unknown as PrismaClient;
 }
 

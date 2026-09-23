@@ -312,6 +312,11 @@ model Account {
   isMonetary                            Boolean                  @default(false)
   // VEN-NIF BA-10 / IAS 1: true = corriente (realizable/exigible en ≤12 meses)
   isCurrent                             Boolean                  @default(false)
+  // Feedback tester Alpha 2026-09-22: cuenta de "título" (agrupa, ej. "1.1 CIRCULANTE") vs
+  // cuenta de "detalle"/movimiento (ej. "Caja Principal"). false = título, nunca recibe un
+  // JournalEntry directo (bloqueado por src/lib/prisma-postable-account-gate.ts). Default true
+  // preserva el comportamiento de toda cuenta existente antes de este campo.
+  isPostable                            Boolean                  @default(true)
   companyId                             String
   company                               Company                  @relation(fields: [companyId], references: [id])
   journalEntries                        JournalEntry[]
