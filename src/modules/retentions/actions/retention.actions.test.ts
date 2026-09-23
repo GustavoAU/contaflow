@@ -90,7 +90,8 @@ vi.mock("../services/RetentionService", async (importOriginal) => {
       }),
     },
     linkRetentionToInvoice: vi.fn(),
-    getNextVoucherNumber: vi.fn().mockResolvedValue("20260600000001"),
+    getNextIvaVoucherNumber: vi.fn().mockResolvedValue("20260600000001"),
+    getNextIslrVoucherNumber: vi.fn().mockResolvedValue("20260600000001"),
   };
 });
 
@@ -196,7 +197,8 @@ describe("createRetentionAction", () => {
         auditLog: { create: vi.mocked(prisma.auditLog.create) },
         companySettings: { findUnique: vi.mocked(prisma.companySettings.findUnique) },
         transaction: { create: vi.mocked(prisma.transaction.create) },
-        retentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+        ivaRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+        islrRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
       };
       return fn(tx as never);
     });
@@ -213,6 +215,52 @@ describe("createRetentionAction", () => {
     expect(result.data.ivaRetention).toBe("120.00");
     expect(result.data.totalRetention).toBe("120.00");
     expect(result.data.voucherNumber).toBe("20260600000001");
+  });
+
+  // ── ADR-052: cada tipo pide SOLO el correlativo que le corresponde ─────────
+  it("ADR-052: type IVA solo genera voucherNumber, islrVoucherNumber queda null", async () => {
+    vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetention as never);
+
+    await createRetentionAction(VALID_INPUT);
+
+    expect(prisma.retencion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          voucherNumber: "20260600000001",
+          islrVoucherNumber: null,
+        }),
+      })
+    );
+  });
+
+  it("ADR-052: type ISLR solo genera islrVoucherNumber, voucherNumber queda null", async () => {
+    vi.mocked(prisma.retencion.create).mockResolvedValue({ ...mockRetention, type: "ISLR" } as never);
+
+    await createRetentionAction({ ...VALID_INPUT, type: "ISLR", islrCode: "HONORARIOS_PN" });
+
+    expect(prisma.retencion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          voucherNumber: null,
+          islrVoucherNumber: "20260600000001",
+        }),
+      })
+    );
+  });
+
+  it("ADR-052: type AMBAS genera AMBOS correlativos, independientes entre sí", async () => {
+    vi.mocked(prisma.retencion.create).mockResolvedValue({ ...mockRetention, type: "AMBAS" } as never);
+
+    await createRetentionAction({ ...VALID_INPUT, type: "AMBAS", islrCode: "SERVICIOS_PJ" });
+
+    expect(prisma.retencion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          voucherNumber: "20260600000001",
+          islrVoucherNumber: "20260600000001",
+        }),
+      })
+    );
   });
 
   it("crea retención AMBAS (IVA + ISLR) correctamente", async () => {
@@ -359,7 +407,7 @@ describe("createRetentionAction", () => {
     expect(prisma.transaction.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          number: "RET-20260600000001",
+          number: "RET-IVA-20260600000001",
           type: "DIARIO",
           entries: expect.objectContaining({
             create: expect.arrayContaining([
@@ -567,6 +615,45 @@ describe("exportRetentionVoucherPDFAction", () => {
 
     expect(generateRetentionVoucherPDF).toHaveBeenCalledWith(
       expect.objectContaining({ voucherNumber: "ret-1" })
+    );
+  });
+
+  // ── ADR-052: PDF elige el correlativo correcto según el tipo ────────────────
+  it("ADR-052: type ISLR imprime islrVoucherNumber en el slot principal del PDF", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
+      { ...mockRetentionFull, type: "ISLR", voucherNumber: null, islrVoucherNumber: "20260900000005" } as never
+    );
+    vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+
+    await exportRetentionVoucherPDFAction("ret-1", "company-1");
+
+    expect(generateRetentionVoucherPDF).toHaveBeenCalledWith(
+      expect.objectContaining({ voucherNumber: "20260900000005", islrVoucherNumber: undefined })
+    );
+  });
+
+  it("ADR-052: type AMBAS imprime AMBOS correlativos, uno en cada campo", async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
+      {
+        ...mockRetentionFull,
+        type: "AMBAS",
+        voucherNumber: "20260900000010",
+        islrVoucherNumber: "20260900000003",
+      } as never
+    );
+    vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
+
+    await exportRetentionVoucherPDFAction("ret-1", "company-1");
+
+    expect(generateRetentionVoucherPDF).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voucherNumber: "20260900000010",
+        islrVoucherNumber: "20260900000003",
+      })
     );
   });
 });

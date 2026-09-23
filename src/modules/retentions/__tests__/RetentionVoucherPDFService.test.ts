@@ -67,4 +67,19 @@ describe("generateRetentionVoucherPDF", () => {
     }
     await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer)
   })
+
+  // ── ADR-052: AMBAS con dos correlativos independientes ─────────────────────
+  it("ADR-052: retentionType AMBAS con islrVoucherNumber no lanza error", async () => {
+    const params: RetentionVoucherParams = {
+      ...validParams,
+      retentionType: "AMBAS",
+      voucherNumber: "20260900000010",
+      islrVoucherNumber: "20260900000003",
+      ivaRetention: "120.00",
+      ivaRetentionPct: 75,
+      islrAmount: "20.00",
+      islrRetentionPct: 2,
+    }
+    await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer)
+  })
 })

@@ -164,7 +164,8 @@ model Company {
   igtfTransactions           IGTFTransaction[]
   invoices                   Invoice[]
   controlNumberSequences     ControlNumberSequence[]
-  retentionSequences         RetentionSequence[]
+  ivaRetentionSequences      IvaRetentionSequence[]
+  islrRetentionSequences     IslrRetentionSequence[]
   exchangeRates              ExchangeRate[]
   paymentRecords             PaymentRecord[]
   // ADR-029: Adjuntos de comprobante de pago
@@ -601,7 +602,12 @@ model Retencion {
   enteradoTransaction   Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict)
   invoiceId             String?
   invoice               Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  // ADR-051: número de comprobante de IVA (Prov. 0049) — continuo, nunca se reinicia.
+  // Poblado cuando type es IVA o AMBAS.
   voucherNumber         String?
+  // ADR-051: número de comprobante de ISLR (Decreto 1808) — correlativo INDEPENDIENTE
+  // del de IVA, se reinicia cada mes. Poblado cuando type es ISLR o AMBAS.
+  islrVoucherNumber     String?
   idempotencyKey        String
   enteradoAt            DateTime?
   enteradoBy            String? // userId que ejecutó el enteramiento
@@ -639,6 +645,8 @@ model Invoice {
   ivaRetentionVoucher             String?
   ivaRetentionDate                DateTime?
   islrRetentionAmount             Decimal              @default(0) @db.Decimal(19, 4)
+  // ADR-051: comprobante de retención ISLR, correlativo independiente del de IVA
+  islrRetentionVoucher            String?
   igtfBase                        Decimal              @default(0) @db.Decimal(19, 4)
   igtfAmount                      Decimal              @default(0) @db.Decimal(19, 4)
   currency                        Currency             @default(VES)
@@ -729,7 +737,23 @@ model InvoiceTaxLine {
   @@index([invoiceId])
 }
 
-model RetentionSequence {
+// ADR-051: correlativo del comprobante de retención de IVA (Prov. 0049) — CONTINUO,
+// una sola fila por empresa para siempre. El AAAAMM que se imprime en el número es
+// solo el período de emisión (informativo); NO particiona este contador. Confirmado
+// con contador real (2026-09-22): reiniciarlo cada mes, como hacía el esquema
+// anterior, no es correcto.
+model IvaRetentionSequence {
+  id         String   @id @default(cuid())
+  companyId  String   @unique
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+// ADR-051: correlativo del comprobante de retención de ISLR (Decreto 1808) —
+// INDEPENDIENTE del de IVA, se reinicia cada mes (confirmado: el SENIAT no le
+// exige a ISLR un formato de correlativo fijo, a diferencia de IVA/Prov. 0049).
+model IslrRetentionSequence {
   id         String   @id @default(cuid())
   companyId  String
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)

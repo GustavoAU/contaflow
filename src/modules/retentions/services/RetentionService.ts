@@ -7,10 +7,35 @@ import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 
-// ─── getNextVoucherNumber ──────────────────────────────────────────────────────
-// Prov. 0049: AAAAMM + 8 dígitos secuenciales con reinicio mensual.
+// ─── getNextIvaVoucherNumber ────────────────────────────────────────────────────
+// ADR-052 / Prov. 0049: AAAAMM + 8 dígitos. El contador es CONTINUO — una sola
+// fila por empresa para siempre. El AAAAMM que se imprime es el período de
+// EMISIÓN (informativo); nunca particiona ni reinicia el contador. Confirmado
+// con contador real (2026-09-22): a diferencia de ISLR, el de IVA NO se reinicia
+// cada mes.
 // Precondición: tx DEBE estar en $transaction({ isolationLevel: 'Serializable' })
-export async function getNextVoucherNumber(
+export async function getNextIvaVoucherNumber(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  date: Date = new Date()
+): Promise<string> {
+  const seq = await tx.ivaRetentionSequence.upsert({
+    where: { companyId },
+    create: { companyId, lastNumber: 1 },
+    update: { lastNumber: { increment: 1 } },
+  });
+  // Fecha de NEGOCIO: getters UTC. Solo para el prefijo — ver comentario de arriba.
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}${month}${String(seq.lastNumber).padStart(8, "0")}`;
+}
+
+// ─── getNextIslrVoucherNumber ───────────────────────────────────────────────────
+// ADR-052 / Decreto 1808: AAAAMM + 8 dígitos, con REINICIO mensual — el SENIAT no
+// exige a ISLR un correlativo fijo como sí exige a IVA (Prov. 0049), así que este
+// contador SÍ reinicia a 1 cada (año, mes). Independiente del de IVA.
+// Precondición: tx DEBE estar en $transaction({ isolationLevel: 'Serializable' })
+export async function getNextIslrVoucherNumber(
   tx: Prisma.TransactionClient,
   companyId: string,
   date: Date = new Date()
@@ -18,13 +43,21 @@ export async function getNextVoucherNumber(
   // Fecha de NEGOCIO: getters UTC.
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth() + 1;
-  const seq = await tx.retentionSequence.upsert({
+  const seq = await tx.islrRetentionSequence.upsert({
     where: { companyId_year_month: { companyId, year, month } },
     create: { companyId, year, month, lastNumber: 1 },
     update: { lastNumber: { increment: 1 } },
   });
   const mm = String(month).padStart(2, "0");
   return `${year}${mm}${String(seq.lastNumber).padStart(8, "0")}`;
+}
+
+// ─── retentionDisplayNumber ─────────────────────────────────────────────────────
+// Identificador humano de mejor esfuerzo para texto libre (descripciones de
+// asiento, logs) — NUNCA usar para el N° de comprobante impreso en el PDF fiscal,
+// que debe elegir explícitamente voucherNumber (IVA) o islrVoucherNumber (ISLR).
+function retentionDisplayNumber(retention: { voucherNumber: string | null; islrVoucherNumber: string | null; id: string }): string {
+  return retention.voucherNumber ?? retention.islrVoucherNumber ?? retention.id;
 }
 
 export type RetentionCalculation = {
@@ -196,17 +229,19 @@ export async function enterRetention(
     });
     const txNumber = `ENT-${input.enterDate.getUTCFullYear()}-${String(enterCount + 1).padStart(5, "0")}`;
 
+    const displayNumber = retentionDisplayNumber(retention);
+
     // Journal entry: Debit liability, Credit bank
     const enterEntries = [
       {
         accountId: input.liabilityAccountId,
         amount: enterAmount,
-        description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
+        description: `Enteramiento retención ${displayNumber}`,
       },
       {
         accountId: input.bankAccountId,
         amount: enterAmount.negated(),
-        description: `Enteramiento retención ${retention.voucherNumber ?? retention.id}`,
+        description: `Enteramiento retención ${displayNumber}`,
       },
     ];
     assertBalancedGLEntries(enterEntries); // N4: invariante partida doble
@@ -216,7 +251,7 @@ export async function enterRetention(
         periodId: period.id,
         date: input.enterDate,
         number: txNumber,
-        description: `Enteramiento retención ${retention.voucherNumber ?? retention.id} — ${retention.providerName}`,
+        description: `Enteramiento retención ${displayNumber} — ${retention.providerName}`,
         type: "DIARIO",
         userId,
         entries: {
@@ -289,14 +324,18 @@ export async function linkRetentionToInvoice(
       data: { invoiceId },
       include: { invoice: true },
     }),
-    // Sync campos denormalizados de retención en Invoice
+    // Sync campos denormalizados de retención en Invoice.
+    // ADR-052: voucherNumber/islrVoucherNumber son correlativos independientes —
+    // solo se sincroniza el que de verdad aplica a esta retención (undefined en
+    // `data` = Prisma no toca el campo, no lo pisa con null).
     prisma.invoice.update({
       where: { id: invoiceId },
       data: {
         ivaRetentionAmount: retention.ivaRetention,
-        ivaRetentionVoucher: retention.voucherNumber ?? retention.id,
+        ivaRetentionVoucher: retention.voucherNumber ?? undefined,
         ivaRetentionDate: retention.createdAt,
         ...(retention.islrAmount ? { islrRetentionAmount: retention.islrAmount } : {}),
+        ...(retention.islrVoucherNumber ? { islrRetentionVoucher: retention.islrVoucherNumber } : {}),
       },
     }),
     prisma.auditLog.create({
