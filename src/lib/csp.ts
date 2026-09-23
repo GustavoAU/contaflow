@@ -15,13 +15,20 @@ export function buildCsp(nonce: string, styleSrc: string[], isDev = false): stri
     // nonce + strict-dynamic: los navegadores modernos honran el nonce; strict-dynamic
     // deja que un script de confianza cargue otros sin whitelistear cada CDN.
     // 'unsafe-inline' está deliberadamente ausente — fix MEDIUM-1.
-    `script-src 'nonce-${nonce}' 'strict-dynamic' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev${isDev ? " 'unsafe-eval'" : ""}`,
+    // https://challenges.cloudflare.com: widget de Turnstile que usa el Bot sign-up
+    // protection de Clerk — es DEFAULT_DIRECTIVES en @clerk/nextjs (content-security-policy.js).
+    `script-src 'nonce-${nonce}' 'strict-dynamic' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ""}`,
     ...styleSrc,
     "img-src 'self' data: https:",
     "font-src 'self'",
     `connect-src 'self' https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://*.sentry.io https://*.ingest.sentry.io https://*.upstash.io https://generativelanguage.googleapis.com https://api.nowpayments.io${isDev ? " ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:",
-    "frame-src 'none'",
+    // Turnstile renderiza el challenge en un iframe — con 'none' el navegador lo
+    // bloquea de raíz y el captcha nunca completa (sign_up.captcha.failed en el
+    // 100% de los intentos, no solo con VPN: confirmado en logs de Clerk 2026-09-22,
+    // mismo dominio que exige @clerk/nextjs por defecto). Sin 'self': hoy no hay
+    // ningún iframe propio en la app (auditoría security-agent 2026-09-22).
+    "frame-src https://challenges.cloudflare.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",

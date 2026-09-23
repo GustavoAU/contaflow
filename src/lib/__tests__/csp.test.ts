@@ -44,6 +44,16 @@ describe("buildCsp — invariantes de scripts (MEDIUM-1)", () => {
     expect(directive(csp, "form-action")).toBe("form-action 'self'");
     expect(directive(csp, "default-src")).toBe("default-src 'self'");
   });
+
+  it("frame-src permite el widget de Turnstile (Bot sign-up protection de Clerk)", () => {
+    // Regresión: `frame-src 'none'` bloqueaba el iframe de challenges.cloudflare.com
+    // y tumbaba TODOS los registros con `sign_up.captcha.failed` (confirmado en
+    // logs de Clerk, 2026-09-22) — no solo con VPN. Si esto vuelve a 'none', que
+    // falle acá y no en producción.
+    const csp = enforced();
+    expect(directive(csp, "frame-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(csp, "script-src")).toContain("https://challenges.cloudflare.com");
+  });
 });
 
 describe("buildCsp — estilos (I-1)", () => {
