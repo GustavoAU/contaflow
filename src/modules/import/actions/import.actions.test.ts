@@ -34,7 +34,7 @@ const USER_ID = "user-1";
 const ADMIN_MEMBER = { role: "ADMIN" };
 
 const SAMPLE_ROWS: ImportAccountRow[] = [
-  { codigo: "1.1.01", nombre: "Caja", tipo: "ASSET", isPostable: true },
+  { codigo: "1.1.01", nombre: "Caja", tipo: "ASSET", isPostable: true, isBudgetable: false },
 ];
 
 beforeEach(() => {
@@ -83,6 +83,7 @@ describe("importAccountsAction", () => {
       nombre: `Cuenta ${i}`,
       tipo: "ASSET" as const,
       isPostable: true,
+      isBudgetable: false,
     }));
     const r = await importAccountsAction(COMPANY_ID, USER_ID, bigRows);
     expect(r.success).toBe(false);

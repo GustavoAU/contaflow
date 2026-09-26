@@ -317,6 +317,9 @@ model Account {
   // JournalEntry directo (bloqueado por src/lib/prisma-postable-account-gate.ts). Default true
   // preserva el comportamiento de toda cuenta existente antes de este campo.
   isPostable                            Boolean                  @default(true)
+  // Feedback tester Alpha 2026-09-26 ("Pre." del plan de cuentas real): true = la cuenta se
+  // puede usar en líneas de presupuesto (BudgetLine). Sin consecuencia fiscal — solo filtrado/UX.
+  isBudgetable                          Boolean                  @default(false)
   companyId                             String
   company                               Company                  @relation(fields: [companyId], references: [id])
   journalEntries                        JournalEntry[]

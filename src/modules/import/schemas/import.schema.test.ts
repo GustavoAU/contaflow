@@ -26,3 +26,27 @@ describe("ImportAccountRowSchema — compatibilidad con la plantilla actual (4 c
     expect(withPostable.isPostable).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Feature: cuenta "formula presupuesto" (columna "Pre." del ERP real, feedback
+// tester Alpha 2026-09-26) — Account.isBudgetable, sin consecuencia fiscal (solo
+// filtrado/UX para BudgetLine). Ver ADR-053 para el precedente isPostable/G-M.
+//
+// RED hoy: `isBudgetable` no existe en ImportAccountRowSchema — `parsed.isBudgetable`
+// es `undefined`, no `false`. Implementar agregando
+// `isBudgetable: z.boolean().default(false)` al schema.
+// ---------------------------------------------------------------------------
+describe("ImportAccountRowSchema — isBudgetable (columna 'Pre.')", () => {
+  it("fila con tipo explícito (ASSET) y SIN columna 'pre.' → isBudgetable default false", () => {
+    const parsed = ImportAccountRowSchema.parse({
+      codigo: "1105",
+      nombre: "Caja General",
+      tipo: "ASSET",
+    });
+
+    // Cast defensivo: mismo patrón que isPostable arriba — funciona hoy (undefined)
+    // y tras implementar el default (false), sin tener que editar este test.
+    const withBudgetable = parsed as ImportAccountRow & { isBudgetable?: boolean };
+    expect(withBudgetable.isBudgetable).toBe(false);
+  });
+});
