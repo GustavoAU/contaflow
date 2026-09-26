@@ -56,8 +56,9 @@ nombre) y clasifica implícitamente por el primer dígito del código (convenci�
   Nacional" (vs. "Moneda Extranjera" en empresas con cuentas en divisas) — el dueño mencionó espontáneamente esa
   posibilidad. **NO SE MERGEÓ la rama `feat/importador-clase-monetaria`** precisamente por esto — mapear mal esta columna
   rompería el ajuste por inflación (dejaría de reexpresar Ingresos/Gastos/Capital) para cualquier empresa que importe un
-  plan de cuentas con esta estructura. Pendiente: confirmar con la tester (su archivo real, no el de ejemplo) si en una
-  cuenta de Ingresos o Gastos "Clase" dice algo distinto de "M". Si todo el archivo dice "M" también ahí, descartar el
-  mapeo definitivamente y borrar la rama.
+  plan de cuentas con esta estructura.
+  **CERRADO 2026-09-26:** la tester confirmó con su archivo real que "Clase" no sirve para lo que se pensaba — en sus
+  palabras, "eso al final son movimientos" y "no es útil para todos". Rama `feat/importador-clase-monetaria` (commit
+  `0bac7c6`) **borrada**, nunca se mergeó. "Clase" queda sin mapear a ningún campo, definitivamente.
 - Caché del gate (TTL por companyId, como `billing-gate`) y auditoría exhaustiva de los 25+ servicios que arman `entries`
   (se revisó una muestra de 8, sin falsos negativos) — señalado por la auditoría de seguridad, no bloqueante.
