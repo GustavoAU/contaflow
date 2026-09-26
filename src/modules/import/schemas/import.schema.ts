@@ -13,6 +13,9 @@ export const ImportAccountRowSchema = z.object({
   // nunca recibe un JournalEntry — ver src/lib/prisma-postable-account-gate.ts) vs cuenta de
   // detalle/movimiento (true, "M", default). Mapeado en ImportService.parseAccountsExcel.
   isPostable: z.boolean().default(true),
+  // Feedback tester Alpha 2026-09-26: columna "Pre." — si la cuenta se puede usar en líneas de
+  // presupuesto (BudgetLine). Sin consecuencia fiscal, solo filtrado/UX.
+  isBudgetable: z.boolean().default(false),
 });
 
 export type ImportAccountRow = z.infer<typeof ImportAccountRowSchema>;

@@ -34,7 +34,10 @@ nombre) y clasifica implícitamente por el primer dígito del código (convenci�
   rechazándose con el mensaje de siempre, sin inferencia silenciosa que tape un error del usuario);
 - mapea "G/M" → `isPostable` ("G" = título, todo lo demás = detalle, default seguro);
 - usa "descripcion" como `nombre` cuando no hay columna "nombre" separada (sin duplicar en ambos campos);
-- ignora sin fallar Nivel/Pre./Ter./C/C/Clase — significado sin confirmar, no se mapean.
+- ignora sin fallar Nivel/Ter./C/C/Clase — significado sin confirmar o diferido, no se mapean.
+- **"Pre."** (confirmado 2026-09-26: "si esa cuenta formula presupuesto") → `Account.isBudgetable` (rama
+  `feat/importador-cuenta-presupuestaria`). "SI" (case/espacios tolerados) → true; cualquier otro valor, vacío o columna
+  ausente → false. Sin consecuencia fiscal, solo filtra qué cuentas se pueden usar en `BudgetLine`.
 
 ## Fuera de alcance (otra tanda, decisión pendiente del dueño)
 
@@ -42,7 +45,19 @@ nombre) y clasifica implícitamente por el primer dígito del código (convenci�
   implementación diferida. `Vendor`/`Customer` ya tienen rif/name/address y `Vendor.isSpecialContributor` ya determina
   retenciones ISLR/IVA — falta el vínculo Cuenta→tercero-obligatorio y decidir qué hacer con "socio/accionista" (no encaja
   en Customer ni Vendor hoy).
-- **Pre., C/C, Clase:** significado sin confirmar. NO se mapea "Clase" a `Account.isMonetary` (hipótesis sin confirmar,
-  consecuencia fiscal real de INPC si se equivoca).
+- **C/C** (confirmado 2026-09-26: "si usa centro de costo", ej. materia prima) — implementación diferida, requiere modelar
+  un `CostCenter` que hoy no existe en ContaFlow.
+- **Clase — hipótesis DESCARTADA, no confirmada (2026-09-26).** Se probó mapear "M"→`Account.isMonetary` (rama separada
+  `feat/importador-clase-monetaria`, commit `0bac7c6`, **NUNCA mergeada a main**) a partir de que en el archivo original
+  de la tester las filas de Caja/Bancos/CxC decían "M" y el dueño creyó recordar que gastos/ingresos decían otra cosa.
+  Al revisar un plan de cuentas real completo (otra empresa, enviado como ejemplo), **"Clase" = "M" en absolutamente
+  todas las filas — incluidas Ingresos, Costos, Gastos, Capital**, lo que contradice la premisa de Monetaria/No-Monetaria
+  (esas categorías NO deberían ser monetarias). Hipótesis alternativa sin confirmar: "M" podría significar "Moneda
+  Nacional" (vs. "Moneda Extranjera" en empresas con cuentas en divisas) — el dueño mencionó espontáneamente esa
+  posibilidad. **NO SE MERGEÓ la rama `feat/importador-clase-monetaria`** precisamente por esto — mapear mal esta columna
+  rompería el ajuste por inflación (dejaría de reexpresar Ingresos/Gastos/Capital) para cualquier empresa que importe un
+  plan de cuentas con esta estructura. Pendiente: confirmar con la tester (su archivo real, no el de ejemplo) si en una
+  cuenta de Ingresos o Gastos "Clase" dice algo distinto de "M". Si todo el archivo dice "M" también ahí, descartar el
+  mapeo definitivamente y borrar la rama.
 - Caché del gate (TTL por companyId, como `billing-gate`) y auditoría exhaustiva de los 25+ servicios que arman `entries`
   (se revisó una muestra de 8, sin falsos negativos) — señalado por la auditoría de seguridad, no bloqueante.

@@ -53,6 +53,10 @@ async function makeExcelBufferFromRows(
 // ya lo declara o todavía no (evita tener que editar estos tests cuando se implemente).
 type RowWithPostable = ImportAccountRow & { isPostable?: boolean };
 
+// Cast defensivo equivalente para `isBudgetable` (columna "Pre." del ERP real,
+// feedback tester Alpha 2026-09-26 — ver ADR-053 para el precedente isPostable/G-M).
+type RowWithBudgetable = ImportAccountRow & { isBudgetable?: boolean };
+
 describe("ImportService.parseAccountsExcel", () => {
   it("parsea un Excel válido correctamente", async () => {
     const buffer = await makeExcelBuffer([
@@ -218,6 +222,54 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[0].nombre).toBe("Caja General");
     expect(rows[0].descripcion).toBe("Efectivo en caja");
   });
+
+  // ---------------------------------------------------------------------------
+  // Feature: "Pre." → Account.isBudgetable (feedback tester Alpha 2026-09-26).
+  // La cuenta "formula presupuesto" (usable en BudgetLine). Sin consecuencia
+  // fiscal — solo filtrado/UX. Ver ADR-053 para el precedente isPostable/G-M.
+  // ---------------------------------------------------------------------------
+
+  it("[RED — isBudgetable 1] columna 'Pre.' con SI/NO/vacío mapea a isBudgetable true/false/false", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo", "Pre."],
+      [
+        ["1105", "Caja General", "ASSET", "SI"],
+        ["2105", "Proveedores", "LIABILITY", "NO"],
+        ["3105", "Capital Social", "EQUITY", ""],
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithBudgetable[];
+
+    expect(rows[0].isBudgetable).toBe(true); // "SI"
+    expect(rows[1].isBudgetable).toBe(false); // "NO"
+    expect(rows[2].isBudgetable).toBe(false); // vacío
+  });
+
+  it("[RED — isBudgetable 2] 'Pre.' en minúscula ('si') o con espacios (' SI ') sigue siendo true", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo", "Pre."],
+      [
+        ["1105", "Caja", "ASSET", "si"],
+        ["1110", "Banco", "ASSET", " SI "],
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithBudgetable[];
+    expect(rows[0].isBudgetable).toBe(true);
+    expect(rows[1].isBudgetable).toBe(true);
+  });
+
+  it("[RED — isBudgetable 3] sin columna 'Pre.' en absoluto (plantilla simple actual) → isBudgetable false para todas las filas", async () => {
+    const buffer = await makeExcelBuffer([
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo" },
+      { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY" },
+    ]);
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithBudgetable[];
+    expect(rows[0].isBudgetable).toBe(false);
+    expect(rows[1].isBudgetable).toBe(false);
+  });
 });
 
 describe("ImportService.importAccounts", () => {
@@ -246,6 +298,34 @@ describe("ImportService.importAccounts", () => {
 
     expect(result.created).toBe(0);
     expect(result.skipped).toBe(1);
+  });
+
+  it("[RED — isBudgetable] row.isBudgetable=true → prisma.account.create recibe isBudgetable:true en data", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja", tipo: "ASSET", isBudgetable: true } as RowWithBudgetable,
+    ]);
+
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isBudgetable: true }) })
+    );
+  });
+
+  it("[RED — isBudgetable] sin el campo en la fila → prisma.account.create recibe isBudgetable:false en data (default seguro)", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja", tipo: "ASSET" },
+    ]);
+
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isBudgetable: false }) })
+    );
   });
 });
 

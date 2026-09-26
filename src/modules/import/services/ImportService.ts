@@ -26,7 +26,10 @@ const stripAccents = (s: string) => s.replace(/[áéíóúñÁÉÍÓÚÑ]/g, (c)
 // Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí (a
 // diferencia de `ImportAccountRow`, cuya salida de Zod siempre lo resuelve a boolean) para no
 // forzar a cada caller/test existente a proveerlo; se asume `true` (detalle) si falta.
-type ImportAccountRowInput = Omit<ImportAccountRow, "isPostable"> & { isPostable?: boolean };
+type ImportAccountRowInput = Omit<ImportAccountRow, "isPostable" | "isBudgetable"> & {
+  isPostable?: boolean;
+  isBudgetable?: boolean;
+};
 
 export class ImportService {
   static async parseAccountsExcel(buffer: Buffer): Promise<ImportAccountRow[]> {
@@ -98,11 +101,17 @@ export class ImportService {
       const gm = hasCol("g/m") ? String(get("g/m") ?? "").trim().toUpperCase() : "";
       const isPostable = gm !== "G";
 
-      // Nivel, Pre., Ter., C/C, Clase, Tipo(O/C) — significado sin confirmar, se ignoran a
-      // propósito: no se mapean a ningún campo (en particular NO "Clase"→isMonetary, hipótesis
-      // sin confirmar con consecuencia fiscal real de INPC si se equivoca).
+      // Pre.: "SI" = la cuenta se puede usar en líneas de presupuesto (BudgetLine). Confirmado
+      // por el dueño 2026-09-26. Cualquier otro valor, vacío o columna ausente = false (default
+      // seguro). El header conserva el punto tras stripAccents+lowercase+trim ("pre.").
+      const pre = hasCol("pre.") ? String(get("pre.") ?? "").trim().toUpperCase() : "";
+      const isBudgetable = pre === "SI";
 
-      return { codigo, nombre, tipo, descripcion, isPostable };
+      // Nivel, Ter., C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda,
+      // se ignoran a propósito (en particular NO "Clase"→isMonetary: hipótesis descartada por
+      // evidencia real, ver ADR-053 — Ter./C/C confirmados pero diferidos a otra tanda).
+
+      return { codigo, nombre, tipo, descripcion, isPostable, isBudgetable };
     });
 
     return ImportAccountsSchema.parse(normalized);
@@ -135,6 +144,7 @@ export class ImportService {
             type: row.tipo as "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
             description: row.descripcion,
             isPostable: row.isPostable ?? true,
+            isBudgetable: row.isBudgetable ?? false,
             companyId,
           },
         });
