@@ -57,6 +57,10 @@ type RowWithPostable = ImportAccountRow & { isPostable?: boolean };
 // feedback tester Alpha 2026-09-26 — ver ADR-053 para el precedente isPostable/G-M).
 type RowWithBudgetable = ImportAccountRow & { isBudgetable?: boolean };
 
+// Cast defensivo equivalente para `requiresThirdParty` (columna "Ter." del ERP real,
+// decision del dueno 2026-09-26, ADR-054 -- ver ADR-053 para el precedente isPostable/G-M).
+type RowWithThirdParty = ImportAccountRow & { requiresThirdParty?: boolean };
+
 describe("ImportService.parseAccountsExcel", () => {
   it("parsea un Excel válido correctamente", async () => {
     const buffer = await makeExcelBuffer([
@@ -270,6 +274,55 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[0].isBudgetable).toBe(false);
     expect(rows[1].isBudgetable).toBe(false);
   });
+
+  // ---------------------------------------------------------------------------
+  // Feature: "Ter." -> Account.requiresThirdParty (decision del dueno 2026-09-26,
+  // ADR-054). Cuenta "pote" que exige indicar el tercero (Customer/Vendor/Partner/
+  // Employee) en cada linea de asiento -- ver src/lib/prisma-tercero-required-gate.ts.
+  // Ver ADR-053 para el precedente isPostable/G-M e isBudgetable/Pre.
+  // ---------------------------------------------------------------------------
+
+  it("[RED — requiresThirdParty 1] columna 'Ter.' con SI/NO/vacío mapea a requiresThirdParty true/false/false", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo", "Ter."],
+      [
+        ["1201", "Cuentas por Cobrar Clientes", "ASSET", "SI"],
+        ["2105", "Proveedores", "LIABILITY", "NO"],
+        ["3105", "Capital Social", "EQUITY", ""],
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithThirdParty[];
+
+    expect(rows[0].requiresThirdParty).toBe(true); // "SI"
+    expect(rows[1].requiresThirdParty).toBe(false); // "NO"
+    expect(rows[2].requiresThirdParty).toBe(false); // vacío
+  });
+
+  it("[RED — requiresThirdParty 2] 'Ter.' en minúscula ('si') o con espacios (' SI ') sigue siendo true", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo", "Ter."],
+      [
+        ["1201", "Cuentas por Cobrar Clientes", "ASSET", "si"],
+        ["2105", "Proveedores", "LIABILITY", " SI "],
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithThirdParty[];
+    expect(rows[0].requiresThirdParty).toBe(true);
+    expect(rows[1].requiresThirdParty).toBe(true);
+  });
+
+  it("[RED — requiresThirdParty 3] sin columna 'Ter.' en absoluto (plantilla simple actual) → requiresThirdParty false para todas las filas (GUARDA de compatibilidad)", async () => {
+    const buffer = await makeExcelBuffer([
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo" },
+      { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY" },
+    ]);
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithThirdParty[];
+    expect(rows[0].requiresThirdParty).toBe(false);
+    expect(rows[1].requiresThirdParty).toBe(false);
+  });
 });
 
 describe("ImportService.importAccounts", () => {
@@ -325,6 +378,34 @@ describe("ImportService.importAccounts", () => {
 
     expect(prisma.account.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isBudgetable: false }) })
+    );
+  });
+
+  it("[RED — requiresThirdParty] row.requiresThirdParty=true → prisma.account.create recibe requiresThirdParty:true en data", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1201", nombre: "Cuentas por Cobrar Clientes", tipo: "ASSET", requiresThirdParty: true } as RowWithThirdParty,
+    ]);
+
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requiresThirdParty: true }) })
+    );
+  });
+
+  it("[RED — requiresThirdParty] sin el campo en la fila → prisma.account.create recibe requiresThirdParty:false en data (default seguro)", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja", tipo: "ASSET" },
+    ]);
+
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requiresThirdParty: false }) })
     );
   });
 });

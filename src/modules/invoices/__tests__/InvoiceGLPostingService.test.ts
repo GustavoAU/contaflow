@@ -353,6 +353,97 @@ describe("InvoiceGLPostingService — moneda extranjera (NIC 21)", () => {
   });
 });
 
+// ─── ADR-054: tercero en la línea CxC/CxP ─────────────────────────────────────
+
+describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
+  function makeDbWithParties(overrides: Partial<{ customerFound: { id: string } | null; vendorFound: { id: string } | null }> = {}) {
+    return {
+      transaction: { create: vi.fn().mockResolvedValue({ id: TX_ID }) },
+      invoice: { update: vi.fn().mockResolvedValue({ id: INVOICE_ID, transactionId: TX_ID }) },
+      customer: { findFirst: vi.fn().mockResolvedValue(overrides.customerFound ?? null) },
+      vendor: { findFirst: vi.fn().mockResolvedValue(overrides.vendorFound ?? null) },
+    } as unknown as import("@prisma/client").Prisma.TransactionClient;
+  }
+
+  it("VENTA: usa customerId ya vinculado sin consultar por RIF", async () => {
+    const db = makeDbWithParties();
+    await InvoiceGLPostingService.postInvoice(
+      { ...SALE_INVOICE, customerId: "cust-linked", counterpartRif: "J-11111111-1" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+    );
+
+    expect(vi.mocked(db.customer.findFirst)).not.toHaveBeenCalled();
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBe("cust-linked");
+  });
+
+  it("VENTA: sin vínculo, busca por RIF y lo asigna a la línea CxC", async () => {
+    const db = makeDbWithParties({ customerFound: { id: "cust-por-rif" } });
+    await InvoiceGLPostingService.postInvoice(
+      { ...SALE_INVOICE, counterpartRif: "j 12345678 9" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+    );
+
+    expect(vi.mocked(db.customer.findFirst)).toHaveBeenCalledWith({
+      where: { companyId: COMPANY_ID, rif: "J-12345678-9", deletedAt: null },
+      select: { id: true },
+    });
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBe("cust-por-rif");
+  });
+
+  it("VENTA: sin vínculo y RIF sin match en el catálogo → línea CxC sin tercero (nunca lanza)", async () => {
+    const db = makeDbWithParties({ customerFound: null });
+    await InvoiceGLPostingService.postInvoice(
+      { ...SALE_INVOICE, counterpartRif: "J-99999999-9" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+    );
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBeUndefined();
+  });
+
+  it("COMPRA: usa vendorId ya vinculado sin consultar por RIF, lo asigna a la línea CxP", async () => {
+    const db = makeDbWithParties();
+    await InvoiceGLPostingService.postInvoice(
+      { ...PURCHASE_INVOICE, vendorId: "vend-linked", counterpartRif: "J-22222222-2" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+    );
+
+    expect(vi.mocked(db.vendor.findFirst)).not.toHaveBeenCalled();
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; vendorId?: string }>;
+    expect(entries.find((e) => e.accountId === "acc-prov")?.vendorId).toBe("vend-linked");
+  });
+
+  it("COMPRA: sin vínculo, busca proveedor por RIF y lo asigna a la línea CxP", async () => {
+    const db = makeDbWithParties({ vendorFound: { id: "vend-por-rif" } });
+    await InvoiceGLPostingService.postInvoice(
+      { ...PURCHASE_INVOICE, counterpartRif: "J-33333333-3" },
+      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+    );
+
+    const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; vendorId?: string }>;
+    expect(entries.find((e) => e.accountId === "acc-prov")?.vendorId).toBe("vend-por-rif");
+  });
+
+  it("sin counterpartRif y sin vínculo → nunca consulta customer/vendor", async () => {
+    const db = makeDbWithParties();
+    await InvoiceGLPostingService.postInvoice(SALE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+
+    expect(vi.mocked(db.customer.findFirst)).not.toHaveBeenCalled();
+  });
+});
+
 // ─── Tests guarda semántica ───────────────────────────────────────────────────
 
 describe("InvoiceGLPostingService — guarda semántica", () => {

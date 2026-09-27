@@ -4,6 +4,7 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import { createBillingGateExtension } from "./prisma-billing-gate";
 import { createTenantAssertExtension, resolveMode } from "./prisma-tenant-assert";
 import { createPostableAccountGateExtension } from "./prisma-postable-account-gate";
+import { createTerceroRequiredGateExtension } from "./prisma-tercero-required-gate";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL no está definida en las variables de entorno");
@@ -42,7 +43,9 @@ function createExtendedPrisma(): PrismaClient {
     .$extends(createBillingGateExtension(base))
     .$extends(createTenantAssertExtension(resolveMode(process.env.TENANT_ASSERT_MODE)))
     // Feedback tester Alpha 2026-09-22: ninguna cuenta de título recibe un JournalEntry directo.
-    .$extends(createPostableAccountGateExtension(base));
+    .$extends(createPostableAccountGateExtension(base))
+    // ADR-054: cuentas con Account.requiresThirdParty exigen tercero en cada línea de asiento.
+    .$extends(createTerceroRequiredGateExtension(base));
   return extended as unknown as PrismaClient;
 }
 

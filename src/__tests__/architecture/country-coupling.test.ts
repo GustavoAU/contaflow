@@ -104,6 +104,8 @@ const TEMPORAL: Record<string, string> = {
   // (invoice.schema se cerró en MP-5a: getInvoiceSchemas(cfg) + ancla VEN.)
   "src/modules/vendors/schemas/vendor.schemas.ts": "MP-5b",
   "src/modules/cajachica/schemas/cajachica.schema.ts": "MP-5b",
+  // ADR-054 (2026-09-27): mismo RIF que Vendor/Customer (misma deuda MP-5b, no una nueva).
+  "src/modules/vendors/schemas/partner.schemas.ts": "MP-5b",
 
   // MP-6 — servicios y actions reciben las alícuotas por parámetro.
   "src/modules/invoices/services/InvoiceLineService.ts": "MP-6",

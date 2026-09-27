@@ -187,6 +187,12 @@ export async function voidDeposit(
           accountId: e.accountId,
           amount: new Decimal(e.amount.toString()).negated(),
           description: `Reversión depósito — ${e.description ?? ""}`.trim(),
+          // ADR-054: preservar el tercero de la línea original — sin esto, si la cuenta
+          // alguna vez se marca requiresThirdParty, la reversión queda bloqueada para siempre.
+          customerId: e.customerId ?? undefined,
+          vendorId: e.vendorId ?? undefined,
+          partnerId: e.partnerId ?? undefined,
+          employeeId: e.employeeId ?? undefined,
         }));
         assertBalancedGLEntries(reverseEntries); // N4: invariante partida doble
         // MÁXIMO + 1 sobre los propios números de reversión, no `count` de depósitos.

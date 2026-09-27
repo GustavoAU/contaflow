@@ -444,6 +444,12 @@ export async function reopenCajaCaja(
             accountId: e.accountId,
             amount: new Decimal(e.amount.toString()).negated(),
             description: `Reapertura caja chica: ${caja.name}`,
+            // ADR-054: preservar el tercero de la línea original — sin esto, si la cuenta
+            // alguna vez se marca requiresThirdParty, la reapertura queda bloqueada para siempre.
+            customerId: e.customerId ?? undefined,
+            vendorId: e.vendorId ?? undefined,
+            partnerId: e.partnerId ?? undefined,
+            employeeId: e.employeeId ?? undefined,
           }));
           assertBalancedGLEntries(reverseEntries); // R-1: invariante partida doble
 

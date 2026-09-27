@@ -308,20 +308,28 @@ export class InvoiceService {
       // H-1/H-2: snapshotear dirección fiscal y estado CE del contacto al momento de emisión
       let snapshotAddress: string | null = (input as { counterpartAddress?: string }).counterpartAddress ?? null;
       let snapshotIsCE = false;
+      // ADR-054: ids resueltos por RIF más abajo, reusados por InvoiceGLPostingService para
+      // derivar el tercero de la línea CxC/CxP — evita un segundo round-trip a la BD.
+      let resolvedCustomerId: string | null = null;
+      let resolvedVendorId: string | null = null;
       if (input.counterpartRif) {
         const [vendor, customer] = await Promise.all([
           db.vendor.findFirst({
             where: { companyId: input.companyId, rif: input.counterpartRif, deletedAt: null },
-            select: { address: true, isSpecialContributor: true },
+            // ADR-054: id también sirve para derivar el tercero de la línea CxP en el GL posting.
+            select: { id: true, address: true, isSpecialContributor: true },
           }),
           db.customer.findFirst({
             where: { companyId: input.companyId, rif: input.counterpartRif, deletedAt: null },
-            select: { address: true },
+            // ADR-054: id también sirve para derivar el tercero de la línea CxC en el GL posting.
+            select: { id: true, address: true },
           }),
         ]);
         const found = vendor ?? customer;
         if (found && !snapshotAddress) snapshotAddress = found.address ?? null;
         if (vendor) snapshotIsCE = vendor.isSpecialContributor;
+        resolvedVendorId = vendor?.id ?? null;
+        resolvedCustomerId = customer?.id ?? null;
       }
 
       const invoice = await db.invoice.create({
@@ -414,6 +422,12 @@ export class InvoiceService {
             exchangeRateVes,
             // H-6: IGTF percibido — Decreto Constituyente IGTF 2022
             igtfAmount: new Decimal(input.igtfAmount ?? "0"),
+            // ADR-054: tercero de la línea CxC/CxP — ya resuelto arriba por RIF (mismo query
+            // que la dirección/CE, sin round-trip extra); Invoice.customerId/vendorId no se
+            // pueblan en creación, así que este es el único camino disponible aquí.
+            customerId: resolvedCustomerId,
+            vendorId: resolvedVendorId,
+            counterpartRif: input.counterpartRif ?? null,
           },
           settings,
           input.companyId,

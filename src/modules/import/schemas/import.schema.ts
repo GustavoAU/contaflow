@@ -16,6 +16,10 @@ export const ImportAccountRowSchema = z.object({
   // Feedback tester Alpha 2026-09-26: columna "Pre." — si la cuenta se puede usar en líneas de
   // presupuesto (BudgetLine). Sin consecuencia fiscal, solo filtrado/UX.
   isBudgetable: z.boolean().default(false),
+  // Decisión del dueño 2026-09-26 (ADR-054): columna "Ter." — cuenta "pote" que exige indicar
+  // el tercero (Customer/Vendor/Partner/Employee) en cada línea de asiento. Exigido por
+  // src/lib/prisma-tercero-required-gate.ts.
+  requiresThirdParty: z.boolean().default(false),
 });
 
 export type ImportAccountRow = z.infer<typeof ImportAccountRowSchema>;

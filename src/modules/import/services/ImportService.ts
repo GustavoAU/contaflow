@@ -26,9 +26,10 @@ const stripAccents = (s: string) => s.replace(/[áéíóúñÁÉÍÓÚÑ]/g, (c)
 // Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí (a
 // diferencia de `ImportAccountRow`, cuya salida de Zod siempre lo resuelve a boolean) para no
 // forzar a cada caller/test existente a proveerlo; se asume `true` (detalle) si falta.
-type ImportAccountRowInput = Omit<ImportAccountRow, "isPostable" | "isBudgetable"> & {
+type ImportAccountRowInput = Omit<ImportAccountRow, "isPostable" | "isBudgetable" | "requiresThirdParty"> & {
   isPostable?: boolean;
   isBudgetable?: boolean;
+  requiresThirdParty?: boolean;
 };
 
 export class ImportService {
@@ -107,11 +108,17 @@ export class ImportService {
       const pre = hasCol("pre.") ? String(get("pre.") ?? "").trim().toUpperCase() : "";
       const isBudgetable = pre === "SI";
 
-      // Nivel, Ter., C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda,
-      // se ignoran a propósito (en particular NO "Clase"→isMonetary: hipótesis descartada por
-      // evidencia real, ver ADR-053 — Ter./C/C confirmados pero diferidos a otra tanda).
+      // Ter.: "SI" = cuenta "pote" que exige tercero (Customer/Vendor/Partner/Employee) en cada
+      // línea de asiento — decisión del dueño 2026-09-26 (ADR-054). Cualquier otro valor, vacío
+      // o columna ausente = false (default seguro, misma convención que Pre./isBudgetable).
+      const ter = hasCol("ter.") ? String(get("ter.") ?? "").trim().toUpperCase() : "";
+      const requiresThirdParty = ter === "SI";
 
-      return { codigo, nombre, tipo, descripcion, isPostable, isBudgetable };
+      // Nivel, C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda, se
+      // ignoran a propósito (en particular NO "Clase"→isMonetary: hipótesis descartada por
+      // evidencia real, ver ADR-053 — C/C confirmado pero diferido a otra tanda).
+
+      return { codigo, nombre, tipo, descripcion, isPostable, isBudgetable, requiresThirdParty };
     });
 
     return ImportAccountsSchema.parse(normalized);
@@ -145,6 +152,7 @@ export class ImportService {
             description: row.descripcion,
             isPostable: row.isPostable ?? true,
             isBudgetable: row.isBudgetable ?? false,
+            requiresThirdParty: row.requiresThirdParty ?? false,
             companyId,
           },
         });
