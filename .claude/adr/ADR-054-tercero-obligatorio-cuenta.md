@@ -84,18 +84,18 @@ tercero) apareció en 2 sitios más de caja chica — `CajaCajaService.ts` (reap
 (ninguna cuenta de caja chica está marcada `Ter.=SI`; caja chica es "fase 2" explícito arriba). Sweep exhaustivo
 (`grep .entries.map(` en todo `src/`) confirma que no queda ninguna otra instancia sin corregir.
 
-**Limitación estructural real, sin fix — documentada, no oculta (R-4)**: `ExchangeDifferentialService.ts` postea
-UNA línea de revaluación mensual de diferencial cambiario contra `arAccountId`/`apAccountId` que agrega el
-movimiento neto de TODAS las facturas en divisas del período — no hay "un" tercero al que atribuirle esa línea.
-Si `arAccountId`/`apAccountId` se marca `Ter.=SI`, la revaluación mensual de diferencial cambiario (NIC 21) quedará
-bloqueada por el gate igual que un VOID sin este fix — pero a diferencia del VOID, aquí no hay una línea origen de
-la cual copiar el tercero: es un defecto de diseño genuino, no un bug con fix trivial. **Antes de marcar CxC/CxP
-como `Ter.=SI` en una empresa que usa diferencial cambiario (moneda extranjera), hay que decidir**: (a) excluir
-`arAccountId`/`apAccountId` de poder marcarse `Ter.=SI` si la empresa declara facturación en divisas, o (b) partir
-la revaluación por tercero (cambio bastante más grande, hoy es agregado a propósito por simplicidad), o (c) aceptar
-que esas dos cuentas específicas nunca puedan ser `Ter.=SI`. Sin decidir todavía — ninguna empresa tiene hoy esa
-combinación (nadie ha marcado `Ter.=SI` en producción), así que no es bloqueante para este merge, pero si se
-implementa la UI para marcar `requiresThirdParty` cuenta por cuenta, esa UI debería advertir sobre este caso.
+**Limitación estructural — CERRADA 2026-09-27 (rama `feat/diferencial-cambiario-por-tercero`)**: `ExchangeDifferentialService.ts`
+posteaba UNA línea de revaluación mensual de diferencial cambiario contra `arAccountId`/`apAccountId` que agregaba
+el movimiento neto de TODAS las facturas en divisas del período — sin "un" tercero al que atribuirle esa línea. Se
+decidió la opción (b) del análisis original (partir la revaluación por tercero) por ser la solución real, no un
+parche: `ExchangeDifferentialService.calculate()` ahora resuelve el cliente/proveedor de cada factura (vínculo
+directo o por RIF, batch — mismo mecanismo que el resto del ADR), `aggregate()` agrupa el movimiento neto por
+tercero (`cxcByParty`/`cxpByParty`), y `post()` postea UNA línea CxC por cliente y UNA línea CxP por proveedor en
+vez del neto agregado sin dueño. `netCxCMovement`/`netCxPMovement` se conservan intactos para el preview de UI. De
+paso se extrajo `src/lib/party-resolver.ts` (resolución por vínculo-o-RIF, simple y batch) como fuente única — ya
+era la tercera copia casi idéntica de la misma lógica (InvoiceGLPostingService, PaymentGLService, ahora
+ExchangeDifferentialService), y se refactorizaron los dos usos anteriores para consumirla en vez de triplicarla.
+tsc 0, 6 shards verdes, mutación verificada en el agrupamiento por tercero y en la resolución por RIF.
 
 Hallazgos NO bloqueantes, documentados para más adelante: (1) el tercero resuelto por fallback-RIF no queda
 distinguido en el asiento del resuelto por vínculo explícito — útil para trazabilidad de reconciliación, no es un

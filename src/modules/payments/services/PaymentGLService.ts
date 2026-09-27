@@ -11,6 +11,7 @@ import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { normalizeRifOrNull } from "@/lib/tax-config";
+import { resolvePartyIdByLinkOrRif, batchResolvePartyIdsByRif } from "@/lib/party-resolver";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -119,16 +120,7 @@ export class PaymentGLService {
     if (!inv) return undefined;
 
     const linkedId = kind === "customer" ? inv.customerId : inv.vendorId;
-    if (linkedId) return linkedId;
-
-    const normalized = normalizeRifOrNull(inv.counterpartRif);
-    if (!normalized) return undefined;
-    if (kind === "customer") {
-      const found = await tx.customer.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
-      return found?.id;
-    }
-    const found = await tx.vendor.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
-    return found?.id;
+    return resolvePartyIdByLinkOrRif(tx, companyId, kind, linkedId, inv.counterpartRif);
   }
 
   /**
@@ -604,20 +596,11 @@ export class PaymentGLService {
 
     // ADR-054: para las facturas sin vendorId vinculado, resolver por RIF en UNA sola query
     // batch (evita N+1 — un lote puede tener decenas de proveedores distintos).
-    const rifsNeedingLookup = [...new Set(
-      invoiceRows
-        .filter((row) => !row.vendorId)
-        .map((row) => normalizeRifOrNull(row.counterpartRif))
-        .filter((rif): rif is string => !!rif)
-    )];
-    const vendorIdByRif = new Map<string, string>();
-    if (rifsNeedingLookup.length > 0) {
-      const vendors = await tx.vendor.findMany({
-        where: { companyId, rif: { in: rifsNeedingLookup }, deletedAt: null },
-        select: { id: true, rif: true },
-      });
-      for (const v of vendors) if (v.rif) vendorIdByRif.set(v.rif, v.id);
-    }
+    const rifsNeedingLookup = invoiceRows
+      .filter((row) => !row.vendorId)
+      .map((row) => normalizeRifOrNull(row.counterpartRif))
+      .filter((rif): rif is string => !!rif);
+    const vendorIdByRif = await batchResolvePartyIdsByRif(tx, companyId, "vendor", rifsNeedingLookup);
 
     const enrichedLines: BatchLineEnriched[] = input.lines.map((l) => {
       const invData = invoiceDataMap.get(l.invoiceId);

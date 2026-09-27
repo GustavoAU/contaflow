@@ -22,7 +22,7 @@
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
-import { normalizeRifOrNull } from "@/lib/tax-config";
+import { resolvePartyIdByLinkOrRif } from "@/lib/party-resolver";
 
 export interface InvoiceGLConfig {
   arAccountId: string | null;
@@ -61,27 +61,6 @@ export interface InvoiceForGL {
 }
 
 export class InvoiceGLPostingService {
-  // ADR-054: resuelve el tercero de la línea CxC/CxP — usa el vínculo explícito si existe;
-  // si no, busca por RIF en el catálogo de la empresa. Nunca lanza: sin match, la línea queda
-  // sin tercero (el gate bloqueará el posting si la cuenta lo exige, con mensaje claro).
-  private static async resolvePartyId(
-    db: Prisma.TransactionClient,
-    companyId: string,
-    kind: "customer" | "vendor",
-    linkedId: string | null | undefined,
-    rif: string | null | undefined,
-  ): Promise<string | undefined> {
-    if (linkedId) return linkedId;
-    const normalized = normalizeRifOrNull(rif);
-    if (!normalized) return undefined;
-    if (kind === "customer") {
-      const found = await db.customer.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
-      return found?.id;
-    }
-    const found = await db.vendor.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
-    return found?.id;
-  }
-
   static canPost(invoiceType: "SALE" | "PURCHASE", config: InvoiceGLConfig): boolean {
     if (invoiceType === "SALE") {
       return !!(config.arAccountId && config.salesAccountId && config.ivaDFAccountId);
@@ -182,8 +161,8 @@ export class InvoiceGLPostingService {
 
     // ADR-054: tercero de la línea CxC/CxP — resuelto una sola vez, antes de armar entries.
     const partyId = invoice.type === "SALE"
-      ? await this.resolvePartyId(db, companyId, "customer", invoice.customerId, invoice.counterpartRif)
-      : await this.resolvePartyId(db, companyId, "vendor", invoice.vendorId, invoice.counterpartRif);
+      ? await resolvePartyIdByLinkOrRif(db, companyId, "customer", invoice.customerId, invoice.counterpartRif)
+      : await resolvePartyIdByLinkOrRif(db, companyId, "vendor", invoice.vendorId, invoice.counterpartRif);
 
     if (invoice.type === "SALE") {
       // H-6: CxC incluye IGTF cuando aplica (total + igtf es el total exigible al cliente)
