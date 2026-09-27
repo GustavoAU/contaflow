@@ -1,44 +1,74 @@
 // src/modules/accounting/actions/period.actions.ts
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { PeriodService } from "../services/PeriodService";
-import { ROLES } from "@/lib/auth-helpers";
+import { FiscalYearService } from "../services/FiscalYearService";
 import { requireCompanyAction } from "@/lib/action-guard";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
-// ─── Schemas ──────────────────────────────────────────────────────────────────
+// ADR-055: openPeriodAction/closePeriodAction (mes individual) se retiraron de la
+// superficie pública — D-7. Usa fiscal-year.actions.ts (openFiscalYearAction) y
+// fiscal-close.actions.ts (closeFiscalYearAction) en su lugar.
 
-const OpenPeriodSchema = z.object({
-  companyId: z.string().min(1),
-  year: z.number().int().min(2000).max(2100),
-  month: z.number().int().min(1).max(12),
-  userId: z.string().optional(), // kept for backward compat — action uses auth() userId
-});
+export type ActivePeriodInfo = {
+  id: string;
+  year: number;
+  month: number;
+  openedAt: Date;
+  fiscalYear: number;
+};
 
-const ClosePeriodSchema = z.object({
-  companyId: z.string().min(1),
-  userId: z.string().optional(), // kept for backward compat — action uses auth() userId
-});
-
-// ─── Obtener período activo ───────────────────────────────────────────────────
-
+// ─── Obtener "período activo" (ADR-055: derivado del ejercicio activo) ─────────
+//
+// Ya no existe "el único período OPEN de la empresa" — un ejercicio abierto tiene
+// sus 12 meses OPEN en paralelo. Lo que los callers necesitan (banner de estado,
+// default de fecha en formularios) es: el mes de HOY si cae dentro del ejercicio
+// activo, o si no, el mes más reciente de ese ejercicio (p. ej. para preseleccionar
+// fecha al registrar algo con el ejercicio ya iniciado). `fiscalYear` es la etiqueta
+// del ejercicio activo, para el indicador "Ejercicio activo: {año}" en el topbar.
 export async function getActivePeriodAction(
   companyId: string
-): Promise<ActionResult<Awaited<ReturnType<typeof PeriodService.getActivePeriod>>>> {
+): Promise<ActionResult<ActivePeriodInfo | null>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;
-    const period = await PeriodService.getActivePeriod(companyId);
-    return { success: true, data: period };
+
+    const fiscalYear = await FiscalYearService.getActiveFiscalYear(companyId);
+    if (!fiscalYear || fiscalYear.periods.length === 0) {
+      return { success: true, data: null };
+    }
+
+    const today = new Date();
+    const ty = today.getUTCFullYear();
+    const tm = today.getUTCMonth() + 1;
+
+    const current = fiscalYear.periods.find(
+      (p) => p.year === ty && p.month === tm && p.status === "OPEN"
+    );
+    const mostRecent = [...fiscalYear.periods].sort(
+      (a, b) =>
+        FiscalYearService.chronologicalKey(fiscalYear.year, fiscalYear.startMonth, b) -
+        FiscalYearService.chronologicalKey(fiscalYear.year, fiscalYear.startMonth, a)
+    )[0];
+    const chosen = current ?? mostRecent;
+
+    return {
+      success: true,
+      data: {
+        id: chosen.id,
+        year: chosen.year,
+        month: chosen.month,
+        openedAt: fiscalYear.openedAt,
+        fiscalYear: fiscalYear.year,
+      },
+    };
   } catch (error) {
     return toActionError(error);
   }
 }
 
-// ─── Obtener todos los períodos ───────────────────────────────────────────────
+// ─── Obtener todos los períodos (para /periods, agrupados en la UI por ejercicio) ─
 
 export async function getPeriodsAction(
   companyId: string
@@ -48,61 +78,6 @@ export async function getPeriodsAction(
     if (!ctx.ok) return ctx.error;
     const periods = await PeriodService.getPeriods(companyId);
     return { success: true, data: periods };
-  } catch (error) {
-    return toActionError(error);
-  }
-}
-
-// ─── Abrir período ────────────────────────────────────────────────────────────
-
-export async function openPeriodAction(
-  input: z.infer<typeof OpenPeriodSchema>
-): Promise<ActionResult<{ id: string; year: number; month: number }>> {
-  try {
-    const validated = OpenPeriodSchema.parse(input);
-
-    const ctx = await requireCompanyAction(validated.companyId, {
-      roles: ROLES.ADMIN_ONLY,
-      captureNet: true,
-    });
-    if (!ctx.ok) return ctx.error;
-
-    const period = await PeriodService.openPeriod(
-      validated.companyId,
-      validated.year,
-      validated.month,
-      ctx.userId,
-      ctx.ipAddress,
-      ctx.userAgent,
-    );
-
-    revalidatePath(`/company/${validated.companyId}/settings`);
-
-    return { success: true, data: { id: period.id, year: period.year, month: period.month } };
-  } catch (error) {
-    return toActionError(error);
-  }
-}
-
-// ─── Cerrar período ───────────────────────────────────────────────────────────
-
-export async function closePeriodAction(
-  input: z.infer<typeof ClosePeriodSchema>
-): Promise<ActionResult<{ id: string }>> {
-  try {
-    const validated = ClosePeriodSchema.parse(input);
-
-    const ctx = await requireCompanyAction(validated.companyId, {
-      roles: ROLES.ADMIN_ONLY,
-      captureNet: true,
-    });
-    if (!ctx.ok) return ctx.error;
-
-    const period = await PeriodService.closePeriod(validated.companyId, ctx.userId, ctx.ipAddress, ctx.userAgent);
-
-    revalidatePath(`/company/${validated.companyId}/settings`);
-
-    return { success: true, data: { id: period.id } };
   } catch (error) {
     return toActionError(error);
   }

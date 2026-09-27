@@ -278,6 +278,11 @@ model Company {
   managedClientLinks         ManagedClient[]             @relation("ManagedClientLinkedCompany")
   overtimeEntries            OvertimeEntry[]
   employeeRecurringConcepts  EmployeeRecurringConcept[]
+  // ADR-055: mes (1-12) en que inicia el PRÓXIMO ejercicio a abrir. Default 1 = régimen
+  // regular Ene-Dic — cero cambio de comportamiento para toda empresa existente. Cambiarlo
+  // no reinterpreta ningún FiscalYear ya abierto (su startMonth queda copiado y congelado).
+  fiscalYearStartMonth       Int                         @default(1)
+  fiscalYears                FiscalYear[]
 }
 
 model CompanyMember {
@@ -608,9 +613,10 @@ model AuditLog {
 model AccountingPeriod {
   id              String           @id @default(cuid())
   companyId       String
-  company         Company          @relation(fields: [companyId], references: [id])
+  // ADR-055 H-1: onDelete explícito (antes ausente) — alinea con ADR-003.
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   year            Int
-  month           Int // 1-12
+  month           Int // 1-12 — SIN CAMBIO DE SIGNIFICADO: año/mes calendario literal, siempre.
   status          PeriodStatus     @default(OPEN)
   openedAt        DateTime         @default(now())
   closedAt        DateTime?
@@ -621,7 +627,50 @@ model AccountingPeriod {
   // Fase 13C Bloque 3: Snapshots de saldos por período
   periodSnapshots PeriodSnapshot[]
 
+  // ADR-055: agrupación al ejercicio fiscal. Nullable durante la ventana de backfill de
+  // empresas Alpha existentes — pasa a NOT NULL en la migración de seguimiento una vez
+  // verificado que el backfill cubrió el 100% de las filas (ver Plan de Migración).
+  fiscalYearId String?
+  fiscalYear   FiscalYear? @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+
   @@unique([companyId, year, month])
+  @@index([companyId, fiscalYearId])
+}
+
+// ── Ejercicio Fiscal (ADR-055) ────────────────────────────────────────────────
+// Agrupa los AccountingPeriod (siempre mensuales, year/month sin cambio de significado)
+// que componen UN ejercicio económico declarable ante ISLR. Reutiliza PeriodStatus —
+// mismo enum, mismo significado de negocio que AccountingPeriod.status (DRY).
+model FiscalYear {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  // Año calendario en que INICIA el ejercicio — es la ETIQUETA del ejercicio, no
+  // necesariamente el año calendario de TODOS sus períodos (ver ADR-055 §Semántica de
+  // `year` para el caso irregular, ej. régimen jul-jun).
+  year Int
+
+  // Copiado de Company.fiscalYearStartMonth AL MOMENTO de abrir. Inmutable: si la empresa
+  // cambia su régimen después (autorización SENIAT), los ejercicios ya abiertos no se
+  // reinterpretan retroactivamente.
+  startMonth Int
+
+  status PeriodStatus @default(OPEN)
+
+  periods         AccountingPeriod[]
+  fiscalYearClose FiscalYearClose?
+
+  openedAt DateTime  @default(now())
+  openedBy String // userId
+  closedAt DateTime?
+  closedBy String? // userId
+
+  // Sin deletedAt / idempotencyKey: mismo criterio que AccountingPeriod — nunca se elimina
+  // desde su creación (solo transiciona status), y @@unique([companyId, year]) ya cubre la
+  // idempotencia de "abrir dos veces el mismo ejercicio".
+  @@unique([companyId, year])
+  @@index([companyId, status])
 }
 
 model Retencion {
@@ -904,7 +953,12 @@ model FiscalYearClose {
   id        String  @id @default(cuid())
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  year      Int
+  year      Int // se mantiene — etiqueta del ejercicio, == FiscalYear.year (sin cambio de firma)
+
+  // ADR-055: FK explícito al ejercicio. Nullable durante backfill, luego NOT NULL (Fase 2
+  // de la migración, una vez verificado 100% de cobertura).
+  fiscalYearId String?     @unique
+  fiscalYear   FiscalYear? @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
 
   closedAt DateTime @default(now())
   closedBy String // userId Clerk
