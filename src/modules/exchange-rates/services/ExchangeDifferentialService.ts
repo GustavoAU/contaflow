@@ -13,6 +13,9 @@
 
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
+import { normalizeRifOrNull } from "@/lib/tax-config";
+import { batchResolvePartyIdsByRif } from "@/lib/party-resolver";
+import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 
 export interface FxDiffLine {
   invoiceId: string;
@@ -25,6 +28,20 @@ export interface FxDiffLine {
   vesAtOriginal: Decimal;
   vesAtReval: Decimal;
   differential: Decimal;
+  // ADR-054: tercero de la factura — vínculo directo (Invoice.customerId/vendorId) si
+  // existe, si no por RIF en el catálogo (resuelto en calculate()). Sin esto, la línea CxC/
+  // CxP agregada de la revaluación quedaría sin tercero y bloquearía el posting en cuanto
+  // arAccountId/apAccountId se marque Account.requiresThirdParty.
+  customerId?: string;
+  vendorId?: string;
+}
+
+/** Movimiento neto de una cuenta pote (CxC o CxP) atribuido a UN tercero — `partyId`
+ * undefined agrupa las líneas sin tercero resuelto (no se descartan, solo quedan sin
+ * atribuir; el gate decide si eso bloquea el posting). */
+export interface FxPartyMovement {
+  partyId?: string;
+  netMovement: Decimal;
 }
 
 export interface FxDiffSummary {
@@ -33,6 +50,11 @@ export interface FxDiffSummary {
   netCxPMovement: Decimal;
   totalFxGain: Decimal;
   totalFxLoss: Decimal;
+  // ADR-054: desglose por tercero — post() postea UNA línea por cliente/proveedor en vez
+  // de un neto agregado sin dueño. netCxCMovement/netCxPMovement se conservan (totales
+  // para el preview en UI), pero post() usa este desglose para las líneas reales.
+  cxcByParty: FxPartyMovement[];
+  cxpByParty: FxPartyMovement[];
 }
 
 export interface FxGLConfig {
@@ -66,6 +88,23 @@ export class ExchangeDifferentialService {
       },
     });
 
+    // ADR-054: resolver el tercero de cada factura (customerId para SALE, vendorId para
+    // PURCHASE) ANTES de armar las líneas — vínculo directo si existe, si no por RIF, en
+    // UNA sola query batch por tipo (mismo patrón que PaymentGLService.postPaymentBatchGL,
+    // evita N+1 en empresas con muchos clientes/proveedores en divisas).
+    const customerRifsNeeded = invoices
+      .filter((inv) => inv.type === "SALE" && !inv.customerId)
+      .map((inv) => normalizeRifOrNull(inv.counterpartRif))
+      .filter((rif): rif is string => !!rif);
+    const vendorRifsNeeded = invoices
+      .filter((inv) => inv.type === "PURCHASE" && !inv.vendorId)
+      .map((inv) => normalizeRifOrNull(inv.counterpartRif))
+      .filter((rif): rif is string => !!rif);
+    const [customerIdByRif, vendorIdByRif] = await Promise.all([
+      batchResolvePartyIdsByRif(db, companyId, "customer", customerRifsNeeded),
+      batchResolvePartyIdsByRif(db, companyId, "vendor", vendorRifsNeeded),
+    ]);
+
     const lines: FxDiffLine[] = [];
 
     for (const inv of invoices) {
@@ -98,6 +137,14 @@ export class ExchangeDifferentialService {
 
       if (differential.isZero()) continue;
 
+      const normalizedRif = normalizeRifOrNull(inv.counterpartRif);
+      const customerId = inv.type === "SALE"
+        ? (inv.customerId ?? (normalizedRif ? customerIdByRif.get(normalizedRif) : undefined))
+        : undefined;
+      const vendorId = inv.type === "PURCHASE"
+        ? (inv.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined))
+        : undefined;
+
       lines.push({
         invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
@@ -109,6 +156,8 @@ export class ExchangeDifferentialService {
         vesAtOriginal,
         vesAtReval,
         differential,
+        customerId: customerId ?? undefined,
+        vendorId: vendorId ?? undefined,
       });
     }
 
@@ -121,6 +170,12 @@ export class ExchangeDifferentialService {
     let purchaseGain = new Decimal(0);
     let purchaseLoss = new Decimal(0);
 
+    // ADR-054: movimiento neto por tercero — la clave "" agrupa las líneas sin tercero
+    // resuelto (no se descartan, solo quedan sin atribuir hasta que el gate decida).
+    const NO_PARTY = "";
+    const cxcByCustomer = new Map<string, Decimal>();
+    const cxpByVendor = new Map<string, Decimal>();
+
     for (const line of lines) {
       if (line.invoiceType === "SALE") {
         if (line.differential.greaterThan(0)) {
@@ -128,6 +183,8 @@ export class ExchangeDifferentialService {
         } else {
           saleLoss = saleLoss.plus(line.differential.abs());
         }
+        const key = line.customerId ?? NO_PARTY;
+        cxcByCustomer.set(key, (cxcByCustomer.get(key) ?? new Decimal(0)).plus(line.differential));
       } else {
         // PURCHASE: diff > 0 = we owe more VES = loss
         if (line.differential.greaterThan(0)) {
@@ -135,6 +192,8 @@ export class ExchangeDifferentialService {
         } else {
           purchaseGain = purchaseGain.plus(line.differential.abs());
         }
+        const key = line.vendorId ?? NO_PARTY;
+        cxpByVendor.set(key, (cxpByVendor.get(key) ?? new Decimal(0)).plus(line.differential));
       }
     }
 
@@ -145,7 +204,21 @@ export class ExchangeDifferentialService {
     const totalFxGain = saleGain.plus(purchaseGain);
     const totalFxLoss = saleLoss.plus(purchaseLoss);
 
-    return { lines, netCxCMovement, netCxPMovement, totalFxGain, totalFxLoss };
+    const toPartyMovements = (byParty: Map<string, Decimal>): FxPartyMovement[] =>
+      [...byParty.entries()].map(([key, netMovement]) => ({
+        partyId: key === NO_PARTY ? undefined : key,
+        netMovement,
+      }));
+
+    return {
+      lines,
+      netCxCMovement,
+      netCxPMovement,
+      totalFxGain,
+      totalFxLoss,
+      cxcByParty: toPartyMovements(cxcByCustomer),
+      cxpByParty: toPartyMovements(cxpByVendor),
+    };
   }
 
   static async post(
@@ -165,22 +238,30 @@ export class ExchangeDifferentialService {
     const yyyy = revaluationDate.getUTCFullYear();
     const desc = `Revaluación diferencial cambiario ${mm}/${yyyy} (NIC 21)`;
 
-    const entries: Array<{ accountId: string; amount: Decimal; description: string }> = [];
+    const entries: Array<{ accountId: string; amount: Decimal; description: string; customerId?: string; vendorId?: string }> = [];
 
-    if (!summary.netCxCMovement.isZero()) {
+    // ADR-054: una línea CxC por CLIENTE (no un neto agregado sin tercero) — necesario para
+    // no bloquear la revaluación si arAccountId se marca requiresThirdParty. La suma de estas
+    // líneas es exactamente netCxCMovement (los grupos particionan todas las líneas SALE).
+    for (const { partyId, netMovement } of summary.cxcByParty) {
+      if (netMovement.isZero()) continue;
       entries.push({
         accountId: config.arAccountId,
-        amount: summary.netCxCMovement,
+        amount: netMovement,
         description: `${desc} — CxC`,
+        customerId: partyId,
       });
     }
 
-    if (!summary.netCxPMovement.isZero()) {
+    // Misma idea para CxP: una línea por PROVEEDOR en vez del neto agregado.
+    for (const { partyId, netMovement } of summary.cxpByParty) {
+      if (netMovement.isZero()) continue;
       // CxP is a liability: movement > 0 means liability increases = Credit (negative)
       entries.push({
         accountId: config.apAccountId,
-        amount: summary.netCxPMovement.negated(),
+        amount: netMovement.negated(),
         description: `${desc} — CxP`,
+        vendorId: partyId,
       });
     }
 
@@ -200,6 +281,9 @@ export class ExchangeDifferentialService {
       });
     }
 
+    // N4: invariante de partida doble
+    assertBalancedGLEntries(entries);
+
     const glTx = await db.transaction.create({
       data: {
         companyId,
@@ -214,6 +298,8 @@ export class ExchangeDifferentialService {
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
+            customerId: e.customerId,
+            vendorId: e.vendorId,
           })),
         },
       },

@@ -1,5 +1,5 @@
 // src/modules/exchange-rates/__tests__/ExchangeDifferentialService.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Decimal } from "decimal.js";
 import {
   ExchangeDifferentialService,
@@ -117,5 +117,129 @@ describe("ExchangeDifferentialService.aggregate", () => {
     const s = ExchangeDifferentialService.aggregate([line]);
     expect(s.totalFxGain.toFixed(2)).toBe("0.00");
     expect(s.totalFxLoss.toFixed(2)).toBe("0.00");
+  });
+});
+
+// ─── ADR-054: diferencial cambiario por tercero ──────────────────────────────
+
+describe("ExchangeDifferentialService.aggregate — tercero por línea (ADR-054)", () => {
+  it("agrupa el movimiento neto de CxC por customerId", () => {
+    const lineA1 = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-A" }; // +500
+    const lineA2 = { ...makeLine("SALE", 80, 50, 45), customerId: "cust-A" };  // -400
+    const lineB = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-B" };  // +500
+
+    const s = ExchangeDifferentialService.aggregate([lineA1, lineA2, lineB]);
+
+    const custA = s.cxcByParty.find((p) => p.partyId === "cust-A");
+    const custB = s.cxcByParty.find((p) => p.partyId === "cust-B");
+    expect(custA?.netMovement.toFixed(2)).toBe("100.00"); // 500 - 400
+    expect(custB?.netMovement.toFixed(2)).toBe("500.00");
+    // Suma de los grupos == el agregado total (mismo dato, sin perder precisión)
+    const sumOfParties = s.cxcByParty.reduce((acc, p) => acc.plus(p.netMovement), new Decimal(0));
+    expect(sumOfParties.toFixed(2)).toBe(s.netCxCMovement.toFixed(2));
+  });
+
+  it("agrupa el movimiento neto de CxP por vendorId", () => {
+    const lineA = { ...makeLine("PURCHASE", 100, 40, 45), vendorId: "vend-A" }; // loss +500 (owe more)
+    const lineB = { ...makeLine("PURCHASE", 100, 45, 40), vendorId: "vend-B" }; // gain -500 (owe less)
+
+    const s = ExchangeDifferentialService.aggregate([lineA, lineB]);
+
+    const vendA = s.cxpByParty.find((p) => p.partyId === "vend-A");
+    const vendB = s.cxpByParty.find((p) => p.partyId === "vend-B");
+    expect(vendA?.netMovement.toFixed(2)).toBe("500.00");
+    expect(vendB?.netMovement.toFixed(2)).toBe("-500.00");
+  });
+
+  it("líneas sin tercero resuelto se agrupan bajo partyId undefined (no se pierden)", () => {
+    const lineNoParty = makeLine("SALE", 100, 40, 45); // sin customerId
+    const s = ExchangeDifferentialService.aggregate([lineNoParty]);
+
+    expect(s.cxcByParty).toHaveLength(1);
+    expect(s.cxcByParty[0].partyId).toBeUndefined();
+    expect(s.cxcByParty[0].netMovement.toFixed(2)).toBe("500.00");
+  });
+
+  it("cxpByParty queda vacío si no hay líneas PURCHASE (no mezcla con CxC)", () => {
+    const line = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-A" };
+    const s = ExchangeDifferentialService.aggregate([line]);
+    expect(s.cxpByParty).toHaveLength(0);
+  });
+});
+
+// ─── ExchangeDifferentialService.calculate — resolución de tercero ───────────
+
+describe("ExchangeDifferentialService.calculate — resolución de tercero por vínculo o RIF", () => {
+  const REVAL_RATE = new Decimal("45");
+
+  function makeInvoiceRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "inv-1",
+      invoiceNumber: "F-001",
+      type: "SALE",
+      totalAmountVes: new Decimal("4500.00"), // 100 USD @ 45
+      customerId: null,
+      vendorId: null,
+      counterpartRif: null,
+      exchangeRate: { rate: new Decimal("40") }, // originalRate 40 → outstanding 100 USD
+      invoicePayments: [],
+      ...overrides,
+    };
+  }
+
+  function makeDb(overrides: Partial<{ invoices: unknown[]; customerRows: { id: string; rif: string }[]; vendorRows: { id: string; rif: string }[] }> = {}) {
+    return {
+      invoice: { findMany: vi.fn().mockResolvedValue(overrides.invoices ?? []) },
+      customer: { findMany: vi.fn().mockResolvedValue(overrides.customerRows ?? []) },
+      vendor: { findMany: vi.fn().mockResolvedValue(overrides.vendorRows ?? []) },
+    } as unknown as import("@prisma/client").Prisma.TransactionClient;
+  }
+
+  it("SALE con customerId ya vinculado → la línea lo usa directo, sin consultar por RIF", async () => {
+    const db = makeDb({ invoices: [makeInvoiceRow({ customerId: "cust-linked", counterpartRif: "J-11111111-1" })] });
+
+    const summary = await ExchangeDifferentialService.calculate("co-1", "USD", REVAL_RATE, db);
+
+    expect(summary.lines[0].customerId).toBe("cust-linked");
+    expect(vi.mocked((db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("SALE sin vínculo, resuelve customerId por RIF en una sola query batch", async () => {
+    const db = makeDb({
+      invoices: [
+        makeInvoiceRow({ id: "inv-1", counterpartRif: "J-11111111-1" }),
+        makeInvoiceRow({ id: "inv-2", counterpartRif: "J-22222222-2" }),
+      ],
+      customerRows: [
+        { id: "cust-1", rif: "J-11111111-1" },
+        { id: "cust-2", rif: "J-22222222-2" },
+      ],
+    });
+
+    const summary = await ExchangeDifferentialService.calculate("co-1", "USD", REVAL_RATE, db);
+
+    expect(summary.lines.find((l) => l.invoiceId === "inv-1")?.customerId).toBe("cust-1");
+    expect(summary.lines.find((l) => l.invoiceId === "inv-2")?.customerId).toBe("cust-2");
+    expect(vi.mocked((db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany)).toHaveBeenCalledTimes(1);
+  });
+
+  it("PURCHASE sin vínculo, resuelve vendorId por RIF", async () => {
+    const db = makeDb({
+      invoices: [makeInvoiceRow({ type: "PURCHASE", counterpartRif: "J-33333333-3" })],
+      vendorRows: [{ id: "vend-1", rif: "J-33333333-3" }],
+    });
+
+    const summary = await ExchangeDifferentialService.calculate("co-1", "USD", REVAL_RATE, db);
+
+    expect(summary.lines[0].vendorId).toBe("vend-1");
+  });
+
+  it("sin RIF y sin vínculo → customerId/vendorId undefined, no bloquea el cálculo", async () => {
+    const db = makeDb({ invoices: [makeInvoiceRow()] });
+
+    const summary = await ExchangeDifferentialService.calculate("co-1", "USD", REVAL_RATE, db);
+
+    expect(summary.lines[0].customerId).toBeUndefined();
+    expect(summary.lines[0].vendorId).toBeUndefined();
   });
 });
