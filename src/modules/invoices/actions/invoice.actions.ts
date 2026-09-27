@@ -9,7 +9,7 @@ import { limiters } from "@/lib/ratelimit";
 import { InvoiceService } from "../services/InvoiceService";
 import type { InvoiceFilters, InvoicePage } from "../services/InvoiceService";
 import { getNextControlNumber } from "../services/InvoiceSequenceService";
-import { ROLES } from "@/lib/auth-helpers";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { z } from "zod";
@@ -76,6 +76,11 @@ export async function createInvoiceAction(input: unknown) {
     // ADR-025: verifica acceso base + grants granulares al módulo de Facturación
     if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
+    }
+    // Crear facturas requiere rol de escritura — un grant de módulo (ADR-025) solo da
+    // visibilidad, nunca debe bastar por sí solo para mutar (invariante de seguridad).
+    if (!canAccess(ctx.role, ROLES.WRITERS)) {
+      return { success: false as const, error: "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario" };
     }
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(parsed.data.companyId);
@@ -495,6 +500,11 @@ export async function createCreditNoteAction(input: unknown) {
     if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
+    // Corregir montos vía nota de crédito requiere rol de escritura — un grant de módulo
+    // (ADR-025) solo da visibilidad, nunca debe bastar por sí solo para mutar.
+    if (!canAccess(ctx.role, ROLES.WRITERS)) {
+      return { success: false as const, error: "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario" };
+    }
 
     const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId, ipAddress, userAgent);
 
@@ -547,6 +557,11 @@ export async function createDebitNoteAction(input: unknown) {
     // ADR-025: verifica acceso base + grants granulares
     if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false as const, error: moduleAccessError("invoicing") };
+    }
+    // Corregir montos vía nota de débito requiere rol de escritura — un grant de módulo
+    // (ADR-025) solo da visibilidad, nunca debe bastar por sí solo para mutar.
+    if (!canAccess(ctx.role, ROLES.WRITERS)) {
+      return { success: false as const, error: "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario" };
     }
 
     const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId, ipAddress, userAgent);

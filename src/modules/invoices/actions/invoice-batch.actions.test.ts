@@ -1,4 +1,3 @@
-// src/modules/invoices/actions/invoice-batch.actions.test.ts
 //
 // TDD SPEC (RED primero) — importInvoiceBatchAction NO pasa hoy por ningún schema
 // de factura (ADR-049, "Fuera de alcance"): el RIF no se valida, el Nº de Control
@@ -558,6 +557,49 @@ describe("importInvoiceBatchAction", () => {
     expect(result).toEqual({
       success: false,
       error: "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
+    });
+    expect(InvoiceService.create).not.toHaveBeenCalled();
+  });
+
+  // ── 19. ADR-025 grant vs canAccess (VIEWER bypass regression) ────────────
+  //
+  // Bug confirmado: importInvoiceBatchAction usaba `roles: "MEMBER_ANY"` +
+  // `hasModuleAccess(companyId, role, "invoicing")` como ÚNICO gate de rol. Un
+  // VIEWER con un grant de RolePermission al módulo "invoicing" (otorgado vía
+  // PermissionsMatrix en /settings) terminaba pudiendo importar facturas en
+  // lote — justo lo que ADR-025 prohíbe: los grants dan SOLO visibilidad de
+  // módulo, nunca deben bastar para saltarse un check de operación más
+  // restrictivo. El fix agrega `canAccess(ctx.role, ROLES.WRITERS)` después de
+  // `hasModuleAccess`. En este archivo `hasModuleAccess` está mockeado
+  // directamente (no vía `prisma.rolePermission.findFirst`) — su valor `true`
+  // simula el efecto de un grant otorgado.
+  it("RED — VIEWER sin grant al módulo de facturación: rechazado, no toca ninguna fila", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "VIEWER",
+      company: { country: "VEN" },
+    } as never);
+    vi.mocked(hasModuleAccess).mockResolvedValueOnce(false);
+
+    const result = await importInvoiceBatchAction("company-1", "period-1", [goodSaleRow()]);
+
+    expect(result).toEqual({ success: false, error: "Sin acceso al módulo de facturación" });
+    expect(InvoiceService.create).not.toHaveBeenCalled();
+  });
+
+  it("REGRESIÓN (bypass cerrado): VIEWER CON grant a 'invoicing' (hasModuleAccess=true) sigue sin poder importar facturas", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "VIEWER",
+      company: { country: "VEN" },
+    } as never);
+    // El grant SÍ existe — antes del fix esto bastaba para que la mutación se
+    // ejecutara igual (el bug real y confirmado).
+    vi.mocked(hasModuleAccess).mockResolvedValueOnce(true);
+
+    const result = await importInvoiceBatchAction("company-1", "period-1", [goodSaleRow()]);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Importar facturas requiere rol Administrativo, Contador, Administrador o Propietario",
     });
     expect(InvoiceService.create).not.toHaveBeenCalled();
   });

@@ -34,6 +34,11 @@ export async function createTransactionAction(
     if (!await hasModuleAccess(input.companyId, ctx.role, "accounting")) {
       return { success: false, error: moduleAccessError("accounting") };
     }
+    // Crear asientos requiere rol de escritura contable — un grant de módulo (ADR-025)
+    // solo da visibilidad, nunca debe bastar por sí solo para mutar (invariante de seguridad).
+    if (!canAccess(ctx.role, ROLES.ACCOUNTING)) {
+      return { success: false, error: "Crear asientos contables requiere rol Contador, Administrador o Propietario" };
+    }
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(input.companyId);
 

@@ -8,6 +8,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { InvoiceService } from "../services/InvoiceService";
 import { getNextControlNumber } from "../services/InvoiceSequenceService";
 import { requireCompanyAction } from "@/lib/action-guard";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { hasModuleAccess } from "@/lib/module-access";
 import { withSerializableRetry } from "@/lib/tx-helpers";
@@ -51,6 +52,11 @@ export async function importInvoiceBatchAction(
 
     if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
       return { success: false, error: "Sin acceso al módulo de facturación" };
+    }
+    // Importar facturas en lote requiere rol de escritura — un grant de módulo (ADR-025)
+    // solo da visibilidad, nunca debe bastar por sí solo para mutar.
+    if (!canAccess(ctx.role, ROLES.WRITERS)) {
+      return { success: false, error: "Importar facturas requiere rol Administrativo, Contador, Administrador o Propietario" };
     }
 
     // Auditoría de seguridad: el diálogo anuncia "Máximo 200 filas por archivo" pero nada lo
