@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import { useState, useTransition } from "react";
-import { PlusIcon, PencilIcon, Loader2Icon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
+import { PlusIcon, PencilIcon, Loader2Icon, Trash2Icon, FileSpreadsheetIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -102,9 +103,12 @@ const TYPE_BADGE_CLASS: Record<AccountType, string> = {
 export function AccountsTable({
   initialAccounts,
   companyId,
+  canImport = false,
 }: {
   initialAccounts: Account[];
   companyId: string;
+  /** OWNER/ADMIN/ACCOUNTANT — mismo nivel que crear cuenta a mano (ROLES.ACCOUNTING) */
+  canImport?: boolean;
 }) {
   const [accounts, setAccounts] = useState<Account[]>(
     [...initialAccounts].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
@@ -242,10 +246,20 @@ export function AccountsTable({
             Administra las cuentas contables de tu empresa
           </p>
         </div>
-        <Button onClick={() => void openCreate()} className="gap-2">
-          <PlusIcon className="h-4 w-4" />
-          Nueva Cuenta
-        </Button>
+        <div className="flex items-center gap-2">
+          {canImport && (
+            <Button variant="outline" className="gap-2" asChild>
+              <Link href={`/company/${companyId}/import/accounts`}>
+                <FileSpreadsheetIcon className="h-4 w-4" />
+                Importar Excel/CSV
+              </Link>
+            </Button>
+          )}
+          <Button onClick={() => void openCreate()} className="gap-2">
+            <PlusIcon className="h-4 w-4" />
+            Nueva Cuenta
+          </Button>
+        </div>
       </div>
 
       {accounts.length === 0 ? (

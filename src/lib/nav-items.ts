@@ -155,6 +155,7 @@ function buildAccountantNav(companyId: string): NavConfig {
         items: [
           item("Libros IVA",       p("/invoices"),         ReceiptText),
           item("Escanear",         p("/invoices/upload"),  ScanIcon),
+          item("Importar",         p("/import"),           FileSpreadsheetIcon),
           item("Retenciones",      p("/retentions"),       ReceiptIcon),
           item("Declaración IVA",  p("/iva-declaration"),  ScrollText),
           item("Cierre Fiscal",    p("/fiscal-close"),     CalendarCheck),

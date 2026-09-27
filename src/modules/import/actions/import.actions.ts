@@ -17,8 +17,13 @@ export async function importAccountsAction(
   rows: ImportAccountRow[]
 ): Promise<ActionResult<{ created: number; skipped: number; errors: string[] }>> {
   try {
+    // ROLES.ACCOUNTING (no ADMIN_ONLY): un Contador ya puede crear/editar/eliminar
+    // cuentas una por una vía account.actions.ts con este mismo rol — la importación
+    // masiva es la misma operación en lote, no un permiso adicional. Feedback tester
+    // Alpha 2026-09-27: bloqueado en ADMIN_ONLY forzaba cargar el plan de cuentas
+    // cuenta por cuenta si el usuario no era OWNER/ADMIN. Confirmado con el dueño.
     const ctx = await requireCompanyAction(companyId, {
-      roles: ROLES.ADMIN_ONLY,
+      roles: ROLES.ACCOUNTING,
       limiter: limiters.fiscal,
     });
     if (!ctx.ok) return ctx.error;

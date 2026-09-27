@@ -2,6 +2,8 @@
 import { AccountsTable } from "@/components/accounting/AccountsTable";
 import { getAccountsAction } from "@/modules/accounting/actions/account.actions";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
+import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
+import { canAccess, ROLES } from "@/lib/auth-helpers";
 
 type Props = {
   params: Promise<{ companyId: string }>;
@@ -9,8 +11,15 @@ type Props = {
 
 export default async function AccountsPage({ params }: Props) {
   const { companyId } = await params;
-  const result = await getAccountsAction(companyId);
+  const [result, companies] = await Promise.all([
+    getAccountsAction(companyId),
+    getUserCompaniesAction(),
+  ]);
   const accounts = result.success ? result.data : [];
+  const role = companies.find((c) => c.id === companyId)?.role;
+  // Mismo nivel que crear/editar/eliminar cuenta a mano (account.actions.ts) —
+  // el import masivo no es un permiso extra, es la misma operación en lote.
+  const canImport = role ? canAccess(role, ROLES.ACCOUNTING) : false;
 
   const contaTabs = [
     { label: "Asientos",        href: `/company/${companyId}/transactions` },
@@ -25,7 +34,7 @@ export default async function AccountsPage({ params }: Props) {
         <p className="text-muted-foreground mt-1 text-sm">Catálogo de cuentas contables de tu empresa</p>
       </div>
       <ModuleTabs tabs={contaTabs} />
-      <AccountsTable initialAccounts={accounts} companyId={companyId} />
+      <AccountsTable initialAccounts={accounts} companyId={companyId} canImport={canImport} />
     </main>
   );
 }

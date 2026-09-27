@@ -70,8 +70,14 @@ describe("importAccountsAction", () => {
     if (!r.success) expect(r.error).toContain("Empresa no encontrada");
   });
 
-  it("solo ADMIN puede importar cuentas", async () => {
+  it("ACCOUNTANT puede importar cuentas — mismo nivel que account.actions.ts (ROLES.ACCOUNTING)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
+    expect(r.success).toBe(true);
+  });
+
+  it("ADMINISTRATIVE no puede importar cuentas (fuera de ROLES.ACCOUNTING)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("autorizado");
