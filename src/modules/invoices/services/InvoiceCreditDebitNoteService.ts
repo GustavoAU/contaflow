@@ -184,6 +184,11 @@ export async function createCreditNote(
             totalAmountVes: nc.totalAmountVes,
             taxLines: nc.taxLines,
             igtfAmount: nc.igtfAmount,
+            // ADR-054: mismo tercero que la factura original (si estaba vinculada); si no,
+            // el fallback por RIF de InvoiceGLPostingService lo busca en el catálogo.
+            customerId: original.customerId,
+            vendorId: original.vendorId,
+            counterpartRif: nc.counterpartRif,
           },
           ncSettings,
           companyId,
@@ -416,6 +421,11 @@ export async function createDebitNote(
             totalAmountVes: nd.totalAmountVes,
             taxLines: nd.taxLines,
             igtfAmount: nd.igtfAmount,
+            // ADR-054: mismo tercero que la factura original (si estaba vinculada); si no,
+            // el fallback por RIF de InvoiceGLPostingService lo busca en el catálogo.
+            customerId: original.customerId,
+            vendorId: original.vendorId,
+            counterpartRif: nd.counterpartRif,
           },
           ndSettings,
           companyId,

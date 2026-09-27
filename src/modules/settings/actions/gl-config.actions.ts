@@ -221,6 +221,11 @@ export async function postUnbookedInvoicesAction(
               periodId: inv.periodId ?? null,
               totalAmountVes: inv.totalAmountVes,
               taxLines: inv.taxLines,
+              // ADR-054: usa el vínculo si existe; si no, el fallback por RIF de
+              // InvoiceGLPostingService busca en el catálogo de la empresa.
+              customerId: inv.customerId,
+              vendorId: inv.vendorId,
+              counterpartRif: inv.counterpartRif,
             },
             settings,
             companyId,

@@ -114,6 +114,11 @@ export class TransactionService {
     const entries = validated.entries.map((entry) => ({
       accountId: entry.accountId,
       description: entry.description || undefined,
+      // ADR-054: tercero de la línea — a lo sumo uno, validado más abajo.
+      customerId: entry.customerId || undefined,
+      vendorId: entry.vendorId || undefined,
+      partnerId: entry.partnerId || undefined,
+      employeeId: entry.employeeId || undefined,
       amount:
         entry.debit && Number(entry.debit) > 0
           ? new Decimal(entry.debit)
@@ -131,7 +136,7 @@ export class TransactionService {
         companyId: validated.companyId,
         deletedAt: null,
       },
-      select: { id: true },
+      select: { id: true, code: true, name: true, requiresThirdParty: true },
     });
 
     if (accounts.length !== accountIds.length) {
@@ -140,6 +145,57 @@ export class TransactionService {
       throw new Error(
         "Cuentas no encontradas o no pertenecen a esta empresa: " + missing.join(", ")
       );
+    }
+
+    // 3b. ADR-054: tercero obligatorio por línea — mismo criterio que
+    // src/lib/prisma-tercero-required-gate.ts, con mensaje rico por línea (el gate es
+    // el respaldo de última línea; esta validación da el mensaje útil al usuario).
+    const accountById = new Map(accounts.map((a) => [a.id, a]));
+    entries.forEach((entry, i) => {
+      const partyFields = [entry.customerId, entry.vendorId, entry.partnerId, entry.employeeId].filter(
+        (v): v is string => !!v,
+      );
+      if (partyFields.length > 1) {
+        throw new Error(
+          `Línea ${i + 1}: solo se puede indicar UN tercero (cliente, proveedor, socio o empleado) por línea.`
+        );
+      }
+      const account = accountById.get(entry.accountId);
+      if (account?.requiresThirdParty && partyFields.length === 0) {
+        throw new Error(
+          `Línea ${i + 1}: la cuenta ${account.code} — ${account.name} exige indicar el tercero ` +
+          `(cliente, proveedor, socio o empleado).`
+        );
+      }
+    });
+
+    // 3c. IDOR (ADR-004): el tercero indicado debe pertenecer a esta empresa — el FK de
+    // JournalEntry no filtra por companyId, así que sin este check un caller podría enlazar
+    // un Customer/Vendor/Partner/Employee de OTRA empresa.
+    const uniqueIds = (vals: (string | undefined)[]) => [...new Set(vals.filter((v): v is string => !!v))];
+    const customerIds = uniqueIds(entries.map((e) => e.customerId));
+    const vendorIds = uniqueIds(entries.map((e) => e.vendorId));
+    const partnerIds = uniqueIds(entries.map((e) => e.partnerId));
+    const employeeIds = uniqueIds(entries.map((e) => e.employeeId));
+
+    // deletedAt: null — mismo criterio que el fallback por RIF (resolvePartyId/resolveInvoicePartyId
+    // nunca resuelven a un tercero borrado); sin esto, la ruta manual permitiría lo que la
+    // auto-derivación por RIF ya rechaza.
+    if (customerIds.length > 0) {
+      const count = await prisma.customer.count({ where: { id: { in: customerIds }, companyId: validated.companyId, deletedAt: null } });
+      if (count !== customerIds.length) throw new Error("Uno o más clientes indicados no pertenecen a esta empresa o están eliminados.");
+    }
+    if (vendorIds.length > 0) {
+      const count = await prisma.vendor.count({ where: { id: { in: vendorIds }, companyId: validated.companyId, deletedAt: null } });
+      if (count !== vendorIds.length) throw new Error("Uno o más proveedores indicados no pertenecen a esta empresa o están eliminados.");
+    }
+    if (partnerIds.length > 0) {
+      const count = await prisma.partner.count({ where: { id: { in: partnerIds }, companyId: validated.companyId, deletedAt: null } });
+      if (count !== partnerIds.length) throw new Error("Uno o más socios indicados no pertenecen a esta empresa o están eliminados.");
+    }
+    if (employeeIds.length > 0) {
+      const count = await prisma.employee.count({ where: { id: { in: employeeIds }, companyId: validated.companyId } });
+      if (count !== employeeIds.length) throw new Error("Uno o más empleados indicados no pertenecen a esta empresa.");
     }
 
     // 4. Verificar que el ejercicio económico no esté cerrado (Fase 15)
@@ -302,6 +358,13 @@ export class TransactionService {
         description: entry.description
           ? `ANULACIÓN: ${entry.description}`
           : undefined,
+        // ADR-054: preservar el tercero de la línea original — sin esto, el reverso de una
+        // línea CxC/CxP con Account.requiresThirdParty queda sin tercero y el gate bloquea
+        // la anulación permanentemente (contradice R-3/ADR-005: VOID siempre debe ser posible).
+        customerId: entry.customerId ?? undefined,
+        vendorId: entry.vendorId ?? undefined,
+        partnerId: entry.partnerId ?? undefined,
+        employeeId: entry.employeeId ?? undefined,
       }));
       assertBalancedGLEntries(voidEntries); // N4: invariante partida doble
       const voidTx = await tx.transaction.create({

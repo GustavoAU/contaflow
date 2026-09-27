@@ -50,3 +50,29 @@ describe("ImportAccountRowSchema — isBudgetable (columna 'Pre.')", () => {
     expect(withBudgetable.isBudgetable).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Feature: tercero obligatorio en cuenta "pote" (columna "Ter." del ERP real,
+// decisión del dueño 2026-09-26) — Account.requiresThirdParty, exigido por
+// src/lib/prisma-tercero-required-gate.ts (ADR-054). Ver ADR-053 para el
+// precedente isPostable/G-M e isBudgetable/Pre.
+//
+// RED hoy: `requiresThirdParty` no existe en ImportAccountRowSchema —
+// `parsed.requiresThirdParty` es `undefined`, no `false`. Implementar agregando
+// `requiresThirdParty: z.boolean().default(false)` al schema.
+// ---------------------------------------------------------------------------
+describe("ImportAccountRowSchema — requiresThirdParty (columna 'Ter.')", () => {
+  it("fila con tipo explícito (ASSET) y SIN columna 'ter.' → requiresThirdParty default false", () => {
+    const parsed = ImportAccountRowSchema.parse({
+      codigo: "1105",
+      nombre: "Caja General",
+      tipo: "ASSET",
+    });
+
+    // Cast defensivo: mismo patrón que isPostable/isBudgetable arriba — funciona
+    // hoy (undefined) y tras implementar el default (false), sin tener que editar
+    // este test.
+    const withThirdParty = parsed as ImportAccountRow & { requiresThirdParty?: boolean };
+    expect(withThirdParty.requiresThirdParty).toBe(false);
+  });
+});

@@ -27,6 +27,13 @@ export const JournalEntrySchema = z.object({
     .optional()
     .or(z.literal(""))
     .refine(isValidAmount, { message: "Monto fuera del rango permitido" }),
+  // ADR-054: tercero de la línea (a lo sumo UNO — TransactionService valida exclusión
+  // mutua y obligatoriedad contra Account.requiresThirdParty, porque eso exige una
+  // consulta a la BD que un schema Zod puro no puede hacer).
+  customerId: z.string().optional(),
+  vendorId: z.string().optional(),
+  partnerId: z.string().optional(),
+  employeeId: z.string().optional(),
 });
 
 export const CreateTransactionSchema = z

@@ -13,6 +13,18 @@ vi.mock("@/lib/prisma", () => ({
     account: {
       findMany: vi.fn(),
     },
+    customer: {
+      count: vi.fn(),
+    },
+    vendor: {
+      count: vi.fn(),
+    },
+    partner: {
+      count: vi.fn(),
+    },
+    employee: {
+      count: vi.fn(),
+    },
     accountingPeriod: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -200,6 +212,89 @@ describe("createBalancedTransaction", () => {
       })
     ).rejects.toThrow();
   });
+
+  // ─── ADR-054: tercero obligatorio ────────────────────────────────────────
+
+  it("lanza error si la cuenta exige tercero y la línea no lo trae", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1", code: "1201", name: "Cuentas por Cobrar Clientes", requiresThirdParty: true },
+      { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
+    ] as never);
+
+    await expect(TransactionService.createBalancedTransaction(BASE_INPUT)).rejects.toThrow(/tercero/i);
+  });
+
+  it("acepta la línea cuando la cuenta exige tercero y se indica el customerId", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1", code: "1201", name: "Cuentas por Cobrar Clientes", requiresThirdParty: true },
+      { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
+    ] as never);
+    vi.mocked(prisma.customer.count).mockResolvedValue(1);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
+
+    const createdTx = { id: "tx-1", number: "2026-03-000001", entries: [] };
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
+      fn({
+        ...prisma,
+        transaction: { ...prisma.transaction, create: vi.fn().mockResolvedValue(createdTx) },
+        auditLog: { create: vi.fn() },
+      } as never)
+    );
+
+    const result = await TransactionService.createBalancedTransaction({
+      ...BASE_INPUT,
+      entries: [
+        { accountId: "acc-1", debit: "1000", credit: "0", customerId: "cust-1" },
+        { accountId: "acc-2", debit: "0", credit: "1000" },
+      ],
+    });
+
+    expect(result).toMatchObject({ id: "tx-1" });
+    expect(prisma.customer.count).toHaveBeenCalledWith({
+      where: { id: { in: ["cust-1"] }, companyId: "company-1", deletedAt: null },
+    });
+  });
+
+  it("lanza error si una línea indica más de un tercero a la vez", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1", code: "1201", name: "CxC", requiresThirdParty: false },
+      { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
+    ] as never);
+
+    await expect(
+      TransactionService.createBalancedTransaction({
+        ...BASE_INPUT,
+        entries: [
+          { accountId: "acc-1", debit: "1000", credit: "0", customerId: "cust-1", vendorId: "vend-1" },
+          { accountId: "acc-2", debit: "0", credit: "1000" },
+        ],
+      })
+    ).rejects.toThrow(/solo se puede indicar UN tercero/i);
+  });
+
+  it("lanza error si el customerId indicado no pertenece a esta empresa (IDOR, ADR-004)", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1", code: "1201", name: "CxC", requiresThirdParty: false },
+      { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
+    ] as never);
+    vi.mocked(prisma.customer.count).mockResolvedValue(0);
+
+    await expect(
+      TransactionService.createBalancedTransaction({
+        ...BASE_INPUT,
+        entries: [
+          { accountId: "acc-1", debit: "1000", credit: "0", customerId: "cust-ajeno" },
+          { accountId: "acc-2", debit: "0", credit: "1000" },
+        ],
+      })
+    ).rejects.toThrow(/no pertenecen a esta empresa/i);
+  });
 });
 
 // ─── voidTransaction ──────────────────────────────────────────────────────────
@@ -252,6 +347,40 @@ describe("voidTransaction", () => {
     );
 
     expect(result).toMatchObject({ id: "tx-void" });
+  });
+
+  it("ADR-054: preserva el tercero (customerId) de la línea original en el asiento de anulación", async () => {
+    const originalWithParty = {
+      ...ORIGINAL_TX,
+      entries: [
+        { id: "entry-1", accountId: "acc-1", amount: { toString: () => "1000" }, customerId: "cust-1", vendorId: null, partnerId: null, employeeId: null },
+        { id: "entry-2", accountId: "acc-2", amount: { toString: () => "-1000" }, customerId: null, vendorId: null, partnerId: null, employeeId: null },
+      ],
+    };
+    vi.mocked(prisma.transaction.findFirst)
+      .mockResolvedValueOnce(originalWithParty as never)
+      .mockResolvedValueOnce(null);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+
+    const createSpy = vi.fn().mockResolvedValue({ id: "tx-void", number: "2026-03-000002", entries: [] });
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
+      fn({
+        ...prisma,
+        transaction: { ...prisma.transaction, create: createSpy, update: vi.fn().mockResolvedValue({}) },
+        auditLog: { create: vi.fn() },
+      } as never)
+    );
+
+    await TransactionService.voidTransaction(
+      { transactionId: "tx-original", userId: "user-1", reason: "Error en el monto" },
+      "company-1"
+    );
+
+    const createCall = createSpy.mock.calls[0][0];
+    const entries = (createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }).data.entries.create;
+    expect(entries.find((e) => e.accountId === "acc-1")?.customerId).toBe("cust-1");
   });
 
   it("lanza error si la transaccion no existe", async () => {

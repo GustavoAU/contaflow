@@ -478,6 +478,9 @@ export const OrderService = {
             currency: order.currency,
             exchangeRateVes: null,
             igtfAmount: new Decimal(0),
+            // ADR-054: Order no vincula Customer/Vendor directo — el fallback por RIF de
+            // InvoiceGLPostingService busca en el catálogo de la empresa (RIF ya validado arriba).
+            counterpartRif,
           },
           settings,
           companyId,

@@ -10,6 +10,7 @@
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { normalizeRifOrNull } from "@/lib/tax-config";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ type BatchLineEnriched = {
   igtfAmount: Decimal | null;
   invoiceNumber: string | null;   // Fix 4: descripción enriquecida en asiento
   counterpartName: string | null;
+  vendorId?: string;              // ADR-054: tercero de la línea CxP
 };
 
 export type GLPostingResult = {
@@ -96,6 +98,39 @@ async function generateTxNumber(
 // ─── PaymentGLService ─────────────────────────────────────────────────────────
 
 export class PaymentGLService {
+  /**
+   * ADR-054: resuelve el tercero (Customer/Vendor) de la línea CxC/CxP a partir de la factura
+   * vinculada al pago — usa el vínculo explícito (Invoice.customerId/vendorId) si existe; si no,
+   * busca por RIF en el catálogo de la empresa (decisión del dueño 2026-09-26). Nunca lanza: sin
+   * invoiceId o sin match, la línea queda sin tercero (el gate bloqueará el posting si la cuenta
+   * lo exige, con mensaje claro).
+   */
+  private static async resolveInvoicePartyId(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    invoiceId: string | undefined,
+    kind: "customer" | "vendor",
+  ): Promise<string | undefined> {
+    if (!invoiceId) return undefined;
+    const inv = await tx.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      select: { customerId: true, vendorId: true, counterpartRif: true },
+    });
+    if (!inv) return undefined;
+
+    const linkedId = kind === "customer" ? inv.customerId : inv.vendorId;
+    if (linkedId) return linkedId;
+
+    const normalized = normalizeRifOrNull(inv.counterpartRif);
+    if (!normalized) return undefined;
+    if (kind === "customer") {
+      const found = await tx.customer.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+      return found?.id;
+    }
+    const found = await tx.vendor.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+    return found?.id;
+  }
+
   /**
    * Genera el asiento GL para un cobro (CxC → Banco).
    *
@@ -151,6 +186,9 @@ export class PaymentGLService {
 
     const number = await generateTxNumber(tx, companyId, date);
 
+    // ADR-054: tercero de la línea CxC (Customer) — resuelto desde la factura vinculada.
+    const customerId = await this.resolveInvoicePartyId(tx, companyId, input.invoiceId, "customer");
+
     // Construir líneas de asiento (Débito = positivo, Crédito = negativo — convención R-1)
     const amountVes = new Decimal(input.amountVes.toString());
     const igtfAmount = input.igtfAmount
@@ -167,7 +205,7 @@ export class PaymentGLService {
       }
     }
 
-    const entries: { accountId: string; amount: Decimal; description: string }[] =
+    const entries: { accountId: string; amount: Decimal; description: string; customerId?: string }[] =
       [];
 
     // ── IVA Retenido por Cobrar (Riesgo-6 / Prov. 0049) ─────────────────────
@@ -243,6 +281,7 @@ export class PaymentGLService {
       accountId: settings.arAccountId,
       amount: cxcCreditAmount.negated(), // negativo = Crédito
       description: richDescription,
+      customerId, // ADR-054
     });
 
     // Diferencial cambiario (NIC 21) — solo si hay diff significativo y cuentas configuradas
@@ -305,6 +344,7 @@ export class PaymentGLService {
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
+            customerId: e.customerId,
           })),
         },
       },
@@ -401,9 +441,12 @@ export class PaymentGLService {
       ? new Decimal(input.igtfAmount.toString())
       : null;
 
-    const entries: { accountId: string; amount: Decimal; description: string }[] = [
+    // ADR-054: tercero de la línea CxP (Vendor) — resuelto desde la factura vinculada.
+    const vendorId = await this.resolveInvoicePartyId(tx, companyId, input.invoiceId, "vendor");
+
+    const entries: { accountId: string; amount: Decimal; description: string; vendorId?: string }[] = [
       // Dr. CxP (cancela la deuda con el proveedor)
-      { accountId: settings.apAccountId, amount: amountVes, description },
+      { accountId: settings.apAccountId, amount: amountVes, description, vendorId },
       // Cr. Banco (salida de fondos)
       { accountId: bankAcc.accountId, amount: amountVes.negated(), description },
     ];
@@ -445,6 +488,7 @@ export class PaymentGLService {
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
+            vendorId: e.vendorId,
           })),
         },
       },
@@ -540,24 +584,55 @@ export class PaymentGLService {
     const number = await generateTxNumber(tx, companyId, date);
 
     // Fix 4 (auditoría ADR-030): enriquecer líneas con datos de la factura (proveedor + número)
-    const invoiceDataMap = new Map<string, { invoiceNumber: string | null; counterpartName: string | null }>();
+    // ADR-054: mismo query también trae vendorId/counterpartRif — casi gratis, sin round-trip
+    // extra — para derivar el tercero de cada línea CxP (un batch puede pagar a VARIOS
+    // proveedores distintos en sus distintas líneas, ver comentario en postPaymentBatchGL).
+    const invoiceDataMap = new Map<string, { invoiceNumber: string | null; counterpartName: string | null; vendorId: string | null; counterpartRif: string | null }>();
     const invoiceIds = input.lines.map((l) => l.invoiceId);
     const invoiceRows = await tx.invoice.findMany({
       where: { id: { in: invoiceIds }, companyId },
-      select: { id: true, invoiceNumber: true, counterpartName: true },
+      select: { id: true, invoiceNumber: true, counterpartName: true, vendorId: true, counterpartRif: true },
     });
     for (const row of invoiceRows) {
-      invoiceDataMap.set(row.id, { invoiceNumber: row.invoiceNumber, counterpartName: row.counterpartName });
+      invoiceDataMap.set(row.id, {
+        invoiceNumber: row.invoiceNumber,
+        counterpartName: row.counterpartName,
+        vendorId: row.vendorId,
+        counterpartRif: row.counterpartRif,
+      });
     }
 
-    const enrichedLines: BatchLineEnriched[] = input.lines.map((l) => ({
-      ...l,
-      invoiceNumber: invoiceDataMap.get(l.invoiceId)?.invoiceNumber ?? null,
-      counterpartName: invoiceDataMap.get(l.invoiceId)?.counterpartName ?? null,
-    }));
+    // ADR-054: para las facturas sin vendorId vinculado, resolver por RIF en UNA sola query
+    // batch (evita N+1 — un lote puede tener decenas de proveedores distintos).
+    const rifsNeedingLookup = [...new Set(
+      invoiceRows
+        .filter((row) => !row.vendorId)
+        .map((row) => normalizeRifOrNull(row.counterpartRif))
+        .filter((rif): rif is string => !!rif)
+    )];
+    const vendorIdByRif = new Map<string, string>();
+    if (rifsNeedingLookup.length > 0) {
+      const vendors = await tx.vendor.findMany({
+        where: { companyId, rif: { in: rifsNeedingLookup }, deletedAt: null },
+        select: { id: true, rif: true },
+      });
+      for (const v of vendors) if (v.rif) vendorIdByRif.set(v.rif, v.id);
+    }
+
+    const enrichedLines: BatchLineEnriched[] = input.lines.map((l) => {
+      const invData = invoiceDataMap.get(l.invoiceId);
+      const normalizedRif = normalizeRifOrNull(invData?.counterpartRif);
+      const vendorId = invData?.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined);
+      return {
+        ...l,
+        invoiceNumber: invData?.invoiceNumber ?? null,
+        counterpartName: invData?.counterpartName ?? null,
+        vendorId: vendorId ?? undefined,
+      };
+    });
 
     // Construir todas las JournalEntries del batch (un asiento por batch, no por línea)
-    const entries: { accountId: string; amount: Decimal; description: string }[] =
+    const entries: { accountId: string; amount: Decimal; description: string; vendorId?: string }[] =
       [];
     let igtfSkipped = false;
 
@@ -579,6 +654,7 @@ export class PaymentGLService {
         accountId: settings.apAccountId,
         amount: amountVes, // positivo = Débito
         description: lineDesc,
+        vendorId: line.vendorId, // ADR-054
       });
       // Cr. Banco
       entries.push({
@@ -627,6 +703,7 @@ export class PaymentGLService {
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
+            vendorId: e.vendorId,
           })),
         },
       },
@@ -730,6 +807,13 @@ export class PaymentGLService {
       accountId: e.accountId,
       amount: new Decimal(e.amount.toString()).negated(),
       description: reverseDesc,
+      // ADR-054: preservar el tercero de la línea original — sin esto, el reverso de una
+      // línea CxC/CxP con Account.requiresThirdParty queda sin tercero y el gate bloquea
+      // la reversión permanentemente.
+      customerId: e.customerId ?? undefined,
+      vendorId: e.vendorId ?? undefined,
+      partnerId: e.partnerId ?? undefined,
+      employeeId: e.employeeId ?? undefined,
     }));
     // N4: invariante de partida doble (reverso de asiento balanceado siempre es balanceado)
     assertBalancedGLEntries(reverseEntries);
@@ -815,6 +899,11 @@ export class PaymentGLService {
       accountId: e.accountId,
       amount: new Decimal(e.amount.toString()).negated(),
       description: reverseDesc,
+      // ADR-054: preservar el tercero de la línea original (ver reversePaymentRecordGL).
+      customerId: e.customerId ?? undefined,
+      vendorId: e.vendorId ?? undefined,
+      partnerId: e.partnerId ?? undefined,
+      employeeId: e.employeeId ?? undefined,
     }));
     // N4: invariante de partida doble
     assertBalancedGLEntries(reverseBatchEntries);

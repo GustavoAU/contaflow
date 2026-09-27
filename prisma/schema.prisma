@@ -225,6 +225,8 @@ model Company {
   // Fase 35A: Vendor / Customer
   vendors                    Vendor[]
   customers                  Customer[]
+  // ADR-054: socio/accionista (tercero obligatorio)
+  partners                   Partner[]
   // ADR-028: Grupos de contactos
   vendorGroups               VendorGroup[]
   customerGroups             CustomerGroup[]
@@ -320,6 +322,10 @@ model Account {
   // Feedback tester Alpha 2026-09-26 ("Pre." del plan de cuentas real): true = la cuenta se
   // puede usar en líneas de presupuesto (BudgetLine). Sin consecuencia fiscal — solo filtrado/UX.
   isBudgetable                          Boolean                  @default(false)
+  // ADR-054 ("Ter." del plan de cuentas real): true = usar esta cuenta exige indicar un tercero
+  // (Customer/Vendor/Partner/Employee) en cada línea de asiento — bloqueado por
+  // src/lib/prisma-tercero-required-gate.ts. Default false preserva toda cuenta existente.
+  requiresThirdParty                    Boolean                  @default(false)
   companyId                             String
   company                               Company                  @relation(fields: [companyId], references: [id])
   journalEntries                        JournalEntry[]
@@ -513,9 +519,46 @@ model JournalEntry {
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   accountId     String
   account       Account     @relation(fields: [accountId], references: [id])
+  // ADR-054: tercero de ESTA línea (no de la transacción — un mismo asiento puede tocar varios
+  // terceros, ej. PaymentGLService.postPaymentBatchGL paga a varios proveedores en un solo
+  // Transaction). Mutuamente excluyentes, exigido por CHECK a nivel SQL (ver migración) porque
+  // el DSL de Prisma no expresa "a lo sumo uno no-nulo". Obligatorio solo si Account.
+  // requiresThirdParty=true (src/lib/prisma-tercero-required-gate.ts).
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vendorId      String?
+  vendor        Vendor?     @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  partnerId     String?
+  partner       Partner?    @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  employeeId    String?
+  employee      Employee?   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@index([accountId])
   @@index([transactionId])
+  @@index([customerId])
+  @@index([vendorId])
+  @@index([partnerId])
+  @@index([employeeId])
+}
+
+// ADR-054: socio/accionista — el único tercero que no encaja en Customer (no compra) ni Vendor
+// (no factura). Mínimo viable a propósito (YAGNI): sin email/telefono/categoría/retenciones, eso
+// es dominio comercial de Vendor/Customer, no de capital social.
+model Partner {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  rif       String?
+  notes     String?   @db.Text
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  journalEntries JournalEntry[]
+
+  @@unique([companyId, rif])
+  @@index([companyId, deletedAt])
 }
 
 model User {
@@ -2053,6 +2096,8 @@ model Employee {
 
   overtimeEntries   OvertimeEntry[]
   recurringConcepts EmployeeRecurringConcept[]
+  // ADR-054: tercero obligatorio en cuentas "pote" (Cuentas por Cobrar Empleado, Anticipos, etc.)
+  journalEntries    JournalEntry[]
 
   @@unique([companyId, cedulaType, cedulaNumber])
   @@index([companyId, status])
@@ -2791,11 +2836,13 @@ model Vendor {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  company  Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  group    VendorGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  invoices Invoice[]
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  group          VendorGroup?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  invoices       Invoice[]
   // Fase 37B: Módulo Gastos
-  expenses Expense[]
+  expenses       Expense[]
+  // ADR-054: tercero obligatorio en cuentas "pote" (Cuentas por Pagar Proveedores, etc.)
+  journalEntries JournalEntry[]
 
   @@unique([companyId, rif])
   @@unique([companyId, code])
@@ -2836,9 +2883,11 @@ model Customer {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  group    CustomerGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  invoices Invoice[]
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  group          CustomerGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  invoices       Invoice[]
+  // ADR-054: tercero obligatorio en cuentas "pote" (Cuentas por Cobrar Clientes, etc.)
+  journalEntries JournalEntry[]
 
   @@unique([companyId, rif])
   @@unique([companyId, code])

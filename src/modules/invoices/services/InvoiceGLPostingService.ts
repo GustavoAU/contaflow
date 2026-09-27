@@ -22,6 +22,7 @@
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
+import { normalizeRifOrNull } from "@/lib/tax-config";
 
 export interface InvoiceGLConfig {
   arAccountId: string | null;
@@ -50,9 +51,37 @@ export interface InvoiceForGL {
   exchangeRateVes?: Decimal | null;
   // H-6: IGTF percibido en ventas en divisas (Decreto Constituyente IGTF 2022)
   igtfAmount?: Decimal | null;
+  // ADR-054: tercero para la línea CxC/CxP cuando la cuenta lo exige. Si la factura ya está
+  // vinculada a un Customer/Vendor (CustomerService.linkToInvoice), se usa directo; si no, se
+  // busca por RIF en el catálogo de la empresa (decisión del dueño 2026-09-26) — sin match, la
+  // línea queda sin tercero y src/lib/prisma-tercero-required-gate.ts bloquea si la cuenta lo exige.
+  customerId?: string | null;
+  vendorId?: string | null;
+  counterpartRif?: string | null;
 }
 
 export class InvoiceGLPostingService {
+  // ADR-054: resuelve el tercero de la línea CxC/CxP — usa el vínculo explícito si existe;
+  // si no, busca por RIF en el catálogo de la empresa. Nunca lanza: sin match, la línea queda
+  // sin tercero (el gate bloqueará el posting si la cuenta lo exige, con mensaje claro).
+  private static async resolvePartyId(
+    db: Prisma.TransactionClient,
+    companyId: string,
+    kind: "customer" | "vendor",
+    linkedId: string | null | undefined,
+    rif: string | null | undefined,
+  ): Promise<string | undefined> {
+    if (linkedId) return linkedId;
+    const normalized = normalizeRifOrNull(rif);
+    if (!normalized) return undefined;
+    if (kind === "customer") {
+      const found = await db.customer.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+      return found?.id;
+    }
+    const found = await db.vendor.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+    return found?.id;
+  }
+
   static canPost(invoiceType: "SALE" | "PURCHASE", config: InvoiceGLConfig): boolean {
     if (invoiceType === "SALE") {
       return !!(config.arAccountId && config.salesAccountId && config.ivaDFAccountId);
@@ -143,7 +172,18 @@ export class InvoiceGLPostingService {
       desc += " — Exento Art. 9 LIVA";
     }
 
-    let entries: Array<{ accountId: string; amount: Decimal; description: string }>;
+    let entries: Array<{
+      accountId: string;
+      amount: Decimal;
+      description: string;
+      customerId?: string;
+      vendorId?: string;
+    }>;
+
+    // ADR-054: tercero de la línea CxC/CxP — resuelto una sola vez, antes de armar entries.
+    const partyId = invoice.type === "SALE"
+      ? await this.resolvePartyId(db, companyId, "customer", invoice.customerId, invoice.counterpartRif)
+      : await this.resolvePartyId(db, companyId, "vendor", invoice.vendorId, invoice.counterpartRif);
 
     if (invoice.type === "SALE") {
       // H-6: CxC incluye IGTF cuando aplica (total + igtf es el total exigible al cliente)
@@ -152,7 +192,7 @@ export class InvoiceGLPostingService {
         : total;
 
       entries = [
-        { accountId: config.arAccountId!, amount: arAmount, description: `${desc} — CxC` },
+        { accountId: config.arAccountId!, amount: arAmount, description: `${desc} — CxC`, customerId: partyId },
         { accountId: config.salesAccountId!, amount: baseTotal.negated(), description: `${desc} — ingresos` },
       ];
       if (ivaTotal.greaterThan(0)) {
@@ -213,7 +253,7 @@ export class InvoiceGLPostingService {
 
       entries = [
         { accountId: config.inventoryAccountId!, amount: baseTotal, description: `${desc} — inventario` },
-        { accountId: config.apAccountId!, amount: apAmount.negated(), description: `${desc} — CxP` },
+        { accountId: config.apAccountId!, amount: apAmount.negated(), description: `${desc} — CxP`, vendorId: partyId },
       ];
       if (ivaTotal.greaterThan(0)) {
         entries.push({ accountId: config.ivaCFAccountId!, amount: ivaTotal, description: `${desc} — IVA crédito fiscal` });
@@ -257,6 +297,8 @@ export class InvoiceGLPostingService {
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
+            customerId: e.customerId,
+            vendorId: e.vendorId,
           })),
         },
       },
