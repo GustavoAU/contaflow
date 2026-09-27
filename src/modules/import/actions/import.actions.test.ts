@@ -21,12 +21,13 @@ vi.mock("../services/ImportService", () => ({
   ImportService: {
     importAccounts: vi.fn(),
     generateAccountsTemplate: vi.fn(),
+    parseAccountsExcel: vi.fn(),
   },
 }));
 
 import prisma from "@/lib/prisma";
 import { ImportService } from "../services/ImportService";
-import { importAccountsAction, downloadTemplateAction } from "./import.actions";
+import { importAccountsAction, parseAccountsFileAction, downloadTemplateAction } from "./import.actions";
 import type { ImportAccountRow } from "../schemas/import.schema";
 
 const COMPANY_ID = "company-1";
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
   vi.mocked(ImportService.importAccounts).mockResolvedValue({ created: 1, skipped: 0, errors: [] });
   vi.mocked(ImportService.generateAccountsTemplate).mockResolvedValue(Buffer.from("xlsx-data"));
+  vi.mocked(ImportService.parseAccountsExcel).mockResolvedValue(SAMPLE_ROWS);
 });
 
 // ─── importAccountsAction ─────────────────────────────────────────────────────
@@ -118,6 +120,49 @@ describe("importAccountsAction", () => {
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toBeTruthy();
+  });
+});
+
+// ─── parseAccountsFileAction ──────────────────────────────────────────────────
+
+describe("parseAccountsFileAction", () => {
+  const BASE64 = Buffer.from("xlsx-bytes").toString("base64");
+
+  it("retorna error si no autenticado", async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toBe("No autorizado");
+  });
+
+  it("ADMINISTRATIVE no puede parsear (fuera de ROLES.ACCOUNTING)", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("autorizado");
+  });
+
+  it("ACCOUNTANT puede parsear — mismo nivel que importAccountsAction", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    expect(r.success).toBe(true);
+  });
+
+  it("happy path — decodifica base64 y delega en ImportService.parseAccountsExcel", async () => {
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual(SAMPLE_ROWS);
+    const calledWith = vi.mocked(ImportService.parseAccountsExcel).mock.calls[0][0];
+    expect(Buffer.from(calledWith).toString()).toBe("xlsx-bytes");
+  });
+
+  it("propaga el mensaje de negocio si el service lanza (ej. archivo sin hojas)", async () => {
+    vi.mocked(ImportService.parseAccountsExcel).mockRejectedValue(
+      new Error("No se pudo leer ninguna hoja del archivo.")
+    );
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toContain("ninguna hoja");
   });
 });
 

@@ -38,6 +38,17 @@ export class ImportService {
     await wb.xlsx.load(buffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
     const ws = wb.worksheets[0];
 
+    // Bug tester Alpha 2026-09-27: un archivo que no es un .xlsx real (CSV renombrado,
+    // .xls antiguo, protegido con contraseña, corrupto) hace que exceljs "cargue" sin
+    // lanzar error pero sin producir ninguna hoja — ws.eachRow explotaba con un
+    // TypeError crudo ("Cannot read properties of undefined") en vez de un mensaje
+    // de negocio.
+    if (!ws) {
+      throw new Error(
+        "No se pudo leer ninguna hoja del archivo. Verifica que sea un Excel (.xlsx) válido, sin contraseña y no dañado. Si tu archivo es .xls antiguo o CSV, ábrelo en Excel y guárdalo como .xlsx."
+      );
+    }
+
     const allRows: unknown[][] = [];
     ws.eachRow((row: ExcelJS.Row) => {
       allRows.push((row.values as unknown[]).slice(1));

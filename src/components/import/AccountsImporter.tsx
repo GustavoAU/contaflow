@@ -16,20 +16,15 @@ import {
 } from "lucide-react";
 import {
   importAccountsAction,
+  parseAccountsFileAction,
   downloadTemplateAction,
 } from "@/modules/import/actions/import.actions";
-import type ExcelJS from "exceljs";
-import {
-  ImportAccountsSchema,
-  type ImportAccountRow,
-} from "@/modules/import/schemas/import.schema";
+import type { ImportAccountRow } from "@/modules/import/schemas/import.schema";
 
 type Props = {
   companyId: string;
   userId: string;
 };
-
-type ParseResult = { success: true; rows: ImportAccountRow[] } | { success: false; error: string };
 
 type ImportResult = {
   created: number;
@@ -49,6 +44,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, startDownload] = useTransition();
+  const [isParsing, setIsParsing] = useState(false);
   const [fileName, setFileName] = useState<string>("");
   const [preview, setPreview] = useState<ImportAccountRow[] | null>(null);
   const [parseError, setParseError] = useState<string>("");
@@ -73,64 +69,39 @@ export function AccountsImporter({ companyId, userId }: Props) {
     setParseError("");
     setPreview(null);
     setResult(null);
+    setIsParsing(true);
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const buffer = event.target?.result as ArrayBuffer;
-        const parsed = await parseFile(buffer);
+        // El parseo real (exceljs + inferencia de tipo por código + columnas G/M, Pre.,
+        // Ter.) vive server-side en ImportService.parseAccountsExcel — no duplicar esa
+        // lógica aquí. Bug tester Alpha 2026-09-27: el parser propio del cliente no
+        // tenía ninguno de esos ajustes ni un guard contra un archivo sin hojas legibles.
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
 
-        if (parsed.success) {
-          setPreview(parsed.rows);
+        const res = await parseAccountsFileAction(companyId, base64);
+
+        if (res.success) {
+          setPreview(res.data);
         } else {
-          setParseError(parsed.error);
+          setParseError(res.error);
         }
       } catch {
         setParseError("No se pudo leer el archivo");
+      } finally {
+        setIsParsing(false);
       }
     };
+    reader.onerror = () => {
+      setParseError("No se pudo leer el archivo");
+      setIsParsing(false);
+    };
     reader.readAsArrayBuffer(file);
-  }
-
-  async function parseFile(buffer: ArrayBuffer): Promise<ParseResult> {
-    try {
-      const { default: ExcelJS } = await import("exceljs");
-      const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(buffer);
-      const ws = wb.worksheets[0];
-
-      const allRows: unknown[][] = [];
-      ws.eachRow((row: ExcelJS.Row) => {
-        allRows.push((row.values as unknown[]).slice(1));
-      });
-
-      if (allRows.length < 2) return { success: false, error: "El archivo está vacío" };
-
-      const headers = (allRows[0] as (string | null)[]).map((h) =>
-        String(h ?? "").toLowerCase().trim()
-      );
-      const dataRows = allRows.slice(1);
-
-      const normalized = dataRows.map((arr) => {
-        const values = arr as unknown[];
-        const get = (key: string) => {
-          const idx = headers.indexOf(key);
-          return idx >= 0 ? values[idx] : undefined;
-        };
-        return {
-          codigo: String(get("codigo") ?? "").trim(),
-          nombre: String(get("nombre") ?? "").trim(),
-          tipo: String(get("tipo") ?? "").trim().toUpperCase(),
-          descripcion: String(get("descripcion") ?? "").trim() || undefined,
-        };
-      });
-
-      const validated = ImportAccountsSchema.parse(normalized);
-      return { success: true, rows: validated };
-    } catch (error) {
-      if (error instanceof Error) return { success: false, error: error.message };
-      return { success: false, error: "Error al procesar el archivo" };
-    }
   }
 
   function handleImport() {
@@ -209,7 +180,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
 
         {/* ─── Subir archivo ───────────────────────────────────────────── */}
         <div
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => !isParsing && fileInputRef.current?.click()}
           className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
             preview
               ? "border-green-400 bg-green-50"
@@ -226,7 +197,12 @@ export function AccountsImporter({ companyId, userId }: Props) {
             className="hidden"
           />
 
-          {preview ? (
+          {isParsing ? (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2Icon className="h-10 w-10 animate-spin text-blue-400" />
+              <p className="font-medium text-zinc-600">Leyendo {fileName}...</p>
+            </div>
+          ) : preview ? (
             <div className="flex flex-col items-center gap-2">
               <FileSpreadsheetIcon className="h-10 w-10 text-green-500" />
               <p className="font-medium text-green-700">{fileName}</p>

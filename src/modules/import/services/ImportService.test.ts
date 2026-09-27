@@ -85,6 +85,18 @@ describe("ImportService.parseAccountsExcel", () => {
     await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow();
   });
 
+  // Bug tester Alpha 2026-09-27: un .xlsx válido pero sin ninguna hoja hacía crashear
+  // ws.eachRow con un TypeError crudo ("Cannot read properties of undefined") en vez
+  // de un mensaje de negocio — reproduce el caso real sin depender de un archivo .xls
+  // o .csv malformado (que exceljs.xlsx.load podría rechazar de otras formas).
+  it("da un mensaje de negocio si el archivo no tiene ninguna hoja legible", async () => {
+    const wb = new ExcelJS.Workbook();
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
+      /no se pudo leer ninguna hoja/i
+    );
+  });
+
   it("normaliza columnas en mayúsculas", async () => {
     const buffer = await makeExcelBuffer([{ CODIGO: "3105", NOMBRE: "Capital", TIPO: "equity" }]);
 

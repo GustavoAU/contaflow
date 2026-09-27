@@ -40,6 +40,27 @@ export async function importAccountsAction(
   }
 }
 
+export async function parseAccountsFileAction(
+  companyId: string,
+  base64: string
+): Promise<ActionResult<ImportAccountRow[]>> {
+  try {
+    // Mismo nivel que importAccountsAction (ROLES.ACCOUNTING) — leer/previsualizar el
+    // archivo no muta nada, pero se gatea igual por consistencia con el resto del flujo.
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
+    });
+    if (!ctx.ok) return ctx.error;
+
+    const buffer = Buffer.from(base64, "base64");
+    const rows = await ImportService.parseAccountsExcel(buffer);
+    return { success: true, data: rows };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
 export async function downloadTemplateAction(): Promise<ActionResult<string>> {
   try {
     const { userId } = await auth();
