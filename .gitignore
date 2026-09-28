@@ -46,3 +46,4 @@ next-env.d.ts
 # Claude Code — local permissions/hooks (puede contener comandos con rutas locales)
 .claude/settings.json
 .claude/settings.local.json
+.neon
