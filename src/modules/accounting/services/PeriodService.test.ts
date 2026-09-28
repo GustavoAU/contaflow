@@ -31,64 +31,27 @@ vi.mock("@/lib/prisma", () => ({
 import prisma from "@/lib/prisma";
 import { PeriodService } from "./PeriodService";
 
+// ADR-055: openPeriod/closePeriod (mes individual) se ELIMINARON de PeriodService —
+// reemplazados por FiscalYearService.openFiscalYear (abre los 12 meses del ejercicio
+// de una vez) y FiscalYearCloseService.closeFiscalYear (cierra el ejercicio completo).
+// Sus tests viven en FiscalYearService.test.ts y FiscalYearCloseService.test.ts.
+
+// `fiscalYear` incluido en el mock — assertDateInOpenPeriod ahora también exige que
+// el FiscalYear del período esté OPEN (no solo el AccountingPeriod), y select() lo trae.
 const mockPeriod = {
   id: "period-1",
   companyId: "company-1",
   year: 2026,
   month: 3,
   status: "OPEN",
-  openedAt: new Date("2026-03-01"),
-  closedAt: null,
-  openedBy: "user-1",
-  closedBy: null,
+  fiscalYear: { status: "OPEN" },
 };
-
-describe("PeriodService.openPeriod", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Fase 15: ejercicio no cerrado por defecto en todos los tests de openPeriod
-    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({ accountingPeriod: prisma.accountingPeriod, auditLog: prisma.auditLog })) as never
-    );
-  });
-
-  it("abre un período correctamente cuando no hay período activo", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.create).mockResolvedValue(mockPeriod as never);
-    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-
-    const result = await PeriodService.openPeriod("company-1", 2026, 3, "user-1");
-
-    expect(result.year).toBe(2026);
-    expect(result.month).toBe(3);
-    expect(result.status).toBe("OPEN");
-  });
-
-  it("lanza error si ya hay un período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
-
-    await expect(PeriodService.openPeriod("company-1", 2026, 4, "user-1")).rejects.toThrow(
-      "Ya existe un período abierto"
-    );
-  });
-
-  it("lanza error si el período ya existe", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
-
-    await expect(PeriodService.openPeriod("company-1", 2026, 3, "user-1")).rejects.toThrow(
-      "ya existe"
-    );
-  });
-});
 
 describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("retorna el período cuando la fecha cae dentro del período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
 
     const result = await PeriodService.assertDateInOpenPeriod(
       "company-1",
@@ -101,7 +64,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
   });
 
   it("usa getters UTC: una fecha de inicio de mes no se desplaza al mes anterior", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
 
     // new Date("2026-03-01") = medianoche UTC; en husos negativos getMonth() local daría feb.
     await expect(
@@ -109,84 +72,37 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
     ).resolves.toMatchObject({ month: 3 });
   });
 
-  it("lanza si la fecha está fuera del período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
-
-    await expect(
-      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-02-28")),
-    ).rejects.toThrow(/fuera del período contable abierto/i);
-  });
-
-  it("lanza si no hay período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+  it("lanza si el período está CLOSED", async () => {
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      ...mockPeriod,
+      status: "CLOSED",
+    } as never);
 
     await expect(
       PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
-    ).rejects.toThrow(/No hay período contable abierto/i);
-  });
-});
-
-describe("PeriodService.closePeriod", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Fase 13C-B4: el $transaction ahora también ejecuta PeriodSnapshotService
-    // El tx mock incluye journalEntry y periodSnapshot para que upsertAllSnapshotsForPeriod funcione
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          accountingPeriod: prisma.accountingPeriod,
-          journalEntry: prisma.journalEntry,
-          periodSnapshot: prisma.periodSnapshot,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
-    // Por defecto: sin movimientos en el período (upsertAllSnapshotsForPeriod retorna 0)
-    vi.mocked(prisma.journalEntry.findMany).mockResolvedValue([]);
+    ).rejects.toThrow(/está cerrado/i);
   });
 
-  it("cierra el período activo correctamente", async () => {
-    const closedPeriod = {
+  // ADR-055 (nuevo): el AccountingPeriod puede seguir OPEN pero su FiscalYear ya se
+  // cerró — closeFiscalYear cierra los 12 períodos Y el ejercicio en la misma tx, así
+  // que en la práctica no deberían desincronizarse, pero el guard existe por si acaso
+  // (defensa en profundidad, no confiar solo en el status del período individual).
+  it("lanza si el período está OPEN pero su FiscalYear ya está CLOSED", async () => {
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
       ...mockPeriod,
-      status: "CLOSED",
-      closedAt: new Date(),
-      closedBy: "user-1",
-    };
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
-    vi.mocked(prisma.accountingPeriod.update).mockResolvedValue(closedPeriod as never);
-    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-
-    const result = await PeriodService.closePeriod("company-1", "user-1");
-
-    expect(result.status).toBe("CLOSED");
-    expect(result.closedBy).toBe("user-1");
-  });
-
-  it("llama a upsertAllSnapshotsForPeriod dentro del $transaction al cerrar", async () => {
-    const { Decimal } = await import("decimal.js");
-    const closedPeriod = { ...mockPeriod, status: "CLOSED", closedAt: new Date(), closedBy: "user-1" };
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
-    vi.mocked(prisma.accountingPeriod.update).mockResolvedValue(closedPeriod as never);
-    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-    // Simular 1 cuenta con movimiento
-    vi.mocked(prisma.journalEntry.findMany)
-      .mockResolvedValueOnce([{ accountId: "account-1" } as never])
-      .mockResolvedValue([{ amount: new Decimal("500.00") } as never]);
-    vi.mocked(prisma.periodSnapshot.upsert).mockResolvedValue({
-      id: "snap-1", companyId: "company-1", periodId: "period-1", accountId: "account-1",
-      balanceVes: new Decimal("500.00"), balanceOriginal: null, currency: "VES",
-      snapshotAt: new Date(),
+      fiscalYear: { status: "CLOSED" },
     } as never);
 
-    await PeriodService.closePeriod("company-1", "user-1");
-
-    expect(prisma.periodSnapshot.upsert).toHaveBeenCalledTimes(1);
+    await expect(
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+    ).rejects.toThrow(/está cerrado/i);
   });
 
-  it("lanza error si no hay período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+  it("lanza si no existe período para esa fecha", async () => {
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
 
-    await expect(PeriodService.closePeriod("company-1", "user-1")).rejects.toThrow(
-      "No hay período abierto"
-    );
+    await expect(
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+    ).rejects.toThrow(/No existe un período contable abierto/i);
   });
 });

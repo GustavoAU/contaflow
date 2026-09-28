@@ -414,8 +414,8 @@ export function StepChartOfAccounts({
 export function StepOpenPeriod({
   form, onChange, onOpen, onBack, onSkip, isPending, hasPeriod,
 }: {
-  form: { year: number; month: number };
-  onChange: (f: Partial<{ year: number; month: number }>) => void;
+  form: { year: number };
+  onChange: (f: Partial<{ year: number }>) => void;
   onOpen: () => void;
   onBack: () => void;
   onSkip: () => void;
@@ -431,9 +431,9 @@ export function StepOpenPeriod({
       <div className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
         <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
         <div>
-          <p className="text-sm font-medium text-blue-800">Paso 3 — Período Contable</p>
+          <p className="text-sm font-medium text-blue-800">Paso 3 — Ejercicio Fiscal</p>
           <p className="text-xs text-blue-600 mt-0.5">
-            Sin un período abierto no puedes registrar asientos ni facturas. Abre el mes en que empiezas a operar en ContaFlow.
+            Sin un ejercicio abierto no puedes registrar asientos ni facturas. Abre el año en que empiezas a operar en ContaFlow — se abren los 12 meses de una vez.
           </p>
         </div>
       </div>
@@ -441,34 +441,20 @@ export function StepOpenPeriod({
       {hasPeriod ? (
         <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3">
           <CheckCircleIcon className="h-5 w-5 text-green-600" />
-          <p className="text-sm text-green-700">Ya tienes un período contable abierto. ¡Puedes continuar!</p>
+          <p className="text-sm text-green-700">Ya tienes un ejercicio fiscal abierto. ¡Puedes continuar!</p>
         </div>
       ) : (
-        <div className="flex items-center gap-3">
-          <div className="space-y-1 flex-1">
-            <label className="text-xs font-medium text-zinc-600">Mes</label>
-            <select
-              className={selectCls + " w-full"}
-              value={form.month}
-              onChange={(e) => onChange({ month: parseInt(e.target.value) })}
-            >
-              {MONTHS.map((m, i) => (
-                <option key={i} value={i + 1}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1 flex-1">
-            <label className="text-xs font-medium text-zinc-600">Año</label>
-            <select
-              className={selectCls + " w-full"}
-              value={form.year}
-              onChange={(e) => onChange({ year: parseInt(e.target.value) })}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-zinc-600">Año del ejercicio</label>
+          <select
+            className={selectCls + " w-full"}
+            value={form.year}
+            onChange={(e) => onChange({ year: parseInt(e.target.value) })}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -494,7 +480,7 @@ export function StepOpenPeriod({
               aria-busy={isPending}
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
             >
-              {isPending ? "Abriendo…" : "Abrir período"}
+              {isPending ? "Abriendo…" : "Abrir ejercicio"}
               {!isPending && <ArrowRightIcon className="h-4 w-4" />}
             </button>
           </div>

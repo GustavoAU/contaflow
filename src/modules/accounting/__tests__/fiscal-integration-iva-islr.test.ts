@@ -75,6 +75,7 @@ const PERIOD_OPEN = {
   closedAt: null,
   openedBy: "usr_owner",
   closedBy: null,
+  fiscalYear: { status: "OPEN" },
 };
 
 const ACCOUNTS = {
@@ -105,7 +106,7 @@ function setupHappyPath(txNumberOverride = "2026-05-000001") {
   vi.mocked(prisma.account.findMany).mockResolvedValue(
     Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
   );
-  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(PERIOD_OPEN as never);
+  vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(PERIOD_OPEN as never);
 
   const createdTx = {
     id: "tx_audit_001",
@@ -216,11 +217,11 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue(
       Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
     );
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never);
 
     await expect(
       TransactionService.createBalancedTransaction(BASE_VENTA_INPUT),
-    ).rejects.toThrow("No hay período contable abierto");
+    ).rejects.toThrow("No existe un período contable abierto");
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -240,7 +241,7 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
 
   it("C-11: Cuenta de otra empresa — rechaza por guard de companyId", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(PERIOD_OPEN as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(PERIOD_OPEN as never);
     // Solo devuelve 4 de las 5 cuentas — la quinta es cross-tenant
     vi.mocked(prisma.account.findMany).mockResolvedValue(
       Object.values(ACCOUNTS).slice(0, 4).map((a) => ({ id: a.id })) as never,
@@ -557,12 +558,16 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("C-28 [FIX CRÍTICO-1]: fecha fuera del período abierto es rechazada (Art. 36 Cód. Comercio)", async () => {
-    // PERÍODO ABIERTO: Mayo 2026
+    // PERÍODO ABIERTO: Mayo 2026. ADR-055: assertDateInOpenPeriod resuelve por
+    // findUnique(companyId, AÑO/MES DE LA FECHA DEL ASIENTO) — para un asiento de
+    // enero, consulta enero, no mayo. Solo existe el período de mayo → el resultado
+    // real de Prisma es null (no "un período de otro mes"), así que el mensaje es
+    // "No existe...", no "no corresponde al período abierto".
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue(
       Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
     );
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(PERIOD_OPEN as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never);
 
     // ASIENTO CON FECHA EN ENERO 2026 mientras el período abierto es MAYO 2026
     const backdatedInput = {
@@ -572,7 +577,7 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
 
     await expect(
       TransactionService.createBalancedTransaction(backdatedInput),
-    ).rejects.toThrow("no corresponde al período abierto");
+    ).rejects.toThrow("No existe un período contable abierto");
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });

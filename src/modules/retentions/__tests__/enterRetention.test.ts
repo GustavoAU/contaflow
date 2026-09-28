@@ -12,7 +12,8 @@ vi.mock("@/lib/prisma", () => {
       update: vi.fn(),
       count: vi.fn(),
     },
-    accountingPeriod: { findFirst: vi.fn() },
+    // ADR-055: assertDateInOpenPeriod resuelve por findUnique(companyId_year_month).
+    accountingPeriod: { findUnique: vi.fn() },
     account: { findFirst: vi.fn() },
     transaction: { create: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -35,7 +36,7 @@ const mockRetention = {
   deletedAt: null,
 };
 
-const mockPeriod = { id: "period-1", companyId: "comp-1", status: "OPEN" };
+const mockPeriod = { id: "period-1", companyId: "comp-1", status: "OPEN", fiscalYear: { status: "OPEN" } };
 const mockLiabilityAccount = { id: "acc-liab-1", companyId: "comp-1", type: "LIABILITY" };
 const mockBankAccount = { id: "acc-bank-1", companyId: "comp-1", type: "ASSET" };
 const mockTransaction = { id: "tx-1" };
@@ -57,7 +58,7 @@ describe("enterRetention", () => {
 
   it("happy path: entera retención PENDING y crea asiento DIARIO", async () => {
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetention as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
     vi.mocked(prisma.account.findFirst)
       .mockResolvedValueOnce(mockLiabilityAccount as never)
       .mockResolvedValueOnce(mockBankAccount as never);
@@ -165,7 +166,7 @@ describe("enterRetention", () => {
 
   it("lanza error si no hay período contable abierto", async () => {
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetention as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never);
 
     await expect(
       enterRetention(
@@ -183,7 +184,7 @@ describe("enterRetention", () => {
 
   it("lanza error si cuenta de pasivo no encontrada", async () => {
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetention as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockPeriod as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
     vi.mocked(prisma.account.findFirst)
       .mockResolvedValueOnce(null as never)  // liability not found
       .mockResolvedValueOnce(mockBankAccount as never);

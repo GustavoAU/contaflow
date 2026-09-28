@@ -120,8 +120,12 @@ function makeTx(
         movements: [],
       }),
     },
+    // ADR-055: assertDateInOpenPeriod ahora resuelve por findUnique(companyId_year_month)
+    // y también exige que el FiscalYear del período esté OPEN.
     accountingPeriod: {
-      findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: "period-1", year: 2026, month: 6, status: "OPEN", fiscalYear: { status: "OPEN" },
+      }),
     },
     // assertAccountOfType (guard) + segunda consulta para code/name. Ambas usan
     // account.findFirst; por defecto devuelve una cuenta EXPENSE válida con code/name.

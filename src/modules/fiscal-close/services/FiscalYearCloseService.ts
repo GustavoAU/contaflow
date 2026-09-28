@@ -1,6 +1,9 @@
 // src/modules/fiscal-close/services/FiscalYearCloseService.ts
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
+import { withSerializableRetry } from "@/lib/tx-helpers";
+import { PeriodSnapshotService } from "@/modules/accounting/services/PeriodSnapshotService";
+import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import type { Prisma } from "@prisma/client";
@@ -40,15 +43,18 @@ export class FiscalYearCloseService {
   }
 
   /**
-   * Ejecuta el cierre de ejercicio económico.
+   * Ejecuta el cierre de ejercicio económico (ADR-055).
    *
    * Precondiciones (verificadas dentro de la tx Serializable):
    * - No existe FiscalYearClose para (companyId, year)
-   * - Todos los períodos existentes del año tienen status CLOSED
+   * - Existe un FiscalYear{companyId, year} con status OPEN (ábrelo con
+   *   FiscalYearService.openFiscalYear si no existe)
    * - company.resultAccountId está configurado y es AccountType.EQUITY
    *
-   * Genera un Transaction type:CIERRE que salda las cuentas REVENUE y EXPENSE
-   * contra la cuenta "Resultado del Ejercicio".
+   * Cierra los 12 AccountingPeriod del ejercicio + genera sus PeriodSnapshot +
+   * genera un Transaction type:CIERRE que salda las cuentas REVENUE y EXPENSE
+   * contra la cuenta "Resultado del Ejercicio" — todo en la misma transacción.
+   * Ya NO es precondición externa cerrar los meses uno a uno antes (D-B).
    */
   static async closeFiscalYear(
     companyId: string,
@@ -66,7 +72,7 @@ export class FiscalYearCloseService {
           "contaflow.fiscal_year": year,
         },
       },
-      () => prisma.$transaction(
+      () => withSerializableRetry(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Idempotencia: no permitir doble cierre ─────────────────────────
         const existing = await tx.fiscalYearClose.findUnique({
@@ -77,23 +83,29 @@ export class FiscalYearCloseService {
           throw new Error(`El ejercicio económico ${year} ya está cerrado.`);
         }
 
-        // ── 2. Verificar que todos los períodos existentes del año están CLOSED ─
+        // ── 2. ADR-055: resolver el FiscalYear y cerrar sus 12 períodos AQUÍ MISMO
+        // (ya no es precondición externa cerrarlos uno a uno antes — D-B).
+        const fiscalYear = await tx.fiscalYear.findUnique({
+          where: { companyId_year: { companyId, year } },
+        });
+
+        if (!fiscalYear) {
+          throw new Error(
+            `No existe un ejercicio fiscal ${year} para esta empresa. Ábrelo primero en Contabilidad → Ejercicios.`
+          );
+        }
+        if (fiscalYear.status === "CLOSED") {
+          throw new Error(`El ejercicio fiscal ${year} ya está cerrado.`);
+        }
+
         const periods = await tx.accountingPeriod.findMany({
-          where: { companyId, year },
-          select: { id: true, month: true, status: true },
+          where: { companyId, fiscalYearId: fiscalYear.id },
+          select: { id: true, year: true, month: true, status: true },
         });
 
         if (periods.length === 0) {
           throw new Error(
-            `No existen períodos contables registrados para el año ${year}.`
-          );
-        }
-
-        const openPeriods = periods.filter((p) => p.status === "OPEN");
-        if (openPeriods.length > 0) {
-          const months = openPeriods.map((p) => p.month).join(", ");
-          throw new Error(
-            `Existen períodos abiertos en el ejercicio ${year}: meses ${months}. Ciérralos antes de continuar.`
+            `El ejercicio fiscal ${year} no tiene períodos contables asociados — dato inconsistente, contacta soporte.`
           );
         }
 
@@ -172,8 +184,17 @@ export class FiscalYearCloseService {
         }
 
         // ── 5. Generar número correlativo para el asiento de cierre ───────────
-        const closingDate = new Date(year, 11, 31); // 31 de diciembre del año
-        const prefix = `${year}-12-`;
+        // Fix H-2 (ADR-055): antes asumía diciembre/año-calendario de forma dura.
+        // Ahora se calcula por índice cronológico dentro del ejercicio — en régimen
+        // regular (startMonth=1) produce exactamente el mismo resultado de siempre
+        // (diciembre), byte a byte; en régimen irregular usa el último mes real.
+        const lastPeriod = [...periods].sort(
+          (a, b) =>
+            FiscalYearService.chronologicalKey(fiscalYear.year, fiscalYear.startMonth, b) -
+            FiscalYearService.chronologicalKey(fiscalYear.year, fiscalYear.startMonth, a)
+        )[0];
+        const closingDate = new Date(lastPeriod.year, lastPeriod.month, 0); // último día de ese mes
+        const prefix = `${lastPeriod.year}-${String(lastPeriod.month).padStart(2, "0")}-`;
         const lastTx = await tx.transaction.findFirst({
           where: { companyId, number: { startsWith: prefix } },
           orderBy: { number: "desc" },
@@ -215,9 +236,6 @@ export class FiscalYearCloseService {
         closingEntries.push(resultEntry);
 
         // ── 7. Persistir el asiento de cierre ─────────────────────────────────
-        const decemberPeriod = periods.find((p) => p.month === 12);
-        const lastPeriod = periods.sort((a, b) => b.month - a.month)[0];
-
         // N4: invariante partida doble (amount tipado por Prisma → normalizar a Decimal)
         assertBalancedGLEntries(closingEntries.map((e) => ({ amount: new Decimal(e.amount.toString()) })));
         const closingTx = await tx.transaction.create({
@@ -229,17 +247,34 @@ export class FiscalYearCloseService {
             date: closingDate,
             type: "CIERRE",
             status: "POSTED",
-            periodId: decemberPeriod?.id ?? lastPeriod.id,
+            periodId: lastPeriod.id,
             entries: { createMany: { data: closingEntries } },
           },
           select: { id: true },
         });
 
-        // ── 8. Insertar FiscalYearClose ───────────────────────────────────────
+        // ── 8. ADR-055 D-B: cerrar los 12 períodos del ejercicio + generar sus
+        // snapshots de saldo, en la misma transacción Serializable (ya no es un
+        // paso previo separado hecho mes a mes).
+        const closeTimestamp = new Date();
+        await tx.accountingPeriod.updateMany({
+          where: { companyId, fiscalYearId: fiscalYear.id },
+          data: { status: "CLOSED", closedAt: closeTimestamp, closedBy },
+        });
+        for (const period of periods) {
+          await PeriodSnapshotService.upsertAllSnapshotsForPeriod(companyId, period.id, tx);
+        }
+        await tx.fiscalYear.update({
+          where: { id: fiscalYear.id },
+          data: { status: "CLOSED", closedAt: closeTimestamp, closedBy },
+        });
+
+        // ── 9. Insertar FiscalYearClose ───────────────────────────────────────
         const fiscalClose = await tx.fiscalYearClose.create({
           data: {
             companyId,
             year,
+            fiscalYearId: fiscalYear.id,
             closedBy,
             closingTransactionId: closingTx.id,
             totalRevenue: totalRevenue.toDecimalPlaces(4),
@@ -249,7 +284,7 @@ export class FiscalYearCloseService {
           select: { id: true },
         });
 
-        // ── 9. AuditLog ───────────────────────────────────────────────────────
+        // ── 10. AuditLog ──────────────────────────────────────────────────────
         await tx.auditLog.create({
           data: {
             companyId,
@@ -263,6 +298,7 @@ export class FiscalYearCloseService {
               fiscalYearCloseId: fiscalClose.id,
               companyId,
               year,
+              periodsClosedCount: periods.length,
               totalRevenue: totalRevenue.toString(),
               totalExpenses: totalExpenses.toString(),
               netResult: netResult.toString(),
@@ -279,8 +315,13 @@ export class FiscalYearCloseService {
           netResult,
           closingEntriesCount: closingEntries.length,
         };
-      }),
-      { isolationLevel: "Serializable" }
+      })
+      // ADR-055 (MEDIUM security-agent): antes usaba prisma.$transaction(fn,
+      // SERIALIZABLE_TX_OPTIONS) directo, sin reintento — un cierre real bajo
+      // contención (un asiento posteado el instante antes del commit) salía con un
+      // P2034 crudo en vez de reintentar. withSerializableRetry aplica
+      // SERIALIZABLE_TX_OPTIONS internamente (mismo timeout/maxWait ampliados para
+      // cubrir cold start Neon + cerrar hasta 12 períodos y generar sus snapshots).
     ));
   }
 
@@ -304,7 +345,7 @@ export class FiscalYearCloseService {
           "contaflow.fiscal_year": year,
         },
       },
-      () => prisma.$transaction(
+      () => withSerializableRetry(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Cargar el cierre del ejercicio ──────────────────────────────────
         const fiscalClose = await tx.fiscalYearClose.findUnique({
@@ -416,8 +457,9 @@ export class FiscalYearCloseService {
         });
 
         return { appropriationTransactionId: appTx.id };
-      }),
-      { isolationLevel: "Serializable" }
+      })
+      // ADR-055 (MEDIUM security-agent): antes usaba { isolationLevel: "Serializable" }
+      // directo, sin reintento P2034 ni el timeout/maxWait ampliados.
     ));
   }
 

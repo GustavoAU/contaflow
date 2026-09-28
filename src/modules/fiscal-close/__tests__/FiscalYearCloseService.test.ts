@@ -10,8 +10,15 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    // ADR-055: closeFiscalYear ahora resuelve el FiscalYear y cierra sus 12 períodos
+    // en la misma tx (ya no es precondición externa cerrarlos uno a uno antes).
+    fiscalYear: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
     accountingPeriod: {
       findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     company: {
       findUnique: vi.fn(),
@@ -36,6 +43,14 @@ vi.mock("@/lib/prisma-rls", () => ({
   ),
 }));
 
+// ADR-055: closeFiscalYear ahora llama a PeriodSnapshotService dentro de la tx (una
+// vez por período) — mockeado como colaborador en vez de replicar sus queries internas.
+vi.mock("@/modules/accounting/services/PeriodSnapshotService", () => ({
+  PeriodSnapshotService: {
+    upsertAllSnapshotsForPeriod: vi.fn().mockResolvedValue(0),
+  },
+}));
+
 import prisma from "@/lib/prisma";
 import { FiscalYearCloseService } from "../services/FiscalYearCloseService";
 
@@ -43,9 +58,21 @@ const COMPANY_ID = "company-1";
 const YEAR = 2025;
 const USER_ID = "user-1";
 
+const mockFiscalYear = {
+  id: "fy-1",
+  companyId: COMPANY_ID,
+  year: YEAR,
+  startMonth: 1,
+  status: "OPEN",
+  openedAt: new Date("2025-01-01"),
+  openedBy: "user-1",
+  closedAt: null,
+  closedBy: null,
+};
+
 const mockPeriods = [
-  { id: "period-1", month: 1, status: "CLOSED" },
-  { id: "period-2", month: 12, status: "CLOSED" },
+  { id: "period-1", year: YEAR, month: 1, status: "OPEN" },
+  { id: "period-2", year: YEAR, month: 12, status: "OPEN" },
 ];
 
 const mockCompany = {
@@ -75,6 +102,7 @@ function setupTxMock() {
     ((fn: (tx: unknown) => unknown) =>
       fn({
         fiscalYearClose: prisma.fiscalYearClose,
+        fiscalYear: prisma.fiscalYear,
         accountingPeriod: prisma.accountingPeriod,
         company: prisma.company,
         transaction: prisma.transaction,
@@ -114,29 +142,40 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
     ).rejects.toThrow(`El ejercicio económico ${YEAR} ya está cerrado.`);
   });
 
-  it("throws if no periods exist for the year", async () => {
+  it("throws if no FiscalYear exists for the year", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
+
+    await expect(
+      FiscalYearCloseService.closeFiscalYear(COMPANY_ID, YEAR, USER_ID)
+    ).rejects.toThrow(`No existe un ejercicio fiscal ${YEAR} para esta empresa.`);
+  });
+
+  it("throws if the FiscalYear is already CLOSED", async () => {
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue({
+      ...mockFiscalYear,
+      status: "CLOSED",
+    } as never);
+
+    await expect(
+      FiscalYearCloseService.closeFiscalYear(COMPANY_ID, YEAR, USER_ID)
+    ).rejects.toThrow(`El ejercicio fiscal ${YEAR} ya está cerrado.`);
+  });
+
+  it("throws if the FiscalYear has no periods (dato inconsistente)", async () => {
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([] as never);
 
     await expect(
       FiscalYearCloseService.closeFiscalYear(COMPANY_ID, YEAR, USER_ID)
-    ).rejects.toThrow(`No existen períodos contables registrados para el año ${YEAR}.`);
-  });
-
-  it("throws if any period is still OPEN", async () => {
-    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
-    vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([
-      { id: "period-1", month: 1, status: "CLOSED" },
-      { id: "period-2", month: 3, status: "OPEN" },
-    ] as never);
-
-    await expect(
-      FiscalYearCloseService.closeFiscalYear(COMPANY_ID, YEAR, USER_ID)
-    ).rejects.toThrow(`Existen períodos abiertos en el ejercicio ${YEAR}: meses 3`);
+    ).rejects.toThrow(`El ejercicio fiscal ${YEAR} no tiene períodos contables asociados`);
   });
 
   it("throws if closing accounts are not configured", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue({
       resultAccountId: null,
@@ -151,6 +190,7 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
 
   it("throws if result account is not EQUITY", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue({
       resultAccountId: "account-result",
@@ -165,6 +205,7 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
 
   it("throws if no movements in result accounts", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
     vi.mocked(prisma.journalEntry.findMany).mockResolvedValue([] as never);
@@ -176,6 +217,7 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
 
   it("creates closing transaction and FiscalYearClose record on success", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
     vi.mocked(prisma.journalEntry.findMany)
@@ -183,6 +225,8 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
       .mockResolvedValueOnce(mockExpenseEntries as never); // EXPENSE
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-closing-1" } as never);
+    vi.mocked(prisma.accountingPeriod.updateMany).mockResolvedValue({ count: mockPeriods.length } as never);
+    vi.mocked(prisma.fiscalYear.update).mockResolvedValue({ ...mockFiscalYear, status: "CLOSED" } as never);
     vi.mocked(prisma.fiscalYearClose.create).mockResolvedValue({ id: "fyc-new" } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -197,6 +241,13 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
     expect(prisma.transaction.create).toHaveBeenCalledOnce();
     expect(prisma.fiscalYearClose.create).toHaveBeenCalledOnce();
     expect(prisma.auditLog.create).toHaveBeenCalledOnce();
+    // ADR-055 D-B: cierra los períodos + el FiscalYear en la misma tx
+    expect(prisma.accountingPeriod.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "CLOSED" }) })
+    );
+    expect(prisma.fiscalYear.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "CLOSED" }) })
+    );
   });
 
   it("correctly handles a net loss scenario (expenses > revenue)", async () => {
@@ -216,6 +267,7 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
     ];
 
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
     vi.mocked(prisma.journalEntry.findMany)
@@ -223,6 +275,8 @@ describe("FiscalYearCloseService.closeFiscalYear", () => {
       .mockResolvedValueOnce(lossExpenseEntries as never);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-loss" } as never);
+    vi.mocked(prisma.accountingPeriod.updateMany).mockResolvedValue({ count: mockPeriods.length } as never);
+    vi.mocked(prisma.fiscalYear.update).mockResolvedValue({ ...mockFiscalYear, status: "CLOSED" } as never);
     vi.mocked(prisma.fiscalYearClose.create).mockResolvedValue({ id: "fyc-loss" } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 

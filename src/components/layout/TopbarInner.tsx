@@ -42,8 +42,8 @@ type TopbarInnerProps = {
   notificationSlot?: React.ReactNode;
   /** Tasas BCV obtenidas en el server (layout) — evita Server Action en el montaje del widget */
   initialRates?: { usd: RateWithDelta | null; eur: RateWithDelta | null } | null;
-  /** @deprecated — ya no se muestra en el header; el layout sigue pasándolo por compatibilidad */
-  activePeriod?: { year: number; month: number; daysOpen: number; isStale: boolean } | null;
+  /** ADR-055: etiqueta del ejercicio fiscal activo (el OPEN más reciente, derivado) — pedido explícito de la esposa de Gustavo (también contable) para ver de un vistazo en qué año se está trabajando. */
+  activeFiscalYear?: { year: number } | null;
 };
 
 export function TopbarInner({
@@ -53,7 +53,7 @@ export function TopbarInner({
   grantedModules,
   notificationSlot,
   initialRates,
-  activePeriod: _activePeriod, // recibido por compatibilidad, no usado en header
+  activeFiscalYear,
 }: TopbarInnerProps) {
   const grants = new Set(grantedModules ?? []);
   const { primary: navPrimary, sections: navSections } = companyId
@@ -156,6 +156,14 @@ export function TopbarInner({
             >
               {ROLE_LABELS[userRole]}
             </span>
+            {activeFiscalYear && (
+              <span
+                className="hidden lg:inline-flex text-10 font-bold px-2 py-0.5 rounded-full border shrink-0 bg-sky-500/20 text-sky-300 border-sky-500/30"
+                title="Ejercicio fiscal activo"
+              >
+                Ejercicio {activeFiscalYear.year}
+              </span>
+            )}
           </div>
         )}
 

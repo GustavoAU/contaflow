@@ -135,11 +135,13 @@ describe("createBalancedTransaction", () => {
       { id: "acc-1" },
       { id: "acc-2" },
     ] as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+    // ADR-055: assertDateInOpenPeriod resuelve por findUnique(companyId_year_month).
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
       id: "period-1",
       status: "OPEN",
       year: 2026,
       month: 3,
+      fiscalYear: { status: "OPEN" },
     } as never);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
 
@@ -194,10 +196,10 @@ describe("createBalancedTransaction", () => {
       { id: "acc-1" },
       { id: "acc-2" },
     ] as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
 
     await expect(TransactionService.createBalancedTransaction(BASE_INPUT)).rejects.toThrow(
-      "No hay período contable abierto"
+      "No existe un período contable abierto"
     );
   });
 
@@ -230,11 +232,13 @@ describe("createBalancedTransaction", () => {
       { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
     ] as never);
     vi.mocked(prisma.customer.count).mockResolvedValue(1);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+    // ADR-055: assertDateInOpenPeriod resuelve por findUnique(companyId_year_month).
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
       id: "period-1",
       status: "OPEN",
       year: 2026,
       month: 3,
+      fiscalYear: { status: "OPEN" },
     } as never);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
 
@@ -324,7 +328,7 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
 
@@ -360,7 +364,7 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(originalWithParty as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
 
@@ -423,7 +427,7 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
 
@@ -513,7 +517,7 @@ describe("voidTransaction", () => {
 
   it("hard-lock: lanza error si no hay período activo para el asiento de anulación", async () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(ORIGINAL_TX as never);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never); // ADR-055: assertDateInOpenPeriod -> "No existe..." (no "No hay periodo abierto")
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
 
@@ -522,14 +526,14 @@ describe("voidTransaction", () => {
         { transactionId: "tx-original", userId: "user-1", reason: "Sin período activo disponible" },
         "company-1"
       )
-    ).rejects.toThrow("No hay período contable abierto");
+    ).rejects.toThrow("No existe un período contable abierto");
   });
 
   it("hard-lock: permite anular si el período está OPEN", async () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
 

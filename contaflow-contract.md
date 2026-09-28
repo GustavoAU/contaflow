@@ -264,6 +264,14 @@ async function generateRetentionVoucherPDF(params: RetentionVoucherParams): Prom
 
 - Estado: DECIDIDO ✅
 
+> **ADR-055 (2026-09-27) — PARCIALMENTE SUPERSEDIDO.** La Decisión C (precondición "todos los
+> períodos EXISTENTES del año deben estar CLOSED" antes de cerrar el ejercicio) y el BLOQUEANTE 1 de
+> esta sección quedan reemplazados: el nuevo flujo cierra los 12 `AccountingPeriod` del ejercicio
+> COMO PARTE del propio `closeFiscalYear` (ya no es precondición externa cerrarlos uno a uno antes).
+> El resto de esta sección (modelo `FiscalYearClose`, asientos de cierre, apropiación,
+> `isFiscalYearClosed`, inmutabilidad post-cierre) sigue vigente sin cambios. Ver
+> `.claude/adr/ADR-055-ejercicio-fiscal-anual.md` para el diseño completo.
+
 ---
 
 ### Decisiones Arquitectónicas
@@ -492,11 +500,13 @@ type FiscalYearCloseSummary = {
 
 ### Bloqueantes confirmados (2026-03-30)
 
-**BLOQUEANTE 1 — Períodos parciales:** Solo períodos EXISTENTES deben estar CLOSED. No se exigen 12 meses completos. Una empresa que comenzó en abril solo necesita tener cerrados los períodos que existen (abril–diciembre).
+**BLOQUEANTE 1 — Períodos parciales:** Solo períodos EXISTENTES deben estar CLOSED. No se exigen 12 meses completos. Una empresa que comenzó en abril solo necesita tener cerrados los períodos que existen (abril–diciembre). **[SUPERSEDIDO por ADR-055, 2026-09-27]** — ahora se abren los 12 meses del ejercicio de una vez y el cierre masivo los cierra a todos dentro de `closeFiscalYear`, no como precondición externa. Ver ADR-055.
 
 **BLOQUEANTE 2 — Configuración Contable:** Sección nueva "Configuración Contable" dentro de Settings, separada de la configuración general de empresa. Campos: `resultAccountId` y `retainedEarningsAccountId` con selector de cuenta (AccountType.EQUITY).
 
 **BLOQUEANTE 3 — Bloqueo total post-cierre:** Bloqueo estricto en tres puntos:
+**[Nota ADR-055]** el punto (b) se mantiene idéntico; lo que cambia es que ya no existe una acción de
+"cerrar un período individual" en la UI (D-B, ADR-055) — el cierre siempre es del ejercicio completo.
 - (a) No nuevas transacciones con fecha en el año cerrado → guard en `createTransactionAction`
 - (b) No re-apertura de períodos del año cerrado → guard en `reopenPeriodAction`
 - (c) No nuevas facturas ni retenciones con fecha en el año cerrado → guard en `createInvoiceAction` y `createRetentionAction`
@@ -1921,3 +1931,40 @@ Sin enum Prisma, sin CHECK de membresía, sin índice nuevo, sin backfill.
 - [x] Rate limit en action sin empresa: `limiters.companyCreate`, fail-open,
       clave `user:${userId}` (ADR-043 D-4). `limiters.fiscal` PROHIBIDO aquí
 - [x] Análisis de riesgo de migración documentado
+
+---
+
+## ADR-055 — Ejercicio Fiscal Anual: apertura/cierre por ejercicio completo (ARCH 2026-09-27)
+
+- Estado: DECIDIDO
+- ADR: `.claude/adr/ADR-055-ejercicio-fiscal-anual.md`
+- Origen: feedback de dos contadoras reales (tester Alpha + esposa del dueño) sobre cierre de períodos
+- Supersede parcialmente: §15.1 (BLOQUEANTE 1 y precondición "todos CLOSED" de closeFiscalYear)
+- Reduce el alcance de: ADR-015-BORRADOR (ver diff aplicado en el propio archivo)
+
+### Decisiones clave
+
+- `AccountingPeriod.year`/`month` NO cambian de significado — año/mes calendario literal siempre. Cero cambio en los ~30 call-sites que resuelven período por fecha.
+- Nuevo modelo `FiscalYear` (reutiliza enum `PeriodStatus`) agrupa los 12 `AccountingPeriod` de un ejercicio. `FiscalYear.year` es la ETIQUETA del ejercicio (año de INICIO) — puede diferir del `year` literal de sus períodos en régimen irregular.
+- `Company.fiscalYearStartMonth Int @default(1)`, copiado a `FiscalYear.startMonth` al abrir (inmutable histórico). Se descartó un `FiscalYearConfig` separado — redundante.
+- Se elimina "un solo período OPEN a la vez" → "máximo 2 `FiscalYear` OPEN simultáneos" (D-9), apertura estrictamente secuencial sin huecos (D-10).
+- "Ejercicio activo" es DERIVADO (el `FiscalYear` OPEN más reciente), no persistido.
+- `closeFiscalYear` extendido: cierra los 12 períodos + genera el asiento en la misma tx `Serializable`. Corrige H-2 (asumía diciembre/año-calendario en 3 puntos — inofensivo hoy, corregido de raíz).
+- `openFiscalYear` (nuevo) también en `Serializable` (D-11) — la validación "máx. 2 OPEN" es lectura-decide-escribe, vulnerable a carrera bajo Read Committed entre aperturas de años distintos.
+
+### Checklist arch-agent (detalle completo en el ADR)
+
+- [x] onDelete Restrict en las 3 relaciones nuevas + fix H-1 (AccountingPeriod.company sin onDelete explícito)
+- [x] Sin campos monetarios/porcentaje/deletedAt/idempotencyKey nuevos — N/A documentado (mismo criterio que AccountingPeriod)
+- [x] @@unique([companyId, year]) en FiscalYear — nunca global
+- [x] Índices: FiscalYear(companyId,status), AccountingPeriod(companyId,fiscalYearId), FiscalYearClose(fiscalYearId)
+- [x] AuditLog: FiscalYear/OPEN + FiscalYearClose/CLOSE (ya existía)
+- [x] Riesgo de migración documentado — aditivo, sin reset destructivo, backfill idempotente
+- [x] openFiscalYearAction/closeFiscalYearAction: rol OWNER|ADMIN|ACCOUNTANT (ADR-006 D-1); closeFiscalYearAction conserva el step-up 2FA de Q2-3
+- [x] limiters.fiscal en ambas actions (ADR-006 D-5); AuditLog append-only sin cambios
+- [x] Serializable confirmado en apertura Y cierre (Z-3/ADR-001, D-11)
+
+### Preguntas abiertas
+
+1. Backfill que reabre meses cerrados individualmente del ejercicio en curso de empresas Alpha — recomendación: reabrir con AuditLog de rastro, dry-run antes de aplicar en prod.
+2. Ejercicio irregular <12 meses (transición de régimen SENIAT) — diferido (YAGNI) hasta cliente real.

@@ -14,10 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { openPeriodAction } from "@/modules/accounting/actions/period.actions";
+import { openFiscalYearAction } from "@/modules/accounting/actions/fiscal-year.actions";
 import { onboardingUpdateCompanyProfileAction } from "@/modules/company/actions/onboarding.actions";
 import {
-  MONTHS,
   PathChoice,
   ScratchStepBar,
   StepCompanyData,
@@ -91,7 +90,7 @@ export function SetupWizard({
   });
   const [periodForm, setPeriodForm] = useState(() => {
     const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+    return { year: now.getFullYear() };
   });
   const [accountsConfirmed, setAccountsConfirmed] = useState(hasAccounts);
 
@@ -150,16 +149,15 @@ export function SetupWizard({
 
   function handleOpenPeriod() {
     startTransition(async () => {
-      const res = await openPeriodAction({
+      const res = await openFiscalYearAction({
         companyId,
         year: periodForm.year,
-        month: periodForm.month,
       });
       if (!res.success) {
         toast.error(res.error);
         return;
       }
-      toast.success(`Período ${MONTHS[periodForm.month - 1]} ${periodForm.year} abierto`);
+      toast.success(`Ejercicio fiscal ${periodForm.year} abierto`);
       updateProgress({ step: 4 });
     });
   }

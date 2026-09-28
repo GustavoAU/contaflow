@@ -9,7 +9,6 @@ const mockPendingTasksService = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   default: {
     company: { findUnique: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },
     bankAccount: { findMany: vi.fn() },
     invoice: { findMany: vi.fn() },
     payrollRun: { findFirst: vi.fn() },
@@ -26,7 +25,14 @@ vi.mock("@/modules/dashboard/services/PendingTasksService", () => ({
   PendingTasksService: mockPendingTasksService,
 }));
 
+// ADR-055: el período activo se resuelve vía FiscalYearService.getActivePeriodInfo
+// (fuente única) en vez de un accountingPeriod.findFirst propio.
+vi.mock("@/modules/accounting/services/FiscalYearService", () => ({
+  FiscalYearService: { getActivePeriodInfo: vi.fn() },
+}));
+
 import prisma from "@/lib/prisma";
+import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 import { AIContextBuilderService } from "../services/AIContextBuilderService";
 
 const COMPANY_ID = "company-test";
@@ -37,11 +43,13 @@ function setupDefaults() {
     rif: "J-12345678-9",
     isSpecialContributor: false,
   } as never);
-  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+  vi.mocked(FiscalYearService.getActivePeriodInfo).mockResolvedValue({
+    id: "period-1",
     year: 2026,
     month: 4,
-    status: "OPEN",
-  } as never);
+    openedAt: new Date("2026-01-01"),
+    fiscalYear: 2026,
+  });
   vi.mocked(prisma.bankAccount.findMany).mockResolvedValue([]);
   // invoice.findMany se llama 3 veces: IVA, CxC, CxP — default: []
   vi.mocked(prisma.invoice.findMany).mockResolvedValue([]);
@@ -70,11 +78,11 @@ describe("AIContextBuilderService.buildContext", () => {
 
   it("devuelve activePeriod cuando hay un período OPEN", async () => {
     const ctx = await AIContextBuilderService.buildContext(COMPANY_ID);
-    expect(ctx.activePeriod).toEqual({ year: 2026, month: 4, status: "OPEN" });
+    expect(ctx.activePeriod).toMatchObject({ year: 2026, month: 4 });
   });
 
-  it("devuelve activePeriod null cuando no hay período abierto", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
+  it("devuelve activePeriod null cuando no hay ejercicio fiscal activo", async () => {
+    vi.mocked(FiscalYearService.getActivePeriodInfo).mockResolvedValue(null);
     const ctx = await AIContextBuilderService.buildContext(COMPANY_ID);
     expect(ctx.activePeriod).toBeNull();
   });

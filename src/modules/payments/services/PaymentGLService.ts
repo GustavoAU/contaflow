@@ -12,6 +12,7 @@ import type { Prisma } from "@prisma/client";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { normalizeRifOrNull } from "@/lib/tax-config";
 import { resolvePartyIdByLinkOrRif, batchResolvePartyIdsByRif } from "@/lib/party-resolver";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -165,16 +166,10 @@ export class PaymentGLService {
       throw new Error("La cuenta bancaria no pertenece a esta empresa");
     }
 
-    // Resolver período activo (R-3: período CLOSED → no postear)
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!period) {
-      throw new Error(
-        "No hay período contable abierto. Abre un período antes de registrar asientos.",
-      );
-    }
+    // Resolver período activo (R-3: período CLOSED → no postear). ADR-055 (barrido HIGH
+    // security-agent): antes un findFirst({status:'OPEN'}) sin filtrar por `date` podía
+    // devolver un mes distinto al del pago, con un ejercicio de 12 meses OPEN a la vez.
+    const period = await PeriodService.assertDateInOpenPeriod(companyId, date, tx);
 
     const number = await generateTxNumber(tx, companyId, date);
 
@@ -416,16 +411,10 @@ export class PaymentGLService {
       throw new Error("La cuenta bancaria no pertenece a esta empresa");
     }
 
-    // Resolver período activo (R-3: período CLOSED → no postear)
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!period) {
-      throw new Error(
-        "No hay período contable abierto. Abre un período antes de registrar asientos.",
-      );
-    }
+    // Resolver período activo (R-3: período CLOSED → no postear). ADR-055 (barrido HIGH
+    // security-agent): antes un findFirst({status:'OPEN'}) sin filtrar por `date` podía
+    // devolver un mes distinto al del pago, con un ejercicio de 12 meses OPEN a la vez.
+    const period = await PeriodService.assertDateInOpenPeriod(companyId, date, tx);
 
     const number = await generateTxNumber(tx, companyId, date);
     const amountVes = new Decimal(input.amountVes.toString());
@@ -562,16 +551,10 @@ export class PaymentGLService {
       throw new Error("La cuenta bancaria no pertenece a esta empresa");
     }
 
-    // Resolver período activo
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!period) {
-      throw new Error(
-        "No hay período contable abierto. Abre un período antes de registrar asientos.",
-      );
-    }
+    // Resolver período activo. ADR-055 (barrido HIGH security-agent): antes un
+    // findFirst({status:'OPEN'}) sin filtrar por `date` podía devolver un mes distinto
+    // al del pago, con un ejercicio de 12 meses OPEN a la vez.
+    const period = await PeriodService.assertDateInOpenPeriod(companyId, date, tx);
 
     const number = await generateTxNumber(tx, companyId, date);
 
@@ -771,15 +754,9 @@ export class PaymentGLService {
     });
     if (!originalTx || originalTx.status === "VOIDED") return;
 
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!period) {
-      throw new Error(
-        "No hay período contable abierto para registrar el asiento de reverso.",
-      );
-    }
+    // ADR-055 (barrido HIGH security-agent): antes un findFirst({status:'OPEN'}) sin
+    // filtrar por `context.date` podía devolver un mes distinto al del reverso.
+    const period = await PeriodService.assertDateInOpenPeriod(companyId, context.date, tx);
 
     const number = await generateTxNumber(tx, companyId, context.date);
     const reverseDesc = `Reverso — ${originalTx.description}`;
@@ -864,15 +841,9 @@ export class PaymentGLService {
     });
     if (!originalTx || originalTx.status === "VOIDED") return;
 
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!period) {
-      throw new Error(
-        "No hay período contable abierto para registrar el asiento de reverso.",
-      );
-    }
+    // ADR-055 (barrido HIGH security-agent): antes un findFirst({status:'OPEN'}) sin
+    // filtrar por `context.date` podía devolver un mes distinto al del reverso.
+    const period = await PeriodService.assertDateInOpenPeriod(companyId, context.date, tx);
 
     const number = await generateTxNumber(tx, companyId, context.date);
     const reverseDesc = `Reverso — ${originalTx.description}`;

@@ -15,17 +15,23 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: { findFirst: vi.fn() },
     account: { count: vi.fn(), findMany: vi.fn() },
     transaction: { count: vi.fn(), findFirst: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },
   },
 }));
 
+// ADR-055: getDashboardMetricsAction delega en FiscalYearService.getActivePeriodInfo
+// (fuente única) en vez de un accountingPeriod.findFirst propio.
+vi.mock("../services/FiscalYearService", () => ({
+  FiscalYearService: { getActivePeriodInfo: vi.fn() },
+}));
+
 import prisma from "@/lib/prisma";
+import { FiscalYearService } from "../services/FiscalYearService";
 import { getDashboardMetricsAction } from "../actions/dashboard.actions";
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
 
-const mockActivePeriod = { id: "period-1", year: 2026, month: 3, status: "OPEN" };
+const mockActivePeriod = { id: "period-1", year: 2026, month: 3, openedAt: new Date("2026-01-01"), fiscalYear: 2026 };
 const mockLastTransaction = {
   number: "2026-03-000001",
   description: "Venta de mercancia",
@@ -38,7 +44,7 @@ function setupAuthOk() {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
   vi.mocked(prisma.account.count).mockResolvedValue(0);
   vi.mocked(prisma.transaction.count).mockResolvedValue(0);
-  vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+  vi.mocked(FiscalYearService.getActivePeriodInfo).mockResolvedValue(null);
   vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.account.findMany).mockResolvedValue([]);
 }
@@ -95,7 +101,7 @@ describe("getDashboardMetricsAction — lógica", () => {
     vi.mocked(prisma.transaction.count)
       .mockResolvedValueOnce(1) // totalTransactions
       .mockResolvedValueOnce(1); // monthTransactions
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(mockActivePeriod as never);
+    vi.mocked(FiscalYearService.getActivePeriodInfo).mockResolvedValue(mockActivePeriod);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(mockLastTransaction as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue([
       { type: "ASSET",   journalEntries: [{ amount: 1000 }] },

@@ -5,6 +5,7 @@ import type { PrismaClient } from "@prisma/client";
 import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/transaction.schema";
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+import { PeriodService } from "./PeriodService";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { TX_STATUS, MAX_PAGE_SIZE } from "../constants";
 
@@ -212,24 +213,12 @@ export class TransactionService {
     // 5. Verificar que hay un período abierto y que la fecha del asiento cae en él.
     // Sin esta validación sería posible registrar un asiento backdateado a un período
     // cerrado mientras otro período está abierto, violando el Art. 36 del Código de Comercio.
-    const activePeriod = await prisma.accountingPeriod.findFirst({
-      where: { companyId: validated.companyId, status: "OPEN" },
-    });
-
-    if (!activePeriod) {
-      throw new Error(
-        "No hay período contable abierto. Abre un período en Configuración antes de registrar asientos."
-      );
-    }
-
-    const txMonth = txDate.getUTCMonth() + 1;
-    if (txYear !== activePeriod.year || txMonth !== activePeriod.month) {
-      throw new Error(
-        `La fecha del asiento (${txYear}-${String(txMonth).padStart(2, "0")}) no corresponde ` +
-        `al período abierto (${activePeriod.year}-${String(activePeriod.month).padStart(2, "0")}). ` +
-        `Abre el período correcto antes de registrar.`
-      );
-    }
+    // ADR-055 (barrido HIGH security-agent): antes resolvía "el período OPEN" con un
+    // findFirst sin filtrar por la fecha del asiento — con un ejercicio abierto (12 meses
+    // OPEN a la vez) devolvía un mes arbitrario, no el mes real de txDate, rechazando
+    // asientos válidos o asignándoles el período equivocado. assertDateInOpenPeriod
+    // resuelve por la fecha real y valida también fiscalYear.status.
+    const activePeriod = await PeriodService.assertDateInOpenPeriod(validated.companyId, txDate);
 
     // 6. Generar numero correlativo y crear transaccion + AuditLog de forma atómica.
     // Serializable garantiza que ningún otro worker puede leer/escribir el mismo prefijo
@@ -332,19 +321,16 @@ export class TransactionService {
       );
     }
 
-    // 4. Verificar que hay un período abierto para registrar el asiento de anulación
-    const activePeriodForVoid = await prisma.accountingPeriod.findFirst({
-      where: { companyId: original.companyId, status: "OPEN" },
-    });
-    if (!activePeriodForVoid) {
-      throw new Error(
-        "No hay período contable abierto. No se puede registrar el asiento de anulación."
-      );
-    }
+    // 4. Verificar que hay un período abierto para registrar el asiento de anulación.
+    // ADR-055 (barrido HIGH security-agent): antes resolvía "el período OPEN" con un
+    // findFirst sin filtrar por la fecha del asiento de anulación (hoy) — con un ejercicio
+    // abierto (12 meses OPEN a la vez) podía devolver un mes distinto a hoy y asignar un
+    // periodId equivocado a la anulación. assertDateInOpenPeriod resuelve por fecha real.
+    const voidDate = new Date();
+    const activePeriodForVoid = await PeriodService.assertDateInOpenPeriod(original.companyId, voidDate);
 
     // 5. Crear asiento de contrapartida y marcar original como VOIDED.
     // Serializable garantiza que el correlativo de anulación no genera duplicado (Z-1).
-    const voidDate = new Date();
     const voidTransaction = await prisma.$transaction(async (tx) => {
       const voidNumber = await TransactionService.generateTransactionNumber(
         original.companyId,
