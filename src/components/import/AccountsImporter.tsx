@@ -178,9 +178,19 @@ export function AccountsImporter({ companyId, userId }: Props) {
             <li>
               Completa las columnas: <strong>codigo, nombre, tipo, descripcion</strong>
             </li>
-            <li>Los tipos válidos son: Activo, Pasivo, Patrimonio, Ingreso, Gasto</li>
+            <li>
+              Los tipos válidos son: Activo, Pasivo, Patrimonio, Ingreso, Gasto (las cuentas de
+              Costo también se marcan como Gasto — ContaFlow no las distingue como tipo aparte)
+            </li>
             <li>Sube el archivo y confirma la importación</li>
           </ol>
+          <p className="mt-2 text-xs text-blue-600">
+            ¿Ya tienes tu plan de cuentas en Excel de otro sistema? También puedes subirlo
+            directamente: se acepta &quot;Código&quot;/&quot;Descripción&quot; con tilde, columna
+            &quot;G/M&quot; (G = cuenta de título, sin movimientos) y &quot;Ter.&quot; = &quot;SI&quot;
+            para marcar cuentas que exigen indicar cliente/proveedor en cada asiento. No debe haber
+            título ni filas en blanco antes de la fila de encabezados.
+          </p>
           <Button
             variant="outline"
             size="sm"
