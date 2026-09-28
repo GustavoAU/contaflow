@@ -5,7 +5,10 @@ export const ImportAccountRowSchema = z.object({
   codigo: z.string().min(1, "El código es obligatorio"),
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   tipo: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
-    error: "Tipo debe ser: ASSET, CONTRA_ASSET, LIABILITY, EQUITY, REVENUE o EXPENSE",
+    // El valor real sigue en inglés (nombre del enum en BD) — ImportService.normalizeAccountRows
+    // ya traduce "Activo"/"Pasivo"/etc antes de llegar aquí (TIPO_ES_TO_EN). Este mensaje es lo
+    // que ve un contador si aun así no matchea nada, así que va en español.
+    error: "Tipo debe ser: Activo, Contra-activo, Pasivo, Patrimonio, Ingreso o Gasto",
   }),
 
   descripcion: z.string().optional(),

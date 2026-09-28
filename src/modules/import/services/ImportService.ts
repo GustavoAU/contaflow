@@ -5,6 +5,21 @@ import { ImportAccountsSchema, type ImportAccountRow } from "../schemas/import.s
 
 const ACCOUNT_TYPES = new Set(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]);
 
+// Mismas etiquetas en español que ya usa AccountsTable.tsx (TYPE_LABELS) — un contador
+// que no lee inglés no sabe qué es "ASSET". El archivo puede seguir trayendo el nombre
+// en inglés del enum (compatibilidad con plantillas viejas o quien ya lo conoce así).
+const TIPO_ES_TO_EN: Record<string, string> = {
+  ACTIVO: "ASSET",
+  "CONTRA-ACTIVO": "CONTRA_ASSET",
+  "CONTRA ACTIVO": "CONTRA_ASSET",
+  PASIVO: "LIABILITY",
+  PATRIMONIO: "EQUITY",
+  INGRESO: "REVENUE",
+  INGRESOS: "REVENUE",
+  GASTO: "EXPENSE",
+  GASTOS: "EXPENSE",
+};
+
 // Convención estándar venezolana: el primer dígito del código clasifica la cuenta, así es
 // como cualquier contador ya lee un plan de cuentas, sin tener que clasificar nada a mano.
 // CONTRA_ASSET nunca se infiere (comparte dígito "1" con ASSET) — solo llega por columna "tipo"
@@ -99,7 +114,11 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     // normaliza al MISMO nombre de encabezado que la "tipo" ASSET/LIABILITY de la plantilla
     // vieja — un código de 1-2 letras ("O", "C") nunca puede ser un AccountType, así que se
     // ignora y se infiere del dígito, igual que si la columna no existiera.
-    const explicitTipo = hasCol("tipo") ? String(get("tipo") ?? "").trim().toUpperCase() : "";
+    const explicitTipoRaw = hasCol("tipo") ? stripAccents(String(get("tipo") ?? "")).trim().toUpperCase() : "";
+    // Acepta "Activo"/"Pasivo"/etc (español, lo que ve el usuario en la plantilla) y también
+    // "ASSET"/"LIABILITY"/etc (inglés, nombre real del enum) — TIPO_ES_TO_EN no toca lo que
+    // ya es un nombre de enum válido, solo traduce si reconoce la palabra en español.
+    const explicitTipo = TIPO_ES_TO_EN[explicitTipoRaw] ?? explicitTipoRaw;
     let tipo: string;
     if (explicitTipo.length > 2) {
       tipo = explicitTipo;
@@ -107,7 +126,7 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
       const inferred = inferAccountTypeFromCode(codigo);
       if (!inferred) {
         throw new Error(
-          `No se pudo determinar el tipo de cuenta para el código "${codigo}" — agrega una columna "tipo" con ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE/CONTRA_ASSET.`
+          `No se pudo determinar el tipo de cuenta para el código "${codigo}" — agrega una columna "tipo" con Activo/Pasivo/Patrimonio/Ingreso/Gasto/Contra-activo.`
         );
       }
       tipo = inferred;
@@ -256,22 +275,15 @@ export class ImportService {
     ws.columns = [
       { header: "codigo", width: 10 },
       { header: "nombre", width: 30 },
-      { header: "tipo", width: 12 },
+      { header: "tipo", width: 14 },
       { header: "descripcion", width: 35 },
     ];
 
-    const data = [
-      { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo en caja" },
-      { codigo: "1110", nombre: "Bancos", tipo: "ASSET", descripcion: "Cuentas bancarias" },
-      { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY", descripcion: "Cuentas por pagar" },
-      { codigo: "3105", nombre: "Capital Social", tipo: "EQUITY", descripcion: "Capital de la empresa" },
-      { codigo: "4105", nombre: "Ventas", tipo: "REVENUE", descripcion: "Ingresos por ventas" },
-      { codigo: "5105", nombre: "Gastos de Operación", tipo: "EXPENSE", descripcion: "Gastos operativos" },
-    ];
-
-    data.forEach((row) =>
-      ws.addRow([row.codigo, row.nombre, row.tipo, row.descripcion])
-    );
+    // Feedback tester Alpha 2026-09-28: la plantilla traía 6 cuentas de ejemplo ya
+    // llenas (Caja General, Bancos...) — parecía que ya tenía datos reales cargados y
+    // listos para enviar, en vez de un formato vacío para que ella escriba SU plan de
+    // cuentas. Solo encabezados; la caja azul de instrucciones en la página ya explica
+    // las columnas y los tipos válidos, no hace falta una fila de ejemplo aquí.
 
     const buffer = await wb.xlsx.writeBuffer();
     return Buffer.from(buffer);
