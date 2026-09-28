@@ -39,8 +39,10 @@ vi.mock("@/lib/prisma", () => ({
     vendor: {
       findMany: vi.fn(),
     },
+    // ADR-055: createRetentionAction (ALERTA 20) delega en
+    // PeriodService.assertDateInOpenPeriod, que usa findUnique.
     accountingPeriod: {
-      findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     // ADR-055: getActivePeriodAction delega en FiscalYearService.getActiveFiscalYear,
     // que consulta prisma.fiscalYear (no accountingPeriod directo).
@@ -190,6 +192,12 @@ describe("createRetentionAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    // ADR-055 (ALERTA 20): período OPEN por defecto que coincide con
+    // VALID_INPUT.invoiceDate (2026-03-10) — assertDateInOpenPeriod ya no tiene el
+    // bypass "sin período = permitir" que tenía el findFirst anterior.
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+    } as never);
     // Por defecto: sin factura vinculada y sin cuentas GL → no genera asiento GL
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
@@ -894,47 +902,59 @@ describe("createRetentionAction — ALERTA 20: período contable activo", () => 
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
-  it("ALERTA 20: rechaza retención cuando la fecha está fuera del período activo", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
-      year: 2026,
-      month: 3, // período activo: marzo 2026
-    } as never);
+  // ADR-055 (barrido HIGH security-agent): antes se buscaba "el período OPEN más
+  // reciente" con un findFirst sin filtrar por la fecha real de la factura — con un
+  // ejercicio de 12 meses OPEN a la vez eso rechazaba sistemáticamente cualquier
+  // factura fechada fuera del último mes calendario. Ahora delega en
+  // PeriodService.assertDateInOpenPeriod, que resuelve por findUnique(companyId,
+  // año/mes REAL de la factura) — y por diseño (Z-1, igual que
+  // createBalancedTransaction) EXIGE que exista un período para esa fecha, sin el
+  // bypass anterior de "sin período = permitir" (una empresa sin ningún ejercicio
+  // abierto debe abrirlo primero — paso 3 del onboarding).
+  it("ALERTA 20: rechaza retención cuando no existe AccountingPeriod para la fecha de la factura", async () => {
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
 
     const result = await createRetentionAction({
       ...VALID_INPUT,
-      invoiceDate: new Date("2026-02-15"), // febrero — fuera del período activo
+      invoiceDate: new Date("2026-02-15"),
     });
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toContain("fuera del período contable activo");
-      expect(result.error).toContain("03/2026");
+      expect(result.error).toContain("No existe un período contable abierto");
+      expect(result.error).toContain("02/2026");
     }
   });
 
-  it("ALERTA 20: permite retención cuando la fecha está dentro del período activo", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+  it("ALERTA 20: permite retención cuando existe un AccountingPeriod OPEN para la fecha de la factura", async () => {
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-mar-2026",
       year: 2026,
-      month: 3, // período activo: marzo 2026
+      month: 3,
+      status: "OPEN",
+      fiscalYear: { status: "OPEN" },
     } as never);
 
     const result = await createRetentionAction({
       ...VALID_INPUT,
-      invoiceDate: new Date("2026-03-10"), // marzo — dentro del período activo
+      invoiceDate: new Date("2026-03-10"),
     });
 
     expect(result.success).toBe(true);
   });
 
-  it("ALERTA 20: permite retención cuando no hay período activo (empresa sin período configurado)", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+  it("ALERTA 20: rechaza retención cuando la empresa no tiene ningún ejercicio fiscal abierto", async () => {
+    // Antes ("empresa sin período configurado") esto se PERMITÍA como bypass —
+    // ahora exige abrir el ejercicio primero (mismo criterio que TransactionService).
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
 
     const result = await createRetentionAction({
       ...VALID_INPUT,
-      invoiceDate: new Date("2025-06-01"), // fecha arbitraria, sin período que la bloquee
+      invoiceDate: new Date("2025-06-01"),
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("No existe un período contable abierto");
   });
 });
 
@@ -1010,7 +1030,12 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null); // sin restricción de período
+    // ADR-055: ya no hay bypass de "sin período = permitir" (ver ALERTA 20 arriba) —
+    // estos tests no ejercitan esa validación, así que se mockea un período OPEN
+    // que coincide con VALID_INPUT.invoiceDate (2026-03-10) para que no interfiera.
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.$transaction).mockImplementation(
       ((fn: (tx: unknown) => unknown) =>
         fn({

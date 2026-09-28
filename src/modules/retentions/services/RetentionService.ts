@@ -6,6 +6,7 @@ import type { EnterRetentionInput } from "../schemas/retention.schema";
 import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 
 // ─── getNextIvaVoucherNumber ────────────────────────────────────────────────────
 // ADR-052 / Prov. 0049: AAAAMM + 8 dígitos. El contador es CONTINUO — una sola
@@ -205,10 +206,10 @@ export async function enterRetention(
     if (retention.status === "ENTERADO") throw new Error("La retención ya fue enterada");
     if (retention.status === "VOIDED") throw new Error("No se puede enterar una retención anulada");
 
-    const period = await tx.accountingPeriod.findFirst({
-      where: { companyId: input.companyId, status: "OPEN" },
-    });
-    if (!period) throw new Error("No hay período contable abierto");
+    // ADR-055 (barrido HIGH security-agent): antes un findFirst({status:'OPEN'}) sin
+    // filtrar por la fecha real del enteramiento podía devolver un mes distinto, con un
+    // ejercicio de 12 meses OPEN a la vez.
+    const period = await PeriodService.assertDateInOpenPeriod(input.companyId, input.enterDate, tx);
 
     // Validate accounts belong to company
     const [liabilityAccount, bankAccount] = await Promise.all([

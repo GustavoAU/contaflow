@@ -67,7 +67,9 @@ vi.mock("@/lib/prisma", () => ({
     companyMember: { findFirst: vi.fn() },
     fiscalYearClose: { findUnique: vi.fn() },
     invoice: { findFirst: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },
+    // ADR-055: createRetentionAction (ALERTA 20) delega en
+    // PeriodService.assertDateInOpenPeriod, que usa findUnique.
+    accountingPeriod: { findUnique: vi.fn() },
     companySettings: { findUnique: vi.fn() },
     transaction: { create: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -174,7 +176,11 @@ describe("createRetentionAction — recuperación P2002 con el dato VALIDADO", (
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never);
+    // ADR-055: período OPEN que coincide con VALID_INPUT.invoiceDate (2026-03-10) —
+    // ya no hay bypass de "sin período = permitir" (ver ALERTA 20 en retention.actions.test.ts).
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.retencion.findFirst).mockImplementation(fakeFindFirst(db) as never);
   });

@@ -29,6 +29,7 @@ import {
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
+import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { mapPrismaError, isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -132,30 +133,19 @@ export async function createRetentionAction(
       }
     }
 
-    // ALERTA 20: la fecha de factura debe caer dentro del período contable activo
-    const activePeriod = await prisma.accountingPeriod.findFirst({
-      where: { companyId: data.companyId, status: "OPEN" },
-      orderBy: [{ year: "desc" }, { month: "desc" }],
-      select: { year: true, month: true },
-    });
-    if (activePeriod) {
-      const periodStart = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, 1));
-      // getUTCDate: la fecha se construye con Date.UTC, leerla en local devolvía el
-      // día ANTERIOR en zonas negativas (30 en vez de 31) y recortaba el período.
-      const lastDay = new Date(Date.UTC(activePeriod.year, activePeriod.month, 0)).getUTCDate();
-      const periodEnd = new Date(Date.UTC(activePeriod.year, activePeriod.month - 1, lastDay, 23, 59, 59));
-      const invDate = new Date(Date.UTC(
-        data.invoiceDate.getUTCFullYear(),
-        data.invoiceDate.getUTCMonth(),
-        data.invoiceDate.getUTCDate()
-      ));
-      if (invDate < periodStart || invDate > periodEnd) {
-        const mm = String(activePeriod.month).padStart(2, "0");
-        return {
-          success: false,
-          error: `La fecha de la factura está fuera del período contable activo (${mm}/${activePeriod.year}). Solo se pueden registrar retenciones para facturas del período abierto actual.`,
-        };
-      }
+    // ALERTA 20: la fecha de factura debe caer dentro de un período contable abierto.
+    // ADR-055 (barrido HIGH security-agent): antes buscaba "el período OPEN más
+    // reciente" (findFirst + orderBy year/month desc) y solo aceptaba facturas de ESE
+    // mes — con un ejercicio de 12 meses OPEN a la vez, eso rechazaba sistemáticamente
+    // cualquier factura fechada en los otros 11 meses del ejercicio activo.
+    // assertDateInOpenPeriod resuelve directamente por la fecha real de la factura.
+    try {
+      await PeriodService.assertDateInOpenPeriod(data.companyId, data.invoiceDate);
+    } catch (periodError) {
+      return {
+        success: false,
+        error: periodError instanceof Error ? periodError.message : "Período contable inválido para esta factura.",
+      };
     }
 
     const calc = RetentionService.calculate(

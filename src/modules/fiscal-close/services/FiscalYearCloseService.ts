@@ -1,7 +1,7 @@
 // src/modules/fiscal-close/services/FiscalYearCloseService.ts
 import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
-import { SERIALIZABLE_TX_OPTIONS } from "@/lib/tx-helpers";
+import { withSerializableRetry } from "@/lib/tx-helpers";
 import { PeriodSnapshotService } from "@/modules/accounting/services/PeriodSnapshotService";
 import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 import { Decimal } from "decimal.js";
@@ -72,7 +72,7 @@ export class FiscalYearCloseService {
           "contaflow.fiscal_year": year,
         },
       },
-      () => prisma.$transaction(
+      () => withSerializableRetry(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Idempotencia: no permitir doble cierre ─────────────────────────
         const existing = await tx.fiscalYearClose.findUnique({
@@ -315,11 +315,13 @@ export class FiscalYearCloseService {
           netResult,
           closingEntriesCount: closingEntries.length,
         };
-      }),
-      // ADR-055: ahora cierra hasta 12 períodos + genera sus snapshots dentro de la
-      // misma tx — timeout/maxWait ampliados (mismo helper que PaymentBatch/ADR-043)
-      // para cubrir cold start Neon + el trabajo adicional.
-      SERIALIZABLE_TX_OPTIONS
+      })
+      // ADR-055 (MEDIUM security-agent): antes usaba prisma.$transaction(fn,
+      // SERIALIZABLE_TX_OPTIONS) directo, sin reintento — un cierre real bajo
+      // contención (un asiento posteado el instante antes del commit) salía con un
+      // P2034 crudo en vez de reintentar. withSerializableRetry aplica
+      // SERIALIZABLE_TX_OPTIONS internamente (mismo timeout/maxWait ampliados para
+      // cubrir cold start Neon + cerrar hasta 12 períodos y generar sus snapshots).
     ));
   }
 
@@ -343,7 +345,7 @@ export class FiscalYearCloseService {
           "contaflow.fiscal_year": year,
         },
       },
-      () => prisma.$transaction(
+      () => withSerializableRetry(
       async (tx) => withCompanyContext(companyId, tx, async (tx) => {
         // ── 1. Cargar el cierre del ejercicio ──────────────────────────────────
         const fiscalClose = await tx.fiscalYearClose.findUnique({
@@ -455,8 +457,9 @@ export class FiscalYearCloseService {
         });
 
         return { appropriationTransactionId: appTx.id };
-      }),
-      { isolationLevel: "Serializable" }
+      })
+      // ADR-055 (MEDIUM security-agent): antes usaba { isolationLevel: "Serializable" }
+      // directo, sin reintento P2034 ni el timeout/maxWait ampliados.
     ));
   }
 

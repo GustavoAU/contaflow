@@ -7,7 +7,8 @@ import { Decimal } from "decimal.js";
 vi.mock("@/lib/prisma", () => ({
   default: {
     bankAccount: { findFirst: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },
+    // ADR-055: assertDateInOpenPeriod resuelve por findUnique(companyId_year_month).
+    accountingPeriod: { findUnique: vi.fn() },
     transaction: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     paymentRecord: { findFirst: vi.fn(), update: vi.fn() },
     paymentBatch: { findFirst: vi.fn(), update: vi.fn() },
@@ -43,7 +44,9 @@ const BASE_CONTEXT = {
 function makeTxMock(overrides: Partial<typeof import("@/lib/prisma")["default"]> = {}) {
   return {
     bankAccount: { findFirst: vi.fn().mockResolvedValue({ accountId: GL_ACCOUNT_ID }) },
-    accountingPeriod: { findFirst: vi.fn().mockResolvedValue({ id: PERIOD_ID }) },
+    accountingPeriod: {
+      findUnique: vi.fn().mockResolvedValue({ id: PERIOD_ID, status: "OPEN", fiscalYear: { status: "OPEN" } }),
+    },
     transaction: {
       findFirst: vi.fn().mockResolvedValue({ id: TX_ID, number: "2026-05-000001" }),
       create: vi.fn().mockResolvedValue({ id: TX_ID }),
@@ -188,7 +191,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
 
   it("lanza error si no hay período contable abierto", async () => {
     const tx = makeTxMock({
-      accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) } as never,
+      accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) } as never,
     } as never);
 
     await expect(
@@ -203,7 +206,7 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         },
         { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
       ),
-    ).rejects.toThrow("No hay período contable abierto");
+    ).rejects.toThrow("No existe un período contable abierto");
   });
 
   it("actualiza PaymentRecord.glTransactionId al ID del asiento generado", async () => {
