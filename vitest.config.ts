@@ -21,6 +21,8 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       "src/__tests__/integration/**", // integration tests run separately: vitest run --config vitest.integration.config.ts
+      "**/.claude/worktrees/**", // worktrees anidados (aislamiento multi-sesión) — no son el working tree que se está testeando
+      "**/.worktrees/**",
     ],
     env: {
       NODE_ENV: "test",
