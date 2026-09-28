@@ -24,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
     },
     transaction: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
     },
@@ -318,12 +319,16 @@ describe("FiscalYearCloseService.appropriateFiscalYearResult", () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({
       id: "fyc-1",
       appropriationTransactionId: null,
+      closingTransactionId: "tx-closing-1",
       netResult: new Decimal("4000"),
     } as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue({
       resultAccountId: "account-result",
       retainedEarningsAccountId: "account-retained",
       retainedEarningsAccount: { id: "account-retained", type: "EQUITY", name: "Utilidades Retenidas" },
+    } as never);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue({
+      date: new Date(YEAR, 11, 31),
     } as never);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-approp-1" } as never);
@@ -342,6 +347,64 @@ describe("FiscalYearCloseService.appropriateFiscalYearResult", () => {
         data: { appropriationTransactionId: "tx-approp-1" },
       })
     );
+    expect(prisma.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          date: new Date(YEAR, 11, 31),
+          number: expect.stringMatching(new RegExp(`^${YEAR}-12-`)),
+        }),
+      })
+    );
+  });
+
+  it("usa la fecha real del asiento de cierre, no diciembre hardcodeado (H-2, régimen irregular)", async () => {
+    const juneClosingDate = new Date(YEAR, 5, 30); // régimen jul-jun: el ejercicio cierra en junio
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({
+      id: "fyc-1",
+      appropriationTransactionId: null,
+      closingTransactionId: "tx-closing-1",
+      netResult: new Decimal("4000"),
+    } as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      resultAccountId: "account-result",
+      retainedEarningsAccountId: "account-retained",
+      retainedEarningsAccount: { id: "account-retained", type: "EQUITY", name: "Utilidades Retenidas" },
+    } as never);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue({ date: juneClosingDate } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-approp-2" } as never);
+    vi.mocked(prisma.fiscalYearClose.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await FiscalYearCloseService.appropriateFiscalYearResult(COMPANY_ID, YEAR, USER_ID);
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          date: juneClosingDate,
+          number: expect.stringMatching(new RegExp(`^${YEAR}-06-`)),
+        }),
+      })
+    );
+  });
+
+  it("throws claro si el asiento de cierre referenciado no existe (dato inconsistente)", async () => {
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({
+      id: "fyc-1",
+      appropriationTransactionId: null,
+      closingTransactionId: "tx-missing",
+      netResult: new Decimal("4000"),
+    } as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      resultAccountId: "account-result",
+      retainedEarningsAccountId: "account-retained",
+      retainedEarningsAccount: { id: "account-retained", type: "EQUITY", name: "Utilidades Retenidas" },
+    } as never);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue(null as never);
+
+    await expect(
+      FiscalYearCloseService.appropriateFiscalYearResult(COMPANY_ID, YEAR, USER_ID)
+    ).rejects.toThrow(`No se encontró el asiento de cierre del ejercicio ${YEAR}`);
   });
 });
 

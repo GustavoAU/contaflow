@@ -389,8 +389,21 @@ export class FiscalYearCloseService {
         const netResult = new Decimal(fiscalClose.netResult.toString());
 
         // ── 3. Generar número correlativo ──────────────────────────────────────
-        const appDate = new Date(year, 11, 31);
-        const prefix = `${year}-12-`;
+        // Fix H-2 (mismo hallazgo que closeFiscalYear, no cubierto ahí): antes
+        // asumía diciembre/año-calendario de forma dura — no válido para régimen
+        // irregular (Company.fiscalYearStartMonth != 1). Reutiliza la fecha real
+        // del asiento de cierre en vez de recalcularla.
+        const closingTransaction = await tx.transaction.findUnique({
+          where: { id: fiscalClose.closingTransactionId },
+          select: { date: true },
+        });
+        if (!closingTransaction) {
+          throw new Error(
+            `No se encontró el asiento de cierre del ejercicio ${year}. Datos inconsistentes.`
+          );
+        }
+        const appDate = closingTransaction.date;
+        const prefix = `${appDate.getFullYear()}-${String(appDate.getMonth() + 1).padStart(2, "0")}-`;
         const lastTx = await tx.transaction.findFirst({
           where: { companyId, number: { startsWith: prefix } },
           orderBy: { number: "desc" },

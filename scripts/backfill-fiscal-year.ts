@@ -98,7 +98,7 @@ async function main() {
     for (const [year, group] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
       const fiscalClose = await prisma.fiscalYearClose.findUnique({
         where: { companyId_year: { companyId: company.id, year } },
-        select: { id: true, fiscalYearId: true },
+        select: { id: true, fiscalYearId: true, closedAt: true, closedBy: true },
       });
       const status = fiscalClose ? "CLOSED" : "OPEN";
 
@@ -120,7 +120,13 @@ async function main() {
               startMonth: 1,
               status,
               openedBy: SYSTEM_USER,
-              ...(status === "CLOSED" ? { closedAt: fiscalClose ? undefined : null } : {}),
+              // Hallazgo LOW security-agent: antes dejaba closedAt/closedBy en NULL para un
+              // FiscalYear backfilleado en CLOSED (dato inconsistente — "cerrado" sin metadata
+              // de cierre). fiscalClose siempre existe aquí porque status==="CLOSED" se deriva
+              // exactamente de su existencia (ver arriba).
+              ...(status === "CLOSED" && fiscalClose
+                ? { closedAt: fiscalClose.closedAt, closedBy: fiscalClose.closedBy }
+                : {}),
             },
             select: { id: true, status: true },
           });

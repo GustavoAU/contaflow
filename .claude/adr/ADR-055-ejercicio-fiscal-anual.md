@@ -254,14 +254,18 @@ la mutación que lo invoca) sigue siendo suficiente, sin cambio respecto a hoy.
 
 ### D-12 — Seguridad (ADR-006/ADR-041, pre-flight paso 6)
 
-- `openFiscalYearAction`: rol `OWNER|ADMIN|ACCOUNTANT` (mismo nivel que hoy exige abrir/cerrar un
-  período — no es más destructivo que la acción que reemplaza). Rate limit `limiters.fiscal`
-  (ADR-006 D-5). **No** requiere step-up 2FA — mismo criterio que el `openPeriod` actual (no genera
-  asientos ni bloquea nada de forma irreversible).
+- `openFiscalYearAction`: rol `OWNER|ADMIN` (`ROLES.ADMIN_ONLY`) — corrección 2026-09-28, esta
+  sección decía `OWNER|ADMIN|ACCOUNTANT` pero el código implementado siempre usó `ADMIN_ONLY`, más
+  estricto que el nivel que hoy exige abrir/cerrar un período mensual individual (deliberado: abre
+  los 12 meses del ejercicio de una vez). Rate limit `limiters.fiscal` (ADR-006 D-5). **No** requiere
+  step-up 2FA — mismo criterio que el `openPeriod` actual (no genera asientos ni bloquea nada de
+  forma irreversible).
 - `closeFiscalYearAction`: conserva **sin degradar** el step-up 2FA que ya tiene desde Q2-3
   (`STEP_UP_CONFIG`, `src/lib/step-up.ts`) — cerrar un ejercicio sigue siendo la acción más
   irreversible del sistema contable, ahora con mayor radio de efecto (cierra 12 meses de una vez, no
-  1). Rol `OWNER|ADMIN|ACCOUNTANT`, rate limit `limiters.fiscal`.
+  1). Rol `OWNER|ADMIN` (`ROLES.ADMIN_ONLY`) — misma corrección 2026-09-28 que `openFiscalYearAction`,
+  consistente con el propio razonamiento de este punto (mayor radio de efecto → rol más restrictivo,
+  no el mismo que el flujo mensual que reemplaza). Rate limit `limiters.fiscal`.
 - `AuditLog`: una entrada `FiscalYear`/`OPEN` (con la lista de los 12 `periodId` creados en `newValue`,
   en vez de 12 entradas separadas — evita spam de auditoría sin perder trazabilidad) y se conserva la
   entrada `FiscalYearClose`/`CLOSE` que ya existe hoy. Ambas dentro del mismo `$transaction`, con
