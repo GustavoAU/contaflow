@@ -34,6 +34,7 @@ type ImportResult = {
 
 const TYPE_LABELS: Record<string, string> = {
   ASSET: "Activo",
+  CONTRA_ASSET: "Contra-activo",
   LIABILITY: "Pasivo",
   EQUITY: "Patrimonio",
   REVENUE: "Ingreso",
@@ -177,7 +178,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
             <li>
               Completa las columnas: <strong>codigo, nombre, tipo, descripcion</strong>
             </li>
-            <li>Los tipos válidos son: ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE</li>
+            <li>Los tipos válidos son: Activo, Pasivo, Patrimonio, Ingreso, Gasto</li>
             <li>Sube el archivo y confirma la importación</li>
           </ol>
           <Button

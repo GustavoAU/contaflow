@@ -104,6 +104,30 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[0].tipo).toBe("EQUITY");
   });
 
+  // Feedback tester Alpha 2026-09-28: un contador que no lee inglés no sabe qué es
+  // "ASSET" — la plantilla y el "tipo" que escribe ahora son en español, se traducen
+  // al enum real (TIPO_ES_TO_EN) antes de llegar a Zod.
+  it.each([
+    ["Activo", "ASSET"],
+    ["Pasivo", "LIABILITY"],
+    ["Patrimonio", "EQUITY"],
+    ["Ingreso", "REVENUE"],
+    ["Gasto", "EXPENSE"],
+    ["Contra-activo", "CONTRA_ASSET"],
+    ["ACTIVO", "ASSET"],
+    ["activo", "ASSET"],
+  ])("traduce el tipo en español %s al enum %s", async (tipoEs, esperado) => {
+    const buffer = await makeExcelBuffer([{ codigo: "9105", nombre: "Cuenta", tipo: tipoEs }]);
+    const rows = await ImportService.parseAccountsExcel(buffer);
+    expect(rows[0].tipo).toBe(esperado);
+  });
+
+  it("sigue aceptando el nombre del enum en inglés (compatibilidad)", async () => {
+    const buffer = await makeExcelBuffer([{ codigo: "1105", nombre: "Caja", tipo: "ASSET" }]);
+    const rows = await ImportService.parseAccountsExcel(buffer);
+    expect(rows[0].tipo).toBe("ASSET");
+  });
+
   // ---------------------------------------------------------------------------
   // Feature: cuentas de título (G/M) + inferencia de tipo por dígito + alias
   // nombre/descripcion — archivo real de la tester (formato estándar ERP venezolano)
@@ -486,5 +510,15 @@ describe("ImportService.generateAccountsTemplate", () => {
     expect(firstRow).toContain("codigo");
     expect(firstRow).toContain("nombre");
     expect(firstRow).toContain("tipo");
+  });
+
+  // Feedback tester Alpha 2026-09-28: la plantilla traía 6 cuentas de ejemplo ya
+  // llenas — parecía datos reales listos para enviar en vez de un formato vacío.
+  it("no trae cuentas de ejemplo precargadas — solo encabezados", async () => {
+    const buffer = await ImportService.generateAccountsTemplate();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const ws = wb.worksheets[0];
+    expect(ws.rowCount).toBe(1);
   });
 });
