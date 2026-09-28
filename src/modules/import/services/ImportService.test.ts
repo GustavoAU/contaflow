@@ -242,6 +242,54 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[0].isPostable).toBe(true); // M
   });
 
+  // ---------------------------------------------------------------------------
+  // Bug tester Alpha 2026-09-28: el archivo real traía una fila de título ("PLAN DE
+  // CUENTAS") antes de la fila de encabezados — se tomaba como encabezados y la fila de
+  // encabezados real se procesaba como una cuenta con código "", disparando el mensaje
+  // de "no se pudo determinar el tipo" que en realidad no tenía nada que ver con "tipo".
+  // ---------------------------------------------------------------------------
+
+  it("[RED — header] fila de título antes del encabezado real no rompe el import", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Sheet1");
+    ws.addRow(["PLAN DE CUENTAS"]);
+    ws.addRow(["Código", "Descripción", "G/M", "Nivel", "Pre.", "Ter.", "C/C", "Clase", "Tipo"]);
+    ws.addRow(["1", "ACTIVOS", "G", "1", "NO", "NO", "NO", "M", "O"]);
+    ws.addRow(["1.1.01.01.001", "Caja Principal", "M", "5", "NO", "NO", "NO", "M", "C"]);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].codigo).toBe("1");
+    expect(rows[0].nombre).toBe("ACTIVOS");
+    expect(rows[0].tipo).toBe("ASSET");
+    expect(rows[1].nombre).toBe("Caja Principal");
+  });
+
+  // El caso de una fila Excel realmente vacía ya lo filtra exceljs (row.hasValues=false,
+  // ni siquiera llega a allRows) — el caso real que sí llega es una "fila en blanco" que
+  // solo tiene delimitadores (CSV exportado de otro sistema con una fila ",,," entre
+  // secciones), que sobrevive al filtro de líneas vacías porque ",,," no es un string vacío.
+  it("[RED — header] fila CSV solo con delimitadores (sin datos) entre cuentas no rompe el import", async () => {
+    const csv =
+      "codigo,nombre,tipo\n1105,Caja General,ASSET\n,,,\n2105,Proveedores,LIABILITY";
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows).toHaveLength(2);
+    expect(rows[1].codigo).toBe("2105");
+  });
+
+  it("[RED — header] sin columna 'codigo' en ningún lado del archivo → error claro", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["nombre", "tipo"],
+      [["Caja General", "ASSET"]]
+    );
+
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
+      /columna "codigo"/i
+    );
+  });
+
   it("[RED 8] nombre desde 'descripcion' cuando NO existe columna 'nombre'", async () => {
     const buffer = await makeExcelBufferFromRows(
       ["codigo", "descripcion", "tipo"],

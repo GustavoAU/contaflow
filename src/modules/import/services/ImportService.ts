@@ -71,18 +71,51 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   return result;
 }
 
+// Bug tester Alpha 2026-09-28: su archivo real trae una fila de título ("PLAN DE
+// CUENTAS", merged) antes de la fila de encabezados real — ws.eachRow salta filas
+// totalmente vacías pero NO esa fila de título (tiene una celda con contenido), así que
+// terminaba siendo allRows[0] y la fila de encabezados de verdad (Código/Descripción/...)
+// se procesaba como si fuera una CUENTA con código "" → el error de "tipo" que veía la
+// tester en realidad era este, no una columna "tipo" faltante. Se busca la fila de
+// encabezados por contenido ("codigo" en alguna celda) en vez de asumir que es la fila 0,
+// tolerando cualquier cantidad de filas de título/espaciado arriba.
+const MAX_HEADER_SCAN_ROWS = 20;
+function findHeaderRowIndex(allRows: unknown[][]): number {
+  const limit = Math.min(allRows.length, MAX_HEADER_SCAN_ROWS);
+  for (let i = 0; i < limit; i++) {
+    const normalized = (allRows[i] as (string | null)[]).map((h) =>
+      stripAccents(String(h ?? "")).toLowerCase().trim()
+    );
+    if (normalized.includes("codigo")) return i;
+  }
+  return -1;
+}
+
 // Normaliza las filas crudas (header + datos, ya separadas en columnas) al shape de
 // ImportAccountRow — compartido entre parseAccountsExcel y parseAccountsCsv para no
 // duplicar la lógica de columnas (tildes, G/M, Pre., Ter., inferencia de tipo).
 function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   if (allRows.length < 2) throw new Error("El archivo está vacío");
 
+  const headerIndex = findHeaderRowIndex(allRows);
+  if (headerIndex === -1) {
+    throw new Error(
+      'No se encontró la columna "codigo" en el archivo. Verifica que la primera fila con datos sea la fila de encabezados (codigo, nombre, tipo, descripcion) — quita cualquier título o fila en blanco antes de esa fila.'
+    );
+  }
+
   // stripAccents primero: "Código"/"Descripción" (archivo real venezolano) deben matchear
   // "codigo"/"descripcion" igual que la plantilla simple sin tilde.
-  const headers = (allRows[0] as (string | null)[]).map((h) =>
+  const headers = (allRows[headerIndex] as (string | null)[]).map((h) =>
     stripAccents(String(h ?? "")).toLowerCase().trim()
   );
-  const dataRows = allRows.slice(1);
+  // Filas separadoras totalmente en blanco entre secciones (común en un plan de cuentas
+  // real exportado de otro sistema, p.ej. un espacio entre "CAJAS" y "BANCOS") no son una
+  // cuenta — se descartan aquí en vez de reventar más abajo con el mismo error de código
+  // vacío que causaba la fila de título mal detectada como encabezado.
+  const dataRows = allRows
+    .slice(headerIndex + 1)
+    .filter((arr) => (arr as unknown[]).some((v) => String(v ?? "").trim() !== ""));
   const hasCol = (key: string) => headers.indexOf(key) >= 0;
 
   const normalized = dataRows.map((arr) => {
