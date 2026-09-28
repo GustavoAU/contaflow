@@ -9,6 +9,7 @@
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { PendingTasksService } from "@/modules/dashboard/services/PendingTasksService";
+import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 
 // ─── Tipos exportados ──────────────────────────────────────────────────────────
 
@@ -30,7 +31,10 @@ export type AICompanyContext = {
   companyName: string;
   rif: string | null;
   isSpecialContributor: boolean;
-  activePeriod: { year: number; month: number; status: string } | null;
+  // ADR-055: resuelto vía FiscalYearService.getActivePeriodInfo — siempre OPEN por
+  // construcción (un ejercicio abierto tiene sus 12 meses OPEN en paralelo, ya no
+  // hay cierre de mes individual), así que no hace falta cargar `status`.
+  activePeriod: { year: number; month: number } | null;
   totalActivo: string;
   totalPasivo: string;
   totalPatrimonio: string;
@@ -96,12 +100,10 @@ export const AIContextBuilderService = {
         select: { name: true, rif: true, isSpecialContributor: true },
       }),
 
-      // 2. Período activo
-      prisma.accountingPeriod.findFirst({
-        where: { companyId, status: "OPEN" },
-        orderBy: [{ year: "desc" }, { month: "desc" }],
-        select: { year: true, month: true, status: true },
-      }),
+      // 2. Período activo — ADR-055: FiscalYearService.getActivePeriodInfo (fuente
+      // única). Antes era un findFirst sin filtrar por ejercicio activo ni
+      // desempatar correctamente entre hasta 24 períodos OPEN simultáneos.
+      FiscalYearService.getActivePeriodInfo(companyId),
 
       // 3. Saldos bancarios
       prisma.bankAccount.findMany({
@@ -358,7 +360,7 @@ export const AIContextBuilderService = {
 
   buildSystemPrompt(ctx: AICompanyContext): string {
     const period = ctx.activePeriod
-      ? `${ctx.activePeriod.month}/${ctx.activePeriod.year} (${ctx.activePeriod.status === "OPEN" ? "ABIERTO" : "CERRADO"})`
+      ? `${ctx.activePeriod.month}/${ctx.activePeriod.year} (ABIERTO)`
       : "Sin período activo";
 
     const bankLines = ctx.bankBalances.length

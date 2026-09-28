@@ -10,7 +10,7 @@ import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
 import { QuotationService } from "@/modules/orders/services/QuotationService";
 import { OrderService } from "@/modules/orders/services/OrderService";
-import { PeriodService } from "@/modules/accounting/services/PeriodService";
+import { getActivePeriodAction } from "@/modules/accounting/actions/period.actions";
 import { getFiscalConfig, isSupportedCountry } from "@/lib/countries";
 import { todayInTimeZone } from "@/lib/today";
 import { QuotationForm } from "@/modules/orders/components/QuotationForm";
@@ -36,11 +36,12 @@ export default async function OrdersPage({ params }: Props) {
   const isAccounting = canAccess(role, ROLES.ACCOUNTING);   // OWNER, ADMIN, ACCOUNTANT
 
   // Cargar cotizaciones, órdenes y período activo en paralelo
-  const [quotations, orders, activePeriod] = await Promise.all([
+  const [quotations, orders, activePeriodResult] = await Promise.all([
     QuotationService.getQuotations(companyId),
     OrderService.getOrders(companyId),
-    PeriodService.getActivePeriod(companyId),
+    getActivePeriodAction(companyId),
   ]);
+  const activePeriod = activePeriodResult.success ? activePeriodResult.data : null;
 
   // Para el OrderForm: mostrar solo cotizaciones aprobadas que aún no tienen orden
   const approvedQuotations = quotations.filter((q) => q.status === "APPROVED");

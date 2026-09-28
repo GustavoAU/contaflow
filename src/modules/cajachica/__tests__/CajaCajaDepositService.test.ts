@@ -97,11 +97,14 @@ function makeTx(overrides: TxOverrides = {}, options: MakeTxOptions = {}) {
       // todos los happy-paths.
       findFirst: vi.fn().mockResolvedValue({ id: SOURCE_ACCOUNT, type: "ASSET" }),
     },
+    // ADR-055: findUnique(companyId_year_month).
     accountingPeriod: {
       // year/month deben coincidir con baseInput.date ("2026-06-13") — HC-02.
       // assertDateInOpenPeriod compara contra la FECHA DEL DEPÓSITO (no contra hoy),
       // por eso aquí van valores fijos que igualan baseInput.date.
-      findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: "period-1", year: 2026, month: 6, status: "OPEN", fiscalYear: { status: "OPEN" },
+      }),
     },
     cajaCajaDeposit: {
       create: depositCreate,
@@ -228,20 +231,22 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
   });
 
   it("rechaza si no hay período contable abierto", async () => {
-    makeTx({ accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) } });
+    makeTx({ accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) } });
     await expect(createDeposit(baseInput, USER_ID)).rejects.toThrow(/período/i);
   });
 
-  it("HC-02: rechaza si la fecha del depósito cae fuera del período abierto", async () => {
-    // Período abierto = junio 2026, pero el depósito viene fechado en mayo.
+  it("HC-02: rechaza si la fecha del depósito cae en un mes sin AccountingPeriod", async () => {
+    // ADR-055: assertDateInOpenPeriod ahora resuelve por findUnique(companyId,
+    // AÑO/MES DEL DEPÓSITO) — para un depósito fechado en mayo, consulta mayo, no
+    // junio. Solo existe el período de junio → el resultado real de Prisma es null
+    // (no "un período de otro mes"), así que el mensaje es "No existe...", no
+    // "fuera del período".
     makeTx({
-      accountingPeriod: {
-        findFirst: vi.fn().mockResolvedValue({ id: "period-1", year: 2026, month: 6, status: "OPEN" }),
-      },
+      accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) },
     });
     await expect(
       createDeposit({ ...baseInput, date: "2026-05-31" }, USER_ID),
-    ).rejects.toThrow(/fuera del período contable abierto/i);
+    ).rejects.toThrow(/No existe un período contable abierto/i);
   });
 });
 
@@ -567,11 +572,12 @@ function installVoidTx(rows: FakeTxRow[], deposits: FakeDeposit[] = defaultDepos
     // HAL-002: la reversión se fecha HOY y pasa por assertDateInOpenPeriod
     // → el período mock debe tener año/mes ACTUAL (getters UTC, como el service).
     accountingPeriod: {
-      findFirst: vi.fn().mockResolvedValue({
+      findUnique: vi.fn().mockResolvedValue({
         id: "period-1",
         year: now.getUTCFullYear(),
         month: now.getUTCMonth() + 1,
         status: "OPEN",
+        fiscalYear: { status: "OPEN" },
       }),
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },

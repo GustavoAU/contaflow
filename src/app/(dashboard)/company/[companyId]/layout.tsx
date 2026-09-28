@@ -68,15 +68,11 @@ export default async function CompanyLayout({ children, params }: Props) {
   // El badge de anomalías se obtiene de forma diferida (ver FloatingAIAssistant); no bloquea
   // el render del layout ni compite por conexiones durante el cold start.
   const initialAnomaly = null;
-  // eslint-disable-next-line react-hooks/purity -- Server Component: no re-renders, Date.now() es seguro aquí
-  const nowMs = Date.now();
-  const activePeriod = periodResult.success && periodResult.data
-    ? (() => {
-        const daysOpen = Math.floor(
-          (nowMs - new Date(periodResult.data.openedAt).getTime()) / 86_400_000
-        );
-        return { year: periodResult.data.year, month: periodResult.data.month, daysOpen, isStale: daysOpen > 30 };
-      })()
+  // ADR-055: el "período abierto hace >30 días" ya no tiene sentido — un ejercicio
+  // fiscal se espera que dure ~15 meses abierto (12 meses en curso + ventana de
+  // cierre). Ahora solo se muestra la etiqueta del ejercicio activo en el topbar.
+  const activeFiscalYear = periodResult.success && periodResult.data
+    ? { year: periodResult.data.fiscalYear }
     : null;
 
   return (
@@ -108,7 +104,7 @@ export default async function CompanyLayout({ children, params }: Props) {
           companyName={company.name}
           userRole={company.role as UserRole}
           grantedModules={grantedModules}
-          activePeriod={activePeriod}
+          activeFiscalYear={activeFiscalYear}
           initialRates={initialRates}
           notificationSlot={
             showNotifications ? <NotificationBell companyId={companyId} /> : null

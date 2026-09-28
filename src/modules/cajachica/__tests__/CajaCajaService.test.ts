@@ -32,7 +32,8 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       count: vi.fn(),
     },
-    accountingPeriod: { findFirst: vi.fn() },
+    // ADR-055: assertDateInOpenPeriod ahora resuelve por findUnique(companyId_year_month).
+    accountingPeriod: { findUnique: vi.fn() },
     companySettings: { findFirst: vi.fn() },
     account: { findFirst: vi.fn() },
     employee: { findFirst: vi.fn() },
@@ -58,7 +59,10 @@ const CUSTODIAN_ID = "emp-1";
 const NOW = new Date();
 const PERIOD_YEAR = NOW.getUTCFullYear();
 const PERIOD_MONTH = NOW.getUTCMonth() + 1;
-const OPEN_PERIOD = { id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN" };
+const OPEN_PERIOD = {
+  id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN",
+  fiscalYear: { status: "OPEN" },
+};
 
 function makeCaja(overrides = {}) {
   return {
@@ -494,7 +498,7 @@ function makeCloseTx(overrides: TxOverrides = {}, remaining: string | number = 0
   const tx = {
     cajaCaja: { findFirst, update: cajaUpdate, count: cajaCount },
     account: { findFirst: accountFindFirst },
-    accountingPeriod: { findFirst: periodFindFirst },
+    accountingPeriod: { findUnique: periodFindFirst },
     journalEntry: { aggregate },
     transaction: { create: txCreate },
     auditLog: { create: auditCreate },
@@ -730,7 +734,7 @@ function makeReopenTx(
       update: txUpdate,
       count: txCount,
     },
-    accountingPeriod: { findFirst: periodFindFirst },
+    accountingPeriod: { findUnique: periodFindFirst },
     auditLog: { create: auditCreate },
     ...overrides,
   };
@@ -998,7 +1002,7 @@ describe("reopenCajaCaja", () => {
   it("sin período OPEN con reversa pendiente → propaga error de período (no crea reversa, no restaura)", async () => {
     const { reopenCajaCaja } = await import("../services/CajaCajaService");
     const { txCreate, cajaUpdate, auditCreate } = makeReopenTx({
-      accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) },
+      accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) },
     });
 
     await expect(reopenCajaCaja(reopenInput, USER_ID)).rejects.toThrow();

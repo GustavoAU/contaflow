@@ -28,7 +28,10 @@ const MONTH = "2026-06";
 const NOW = new Date();
 const PERIOD_YEAR = NOW.getUTCFullYear();
 const PERIOD_MONTH = NOW.getUTCMonth() + 1;
-const OPEN_PERIOD_NOW = { id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN" };
+const OPEN_PERIOD_NOW = {
+  id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN",
+  fiscalYear: { status: "OPEN" },
+};
 
 type TxOverrides = Record<string, unknown>;
 
@@ -262,10 +265,11 @@ function makePostTx(overrides: TxOverrides = {}) {
       }),
       update: reimbUpdate,
     },
+    // ADR-055: findUnique(companyId_year_month) — HAL-002: assertDateInOpenPeriod
+    // compara contra HOY, así que el período mockeado debe ser el del mes/año
+    // actual (no un mes fijo), si no fallaría según el calendario.
     accountingPeriod: {
-      // HAL-002: assertDateInOpenPeriod compara contra HOY → el período abierto debe
-      // ser el del mes/año actual (no un mes fijo), si no fallaría según el calendario.
-      findFirst: vi.fn().mockResolvedValue(OPEN_PERIOD_NOW),
+      findUnique: vi.fn().mockResolvedValue(OPEN_PERIOD_NOW),
     },
     transaction: { create: txCreate },
     cajaCajaMovement: { updateMany: movUpdateMany },
@@ -385,29 +389,22 @@ describe("postReimbursement — asiento al Mayor (partida doble N4)", () => {
 
   it("rechaza si no hay período contable abierto", async () => {
     makePostTx({
-      accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null) },
+      accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) },
     });
     await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(/período/i);
   });
 
-  it("HAL-002: rechaza si HOY no cae dentro del período abierto (período de otro mes)", async () => {
-    // Período abierto = un mes distinto al actual → assertDateInOpenPeriod (que compara
-    // contra hoy) lanza "...fuera del período contable abierto...". Construimos el mes
-    // anterior de forma robusta cruzando el límite de año (enero → diciembre año-1).
-    const prevMonth = PERIOD_MONTH === 1 ? 12 : PERIOD_MONTH - 1;
-    const prevYear = PERIOD_MONTH === 1 ? PERIOD_YEAR - 1 : PERIOD_YEAR;
+  it("HAL-002: rechaza si HOY no cae dentro de ningún período abierto", async () => {
+    // ADR-055: assertDateInOpenPeriod ahora resuelve por findUnique(companyId,
+    // AÑO/MES DE HOY) — ya no "busca el período OPEN y compara". Si no existe un
+    // AccountingPeriod exactamente para hoy (p. ej. el ejercicio activo no cubre la
+    // fecha actual), el resultado real de Prisma sería null, no "un período de otro
+    // mes" — el mensaje cambia de "fuera del período" a "No existe un período...".
     const { txCreate, movUpdateMany, reimbUpdate } = makePostTx({
-      accountingPeriod: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "period-old",
-          year: prevYear,
-          month: prevMonth,
-          status: "OPEN",
-        }),
-      },
+      accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) },
     });
     await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(
-      /fuera del período/i
+      /No existe un período contable abierto/i
     );
     // No debe contabilizar ni marcar REIMBURSED/POSTED si la fecha no cae en el período.
     expect(txCreate).not.toHaveBeenCalled();

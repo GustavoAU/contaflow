@@ -40,7 +40,9 @@ type SerializedFiscalYearCloseSummary = Omit<
 
 type Props = {
   companyId: string;
-  yearToClose: number;
+  // ADR-055: null cuando no hay ningún ejercicio fiscal OPEN (empresa sin ejercicio
+  // abierto todavía) — el botón de cierre no tiene sentido sin un ejercicio que cerrar.
+  yearToClose: number | null;
   isConfigured: boolean;
   history: SerializedFiscalYearCloseSummary[];
 };
@@ -55,6 +57,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
   const appropriateWithStepUp = useReverification(appropriateFiscalYearResultAction);
 
   function handleClose() {
+    if (yearToClose === null) return;
     startClose(async () => {
       try {
         const result = await closeFiscalYearWithStepUp({ companyId, year: yearToClose });
@@ -106,11 +109,19 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
     });
   }
 
-  const alreadyClosed = localHistory.some((r) => r.year === yearToClose);
+  const alreadyClosed = yearToClose !== null && localHistory.some((r) => r.year === yearToClose);
 
   return (
     <div className="space-y-6">
       {/* ── Cierre del ejercicio actual ────────────────────────────────────── */}
+      {yearToClose === null ? (
+        <div className="rounded-lg border bg-zinc-50 p-4 text-center">
+          <p className="text-sm text-zinc-600">No hay ningún ejercicio fiscal abierto para cerrar.</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Abre un ejercicio primero en Contabilidad → Ejercicios.
+          </p>
+        </div>
+      ) : (
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -167,6 +178,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
           </p>
         )}
       </div>
+      )}
 
       {/* ── Historial de cierres ───────────────────────────────────────────── */}
       {localHistory.length > 0 && (

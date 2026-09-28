@@ -2,6 +2,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getFiscalYearCloseHistoryAction, getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
+import { getFiscalYearsAction } from "@/modules/accounting/actions/fiscal-year.actions";
 import { FiscalYearCloseManager } from "@/modules/fiscal-close/components/FiscalYearCloseManager";
 
 type Props = {
@@ -14,9 +15,10 @@ export default async function FiscalClosePage({ params }: Props) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
 
-  const [historyResult, configResult] = await Promise.all([
+  const [historyResult, configResult, fiscalYearsResult] = await Promise.all([
     getFiscalYearCloseHistoryAction(companyId),
     getFiscalConfigAction(companyId),
+    getFiscalYearsAction(companyId),
   ]);
 
   const history = historyResult.success ? historyResult.data : [];
@@ -25,10 +27,16 @@ export default async function FiscalClosePage({ params }: Props) {
     configResult.data.resultAccountId !== null &&
     configResult.data.retainedEarningsAccountId !== null;
 
-  // Año a cerrar = año en curso (o el último no cerrado)
-  const currentYear = new Date().getFullYear();
-  const closedYears = new Set(history.map((h) => h.year));
-  const yearToClose = closedYears.has(currentYear) ? currentYear - 1 : currentYear;
+  // ADR-055: el ejercicio a cerrar es el OPEN más ANTIGUO (a lo sumo 2 abiertos a la
+  // vez, D-9) — no "el año en curso": el ejercicio activo sigue abierto en paralelo
+  // mientras se cierra el anterior. Sin ningún OPEN → null (estado vacío en el
+  // manager: "abre un ejercicio primero").
+  const fiscalYears = fiscalYearsResult.success ? fiscalYearsResult.data : [];
+  const openFiscalYears = fiscalYears.filter((fy) => fy.status === "OPEN");
+  const yearToClose =
+    openFiscalYears.length > 0
+      ? Math.min(...openFiscalYears.map((fy) => fy.year))
+      : null;
 
   // Serializar Decimals para el client component
   const serializedHistory = history.map((r) => ({

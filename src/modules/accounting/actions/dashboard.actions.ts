@@ -6,6 +6,7 @@ import { Decimal } from "decimal.js";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
+import { FiscalYearService } from "../services/FiscalYearService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -13,7 +14,12 @@ type DashboardMetrics = {
   totalAccounts: number;
   totalTransactions: number;
   monthTransactions: number;
-  activePeriod: Awaited<ReturnType<typeof prisma.accountingPeriod.findFirst>>;
+  // ADR-055: delega en FiscalYearService.getActivePeriodInfo (fuente única) — antes
+  // era `accountingPeriod.findFirst({status:'OPEN'}, orderBy year desc)` sin filtrar
+  // por ejercicio activo ni desempatar por mes: con hasta 24 períodos OPEN
+  // simultáneos (2 ejercicios × 12 meses) podía devolver un mes arbitrario del año
+  // más alto, no necesariamente el mes vigente del ejercicio activo.
+  activePeriod: Awaited<ReturnType<typeof FiscalYearService.getActivePeriodInfo>>;
   lastTransaction: { number: string; description: string; date: Date } | null;
   totalAssets: string;
   totalLiabilities: string;
@@ -51,10 +57,7 @@ export async function getDashboardMetricsAction(
       prisma.transaction.count({
         where: { companyId, status: "POSTED", date: { gte: monthStart } },
       }),
-      prisma.accountingPeriod.findFirst({
-        where: { companyId, status: "OPEN" },
-        orderBy: { year: "desc" },
-      }),
+      FiscalYearService.getActivePeriodInfo(companyId),
       prisma.transaction.findFirst({
         where: { companyId, status: "POSTED" },
         orderBy: { date: "desc" },

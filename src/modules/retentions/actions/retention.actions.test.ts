@@ -42,6 +42,11 @@ vi.mock("@/lib/prisma", () => ({
     accountingPeriod: {
       findFirst: vi.fn(),
     },
+    // ADR-055: getActivePeriodAction delega en FiscalYearService.getActiveFiscalYear,
+    // que consulta prisma.fiscalYear (no accountingPeriod directo).
+    fiscalYear: {
+      findFirst: vi.fn(),
+    },
     companySettings: {
       findUnique: vi.fn(),
     },
@@ -943,9 +948,20 @@ describe("getActivePeriodAction", () => {
   });
 
   it("retorna el período activo cuando existe", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+    // ADR-055: getActivePeriodAction delega en FiscalYearService.getActiveFiscalYear
+    // (prisma.fiscalYear, no accountingPeriod directo) — un solo período en la lista
+    // hace el resultado determinístico sin importar qué día corre el test.
+    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({
+      id: "fy-1",
+      companyId: "company-1",
       year: 2026,
-      month: 3,
+      startMonth: 1,
+      status: "OPEN",
+      openedAt: new Date("2026-01-01"),
+      openedBy: "user-1",
+      closedAt: null,
+      closedBy: null,
+      periods: [{ id: "ap-1", year: 2026, month: 3, status: "OPEN" }],
     } as never);
 
     const result = await getActivePeriodAction("company-1");
@@ -956,7 +972,7 @@ describe("getActivePeriodAction", () => {
   });
 
   it("retorna null cuando no hay período activo", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue(null);
 
     const result = await getActivePeriodAction("company-1");
 

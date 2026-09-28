@@ -28,6 +28,7 @@ import {
 } from "../services/RetentionService";
 import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
+import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 import { mapPrismaError, isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -614,6 +615,12 @@ export async function findInvoiceByNumberAction(
 // ─── Período contable activo (ALERTA 20) ─────────────────────────────────────
 export type ActivePeriod = { year: number; month: number };
 
+// ADR-055: delega en FiscalYearService.getActivePeriodInfo (fuente única, también la
+// usa accounting/actions/period.actions.ts) — la query directa que tenía este archivo
+// antes (`accountingPeriod.findFirst` con `orderBy` global) tenía el mismo bug de
+// cardinalidad que existía en PeriodService.getActivePeriod: con el modelo de
+// ejercicios puede haber hasta 24 períodos OPEN a la vez, y sin filtrar por el
+// ejercicio ACTIVO podía devolver el mes equivocado.
 export async function getActivePeriodAction(
   companyId: string
 ): Promise<ActionResult<ActivePeriod | null>> {
@@ -623,13 +630,8 @@ export async function getActivePeriodAction(
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;
 
-    const period = await prisma.accountingPeriod.findFirst({
-      where: { companyId, status: "OPEN" },
-      orderBy: [{ year: "desc" }, { month: "desc" }],
-      select: { year: true, month: true },
-    });
-
-    return { success: true, data: period ?? null };
+    const info = await FiscalYearService.getActivePeriodInfo(companyId);
+    return { success: true, data: info ? { year: info.year, month: info.month } : null };
   } catch (e) {
     return toActionError(e);
   }

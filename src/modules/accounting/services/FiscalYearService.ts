@@ -25,6 +25,15 @@ export type FiscalYearWithPeriods = {
   periods: FiscalYearPeriod[];
 };
 
+export type ActiveFiscalPeriodInfo = {
+  id: string;
+  year: number;
+  month: number;
+  openedAt: Date;
+  /** Etiqueta del ejercicio activo (para el badge "Ejercicio activo: {año}"). */
+  fiscalYear: number;
+};
+
 const MAX_CONCURRENT_OPEN_FISCAL_YEARS = 2;
 
 /** Índice cronológico mes-a-mes desde el inicio del ejercicio (D-8 / fix H-2). */
@@ -177,4 +186,41 @@ export class FiscalYearService {
 
   /** Índice cronológico (mes 0 = primer mes del ejercicio) — expuesto para closeFiscalYear (fix H-2). */
   static chronologicalKey = chronologicalKey;
+
+  /**
+   * "Período activo" derivado del ejercicio activo — el mes de HOY si cae en un
+   * período OPEN del ejercicio activo, si no el más reciente de ese ejercicio. Fuente
+   * única: `period.actions.ts` y `retention.actions.ts` (ALERTA 20) tenían cada uno su
+   * propia consulta duplicada (`accountingPeriod.findFirst` con `orderBy` global) —
+   * mismo bug de cardinalidad: con el modelo de ejercicios puede haber hasta 24
+   * períodos OPEN simultáneos (2 ejercicios × 12 meses), y un `findFirst` sin filtrar
+   * por el ejercicio ACTIVO podía devolver el mes más reciente del ejercicio
+   * equivocado (p. ej. el que está en su ventana de cierre, no el activo).
+   */
+  static async getActivePeriodInfo(companyId: string): Promise<ActiveFiscalPeriodInfo | null> {
+    const fiscalYear = await this.getActiveFiscalYear(companyId);
+    if (!fiscalYear || fiscalYear.periods.length === 0) return null;
+
+    const today = new Date();
+    const ty = today.getUTCFullYear();
+    const tm = today.getUTCMonth() + 1;
+
+    const current = fiscalYear.periods.find(
+      (p) => p.year === ty && p.month === tm && p.status === "OPEN"
+    );
+    const mostRecent = [...fiscalYear.periods].sort(
+      (a, b) =>
+        chronologicalKey(fiscalYear.year, fiscalYear.startMonth, b) -
+        chronologicalKey(fiscalYear.year, fiscalYear.startMonth, a)
+    )[0];
+    const chosen = current ?? mostRecent;
+
+    return {
+      id: chosen.id,
+      year: chosen.year,
+      month: chosen.month,
+      openedAt: fiscalYear.openedAt,
+      fiscalYear: fiscalYear.year,
+    };
+  }
 }
