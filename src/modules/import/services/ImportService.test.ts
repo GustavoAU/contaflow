@@ -422,6 +422,51 @@ describe("ImportService.importAccounts", () => {
   });
 });
 
+// Bug tester Alpha 2026-09-28: su archivo era .xls (no soportado, distinto bug), pero
+// CSV compartía el mismo defecto de fondo — usaba wb.xlsx.load() para todo, y un CSV
+// nunca es un zip válido. parseAccountsCsv es la implementación real, separada.
+describe("ImportService.parseAccountsCsv", () => {
+  it("parsea un CSV separado por comas", async () => {
+    const csv = "codigo,nombre,tipo,descripcion\n1105,Caja General,ASSET,Efectivo\n2105,Proveedores,LIABILITY,";
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows).toHaveLength(2);
+    expect(rows[0].codigo).toBe("1105");
+    expect(rows[1].tipo).toBe("LIABILITY");
+  });
+
+  // Excel en configuración regional VE/LatAm exporta CSV con ";" — "," es el separador
+  // decimal ahí, así que Excel nunca lo usa como delimitador de columnas.
+  it("detecta ; como delimitador (CSV exportado por Excel en configuración regional VE)", async () => {
+    const csv = "codigo;nombre;tipo;descripcion\n1105;Caja General;ASSET;Efectivo en caja";
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].codigo).toBe("1105");
+    expect(rows[0].descripcion).toBe("Efectivo en caja");
+  });
+
+  it("respeta comillas — un valor con el delimitador adentro no se parte en dos columnas", async () => {
+    const csv = 'codigo,nombre,tipo\n1105,"Caja, General",ASSET';
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows[0].nombre).toBe("Caja, General");
+  });
+
+  it("ignora un BOM inicial (típico de CSV exportado por Excel en Windows)", async () => {
+    const csv = "﻿codigo,nombre,tipo\n1105,Caja General,ASSET";
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows[0].codigo).toBe("1105");
+  });
+
+  it("infiere el tipo por el dígito del código igual que parseAccountsExcel", async () => {
+    const csv = "codigo,nombre\n2105,Proveedores";
+    const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
+    expect(rows[0].tipo).toBe("LIABILITY");
+  });
+
+  it("lanza error si el archivo está vacío", async () => {
+    await expect(ImportService.parseAccountsCsv(Buffer.from("", "utf-8"))).rejects.toThrow();
+  });
+});
+
 describe("ImportService.generateAccountsTemplate", () => {
   it("genera un buffer Excel válido", async () => {
     const buffer = await ImportService.generateAccountsTemplate();
