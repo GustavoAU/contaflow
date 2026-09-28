@@ -22,6 +22,7 @@ vi.mock("../services/ImportService", () => ({
     importAccounts: vi.fn(),
     generateAccountsTemplate: vi.fn(),
     parseAccountsExcel: vi.fn(),
+    parseAccountsCsv: vi.fn(),
   },
 }));
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   vi.mocked(ImportService.importAccounts).mockResolvedValue({ created: 1, skipped: 0, errors: [] });
   vi.mocked(ImportService.generateAccountsTemplate).mockResolvedValue(Buffer.from("xlsx-data"));
   vi.mocked(ImportService.parseAccountsExcel).mockResolvedValue(SAMPLE_ROWS);
+  vi.mocked(ImportService.parseAccountsCsv).mockResolvedValue(SAMPLE_ROWS);
 });
 
 // ─── importAccountsAction ─────────────────────────────────────────────────────
@@ -130,37 +132,46 @@ describe("parseAccountsFileAction", () => {
 
   it("retorna error si no autenticado", async () => {
     mockAuth.mockResolvedValue({ userId: null });
-    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toBe("No autorizado");
   });
 
   it("ADMINISTRATIVE no puede parsear (fuera de ROLES.ACCOUNTING)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
-    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("autorizado");
   });
 
   it("ACCOUNTANT puede parsear — mismo nivel que importAccountsAction", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(true);
   });
 
-  it("happy path — decodifica base64 y delega en ImportService.parseAccountsExcel", async () => {
-    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+  it("happy path (xlsx) — decodifica base64 y delega en ImportService.parseAccountsExcel", async () => {
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(true);
     if (r.success) expect(r.data).toEqual(SAMPLE_ROWS);
     const calledWith = vi.mocked(ImportService.parseAccountsExcel).mock.calls[0][0];
     expect(Buffer.from(calledWith).toString()).toBe("xlsx-bytes");
+    expect(ImportService.parseAccountsCsv).not.toHaveBeenCalled();
+  });
+
+  it("happy path (csv) — delega en ImportService.parseAccountsCsv, no en parseAccountsExcel", async () => {
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "csv");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual(SAMPLE_ROWS);
+    expect(ImportService.parseAccountsCsv).toHaveBeenCalled();
+    expect(ImportService.parseAccountsExcel).not.toHaveBeenCalled();
   });
 
   it("propaga el mensaje de negocio si el service lanza (ej. archivo sin hojas)", async () => {
     vi.mocked(ImportService.parseAccountsExcel).mockRejectedValue(
       new Error("No se pudo leer ninguna hoja del archivo.")
     );
-    const r = await parseAccountsFileAction(COMPANY_ID, BASE64);
+    const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("ninguna hoja");
   });

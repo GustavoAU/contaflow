@@ -42,7 +42,8 @@ export async function importAccountsAction(
 
 export async function parseAccountsFileAction(
   companyId: string,
-  base64: string
+  base64: string,
+  format: "xlsx" | "csv"
 ): Promise<ActionResult<ImportAccountRow[]>> {
   try {
     // Mismo nivel que importAccountsAction (ROLES.ACCOUNTING) — leer/previsualizar el
@@ -54,7 +55,10 @@ export async function parseAccountsFileAction(
     if (!ctx.ok) return ctx.error;
 
     const buffer = Buffer.from(base64, "base64");
-    const rows = await ImportService.parseAccountsExcel(buffer);
+    const rows =
+      format === "csv"
+        ? await ImportService.parseAccountsCsv(buffer)
+        : await ImportService.parseAccountsExcel(buffer);
     return { success: true, data: rows };
   } catch (error) {
     return toActionError(error);

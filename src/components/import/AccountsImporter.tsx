@@ -54,14 +54,28 @@ export function AccountsImporter({ companyId, userId }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const validTypes = [
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.ms-excel",
-      "text/csv",
-    ];
+    const lowerName = file.name.toLowerCase();
+    const isXlsx =
+      lowerName.endsWith(".xlsx") ||
+      file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const isCsv = lowerName.endsWith(".csv") || file.type === "text/csv";
+    // .xls (Excel 97-2003, binario) NUNCA fue soportado de verdad — exceljs solo lee
+    // .xlsx (zip/OOXML). La librería que sí leía .xls (xlsx/SheetJS) se sacó del
+    // proyecto por 2 CVEs (DECISIONS.md) y no se reintroduce solo para esto. Bug tester
+    // Alpha 2026-09-28: antes esto pasaba el check y crasheaba/fallaba en el parseo sin
+    // decir por qué — ahora se avisa ANTES de intentar leerlo, con la salida real.
+    const isLegacyXls = lowerName.endsWith(".xls") || file.type === "application/vnd.ms-excel";
 
-    if (!validTypes.includes(file.type) && !file.name.endsWith(".csv")) {
-      toast.error("Solo se permiten archivos Excel (.xlsx, .xls) o CSV");
+    if (isLegacyXls) {
+      toast.error(
+        "El formato .xls (Excel antiguo) no es compatible. Abre el archivo en Excel, Google Sheets o LibreOffice y usa \"Guardar como\" → Excel (.xlsx) o CSV, y vuelve a subirlo.",
+        { duration: 10000 }
+      );
+      return;
+    }
+
+    if (!isXlsx && !isCsv) {
+      toast.error("Solo se permiten archivos Excel (.xlsx) o CSV");
       return;
     }
 
@@ -75,16 +89,16 @@ export function AccountsImporter({ companyId, userId }: Props) {
     reader.onload = async (event) => {
       try {
         const buffer = event.target?.result as ArrayBuffer;
-        // El parseo real (exceljs + inferencia de tipo por código + columnas G/M, Pre.,
-        // Ter.) vive server-side en ImportService.parseAccountsExcel — no duplicar esa
-        // lógica aquí. Bug tester Alpha 2026-09-27: el parser propio del cliente no
-        // tenía ninguno de esos ajustes ni un guard contra un archivo sin hojas legibles.
+        // El parseo real (exceljs/CSV + inferencia de tipo por código + columnas G/M,
+        // Pre., Ter.) vive server-side en ImportService — no duplicar esa lógica aquí.
+        // Bug tester Alpha 2026-09-27: el parser propio del cliente no tenía ninguno de
+        // esos ajustes ni un guard contra un archivo sin hojas legibles.
         let binary = "";
         const bytes = new Uint8Array(buffer);
         for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         const base64 = btoa(binary);
 
-        const res = await parseAccountsFileAction(companyId, base64);
+        const res = await parseAccountsFileAction(companyId, base64, isCsv ? "csv" : "xlsx");
 
         if (res.success) {
           setPreview(res.data);
@@ -220,7 +234,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
             <div className="flex flex-col items-center gap-2">
               <UploadIcon className="h-10 w-10 text-zinc-400" />
               <p className="font-medium text-zinc-600">Haz click para subir tu archivo</p>
-              <p className="text-xs text-zinc-400">Excel (.xlsx, .xls) o CSV</p>
+              <p className="text-xs text-zinc-400">Excel (.xlsx) o CSV — el .xls antiguo no es compatible</p>
             </div>
           )}
         </div>
