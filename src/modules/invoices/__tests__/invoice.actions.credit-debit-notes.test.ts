@@ -192,6 +192,39 @@ describe("createCreditNoteAction", () => {
     expect(InvoiceService.createCreditNote).not.toHaveBeenCalled();
   });
 
+  // ── Test 4b (REGRESIÓN — bypass cerrado): VIEWER CON grant explícito ──────
+  //
+  // Bug confirmado: createCreditNoteAction usaba `roles: "MEMBER_ANY"` +
+  // `hasModuleAccess(companyId, role, "invoicing")` como ÚNICO gate de rol. Un
+  // VIEWER con un grant de RolePermission al módulo "invoicing" (otorgado vía
+  // PermissionsMatrix en /settings) terminaba pudiendo crear notas de crédito —
+  // justo lo que ADR-025 prohíbe: los grants dan SOLO visibilidad de módulo,
+  // nunca deben bastar para saltarse un check de operación más restrictivo. El
+  // fix agrega `canAccess(ctx.role, ROLES.WRITERS)` después de `hasModuleAccess`.
+  it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear notas de crédito", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
+      MEMBER_VIEWER as never,
+    );
+    // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
+    // true y la mutación se ejecutara igual (el bug real y confirmado).
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
+      id: "grant-1",
+      companyId: COMPANY_ID,
+      role: "VIEWER",
+      module: "invoicing",
+    } as never);
+
+    const result = await createCreditNoteAction(VALID_NC_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe(
+        "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario",
+      );
+    }
+    expect(InvoiceService.createCreditNote).not.toHaveBeenCalled();
+  });
+
   // ── Test 5: happy path calls service and returns success ─────────────────
   it("llama al servicio y retorna success en happy path", async () => {
     const result = await createCreditNoteAction(VALID_NC_INPUT);
@@ -267,6 +300,36 @@ describe("createDebitNoteAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Facturación");
+    expect(InvoiceService.createDebitNote).not.toHaveBeenCalled();
+  });
+
+  // ── Test 7b (REGRESIÓN — bypass cerrado): VIEWER CON grant explícito ─────
+  //
+  // Mismo bug confirmado que createCreditNoteAction, en createDebitNoteAction:
+  // un VIEWER con grant de RolePermission a "invoicing" terminaba pudiendo
+  // crear notas de débito. El fix agrega `canAccess(ctx.role, ROLES.WRITERS)`
+  // después de `hasModuleAccess`.
+  it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear notas de débito", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
+      MEMBER_VIEWER as never,
+    );
+    // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
+    // true y la mutación se ejecutara igual (el bug real y confirmado).
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
+      id: "grant-1",
+      companyId: COMPANY_ID,
+      role: "VIEWER",
+      module: "invoicing",
+    } as never);
+
+    const result = await createDebitNoteAction(VALID_ND_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe(
+        "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario",
+      );
+    }
     expect(InvoiceService.createDebitNote).not.toHaveBeenCalled();
   });
 

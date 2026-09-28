@@ -9,8 +9,13 @@
 //     return { success: false, error: moduleAccessError("invoicing") };
 //   }
 //
-// IMPORTANTE: reemplaza `canAccess(member.role, ROLES.WRITERS/ACCOUNTING/...)` en mutaciones.
-// Los checks ADMIN_ONLY se mantienen DESPUÉS de esta función para operaciones más restrictivas.
+// IMPORTANTE: es un gate ADICIONAL, NUNCA el único. El guard de la action (`roles:` en
+// requireCompanyAction, o un `canAccess(ctx.role, ROLES.X)` explícito DESPUÉS de esta
+// función) debe ser SIEMPRE restrictivo por sí solo — un grant de RolePermission da
+// visibilidad de módulo, nunca debe bastar para autorizar una mutación por su cuenta.
+// `roles: "MEMBER_ANY"` + solo esta función = bug de bypass de escritura para VIEWER
+// (commit 9d59c2f, 2026-09-27; ver ADR-025 "Corrección 2026-09-27"). Los checks
+// ADMIN_ONLY / rol base de escritura van DESPUÉS de esta función, nunca a través de ella.
 //
 // Optimización: OWNER/ADMIN → retorno inmediato (sin DB).
 //               Roles con acceso base → retorno inmediato (sin DB).

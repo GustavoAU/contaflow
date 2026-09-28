@@ -62,8 +62,10 @@ Los grants afectan:
 - ✅ Navegación (nav items visibles) — v1
 - ✅ Transparencia (qué puede hacer cada rol) — v1
 - ✅ **Action-level** (P-1, mergeado) — `hasModuleAccess(companyId, role, module)` en
-  `src/lib/module-access.ts` sustituye al `canAccess()` de módulo en las mutaciones de
-  invoice / transaction / fiscal-close / payroll / retention.
+  `src/lib/module-access.ts` es un gate ADICIONAL de módulo que corre DESPUÉS de que
+  `requireCompanyAction`/`canAccess` ya autorizó el rol base para la operación, en
+  invoice / transaction / fiscal-close / payroll / retention. **`hasModuleAccess` nunca
+  debe ser el único gate de rol de una mutación** — ver corrección 2026-09-27 abajo.
 
 ### Invariante de seguridad (revisión externa de ADRs, hallazgo 5)
 
@@ -74,10 +76,25 @@ tiene acceso base (`hasBaseAccess`) **o** un grant explícito en `RolePermission
 `false`. Un grant solo puede *ampliar* el acceso de un rol grantable (ACCOUNTANT /
 ADMINISTRATIVE / VIEWER) a un módulo — nunca puede *quitar* acceso ni elevar un rol.
 
-Los checks más restrictivos (`ADMIN_ONLY`, step-up 2FA, OWNER-only) corren **después** de
-`hasModuleAccess`, no a través de él (ver comentario en `module-access.ts`). Regla a
-preservar: **ningún guard debe leer los grants para saltarse un check ADMIN_ONLY o de
-operación** — los grants son un gate de módulo, no un bypass de autorización fina.
+Los checks más restrictivos (`ADMIN_ONLY`, step-up 2FA, OWNER-only, o el rol base de
+escritura del módulo) corren **después** de `hasModuleAccess`, no A TRAVÉS de él (ver
+comentario en `module-access.ts`). Regla a preservar: **ningún guard debe leer los
+grants para saltarse un check ADMIN_ONLY o de operación** — los grants son un gate de
+módulo, no un bypass de autorización fina.
+
+**Corrección 2026-09-27 (bug real, commit 9d59c2f):** el guard de rol es SIEMPRE
+`requireCompanyAction(companyId, { roles: ROLES.X })` con `ROLES.X` restrictivo —
+`hasModuleAccess` se agrega DESPUÉS como capa extra, nunca en lugar de `roles: ROLES.X`.
+`roles: "MEMBER_ANY"` + `hasModuleAccess(...)` como único gate es el anti-patrón que
+causó el bug: `createTransactionAction`, `createInvoiceAction`, `createCreditNoteAction`,
+`createDebitNoteAction` e `importInvoiceBatchAction` usaban exactamente ese anti-patrón,
+así que un grant de módulo a VIEWER (pensado solo para visibilidad, el caso de uso de
+este ADR) le daba de facto permiso de escritura real. `voidTransactionAction` nunca tuvo
+el bug porque ya seguía el patrón correcto: `hasModuleAccess` + `canAccess(ctx.role,
+ROLES.ADMIN_ONLY)` después. Antes de agregar un módulo/action nueva que llame
+`hasModuleAccess` en una mutación: el `roles:` del guard debe ser YA restrictivo por sí
+solo (nunca `"MEMBER_ANY"`), o debe haber un `canAccess(ctx.role, ROLES.X)` explícito
+después de `hasModuleAccess` y antes de la mutación.
 
 ## Alternativas rechazadas
 

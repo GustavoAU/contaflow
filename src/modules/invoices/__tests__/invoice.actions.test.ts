@@ -114,6 +114,39 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  // REGRESIÓN (bug cerrado — hallazgo confirmado): createInvoiceAction usaba
+  // `roles: "MEMBER_ANY"` + `hasModuleAccess(companyId, role, "invoicing")` como
+  // ÚNICO gate de rol. Un VIEWER con un grant de RolePermission al módulo
+  // "invoicing" (otorgado vía PermissionsMatrix en /settings) terminaba pudiendo
+  // crear facturas — justo lo que ADR-025 prohíbe: los grants dan SOLO
+  // visibilidad de módulo, nunca deben bastar para saltarse un check de operación
+  // más restrictivo. El fix agrega `canAccess(ctx.role, ROLES.WRITERS)` después
+  // de `hasModuleAccess`.
+  it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear facturas", async () => {
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
+      { ...MEMBER, role: "VIEWER" } as never,
+    );
+    // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
+    // true y la mutación se ejecutara igual (el bug real y confirmado).
+    vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
+      id: "grant-1",
+      companyId: COMPANY_ID,
+      role: "VIEWER",
+      module: "invoicing",
+    } as never);
+
+    const result = await createInvoiceAction(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe(
+        "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario",
+      );
+    }
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(InvoiceService.create).not.toHaveBeenCalled();
+  });
+
   it("rechaza usuario sin membresía en la empresa", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
 

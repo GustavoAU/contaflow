@@ -66,6 +66,8 @@ export function PermissionsMatrix({ companyId, currentUserRole, initialGrants }:
           Los checkboxes verdes fijos son permisos del rol base (no se pueden quitar).
           Los checkboxes editables amplían el acceso de ese rol en <strong>esta empresa</strong> solamente.
           OWNER y ADMIN siempre tienen acceso total.
+          {" "}Para <strong>Observador (VIEWER)</strong>, el permiso solo da visibilidad del módulo —
+          nunca podrá crear, anular ni modificar datos, aunque el checkbox esté activado.
         </span>
       </div>
 
