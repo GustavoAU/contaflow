@@ -129,7 +129,52 @@ function p2002(target: unknown): Prisma.PrismaClientKnownRequestError {
   });
 }
 
+// REGRESIÓN 2026-10-01 (confirmada en vivo contra producción, ADR-056): con Prisma
+// 7.8.0 + @prisma/adapter-neon, `error.meta.target` NO EXISTE — `meta` llega `{}` y
+// las columnas viven en `meta.driverAdapterError.cause.constraint.fields`. Cada
+// fuente string de la lista puede traer comillas literales alrededor del nombre de
+// columna (`"companyId"`) o no (`name`), según si Postgres necesitó citarla.
+function p2002DriverAdapter(fields: string[]): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "7.8.0",
+    meta: {
+      modelName: "Account",
+      driverAdapterError: {
+        name: "DriverAdapterError",
+        cause: {
+          originalCode: "23505",
+          originalMessage: 'duplicate key value violates unique constraint "x"',
+          kind: "UniqueConstraintViolation",
+          constraint: { fields },
+        },
+      },
+    },
+  });
+}
+
 describe("p2002TargetIncludes", () => {
+  // ── forma REAL de Prisma 7.8.0 + adaptador de Neon (meta.driverAdapterError) ──
+
+  it("[REGRESIÓN 2026-10-01] forma driverAdapterError.cause.constraint.fields, columna sin comillas → true", () => {
+    expect(p2002TargetIncludes(p2002DriverAdapter(['"companyId"', "name"]), "name")).toBe(true);
+  });
+
+  it("[REGRESIÓN 2026-10-01] columna CON comillas literales en fields → se despojan antes de comparar", () => {
+    expect(p2002TargetIncludes(p2002DriverAdapter(['"companyId"', "name"]), "companyId")).toBe(true);
+  });
+
+  it("[REGRESIÓN 2026-10-01] columna que no está en fields → false", () => {
+    expect(p2002TargetIncludes(p2002DriverAdapter(['"companyId"', "code"]), "name")).toBe(false);
+  });
+
+  it("[REGRESIÓN 2026-10-01] misma reproducción exacta medida en producción (ADR-056)", () => {
+    const real = p2002DriverAdapter(['"companyId"', "name"]);
+    expect(p2002TargetIncludes(real, "name")).toBe(true);
+    expect(p2002TargetIncludes(real, "code")).toBe(false);
+  });
+
+
   // ── target ARRAY (la forma real con el adaptador de Neon) ───────────────────
 
   it("array que contiene la columna → true", () => {

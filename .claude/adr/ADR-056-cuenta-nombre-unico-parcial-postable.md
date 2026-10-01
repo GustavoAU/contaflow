@@ -69,3 +69,17 @@ Cero colisiones existentes entre cuentas de movimiento en toda la base — el í
 - Un plan de cuentas real con niveles de título que repiten nombre (patrón confirmado, no hipotético) ahora importa completo.
 - `prisma db pull`/`migrate diff` reportarían el índice parcial como no representado en el schema — aceptable, mismo trade-off ya aceptado en ADR-035; el workflow de migraciones de este proyecto es manual.
 - `scripts/verify-schema-drift.mjs` ya excluye índices parciales (`indpred IS NULL`) — no hace falta tocarlo.
+
+## Hallazgo colateral: `p2002TargetIncludes` estaba roto en TODO el proyecto
+
+Al probar este fix contra producción (`Book 1.xlsx` real, empresa "Empresa los Pollos"), 6 filas con duplicado real de nombre entre cuentas de movimiento (p.ej. "Diferencial Cambiario" reusado en Ingresos Extraordinarios, Compras y Otros Egresos — tres cuentas de movimiento distintas, mismo nombre, genuinamente ambiguo) seguían mostrando "error al importar" genérico en vez del mensaje de negocio nuevo.
+
+Diagnóstico en vivo (script `tsx` directo contra Neon, con limpieza posterior — 0 filas residuales verificadas): con **Prisma 7.8.0 + `@prisma/adapter-neon`**, `error.meta.target` **ya no existe** — `meta` llega `{}`. Las columnas del constraint viven anidadas en `error.meta.driverAdapterError.cause.constraint.fields`, cada una con o sin comillas literales (`'"companyId"'` vs `'name'`) según si Postgres necesitó citar el identificador.
+
+`p2002TargetIncludes` (fuente única en `src/lib/prisma-errors.ts`) solo sabía leer `meta.target` — devolvía `false` para **cualquier** columna, en los **~13 módulos** que lo usan: `ImportService`, retenciones, facturas/notas, pagos (idempotencia), `IncomeDistributionService`, `ExpenseService`, `PayrollRun`, inventario (UoM + operaciones). Ninguno de los tests existentes lo detectó porque todos mockean `meta: { target }` directo (la forma vieja) — nunca la forma real que Prisma 7.8.0 produce.
+
+**Corregido en la fuente única**: `p2002TargetIncludes` ahora prueba primero `meta.driverAdapterError.cause.constraint.fields` (despojando comillas) y cae a `meta.target` como compatibilidad hacia atrás. 4 tests nuevos reproduciendo la forma real medida en producción; los 28 tests existentes (forma vieja) siguen en verde sin cambios — confirma que la función ahora cubre ambas formas.
+
+Se verificó también `isExclusionViolation` (mismo archivo, usada solo por `PayrollRun_no_overlap_active`) con el mismo método de diagnóstico en vivo: **no está afectada** — una violación de restricción EXCLUDE no pasa por `PrismaClientKnownRequestError`/`meta` en absoluto, llega como `DriverAdapterError` crudo con el nombre del constraint directo en `.message`, que es justo lo que esa función ya inspecciona.
+
+**Impacto real de la ventana rota** (antes de este fix): cualquier P2002 en correlativos (Z-1), retenciones, idempotencia de pagos, etc. caía silenciosamente a la rama *menos específica* de cada catch (mensaje genérico o lógica de reintento que nunca se disparaba), en vez de distinguir la columna real del constraint. No se cuantificó cuánto tiempo llevaba así (depende de cuándo se actualizó Prisma a 7.8.0) ni si causó algún síntoma ya reportado por la tester sin diagnosticar — queda como posible explicación retroactiva de mensajes de error genéricos vistos antes de hoy.

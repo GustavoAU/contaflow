@@ -66,6 +66,20 @@ export function isPrismaError(error: unknown, code: string): error is Prisma.Pri
  * Sirve para distinguir QUÉ constraint chocó cuando un modelo tiene varios: sin
  * esto, PayrollRun mapeaba cualquier P2002 al mensaje del período aunque el choque
  * fuese de `idempotencyKey` (doble submit), mintiendo al usuario.
+ *
+ * REGRESIÓN 2026-10-01 (barrido tras ADR-056): con Prisma 7.8.0 + el adaptador de
+ * Neon, `error.meta.target` YA NO EXISTE — las columnas viven anidadas en
+ * `error.meta.driverAdapterError.cause.constraint.fields`. `error.meta` llega `{}`
+ * a secas. Confirmado en vivo contra producción (índice parcial de ADR-056):
+ * `p2002TargetIncludes` devolvía `false` SIEMPRE, para CUALQUIER columna, en TODOS
+ * los ~13 módulos que lo usan (correlativos Z-1, retenciones, idempotencia de
+ * pagos, PayrollRun, inventario) — cada uno caía silenciosamente a su rama
+ * genérica/menos específica sin que ningún test lo detectara, porque los tests
+ * mockean `meta: { target }` directo (la forma vieja, nunca la real). `fields`
+ * puede traer cada columna con comillas literales (`"companyId"`) o sin ellas
+ * (`name`) según si Postgres necesitó citar el identificador — se despojan antes
+ * de comparar. Se prueba esta forma PRIMERO y se cae a `meta.target` como
+ * compatibilidad hacia atrás (otros drivers, o un Prisma más viejo).
  */
 /**
  * Violación de una restricción de EXCLUSIÓN de Postgres (SQLSTATE 23P01).
@@ -93,7 +107,18 @@ export function isExclusionViolation(error: unknown, constraintName: string): bo
 
 export function p2002TargetIncludes(error: unknown, column: string): boolean {
   if (!isPrismaError(error, "P2002")) return false;
-  const target = (error.meta as { target?: unknown } | undefined)?.target;
+  const meta = error.meta as Record<string, unknown> | undefined;
+
+  // Forma real con Prisma 7.8.0 + adaptador de Neon (ver comentario arriba) —
+  // probar ESTA primero: cuando aplica, `meta.target` llega vacío (`meta: {}`).
+  const driverFields = (
+    meta?.driverAdapterError as { cause?: { constraint?: { fields?: unknown } } } | undefined
+  )?.cause?.constraint?.fields;
+  if (Array.isArray(driverFields)) {
+    return driverFields.some((c) => String(c).replace(/^"|"$/g, "") === column);
+  }
+
+  const target = meta?.target;
   if (Array.isArray(target)) return target.some((c) => String(c) === column);
   // Se parte por coma y se recorta, en vez de usar una clase de regex: el
   // DETAIL de Postgres llega como `Key (companyId, idempotencyKey)=(...)`.
