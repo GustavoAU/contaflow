@@ -627,6 +627,9 @@ describe("ImportService.importAccounts", () => {
     expect(result.created).toBe(0);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain("Caja General");
+    // Feedback del dueño 2026-10-01: el mensaje debe sugerir la acción al usuario
+    // (cambiar el nombre), no solo describir el choque.
+    expect(result.errors[0]).toContain("cámbiale el nombre");
     expect(result.errors[0]).not.toBe("Fila 1105: error al importar");
   });
 

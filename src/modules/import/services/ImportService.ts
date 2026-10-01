@@ -374,7 +374,10 @@ export class ImportService {
         // decirlo. Antes caía al catch genérico sin explicar cuál de los dos @@unique
         // había chocado (CLAUDE.md: "Errores Prisma al cliente? Nunca raw").
         if (p2002TargetIncludes(e, "name")) {
-          errors.push(`Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}"`);
+          errors.push(
+            `Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}" — ` +
+              `cámbiale el nombre en el archivo para diferenciarla y vuelve a importar esta fila`
+          );
         } else if (p2002TargetIncludes(e, "code")) {
           errors.push(`Fila ${row.codigo}: ya existe una cuenta con ese código`);
         } else {
