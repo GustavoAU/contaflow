@@ -404,7 +404,14 @@ model Account {
   budgetLines                           BudgetLine[]
 
   @@unique([companyId, code])
-  @@unique([companyId, name])
+  // Unicidad de nombre SOLO entre cuentas de movimiento (isPostable=true): índice único
+  // PARCIAL en BD — Prisma no soporta WHERE en @@unique (mismo patrón que ADR-035).
+  //   WHERE "isPostable" = true → permite que una cuenta de título repita el nombre de
+  //   su padre o de otra rama (patrón real: "1.1.03 ANTICIPOS Y AVANCES" título y
+  //   "1.1.03.01 ANTICIPOS Y AVANCES" título intermedio, mismo nombre, ambas G).
+  //   Vive en la migración 20261001_account_name_unique_postable_only. Ver ADR-056.
+  //   account.actions.ts usa findFirst (no findUnique) para el check de duplicados.
+  @@index([companyId, isPostable])
 }
 
 model IGTFTransaction {

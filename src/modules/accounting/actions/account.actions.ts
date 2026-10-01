@@ -110,13 +110,17 @@ export async function createAccountAction(
       };
     }
 
-    // Verificar que el nombre no exista en esta empresa
-    const existingName = await prisma.account.findUnique({
+    // Verificar que el nombre no exista en esta empresa — solo entre cuentas de
+    // MOVIMIENTO (ADR-056): el índice único en BD es parcial (WHERE isPostable=true),
+    // así que una cuenta creada aquí (siempre postable, este form no tiene G/M) puede
+    // coincidir en nombre con una cuenta de título sin problema. findFirst en vez de
+    // findUnique porque ya no existe un @@unique compuesto (companyId, name) que
+    // Prisma pueda generar como índice compuesto.
+    const existingName = await prisma.account.findFirst({
       where: {
-        companyId_name: {
-          companyId: validated.companyId,
-          name: validated.name,
-        },
+        companyId: validated.companyId,
+        name: validated.name,
+        isPostable: true,
       },
     });
 

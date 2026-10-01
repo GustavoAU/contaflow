@@ -158,11 +158,10 @@ describe("createAccountAction", () => {
     if (!result.success) expect(result.error).toContain("1105");
   });
 
-  it("rechaza nombre duplicado en la misma empresa", async () => {
-    // Primer findUnique (código) → null, segundo (nombre) → existente
-    vi.mocked(prisma.account.findUnique)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(BASE_ACCOUNT as never);
+  it("rechaza nombre duplicado en la misma empresa (contra otra cuenta de MOVIMIENTO)", async () => {
+    // findUnique (código) → null; findFirst (nombre, solo isPostable:true) → existente
+    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(BASE_ACCOUNT as never);
 
     const result = await createAccountAction({
       companyId: "company-1",
@@ -175,6 +174,38 @@ describe("createAccountAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Caja General");
+  });
+
+  // ADR-056: el único de (companyId, name) es PARCIAL en BD (WHERE isPostable=true) —
+  // una cuenta de título puede repetir nombre con otra cuenta sin bloquear nada. El
+  // check de la action debe filtrar por isPostable:true explícitamente, nunca comparar
+  // contra TODAS las cuentas de la empresa.
+  it("permite nombre duplicado contra una cuenta de TÍTULO — el check solo mira cuentas de movimiento", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+    // findFirst con isPostable:true no encuentra nada (la única coincidencia de
+    // nombre es una cuenta de título, fuera del alcance del check)
+    vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(null);
+    vi.mocked(prisma.account.create).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await createAccountAction({
+      companyId: "company-1",
+      name: "CIRCULANTE",
+      code: "1.2",
+      type: "ASSET",
+      isMonetary: false,
+      isCurrent: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.account.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: "company-1",
+          name: "CIRCULANTE",
+          isPostable: true,
+        }),
+      })
+    );
   });
 
   it("rechaza codigo con formato invalido", async () => {
