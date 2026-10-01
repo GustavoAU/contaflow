@@ -4,7 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { ImportService } from "../services/ImportService";
-import type { ImportAccountRow } from "../schemas/import.schema";
+import type { ImportAccountRow, ImportAccountRowError } from "../schemas/import.schema";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
@@ -15,7 +15,7 @@ export async function importAccountsAction(
   companyId: string,
   _userId: string, // kept for backward compat — ignored, uses auth() userId
   rows: ImportAccountRow[]
-): Promise<ActionResult<{ created: number; skipped: number; errors: string[] }>> {
+): Promise<ActionResult<{ created: number; skipped: number; errors: ImportAccountRowError[] }>> {
   try {
     // ROLES.ACCOUNTING (no ADMIN_ONLY): un Contador ya puede crear/editar/eliminar
     // cuentas una por una vía account.actions.ts con este mismo rol — la importación

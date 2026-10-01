@@ -29,3 +29,20 @@ export type ImportAccountRow = z.infer<typeof ImportAccountRowSchema>;
 
 export const ImportAccountsSchema = z.array(ImportAccountRowSchema).min(1, "El archivo está vacío");
 export type ImportAccountsData = z.infer<typeof ImportAccountsSchema>;
+
+// Feedback del dueño 2026-10-01: cuando el choque es de NOMBRE entre dos cuentas de
+// movimiento (ADR-056), el contador debe poder corregirlo ahí mismo en la app — un
+// input para renombrar y reintentar esa fila sola — en vez de obligarlo a editar el
+// Excel y resubir todo el archivo. `row` viaja completo (no solo el nombre) para que
+// el reintento sea exactamente `importAccounts` con esa única fila, sin reconstruir
+// nada en el cliente. `reason` distingue el único caso accionable con un rename
+// (duplicate_name) de los que no lo son (duplicate_code necesita otro CÓDIGO, no
+// nombre; unknown no tiene causa conocida que ofrecer corregir).
+export const ImportErrorReasonSchema = z.enum(["duplicate_name", "duplicate_code", "unknown"]);
+export type ImportErrorReason = z.infer<typeof ImportErrorReasonSchema>;
+
+export type ImportAccountRowError = {
+  message: string;
+  reason: ImportErrorReason;
+  row: ImportAccountRow;
+};

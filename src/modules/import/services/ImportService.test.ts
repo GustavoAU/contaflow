@@ -626,11 +626,23 @@ describe("ImportService.importAccounts", () => {
 
     expect(result.created).toBe(0);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain("Caja General");
+    expect(result.errors[0].reason).toBe("duplicate_name");
+    expect(result.errors[0].message).toContain("Caja General");
     // Feedback del dueño 2026-10-01: el mensaje debe sugerir la acción al usuario
     // (cambiar el nombre), no solo describir el choque.
-    expect(result.errors[0]).toContain("cámbiale el nombre");
-    expect(result.errors[0]).not.toBe("Fila 1105: error al importar");
+    expect(result.errors[0].message).toContain("cámbiale el nombre");
+    expect(result.errors[0].message).not.toBe("Fila 1105: error al importar");
+    // Feedback del dueño 2026-10-01: el row completo viaja en el error para que el
+    // cliente pueda ofrecer "renombrar y reintentar esta fila sola" sin reconstruirlo.
+    expect(result.errors[0].row).toEqual({
+      codigo: "1105",
+      nombre: "Caja General",
+      tipo: "ASSET",
+      descripcion: undefined,
+      isPostable: true,
+      isBudgetable: false,
+      requiresThirdParty: false,
+    });
   });
 
   it("[RED — P2002 código] choque de código que el pre-check findUnique no vio (carrera) → mensaje de negocio", async () => {
@@ -642,7 +654,8 @@ describe("ImportService.importAccounts", () => {
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
     ]);
 
-    expect(result.errors[0]).toContain("ya existe una cuenta con ese código");
+    expect(result.errors[0].reason).toBe("duplicate_code");
+    expect(result.errors[0].message).toContain("ya existe una cuenta con ese código");
   });
 
   it("[GUARDA — P2002 otro] un P2002 sin target reconocido sigue cayendo al mensaje genérico", async () => {
@@ -654,7 +667,8 @@ describe("ImportService.importAccounts", () => {
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
     ]);
 
-    expect(result.errors[0]).toBe("Fila 1105: error al importar");
+    expect(result.errors[0].reason).toBe("unknown");
+    expect(result.errors[0].message).toBe("Fila 1105: error al importar");
   });
 });
 

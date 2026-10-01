@@ -3,7 +3,11 @@ import ExcelJS from "exceljs";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
-import { ImportAccountsSchema, type ImportAccountRow } from "../schemas/import.schema";
+import {
+  ImportAccountsSchema,
+  type ImportAccountRow,
+  type ImportAccountRowError,
+} from "../schemas/import.schema";
 
 const ACCOUNT_TYPES = new Set(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]);
 
@@ -337,10 +341,10 @@ export class ImportService {
     companyId: string,
     userId: string,
     rows: ImportAccountRowInput[]
-  ): Promise<{ created: number; skipped: number; errors: string[] }> {
+  ): Promise<{ created: number; skipped: number; errors: ImportAccountRowError[] }> {
     let created = 0;
     let skipped = 0;
-    const errors: string[] = [];
+    const errors: ImportAccountRowError[] = [];
 
     for (const row of rows) {
       try {
@@ -373,15 +377,35 @@ export class ImportService {
         // cuentas de movimiento, no una colisión de título, así que vale la pena
         // decirlo. Antes caía al catch genérico sin explicar cuál de los dos @@unique
         // había chocado (CLAUDE.md: "Errores Prisma al cliente? Nunca raw").
+        //
+        // `row` completo viaja en el error (no solo el código) para que el cliente
+        // pueda ofrecer "renombrar y reintentar esta fila" sin tener que reconstruir
+        // el objeto original — feedback del dueño 2026-10-01.
+        const fullRow: ImportAccountRow = {
+          codigo: row.codigo,
+          nombre: row.nombre,
+          tipo: row.tipo as ImportAccountRow["tipo"],
+          descripcion: row.descripcion,
+          isPostable: row.isPostable ?? true,
+          isBudgetable: row.isBudgetable ?? false,
+          requiresThirdParty: row.requiresThirdParty ?? false,
+        };
         if (p2002TargetIncludes(e, "name")) {
-          errors.push(
-            `Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}" — ` +
-              `cámbiale el nombre en el archivo para diferenciarla y vuelve a importar esta fila`
-          );
+          errors.push({
+            row: fullRow,
+            reason: "duplicate_name",
+            message:
+              `Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}" — ` +
+              `cámbiale el nombre en el archivo para diferenciarla y vuelve a importar esta fila`,
+          });
         } else if (p2002TargetIncludes(e, "code")) {
-          errors.push(`Fila ${row.codigo}: ya existe una cuenta con ese código`);
+          errors.push({
+            row: fullRow,
+            reason: "duplicate_code",
+            message: `Fila ${row.codigo}: ya existe una cuenta con ese código`,
+          });
         } else {
-          errors.push(`Fila ${row.codigo}: error al importar`);
+          errors.push({ row: fullRow, reason: "unknown", message: `Fila ${row.codigo}: error al importar` });
         }
       }
     }
