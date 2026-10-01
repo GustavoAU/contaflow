@@ -1,6 +1,8 @@
 // src/modules/import/services/ImportService.ts
 import ExcelJS from "exceljs";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { ImportAccountsSchema, type ImportAccountRow } from "../schemas/import.schema";
 
 const ACCOUNT_TYPES = new Set(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]);
@@ -113,16 +115,64 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   // real exportado de otro sistema, p.ej. un espacio entre "CAJAS" y "BANCOS") no son una
   // cuenta — se descartan aquí en vez de reventar más abajo con el mismo error de código
   // vacío que causaba la fila de título mal detectada como encabezado.
+  //
+  // Bug tester Alpha 2026-10-01: su archivo real es un reporte IMPRESO de otro ERP
+  // (Perseo/Profit Plus) — repite el bloque "Nombre de empresa / RIF / 'PLAN DE
+  // CUENTAS' / fila de encabezados" cada ~45 filas (una página impresa por bloque), con
+  // un footer "Procesado por..." al cierre de cada una. Una fila de encabezados
+  // REPETIDA se procesaba como una CUENTA con código literal "Código" →
+  // inferAccountTypeFromCode fallaba y abortaba la importación COMPLETA (no solo esa
+  // fila). Se descarta aquí cualquier fila que sea ELLA MISMA un encabezado, con el
+  // mismo criterio que detecta la primera (findHeaderRowIndex).
+  const isHeaderLikeRow = (arr: unknown[]) =>
+    arr.some((v) => stripAccents(String(v ?? "")).toLowerCase().trim() === "codigo");
   const dataRows = allRows
     .slice(headerIndex + 1)
-    .filter((arr) => (arr as unknown[]).some((v) => String(v ?? "").trim() !== ""));
+    .filter((arr) => (arr as unknown[]).some((v) => String(v ?? "").trim() !== ""))
+    .filter((arr) => !isHeaderLikeRow(arr as unknown[]));
   const hasCol = (key: string) => headers.indexOf(key) >= 0;
 
-  const normalized = dataRows.map((arr) => {
+  // Bug tester Alpha 2026-10-01: su archivo real es un reporte IMPRESO de otro ERP
+  // (Perseo/Profit Plus) exportado a Excel — "Descripción" es un encabezado combinado
+  // ANCHO (varias columnas de Excel), y el texto de cada cuenta se indenta una columna
+  // más a la derecha por cada nivel jerárquico ("ACTIVOS" en una columna, "Caja
+  // Principal" cinco niveles después, varias columnas más allá). Buscar por ÍNDICE
+  // EXACTO de columna (como antes) deja el 100% de las filas sin nombre — ninguna cae
+  // justo en la columna donde vive la etiqueta "Descripción". La columna real de un dato
+  // puede ser cualquiera dentro del TRAMO [esta etiqueta, la siguiente etiqueta no
+  // vacía) según la profundidad de esa fila. Para la plantilla simple (1 encabezado = 1
+  // columna, sin combinar) el tramo mide 1 columna → mismo comportamiento de siempre.
+  const headerSpans = new Map<string, [number, number]>();
+  {
+    const labeled = headers
+      .map((h, i) => ({ h, i }))
+      .filter(({ h }) => h !== "");
+    labeled.forEach(({ h, i }, pos) => {
+      const end = pos + 1 < labeled.length ? labeled[pos + 1].i : headers.length;
+      if (!headerSpans.has(h)) headerSpans.set(h, [i, end]);
+    });
+  }
+
+  // Filas cuyo código no se pudo clasificar (sin columna "tipo" explícita ni dígito
+  // reconocible) — en un reporte impreso multi-página esto es el nombre de la empresa,
+  // el RIF, o el título "PLAN DE CUENTAS" repetidos antes de cada encabezado repetido
+  // (ninguno es una cuenta real). Se excluyen de `normalized` en vez de abortar TODA la
+  // importación por una fila que no es un dato del usuario — pero si el archivo termina
+  // sin NINGUNA fila reconocible, sí se informa (con el primer código no reconocido)
+  // en vez de un vacío "El archivo está vacío" que no explica nada.
+  const codigosNoReconocidos: string[] = [];
+
+  const normalized = dataRows.flatMap((arr) => {
     const values = arr as unknown[];
     const get = (key: string) => {
-      const idx = headers.indexOf(key);
-      return idx >= 0 ? values[idx] : undefined;
+      const span = headerSpans.get(key);
+      if (!span) return undefined;
+      const [start, end] = span;
+      for (let i = start; i < end; i++) {
+        const v = values[i];
+        if (String(v ?? "").trim() !== "") return v;
+      }
+      return undefined;
     };
 
     const codigo = String(get("codigo") ?? "").trim();
@@ -158,9 +208,8 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     } else {
       const inferred = inferAccountTypeFromCode(codigo);
       if (!inferred) {
-        throw new Error(
-          `No se pudo determinar el tipo de cuenta para el código "${codigo}" — agrega una columna "tipo" con Activo/Pasivo/Patrimonio/Ingreso/Gasto/Contra-activo.`
-        );
+        codigosNoReconocidos.push(codigo || "(vacío)");
+        return [];
       }
       tipo = inferred;
     }
@@ -187,10 +236,48 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     // ignoran a propósito (en particular NO "Clase"→isMonetary: hipótesis descartada por
     // evidencia real, ver ADR-053 — C/C confirmado pero diferido a otra tanda).
 
-    return { codigo, nombre, tipo, descripcion, isPostable, isBudgetable, requiresThirdParty };
+    return [{ codigo, nombre, tipo, descripcion, isPostable, isBudgetable, requiresThirdParty }];
   });
 
-  return ImportAccountsSchema.parse(normalized);
+  if (normalized.length === 0 && codigosNoReconocidos.length > 0) {
+    throw new Error(
+      `No se pudo determinar el tipo de cuenta para el código "${codigosNoReconocidos[0]}" — agrega una columna "tipo" con Activo/Pasivo/Patrimonio/Ingreso/Gasto/Contra-activo.`
+    );
+  }
+
+  // Bug tester Alpha 2026-10-01: una fila inválida (código/nombre/tipo vacío o
+  // desalineado con los encabezados) hacía que ImportAccountsSchema.parse() lanzara un
+  // ZodError crudo — y en Zod 4 `error.message` de un ZodError es el JSON *sin procesar*
+  // de todos los issues (`[{"origin":"string","code":"too_small",...}]`), que
+  // mapPrismaError no reconoce como error técnico (no tiene ninguna de sus keywords) y
+  // deja pasar tal cual hasta el toast del navegador. Un archivo con TODAS las filas
+  // desalineadas (p.ej. una columna de más antes de "código") generaba un dump de
+  // cientos de líneas de JSON ilegible en vez de un mensaje de negocio.
+  try {
+    return ImportAccountsSchema.parse(normalized);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      const filas = new Set<number>();
+      for (const issue of err.issues) {
+        const idx = issue.path[0];
+        if (typeof idx === "number") filas.add(idx + 1); // 1-indexado, fila de datos (no de Excel)
+      }
+      // Issue a nivel de ARRAY (path vacío, p.ej. ImportAccountsSchema.min(1) con 0
+      // filas) no tiene fila que señalar — su propio mensaje ("El archivo está vacío")
+      // ya es de negocio, no crudo; no envolverlo en el conteo "0 filas...".
+      if (filas.size === 0) throw new Error(err.issues[0]?.message ?? "El archivo está vacío");
+      const total = filas.size;
+      const muestra = [...filas].sort((a, b) => a - b).slice(0, 5);
+      throw new Error(
+        `${total} fila${total === 1 ? "" : "s"} del archivo no ${total === 1 ? "tiene" : "tienen"} ` +
+          `código, nombre o tipo válidos (fila${muestra.length === 1 ? "" : "s"} de datos ${muestra.join(", ")}` +
+          `${total > muestra.length ? "…" : ""}). Esto suele pasar cuando los datos quedan desalineados ` +
+          `con los encabezados (código, nombre, tipo) — revisa que no haya columnas movidas, combinadas o ` +
+          `vacías antes de los datos.`
+      );
+    }
+    throw err;
+  }
 }
 
 // Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí (a
@@ -280,8 +367,19 @@ export class ImportService {
         });
 
         created++;
-      } catch {
-        errors.push(`Fila ${row.codigo}: error al importar`);
+      } catch (e) {
+        // ADR-056: el único de (companyId, name) ahora es PARCIAL (solo entre cuentas
+        // de movimiento) — un P2002 aquí es un duplicado real de nombre entre dos
+        // cuentas de movimiento, no una colisión de título, así que vale la pena
+        // decirlo. Antes caía al catch genérico sin explicar cuál de los dos @@unique
+        // había chocado (CLAUDE.md: "Errores Prisma al cliente? Nunca raw").
+        if (p2002TargetIncludes(e, "name")) {
+          errors.push(`Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}"`);
+        } else if (p2002TargetIncludes(e, "code")) {
+          errors.push(`Fila ${row.codigo}: ya existe una cuenta con ese código`);
+        } else {
+          errors.push(`Fila ${row.codigo}: error al importar`);
+        }
       }
     }
 

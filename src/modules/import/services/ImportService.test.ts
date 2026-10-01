@@ -1,6 +1,7 @@
 // src/modules/import/services/ImportService.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ExcelJS from "exceljs";
+import { Prisma } from "@prisma/client";
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -290,6 +291,112 @@ describe("ImportService.parseAccountsExcel", () => {
     );
   });
 
+  // ---------------------------------------------------------------------------
+  // Bug tester Alpha 2026-10-01: su archivo real es un reporte IMPRESO de otro ERP
+  // (Perseo/Profit Plus) — "Descripción" es un encabezado COMBINADO ancho y el texto de
+  // cada cuenta se indenta una columna más a la derecha por nivel jerárquico. Buscar por
+  // índice exacto de columna dejaba el nombre vacío en el 100% de las filas.
+  // ---------------------------------------------------------------------------
+
+  it("[RED — indentación] 'Descripción' en columna combinada ancha: el dato puede caer en cualquier columna del tramo según la profundidad", async () => {
+    // codigo=0, descripcion=1 (ancla), 2/3/4 = parte del mismo tramo combinado, g/m=5
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "descripcion", "", "", "", "G/M"],
+      [
+        ["1", "ACTIVOS", "", "", "", "G"], // nivel 0: alineado con el ancla
+        ["1.1.01", "", "", "CAJAS", "", "G"], // nivel 2: 2 columnas más a la derecha
+        ["1.1.01.01.001", "", "", "", "Caja Principal", "M"], // nivel 4: 3 columnas más a la derecha
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0].nombre).toBe("ACTIVOS");
+    expect(rows[1].nombre).toBe("CAJAS");
+    expect(rows[1].isPostable).toBe(false); // G
+    expect(rows[2].nombre).toBe("Caja Principal");
+    expect(rows[2].isPostable).toBe(true); // M
+  });
+
+  it("[RED — indentación] la plantilla simple (1 encabezado = 1 columna) sigue funcionando igual (tramo de ancho 1)", async () => {
+    const buffer = await makeExcelBuffer([
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
+    ]);
+    const rows = await ImportService.parseAccountsExcel(buffer);
+    expect(rows[0].nombre).toBe("Caja General");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Bug tester Alpha 2026-10-01: el mismo archivo repite, cada ~45 filas (una página
+  // impresa por bloque), el nombre de la empresa, el RIF, "PLAN DE CUENTAS" y la fila de
+  // encabezados — ninguno es una cuenta real. Antes, la fila de encabezados repetida se
+  // procesaba como código "Código" → inferAccountTypeFromCode fallaba y ABORTABA TODO el
+  // archivo (no solo esa fila).
+  // ---------------------------------------------------------------------------
+
+  it("[RED — multi-página] encabezado repetido y bloque de membrete (empresa/RIF/título) se ignoran sin abortar el resto", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo"],
+      [
+        ["1105", "Caja General", "ASSET"],
+        ["FARMACIA EJEMPLO, C.A.", "", ""], // membrete repetido — no es una cuenta
+        ["R.I.F J000000000", "", ""],
+        ["codigo", "nombre", "tipo"], // encabezado repetido (página 2)
+        ["2105", "Proveedores", "LIABILITY"],
+        ["Procesado por FARMACIA EJEMPLO, C.A.", "", ""], // footer del reporte impreso
+      ]
+    );
+
+    const rows = await ImportService.parseAccountsExcel(buffer);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].codigo).toBe("1105");
+    expect(rows[1].codigo).toBe("2105");
+  });
+
+  it("[RED — multi-página] archivo con SOLO membrete (ninguna cuenta real) sigue dando un error claro", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo"],
+      [["FARMACIA EJEMPLO, C.A.", "", ""]]
+    );
+
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
+      /FARMACIA EJEMPLO/
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Bug tester Alpha 2026-10-01: ImportAccountsSchema.parse() (array completo) lanzaba un
+  // ZodError crudo cuando alguna fila quedaba inválida — en Zod 4, error.message de un
+  // ZodError es el JSON SIN PROCESAR de todos los issues, y mapPrismaError no lo reconoce
+  // como técnico, así que llegaba tal cual al toast del navegador (un dump de cientos de
+  // líneas de JSON ilegible).
+  // ---------------------------------------------------------------------------
+
+  it("[RED — error crudo] fila con código numérico pero sin nombre → mensaje de negocio, nunca el JSON crudo de Zod", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "nombre", "tipo"],
+      [
+        ["1105", "Caja General", "ASSET"],
+        ["1110", "", "ASSET"], // código válido, pero sin nombre — SÍ debe reportarse
+      ]
+    );
+
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
+      /1 fila.*no tiene.*v[aá]lid/i
+    );
+    try {
+      await ImportService.parseAccountsExcel(buffer);
+      expect.unreachable();
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg).not.toMatch(/too_small/);
+      expect(msg).not.toMatch(/"origin"/);
+      expect(msg).not.toMatch(/"path"/);
+    }
+  });
+
   it("[RED 8] nombre desde 'descripcion' cuando NO existe columna 'nombre'", async () => {
     const buffer = await makeExcelBufferFromRows(
       ["codigo", "descripcion", "tipo"],
@@ -491,6 +598,60 @@ describe("ImportService.importAccounts", () => {
     expect(prisma.account.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ requiresThirdParty: false }) })
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // ADR-056: el único de (companyId, name) es PARCIAL en BD (solo cuentas de
+  // movimiento) — un P2002 real aquí siempre es un duplicado real de nombre o código,
+  // nunca un choque de título. Antes caía al catch genérico "error al importar" sin
+  // decir cuál de los dos @@unique chocó (CLAUDE.md: nunca error crudo al cliente).
+  // ---------------------------------------------------------------------------
+
+  function p2002(target: unknown): Prisma.PrismaClientKnownRequestError {
+    return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: { target },
+    });
+  }
+
+  it("[RED — P2002 nombre] choque de nombre entre dos cuentas de MOVIMIENTO → mensaje de negocio con el nombre", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockRejectedValue(p2002(["companyId", "name"]));
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
+    ]);
+
+    expect(result.created).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Caja General");
+    expect(result.errors[0]).not.toBe("Fila 1105: error al importar");
+  });
+
+  it("[RED — P2002 código] choque de código que el pre-check findUnique no vio (carrera) → mensaje de negocio", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockRejectedValue(p2002(["companyId", "code"]));
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
+    ]);
+
+    expect(result.errors[0]).toContain("ya existe una cuenta con ese código");
+  });
+
+  it("[GUARDA — P2002 otro] un P2002 sin target reconocido sigue cayendo al mensaje genérico", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.account.create).mockRejectedValue(p2002(undefined));
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
+    ]);
+
+    expect(result.errors[0]).toBe("Fila 1105: error al importar");
   });
 });
 
