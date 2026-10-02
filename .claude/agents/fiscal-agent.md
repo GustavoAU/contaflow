@@ -1,7 +1,7 @@
 ---
 name: fiscal-agent
 description: Lógica fiscal VEN-NIF de ContaFlow. Usar para retenciones IVA/ISLR, IGTF, libro de compras/ventas, cálculo de alícuotas, validación RIF, comprobantes. Conoce Providencia 0071 SENIAT y Decreto 1808.
-tools: Read, Write
+tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 <role>

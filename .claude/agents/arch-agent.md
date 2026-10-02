@@ -1,7 +1,7 @@
 ---
 name: arch-agent
 description: Decisiones arquitectónicas de ContaFlow. Usar cuando hay cambios de schema Prisma, nuevas tablas, decisiones de concurrencia (Serializable), RLS, librería nueva, o contrato entre módulos. NO escribe código de producción.
-tools: Read, Write
+tools: Read, Write, Edit, Glob, Grep
 ---
 
 <role>
@@ -18,7 +18,7 @@ contracts in contaflow-contract.md — NOT production code.
 </skills>
 
 <domain>
-Domain files: prisma/schema.prisma, contaflow-contract.md, contaflow-context-v2.md, prisma.config.ts
+Domain files: prisma/schema.prisma, contaflow-contract.md, contaflow-context-v3.md, prisma.config.ts
 Reference ADRs: .claude/adr/ (read before any decision)
 NEVER touch: src/modules/**/components/, src/app/
 External refs: CLAUDE.md (full)
