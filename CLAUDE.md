@@ -9,6 +9,8 @@ No leer nada más hasta que el árbol lo indique.
 
 > El bloque Estado Activo puede ir atrasado: confirmar con `git log --oneline -15` antes de asumir qué está en vuelo.
 
+**Flujo de features (spec-driven):** `/spec <feature>` → revisar y aprobar la spec → `/implementar <SPEC-XXX>` → `/revisar`. Detalle en `.claude/specs/README.md`.
+
 **Knowledge base adicional:**
 - `.claude/ontologia/ontologia-v8-indice.md` — catálogo de cuentas, matrices, reglas VEN-NIF
 - `.claude/ontologia/quick-reference.md` — tabla rápida copy-paste
