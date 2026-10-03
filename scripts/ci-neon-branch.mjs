@@ -6,14 +6,20 @@
 // Entorno: NEON_API_KEY, NEON_PROJECT_ID, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //          (+ GITHUB_OUTPUT / GITHUB_ENV cuando corre dentro de Actions).
 //
-// SEGURIDAD (RN-3/RN-4): la key es PERSONAL y alcanza el proyecto de producción. Por eso:
+// AISLAMIENTO (RN-3): NEON_PROJECT_ID es un proyecto DEDICADO al CI (`contaflow-ci`), no el
+// de producción, y la key debería ser de alcance de proyecto. El branch `main` de ese
+// proyecto es un baseline VACÍO (nada corre contra él); cada corrida clona uno nuevo y
+// aplica TODAS las migraciones desde cero. No se usa `init_source: schema-only`: Neon lo
+// rechaza (412) en proyectos con el rol heredado `authenticated`, y aquí no hace falta.
+// Ningún dato de clientes puede llegar al CI porque producción vive en otro proyecto.
+//
+// SEGURIDAD (RN-4), por defensa en profundidad aunque la key sea de proyecto:
 //  - el nombre del branch se DERIVA de GITHUB_RUN_ID/ATTEMPT; nunca se acepta un id o
 //    nombre por argumento ni por entorno;
 //  - antes de cada DELETE se re-lee el branch desde la API y pasa por
 //    assertDeletableBranch (lista blanca ci-<run>-<intento>, nunca default/primary/
 //    protegido, nunca otro proyecto);
-//  - el padre es el branch `default` resuelto en cada corrida, y se clona SOLO ESQUEMA:
-//    ningún dato de clientes llega al CI;
+//  - el padre es el branch `default` resuelto en cada corrida;
 //  - el branch nace con expires_at como red de seguridad si el borrado nunca corre;
 //  - la cadena de conexión se enmascara en el log (::add-mask::) antes de escribirla.
 
@@ -108,7 +114,6 @@ async function create() {
     branch: {
       name,
       parent_id: parent.id,
-      init_source: "schema-only",
       expires_at: new Date(Date.now() + BRANCH_TTL_MS).toISOString(),
     },
     endpoints: [{ type: "read_write" }],
@@ -117,7 +122,7 @@ async function create() {
   if (typeof branchId !== "string" || !/^br-[a-z0-9-]+$/.test(branchId)) {
     throw new Error("La API no devolvió un id de branch válido");
   }
-  console.log(`Branch creado: ${name} (${branchId}) desde ${parent.name}, solo esquema`);
+  console.log(`Branch creado: ${name} (${branchId}) desde ${parent.name}`);
   await waitForOperations(created.operations);
 
   const { databases } = await api("GET", `/projects/${projectId}/branches/${branchId}/databases`);

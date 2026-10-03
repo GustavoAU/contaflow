@@ -325,8 +325,10 @@ jobs:
   # INTEGRATION (SPEC-002) — tests contra Postgres real en un branch efímero de Neon
   #
   # Lo que los mocks no ven: constraints, triggers, RLS, Serializable, P2002 con el
-  # adaptador real (LL-014). El branch es hijo SOLO-ESQUEMA del default: ningún dato de
-  # clientes llega al CI. scripts/ci-neon-branch.mjs solo borra branches ci-<run>-<intento>
+  # adaptador real (LL-014). Corre en un proyecto de Neon DEDICADO (`contaflow-ci`, baseline
+  # vacío): cada corrida clona un branch y aplica todas las migraciones desde cero, así que
+  # ningún dato de clientes ni credencial de producción está al alcance del CI.
+  # scripts/ci-neon-branch.mjs solo borra branches ci-<run>-<intento>
   # (ver scripts/lib/neon-ci-guards.mjs). NO está en `needs` de ci-result todavía:
   # se agrega después de que haya corrido en verde al menos una vez.
   # ============================================================================
@@ -384,7 +386,7 @@ jobs:
         if: steps.gate.outputs.enabled == 'true'
         run: pnpm prisma generate
 
-      - name: Crear branch efímero (solo esquema)
+      - name: Crear branch efímero
         if: steps.gate.outputs.enabled == 'true'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
