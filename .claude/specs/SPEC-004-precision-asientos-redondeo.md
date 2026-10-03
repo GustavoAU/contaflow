@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Los asientos se redondean a 4 decimales ANTES de verificar el cuadre
-estado: APROBADA   # aprobada 2026-10-03; va ANTES que SPEC-001
+estado: BORRADOR   # devuelta a borrador 2026-10-03: la contadora dijo que la unidad contable es el CENTIMO (2 decimales); ver PA-3
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -24,7 +24,7 @@ Es una **clase de bug**: hay 38 call-sites de `assertBalancedGLEntries` en ~20 s
 
 ## 2. Base legal / contable
 - Partida doble: el libro mayor debe cuadrar (VEN-NIF; COT Art. 23 / PA-121: libros íntegros y verificables).
-- Los montos se registran en Bs. (contadora, 2026-10-02). La regla de redondeo para absorber el residuo es una decisión contable: **PREGUNTA PARA CONTADOR** (sección 11, PA-2).
+- Los montos se registran en Bs. (contadora, 2026-10-02). **Contadora, 2026-10-03 (vía Gustavo):** "decimales se utilizan solo dos; si son cuatro, se redondean a dos"; los libros deben cuadrar en cero; cuando algo no cuadra "lo arreglamos, vemos por qué" y la diferencia se lleva a donde corresponde (diferencial por un cliente que no pagó en un cuadre de caja, descuento al cajero, o se ajusta una salida/pago a lo que realmente salió). Es decir: las diferencias reales se **investigan y se registran de forma explícita**, no se esconden. La regla de redondeo para absorber el residuo es una decisión contable: **PREGUNTA PARA CONTADOR** (sección 11, PA-2).
 
 ## 3. Alcance
 **Incluye:**
@@ -84,6 +84,9 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 - **R-1:** tocar 21 servicios de asientos es un cambio ancho en zona fiscal (Z-2). Hay que hacerlo por lotes con test de integración por generador, y el job `integration` ya existe para eso.
 - **R-2:** `assertBalancedGLEntries` hoy tolera 0,01; si pasa a exacto sin arreglar antes los generadores, rompe flujos reales. El orden obligatorio es: función central + generadores primero, verificación exacta después.
 - **R-3:** el asiento existente es de la empresa demo del usuario: sin riesgo operativo.
+
+- **PA-3 (PENDIENTE — decisión del usuario, 2026-10-03):** con la regla de la contadora la unidad contable es el **céntimo**, no el 4.º decimal. Consecuencias que cambian el diseño: (a) cuantizar cada línea a **2 decimales** (`scale: 2`), no a 4; (b) el residuo de redondeo ya no es sub-céntimo: con N líneas puede llegar a N × 0,005 (hasta ~0,055 Bs. en 11 líneas), **visible en reportes**; absorberlo en silencio en la línea mayor (decisión previa, tomada asumiendo 4 decimales) contradice su criterio de "diferencias explícitas". Alternativa: cuenta propia "Diferencias de redondeo" (transparente, exige configurarla por empresa; un servicio sin ella falla). (c) Los asientos históricos con 4 decimales no se tocan: el trigger exacto de SPEC-001 sigue siendo válido sobre lo guardado. (d) Cambiar a 2 decimales altera montos hoy generados a 4 en varios servicios (impacto fiscal Z-2): requiere ADR y revisión de fiscal-agent antes de implementar.
+- **Flujos de diferencias reales (fuera de alcance, a revisar):** cierre de caja con faltante (descuento al cajero) y pagos emitidos por un monto distinto del esperado ya existen en el sistema (CajaCaja, PaymentGLService); con el trigger exacto deberán registrar la diferencia de forma explícita. Se revisarán al implementar SPEC-001.
 
 ## 12. Cierre
 Lo completa `/implementar`.
