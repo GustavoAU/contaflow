@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` limpio (2026-06-13)
+**Ninguna** — branch `main` limpio (2026-10-03). SPEC-002 HECHA (CI de integración contra Neon + a11y + Prettier); SPEC-001 (trigger de cuadre) APROBADA sin implementar; SPEC-003 (a11y de formularios) BORRADOR. Ver `.claude/specs/`.
 
 ### ⚠️ PENDIENTES PRÓXIMA SESIÓN
 - **(menor) keying lecturas:** unificar keying de lecturas en `limiters.read` (algunas usan `userId` puro, otras `fiscalKey(companyId,userId)`) — cosmético, sin impacto de aislamiento (LOW de auditoría).

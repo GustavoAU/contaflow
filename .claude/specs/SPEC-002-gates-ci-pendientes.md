@@ -1,7 +1,7 @@
 ---
 id: SPEC-002
 titulo: Activar los gates de CI pendientes (Prettier, integración, accesibilidad)
-estado: EN_CURSO
+estado: HECHA
 fecha: 2026-10-01
 rama: chore/spec-002-gates-ci
 arbol: "[11]"
@@ -65,8 +65,8 @@ Componentes con test de a11y en esta spec, porque son los de mayor riesgo fiscal
 Cada test renderiza el componente en jsdom (`// @vitest-environment jsdom` en la primera línea) y corre axe.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: `pnpm format:check` pasa en local y en CI. **PENDIENTE (parte A, PR aparte):** la medición real del 2026-10-03 da 821 de 1064 archivos de `src/` sin formatear (el comentario del CI decía 237).
-- [ ] CA-2: **PENDIENTE (parte A).** El commit de formateo está en `.git-blame-ignore-revs` y no tiene cambios de lógica (`tsc` y `vitest` en verde antes y después).
+- [x] CA-1: `pnpm format:check` pasa en local y en CI (PR #53; el job `test` del CI lo ejecuta desde 2026-10-03).
+- [x] CA-2: El commit de formateo (fa349560) está en `.git-blame-ignore-revs` y no tiene cambios de lógica: árbol sintáctico equivalente en 820/821 archivos (el restante, un espacio doble a simple en texto JSX que el navegador colapsa); `tsc` 0 errores y 5434 tests en verde antes y después.
 - [x] CA-3: El job `integration` crea el branch, aplica migraciones, corre los tests y borra el branch; el log lo muestra. (run 37118866664 y 37119086681; 165 migraciones desde cero, ver ADR-057)
 - [x] CA-4: Con un test de integración que falla, el branch igual se borra. Evidencia sin fabricar un fallo: los runs 37118149880 (P2003) y 37118446313 (P2034) fallaron en `Tests de integración`, el paso `Borrar branch efímero` corrió y terminó en success, y `contaflow-ci` quedó solo con `main`.
 - [x] CA-5: (6 archivos de test: 3 limpios, 5 casos con deuda real fijada con `expectKnownA11yDebt`; la corrección va en SPEC-003) Los 5 componentes de la sección 8 tienen test de a11y en verde, o la lista de violaciones queda reportada si no se corrigen aquí.
@@ -102,7 +102,11 @@ Línea base (2026-10-02, main): tsc exit 0 · vitest 5350 tests / 256 archivos, 
 - **R-2:** las violaciones de a11y que salgan pueden ser muchas. Si pasan de unas pocas por componente, se abre una spec aparte para corregirlas.
 
 ## 12. Cierre
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+- **PRs:** #51 (job de integración, guardas, a11y), #52 (migraciones repetibles, ADR-057), #53 (Prettier masivo + chequeo en CI), #54 (`@neon/config`). Todos mergeados el 2026-10-03.
+- **Commits clave:** guardas de Neon `8fca5a28`; job de integración `f6235adb` y su endurecimiento `dc2804df`; proyecto dedicado `fe4ca08c`; migraciones repetibles `07bb4947`; formateo `fa349560`.
+- **Tests:** antes 5350 → después 5434 (56+11 de guardas Neon, 7 del helper a11y, 10 de componentes a11y). Más 3 tests de integración que corren solo en CI.
+- **ADR creado:** ADR-057 (el historial de migraciones debe poder repetirse desde cero).
+- **Lección aprendida:** LL-015.
+- **Decisiones que cambiaron el plan:** (1) Neon rechaza `schema-only` (412) por el rol heredado `authenticated` de producción, así que el CI usa un proyecto DEDICADO (`contaflow-ci`, id `jolly-grass-68240438`) con key de alcance de proyecto; (2) 2 de 164 migraciones no se podían repetir desde cero; (3) `pnpm add` podó `@neon/config`, instalado fuera de package.json.
+- **Deuda registrada, no resuelta aquí:** accesibilidad de formularios (SPEC-003, BORRADOR); la migración `20260511_contra_asset_backfill` está pendiente de aplicar en producción con el flujo manual (idempotente); el test de arquitectura `idempotency-key-tenant-scope` ("llaves balanceadas") es frágil bajo carga de memoria.
+- **Operación:** cada push a un PR requiere aprobar el environment `neon-ci` en GitHub (por diseño, protege la key de Neon).

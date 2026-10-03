@@ -150,3 +150,14 @@
 - **Fix applied**: `p2002TargetIncludes` cubre ambas formas.
 - **Golden rule**: nunca leer `meta.target` a mano; siempre `p2002TargetIncludes(e, "<columna del CONSTRAINT>")`. La columna es la del `@@unique`, no la del documento. Al subir Prisma de minor, re-verificar la forma del error P2002 contra la base real.
 - **Regression test**: `src/lib/__tests__/prisma-errors.test.ts`
+
+---
+
+## LL-015 — El historial de migraciones nunca se había repetido desde cero (2026-10-03)
+
+- **Phase detected**: SPEC-002, primer job de integración contra una BD vacía en CI (ADR-057)
+- **Context**: `prisma/migrations/` (164 migraciones aplicadas en producción con el flujo manual `db execute` + `resolve --applied`)
+- **Error**: dos migraciones no se podían repetir desde cero y nadie lo sabía porque en producción nunca se repiten. (1) `20260507_item72_legal_thresholds` duplicaba exactamente `20260428_legal_threshold` (`type already exists`). (2) `20260511_contra_asset` hacía `ALTER TYPE ... ADD VALUE` y usaba el valor nuevo en el mismo archivo (`55P04 unsafe use of new value`); Prisma ejecuta cada archivo como una transacción. Pasó meses sin detectarse: ningún test tocaba una BD real.
+- **Fix applied**: la duplicada pasó a no-op; el `UPDATE` se movió a `20260511_contra_asset_backfill`. Verificado: 165/165 desde BD vacía, 94 tablas = 94 modelos.
+- **Golden rule**: toda migración debe poder aplicarse sobre una base vacía; el job `integration` del CI lo comprueba en cada PR. Un `ADD VALUE` de enum y cualquier uso de ese valor van en migraciones separadas. Lo que nunca se ejecuta no se puede dar por verificado: probar los flujos manuales de despliegue desde cero en CI.
+- **Regression test**: job `integration` de `.github/workflows/ci.yml` (aplica `prisma migrate deploy` a un branch vacío de `contaflow-ci`)
